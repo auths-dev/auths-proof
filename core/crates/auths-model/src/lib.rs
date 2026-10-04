@@ -73,6 +73,15 @@ pub const HARD_MAX_REGISTRY_ENTRIES: usize = 1_024;
 pub const DEFAULT_MAX_REGISTRY_ENTRIES: usize = 64;
 pub const HARD_MAX_TRUST_ANCHORS: usize = 1_024;
 pub const DEFAULT_MAX_TRUST_ANCHORS: usize = 32;
+/// Hard and default bound on signed approvals in one proof.
+pub const HARD_MAX_APPROVALS: usize = 128;
+pub const DEFAULT_MAX_APPROVALS: usize = 128;
+/// Hard and default bound on approver anchors in one trusted context.
+pub const HARD_MAX_APPROVER_ANCHORS: usize = 32;
+pub const DEFAULT_MAX_APPROVER_ANCHORS: usize = 32;
+/// Hard and default bound on approval requirements in one trusted context.
+pub const HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS: usize = 4;
+pub const DEFAULT_MAX_CONTEXT_APPROVAL_REQUIREMENTS: usize = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProtocolVersion(u16);
@@ -227,9 +236,11 @@ bounded_string!(DispositionId, 128, ModelError::InvalidRegistryId);
 bounded_string!(TrustAnchorId, 128, ModelError::InvalidRegistryId);
 bounded_string!(ExtensionId, 128, ModelError::InvalidExtensionId);
 
+mod approval;
 mod bounded_policy;
 mod observation;
 
+pub use approval::*;
 pub use bounded_policy::*;
 pub use observation::*;
 
@@ -307,6 +318,8 @@ digest_identifier!(AdapterConfigurationId);
 digest_identifier!(VerifierConfigurationId);
 digest_identifier!(VerificationResultDigest);
 digest_identifier!(ObservationRequirementId);
+digest_identifier!(ApprovalRequirementId);
+digest_identifier!(ApprovalDigest);
 
 /// Unpredictable 32-byte verifier challenge compared in constant time.
 #[derive(Clone, Copy, Debug)]
@@ -2348,6 +2361,35 @@ pub fn status_issuer_in_scope(
         .all(|rule| rule.scope().covers(issuer, anchor))
 }
 
+/// Whose status evaluation a snapshot statement may take part in.
+#[derive(Clone, Copy, Debug)]
+pub enum StatusView<'a> {
+    /// A branch evaluated under this trust anchor.
+    Anchor(&'a TrustAnchor),
+    /// An approver. No trust anchor names an approver, so only an issuer the
+    /// verifier trusts for every subject (scope `any`), or one no rule names,
+    /// takes part.
+    Approver,
+}
+
+/// Returns whether a status statement from `issuer` takes part in the status
+/// evaluation `view` describes: [`status_issuer_in_scope`] for a branch, and
+/// for an approver, when every rule that names the issuer has scope `any`.
+#[must_use]
+pub fn status_issuer_visible(
+    trust: &[StatusTrustRule],
+    issuer: &PrincipalId,
+    view: StatusView<'_>,
+) -> bool {
+    match view {
+        StatusView::Anchor(anchor) => status_issuer_in_scope(trust, issuer, anchor),
+        StatusView::Approver => trust
+            .iter()
+            .filter(|rule| rule.issuer() == issuer)
+            .all(|rule| matches!(rule.scope(), StatusScope::AnyAnchor)),
+    }
+}
+
 /// Context-pinned authorization for one status issuer and exact method, with
 /// the trust anchors under which that issuer's statements count.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -2924,6 +2966,7 @@ pub struct ProofBundle {
     grant_status: Vec<SignedGrantStatus>,
     attachments: Vec<AttachmentDescriptor>,
     canonical_body: Option<Vec<u8>>,
+    approvals: Vec<SignedApproval>,
 }
 
 impl ProofBundle {
@@ -2985,7 +3028,26 @@ impl ProofBundle {
             grant_status,
             attachments,
             canonical_body,
+            approvals: Vec::new(),
         })
+    }
+
+    /// Attaches the signed approvals the presenter holds.
+    ///
+    /// Their order and repetitions carry no meaning and are kept as given;
+    /// the duplicate-object rule does not apply, because two approvals of one
+    /// statement by one deterministic signer are byte-identical.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::CollectionLimitExceeded`] above
+    /// [`HARD_MAX_APPROVALS`].
+    pub fn with_approvals(mut self, approvals: Vec<SignedApproval>) -> Result<Self, ModelError> {
+        if approvals.len() > HARD_MAX_APPROVALS {
+            return Err(ModelError::CollectionLimitExceeded);
+        }
+        self.approvals = approvals;
+        Ok(self)
     }
 
     #[must_use]
@@ -3031,6 +3093,11 @@ impl ProofBundle {
     #[must_use]
     pub fn canonical_body(&self) -> Option<&[u8]> {
         self.canonical_body.as_deref()
+    }
+    /// Returns the signed approvals in the order presented.
+    #[must_use]
+    pub fn approvals(&self) -> &[SignedApproval] {
+        &self.approvals
     }
 }
 
@@ -3521,6 +3588,9 @@ pub struct VerifierLimits {
     registry_entries: usize,
     trust_anchors: usize,
     work_units: u64,
+    approvals: usize,
+    approver_anchors: usize,
+    approval_requirements: usize,
 }
 
 /// Configurable count or byte limit in [`VerifierLimits`].
@@ -3552,6 +3622,9 @@ pub enum LimitKind {
     CanonicalBodyBytes,
     RegistryEntries,
     TrustAnchors,
+    Approvals,
+    ApproverAnchors,
+    ApprovalRequirements,
 }
 
 impl VerifierLimits {
@@ -3585,6 +3658,9 @@ impl VerifierLimits {
             registry_entries: DEFAULT_MAX_REGISTRY_ENTRIES,
             trust_anchors: DEFAULT_MAX_TRUST_ANCHORS,
             work_units: DEFAULT_MAX_WORK_UNITS,
+            approvals: DEFAULT_MAX_APPROVALS,
+            approver_anchors: DEFAULT_MAX_APPROVER_ANCHORS,
+            approval_requirements: DEFAULT_MAX_CONTEXT_APPROVAL_REQUIREMENTS,
         }
     }
 
@@ -3618,6 +3694,9 @@ impl VerifierLimits {
             registry_entries: HARD_MAX_REGISTRY_ENTRIES,
             trust_anchors: HARD_MAX_TRUST_ANCHORS,
             work_units: HARD_MAX_WORK_UNITS,
+            approvals: HARD_MAX_APPROVALS,
+            approver_anchors: HARD_MAX_APPROVER_ANCHORS,
+            approval_requirements: HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS,
         }
     }
 
@@ -3655,6 +3734,9 @@ impl VerifierLimits {
             LimitKind::CanonicalBodyBytes => self.canonical_body_bytes = value,
             LimitKind::RegistryEntries => self.registry_entries = value,
             LimitKind::TrustAnchors => self.trust_anchors = value,
+            LimitKind::Approvals => self.approvals = value,
+            LimitKind::ApproverAnchors => self.approver_anchors = value,
+            LimitKind::ApprovalRequirements => self.approval_requirements = value,
         }
         self.validate()?;
         Ok(self)
@@ -3702,6 +3784,9 @@ impl VerifierLimits {
             LimitKind::CanonicalBodyBytes => self.canonical_body_bytes,
             LimitKind::RegistryEntries => self.registry_entries,
             LimitKind::TrustAnchors => self.trust_anchors,
+            LimitKind::Approvals => self.approvals,
+            LimitKind::ApproverAnchors => self.approver_anchors,
+            LimitKind::ApprovalRequirements => self.approval_requirements,
         }
     }
 
@@ -3746,6 +3831,9 @@ impl VerifierLimits {
             || self.canonical_body_bytes > hard.canonical_body_bytes
             || self.registry_entries > hard.registry_entries
             || self.trust_anchors > hard.trust_anchors
+            || self.approvals > hard.approvals
+            || self.approver_anchors > hard.approver_anchors
+            || self.approval_requirements > hard.approval_requirements
             || self.work_units > hard.work_units
         {
             return Err(ModelError::CollectionLimitExceeded);
@@ -4111,6 +4199,8 @@ pub struct TrustedContext {
     channel_policy: ChannelBindingId,
     limits: VerifierLimits,
     observer_anchors: Vec<ObserverAnchor>,
+    approver_anchors: Vec<ApproverAnchor>,
+    approval_requirements: Vec<ApprovalRequirement>,
 }
 
 impl TrustedContext {
@@ -4198,6 +4288,8 @@ impl TrustedContext {
             channel_policy,
             limits,
             observer_anchors: Vec::new(),
+            approver_anchors: Vec::new(),
+            approval_requirements: Vec::new(),
         })
     }
 
@@ -4234,6 +4326,64 @@ impl TrustedContext {
         Ok(self)
     }
 
+    /// Replaces the approver anchors and the approval requirements.
+    ///
+    /// Approver anchors are separate from trust and observer anchors: an
+    /// approver can make its approvals count toward a requirement, but it can
+    /// never authorize an action, issue a grant, or appear in an authority
+    /// chain. Requirements are kept in the order given; the canonical
+    /// encoding orders them by identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::InvalidVerifierContext`] for more anchors or
+    /// requirements than the deployment limits allow, a repeated anchor
+    /// principal or requirement, an anchor accepting a principal method or a
+    /// principal-status method the context does not accept, or a requirement
+    /// naming a principal without an approver anchor.
+    pub fn with_approvals(
+        mut self,
+        mut approver_anchors: Vec<ApproverAnchor>,
+        approval_requirements: Vec<ApprovalRequirement>,
+    ) -> Result<Self, ModelError> {
+        approver_anchors.sort_by(|left, right| left.principal().cmp(right.principal()));
+        let anchored = |principal: &PrincipalId| {
+            approver_anchors
+                .binary_search_by(|anchor| anchor.principal().cmp(principal))
+                .is_ok()
+        };
+        if approver_anchors.len() > self.limits.get(LimitKind::ApproverAnchors)
+            || approval_requirements.len() > self.limits.get(LimitKind::ApprovalRequirements)
+            || approver_anchors
+                .windows(2)
+                .any(|window| window[0].principal() == window[1].principal())
+            || approver_anchors.iter().any(|anchor| {
+                anchor
+                    .accepted_methods()
+                    .iter()
+                    .any(|method| !self.accepted_registries.accepts_principal_method(method))
+                    || matches!(
+                        anchor.status_policy(),
+                        StatusPolicy::SnapshotRequired { method, .. }
+                            if !self.accepted_registries.accepts_principal_status_method(method)
+                    )
+            })
+            || approval_requirements
+                .iter()
+                .enumerate()
+                .any(|(index, requirement)| approval_requirements[..index].contains(requirement))
+            || approval_requirements
+                .iter()
+                .flat_map(ApprovalRequirement::approvers)
+                .any(|principal| !anchored(principal))
+        {
+            return Err(ModelError::InvalidVerifierContext);
+        }
+        self.approver_anchors = approver_anchors;
+        self.approval_requirements = approval_requirements;
+        Ok(self)
+    }
+
     /// Derives a per-request context without changing trust, registries,
     /// status, policies, or resource limits.
     ///
@@ -4263,7 +4413,11 @@ impl TrustedContext {
             self.channel_policy.clone(),
             self.limits.clone(),
         )?
-        .with_observer_anchors(self.observer_anchors.clone())
+        .with_observer_anchors(self.observer_anchors.clone())?
+        .with_approvals(
+            self.approver_anchors.clone(),
+            self.approval_requirements.clone(),
+        )
     }
 
     /// Replaces only the verifier-trusted composition requirement.
@@ -4292,7 +4446,11 @@ impl TrustedContext {
             self.channel_policy.clone(),
             self.limits.clone(),
         )?
-        .with_observer_anchors(self.observer_anchors.clone())
+        .with_observer_anchors(self.observer_anchors.clone())?
+        .with_approvals(
+            self.approver_anchors.clone(),
+            self.approval_requirements.clone(),
+        )
     }
 
     /// Replaces only the exact executable verifier configuration commitment.
@@ -4320,7 +4478,11 @@ impl TrustedContext {
             self.channel_policy.clone(),
             self.limits.clone(),
         )?
-        .with_observer_anchors(self.observer_anchors.clone())
+        .with_observer_anchors(self.observer_anchors.clone())?
+        .with_approvals(
+            self.approver_anchors.clone(),
+            self.approval_requirements.clone(),
+        )
     }
 
     /// Replaces deployment limits and revalidates the complete context.
@@ -4346,7 +4508,11 @@ impl TrustedContext {
             self.channel_policy.clone(),
             limits,
         )?
-        .with_observer_anchors(self.observer_anchors.clone())
+        .with_observer_anchors(self.observer_anchors.clone())?
+        .with_approvals(
+            self.approver_anchors.clone(),
+            self.approval_requirements.clone(),
+        )
     }
 
     /// Returns the exact verifier configuration commitment.
@@ -4411,6 +4577,24 @@ impl TrustedContext {
     #[must_use]
     pub fn observer_anchors(&self) -> &[ObserverAnchor] {
         &self.observer_anchors
+    }
+    /// Returns the approver anchors in ascending principal order.
+    #[must_use]
+    pub fn approver_anchors(&self) -> &[ApproverAnchor] {
+        &self.approver_anchors
+    }
+    /// Returns the approver anchor of `principal`, if any.
+    #[must_use]
+    pub fn approver_anchor(&self, principal: &PrincipalId) -> Option<&ApproverAnchor> {
+        self.approver_anchors
+            .binary_search_by(|anchor| anchor.principal().cmp(principal))
+            .ok()
+            .map(|index| &self.approver_anchors[index])
+    }
+    /// Returns the verifier's approval requirements.
+    #[must_use]
+    pub fn approval_requirements(&self) -> &[ApprovalRequirement] {
+        &self.approval_requirements
     }
 }
 
@@ -4537,6 +4721,7 @@ pub struct PortableVerificationResult {
     required_configuration: Option<VerifierConfigurationId>,
     local_configuration: VerifierConfigurationId,
     observation_satisfactions: Vec<ObservationSatisfaction>,
+    approval_satisfactions: Vec<ApprovalSatisfaction>,
 }
 
 impl PortableVerificationResult {
@@ -4577,6 +4762,7 @@ impl PortableVerificationResult {
             required_configuration,
             local_configuration,
             observation_satisfactions: Vec::new(),
+            approval_satisfactions: Vec::new(),
         }
     }
 
@@ -4590,6 +4776,19 @@ impl PortableVerificationResult {
         satisfactions.sort();
         satisfactions.dedup();
         self.observation_satisfactions = satisfactions;
+        self
+    }
+
+    /// Reports the approvals that counted for each approval requirement that
+    /// authorized, in canonical order. Set before the result digest is bound.
+    #[must_use]
+    pub fn with_approval_satisfactions(
+        mut self,
+        mut satisfactions: Vec<ApprovalSatisfaction>,
+    ) -> Self {
+        satisfactions.sort();
+        satisfactions.dedup();
+        self.approval_satisfactions = satisfactions;
         self
     }
 
@@ -4669,6 +4868,11 @@ impl PortableVerificationResult {
     pub fn observation_satisfactions(&self) -> &[ObservationSatisfaction] {
         &self.observation_satisfactions
     }
+    /// Returns the approvals that counted for each approval requirement.
+    #[must_use]
+    pub fn approval_satisfactions(&self) -> &[ApprovalSatisfaction] {
+        &self.approval_satisfactions
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -4718,6 +4922,7 @@ pub enum DenialReason {
     ObservationConditionFalse,
     ObserverInAuthorityChain,
     ObservationRequirementDropped,
+    ApprovalThresholdNotMet,
 }
 
 impl DenialReason {
@@ -4770,6 +4975,7 @@ impl DenialReason {
             Self::ObservationConditionFalse => "observation-condition-false",
             Self::ObserverInAuthorityChain => "observer-in-authority-chain",
             Self::ObservationRequirementDropped => "observation-requirement-dropped",
+            Self::ApprovalThresholdNotMet => "approval-threshold-not-met",
         }
     }
 
@@ -4822,6 +5028,7 @@ impl DenialReason {
             Self::ObservationConditionFalse,
             Self::ObserverInAuthorityChain,
             Self::ObservationRequirementDropped,
+            Self::ApprovalThresholdNotMet,
         ]
         .into_iter()
         .find(|reason| reason.code() == code)
@@ -4850,6 +5057,7 @@ pub enum Requirement {
     ExternalFactUnavailable,
     ObservationMissing,
     ObservationActionFactUnavailable,
+    ApprovalUnavailable,
 }
 
 impl Requirement {
@@ -4877,6 +5085,7 @@ impl Requirement {
             Self::ExternalFactUnavailable => "external-fact-unavailable",
             Self::ObservationMissing => "observation-missing",
             Self::ObservationActionFactUnavailable => "observation-action-fact-unavailable",
+            Self::ApprovalUnavailable => "approval-unavailable",
         }
     }
 
@@ -4904,6 +5113,7 @@ impl Requirement {
             Self::ExternalFactUnavailable,
             Self::ObservationMissing,
             Self::ObservationActionFactUnavailable,
+            Self::ApprovalUnavailable,
         ]
         .into_iter()
         .find(|requirement| requirement.code() == code)
@@ -4951,6 +5161,9 @@ pub enum ModelError {
     InvalidObservationRequirement,
     InvalidObserverAnchor,
     InvalidBoundedPolicy,
+    InvalidApproval,
+    InvalidApprovalRequirement,
+    InvalidApproverAnchor,
 }
 
 impl fmt::Display for ModelError {
@@ -4995,6 +5208,9 @@ impl fmt::Display for ModelError {
             Self::InvalidObservationRequirement => "invalid observation requirement",
             Self::InvalidObserverAnchor => "invalid observer anchor",
             Self::InvalidBoundedPolicy => "invalid bounded-policy commitment",
+            Self::InvalidApproval => "invalid approval",
+            Self::InvalidApprovalRequirement => "invalid approval requirement",
+            Self::InvalidApproverAnchor => "invalid approver anchor",
         })
     }
 }

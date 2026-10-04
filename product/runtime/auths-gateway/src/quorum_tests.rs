@@ -1,10 +1,12 @@
-//! Approval-quorum hostile cases: "2 of 3 managers approve before the agent
-//! acts", driven through the gateway's native verification and a counting
-//! provider.
+//! Approval-quorum hostile cases: "any 2 of 3 managers approve before the
+//! agent acts", driven through the gateway's native verification and a
+//! counting provider.
 //!
-//! The installed trust anchors exactly three managers and requires two
-//! authorized branches from two distinct actors. Submissions run through the
-//! shared `Harness`, which verifies, claims, reserves, leases, and enters the
+//! The installed trust anchors the agent for one MCP tool, names three
+//! managers as approvers, and requires approvals from any two of them. The
+//! agent signs the action; each manager signs an approval of the exact action
+//! bound to the installed requirement. Submissions run through the shared
+//! `Harness`, which verifies, claims, reserves, leases, and enters the
 //! counting provider in the engine's order. Every proof, action, and the
 //! trusted context are read from `bindings/fixtures/gateway/approval-quorum.json`;
 //! the drive test signs nothing. The fixture test regenerates the file from
@@ -15,23 +17,23 @@ use crate::engine::{GatewaySubmitResult, gateway_verifier_configuration, verify_
 use crate::harness::{self, Harness};
 use crate::{CompiledRecipe, GatewayObserver};
 use auths_approval_quorum::{
-    ApprovalCode, DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumApproval, QuorumApprover, QuorumProposal,
-    RegisteredProfile, collect, open_request, quorum_requirement, requests,
+    ApprovalCode, DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumAction, QuorumActor, QuorumProposal,
+    RegisteredProfile, collect, open_request, requests,
 };
 use auths_codec::{
-    action_signing_preimage, body_digest, encode_bundle, encode_canonical_action,
-    encode_verifier_context, evidence_id, plan_id,
+    action_signing_preimage, approval_signing_preimage, encode_bundle, encode_canonical_action,
+    encode_verifier_context, evidence_id,
 };
 use auths_model::{
-    AcceptedRegistries, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
-    AssuranceQuantifier, AssuranceRequirement, Audience, AudienceSet, AuthorizationPlan,
-    BundleHeader, CanonicalAction, Challenge, ChannelBindingId, ControlBinding, CriticalExtensions,
-    EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot, MediaType, ParticipantRole,
-    PermissionSet, PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId,
-    ProofBundle, ProofRef, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
-    SignatureEnvelope, SignatureSuiteId, SignedAction, StatementRef, StatusPolicy,
-    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
-    VerificationMethod, VerifierLimits,
+    AcceptedRegistries, ActionEnvelope, ApprovalRequirement, ApprovalStatement, ApproverAnchor,
+    AssuranceClaimId, AssurancePolicy, AssurancePolicyId, AssuranceQuantifier,
+    AssuranceRequirement, Audience, AudienceSet, CanonicalAction, Challenge, ChannelBindingId,
+    CompositionRequirement, EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot,
+    MediaType, ParticipantRole, PermissionSet, PrincipalId, PrincipalMethodId,
+    PrincipalStatusSnapshot, ProfilePolicyId, ProofBundle, ResourceId, ResourceMatcherId,
+    SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction,
+    SignedApproval, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
+    TrustedContext, ValidityWindow, VerificationMethod, VerifierLimits,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -49,7 +51,7 @@ const RECIPE: &[u8] = include_bytes!("../../../../bindings/fixtures/gateway/airt
 const LOCK: &[u8] =
     include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json");
 
-const SCHEMA: &str = "auths.gateway-approval-quorum/1";
+const SCHEMA: &str = "auths.gateway-approval-quorum/2";
 const NOW: u64 = 1_790_000_000;
 /// Approvals are authored this long before the gateway verifies them, inside
 /// the default quorum validity.
@@ -58,13 +60,16 @@ const CHALLENGE: [u8; 32] = [0x51; 32];
 const REQUIRED: u16 = 2;
 const ASSURANCE: &str = "approval-quorum-test-v1";
 
-/// Fixed test seeds: three members and one principal outside the quorum.
-const MEMBERS: [(&str, u8); 4] = [
+/// Fixed test seeds: the agent, three managers, and one principal outside
+/// the installation.
+const MEMBERS: [(&str, u8); 5] = [
+    ("agent", 0x11),
     ("manager-a", 0xa1),
     ("manager-b", 0xb2),
     ("manager-c", 0xc3),
     ("outsider", 0xd4),
 ];
+const MANAGERS: [&str; 3] = ["manager-a", "manager-b", "manager-c"];
 
 struct Member {
     name: &'static str,
@@ -115,20 +120,49 @@ impl Member {
         )
     }
 
-    fn sign(&self, envelope: &ActionEnvelope) -> SignedAction {
+    fn sign(&self, envelope: &ActionEnvelope) -> QuorumAction {
         let descriptor = self.descriptor();
         let preimage = action_signing_preimage(envelope, &descriptor).expect("preimage");
         let signature =
             SignatureBytes::new(self.key.sign(&preimage).to_bytes().to_vec()).expect("signature");
-        SignedAction::new(
-            envelope.clone(),
-            SignatureEnvelope::new(descriptor, signature),
+        QuorumAction::new(
+            SignedAction::new(
+                envelope.clone(),
+                SignatureEnvelope::new(descriptor, signature),
+            ),
+            Vec::new(),
+            vec![self.evidence()],
         )
+        .expect("action")
     }
 
-    fn approve(&self, envelope: &ActionEnvelope) -> QuorumApproval {
-        QuorumApproval::new(self.sign(envelope), Vec::new(), vec![self.evidence()])
-            .expect("approval")
+    /// Signs `template` with this member as approver, whether or not the
+    /// proposal lists it.
+    fn approve(&self, quorum: &QuorumProposal, template: &ApprovalStatement) -> SignedApproval {
+        let statement = ApprovalStatement::new(
+            self.principal.clone(),
+            template.requirement(),
+            template.media_type().clone(),
+            template.body_digest(),
+            template.permission().clone(),
+            template.requested_budget().cloned(),
+            template.attributes(),
+            template.audience().clone(),
+            template.challenge(),
+            template.validity(),
+        );
+        let descriptor = self.descriptor();
+        let preimage =
+            approval_signing_preimage(&statement, &descriptor, quorum.canonical().profile())
+                .expect("preimage");
+        let signature =
+            SignatureBytes::new(self.key.sign(&preimage).to_bytes().to_vec()).expect("signature");
+        SignedApproval::new(
+            statement,
+            SignatureEnvelope::new(descriptor, signature),
+            vec![self.evidence()],
+        )
+        .expect("approval")
     }
 }
 
@@ -174,17 +208,15 @@ fn validity() -> ValidityWindow {
     .expect("window")
 }
 
-fn proposal(
-    recipe: &CompiledRecipe,
-    operation: &str,
-    required: u16,
-    names: &[&str],
-) -> QuorumProposal {
-    let (canonical, audience) = canonical(recipe, operation);
-    let approvers: Vec<_> = names
+fn manager_principals() -> Vec<PrincipalId> {
+    MANAGERS
         .iter()
-        .map(|name| QuorumApprover::new(Member::named(name).principal, None).expect("approver"))
-        .collect();
+        .map(|name| Member::named(name).principal)
+        .collect()
+}
+
+fn proposal(recipe: &CompiledRecipe, operation: &str, required: u16) -> QuorumProposal {
+    let (canonical, audience) = canonical(recipe, operation);
     QuorumProposal::new(
         canonical,
         &audience,
@@ -192,41 +224,59 @@ fn proposal(
         AUTHORED_AT,
         None,
         required,
-        &approvers,
+        &manager_principals(),
+        &QuorumActor::new(Member::named("agent").principal, None).expect("actor"),
     )
     .expect("proposal")
 }
 
-/// The operator's installation: each manager is a depth-zero anchor for the
-/// one MCP tool, and two distinct approving actors are required.
+fn requirement() -> ApprovalRequirement {
+    ApprovalRequirement::new(manager_principals(), REQUIRED).expect("requirement")
+}
+
+fn approver_anchors() -> Vec<ApproverAnchor> {
+    MANAGERS
+        .iter()
+        .map(|name| {
+            ApproverAnchor::new(
+                Member::named(name).principal,
+                vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
+                ValidityWindow::new(Timestamp::new(NOW - 86_400), Timestamp::new(NOW + 86_400))
+                    .expect("approver window"),
+                StatusPolicy::ExpiryOnly,
+            )
+            .expect("approver anchor")
+        })
+        .collect()
+}
+
+fn agent_anchor(recipe: &CompiledRecipe, namespace: &str) -> TrustAnchor {
+    let call = call(recipe, "trust");
+    TrustAnchor::new(
+        TrustAnchorId::parse("agent").expect("anchor ID"),
+        Member::named("agent").principal,
+        vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
+        vec![call.profile_ref().expect("profile")],
+        PermissionSet::new(vec![call.permission().expect("permission")]).expect("permissions"),
+        vec![ResourceId::parse(namespace).expect("namespace")],
+        AudienceSet::new(vec![call.audience().expect("audience")]).expect("audiences"),
+        ValidityWindow::new(Timestamp::new(NOW - 86_400), Timestamp::new(NOW + 86_400))
+            .expect("anchor window"),
+        None,
+        0,
+        AssurancePolicyId::parse(ASSURANCE).expect("assurance"),
+        StatusPolicy::ExpiryOnly,
+    )
+    .expect("trust anchor")
+}
+
+/// The operator's installation: the agent is a depth-zero anchor for the one
+/// MCP tool, and any two of the three managers must approve.
 fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
     let call = call(recipe, "trust");
     let profile = call.profile_ref().expect("profile");
-    let permission = call.permission().expect("permission");
     let audience = call.audience().expect("audience");
     let assurance = AssurancePolicyId::parse(ASSURANCE).expect("assurance");
-    let anchors = MEMBERS[..3]
-        .iter()
-        .map(|(name, _)| {
-            let member = Member::named(name);
-            TrustAnchor::new(
-                TrustAnchorId::parse(name).expect("anchor ID"),
-                member.principal.clone(),
-                vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
-                vec![profile.clone()],
-                PermissionSet::new(vec![permission.clone()]).expect("permissions"),
-                vec![ResourceId::parse("mcp://airtable-gateway-demo/").expect("namespace")],
-                AudienceSet::new(vec![audience.clone()]).expect("audiences"),
-                ValidityWindow::new(Timestamp::new(NOW - 86_400), Timestamp::new(NOW + 86_400))
-                    .expect("anchor window"),
-                None,
-                0,
-                assurance.clone(),
-                StatusPolicy::ExpiryOnly,
-            )
-            .expect("trust anchor")
-        })
-        .collect();
     let registries = AcceptedRegistries::new(
         auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
@@ -248,8 +298,8 @@ fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
     .expect("registries");
     TrustedContext::new(
         gateway_verifier_configuration().expect("configuration"),
-        quorum_requirement(REQUIRED, 1).expect("composition"),
-        anchors,
+        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+        vec![agent_anchor(recipe, "mcp://airtable-gateway-demo/")],
         registries,
         audience,
         Challenge::new(CHALLENGE),
@@ -277,11 +327,13 @@ fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
         VerifierLimits::default(),
     )
     .expect("context")
+    .with_approvals(approver_anchors(), vec![requirement()])
+    .expect("approvals")
 }
 
-/// The same quorum as an SDK trusted-context template under the packaged
-/// verifier configuration, so the Python and TypeScript verifiers decide the
-/// same vectors the gateway decides.
+/// The same installation as an SDK trusted-context template under the
+/// packaged verifier configuration, so the Python and TypeScript verifiers
+/// decide the same vectors the gateway decides.
 fn sdk_trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
     let call = call(recipe, "trust");
     let profile = call.profile_ref().expect("profile");
@@ -296,28 +348,6 @@ fn sdk_trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
     let configuration = auths_registries::ImmutableRegistries::new(&methods, &suites)
         .expect("packaged registries")
         .configuration_id();
-    let anchors = MEMBERS[..3]
-        .iter()
-        .map(|(name, _)| {
-            TrustAnchor::new(
-                TrustAnchorId::parse(name).expect("anchor ID"),
-                Member::named(name).principal,
-                vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
-                vec![profile.clone()],
-                PermissionSet::new(vec![call.permission().expect("permission")])
-                    .expect("permissions"),
-                vec![ResourceId::parse(audience.as_str()).expect("namespace")],
-                AudienceSet::new(vec![audience.clone()]).expect("audiences"),
-                ValidityWindow::new(Timestamp::new(NOW - 86_400), Timestamp::new(NOW + 86_400))
-                    .expect("anchor window"),
-                None,
-                0,
-                AssurancePolicyId::parse(ASSURANCE).expect("assurance"),
-                StatusPolicy::ExpiryOnly,
-            )
-            .expect("trust anchor")
-        })
-        .collect();
     let claim = |value| AssuranceClaimId::parse(value).expect("claim");
     let assurance = AssurancePolicy::new(
         AssurancePolicyId::parse(ASSURANCE).expect("assurance"),
@@ -345,120 +375,53 @@ fn sdk_trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
     .expect("assurance policy");
     auths_sdk::TrustedContextBuilder::new(
         configuration,
-        quorum_requirement(REQUIRED, 1).expect("composition"),
-        anchors,
+        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+        vec![agent_anchor(recipe, audience.as_str())],
         assurance,
     )
     .expect("builder")
+    .with_approvals(approver_anchors(), vec![requirement()])
+    .expect("approvals")
     .declare_budget_free_profile(profile)
     .accept_evidence_type(EvidenceTypeId::parse(RAW_KEY_V1).expect("evidence type"))
     .build()
     .expect("SDK template")
 }
 
-/// Hand-built bundle for shapes the SDK refuses to author: `signers` sign the
-/// leaves in order, and `leaves` may exceed the signers to leave one absent.
-fn hand_bundle(
-    recipe: &CompiledRecipe,
-    operation: &str,
-    required: u16,
-    leaves: usize,
-    signers: &[&Member],
-) -> ProofBundle {
-    let (canonical, audience) = canonical(recipe, operation);
-    let references: Vec<_> = (0..leaves)
-        .map(|index| ProofRef::new([u8::try_from(index + 1).expect("small"); 32]))
-        .collect();
-    let plan = AuthorizationPlan::k_of_n(
-        required,
-        references
-            .iter()
-            .copied()
-            .map(AuthorizationPlan::proof)
-            .collect(),
-    )
-    .expect("plan");
-    let plan_identifier = plan_id(&plan).expect("plan ID");
-    let mut evidence = Vec::new();
-    let mut bindings = Vec::new();
-    let actions: Vec<_> = signers
-        .iter()
-        .zip(&references)
-        .map(|(member, reference)| {
-            let action = member.sign(&ActionEnvelope::new(
-                canonical.profile().clone(),
-                canonical.media_type().clone(),
-                body_digest(canonical.body()),
-                canonical.permission().clone(),
-                None,
-                audience.clone(),
-                Challenge::new(CHALLENGE),
-                validity(),
-                member.principal.clone(),
-                None,
-                plan_identifier,
-                ChannelBindingId::parse("none-v1").expect("channel"),
-                *reference,
-                Vec::new(),
-                CriticalExtensions::empty(),
-            ));
-            let object = member.evidence();
-            bindings.push(
-                ControlBinding::new(
-                    StatementRef::Action(
-                        auths_codec::action_id(action.envelope()).expect("action ID"),
-                    ),
-                    vec![object.id()],
-                )
-                .expect("binding"),
-            );
-            if !evidence.contains(&object) {
-                evidence.push(object);
-            }
-            action
-        })
-        .collect();
-    evidence.sort_by_key(EvidenceObject::id);
-    ProofBundle::new(
-        BundleHeader::v1(),
-        Vec::new(),
-        actions,
-        plan,
-        evidence,
-        bindings,
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-        Some(canonical.body().to_vec()),
-    )
-    .expect("hand-built bundle")
-}
-
 #[test]
-fn sdk_and_hand_built_approvals_share_the_default_window() {
-    let quorum = proposal(&recipe(), "window", 2, &["manager-a", "manager-b"]);
+fn the_action_and_every_statement_share_the_default_window() {
+    let quorum = proposal(&recipe(), "window", REQUIRED);
+    assert_eq!(quorum.envelope().validity(), validity());
     assert!(
         quorum
-            .envelopes()
+            .statements()
             .iter()
-            .all(|envelope| envelope.validity() == validity())
+            .all(|statement| statement.validity() == validity())
     );
 }
 
-fn sdk_bundle(
-    recipe: &CompiledRecipe,
-    operation: &str,
-    required: u16,
-    names: &[&str],
-) -> ProofBundle {
-    let quorum = proposal(recipe, operation, required, names);
-    let approvals: Vec<_> = quorum
-        .envelopes()
+/// The agent's action with approvals by `names`. The SDK assembles when the
+/// names are distinct listed managers at the threshold; otherwise the bundle
+/// carries exactly the approvals named, which the SDK refuses to assemble.
+fn bundle(recipe: &CompiledRecipe, operation: &str, required: u16, names: &[&str]) -> ProofBundle {
+    let quorum = proposal(recipe, operation, required);
+    let action = Member::named("agent").sign(quorum.envelope());
+    let template = &quorum.statements()[0];
+    let approvals: Vec<_> = names
         .iter()
-        .zip(names)
-        .map(|(envelope, name)| Member::named(name).approve(envelope))
+        .map(|name| Member::named(name).approve(&quorum, template))
         .collect();
-    quorum.assemble(&approvals).expect("assembled quorum")
+    quorum.assemble(&action, &approvals).unwrap_or_else(|_| {
+        let full: Vec<_> = MANAGERS[..usize::from(required)]
+            .iter()
+            .map(|name| Member::named(name).approve(&quorum, template))
+            .collect();
+        quorum
+            .assemble(&action, &full)
+            .expect("assembled quorum")
+            .with_approvals(approvals)
+            .expect("hand-chosen approvals")
+    })
 }
 
 struct Case {
@@ -471,9 +434,9 @@ struct Case {
     provider_entries: usize,
 }
 
-const CASES: [Case; 7] = [
+const CASES: [Case; 10] = [
     Case {
-        id: "two-of-three-managers",
+        id: "managers-a-and-b",
         authoring: "sdk",
         required: 2,
         approvers: &["manager-a", "manager-b"],
@@ -482,46 +445,19 @@ const CASES: [Case; 7] = [
         provider_entries: 1,
     },
     Case {
-        id: "one-of-three-managers",
-        authoring: "sdk",
-        required: 1,
-        approvers: &["manager-a"],
-        decision: "denied",
-        code: "composition-requirement-not-met",
-        provider_entries: 0,
-    },
-    Case {
-        id: "one-of-two-listed-approvals-absent",
-        authoring: "hand",
-        required: 2,
-        approvers: &["manager-a"],
-        decision: "denied",
-        code: "missing-reference",
-        provider_entries: 0,
-    },
-    Case {
-        id: "duplicate-signer",
-        authoring: "hand",
-        required: 2,
-        approvers: &["manager-a", "manager-a"],
-        decision: "denied",
-        code: "composition-requirement-not-met",
-        provider_entries: 0,
-    },
-    Case {
-        id: "outsider-does-not-count",
+        id: "managers-a-and-c",
         authoring: "sdk",
         required: 2,
-        approvers: &["manager-a", "outsider"],
-        decision: "denied",
-        code: "untrusted-root",
-        provider_entries: 0,
+        approvers: &["manager-a", "manager-c"],
+        decision: "authorized",
+        code: "",
+        provider_entries: 1,
     },
     Case {
-        id: "outsider-beside-two-managers",
+        id: "managers-b-and-c",
         authoring: "sdk",
         required: 2,
-        approvers: &["manager-a", "manager-b", "outsider"],
+        approvers: &["manager-b", "manager-c"],
         decision: "authorized",
         code: "",
         provider_entries: 1,
@@ -534,6 +470,60 @@ const CASES: [Case; 7] = [
         decision: "authorized",
         code: "",
         provider_entries: 1,
+    },
+    Case {
+        id: "one-of-three-managers",
+        authoring: "hand",
+        required: 2,
+        approvers: &["manager-a"],
+        decision: "denied",
+        code: "approval-threshold-not-met",
+        provider_entries: 0,
+    },
+    Case {
+        id: "no-approvals",
+        authoring: "hand",
+        required: 2,
+        approvers: &[],
+        decision: "denied",
+        code: "approval-threshold-not-met",
+        provider_entries: 0,
+    },
+    Case {
+        id: "duplicate-approval",
+        authoring: "hand",
+        required: 2,
+        approvers: &["manager-a", "manager-a"],
+        decision: "denied",
+        code: "approval-threshold-not-met",
+        provider_entries: 0,
+    },
+    Case {
+        id: "outsider-does-not-count",
+        authoring: "hand",
+        required: 2,
+        approvers: &["manager-a", "outsider"],
+        decision: "denied",
+        code: "approval-threshold-not-met",
+        provider_entries: 0,
+    },
+    Case {
+        id: "outsider-beside-two-managers",
+        authoring: "hand",
+        required: 2,
+        approvers: &["manager-a", "manager-b", "outsider"],
+        decision: "authorized",
+        code: "",
+        provider_entries: 1,
+    },
+    Case {
+        id: "approvals-for-a-lowered-threshold",
+        authoring: "sdk",
+        required: 1,
+        approvers: &["manager-a"],
+        decision: "denied",
+        code: "approval-threshold-not-met",
+        provider_entries: 0,
     },
 ];
 
@@ -551,17 +541,7 @@ fn generate() -> String {
     let cases: Vec<Value> = CASES
         .iter()
         .map(|case| {
-            let bundle = if case.authoring == "sdk" {
-                sdk_bundle(&recipe, case.id, case.required, case.approvers)
-            } else {
-                let signers: Vec<_> = case
-                    .approvers
-                    .iter()
-                    .map(|name| Member::named(name))
-                    .collect();
-                let refs: Vec<_> = signers.iter().collect();
-                hand_bundle(&recipe, case.id, case.required, case.required.into(), &refs)
-            };
+            let bundle = bundle(&recipe, case.id, case.required, case.approvers);
             let (canonical, _) = canonical(&recipe, case.id);
             json!({
                 "id": case.id,
@@ -583,12 +563,17 @@ fn generate() -> String {
         .iter()
         .map(|(name, _)| {
             let member = Member::named(name);
+            let role = match member.name {
+                "agent" => "actor",
+                "outsider" => "outsider",
+                _ => "approver",
+            };
             json!({
                 "name": member.name,
                 "seed_byte": member.seed,
                 "principal": member.principal.as_str(),
                 "evidence_b64": b64(&member.raw.encode()),
-                "member": member.name != "outsider",
+                "role": role,
             })
         })
         .collect();
@@ -601,6 +586,8 @@ fn generate() -> String {
         "validity_seconds": DEFAULT_QUORUM_VALIDITY_SECONDS,
         "challenge_hex": hex::encode(CHALLENGE),
         "required": REQUIRED,
+        "approvers": MANAGERS,
+        "actor": "agent",
         "members": members,
         "trusted_context_b64": b64(&encode_verifier_context(&context).expect("context")),
         "sdk_trusted_context_b64": b64(
@@ -636,7 +623,7 @@ fn decision_of(result: &GatewaySubmitResult) -> (&'static str, String) {
 }
 
 #[tokio::test]
-async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
+async fn approval_quorum_hostile_cases_admit_only_two_distinct_managers() {
     let fixture: Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
     assert_eq!(fixture["schema"], SCHEMA);
     let recipe = recipe();
@@ -712,39 +699,13 @@ async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
     assert_eq!(counts().0, expected_entries, "a replay never writes again");
 }
 
-#[test]
-fn a_proof_carried_plan_cannot_lower_the_installed_threshold() {
-    let recipe = recipe();
-    let context = trusted_context(&recipe);
-    let action = encode_canonical_action(&canonical(&recipe, "lowered").0).expect("action");
-    let manager = Member::named("manager-a");
-    for bundle in [
-        hand_bundle(&recipe, "lowered", 1, 1, &[&manager]),
-        hand_bundle(
-            &recipe,
-            "lowered",
-            1,
-            2,
-            &[&manager, &Member::named("outsider")],
-        ),
-    ] {
-        let proof = encode_bundle(&bundle).expect("proof");
-        let result = verify_command(&recipe, &context, NOW, &proof, &action)
-            .expect_err("a single manager never authorizes");
-        assert!(
-            matches!(result, GatewaySubmitResult::Denied { .. }),
-            "{result:?}"
-        );
-    }
-}
-
 fn two_of_three_submission() -> (Vec<u8>, Vec<u8>) {
     let fixture: Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
     let case = fixture["cases"]
         .as_array()
         .expect("cases")
         .iter()
-        .find(|case| case["id"] == "two-of-three-managers")
+        .find(|case| case["id"] == "managers-a-and-b")
         .expect("two-of-three case");
     (unb64(&case["proof_b64"]), unb64(&case["action_b64"]))
 }
@@ -813,64 +774,69 @@ async fn a_quorum_after_its_window_is_refused_before_any_lease() {
     assert_eq!(harness.provider.counts(), (0, 0, 0));
 }
 
-/// The quorum assembled from remote responses: each approver opens its own
-/// request (carried as text), approves on its own, and the collector
-/// assembles. It must be byte-identical to the in-process quorum.
+/// The quorum assembled from remote responses: the agent sends a request to
+/// every manager, the managers in `names` open theirs (carried as text) and
+/// answer on their own, and the collector assembles with the agent's action.
+/// It must be byte-identical to the in-process quorum.
 fn remote_bundle(
     recipe: &CompiledRecipe,
     operation: &str,
-    required: u16,
     names: &[&str],
-    decline: Option<&str>,
+    decline: &[&str],
 ) -> Result<ProofBundle, ApprovalCode> {
-    let quorum = proposal(recipe, operation, required, names);
-    let requester = Member::named(names[0]).principal;
+    let quorum = proposal(recipe, operation, REQUIRED);
+    let action = Member::named("agent").sign(quorum.envelope());
     let mcp = RegisteredProfile::new(
         call(recipe, operation).profile_ref().expect("profile"),
         McpProfile,
     );
-    let responses = requests(&quorum, &requester)?
-        .iter()
-        .zip(names)
-        .map(|(request, name)| {
-            let member = Member::named(name);
-            let text = request.to_text()?;
-            let reviewed = open_request(text.as_bytes(), &[&mcp], AUTHORED_AT + 60)?;
-            let response = if decline == Some(*name) {
-                let pending =
-                    reviewed.prepare_decline(&member.principal, member.descriptor(), NOW)?;
-                let signature = member.key.sign(pending.signing_preimage()).to_bytes();
-                pending.complete(&signature, Vec::new(), vec![member.evidence()])?
-            } else {
-                let pending = reviewed.prepare_approval(&member.principal, member.descriptor())?;
-                let signature = member
-                    .key
-                    .sign(pending.signing().signing_preimage())
-                    .to_bytes();
-                pending.complete(&signature, Vec::new(), vec![member.evidence()])?
-            };
-            response.to_text()
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    collect(&quorum, &responses)?.assemble()
+    let mut responses = Vec::new();
+    for request in requests(&quorum)? {
+        let Some(name) = names
+            .iter()
+            .find(|name| Member::named(name).principal == *request.approver())
+        else {
+            continue;
+        };
+        let member = Member::named(name);
+        let text = request.to_text()?;
+        let reviewed = open_request(text.as_bytes(), &[&mcp], AUTHORED_AT + 60)?;
+        let response = if decline.contains(name) {
+            let pending = reviewed.prepare_decline(&member.principal, member.descriptor(), NOW)?;
+            let signature = member.key.sign(pending.signing_preimage()).to_bytes();
+            pending.complete(&signature, vec![member.evidence()])?
+        } else {
+            let pending = reviewed.prepare_approval(&member.principal, member.descriptor())?;
+            let signature = member
+                .key
+                .sign(pending.signing().signing_preimage())
+                .to_bytes();
+            pending.complete(&signature, vec![member.evidence()])?
+        };
+        responses.push(response.to_text()?);
+    }
+    collect(&quorum, &responses)?.assemble(&action)
 }
 
 #[tokio::test]
-async fn remote_approvals_authorize_only_at_the_threshold() {
+async fn remote_approvals_from_any_two_managers_authorize() {
     let fixture: Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
     let recipe = recipe();
     let temp = tempfile::tempdir().expect("temp directory");
     let harness = fresh_harness(temp.path());
     let mut entries = 0;
-    for case in CASES.iter().filter(|case| case.authoring == "sdk") {
+    for case in CASES
+        .iter()
+        .filter(|case| case.authoring == "sdk" && case.required == REQUIRED)
+    {
         let vector = fixture["cases"]
             .as_array()
             .expect("cases")
             .iter()
             .find(|vector| vector["id"] == case.id)
             .expect("vector");
-        let bundle = remote_bundle(&recipe, case.id, case.required, case.approvers, None)
-            .expect("every listed approver approved");
+        let bundle = remote_bundle(&recipe, case.id, case.approvers, &[])
+            .expect("the threshold of managers approved");
         let proof = encode_bundle(&bundle).expect("proof");
         assert_eq!(
             proof,
@@ -894,17 +860,52 @@ async fn remote_approvals_authorize_only_at_the_threshold() {
         assert_eq!(after.2 - before.2, 2 * case.provider_entries, "{}", case.id);
         entries += case.provider_entries;
     }
+    assert!(
+        remote_bundle(
+            &recipe,
+            "remote-one-decline",
+            &["manager-a", "manager-b", "manager-c"],
+            &["manager-b"],
+        )
+        .is_ok(),
+        "one declined manager still leaves two approvals"
+    );
     assert_eq!(
         remote_bundle(
             &recipe,
-            "remote-decline",
-            2,
-            &["manager-a", "manager-b"],
-            Some("manager-b"),
+            "remote-two-declines",
+            &["manager-a", "manager-b", "manager-c"],
+            &["manager-b", "manager-c"],
         )
         .err(),
         Some(ApprovalCode::Incomplete),
-        "a declined manager leaves nothing to submit"
+        "two declined managers leave nothing to submit"
+    );
+    assert_eq!(
+        remote_bundle(&recipe, "remote-one-answer", &["manager-c"], &[]).err(),
+        Some(ApprovalCode::Incomplete),
+        "one answer is not a quorum"
     );
     assert_eq!(harness.provider.counts().0, entries);
+}
+
+#[test]
+fn a_proof_cannot_lower_the_installed_threshold() {
+    let recipe = recipe();
+    let context = trusted_context(&recipe);
+    let action = encode_canonical_action(&canonical(&recipe, "lowered").0).expect("action");
+    for bundle in [
+        bundle(&recipe, "lowered", 1, &["manager-a"]),
+        bundle(&recipe, "lowered", 1, &["manager-a", "outsider"]),
+    ] {
+        let proof = encode_bundle(&bundle).expect("proof");
+        let result = verify_command(&recipe, &context, NOW, &proof, &action)
+            .expect_err("a single manager never authorizes");
+        assert_eq!(
+            result,
+            GatewaySubmitResult::Denied {
+                code: "approval-threshold-not-met".to_owned()
+            }
+        );
+    }
 }

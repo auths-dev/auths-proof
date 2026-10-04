@@ -1,15 +1,20 @@
 """The agent's side of the Stripe refund enforcement point.
 
-    bin/request --operation-id ID --payment-intent PI --amount CENTS --approvers a,b
+    bin/request --operation-id ID --payment-intent PI --amount CENTS
                 [--currency usd] [--connect-account acct_...] [--precheck]
     bin/submit  --operation-id ID [--socket PATH]
     bin/export
 
-``request`` writes one approval request per manager into ``requests/ID/`` and
-the agent's own approval beside them. ``submit`` collects the responses and
-sends every assembled proof to the gateway: only the gateway decides the
-approval threshold, the ceiling, the per-window count and sum, and whether an
-operation ID may run again. ``request --precheck`` is an opt-in client-side
+``request`` writes one approval request per manager into ``requests/ID/``.
+Any of the managers may answer; the threshold of them the trust installs
+suffices, whoever answers, and the agent's own approval never counts.
+``submit`` collects whatever responses exist, and once enough managers
+approved, has the agent sign its exact refund and sends the assembled proof
+to the gateway: only the gateway decides the approval threshold, the
+ceiling, the per-window count and sum, and whether an operation ID may run
+again. ``request --required N`` names another threshold than the installed
+one; it is a hostile lever for the self-test, and the gateway refuses what it
+produces. ``request --precheck`` is an opt-in client-side
 pre-check, not an enforcement boundary. Every outcome record says who decided
 it in ``decided_by``: ``gateway``, ``approver``, or ``client``.
 
@@ -49,15 +54,14 @@ from common import (  # noqa: E402
 )
 from generated import CONTRACT, CreateRefund  # noqa: E402
 
+from auths.adapters.custody import PublicControlEvidence  # noqa: E402
 from auths.authoring import (  # noqa: E402
-    ApprovalMember,
     ApprovalProposal,
-    ApprovalResponse,
+    GrantEvidence,
     approval_requests,
-    approve,
     collect_approvals,
-    open_approval_request,
     propose_mcp_approval,
+    sign_approval_action,
 )
 from auths.gateway import GatewayClient, GatewayEndpoint, GatewaySignedObservation  # noqa: E402
 from auths.self_hosted import load_signer_file  # noqa: E402
@@ -86,7 +90,6 @@ def _proposal(facts: Dict[str, Any], operation: str) -> ApprovalProposal[CreateR
     inputs always give the same envelopes and requests."""
     pending = read_json(AGENT / "pending" / f"{operation}.json")
     principals = facts["principals"]
-    agent = ApprovalMember(principals["agent"], (AGENT / "agent.grant.cbor").read_bytes())
     return propose_mcp_approval(
         contract=CONTRACT,
         command=CreateRefund(
@@ -98,36 +101,44 @@ def _proposal(facts: Dict[str, Any], operation: str) -> ApprovalProposal[CreateR
             connect_account=pending["connect_account"],
             currency=pending["currency"],
         ),
-        # The agent and every listed manager approve the same exact refund.
-        required=1 + len(pending["managers"]),
-        approvers=[agent] + [ApprovalMember(principals[name]) for name in pending["managers"]],
-        requester=principals["agent"],
+        # Any `required` of the managers approve the agent's exact refund.
+        required=pending["required"],
+        approvers=[principals[name] for name in facts["managers"]],
+        actor=principals["agent"],
+        actor_grant=(AGENT / "agent.grant.cbor").read_bytes(),
         challenge=bytes.fromhex(facts["challenge_hex"]),
         evaluation_time=pending["evaluation_time"],
         validity_seconds=APPROVAL_WINDOW,
     )
 
 
-def _precheck(facts: Dict[str, Any], listed: List[str], amount: int) -> Optional[str]:
+def _precheck(facts: Dict[str, Any], required: int, amount: int) -> Optional[str]:
     """The rule a request breaks by what ``operator/setup.json`` states, if
     any. It checks no signature, window count, or operation ID: only the
     gateway decides those."""
-    if len(set(listed)) != len(listed):
-        return "repeated-approver"
-    if 1 + len(set(listed)) < facts["approvals_required"]:
+    if required < facts["approvals_required"]:
         return "approvals-below-threshold"
     if amount > facts["bound"]["ceiling"]:
         return "above-ceiling"
     return None
 
 
-async def _approve_as_agent(data: bytes) -> ApprovalResponse:
-    """The agent's own approval, signed with its key from ``agent/``."""
-    loaded = load_signer_file(AGENT / "signer.json")
-    try:
-        return await approve(open_approval_request(data), loaded.signer, grants=loaded.grants)
-    finally:
-        await loaded.signer.aclose()
+def _agent_grants() -> tuple[GrantEvidence, ...]:
+    """The agent's grant chain, root first, as ``bin/setup`` wrote it."""
+    grant = read_json(AGENT / "grant.json")
+    return (
+        GrantEvidence(
+            base64.urlsafe_b64decode(grant["signed_grant_b64"] + "=" * (-len(grant["signed_grant_b64"]) % 4)),
+            tuple(
+                PublicControlEvidence(
+                    item["evidence_type"],
+                    item["media_type"],
+                    base64.urlsafe_b64decode(item["bytes_b64"] + "=" * (-len(item["bytes_b64"]) % 4)),
+                )
+                for item in grant["evidence"]
+            ),
+        ),
+    )
 
 
 def _keep_pending(operation: str, data: bytes) -> None:
@@ -154,7 +165,12 @@ def request(arguments: List[str]) -> Dict[str, Any]:
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--payment-intent", required=True)
     parser.add_argument("--amount", type=int, required=True, help="cents")
-    parser.add_argument("--approvers", required=True, help="comma-separated manager names")
+    parser.add_argument(
+        "--required",
+        type=int,
+        help="the threshold the requests name; defaults to the installed one. A lower value "
+        "is a hostile lever: approvals of it never count toward the installed threshold.",
+    )
     parser.add_argument("--currency", default="usd")
     parser.add_argument("--connect-account", help="defaults to the account in the grant's scope")
     parser.add_argument("--out", help="folder name under requests/; defaults to the operation ID")
@@ -162,18 +178,15 @@ def request(arguments: List[str]) -> Dict[str, Any]:
         "--precheck",
         action="store_true",
         help="client-side pre-check, not an enforcement boundary: refuse before writing any "
-        "request when the approvers are fewer than the threshold, one repeats, or the amount "
-        "is above the ceiling. The gateway enforces these rules whether or not it runs.",
+        "request when --required is below the threshold or the amount is above the ceiling. "
+        "The gateway enforces these rules whether or not it runs.",
     )
     options = parser.parse_args(arguments)
     checked_config(gateway=False)
     facts = read_json(FACTS)
-    listed = [name for name in options.approvers.split(",") if name]
-    unknown = sorted(set(listed) - set(facts["managers"]))
-    if unknown:
-        raise CommandFailed("auths.request.unknown-approver", approvers=unknown)
+    required = facts["approvals_required"] if options.required is None else options.required
     if options.precheck:
-        rule = _precheck(facts, listed, options.amount)
+        rule = _precheck(facts, required, options.amount)
         if rule is not None:
             return {
                 "operation_id": options.operation_id,
@@ -183,22 +196,17 @@ def request(arguments: List[str]) -> Dict[str, Any]:
                 "precheck": rule,
                 "note": PRECHECK_NOTE,
             }
-    managers: List[str] = []
-    for name in listed:
-        if name in managers:
-            print(
-                f"dropped the repeated approver {name}: a proposal cannot name one "
-                "approver twice; the gateway decides the threshold for the approvers "
-                "that remain",
-                file=sys.stderr,
-            )
-            continue
-        managers.append(name)
+    if required != facts["approvals_required"]:
+        print(
+            f"the requests name a threshold of {required}, not the {facts['approvals_required']} "
+            "the trust installs; the gateway decides whether the approvals count",
+            file=sys.stderr,
+        )
     folder = REQUESTS / (options.out or options.operation_id)
     if folder.exists():
         raise CommandFailed("auths.request.folder-exists", folder=str(folder))
     pending = {
-        "managers": managers,
+        "required": required,
         "payment_intent": options.payment_intent,
         "amount": options.amount,
         "currency": options.currency,
@@ -212,16 +220,12 @@ def request(arguments: List[str]) -> Dict[str, Any]:
     written: Dict[str, str] = {}
     for item in approval_requests(proposal):
         name = names[item.approver]
-        if name == "agent":
-            # The agent approves its own request like any other approver.
-            response = asyncio.run(_approve_as_agent(item.data))
-            write_file(folder / "agent.response", (response.text + "\n").encode())
-            continue
         path = folder / f"{name}.request"
         write_file(path, (item.text + "\n").encode(), 0o644)
         written[name] = str(path)
     return {
         "operation_id": options.operation_id,
+        "required": proposal.requirement.required,
         "folder": str(folder),
         "requests": written,
         "action_b64": _b64(proposal.action),
@@ -267,27 +271,37 @@ async def _submit(options: argparse.Namespace) -> Dict[str, Any]:
             )
     collection = collect_approvals(proposal, texts)
     statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
+    approved = sorted(name for name, item in statuses.items() if item.status == "approved")
     declined = sorted(name for name, item in statuses.items() if item.status == "declined")
+    silent = sorted(name for name, item in statuses.items() if item.status == "pending")
+    pending = len(silent)
+    record.update(approved=approved, pending=silent, required=collection.required)
     if declined:
-        record.update(
-            outcome="not-submitted", decided_by="approver", reason="approver-declined", declined=declined
-        )
-        return record
-    waiting = {name: item.code or item.status for name, item in statuses.items() if item.status != "approved"}
-    if waiting:
-        # No proof exists until every listed approver approved this exact
+        record["declined"] = declined
+    if collection.approved < collection.required:
+        if declined and collection.approved + pending < collection.required:
+            # Too many managers declined for any later answer to make a quorum.
+            record.update(outcome="not-submitted", decided_by="approver", reason="approvers-declined")
+            return record
+        # No proof exists until `required` managers approved this exact
         # request, so nothing can be sent; this is not a policy refusal.
         record.update(
             outcome="not-submitted",
             decided_by="client",
             reason="approvals-incomplete",
-            waiting=waiting,
+            waiting={name: item.code or item.status for name, item in statuses.items() if item.status != "approved"},
             unattributed=[[index, code] for index, code in collection.unattributed],
         )
         return record
-    # Every assembled proof goes to the gateway: it alone decides the
-    # threshold, the ceiling, the count and sum, and whether the ID may run.
-    proof = collection.assemble()
+    # The agent signs its exact refund only now, and every assembled proof
+    # goes to the gateway: it alone decides the threshold, the ceiling, the
+    # count and sum, and whether the ID may run.
+    loaded = load_signer_file(AGENT / "signer.json")
+    try:
+        action = await sign_approval_action(proposal, loaded.signer, grants=_agent_grants())
+    finally:
+        await loaded.signer.aclose()
+    proof = collection.assemble(action)
     gateway = GatewayClient(GatewayEndpoint(inside(options.socket)))
     result = await gateway.submit(proof=proof, action=proposal.action)
     record.update(dataclasses.asdict(result))

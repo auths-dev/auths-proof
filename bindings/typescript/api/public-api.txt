@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 879938e35e630136bb6852e846d14685fb435558d28b564721f519579b44cbe5
+# declaration-sha256 d707ad9eaf70b6b5fec7d602e7133b6c9635081c6b931ed9d398aea9e8adc424
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	EffectState	type
@@ -29,15 +29,17 @@
 ./verify	VerificationStage	type
 ./verify	VerifiedReceipt	type
 ./verify	Verifier	value+type
+./self-hosted	ApprovalAction	type
 ./self-hosted	ApprovalCollection	type
-./self-hosted	ApprovalMember	type
 ./self-hosted	ApprovalProposal	type
 ./self-hosted	ApprovalRefused	value+type
 ./self-hosted	ApprovalRequest	type
 ./self-hosted	approvalRequests	value
+./self-hosted	ApprovalRequirement	type
 ./self-hosted	ApprovalResponse	type
 ./self-hosted	ApprovalReview	type
 ./self-hosted	approve	value
+./self-hosted	ApproverAnchor	type
 ./self-hosted	ApproverStatus	type
 ./self-hosted	arrayField	value
 ./self-hosted	ArrayField	type
@@ -83,12 +85,12 @@
 ./self-hosted	ProductionAuthoringInputs	type
 ./self-hosted	proposeMcpApproval	value
 ./self-hosted	ProviderOutcome	type
-./self-hosted	QuorumApprover	type
-./self-hosted	QuorumPlan	type
+./self-hosted	QuorumRequirement	type
 ./self-hosted	reconcileReadOnly	value
 ./self-hosted	runOnce	value
 ./self-hosted	RunResult	type
 ./self-hosted	SelfHostedProviderAdapter	type
+./self-hosted	signApprovalAction	value
 ./self-hosted	SignedObservationAttachment	type
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type

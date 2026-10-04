@@ -375,6 +375,9 @@ pub const CHECK_SITES: &[CheckSite] = &[
         &[
             "critical-extension-attenuation",
             "observation-child-requirements-over-limit-unconditioned-parent",
+            "approval-grant-child-widens",
+            "approval-grant-child-lowers",
+            "approval-grant-child-drops",
         ],
     ),
     site(
@@ -443,6 +446,19 @@ pub const CHECK_SITES: &[CheckSite] = &[
         &["observation-action-fact-unavailable"],
     ),
     site(
+        "branch.approval-threshold",
+        "approval-threshold-not-met",
+        &[
+            "approval-grant-single",
+            "approval-grant-narrowed-parent-unmet",
+        ],
+    ),
+    site(
+        "branch.approval-unavailable",
+        "approval-unavailable",
+        &["approval-grant-status-unavailable"],
+    ),
+    site(
         "composition.authorized-branches",
         "composition-requirement-not-met",
         &["composition-branch-minimum"],
@@ -456,6 +472,32 @@ pub const CHECK_SITES: &[CheckSite] = &[
         "composition.distinct-roots",
         "composition-requirement-not-met",
         &["composition-shared-root"],
+    ),
+    site(
+        "composition.approval-threshold",
+        "approval-threshold-not-met",
+        &[
+            "approval-single",
+            "approval-duplicate",
+            "approval-other-action",
+            "approval-outsider",
+            "approval-forged",
+            "approval-none",
+            "approval-self",
+            "approval-wrong-audience",
+            "approval-wrong-challenge",
+            "approval-wrong-requirement",
+            "approval-expired",
+            "approval-revoked",
+        ],
+    ),
+    site(
+        "composition.approval-unavailable",
+        "approval-unavailable",
+        &[
+            "approval-status-unavailable",
+            "approval-status-out-of-scope",
+        ],
     ),
 ];
 

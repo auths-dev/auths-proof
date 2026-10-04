@@ -301,6 +301,7 @@ proof-bundle = {
   7: [*512 signed-grant-status],
   8: [*512 attachment-descriptor],
   9: bytes / null,          ; canonical body or detached
+  10: [*128 signed-approval], ; order and repetitions carry no meaning; not duplicate-checked
 }
 
 profile-ref = {
@@ -429,6 +430,9 @@ verifier-limits = {
   24: uint .le 1024,        ; accepted entries per registry
   25: uint .le 1024,        ; trust anchors
   26: uint .le 1000000,     ; total work units
+  27: uint .le 128,         ; signed approvals in one proof
+  28: uint .le 32,          ; approver anchors
+  29: uint .le 4,           ; approval requirements in the trusted context
 }
 
 composition-requirement = {
@@ -456,6 +460,8 @@ verifier-context = {
   12: bounded-id,           ; profile policy ID
   13: bounded-id,           ; channel policy ID
   14: [*32 observer-anchor], ; strictly ascending by anchor ID
+  15: [*32 approver-anchor], ; strictly ascending by principal
+  16: [*4 approval-requirement], ; strictly ascending by identifier (type 12)
 }
 
 detached-attachment = {
@@ -498,8 +504,9 @@ verification-result = {
   12: digest32,             ; registry manifest
   13: digest32 / null,      ; configuration required by the trusted context
   14: digest32,             ; verifier-local executable configuration
-  15: 3,                    ; portable ABI version
+  15: 4,                    ; portable ABI version
   16: [*1024 observation-satisfaction], ; ascending, without duplicates
+  17: [*64 approval-satisfaction], ; strictly ascending by requirement ID
 }
 
 grant-signing-input = {
@@ -688,3 +695,66 @@ bounded-policy-commitment = {
                                         ; parent carries no bound
 }
 
+; ---------------------------------------------------------------------------
+; Native K-of-N approvals
+;
+; An approval requirement is "K of these N principals". The trusted context
+; carries the relying party's requirements in key 16 and an approver anchor
+; for every principal they name in key 15. A grant may carry requirements in
+; the critical extension `approval-requirement-v1`, whose bytes are the
+; canonical `approval-requirements` below. The presenter attaches the signed
+; approvals it holds in proof-bundle key 10. Approvals confer no authority.
+
+approver-anchor = {
+  0: principal-id,
+  1: [1*1024 bounded-id],   ; accepted principal methods, strictly ascending
+  2: timestamp,             ; not_before
+  3: timestamp,             ; expires_at
+  4: status-policy,         ; how the approver's principal status is checked
+}
+
+; Its identifier is the domain hash under identifier type 12.
+approval-requirement = {
+  0: [1*16 principal-id],   ; approvers, strictly ascending
+  1: uint .ge 1 .le 16,     ; K, at most the number of approvers
+}
+
+; The exact bytes of the `approval-requirement-v1` critical extension.
+approval-requirements = [1*4 approval-requirement] ; strictly ascending by identifier
+
+approval-statement = {
+  0: protocol-version,
+  1: principal-id,          ; approver
+  2: digest32,              ; approval requirement ID (identifier type 12)
+  3: media-type,
+  4: digest32,              ; canonical body digest
+  5: capability,
+  6: resource,
+  7: budget-ceiling / null, ; requested budget
+  8: digest32 / null,       ; request-attributes digest; null while canonical actions carry none
+  9: audience,
+  10: digest32,             ; challenge
+  11: timestamp,            ; not_before
+  12: timestamp,            ; expires_at, not before not_before
+}
+
+; Signed under object type 10 with the approved action's profile ID and
+; version.
+approval-signing-input = {
+  0: approval-statement,
+  1: signature-descriptor,
+}
+
+; At most 4096 bytes. Evidence is the approver's control evidence, strictly
+; ascending by EvidenceId, and must equal the evidence the principal method
+; consumes. The approval digest is the raw SHA-256 of these exact bytes.
+signed-approval = {
+  0: approval-statement,
+  1: signature-envelope,
+  2: [*4 evidence-object],
+}
+
+approval-satisfaction = {
+  0: digest32,              ; approval requirement ID
+  1: [1*16 digest32],       ; approval digests that counted, strictly ascending
+}

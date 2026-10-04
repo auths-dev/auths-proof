@@ -19,6 +19,10 @@ runs as its own process and records each exchange. It then checks:
   ``--allow-unverified-refusals`` so that only the tampering can fail it; a
   ninth, an entry whose outcome was removed and whose proof was then altered,
   passes as the documented limit of that option;
+- manager A, given an agent grant, submits a refund that managers A and B
+  approve; the SDK refuses to author it, so it is the one refund built
+  outside the project's commands, as a hostile client would, with the
+  operator's and manager A's development keys. The gateway counts only B;
 - a second ``bin/install-gateway`` is refused as already installed;
 - the key in ``AUTHS_SELFTEST_KEY_FILE``, read only for this scan, appears
   in no file outside ``enforcement/gateway/``: none in the project, and none
@@ -30,6 +34,7 @@ It writes ``audit/selftest.json`` and prints the same report.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
 import hashlib
 import json
@@ -44,11 +49,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common import (  # noqa: E402
+    ASSURANCE,
     PROJECT,
     RUN,
     STATE,
     CommandFailed,
     checked_config,
+    gateway_json,
     main,
     pid_alive,
     private_directory,
@@ -81,26 +88,26 @@ GATEWAY_OUTCOMES = {
     "observed-by-provider",
 }
 # The parameters the expected results below are computed for.
-EXPECTED_PARAMETERS = {"approvals": 3, "ceiling": 5_000, "max_count": 2, "sum_limit": 6_000}
+EXPECTED_PARAMETERS = {"approvals": 2, "ceiling": 5_000, "max_count": 2, "sum_limit": 6_000}
 # Short enough windows could roll over during the test.
 MIN_WINDOW_SECONDS = 3_600
 # Refused before any credential lease, so without any provider request.
 BEFORE_LEASE = {
-    "refund-2-one-approval": ("denied", "composition-requirement-not-met"),
-    "refund-6-no-manager": ("denied", "composition-requirement-not-met"),
-    "refund-7-repeated": ("denied", "composition-requirement-not-met"),
+    "refund-2-lowered-threshold": ("denied", "approval-threshold-not-met"),
+    "refund-6-lowered-two-approvals": ("denied", "approval-threshold-not-met"),
+    "refund-self-approval": ("denied", "approval-threshold-not-met"),
     "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
     "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
     "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
     "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
     "refund-1-replay": ("not-entered", "gateway.attempt.replay"),
     "refund-8-reuse": ("denied", "action-body-mismatch"),
-    "refund-7-retry": ("not-entered", "gateway.policy.window-exhausted"),
+    "refund-2-retry": ("not-entered", "gateway.policy.window-exhausted"),
 }
 # The refusals the gateway made before it recorded anything, so their bundle
-# entries carry no signed outcome. refund-7-repeated's unsigned entry is
-# replaced by its signed retry.
-UNRECORDED = {"refund-2-one-approval", "refund-6-no-manager", "refund-3-over-ceiling", "refund-other-account"}
+# entries carry no signed outcome. refund-2-lowered-threshold's unsigned
+# entry is replaced by its signed retry.
+UNRECORDED = {"refund-6-lowered-two-approvals", "refund-3-over-ceiling", "refund-other-account"}
 
 
 class SelftestFailed(Exception):
@@ -110,6 +117,42 @@ class SelftestFailed(Exception):
 def expect(condition: bool, message: str) -> None:
     if not condition:
         raise SelftestFailed(message)
+
+
+def _cbor_head(data: bytes, at: int) -> Tuple[int, int, int]:
+    """(major type, argument, offset after the head) of the definite-length
+    CBOR item at ``at``; enough to read an approval response."""
+    initial = data[at]
+    major, info = initial >> 5, initial & 0x1F
+    if info < 24:
+        return major, info, at + 1
+    width = {24: 1, 25: 2, 26: 4, 27: 8}[info]
+    return major, int.from_bytes(data[at + 1 : at + 1 + width], "big"), at + 1 + width
+
+
+def signed_approval(response_text: str) -> bytes:
+    """The signed approval an ``auths-as2-`` approve response carries: the
+    byte string under key 4 of its five-key map."""
+    data = unb64(response_text.strip()[len("auths-as2-") :])
+    major, count, at = _cbor_head(data, 0)
+    expect(major == 5 and count == 5, "an approval response is a five-key map")
+    for _ in range(count):
+        _, key, at = _cbor_head(data, at)
+        major, length, at = _cbor_head(data, at)
+        value, at = data[at : at + length], at + length
+        if key == 4:
+            expect(major == 2, "an approval response's body is a byte string")
+            return value
+    raise SelftestFailed("an approval response carries no body")
+
+
+def with_approvals(proof: bytes, approvals: List[bytes]) -> bytes:
+    """``proof`` with its empty approval list (bundle key 10, always last)
+    replaced by ``approvals`` in ascending digest order, as a hostile client
+    that bypasses the SDK would write it."""
+    expect(proof.endswith(b"\x0a\x80") and len(approvals) < 24, "a single-proof bundle ends with no approvals")
+    ordered = sorted(approvals, key=lambda value: hashlib.sha256(value).digest())
+    return proof[:-1] + bytes([0x80 | len(ordered)]) + b"".join(ordered)
 
 
 def unb64(value: str) -> bytes:
@@ -457,7 +500,6 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     def request(
         operation: str,
         amount: int,
-        approvers: str,
         payment_intent: str = PAYMENT_INTENT,
         out: Optional[str] = None,
         precheck: bool = False,
@@ -472,8 +514,6 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
             payment_intent,
             "--amount",
             str(amount),
-            "--approvers",
-            approvers,
             *(["--out", out] if out else []),
             *options,
             *(["--precheck"] if precheck else []),
@@ -484,7 +524,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     def submit(
         case: str,
         amount: int,
-        approvers: str,
+        answering: str,
         declines: Tuple[str, ...] = (),
         payment_intent: str = PAYMENT_INTENT,
         operation: Optional[str] = None,
@@ -492,18 +532,19 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         precheck: bool = False,
         **extra: str,
     ) -> None:
-        """Requests, has each distinct listed manager answer once with
-        ``bin/approve``, and submits through the witness. A pre-check refusal
-        is the record, and nothing is asked or sent."""
+        """Requests, has each manager named in ``answering`` answer once with
+        ``bin/approve`` (the others never answer), and submits through the
+        witness. A pre-check refusal is the record, and nothing is asked or
+        sent."""
 
         def action() -> Dict[str, Any]:
-            requested, stderr = request(operation or case, amount, approvers, payment_intent, out, precheck, **extra)
+            requested, stderr = request(operation or case, amount, payment_intent, out, precheck, **extra)
             requests[case] = requested
             warnings[case] = stderr
             if requested.get("outcome") == "not-submitted":
                 return requested
             folder = Path(requested["folder"])
-            for manager in dict.fromkeys(name for name in approvers.split(",") if name):
+            for manager in dict.fromkeys(name for name in answering.split(",") if name):
                 answer = ["--yes", *(["--decline"] if manager in declines else [])]
                 status, answered, answer_stderr = commands.run(
                     "approve", manager, str(folder / f"{manager}.request"), *answer
@@ -528,14 +569,14 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     def tampered_case() -> Dict[str, Any]:
         """A manager's request with its amount edited: the manager's command
         refuses it and signs nothing."""
-        requested, _ = request("refund-tampered", 1_500, f"{manager_a},{manager_b}")
+        requested, _ = request("refund-tampered", 1_500)
         folder = Path(requested["folder"])
         original = (folder / f"{manager_a}.request").read_text().strip()
-        raw = bytearray(unb64(original[len("auths-ar1-") :]))
+        raw = bytearray(unb64(original[len("auths-ar2-") :]))
         at = bytes(raw).index(b'"amount":1500')
         raw[at : at + len(b'"amount":1500')] = b'"amount":9500'
         edited = folder / f"{manager_a}.edited"
-        write_file(edited, ("auths-ar1-" + b64(bytes(raw)) + "\n").encode(), 0o644)
+        write_file(edited, ("auths-ar2-" + b64(bytes(raw)) + "\n").encode(), 0o644)
         status, _, stderr = commands.run("approve", manager_a, str(edited), "--yes")
         tampered_request.update(
             exit=status,
@@ -546,7 +587,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
 
     def reused_approvals() -> Dict[str, Any]:
         """refund-1's approved proof, sent with another refund's action."""
-        requested, _ = request("refund-8-reuse", 1_000, f"{manager_a},{manager_b}")
+        requested, _ = request("refund-8-reuse", 1_000)
         requests["refund-8-reuse"] = requested
         first = next(item for item in lines(PROJECT / "agent" / "log" / "entries.jsonl") if item["operation_id"] == "refund-1")
         proof, action = RUN / "reuse.proof", RUN / "reuse.action"
@@ -572,24 +613,204 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         # The gateway CLI prints the gateway's submit result unchanged.
         return {"decided_by": "gateway", **json.loads(sent.stdout)}
 
+    def repeated_response() -> Dict[str, Any]:
+        """manager-a's response arrives twice beside manager-b's."""
+        requested, _ = request("refund-7-repeated", 1_300)
+        requests["refund-7-repeated"] = requested
+        folder = Path(requested["folder"])
+        for manager in (manager_a, manager_b):
+            status, answered, answer_stderr = commands.run(
+                "approve", manager, str(folder / f"{manager}.request"), "--yes"
+            )
+            expect(status == 0, f"refund-7-repeated: {manager} could not answer: {answered} {answer_stderr}")
+        write_file(
+            folder / f"{manager_a}-again.response", (folder / f"{manager_a}.response").read_bytes(), 0o600
+        )
+        status, record, submit_stderr = commands.run(
+            "submit", "--operation-id", "refund-7-repeated", "--socket", str(WITNESS_SOCKET)
+        )
+        expect(status == 0, f"refund-7-repeated: bin/submit: {record} {submit_stderr}")
+        return record
+
+    def self_approval() -> Dict[str, Any]:
+        """Manager A, given an agent grant, submits a refund as the actor, and
+        managers A and B approve it with ``bin/approve``. The SDK refuses to
+        author a proposal whose actor is a listed approver, so A signs its
+        own action under its own grant and the approvals are added to the
+        bundle by hand. A is in the proof's authority chain, so only B's
+        approval counts."""
+        sys.path.insert(0, str(PROJECT / "app"))
+        import refund_client  # noqa: PLC0415
+        from auths import _native  # noqa: PLC0415
+        from auths.adapters.custody import ReviewField, SigningObjectKind, SigningRequest  # noqa: PLC0415
+        from auths.authoring import propose_mcp_approval  # noqa: PLC0415
+        from auths.self_hosted import Permission, Profile, author_root_grant, load_signer_file  # noqa: PLC0415
+
+        operation = "refund-self-approval"
+        requested, _ = request(operation, 1_400)
+        requests[operation] = requested
+        folder = Path(requested["folder"])
+        for manager in (manager_a, manager_b):
+            status, answered, answer_stderr = commands.run(
+                "approve", manager, str(folder / f"{manager}.request"), "--yes"
+            )
+            expect(status == 0, f"{operation}: {manager} could not answer: {answered} {answer_stderr}")
+        principals = facts["principals"]
+        limits = facts["limits"]
+        bound = gateway_json(
+            config,
+            "bound-extension",
+            "--argument",
+            "amount",
+            "--ceiling",
+            str(limits["ceiling"]),
+            "--window-seconds",
+            str(limits["window_seconds"]),
+            "--max-count",
+            "1",
+            "--sum-limit",
+            str(limits["sum_limit"]),
+            "--partition",
+            "currency=" + ",".join(limits["currencies"]),
+            "--scope",
+            "connect_account=" + limits["connect_account"],
+        )
+        root = load_signer_file(PROJECT / "operator" / "signer.json")
+        actor = load_signer_file(PROJECT / "managers" / manager_a / "signer.json")
+        now = int(time.time())
+        audience = facts["audience"]
+        grant = asyncio.run(
+            author_root_grant(
+                signer=root.signer,
+                subject=principals[manager_a],
+                profile=Profile("auths.mcp", 2),
+                permissions=[Permission("tools/call", f"{audience}/tools/{facts['tool']}")],
+                audiences=[audience],
+                not_before=facts["not_before"],
+                expires_at=facts["expires_at"],
+                remaining_depth=0,
+                assurance_floor=ASSURANCE,
+                requested_at=now,
+                critical_extensions=[(bound["extension_id"], bytes.fromhex(bound["extension_body_hex"]))],
+            )
+        )
+        command = refund_client._proposal(facts, operation).command
+        challenge = bytes.fromhex(facts["challenge_hex"])
+        try:
+            propose_mcp_approval(
+                contract=refund_client.CONTRACT,
+                command=command,
+                required=facts["approvals_required"],
+                approvers=[principals[name] for name in facts["managers"]],
+                actor=principals[manager_a],
+                actor_grant=grant.signed_grant,
+                challenge=challenge,
+                evaluation_time=now,
+            )
+            sdk = "authored"
+        except ValueError:
+            sdk = "refused"
+        signed_grant = _native.parse_signed("grant", grant.signed_grant)
+        prepared = refund_client.CONTRACT.prepare(
+            command,
+            actor=_native.Principal(principals[manager_a]),
+            terminal_grant=signed_grant,
+            challenge=challenge,
+            evaluation_time=now,
+            validity_seconds=300,
+        )
+        descriptor = actor.signer.descriptor
+        signing = _native.prepare_signing(
+            prepared.action.unsigned,
+            descriptor.signature.principal_method,
+            descriptor.signature.verification_method,
+            descriptor.signature.suite,
+        )
+        outcome = asyncio.run(
+            actor.signer.sign(
+                SigningRequest(
+                    signing.request_id,
+                    SigningObjectKind.ACTION,
+                    bytes(signing.object_id),
+                    descriptor,
+                    bytes(signing.transaction_digest),
+                    bytes(signing.signing_preimage),
+                    now + 300,
+                    tuple(ReviewField(label, value) for label, value in prepared.review_fields),
+                )
+            )
+        )
+        response = getattr(outcome, "response", None)
+        expect(response is not None, f"{operation}: manager A's custody did not sign: {outcome}")
+        proof, action, _ = _native.assemble_mcp_proof(
+            prepared.action,
+            signing.complete(bytes(response.signature)),
+            [signed_grant],
+            [[(item.evidence_type, item.media_type, bytes(item.bytes)) for item in grant.evidence]],
+            [(item.evidence_type, item.media_type, bytes(item.bytes)) for item in response.evidence],
+            _native.parse_trusted_context((PROJECT / "agent" / "trust" / "gateway.context.cbor").read_bytes()),
+        )
+        expect(bytes(action) == unb64(requested["action_b64"]), f"{operation}: manager A signed another refund")
+        approvals = [signed_approval((folder / f"{manager}.response").read_text()) for manager in (manager_a, manager_b)]
+        proof_path, action_path = RUN / "self.proof", RUN / "self.action"
+        write_file(proof_path, with_approvals(bytes(proof), approvals), replace=True)
+        write_file(action_path, bytes(action), replace=True)
+        sent = subprocess.run(
+            [
+                config["gateway"]["path"],
+                "submit",
+                "--app-socket",
+                str(WITNESS_SOCKET),
+                "--proof",
+                str(proof_path),
+                "--action",
+                str(action_path),
+            ],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            cwd=PROJECT,
+        )
+        expect(sent.returncode == 0, f"{operation}: {sent.stderr.strip()}")
+        return {"decided_by": "gateway", "sdk": sdk, **json.loads(sent.stdout)}
+
     # The refunds, in order. Each hostile one must be decided by the gateway.
+    # Every request goes to every manager; only the managers named answer.
     submit("refund-1", 1_500, f"{manager_a},{manager_b}")
-    submit("refund-declined", 2_000, f"{manager_a},{manager_b}", declines=(manager_b,))
+    submit(
+        "refund-two-declines",
+        2_000,
+        f"{manager_a},{manager_b},{manager_c}",
+        declines=(manager_b, manager_c),
+    )
     watched("refund-tampered", tampered_case)
-    submit("refund-2-one-approval", 1_200, manager_a)
-    submit("refund-6-no-manager", 1_100, "")
-    submit("refund-7-repeated", 1_300, f"{manager_a},{manager_a}")
+    submit("refund-2-lowered-threshold", 1_200, manager_a, required="1")
+    submit("refund-6-lowered-two-approvals", 1_100, f"{manager_a},{manager_b}", required="1")
+    watched("refund-self-approval", self_approval)
+    watched("refund-7-repeated", repeated_response)
     submit("refund-3-over-ceiling", 9_000, f"{manager_a},{manager_b}")
     submit("refund-other-account", 1_000, f"{manager_a},{manager_c}", connect_account=OTHER_ACCOUNT)
     submit("refund-over-sum", 5_000, f"{manager_a},{manager_b}")
-    submit("refund-4", 4_000, f"{manager_b},{manager_c}", payment_intent=REFUNDED_PAYMENT_INTENT)
+    submit(
+        "refund-4",
+        4_000,
+        f"{manager_a},{manager_b},{manager_c}",
+        declines=(manager_b,),
+        payment_intent=REFUNDED_PAYMENT_INTENT,
+    )
     submit("refund-5-window", 1_000, f"{manager_a},{manager_c}")
     submit("refund-1-replay", 1_500, f"{manager_b},{manager_c}", operation="refund-1", out="refund-1-replay")
     watched("refund-8-reuse", reused_approvals)
-    submit("refund-7-retry", 1_300, f"{manager_b},{manager_c}", operation="refund-7-repeated", out="refund-7-retry")
+    submit(
+        "refund-2-retry",
+        1_200,
+        f"{manager_b},{manager_c}",
+        operation="refund-2-lowered-threshold",
+        out="refund-2-retry",
+    )
     # The negative control: a client-side pre-check refuses locally, and the
     # guard must reject it as not decided by the gateway.
-    submit("refund-9-precheck", 1_200, manager_a, precheck=True)
+    submit("refund-9-precheck", 1_200, manager_a, precheck=True, required="1")
 
     expect_gateway_decided(
         "refund-1",
@@ -600,6 +821,13 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         action_b64=requests["refund-1"]["action_b64"],
     )
     expect(results["refund-1"].get("bundle") == "appended", f"refund-1: {results['refund-1']}")
+    expect(
+        results["refund-1"].get("approved") == sorted([manager_a, manager_b])
+        and results["refund-1"].get("pending") == [manager_c]
+        and "declined" not in results["refund-1"]
+        and sorted(requests["refund-1"]["requests"]) == sorted(facts["managers"]),
+        f"refund-1: one request per manager, approved by two: {results['refund-1']} {requests['refund-1']}",
+    )
     expect_gateway_decided(
         "refund-4",
         results["refund-4"],
@@ -608,11 +836,30 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         status=400,
         action_b64=requests["refund-4"]["action_b64"],
     )
-    declined = results["refund-declined"]
-    expect_not_submitted("refund-declined", declined, frames["refund-declined"], "approver", "approver-declined")
     expect(
-        declined.get("declined") == [manager_b] and declined["provider_requests"] == 0,
-        f"refund-declined: {declined}",
+        results["refund-4"].get("approved") == sorted([manager_a, manager_c])
+        and results["refund-4"].get("declined") == [manager_b],
+        f"refund-4: one declined manager beside two approvals still submits: {results['refund-4']}",
+    )
+    declined = results["refund-two-declines"]
+    expect_not_submitted(
+        "refund-two-declines", declined, frames["refund-two-declines"], "approver", "approvers-declined"
+    )
+    expect(
+        declined.get("declined") == sorted([manager_b, manager_c])
+        and declined.get("approved") == [manager_a]
+        and declined["provider_requests"] == 0,
+        f"refund-two-declines: {declined}",
+    )
+    repeated = results["refund-7-repeated"]
+    expect_not_submitted(
+        "refund-7-repeated", repeated, frames["refund-7-repeated"], "client", "approvals-incomplete"
+    )
+    expect(
+        repeated.get("approved") == [manager_b]
+        and repeated.get("waiting") == {manager_a: "approval.duplicate-response", manager_c: "pending"}
+        and repeated["provider_requests"] == 0,
+        f"refund-7-repeated: {repeated}",
     )
     expect(
         tampered_request == {"exit": 1, "refused": True, "signed": False},
@@ -634,26 +881,34 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
             "code": code,
             "submit_frames": len(submit_frames(frames[case])),
         }
-    # Only the reused-approvals case is sent without asking for an outcome.
-    expect(len(frames["refund-8-reuse"]) == 1, f"refund-8-reuse: the witness saw {frames['refund-8-reuse']}")
+    # The reused-approvals and self-approval cases are sent without asking
+    # for an outcome.
+    for case in ("refund-8-reuse", "refund-self-approval"):
+        expect(len(frames[case]) == 1, f"{case}: the witness saw {frames[case]}")
     expect(
-        f"dropped the repeated approver {manager_a}" in warnings["refund-7-repeated"],
-        f"refund-7-repeated: request did not name the dropped repeat: {warnings['refund-7-repeated']}",
+        results["refund-self-approval"].get("sdk") == "refused",
+        f"the SDK authored a proposal whose actor is a listed approver: {results['refund-self-approval']}",
     )
-    for case in ("refund-1-replay", "refund-7-retry"):
+    for case in ("refund-2-lowered-threshold", "refund-6-lowered-two-approvals"):
+        expect(
+            requests[case].get("required") == 1
+            and f"not the {EXPECTED_PARAMETERS['approvals']} the trust installs" in warnings[case],
+            f"{case}: request did not name the lowered threshold: {warnings[case]}",
+        )
+    for case in ("refund-1-replay", "refund-2-retry"):
         expect(
             "attempt store decides" in warnings[case],
             f"{case}: request did not warn that the operation ID was requested before",
         )
     expect(results["refund-1-replay"].get("bundle") == "unchanged", f"replay: {results['refund-1-replay']}")
-    expect(results["refund-7-retry"].get("bundle") == "replaced", f"retry: {results['refund-7-retry']}")
+    expect(results["refund-2-retry"].get("bundle") == "replaced", f"retry: {results['refund-2-retry']}")
 
     control = results["refund-9-precheck"]
     expect_not_submitted("refund-9-precheck", control, frames["refund-9-precheck"], "client", "precheck")
     expect(control.get("precheck") == "approvals-below-threshold", f"negative control: {control}")
     try:
         expect_gateway_decided(
-            "refund-9-precheck", control, frames["refund-9-precheck"], "denied", "composition-requirement-not-met"
+            "refund-9-precheck", control, frames["refund-9-precheck"], "denied", "approval-threshold-not-met"
         )
     except SelftestFailed as rejected:
         negative_control = {"guard_rejected": True, "reason": str(rejected)}
@@ -701,10 +956,11 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     audited = {
         operation: code
         for operation, (_, code) in BEFORE_LEASE.items()
-        if operation not in ("refund-1-replay", "refund-8-reuse", "refund-7-retry")
+        if operation not in ("refund-1-replay", "refund-8-reuse", "refund-self-approval", "refund-2-retry")
     }
-    # One entry per operation ID: refund-7-repeated is audited through its retry.
-    audited["refund-7-repeated"] = BEFORE_LEASE["refund-7-retry"][1]
+    # One entry per operation ID: refund-2-lowered-threshold is audited
+    # through its retry.
+    audited["refund-2-lowered-threshold"] = BEFORE_LEASE["refund-2-retry"][1]
     bundled = [entry["operation_id"] for entry in bundle["entries"]]
     expect(len(bundled) == len(set(bundled)), f"the bundle repeats an operation ID: {bundled}")
     expect(set(bundled) == {"refund-1", "refund-4", *audited}, f"bundle entries {sorted(bundled)}")
@@ -722,6 +978,13 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         expect(
             result is not None and result["stage"] == stage and result["http_status"] == http_status,
             f"audit provider result {operation}: {result}",
+        )
+    principals = facts["principals"]
+    for operation, names in (("refund-1", (manager_a, manager_b)), ("refund-4", (manager_a, manager_c))):
+        counted = entry_of(relaxed, operation)["approvals"]
+        expect(
+            sorted(counted) == sorted(principals[name] for name in names),
+            f"audit {operation}: counted approvals {counted}; only the approving managers, never the agent",
         )
     report["audit"] = {key: relaxed[key] for key in ("verified", "refused", "unverified", "inconsistent")}
     report["audit"]["default_rule"] = {"exit": strict_status, "stderr": strict_stderr.strip()}

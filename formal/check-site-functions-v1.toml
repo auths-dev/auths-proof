@@ -443,7 +443,7 @@ note = "Grant assurance floor differs from the parent's policy."
 site = "branch.delegation-extensions"
 refusal = { file = "core/crates/auths-authority/src/lib.rs", function = "evaluate_grant_view" }
 guard = { file = "core/crates/auths-authority/src/lib.rs", function = "extensions_attenuate" }
-also = [{ file = "core/crates/auths-authority/src/lib.rs", function = "critical_extensions_attenuate" }, { file = "core/crates/auths-authority/src/lib.rs", function = "parent_extension_retained" }, { file = "core/crates/auths-authority/src/lib.rs", function = "child_extension_admitted" }, { file = "core/crates/auths-registries/src/lib.rs", function = "AcceptedExtensionLaws::attenuates" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ObservationRequirementExtension::attenuates" }, { file = "core/crates/auths-algebra-kernel/src/generated.rs", function = "attenuation_checks_accept" }]
+also = [{ file = "core/crates/auths-authority/src/lib.rs", function = "critical_extensions_attenuate" }, { file = "core/crates/auths-authority/src/lib.rs", function = "parent_extension_retained" }, { file = "core/crates/auths-authority/src/lib.rs", function = "child_extension_admitted" }, { file = "core/crates/auths-registries/src/lib.rs", function = "AcceptedExtensionLaws::attenuates" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ObservationRequirementExtension::attenuates" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ApprovalRequirementExtension::attenuates" }, { file = "core/crates/auths-model/src/approval.rs", function = "approval_requirements_attenuate" }, { file = "core/crates/auths-algebra-kernel/src/generated.rs", function = "attenuation_checks_accept" }]
 stage = "stage 2"
 note = "Child drops a parent critical extension, or adds one its law refuses."
 
@@ -546,6 +546,22 @@ stage = "stage 3"
 note = "Profile policy cannot supply an action fact the requirement needs."
 
 [[sites]]
+site = "branch.approval-threshold"
+refusal = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate_list" }
+guard = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate" }
+also = [{ file = "core/crates/auths-verifier/src/approval.rs", function = "chain_requirements" }, { file = "core/crates/auths-model/src/approval.rs", function = "approval_counts" }, { file = "core/crates/auths-model/src/approval.rs", function = "approver_verdict" }, { file = "core/crates/auths-algebra-kernel/src/generated.rs", function = "threshold_counts" }]
+stage = "stage 3"
+note = "Fewer distinct counted approvers than a grant-carried requirement's threshold, even counting the pending ones."
+
+[[sites]]
+site = "branch.approval-unavailable"
+refusal = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate_list" }
+guard = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate" }
+also = [{ file = "core/crates/auths-verifier/src/approval.rs", function = "status_verdict" }, { file = "core/crates/auths-model/src/approval.rs", function = "approval_counts" }, { file = "core/crates/auths-algebra-kernel/src/generated.rs", function = "threshold_counts" }]
+stage = "stage 3"
+note = "A grant-carried requirement reaches its threshold only with approvals whose signature or status is unavailable."
+
+[[sites]]
 site = "composition.authorized-branches"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_authority_measured" }
 stage = "stage 2"
@@ -562,3 +578,19 @@ site = "composition.distinct-roots"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_authority_measured" }
 stage = "stage 2"
 note = "Fewer distinct roots than the composition minimum."
+
+[[sites]]
+site = "composition.approval-threshold"
+refusal = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate_list" }
+guard = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate" }
+also = [{ file = "core/crates/auths-verifier/src/approval.rs", function = "binds_exact" }, { file = "core/crates/auths-verifier/src/approval.rs", function = "signature_verdict" }, { file = "core/crates/auths-model/src/approval.rs", function = "approval_counts" }, { file = "core/crates/auths-model/src/approval.rs", function = "approver_verdict" }, { file = "core/crates/auths-algebra-kernel/src/generated.rs", function = "threshold_counts" }]
+stage = "stage 3"
+note = "Fewer distinct counted approvers than a context requirement's threshold, even counting the pending ones."
+
+[[sites]]
+site = "composition.approval-unavailable"
+refusal = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate_list" }
+guard = { file = "core/crates/auths-verifier/src/approval.rs", function = "Approvals::evaluate" }
+also = [{ file = "core/crates/auths-verifier/src/approval.rs", function = "status_verdict" }, { file = "core/crates/auths-model/src/approval.rs", function = "approval_counts" }, { file = "core/crates/auths-algebra-kernel/src/generated.rs", function = "threshold_counts" }]
+stage = "stage 3"
+note = "A context requirement reaches its threshold only with approvals whose signature or status is unavailable."

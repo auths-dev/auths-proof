@@ -14,23 +14,24 @@ use alloc::vec;
 use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
-    CodecError, action_id, action_signing_preimage, body_digest, domain_commitment,
-    encode_canonical_action, encode_observation_statement, evidence_id, grant_id,
-    grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
-    observation_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
-    transaction_binding,
+    CodecError, action_id, action_signing_preimage, approval_signing_preimage, body_digest,
+    domain_commitment, encode_approval_statement, encode_canonical_action,
+    encode_observation_statement, evidence_id, grant_id, grant_signing_preimage, grant_status_id,
+    grant_status_signing_preimage, observation_signing_preimage, plan_id, principal_status_id,
+    principal_status_signing_preimage, transaction_binding,
 };
 use auths_model::{
-    ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, Audience, AudienceSet,
-    AuthorizationPlan, BudgetCeiling, BundleHeader, CanonicalAction, Challenge, ChannelBindingId,
-    CompositionRequirement, ControlBinding, CriticalExtensionLaws, CriticalExtensions, Digest,
-    EvidenceId, EvidenceObject, EvidenceTypeId, GrantId, GrantStatement, GrantStatusId,
-    GrantStatusStatement, LimitKind, MediaType, ModelError, ObservationStatement, PermissionSet,
-    PrincipalId, PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofBundle, ProofRef,
-    ResourceId, ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope,
-    SignedAction, SignedGrant, SignedGrantStatus, SignedObservation, SignedPrincipalStatus,
-    StatementRef, StatusPolicy, Timestamp, TrustedContext, ValidityWindow, VerifierLimits,
-    grant_authority_view, scope_authority_view,
+    ActionConstraint, ActionEnvelope, ActionId, ApprovalStatement, AssurancePolicyId, Audience,
+    AudienceSet, AuthorizationPlan, BudgetCeiling, BundleHeader, CanonicalAction, Challenge,
+    ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensionLaws,
+    CriticalExtensions, Digest, EvidenceId, EvidenceObject, EvidenceTypeId, GrantId,
+    GrantStatement, GrantStatusId, GrantStatusStatement, LimitKind, MediaType, ModelError,
+    ObservationStatement, PermissionSet, PrincipalId, PrincipalStatusId, PrincipalStatusStatement,
+    ProfileRef, ProofBundle, ProofRef, ResourceId, ScopeAuthorityView, SignatureBytes,
+    SignatureDescriptor, SignatureEnvelope, SignedAction, SignedApproval, SignedGrant,
+    SignedGrantStatus, SignedObservation, SignedPrincipalStatus, StatementRef, StatusPolicy,
+    Timestamp, TrustedContext, ValidityWindow, VerifierLimits, grant_authority_view,
+    scope_authority_view,
 };
 use core::fmt;
 
@@ -814,6 +815,10 @@ pub enum SigningObjectId {
     /// no protocol content identifier; this names the statement a signer is
     /// asked to sign and nothing else.
     Observation(Digest),
+    /// Commitment to one unsigned approval statement. Approvals have no
+    /// content identifier before signing; this names the statement an
+    /// approver is asked to sign and nothing else.
+    Approval(Digest),
 }
 
 impl SigningObjectId {
@@ -825,7 +830,7 @@ impl SigningObjectId {
             Self::Action(identifier) => identifier.as_bytes(),
             Self::PrincipalStatus(identifier) => identifier.as_bytes(),
             Self::GrantStatus(identifier) => identifier.as_bytes(),
-            Self::Observation(commitment) => commitment.as_bytes(),
+            Self::Observation(commitment) | Self::Approval(commitment) => commitment.as_bytes(),
         }
     }
 
@@ -838,6 +843,7 @@ impl SigningObjectId {
             Self::PrincipalStatus(_) => "principal-status",
             Self::GrantStatus(_) => "grant-status",
             Self::Observation(_) => "observation",
+            Self::Approval(_) => "approval",
         }
     }
 }
@@ -1131,6 +1137,57 @@ impl ExternalSigningRequest<ObservationStatement> {
             evidence,
         )
     }
+}
+
+impl ExternalSigningRequest<ApprovalStatement> {
+    /// Completes an approval with the approver's control evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a model error for more evidence objects than an approval may
+    /// carry or a duplicated evidence object.
+    pub fn complete(
+        self,
+        signature: SignatureBytes,
+        evidence: Vec<EvidenceObject>,
+    ) -> Result<SignedApproval, ModelError> {
+        SignedApproval::new(
+            self.unsigned,
+            SignatureEnvelope::new(self.descriptor, signature),
+            evidence,
+        )
+    }
+}
+
+/// Domain of the commitment naming an unsigned approval statement.
+pub const APPROVAL_STATEMENT_COMMITMENT: &str = "auths.approval-statement.v1";
+
+/// Prepares one approval statement for an external signer.
+///
+/// The signing input is bound to `profile`, the approved action's exact
+/// profile and version, so an approval signed for one profile never verifies
+/// for another.
+///
+/// # Errors
+///
+/// Returns a codec error if deterministic encoding or the statement
+/// commitment fails.
+pub fn prepare_approval(
+    statement: ApprovalStatement,
+    descriptor: SignatureDescriptor,
+    profile: &ProfileRef,
+) -> Result<ExternalSigningRequest<ApprovalStatement>, AuthorError> {
+    let object_id = SigningObjectId::Approval(domain_commitment(
+        APPROVAL_STATEMENT_COMMITMENT,
+        &encode_approval_statement(&statement)?,
+    )?);
+    let signing_preimage = approval_signing_preimage(&statement, &descriptor, profile)?;
+    Ok(ExternalSigningRequest {
+        unsigned: statement,
+        descriptor,
+        object_id,
+        signing_preimage,
+    })
 }
 
 /// Domain of the commitment naming an unsigned observation statement.

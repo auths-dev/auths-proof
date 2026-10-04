@@ -11,11 +11,12 @@ use crate::{
 };
 use alloc::vec::Vec;
 use auths_model::{
-    ActionEnvelope, ActionId, AttachmentDigest, ContextDigest, Digest, EvidenceId, EvidenceObject,
+    ActionEnvelope, ActionId, ApprovalDigest, ApprovalRequirement, ApprovalRequirementId,
+    ApprovalStatement, AttachmentDigest, ContextDigest, Digest, EvidenceId, EvidenceObject,
     GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, ObservationRequirement,
     ObservationRequirementId, ObservationStatement, PROTOCOL_V1, PlanId,
-    PortableVerificationResult, PrincipalStatusId, PrincipalStatusStatement, ProofBundle,
-    SignatureDescriptor, TrustedContext, VerificationResultDigest,
+    PortableVerificationResult, PrincipalStatusId, PrincipalStatusStatement, ProfileRef,
+    ProofBundle, SignatureDescriptor, SignedApproval, TrustedContext, VerificationResultDigest,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -31,6 +32,7 @@ enum ObjectType {
     PrincipalStatus = 3,
     GrantStatus = 4,
     Observation = 9,
+    Approval = 10,
 }
 
 #[derive(Clone, Copy)]
@@ -43,6 +45,7 @@ enum IdentifierType {
     GrantStatus = 6,
     Context = 9,
     ObservationRequirement = 11,
+    ApprovalRequirement = 12,
 }
 
 fn raw_sha256(value: &[u8]) -> Digest {
@@ -347,4 +350,50 @@ pub fn observation_requirement_id(
         IdentifierType::ObservationRequirement,
         &crate::encode_observation_requirement(requirement)?,
     )?))
+}
+
+/// Derives the content identifier of one approval requirement.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if deterministic encoding of the requirement fails.
+pub fn approval_requirement_id(
+    requirement: &ApprovalRequirement,
+) -> Result<ApprovalRequirementId, CodecError> {
+    Ok(ApprovalRequirementId::from_digest(domain_hash(
+        IdentifierType::ApprovalRequirement,
+        &crate::encode_approval_requirement(requirement)?,
+    )?))
+}
+
+/// Constructs the exact domain-separated approval signing preimage.
+///
+/// An approval is signed with the approved action's profile identifier and
+/// version, so an approval for one profile never verifies for another.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if deterministic encoding or bounded framing fails.
+pub fn approval_signing_preimage(
+    statement: &ApprovalStatement,
+    descriptor: &SignatureDescriptor,
+    profile: &ProfileRef,
+) -> Result<Vec<u8>, CodecError> {
+    signing_preimage(
+        ObjectType::Approval,
+        profile.id().as_str(),
+        profile.version(),
+        &crate::encode_approval_signing_input(statement, descriptor)?,
+    )
+}
+
+/// Hashes the exact canonical bytes of one signed approval.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if the approval cannot be encoded.
+pub fn approval_digest(approval: &SignedApproval) -> Result<ApprovalDigest, CodecError> {
+    Ok(ApprovalDigest::from_digest(raw_sha256(
+        &crate::encode_signed_approval(approval)?,
+    )))
 }

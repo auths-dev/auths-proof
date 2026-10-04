@@ -69,7 +69,7 @@ set equality in both directions.
 | Manifest | Schema | Exports | Result types |
 |---|---|---|---|
 | [`identity-abi-v1.json`](identity-abi-v1.json) | `auths.identity-wasm-abi/1` | 12 | 3 |
-| [`authoring-abi-v1.json`](authoring-abi-v1.json) | `auths.wasm-authoring-abi/1` | 45 | 19 |
+| [`authoring-abi-v1.json`](authoring-abi-v1.json) | `auths.wasm-authoring-abi/1` | 46 | 19 |
 | [`product-abi-v1.json`](product-abi-v1.json) | `auths.wasm-product-abi/1` | 20 | 3 |
 
 The authoring boundary validates principal identifiers, encodes unsigned

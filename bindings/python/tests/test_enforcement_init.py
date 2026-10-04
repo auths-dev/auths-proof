@@ -247,7 +247,7 @@ def test_writes_exactly_the_layout_with_modes_and_defaults(
         assert values["sha256"] == hashlib.sha256((short_root / "auths-gateway").read_bytes()).hexdigest()
         assert {key: values[key] for key in summary["parameters"]} == summary["parameters"] == {
             "managers": ["manager-a", "manager-b", "manager-c"],
-            "approvals": 3,
+            "approvals": 2,
             "ceiling": 5_000,
             "max_count": 2,
             "window_seconds": 86_400,
@@ -333,8 +333,8 @@ def test_socket_paths_are_checked_at_the_byte_boundary(
     ("arguments", "code"),
     [
         (["stripe-refunds"], "auths.init.unknown-recipe"),
-        (["stripe-refund-approval", "--approvals", "1"], "auths.init.invalid-approvals"),
-        (["stripe-refund-approval", "--approvals", "5"], "auths.init.invalid-approvals"),
+        (["stripe-refund-approval", "--approvals", "0"], "auths.init.invalid-approvals"),
+        (["stripe-refund-approval", "--approvals", "4"], "auths.init.invalid-approvals"),
         (["stripe-refund-approval", "--ceiling", "0"], "auths.init.invalid-ceiling"),
         (["stripe-refund-approval", "--ceiling", "-5"], "auths.init.invalid-ceiling"),
         (["stripe-refund-approval", "--days", "0"], "auths.init.invalid-days"),

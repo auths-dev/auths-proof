@@ -445,7 +445,10 @@
     "code": "delegation-expanded",
     "vectors": [
       "critical-extension-attenuation",
-      "observation-child-requirements-over-limit-unconditioned-parent"
+      "observation-child-requirements-over-limit-unconditioned-parent",
+      "approval-grant-child-widens",
+      "approval-grant-child-lowers",
+      "approval-grant-child-drops"
     ]
   },
   {
@@ -540,6 +543,21 @@
     ]
   },
   {
+    "site": "branch.approval-threshold",
+    "code": "approval-threshold-not-met",
+    "vectors": [
+      "approval-grant-single",
+      "approval-grant-narrowed-parent-unmet"
+    ]
+  },
+  {
+    "site": "branch.approval-unavailable",
+    "code": "approval-unavailable",
+    "vectors": [
+      "approval-grant-status-unavailable"
+    ]
+  },
+  {
     "site": "composition.authorized-branches",
     "code": "composition-requirement-not-met",
     "vectors": [
@@ -558,6 +576,32 @@
     "code": "composition-requirement-not-met",
     "vectors": [
       "composition-shared-root"
+    ]
+  },
+  {
+    "site": "composition.approval-threshold",
+    "code": "approval-threshold-not-met",
+    "vectors": [
+      "approval-single",
+      "approval-duplicate",
+      "approval-other-action",
+      "approval-outsider",
+      "approval-forged",
+      "approval-none",
+      "approval-self",
+      "approval-wrong-audience",
+      "approval-wrong-challenge",
+      "approval-wrong-requirement",
+      "approval-expired",
+      "approval-revoked"
+    ]
+  },
+  {
+    "site": "composition.approval-unavailable",
+    "code": "approval-unavailable",
+    "vectors": [
+      "approval-status-unavailable",
+      "approval-status-out-of-scope"
     ]
   }
 ]

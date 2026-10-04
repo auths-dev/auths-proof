@@ -4,18 +4,17 @@
 
 #![allow(clippy::needless_pass_by_value)]
 
-use crate::authoring::{PySignedObject, SignedObject, signing_descriptor, value_error};
-use crate::mcp::evidence_object;
-use crate::quorum::PyMcpQuorum;
+use crate::authoring::{signing_descriptor, value_error};
+use crate::quorum::{Evidence, PyMcpQuorum, PyQuorumAction, evidence_objects};
 use auths_approval_quorum::remote::{
     ApprovalCode, ApproverStatus, Collection, DECLINE_OBJECT_KIND, PendingApproval, PendingDecline,
     RegisteredProfile, ReviewProfile, ReviewedRequest, collect, open_request, requests,
 };
-use auths_model::{EvidenceObject, PrincipalId, ProfileId, ProfileRef, SignedGrant};
+use auths_model::{PrincipalId, ProfileId, ProfileRef};
 use auths_profile_mcp::{McpProfile, PROFILE_ID, PROFILE_VERSION};
 use pyo3::{
     create_exception,
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
+    exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
     types::PyBytes,
 };
@@ -27,7 +26,6 @@ create_exception!(
     "A remote approval operation refused its input; args[0] is the stable code."
 );
 
-type Evidence = (String, String, Vec<u8>);
 type Status = (String, &'static str, Option<&'static str>, Option<u64>);
 type IssuedRequest<'py> = (String, Bound<'py, PyBytes>, String, Bound<'py, PyBytes>);
 
@@ -48,50 +46,19 @@ fn principal(value: &str) -> PyResult<PrincipalId> {
     PrincipalId::parse(value).map_err(value_error)
 }
 
-fn evidence_objects(values: Vec<Evidence>) -> PyResult<Vec<EvidenceObject>> {
-    values
-        .into_iter()
-        .map(|(evidence_type, media_type, bytes)| {
-            evidence_object(&evidence_type, &media_type, bytes)
-        })
-        .collect()
-}
-
-fn grant_chain(
-    py: Python<'_>,
-    grants: Vec<Py<PySignedObject>>,
-    evidence: Vec<Vec<Evidence>>,
-) -> PyResult<Vec<(SignedGrant, Vec<EvidenceObject>)>> {
-    if grants.len() != evidence.len() {
-        return Err(crate::errors::malformed_input(
-            "each grant requires one evidence collection",
-        ));
-    }
-    grants
-        .iter()
-        .zip(evidence)
-        .map(|(grant, evidence)| {
-            let SignedObject::Grant(grant) = grant.borrow(py).inner.clone() else {
-                return Err(PyTypeError::new_err("grant chain contains a non-grant"));
-            };
-            Ok((grant, evidence_objects(evidence)?))
-        })
-        .collect()
-}
-
 fn hex(bytes: &[u8]) -> String {
     hex::encode(bytes)
 }
 
 /// Returns `(approver, request bytes, printable form, request id)` for each
-/// listed approver, in proposal order.
+/// listed approver, in ascending approver order. The requester is the
+/// proposal's actor.
 #[pyfunction]
 fn approval_requests<'py>(
     py: Python<'py>,
     quorum: PyRef<'_, PyMcpQuorum>,
-    requester: &str,
 ) -> PyResult<Vec<IssuedRequest<'py>>> {
-    requests(quorum.proposal(), &principal(requester)?)
+    requests(quorum.proposal())
         .map_err(refusal)?
         .into_iter()
         .map(|request| {
@@ -305,24 +272,25 @@ impl PyPendingApproval {
         })
     }
 
-    /// Completes the response. Returns `(bytes, printable form)`.
+    /// Completes the response with the signature and the one to four
+    /// evidence objects controlling it. Returns `(bytes, printable form)`.
     fn complete<'py>(
         &mut self,
         py: Python<'py>,
         signature: &[u8],
-        grants: Vec<Py<PySignedObject>>,
-        grant_evidence: Vec<Vec<Evidence>>,
-        action_evidence: Vec<Evidence>,
+        evidence: Vec<Evidence>,
     ) -> PyResult<(Bound<'py, PyBytes>, String)> {
-        let chain = grant_chain(py, grants, grant_evidence)?;
-        let evidence = evidence_objects(action_evidence)?;
+        if evidence.len() > auths_approval_quorum::MAX_APPROVER_EVIDENCE {
+            return Err(refusal(ApprovalCode::Oversized));
+        }
+        let evidence = evidence_objects(evidence)?;
         let response = match self
             .inner
             .take()
             .ok_or_else(|| PyRuntimeError::new_err("approval was already completed"))?
         {
-            Pending::Approve(value) => value.complete(signature, chain, evidence),
-            Pending::Decline(value) => value.complete(signature, chain, evidence),
+            Pending::Approve(value) => value.complete(signature, evidence),
+            Pending::Decline(value) => value.complete(signature, evidence),
         }
         .map_err(refusal)?;
         let bytes = response.encode().map_err(refusal)?;
@@ -343,16 +311,22 @@ fn open_approval_request(data: &[u8], now: u64) -> PyResult<PyReviewedApprovalRe
     })
 }
 
+/// The collector's view of one proposal's responses. Assembly re-matches the
+/// same responses natively against the same proposal.
 #[pyclass(name = "ApprovalCollection", frozen, module = "auths._native")]
 pub struct PyApprovalCollection {
+    quorum: Py<PyMcpQuorum>,
+    responses: Vec<Vec<u8>>,
     statuses: Vec<Status>,
     unattributed: Vec<(usize, &'static str)>,
-    proof: Result<Vec<u8>, ApprovalCode>,
+    approved: usize,
+    required: u16,
 }
 
 #[pymethods]
 impl PyApprovalCollection {
-    /// `(approver, status, code, decided_at)` per listed approver.
+    /// `(approver, status, code, decided_at)` per listed approver, in
+    /// ascending approver order.
     #[getter]
     fn statuses(&self) -> Vec<Status> {
         self.statuses.clone()
@@ -363,16 +337,42 @@ impl PyApprovalCollection {
         self.unattributed.clone()
     }
 
-    fn assemble<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        match &self.proof {
-            Ok(proof) => Ok(PyBytes::new(py, proof)),
-            Err(code) => Err(refusal(*code)),
-        }
+    /// How many listed approvers approved.
+    #[getter]
+    const fn approved(&self) -> usize {
+        self.approved
+    }
+
+    /// How many listed approvers must approve.
+    #[getter]
+    const fn required(&self) -> u16 {
+        self.required
+    }
+
+    #[getter]
+    fn is_complete(&self) -> bool {
+        self.approved >= usize::from(self.required)
+    }
+
+    /// Assembles the proof with the actor's signed action once `required`
+    /// listed approvers approved.
+    fn assemble<'py>(
+        &self,
+        py: Python<'py>,
+        action: PyRef<'_, PyQuorumAction>,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let quorum = self.quorum.get();
+        let bundle = collect(quorum.proposal(), &self.responses)
+            .map_err(refusal)?
+            .assemble(&action.inner)
+            .map_err(refusal)?;
+        let proof = auths_codec::encode_bundle(&bundle).map_err(value_error)?;
+        Ok(PyBytes::new(py, &proof))
     }
 }
 
-fn project(collection: &Collection<'_>) -> PyResult<PyApprovalCollection> {
-    let statuses = collection
+fn statuses(collection: &Collection<'_>) -> Vec<Status> {
+    collection
         .statuses()
         .iter()
         .zip(collection.approvers())
@@ -387,28 +387,35 @@ fn project(collection: &Collection<'_>) -> PyResult<PyApprovalCollection> {
                 ApproverStatus::Rejected(code) => (approver, "rejected", Some(code.as_str()), None),
             }
         })
-        .collect();
-    let proof = match collection.assemble() {
-        Ok(bundle) => Ok(auths_codec::encode_bundle(&bundle).map_err(value_error)?),
-        Err(code) => Err(code),
-    };
-    Ok(PyApprovalCollection {
-        statuses,
-        unattributed: collection
-            .unattributed()
-            .iter()
-            .map(|(index, code)| (*index, code.as_str()))
-            .collect(),
-        proof,
-    })
+        .collect()
 }
 
 #[pyfunction]
 fn collect_approvals(
-    quorum: PyRef<'_, PyMcpQuorum>,
+    quorum: Py<PyMcpQuorum>,
     responses: Vec<Vec<u8>>,
 ) -> PyResult<PyApprovalCollection> {
-    project(&collect(quorum.proposal(), &responses).map_err(refusal)?)
+    let (statuses, unattributed, approved, required) = {
+        let collection = collect(quorum.get().proposal(), &responses).map_err(refusal)?;
+        (
+            statuses(&collection),
+            collection
+                .unattributed()
+                .iter()
+                .map(|(index, code)| (*index, code.as_str()))
+                .collect(),
+            collection.approved(),
+            collection.required(),
+        )
+    };
+    Ok(PyApprovalCollection {
+        quorum,
+        responses,
+        statuses,
+        unattributed,
+        approved,
+        required,
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

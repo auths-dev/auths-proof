@@ -6,8 +6,8 @@ or contradictory identifier appears. No parser, adapter, or algorithm
 fallback is permitted.
 
 The complete executable target-V1 set is bound by the pinned manifest
-`36` repeated 32 times. The set gained the `bounded-policy-commitment-v1`
-critical extension; a context carrying the earlier `35` manifest, or any
+`37` repeated 32 times. The set gained the `approval-requirement-v1`
+critical extension; a context carrying the earlier `36` manifest, or any
 other manifest, is denied before pluggable verification. Every implementation declares a conservative maximum
 work cost that is reserved before invocation.
 
@@ -20,6 +20,7 @@ work cost that is reserved before invocation.
 | Budget algebra | `numeric-ceiling-v1` | Exact-algebra attenuation and coverage using unsigned `<=` |
 | Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority. Attenuation law: byte equality; adding it is refused |
 | Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect. Attenuation law: every parent requirement kept byte-identical or strictly narrowed; the child may add requirements, and adding the extension is accepted |
+| Critical extension | `approval-requirement-v1` | Bytes are canonical `approval-requirements`: one to four requirements in ascending identifier order; the approval step evaluates those carried by grants, and one on an action has no effect. Attenuation law: every parent requirement covered by a child requirement whose approvers are a subset and whose K is no lower; the child may add requirements, and adding the extension is accepted |
 | Critical extension | `bounded-policy-commitment-v1` | Bytes are a canonical `bounded-policy-commitment` whose policy bytes open to the committed digest; core never reads the policy. Attenuation law: a child keeps a bound only by linking the digest of its parent's exact extension bytes, and adds one to an unbounded parent only without a link |
 | Principal status | `auths-principal-status-v1` | Over the statements in scope for the branch's trust anchor: trusted issuer, method, floor, freshness, and revoked-dominant latest selection, keyed on the principal alone |
 | Grant status | `auths-grant-status-v1` | Same scope and selection rules as principal status, keyed on the grant |
@@ -194,6 +195,19 @@ parent carries requirements, since the child then addresses none of them, and
 `delegation-expanded` when the parent carries none, since the law refuses to
 add an unreadable requirement set. The handler failure codes below apply to
 the first grant under a trust anchor and to actions.
+
+### Approval requirements
+
+`approval-requirement-v1` is carried by grants. Its bytes are the canonical
+`approval-requirements` CDDL value: one to four distinct requirements in
+ascending identifier order, each naming one to sixteen approver principals
+in ascending order and a threshold K between one and their number. The
+approval step (`verification-algorithm.md`, stage 5b) evaluates every
+requirement of a branch's chain; the handler validates the canonical bytes,
+returning a resource-limit failure above four requirements or sixteen
+approvers and invalid input for any other invalid or non-canonical bytes. A
+child that drops or widens a parent requirement is refused by the law as
+`delegation-expanded`.
 
 ### Observation requirements
 

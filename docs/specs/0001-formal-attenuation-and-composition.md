@@ -443,6 +443,35 @@ verifier's own local policy, applied to the branches that authorized with the
 facts available. When some leaves were indeterminate, the result can change
 once those leaves resolve, for example after fresher status is supplied.
 
+### 5.5 Approval requirements
+
+Approvals are not plan branches. An approval requirement ("K of these N
+principals", AP-SPEC-065) is held by the verifier, in the trusted context or
+in a grant's `approval-requirement-v1` extension, and is evaluated after the
+composition floor (context requirements) or inside each branch (grant
+requirements). Each listed approver counts at most once, and only through an
+approval statement that binds the exact action, audience, challenge, window,
+and requirement identifier. An approval by any principal of the action's
+authority chain, an unlisted principal, a forged or stray approval, or a
+repeated approval never counts. The count feeds the same three-valued
+threshold classifier plans use:
+
+\[
+\operatorname{decide}(K, \mathit{counted}, \mathit{pending}) =
+\operatorname{thresholdCounts}(K, \mathit{counted}, \mathit{pending}).
+\]
+
+Too few counted approvers with no pending ones is
+`Denied(ApprovalThresholdNotMet)`; a threshold still reachable through pending
+approvals is `Indeterminate(ApprovalUnavailable)`. A proof cannot lower or
+replace a requirement: the requirement identifier the approvals bind is the
+verifier's.
+
+Grant-carried requirements attenuate by covering: a child keeps every parent
+requirement, identical or narrowed (a subset of the approvers with a
+threshold at least as high), and may add requirements, but never widens or
+drops one.
+
 ## 6. Required theorems
 
 All theorem names below are normative deliverables.
@@ -488,6 +517,20 @@ For permissions, validity, audiences, body constraints, budgets, and status:
 - `authorized_implies_threshold_met`;
 - `denied_implies_threshold_impossible`;
 - `indeterminate_implies_threshold_reachable`.
+
+Approval requirements (`formal/Auths/Approval.lean`, §5.5):
+
+- `approval_decide_eq_threshold_counts`;
+- `approval_authorized_iff_distinct_quorum`;
+- `approval_duplicate_irrelevant`, `approval_outsider_irrelevant`,
+  `approval_other_action_irrelevant`, `approval_other_requirement_irrelevant`,
+  and `approval_self_approval_irrelevant`;
+- `approval_permutation_invariant`;
+- `approval_monotone_in_approvals`, `approval_antitone_in_threshold`, and
+  `approval_antitone_in_approvers`;
+- `approval_requirement_law_lawful`, `approval_requirement_law_accepts_addition`,
+  and `approval_requirement_law_refuses_drop`: the covering law is a narrowing
+  law, so delegation never widens authority under it.
 
 ### 6.4 Refinement theorem
 

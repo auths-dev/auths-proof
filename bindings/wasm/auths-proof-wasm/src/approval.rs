@@ -4,15 +4,13 @@
 //! the stable `approval.*` code.
 
 use super::{addressed_evidence, js_error};
-use crate::quorum::McpQuorumV1;
+use crate::quorum::{McpQuorumActionV1, McpQuorumV1};
 use auths_approval_quorum::remote::{
     ApprovalCode, ApproverStatus, DECLINE_OBJECT_KIND, PendingApproval, PendingDecline,
     RegisteredProfile, ReviewProfile, ReviewedRequest, collect, open_request, requests,
 };
-use auths_approval_quorum::{MAX_APPROVAL_GRANTS, MAX_APPROVERS, MAX_STATEMENT_EVIDENCE};
-use auths_model::{
-    EvidenceObject, PrincipalId, ProfileId, ProfileRef, SignedGrant, VerifierLimits,
-};
+use auths_approval_quorum::{MAX_APPROVER_EVIDENCE, MAX_APPROVERS};
+use auths_model::{EvidenceObject, PrincipalId, ProfileId, ProfileRef};
 use auths_profile_mcp::{McpProfile, PROFILE_ID, PROFILE_VERSION};
 use wasm_bindgen::prelude::*;
 
@@ -98,18 +96,14 @@ impl ApprovalRequestsV1 {
     }
 }
 
-/// Emits one request per listed approver; `requester` must be listed.
+/// Emits one request per listed approver; the requester is the actor.
 ///
 /// # Errors
 ///
-/// Throws `ApprovalRefused` with `approval.plan-mismatch` for an unlisted
-/// requester.
+/// Throws `ApprovalRefused` if a request cannot be encoded.
 #[wasm_bindgen(js_name = approvalRequestsV1)]
-pub fn approval_requests_v1(
-    quorum: &McpQuorumV1,
-    requester: &str,
-) -> Result<ApprovalRequestsV1, JsValue> {
-    let issued = requests(quorum.proposal(), &principal(requester)?)
+pub fn approval_requests_v1(quorum: &McpQuorumV1) -> Result<ApprovalRequestsV1, JsValue> {
+    let issued = requests(quorum.proposal())
         .map_err(refusal)?
         .into_iter()
         .map(|request| {
@@ -270,21 +264,19 @@ enum Pending {
     Decline(PendingDecline),
 }
 
-/// The custody request for one approval or decline, and the approver's
-/// grant chain and signature evidence staged for the response.
+/// The custody request for one approval or decline, and the evidence
+/// controlling the approver's signature staged for the response.
 #[wasm_bindgen]
 pub struct PendingApprovalV1 {
     pending: Option<Pending>,
-    grants: Vec<(SignedGrant, Vec<EvidenceObject>)>,
-    action_evidence: Vec<EvidenceObject>,
+    evidence: Vec<EvidenceObject>,
 }
 
 impl PendingApprovalV1 {
     const fn new(pending: Pending) -> Self {
         Self {
             pending: Some(pending),
-            grants: Vec::new(),
-            action_evidence: Vec::new(),
+            evidence: Vec::new(),
         }
     }
 
@@ -411,59 +403,24 @@ impl PendingApprovalV1 {
         })
     }
 
-    /// Stages one grant of the approver's chain, root first.
-    ///
-    /// # Errors
-    ///
-    /// Rejects a malformed grant or a full chain.
-    #[wasm_bindgen(js_name = pushGrant)]
-    pub fn push_grant(&mut self, signed_grant_cbor: &[u8]) -> Result<u32, JsValue> {
-        if self.grants.len() >= MAX_APPROVAL_GRANTS {
-            return Err(js_error(crate::EngineError::Abi(
-                "approval grant chain is full",
-            )));
-        }
-        let grant = auths_codec::decode_signed_grant(
-            signed_grant_cbor,
-            &VerifierLimits::default_deployment(),
-        )
-        .map_err(js_error)?;
-        self.grants.push((grant, Vec::new()));
-        u32::try_from(self.grants.len() - 1).map_err(js_error)
-    }
-
-    /// Binds public control evidence to one staged grant.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an unknown grant, invalid evidence, or a full collection.
-    #[wasm_bindgen(js_name = bindGrantEvidence)]
-    pub fn bind_grant_evidence(
-        &mut self,
-        grant: u32,
-        evidence_type: &str,
-        media_type: &str,
-        bytes: &[u8],
-    ) -> Result<(), JsValue> {
-        let evidence = addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?;
-        let slot = index(grant, self.grants.len())?;
-        push_bounded(&mut self.grants[slot].1, evidence)
-    }
-
-    /// Binds public control evidence to the signature.
+    /// Binds public control evidence to the approver's signature.
     ///
     /// # Errors
     ///
     /// Rejects invalid evidence or a full collection.
-    #[wasm_bindgen(js_name = bindActionEvidence)]
-    pub fn bind_action_evidence(
+    #[wasm_bindgen(js_name = bindEvidence)]
+    pub fn bind_evidence(
         &mut self,
         evidence_type: &str,
         media_type: &str,
         bytes: &[u8],
     ) -> Result<(), JsValue> {
         let evidence = addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?;
-        push_bounded(&mut self.action_evidence, evidence)
+        if self.evidence.len() >= MAX_APPROVER_EVIDENCE {
+            return Err(refusal(ApprovalCode::Oversized));
+        }
+        self.evidence.push(evidence);
+        Ok(())
     }
 
     /// Completes the response with the custody signature.
@@ -477,11 +434,10 @@ impl PendingApprovalV1 {
             .pending
             .take()
             .ok_or_else(|| js_error(crate::EngineError::Abi("approval was already completed")))?;
-        let grants = std::mem::take(&mut self.grants);
-        let evidence = std::mem::take(&mut self.action_evidence);
+        let evidence = std::mem::take(&mut self.evidence);
         let response = match pending {
-            Pending::Approve(value) => value.complete(signature, grants, evidence),
-            Pending::Decline(value) => value.complete(signature, grants, evidence),
+            Pending::Approve(value) => value.complete(signature, evidence),
+            Pending::Decline(value) => value.complete(signature, evidence),
         }
         .map_err(refusal)?;
         Ok(ApprovalResponseV1 {
@@ -489,19 +445,6 @@ impl PendingApprovalV1 {
             text: response.to_text().map_err(refusal)?,
         })
     }
-}
-
-fn push_bounded(
-    objects: &mut Vec<EvidenceObject>,
-    evidence: EvidenceObject,
-) -> Result<(), JsValue> {
-    if objects.len() >= MAX_STATEMENT_EVIDENCE {
-        return Err(js_error(crate::EngineError::Abi(
-            "evidence collection is full",
-        )));
-    }
-    objects.push(evidence);
-    Ok(())
 }
 
 /// Responses gathered for one proposal before collection.
@@ -558,10 +501,6 @@ impl ApprovalCollectorV1 {
                 }
             })
             .collect();
-        let proof = match collection.assemble() {
-            Ok(bundle) => Ok(auths_codec::encode_bundle(&bundle).map_err(js_error)?),
-            Err(code) => Err(code),
-        };
         Ok(ApprovalCollectionV1 {
             statuses,
             unattributed: collection
@@ -569,8 +508,32 @@ impl ApprovalCollectorV1 {
                 .iter()
                 .map(|(index, code)| (*index, code.as_str()))
                 .collect(),
-            proof,
+            approved: u32::try_from(collection.approved()).unwrap_or(u32::MAX),
+            required: collection.required(),
         })
+    }
+
+    /// Assembles the proof from the actor's signed action once at least
+    /// `required` listed approvers have approved `quorum`. Every matching
+    /// approval is carried.
+    ///
+    /// # Errors
+    ///
+    /// Throws `ApprovalRefused` with `approval.incomplete` while too few
+    /// listed approvers have approved, `approval.action-mismatch` when the
+    /// action is not `quorum`'s envelope, and `approval.oversized` for
+    /// material outside collection bounds.
+    pub fn assemble(
+        &self,
+        quorum: &McpQuorumV1,
+        action: &McpQuorumActionV1,
+    ) -> Result<Vec<u8>, JsValue> {
+        let collection = collect(quorum.proposal(), &self.responses).map_err(refusal)?;
+        let action = action
+            .native()
+            .map_err(|_| refusal(ApprovalCode::Oversized))?;
+        let bundle = collection.assemble(&action).map_err(refusal)?;
+        auths_codec::encode_bundle(&bundle).map_err(js_error)
     }
 }
 
@@ -585,7 +548,8 @@ impl Default for ApprovalCollectorV1 {
 pub struct ApprovalCollectionV1 {
     statuses: Vec<(String, &'static str, &'static str, u64)>,
     unattributed: Vec<(usize, &'static str)>,
-    proof: Result<Vec<u8>, ApprovalCode>,
+    approved: u32,
+    required: u16,
 }
 
 #[wasm_bindgen]
@@ -659,12 +623,24 @@ impl ApprovalCollectionV1 {
             .to_owned())
     }
 
-    /// Returns the proof once every listed approver approved.
-    ///
-    /// # Errors
-    ///
-    /// Throws `ApprovalRefused` with `approval.incomplete` otherwise.
-    pub fn assemble(&self) -> Result<Vec<u8>, JsValue> {
-        self.proof.clone().map_err(refusal)
+    /// Returns how many listed approvers have approved.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn approved(&self) -> u32 {
+        self.approved
+    }
+
+    /// Returns how many listed approvers must approve.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn required(&self) -> u16 {
+        self.required
+    }
+
+    /// Returns whether enough listed approvers have approved to assemble.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = isComplete)]
+    pub fn is_complete(&self) -> bool {
+        self.approved >= u32::from(self.required)
     }
 }

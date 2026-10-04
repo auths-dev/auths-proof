@@ -49,7 +49,7 @@ def b64(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
 
 
-def signer_file(directory: Path, name: str, seed: bytes, grants: List[Dict[str, Any]] = []) -> Path:
+def signer_file(directory: Path, name: str, seed: bytes) -> Path:
     home = directory / name
     home.mkdir()
     (home / "signing.seed").write_bytes(seed)
@@ -60,7 +60,6 @@ def signer_file(directory: Path, name: str, seed: bytes, grants: List[Dict[str, 
                 "schema": "auths.approval-signer/1",
                 "custody": "development-ed25519",
                 "seed_file": "signing.seed",
-                "grants": grants,
             }
         )
     )
@@ -306,17 +305,12 @@ def test_root_grant_refuses_a_decline_a_mismatched_response_and_bad_input(tmp_pa
             grant_with(loaded.signer, **changes)
 
 
-def test_signer_file_loads_development_custody_and_its_grants(tmp_path: Path) -> None:
+def test_signer_file_loads_development_custody(tmp_path: Path) -> None:
     seed = b"\x06" * 32
-    grant = {
-        "signed_grant_b64": b64(b"grant bytes"),
-        "evidence": [{"evidence_type": "raw-key-v1", "media_type": "application/octet-stream", "bytes_b64": b64(b"e")}],
-    }
-    loaded = load_signer_file(signer_file(tmp_path, "agent", seed, [grant]))
+    loaded = load_signer_file(signer_file(tmp_path, "manager", seed))
     assert loaded.development
     assert loaded.signer.descriptor.principal == principal_of(seed)
     assert loaded.signer.descriptor.contract == "signer-custody/2"
-    assert [(item.signed_grant, item.evidence[0].bytes) for item in loaded.grants] == [(b"grant bytes", b"e")]
     asyncio.run(loaded.signer.aclose())
 
 
@@ -331,7 +325,7 @@ def test_signer_file_refuses_links_and_malformed_files(tmp_path: Path) -> None:
         {"seed_file": None},
         {"custody": "hardware"},
         {"custody": "module", "python": "no-factory"},
-        {"grants": "not-a-list"},
+        {"grants": []},
     ):
         document = json.loads(path.read_text())
         document.update(change)

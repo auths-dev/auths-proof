@@ -623,12 +623,7 @@ async function checkProfile(path) {
 }
 
 const signerSchema = "auths.approval-signer/1";
-const requestPrefix = "auths-ar1-";
-
-function configBytes(value) {
-  if (typeof value !== "string") throw new Error("signer configuration base64 values must be strings");
-  return new Uint8Array(Buffer.from(value, "base64url"));
-}
+const requestPrefix = "auths-ar2-";
 
 async function approvalSigner(path) {
   const metadata = await lstat(path);
@@ -639,16 +634,9 @@ async function approvalSigner(path) {
   if (config === null || typeof config !== "object" || config.schema !== signerSchema) {
     throw new Error(`signer configuration must declare schema ${signerSchema}`);
   }
-  const grantsValue = config.grants ?? [];
-  if (!Array.isArray(grantsValue) || grantsValue.length > 16) {
-    throw new Error("signer grants must be a list of at most 16 grants");
+  if (Object.hasOwn(config, "grants")) {
+    throw new Error("an approver carries no grants; remove grants from the signer configuration");
   }
-  const grants = grantsValue.map((grant) => ({
-    signedGrant: configBytes(grant.signed_grant_b64),
-    evidence: (grant.evidence ?? []).map((item) => ({
-      type: String(item.evidence_type), mediaType: String(item.media_type), bytes: configBytes(item.bytes_b64),
-    })),
-  }));
   if (config.custody === "development-ed25519") {
     if (typeof config.seed_file !== "string") throw new Error("development custody needs seed_file");
     const seed = new Uint8Array(await readFile(resolve(dirname(path), config.seed_file)));
@@ -676,7 +664,7 @@ async function approvalSigner(path) {
       async close() {},
       async [Symbol.asyncDispose]() {},
     };
-    return { signer, grants, development: true };
+    return { signer, development: true };
   }
   if (config.custody === "module") {
     if (typeof config.node !== "string") throw new Error("module custody needs node = 'path/to/module.mjs'");
@@ -686,7 +674,7 @@ async function approvalSigner(path) {
     if (signer?.descriptor?.contract !== "signer-custody/2") {
       throw new Error("module custody factory did not return a custody signer");
     }
-    return { signer, grants, development: false };
+    return { signer, development: false };
   }
   throw new Error("signer custody must be development-ed25519 or module");
 }
@@ -700,7 +688,7 @@ function renderReview(review) {
   for (const [label, value] of review.fields) lines.push(`  ${label}: ${value}`);
   lines.push(`Display digest: ${review.displayDigestHex}`);
   lines.push(`Requested by: ${review.requester}`);
-  lines.push(`Approvals required: ${review.required} of ${review.approvers.length}`);
+  lines.push(`Approvals required: any ${review.required} of ${review.approvers.length}`);
   for (const approver of review.approvers) {
     lines.push(`  ${approver}${approver === review.approver ? " (you)" : ""}`);
   }
@@ -754,7 +742,7 @@ async function approveMain(args) {
   }
   if (!request || !signerPath) throw new Error(usage);
   const sdk = await import(new URL("../dist/self-hosted.js", import.meta.url).href);
-  const { signer, grants, development } = await approvalSigner(signerPath);
+  const { signer, development } = await approvalSigner(signerPath);
   try {
     let review;
     try {
@@ -784,8 +772,8 @@ async function approveMain(args) {
     let response;
     try {
       response = declining
-        ? await sdk.decline(review, signer, { grants })
-        : await sdk.approve(review, signer, { grants });
+        ? await sdk.decline(review, signer)
+        : await sdk.approve(review, signer);
     } catch (error) {
       if (error instanceof sdk.ApprovalRefused) {
         process.stderr.write(`auths: refused: ${error.code}; nothing was signed\n`);

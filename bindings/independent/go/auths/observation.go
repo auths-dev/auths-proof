@@ -358,7 +358,7 @@ func decodeObserverAnchors(value *cborValue) ([]*observerAnchor, error) {
 	return anchors, nil
 }
 
-func decodeObservation(data []byte, limits [27]uint64) (*signedObservation, error) {
+func decodeObservation(data []byte, limits verifierLimits) (*signedObservation, error) {
 	if len(data) > maxObservationBytes {
 		return nil, errObservationLimit
 	}

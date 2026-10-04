@@ -364,6 +364,8 @@ export interface WorkflowWasmEngine {
     channelPolicy: string | undefined,
     evidenceTypes: readonly string[],
     criticalExtensions: readonly string[],
+    approverAnchors: unknown,
+    approvalRequirements: unknown,
   ): Uint8Array;
   rootGrantStatementV1(
     issuer: string,
@@ -600,9 +602,21 @@ export interface WorkflowWasmEngine {
   developmentEd25519PublicKeyV1(seed: Uint8Array): Uint8Array;
   AuthorizationPlanBuilderV1: new () => WorkflowAuthorizationPlanBuilder;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
-  McpQuorumApproversV1: new () => WorkflowMcpQuorumApprovers;
+  prepareMcpQuorumV1(
+    service: string,
+    name: string,
+    argumentsValue: unknown,
+    required: number,
+    approvers: readonly string[],
+    actor: string,
+    actorTerminalGrant: Uint8Array | undefined,
+    challenge: Uint8Array,
+    evaluationTime: bigint,
+    validitySeconds: number | undefined,
+  ): WorkflowMcpQuorum;
+  McpQuorumActionV1: new (signedAction: Uint8Array) => WorkflowMcpQuorumAction;
   McpQuorumProofBuilderV1: new () => WorkflowMcpQuorumProofBuilder;
-  approvalRequestsV1(quorum: WorkflowMcpQuorum, requester: string): WorkflowApprovalRequests;
+  approvalRequestsV1(quorum: WorkflowMcpQuorum): WorkflowApprovalRequests;
   openApprovalRequestV1(data: Uint8Array, now: bigint): WorkflowReviewedApprovalRequest;
   ApprovalCollectorV1: new () => WorkflowApprovalCollector;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
@@ -852,34 +866,31 @@ export interface WorkflowAuthorizationArtifacts {
   free?(): void;
 }
 
-export interface WorkflowMcpQuorumApprovers {
-  addApprover(actor: string, terminalGrant?: Uint8Array): void;
-  prepare(
-    service: string,
-    name: string,
-    argumentsValue: unknown,
-    required: number,
-    challenge: Uint8Array,
-    evaluationTime: bigint,
-    validitySeconds: number | undefined,
-  ): WorkflowMcpQuorum;
-  free?(): void;
-}
-
 export interface WorkflowMcpQuorum {
   readonly required: number;
-  readonly approverCount: number;
-  approver(index: number): string;
-  readonly planId: Uint8Array;
-  readonly planCbor: Uint8Array;
-  readonly proofReferences: Uint8Array;
+  readonly approvers: readonly string[];
+  readonly actor: string;
+  readonly requirementId: Uint8Array;
   readonly canonicalActionCbor: Uint8Array;
   readonly argumentsJson: Uint8Array;
   readonly audience: string;
   readonly resource: string;
   readonly displayDigestHex: string;
   readonly validity: BigUint64Array;
-  actionEnvelopeCbor(index: number): Uint8Array;
+  readonly actionEnvelopeCbor: Uint8Array;
+  prepareApprovalSigning(
+    approver: string,
+    principalMethod: string,
+    verificationMethod: string,
+    suite: string,
+  ): WorkflowNativeSigningRequest;
+  free?(): void;
+}
+
+export interface WorkflowMcpQuorumAction {
+  pushGrant(signedGrant: Uint8Array): number;
+  bindGrantEvidence(grant: number, evidenceType: string, mediaType: string, bytes: Uint8Array): void;
+  bindActionEvidence(evidenceType: string, mediaType: string, bytes: Uint8Array): void;
   free?(): void;
 }
 
@@ -927,9 +938,7 @@ export interface WorkflowPendingApproval {
   readonly signingPreimage: Uint8Array;
   readonly expiresAt: bigint;
   readonly display: readonly (readonly [string, string])[];
-  pushGrant(signedGrant: Uint8Array): number;
-  bindGrantEvidence(grant: number, evidenceType: string, mediaType: string, bytes: Uint8Array): void;
-  bindActionEvidence(evidenceType: string, mediaType: string, bytes: Uint8Array): void;
+  bindEvidence(evidenceType: string, mediaType: string, bytes: Uint8Array): void;
   complete(signature: Uint8Array): WorkflowApprovalResponse;
   free?(): void;
 }
@@ -943,6 +952,7 @@ export interface WorkflowApprovalResponse {
 export interface WorkflowApprovalCollector {
   add(response: Uint8Array): void;
   collect(quorum: WorkflowMcpQuorum): WorkflowApprovalCollection;
+  assemble(quorum: WorkflowMcpQuorum, action: WorkflowMcpQuorumAction): Uint8Array;
   free?(): void;
 }
 
@@ -955,27 +965,27 @@ export interface WorkflowApprovalCollection {
   readonly unattributedCount: number;
   unattributedIndex(index: number): number;
   unattributedCode(index: number): string;
-  assemble(): Uint8Array;
+  readonly approved: number;
+  readonly required: number;
+  readonly isComplete: boolean;
   free?(): void;
 }
 
 export interface WorkflowMcpQuorumProofBuilder {
-  addApproval(signedAction: Uint8Array): number;
-  pushGrant(approval: number, signedGrant: Uint8Array): number;
-  bindGrantEvidence(
-    approval: number,
-    grant: number,
-    evidenceType: string,
-    mediaType: string,
-    bytes: Uint8Array,
-  ): void;
-  bindActionEvidence(
+  addApproval(
+    approver: string,
+    principalMethod: string,
+    verificationMethod: string,
+    suite: string,
+    signature: Uint8Array,
+  ): number;
+  bindApprovalEvidence(
     approval: number,
     evidenceType: string,
     mediaType: string,
     bytes: Uint8Array,
   ): void;
-  finish(quorum: WorkflowMcpQuorum): Uint8Array;
+  finish(quorum: WorkflowMcpQuorum, action: WorkflowMcpQuorumAction): Uint8Array;
   free?(): void;
 }
 

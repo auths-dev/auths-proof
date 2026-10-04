@@ -46,8 +46,8 @@ of a provider field (`observe_read_back`), of an operation's stored outcome
 operation (`observe_pre_entry`).
 
 The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
-runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway
-submission, and an offline audit.
+runs the whole journey: a grant with limits, approvals from any two of three
+managers, gateway submission, and an offline audit.
 
 To start from a working deployment of that example instead, run
 `auths init stripe-refund-approval --gateway PATH/TO/auths-gateway`. It writes
@@ -63,12 +63,13 @@ root, the managers, and the agent. It cannot establish credential isolation.
 
 `auths.authoring` and `auths.self_hosted` generate an exact MCP-shaped tool
 from a `profile.toml` and author its proof; `auths.identity` authors
-identities. To require that a threshold of named approvers sign one exact
-action before it is submitted, see
+identities. To require that any K of N named approvers approve one exact
+action before its actor submits it, see
 [approval quorum](../../docs/product/APPROVAL_QUORUM.md). The installed `auths`
 command runs `auths generate` for exact-tool code and `auths approve` for
 approval requests. For the operator's side, `auths.self_hosted` compiles the
-trust a gateway installs (`compile_trusted_context`), issues a root grant
+trust a gateway installs (`compile_trusted_context`, with `ApproverAnchor`
+and `ApprovalRequirement` for approvals), issues a root grant
 through a custody signer (`author_root_grant`), and loads the
 `auths.approval-signer/1` files `auths approve` reads (`load_signer_file`).
 

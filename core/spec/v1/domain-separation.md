@@ -32,8 +32,10 @@ Object type identifiers are registered:
 | 7 | registry manifest |
 | 8 | bridge grant |
 | 9 | observation statement |
+| 10 | approval statement |
 
-Profile-independent objects use an empty profile ID and version zero.
+Profile-independent objects use an empty profile ID and version zero. An
+approval statement uses the approved action's profile ID and version.
 
 ## Content identifiers
 
@@ -64,6 +66,7 @@ Identifier type identifiers are fixed:
 | 9 | public verifier-context projection |
 | 10 | registry manifest |
 | 11 | observation requirement |
+| 12 | approval requirement |
 
 Identifiers:
 
@@ -77,6 +80,8 @@ Identifiers:
 - observation requirement ID: canonical `observation-requirement`;
 - observation digest: the attachment digest of the exact signed-observation
   bytes, already bound by the action signature;
+- approval requirement ID: canonical `approval-requirement`;
+- approval digest: raw SHA-256 of the exact canonical `signed-approval` bytes;
 - context digest: canonical public verifier-context projection;
 - canonical body digest: raw SHA-256 of exact profile-canonical body bytes;
 - portable canonical action digest: raw SHA-256 of the complete deterministic

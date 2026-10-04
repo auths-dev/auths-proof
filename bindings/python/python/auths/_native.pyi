@@ -366,15 +366,11 @@ class McpQuorum:
     @property
     def required(self) -> int: ...
     @property
-    def approver_count(self) -> int: ...
-    @property
     def approvers(self) -> List[str]: ...
     @property
-    def plan_id(self) -> bytes: ...
+    def actor(self) -> str: ...
     @property
-    def canonical_plan(self) -> bytes: ...
-    @property
-    def proof_references(self) -> List[bytes]: ...
+    def requirement_id(self) -> bytes: ...
     @property
     def canonical_action(self) -> bytes: ...
     @property
@@ -387,7 +383,42 @@ class McpQuorum:
     def review_fields(self) -> List[Tuple[str, str]]: ...
     @property
     def validity(self) -> Tuple[int, int]: ...
-    def unsigned(self, index: int) -> UnsignedObject: ...
+    def unsigned_action(self) -> UnsignedObject: ...
+    def prepare_approval(
+        self, approver: str, principal_method: str, verification_method: str, suite: str
+    ) -> ApprovalSigningRequest: ...
+
+class ApprovalSigningRequest:
+    @property
+    def object_kind(self) -> str: ...
+    @property
+    def request_id(self) -> str: ...
+    @property
+    def object_id(self) -> bytes: ...
+    @property
+    def transaction_digest(self) -> bytes: ...
+    @property
+    def signing_preimage(self) -> bytes: ...
+    @property
+    def expires_at(self) -> int: ...
+    def complete(
+        self, signature: bytes, evidence: List[Tuple[str, str, bytes]]
+    ) -> SignedApproval: ...
+
+class SignedApproval:
+    @property
+    def approver(self) -> str: ...
+
+class QuorumAction:
+    def __init__(
+        self,
+        signed_action: SignedObject,
+        grants: List[SignedObject],
+        grant_evidence: List[List[Tuple[str, str, bytes]]],
+        action_evidence: List[Tuple[str, str, bytes]],
+    ) -> None: ...
+    @property
+    def actor(self) -> str: ...
 
 class ApprovalRefusal(ValueError):
     """A remote approval operation refused its input; ``args[0]`` is the code."""
@@ -443,11 +474,7 @@ class PendingApproval:
     @property
     def display(self) -> List[Tuple[str, str]]: ...
     def complete(
-        self,
-        signature: bytes,
-        grants: List[SignedObject],
-        grant_evidence: List[List[Tuple[str, str, bytes]]],
-        action_evidence: List[Tuple[str, str, bytes]],
+        self, signature: bytes, evidence: List[Tuple[str, str, bytes]]
     ) -> Tuple[bytes, str]: ...
 
 class ApprovalCollection:
@@ -455,7 +482,13 @@ class ApprovalCollection:
     def statuses(self) -> List[Tuple[str, str, Optional[str], Optional[int]]]: ...
     @property
     def unattributed(self) -> List[Tuple[int, str]]: ...
-    def assemble(self) -> bytes: ...
+    @property
+    def approved(self) -> int: ...
+    @property
+    def required(self) -> int: ...
+    @property
+    def is_complete(self) -> bool: ...
+    def assemble(self, action: QuorumAction) -> bytes: ...
 
 class McpCall:
     @property
@@ -584,6 +617,18 @@ class TrustAnchor:
         assurance_policy: str,
         status: Optional[StatusPolicy],
     ) -> None: ...
+
+class ApproverAnchor:
+    def __init__(
+        self,
+        principal: Principal,
+        accepted_methods: List[str],
+        not_before: int,
+        expires_at: int,
+        status: Optional[StatusPolicy],
+    ) -> None: ...
+    @property
+    def principal(self) -> str: ...
 
 class StatusSnapshot:
     @property
@@ -910,26 +955,18 @@ def prepare_mcp_quorum(
     service: str,
     name: str,
     arguments_json: bytes,
-    approvers: List[Tuple[Principal, Optional[SignedObject]]],
     required: int,
+    approvers: List[str],
+    actor: str,
+    actor_grant: Optional[SignedObject],
     challenge: bytes,
     evaluation_time: int,
     validity_seconds: Optional[int] = None,
 ) -> McpQuorum: ...
 def assemble_mcp_quorum_proof(
-    quorum: McpQuorum,
-    approvals: List[
-        Tuple[
-            SignedObject,
-            List[SignedObject],
-            List[List[Tuple[str, str, bytes]]],
-            List[Tuple[str, str, bytes]],
-        ]
-    ],
+    quorum: McpQuorum, action: QuorumAction, approvals: List[SignedApproval]
 ) -> bytes: ...
-def approval_requests(
-    quorum: McpQuorum, requester: str
-) -> List[Tuple[str, bytes, str, bytes]]: ...
+def approval_requests(quorum: McpQuorum) -> List[Tuple[str, bytes, str, bytes]]: ...
 def open_approval_request(data: bytes, now: int) -> ReviewedApprovalRequest: ...
 def collect_approvals(
     quorum: McpQuorum, responses: List[bytes]
@@ -1006,6 +1043,8 @@ def compile_trusted_context(
     channel_policy: str,
     evidence_types: List[str],
     critical_extensions: List[str],
+    approver_anchors: List[ApproverAnchor] = ...,
+    approval_requirements: List[Tuple[List[str], int]] = ...,
 ) -> TrustedContext: ...
 def self_contained_configuration() -> bytes: ...
 def verify_v1(

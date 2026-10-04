@@ -18,6 +18,7 @@ source_files = [
   "core/crates/auths-model/src/lib.rs",
   "core/crates/auths-model/src/observation.rs",
   "core/crates/auths-model/src/bounded_policy.rs",
+  "core/crates/auths-model/src/approval.rs",
   "core/crates/auths-algebra-kernel/Cargo.toml",
   "core/crates/auths-algebra-kernel/src/lib.rs",
   "core/crates/auths-algebra-kernel/src/generated.rs",
@@ -215,7 +216,7 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 116
+local_functions = 135
 external_functions = 4
 opaque_local_functions = 0
 required_symbols = [
@@ -273,6 +274,13 @@ required_symbols = [
   "auths_model::observation::observation_requirements_attenuate",
   "auths_model::bounded_policy::digest_equal",
   "auths_model::bounded_policy::bounded_policy_link_accepts",
+  "auths_model::approval::approver_verdict",
+  "auths_model::approval::approval_counts",
+  "auths_model::approval::principal_ids_contain",
+  "auths_model::approval::principal_ids_subset",
+  "auths_model::approval::approval_requirement_covers",
+  "auths_model::approval::approval_requirement_retained",
+  "auths_model::approval::approval_requirements_attenuate",
 ]
 allowed_external_symbols = [
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",

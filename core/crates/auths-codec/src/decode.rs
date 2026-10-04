@@ -157,7 +157,7 @@ fn audiences(
     AudienceSet::new(values).map_err(CodecError::from)
 }
 
-fn status_policy(decoder: &mut V1Decoder<'_>) -> Result<StatusPolicy, CodecError> {
+pub(crate) fn status_policy(decoder: &mut V1Decoder<'_>) -> Result<StatusPolicy, CodecError> {
     let entries = decoder
         .map()
         .map_err(|_| CodecError::Malformed)?
@@ -185,7 +185,9 @@ fn budget(decoder: &mut V1Decoder<'_>) -> Result<BudgetCeiling, CodecError> {
     Ok(BudgetCeiling::new(algebra, value))
 }
 
-fn optional_budget(decoder: &mut V1Decoder<'_>) -> Result<Option<BudgetCeiling>, CodecError> {
+pub(crate) fn optional_budget(
+    decoder: &mut V1Decoder<'_>,
+) -> Result<Option<BudgetCeiling>, CodecError> {
     if is_null(decoder)? {
         null(decoder)?;
         Ok(None)
@@ -691,7 +693,7 @@ fn bundle_from(
     decoder: &mut V1Decoder<'_>,
     limits: &VerifierLimits,
 ) -> Result<ProofBundle, CodecError> {
-    map(decoder, 10)?;
+    map(decoder, 11)?;
     key(decoder, 0)?;
     map(decoder, 2)?;
     key(decoder, 0)?;
@@ -774,6 +776,13 @@ fn bundle_from(
         )?)
     };
 
+    key(decoder, 10)?;
+    let length = array(decoder, limits.get(LimitKind::Approvals))?;
+    let mut approvals = Vec::with_capacity(length);
+    for _ in 0..length {
+        approvals.push(crate::approval::signed_approval(decoder, limits)?);
+    }
+
     ProofBundle::new(
         header,
         grants,
@@ -785,7 +794,8 @@ fn bundle_from(
         grant_status,
         attachments,
         canonical_body,
-    )
+    )?
+    .with_approvals(approvals)
     .map_err(CodecError::from)
 }
 
@@ -1159,7 +1169,7 @@ const LIMIT_KINDS: [LimitKind; 26] = [
 ];
 
 fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecError> {
-    map(decoder, 27)?;
+    map(decoder, 30)?;
     let mut limits = VerifierLimits::hard();
     for (index, kind) in LIMIT_KINDS.into_iter().enumerate() {
         key(
@@ -1171,13 +1181,28 @@ fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecE
         limits = limits.with_limit(kind, value)?;
     }
     key(decoder, 26)?;
-    limits
-        .with_work_units(decoder.u64().map_err(|_| CodecError::Malformed)?)
-        .map_err(CodecError::from)
+    limits = limits.with_work_units(decoder.u64().map_err(|_| CodecError::Malformed)?)?;
+    for (index, kind) in [
+        LimitKind::Approvals,
+        LimitKind::ApproverAnchors,
+        LimitKind::ApprovalRequirements,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        key(
+            decoder,
+            u8::try_from(27 + index).map_err(|_| CodecError::LimitExceeded)?,
+        )?;
+        let value = decoder.u64().map_err(|_| CodecError::Malformed)?;
+        let value = usize::try_from(value).map_err(|_| CodecError::LimitExceeded)?;
+        limits = limits.with_limit(kind, value)?;
+    }
+    Ok(limits)
 }
 
 fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecError> {
-    map(decoder, 15)?;
+    map(decoder, 17)?;
     key(decoder, 0)?;
     let limits = verifier_limits(decoder)?;
     key(decoder, 1)?;
@@ -1231,6 +1256,10 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecErro
     let channel_policy = parse_text!(decoder, ChannelBindingId)?;
     key(decoder, 14)?;
     let observer_anchors = crate::observation::observer_anchors(decoder, &limits)?;
+    key(decoder, 15)?;
+    let approver_anchors = crate::approval::approver_anchors(decoder, &limits)?;
+    key(decoder, 16)?;
+    let approval_requirements = crate::approval::context_requirements(decoder, &limits)?;
     TrustedContext::new(
         configuration,
         composition,
@@ -1247,7 +1276,8 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecErro
         channel_policy,
         limits,
     )?
-    .with_observer_anchors(observer_anchors)
+    .with_observer_anchors(observer_anchors)?
+    .with_approvals(approver_anchors, approval_requirements)
     .map_err(CodecError::from)
 }
 
@@ -1684,7 +1714,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
-    map(&mut decoder, 17)?;
+    map(&mut decoder, 18)?;
     key(&mut decoder, 0)?;
     let decision = match decoder.u8().map_err(|_| CodecError::Malformed)? {
         0 => VerificationDecision::Authorized,
@@ -1784,6 +1814,8 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     }
     key(&mut decoder, 16)?;
     let observation_satisfactions = crate::observation::observation_satisfactions(&mut decoder)?;
+    key(&mut decoder, 17)?;
+    let approval_satisfactions = crate::approval::approval_satisfactions(&mut decoder)?;
     let result = PortableVerificationResult::new(
         decision,
         stage,
@@ -1801,6 +1833,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         local_configuration,
     )
     .with_observation_satisfactions(observation_satisfactions)
+    .with_approval_satisfactions(approval_satisfactions)
     .with_result_digest(result_digest);
     ensure_complete(&decoder, input)?;
     if crate::encode::encode_verification_result(&result)?.as_slice() != input

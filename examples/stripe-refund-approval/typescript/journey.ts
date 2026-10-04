@@ -25,6 +25,10 @@
  * writes, as in ../journey.py; the four refusals after the credential lease
  * consume a count slot each, so a second agent with its own grant makes them.
  *
+ * The trust installs any two of the three managers as the approval
+ * requirement. The agent writes a request to every manager, whoever answers
+ * first counts, and the agent signs its refund only once enough approved.
+ *
  * Every refund is submitted through ../gateway_witness.py, a relay on the
  * application socket that runs as its own process (started with the same
  * Python as the double) and records each exchange; this journey's blocking
@@ -33,12 +37,19 @@
  * with the expected outcome and code, and the witness saw exactly one submit
  * frame during the case, whose response carries the same. A negative control
  * refused by `request --precheck` must fail that guard.
+ *
+ * Against the double it also checks the `Idempotency-Key` the gateway derives
+ * for each refund, then restores the gateway's store from a backup taken
+ * before the first refund, which forgets every claim but keeps the shared
+ * connection record, and resubmits an approved refund: the double, like
+ * Stripe, must return the first refund rather than create a second.
  */
 
 import { type ChildProcess, spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
+  chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync,
+  writeFileSync,
 } from "node:fs";
 import { platform } from "node:os";
 import { join } from "node:path";
@@ -47,7 +58,10 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { EXAMPLE, type SetupFacts } from "./refunds.js";
+import { authorMcpProof, compileTrustedContext, proposeMcpApproval } from "@auths-dev/sdk/self-hosted";
+
+import { CONTRACT, type CreateRefund } from "./generated.js";
+import { ASSURANCE, EXAMPLE, anchor, developmentSigner, roleKey, type SetupFacts } from "./refunds.js";
 
 const REFUNDS = fileURLToPath(new URL("./refunds.js", import.meta.url));
 // The double's accounts and its already-refunded PaymentIntent.
@@ -56,6 +70,7 @@ const CONNECTED_ACCOUNT = "acct_1AuthsConnected";
 const OTHER_ACCOUNT = "acct_1AuthsOtherAcct";
 const REFUNDED_PAYMENT_INTENT = "pi_mock_refunded";
 const STRIPE_VERSION = "2025-03-31.basil";
+const MANAGERS = ["manager-a", "manager-b", "manager-c"] as const;
 // The second agent, whose refunds the checks after the credential lease refuse.
 const CHECKS_AGENT = "agent-checks";
 // A clearly fake key without the recipe's `rk_test_` prefix.
@@ -63,6 +78,12 @@ const NON_TEST_KEY = "rk_live_not-a-real-key";
 const KEY_VARIABLES = ["STRIPE_TEST_RESTRICTED_KEY", "STRIPE_TEST_SECRET_KEY"];
 // The packaged approval CLI installed with @auths-dev/sdk.
 const APPROVE_CLI = fileURLToPath(new URL("../node_modules/@auths-dev/sdk/tools/profile-cli.mjs", import.meta.url));
+const IDEMPOTENCY_DOMAIN = "auths.gateway-idempotency-key/1\0";
+
+/** The `Idempotency-Key` the gateway derives for one logical operation. */
+function idempotencyKey(namespace: string, operation: string): string {
+  return `auths-i1-${createHash("sha256").update(`${IDEMPOTENCY_DOMAIN}${namespace}\0${operation}`).digest("hex")}`;
+}
 
 type Json = Record<string, unknown>;
 type Step = { step: string; seconds: number };
@@ -121,16 +142,20 @@ class Journey {
     return child;
   }
 
-  async stop(): Promise<void> {
-    for (const child of this.#processes) {
-      if (child.exitCode !== null || child.signalCode !== null) continue;
+  async terminate(child: ChildProcess): Promise<void> {
+    if (child.exitCode === null && child.signalCode === null) {
       const exited = new Promise((done) => child.once("exit", done));
       child.kill("SIGTERM");
       if (await Promise.race([exited.then(() => true), sleep(5_000, false, { ref: false })]) === false) {
         child.kill("SIGKILL");
+        await exited;
       }
     }
-    this.#processes = [];
+    this.#processes = this.#processes.filter((item) => item !== child);
+  }
+
+  async stop(): Promise<void> {
+    for (const child of [...this.#processes]) await this.terminate(child);
   }
 
   providerEntries(): Json[] {
@@ -146,18 +171,18 @@ class Journey {
   }
 
   /**
-   * The agent writes one request per manager (and its own response), into
-   * `approvals/<out or operation>`, and prints its record; its warnings are
-   * kept in `lastWarnings`. `extra` passes `currency`, `connect-account`, or
-   * `agent`.
+   * The agent writes one request per manager into
+   * `approvals/<out or operation>` and prints its record; its warnings are
+   * kept in `lastWarnings`. `extra` passes `currency`, `connect-account`,
+   * `agent`, or `required`.
    */
-  request(operation: string, amount: number, approvers: string, paymentIntent: string,
+  request(operation: string, amount: number, paymentIntent: string,
     extra: Readonly<Record<string, string>> = {}, options: Readonly<{ out?: string; precheck?: boolean }> = {}):
     [string, Json] {
     const folder = join(this.work, "approvals", options.out ?? operation);
     const requested = this.run(process.execPath, [
       REFUNDS, "request", "--state", this.state, "--operation-id", operation,
-      "--payment-intent", paymentIntent, "--amount", String(amount), "--approvers", approvers,
+      "--payment-intent", paymentIntent, "--amount", String(amount),
       "--out", folder, ...Object.entries(extra).flatMap(([name, value]) => [`--${name}`, value]),
       ...(options.precheck === true ? ["--precheck"] : []),
     ]);
@@ -175,24 +200,28 @@ class Journey {
     ], undefined, false);
   }
 
+  submit(operation: string, folder: string): Json {
+    return JSON.parse(this.run(process.execPath, [
+      REFUNDS, "submit", "--state", this.state, "--socket", this.witnessSocket, "--operation-id", operation,
+      "--responses", folder,
+    ]).stdout) as Json;
+  }
+
   /**
-   * Requests, has each distinct listed manager answer once, and submits.
-   * Returns the request's record and the outcome record; a pre-check refusal
-   * is the outcome, and nothing is asked or sent.
+   * Requests, has each manager named in `answering` answer once (the others
+   * never answer), and submits. Returns the request's record and the outcome
+   * record; a pre-check refusal is the outcome, and nothing is asked or sent.
    */
-  refund(operation: string, amount: number, approvers: string, paymentIntent: string,
+  refund(operation: string, amount: number, answering: string, paymentIntent: string,
     declines: readonly string[] = [], extra: Readonly<Record<string, string>> = {},
     options: Readonly<{ out?: string; precheck?: boolean }> = {}): [Json, Json] {
-    const [folder, requested] = this.request(operation, amount, approvers, paymentIntent, extra, options);
+    const [folder, requested] = this.request(operation, amount, paymentIntent, extra, options);
     if (requested.outcome === "not-submitted") return [requested, requested];
-    for (const manager of new Set(approvers.split(",").filter((name) => name.length > 0))) {
+    for (const manager of new Set(answering.split(",").filter((name) => name.length > 0))) {
       const answered = this.answer(folder, manager, { decline: declines.includes(manager) });
       if (answered.status !== 0) throw new Error(`${manager} could not answer: ${answered.stderr.trim()}`);
     }
-    return [requested, JSON.parse(this.run(process.execPath, [
-      REFUNDS, "submit", "--state", this.state, "--socket", this.witnessSocket, "--operation-id", operation,
-      "--responses", folder,
-    ]).stdout) as Json];
+    return [requested, this.submit(operation, folder)];
   }
 
   audit(bundle: string, trust: string, observer: string, ...options: string[]): SpawnSyncReturns<string> {
@@ -205,6 +234,21 @@ class Journey {
     }
     return this.run(command, args, undefined, false);
   }
+}
+
+/**
+ * Copies a directory tree keeping every entry's permission bits, as the
+ * gateway's private store requires.
+ */
+function copyTree(source: string, target: string): void {
+  cpSync(source, target, { recursive: true });
+  const restore = (from: string, to: string): void => {
+    chmodSync(to, statSync(from).mode & 0o7777);
+    if (statSync(from).isDirectory()) {
+      for (const name of readdirSync(from)) restore(join(from, name), join(to, name));
+    }
+  };
+  restore(source, target);
 }
 
 function expect(condition: boolean, message: string): asserts condition {
@@ -252,7 +296,7 @@ function expectGatewayDecided(case_: string, record: Json, frames: readonly Json
   }
   if (expected.actionB64 !== undefined) {
     expect(seen[0]!.action_sha256 ===
-      createHash("sha256").update(Buffer.from(expected.actionB64, "base64url")).digest("hex"),
+      createHash("sha256").update(new Uint8Array(Buffer.from(expected.actionB64, "base64url"))).digest("hex"),
     `${case_}: the submit frame the witness saw carried another action`);
   }
 }
@@ -268,6 +312,60 @@ function expectNotSubmitted(case_: string, record: Json, frames: readonly Json[]
   expect(!("code" in record), `${case_}: a record not decided by the gateway carries a code: ${JSON.stringify(record)}`);
   expect(!GATEWAY_OUTCOMES.has(record.outcome as string), `${case_}: ${JSON.stringify(record)}`);
   expect(submitFrames(frames).length === 0, `${case_}: the witness saw a submit frame: ${JSON.stringify(frames)}`);
+}
+
+/**
+ * (major type, argument, offset after the head) of the definite-length CBOR
+ * item at `at`; enough to read an approval response.
+ */
+function cborHead(data: Uint8Array, at: number): [number, number, number] {
+  const initial = data[at]!;
+  const major = initial >> 5;
+  const info = initial & 0x1f;
+  if (info < 24) return [major, info, at + 1];
+  const width = ({ 24: 1, 25: 2, 26: 4, 27: 8 } as Record<number, number>)[info];
+  expect(width !== undefined && width <= 4, "an approval response uses only short CBOR heads");
+  let value = 0;
+  for (let index = 1; index <= width; index += 1) value = value * 256 + data[at + index]!;
+  return [major, value, at + 1 + width];
+}
+
+/**
+ * The signed approval an `auths-as2-` approve response carries: the byte
+ * string under key 4 of its five-key map.
+ */
+function signedApproval(responseText: string): Uint8Array {
+  const data = new Uint8Array(Buffer.from(responseText.trim().slice("auths-as2-".length), "base64url"));
+  let [major, count, at] = cborHead(data, 0);
+  expect(major === 5 && count === 5, "an approval response is a five-key map");
+  for (let entry = 0; entry < count; entry += 1) {
+    let key: number;
+    let length: number;
+    [, key, at] = cborHead(data, at);
+    [major, length, at] = cborHead(data, at);
+    const value = data.slice(at, at + length);
+    at += length;
+    if (key === 4) {
+      expect(major === 2, "an approval response's body is a byte string");
+      return value;
+    }
+  }
+  throw new Error("journey check failed: an approval response carries no body");
+}
+
+/**
+ * `proof` with its empty approval list (bundle key 10, always last) replaced
+ * by `approvals` in ascending digest order, as a hostile client that bypasses
+ * the SDK would write it.
+ */
+function withApprovals(proof: Uint8Array, approvals: readonly Uint8Array[]): Uint8Array {
+  expect(proof.length >= 2 && proof[proof.length - 2] === 0x0a && proof[proof.length - 1] === 0x80 &&
+    approvals.length < 24, "a single-proof bundle ends with no approvals");
+  const digest = (value: Uint8Array): string => createHash("sha256").update(value).digest("hex");
+  const ordered = [...approvals].sort((left, right) => (digest(left) < digest(right) ? -1 : 1));
+  return new Uint8Array(Buffer.concat([
+    proof.slice(0, -1), Uint8Array.of(0x80 | ordered.length), ...ordered,
+  ]));
 }
 
 function tamper(bundle: Json, operation: string, change: (entry: Json) => void): Json {
@@ -325,11 +423,16 @@ async function main(): Promise<void> {
   const journey = new Journey(values.gateway, values.python!, work);
   try {
     // README step 3: principals, trust, and the agent's bounded grant.
-    const facts = await journey.step("setup: root, three managers, agent, trust, bounded grant", () =>
+    const facts = await journey.step("setup: root, three approving managers, agent, trust, bounded grant", () =>
       JSON.parse(journey.run(process.execPath, [
         REFUNDS, "setup", "--state", journey.state, "--gateway", journey.gateway,
         "--connect-account", connectAccount,
       ]).stdout) as SetupFacts);
+    await journey.step("manager-a's own key given an agent grant (1 per window), for the self-approval case", () =>
+      journey.run(process.execPath, [
+        REFUNDS, "grant", "--state", journey.state, "--gateway", journey.gateway,
+        "--agent", "manager-a", "--max-count", "1",
+      ]));
     await journey.step(`second agent '${CHECKS_AGENT}' with its own grant (4 per window)`, () =>
       journey.run(process.execPath, [
         REFUNDS, "grant", "--state", journey.state, "--gateway", journey.gateway,
@@ -390,11 +493,18 @@ async function main(): Promise<void> {
       expect(installed.status === 0, `install failed: ${installed.stderr.trim()}`);
     });
     const onboarding = journey.providerEntries().slice(onboardingFrom);
+    // The store as a backup taken now would hold it: the shared connection
+    // record and no claim. The state-loss check restores it.
+    const attemptsBackup = join(journey.work, "attempts-backup");
+    copyTree(join(journey.gatewayState, "attempts"), attemptsBackup);
     const observer = await journey.step("gateway observer key", () =>
       ((JSON.parse(journey.run(journey.gateway, ["observer-init", "--state-dir", journey.gatewayState]).stdout) as
         { observer_anchor: { principal: string } }).observer_anchor.principal));
-    await journey.step(`gateway serve${live ? "" : " (to the counting Stripe double)"}`, async () => {
-      journey.background(journey.gateway, [
+    let running: ChildProcess | undefined;
+    const startGateway = async (): Promise<void> => {
+      // A stopped gateway leaves its socket file behind; wait for a new one.
+      rmSync(journey.socket, { force: true });
+      running = journey.background(journey.gateway, [
         "serve", "--state-dir", journey.gatewayState, "--app-socket", journey.socket, ...loopback,
       ], "ignore");
       const deadline = performance.now() + 10_000;
@@ -402,7 +512,8 @@ async function main(): Promise<void> {
         expect(performance.now() < deadline, "gateway did not open its app socket");
         await sleep(50);
       }
-    });
+    };
+    await journey.step(`gateway serve${live ? "" : " (to the counting Stripe double)"}`, startGateway);
 
     // The witness relays the application socket from its own process and
     // records every exchange; every `submit` below goes through it.
@@ -433,28 +544,28 @@ async function main(): Promise<void> {
       results[case_]!.provider_writes = made.filter((entry) => entry.kind === "write").length;
     };
     const submit = (
-      case_: string, amount: number, approvers: string, declines: readonly string[] = [],
+      case_: string, amount: number, answering: string, declines: readonly string[] = [],
       intent: string = paymentIntent, extra: Readonly<Record<string, string>> = {},
       options: Readonly<{ operation?: string; out?: string; precheck?: boolean }> = {},
     ): void => watched(case_, () => {
-      const [requested, record] = journey.refund(options.operation ?? case_, amount, approvers, intent, declines,
+      const [requested, record] = journey.refund(options.operation ?? case_, amount, answering, intent, declines,
         extra, options);
       requests[case_] = requested;
       warnings[case_] = journey.lastWarnings;
       return record;
     });
+    const entriesLog = (): Json[] => readFileSync(join(journey.state, "audit", "entries.jsonl"), "utf8")
+      .split("\n").filter((line) => line.length > 0).map((line) => JSON.parse(line) as Json);
 
     /** refund-1's approved proof, sent with another refund's action. */
     const reusedApprovals = (): Json => {
-      const [, requested] = journey.request("refund-8-reuse", 1_000, "manager-a,manager-b", paymentIntent);
+      const [, requested] = journey.request("refund-8-reuse", 1_000, paymentIntent);
       requests["refund-8-reuse"] = requested;
-      const first = readFileSync(join(journey.state, "audit", "entries.jsonl"), "utf8").split("\n")
-        .filter((line) => line.length > 0).map((line) => JSON.parse(line) as Json)
-        .find((entry) => entry.operation_id === "refund-1")!;
+      const first = entriesLog().find((entry) => entry.operation_id === "refund-1")!;
       const proof = join(journey.work, "reuse.proof");
       const action = join(journey.work, "reuse.action");
-      writeFileSync(proof, Buffer.from(first.proof_b64 as string, "base64url"));
-      writeFileSync(action, Buffer.from(requested.action_b64 as string, "base64url"));
+      writeFileSync(proof, new Uint8Array(Buffer.from(first.proof_b64 as string, "base64url")));
+      writeFileSync(action, new Uint8Array(Buffer.from(requested.action_b64 as string, "base64url")));
       // The witness is its own process, so this blocking call cannot stall it.
       const sent = journey.run(journey.gateway, [
         "submit", "--app-socket", journey.witnessSocket, "--proof", proof, "--action", action,
@@ -463,21 +574,107 @@ async function main(): Promise<void> {
       return { decided_by: "gateway", ...(JSON.parse(sent.stdout) as Json) };
     };
 
+    /**
+     * Manager A, given an agent grant, submits a refund as the actor, and
+     * managers A and B approve it. The SDK refuses to author a proposal whose
+     * actor is a listed approver, so this builds the proof as a hostile client
+     * would: A signs its own action under its own grant, and the two
+     * approvals, collected through `auths approve`, are added to the bundle by
+     * hand. A is in the proof's authority chain, so only B's approval counts.
+     */
+    const selfApproval = async (): Promise<Json> => {
+      const operation = "refund-self-approval";
+      const [folder, requested] = journey.request(operation, 1_400, paymentIntent);
+      requests[operation] = requested;
+      for (const manager of ["manager-a", "manager-b"]) {
+        const answered = journey.answer(folder, manager);
+        expect(answered.status === 0, `${manager}: ${answered.stderr.trim()}`);
+      }
+      const state = journey.state;
+      const principals = facts.principals;
+      const pending = JSON.parse(readFileSync(join(state, "pending", `${operation}.json`), "utf8")) as {
+        payment_intent: string; amount: number; currency: string; connect_account: string;
+      };
+      const command: CreateRefund = {
+        operator_namespace: "stripe-refunds", operation_id: operation, recipe_digest: facts.recipe_digest,
+        payment_intent: pending.payment_intent, amount: pending.amount,
+        connect_account: pending.connect_account, currency: pending.currency,
+      };
+      const grantBytes = new Uint8Array(readFileSync(join(state, "manager-a.grant.cbor")));
+      const challenge = new Uint8Array(Buffer.from(facts.challenge_hex, "hex"));
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      let sdk: string;
+      try {
+        await proposeMcpApproval({
+          contract: CONTRACT, command, required: facts.approvals_required,
+          approvers: MANAGERS.map((name) => principals[name]!), actor: principals["manager-a"]!,
+          actorGrant: grantBytes, challenge, evaluationTime: now,
+        });
+        sdk = "authored";
+      } catch {
+        sdk = "refused";
+      }
+      // A's own single-proof action, checked locally against a template of the
+      // root anchor alone: the hostile client's view, with no approvals required.
+      const extension = (JSON.parse(journey.run(journey.gateway, [
+        "bound-extension", "--argument", "amount", "--ceiling", String(facts.limits.ceiling),
+        "--window-seconds", String(facts.limits.window_seconds), "--max-count", "1",
+        "--sum-limit", String(facts.limits.sum_limit),
+        "--partition", `currency=${facts.limits.currencies.join(",")}`,
+        "--scope", `connect_account=${facts.limits.connect_account}`,
+      ]).stdout) as { extension_id: string }).extension_id;
+      const template = await compileTrustedContext({
+        anchors: [anchor("root", principals.root!, facts.audience, facts.tool, 1,
+          BigInt(facts.not_before), BigInt(facts.expires_at))],
+        assurance: ASSURANCE, channelPolicy: "none-v1", evidenceTypes: ["raw-key-v1"],
+        criticalExtensions: [extension],
+      });
+      const root = await roleKey(state, "root");
+      const authored = await authorMcpProof({
+        contract: CONTRACT, command,
+        grants: [{ signedGrant: grantBytes, evidence: [root.evidence] }],
+        trustedContextTemplate: template,
+        signer: developmentSigner("manager-a", await roleKey(state, "manager-a")),
+        challenge, evaluationTime: now, validitySeconds: 300,
+      });
+      expect(Buffer.from(authored.action).toString("base64url") === requested.action_b64,
+        "manager A signed another refund");
+      const approvals = ["manager-a", "manager-b"].map((manager) =>
+        signedApproval(readFileSync(join(folder, `${manager}.response`), "utf8")));
+      const proofPath = join(journey.work, "self.proof");
+      const actionPath = join(journey.work, "self.action");
+      writeFileSync(proofPath, withApprovals(authored.proof, approvals));
+      writeFileSync(actionPath, authored.action);
+      const sent = journey.run(journey.gateway, [
+        "submit", "--app-socket", journey.witnessSocket, "--proof", proofPath, "--action", actionPath,
+      ]);
+      return { decided_by: "gateway", sdk, ...(JSON.parse(sent.stdout) as Json) };
+    };
+    const watchedAsync = async (case_: string, action: () => Promise<Json>): Promise<void> => {
+      const before = journey.providerEntries().length;
+      const seen = journey.witnessLines().length;
+      results[case_] = await action();
+      const made = journey.providerEntries().slice(before);
+      frames[case_] = journey.witnessLines().slice(seen);
+      results[case_]!.provider_requests = made.length;
+      results[case_]!.provider_writes = made.filter((entry) => entry.kind === "write").length;
+    };
+
     // The hostile table: every case the gateway must decide, in order. Each is
     // checked by the guard: the record says the gateway decided, and the
     // witness saw exactly one submit frame with that answer.
     // Refused before any credential lease: no provider request at all.
     const beforeLease: Record<string, readonly [string, string]> = {
-      "refund-2-one-approval": ["denied", "composition-requirement-not-met"],
-      "refund-6-no-manager": ["denied", "composition-requirement-not-met"],
-      "refund-7-repeated": ["denied", "composition-requirement-not-met"],
+      "refund-2-lowered-threshold": ["denied", "approval-threshold-not-met"],
+      "refund-6-lowered-two-approvals": ["denied", "approval-threshold-not-met"],
+      "refund-self-approval": ["denied", "approval-threshold-not-met"],
       "refund-3-over-ceiling": ["not-entered", "gateway.policy.above-ceiling"],
       "refund-other-account": ["not-entered", "gateway.policy.scope-denied"],
       "refund-over-sum": ["not-entered", "gateway.policy.sum-exhausted"],
       "refund-5-window": ["not-entered", "gateway.policy.window-exhausted"],
       "refund-1-replay": ["not-entered", "gateway.attempt.replay"],
       "refund-8-reuse": ["denied", "action-body-mismatch"],
-      "refund-7-retry": ["not-entered", "gateway.policy.window-exhausted"],
+      "refund-2-retry": ["not-entered", "gateway.policy.window-exhausted"],
     };
     // Refused after the lease by a provider check: reads, never a write.
     const afterLease: Record<string, readonly [string, string]> = {
@@ -490,23 +687,23 @@ async function main(): Promise<void> {
     };
     const expectedRefusals = { ...beforeLease, ...afterLease };
 
-    // README steps 6 and 7: the agent writes a request per manager, each
-    // manager answers with `auths approve`, the gateway submits; then a
-    // decline, a tampered request, and the hostile table.
-    await journey.step("refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
+    // README step 6: the agent writes a request to every manager, any two
+    // answer with `auths approve`, and the agent signs and submits.
+    await journey.step("refund 1: 15.00, approved by manager-a and manager-b; manager-c never answers",
       () => submit("refund-1", 1_500, "manager-a,manager-b"));
-    await journey.step("declined: manager-b declines, nothing is submitted",
-      () => submit("refund-declined", 2_000, "manager-a,manager-b", ["manager-b"]));
+    await journey.step("declined: manager-b and manager-c decline, nothing is submitted",
+      () => submit("refund-two-declines", 2_000, "manager-a,manager-b,manager-c", ["manager-b", "manager-c"]));
     const tamperedRun: Json = {};
     await journey.step("tampered request: the manager's CLI refuses and signs nothing", () =>
       watched("refund-tampered", () => {
-        const [folder] = journey.request("refund-tampered", 1_500, "manager-a,manager-b", paymentIntent);
+        const [folder] = journey.request("refund-tampered", 1_500, paymentIntent);
         const original = readFileSync(join(folder, "manager-a.request"), "utf8").trim();
-        const raw = Buffer.from(original.slice("auths-ar1-".length), "base64url");
+        const raw = Buffer.from(original.slice("auths-ar2-".length), "base64url");
         const at = raw.indexOf('"amount":1500');
+        expect(at >= 0, "the request does not carry the amount");
         raw.write('"amount":9500', at, "latin1");
         const edited = join(folder, "manager-a.edited");
-        writeFileSync(edited, `auths-ar1-${raw.toString("base64url")}`);
+        writeFileSync(edited, `auths-ar2-${raw.toString("base64url")}`);
         const answered = journey.answer(folder, "manager-a", { request: edited });
         Object.assign(tamperedRun, {
           exit: answered.status,
@@ -515,12 +712,26 @@ async function main(): Promise<void> {
         });
         return { ...tamperedRun };
       }));
-    await journey.step("hostile: 1 of 3 approvals",
-      () => submit("refund-2-one-approval", 1_200, "manager-a"));
-    await journey.step("hostile: no manager, only the agent",
-      () => submit("refund-6-no-manager", 1_100, ""));
-    await journey.step("hostile: manager-a listed twice (request drops the repeat)",
-      () => submit("refund-7-repeated", 1_300, "manager-a,manager-a"));
+    await journey.step("hostile: the agent lowers the threshold to 1; only manager-a approves",
+      () => submit("refund-2-lowered-threshold", 1_200, "manager-a", [], paymentIntent, { required: "1" }));
+    await journey.step("hostile: the agent lowers the threshold to 1; manager-a and manager-b approve it",
+      () => submit("refund-6-lowered-two-approvals", 1_100, "manager-a,manager-b", [], paymentIntent,
+        { required: "1" }));
+    await journey.step(
+      "hostile: manager-a, given an agent grant, submits a refund it approves itself with manager-b",
+      () => watchedAsync("refund-self-approval", selfApproval));
+    await journey.step("repeated: manager-a's response twice counts for nobody, nothing is submitted", () =>
+      watched("refund-7-repeated", () => {
+        // manager-a's response arrives twice beside manager-b's.
+        const [folder, requested] = journey.request("refund-7-repeated", 1_300, paymentIntent);
+        requests["refund-7-repeated"] = requested;
+        for (const manager of ["manager-a", "manager-b"]) {
+          const answered = journey.answer(folder, manager);
+          expect(answered.status === 0, `${manager}: ${answered.stderr.trim()}`);
+        }
+        copyFileSync(join(folder, "manager-a.response"), join(folder, "manager-a-again.response"));
+        return journey.submit("refund-7-repeated", folder);
+      }));
     await journey.step("hostile: over the 50.00 ceiling",
       () => submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"));
     await journey.step("hostile: a connected account the grant does not list",
@@ -528,8 +739,9 @@ async function main(): Promise<void> {
         { "connect-account": OTHER_ACCOUNT }));
     await journey.step("hostile: 50.00 with 45.00 left of the day's 60.00 USD",
       () => submit("refund-over-sum", 5_000, "manager-a,manager-b"));
-    await journey.step("refund 4: 40.00 of a PaymentIntent already refunded (rejected)",
-      () => submit("refund-4", 4_000, "manager-b,manager-c", [], rejectedPaymentIntent));
+    await journey.step("refund 4: 40.00 of a PaymentIntent already refunded; manager-a and manager-c " +
+      "approve, manager-b declines (rejected by the provider)",
+    () => submit("refund-4", 4_000, "manager-a,manager-b,manager-c", ["manager-b"], rejectedPaymentIntent));
     await journey.step("hostile: third refund in the window",
       () => submit("refund-5-window", 1_000, "manager-a,manager-c"));
     await journey.step("hostile: refund-1 requested again, with fresh approvals",
@@ -537,13 +749,14 @@ async function main(): Promise<void> {
         { operation: "refund-1", out: "refund-1-replay" }));
     await journey.step("hostile: refund-1's proof sent for another refund",
       () => watched("refund-8-reuse", reusedApprovals));
-    await journey.step("retry after denial: refund-7-repeated again, with managers B and C",
-      () => submit("refund-7-retry", 1_300, "manager-b,manager-c", [], paymentIntent, {},
-        { operation: "refund-7-repeated", out: "refund-7-retry" }));
+    await journey.step("retry after denial: refund-2-lowered-threshold again, at the installed threshold",
+      () => submit("refund-2-retry", 1_200, "manager-b,manager-c", [], paymentIntent, {},
+        { operation: "refund-2-lowered-threshold", out: "refund-2-retry" }));
     // The negative control: a client-side pre-check refuses locally, and the
     // guard must reject it as not decided by the gateway.
-    await journey.step("negative control: an under-approved request refused by --precheck",
-      () => submit("refund-9-precheck", 1_200, "manager-a", [], paymentIntent, {}, { precheck: true }));
+    await journey.step("negative control: a lowered threshold refused by --precheck",
+      () => submit("refund-9-precheck", 1_200, "manager-a", [], paymentIntent, { required: "1" },
+        { precheck: true }));
 
     // The recipe's checks after the credential lease, each refusing one
     // refund of the second agent before any write.
@@ -567,20 +780,37 @@ async function main(): Promise<void> {
         () => checked("refund-denied-read-answered", 1_000, { denied_status: 200 }));
     }
 
+    const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
     const observed = results["refund-1"]! as Json & { evidence?: { channel: string; echo: string } };
     expectGatewayDecided("refund-1", observed, frames["refund-1"]!, {
       outcome: "observed-by-provider", status: 200, actionB64: requests["refund-1"]!.action_b64 as string,
     });
     expect(observed.evidence?.channel === "read-back" && observed.bundle === "appended",
       `refund-1: ${JSON.stringify(observed)}`);
+    expect(same(observed.approved, ["manager-a", "manager-b"]) && same(observed.pending, ["manager-c"]) &&
+      !("declined" in observed) &&
+      same(Object.keys(requests["refund-1"]!.requests as Json).sort(), [...MANAGERS]),
+    `refund-1: one request per manager, approved by two: ${JSON.stringify(observed)} ` +
+      JSON.stringify(requests["refund-1"]));
     expectGatewayDecided("refund-4", results["refund-4"]!, frames["refund-4"]!, {
       outcome: "response-recorded", status: 400, actionB64: requests["refund-4"]!.action_b64 as string,
     });
-    const declined = results["refund-declined"]!;
-    expectNotSubmitted("refund-declined", declined, frames["refund-declined"]!, "approver", "approver-declined");
-    expect(JSON.stringify(declined.declined) === JSON.stringify(["manager-b"]) && declined.provider_requests === 0,
-      `refund-declined: ${JSON.stringify(declined)}`);
-    expect(JSON.stringify(tamperedRun) === JSON.stringify({ exit: 1, refused: true, signed: false }),
+    expect(same(results["refund-4"]!.approved, ["manager-a", "manager-c"]) &&
+      same(results["refund-4"]!.declined, ["manager-b"]),
+    `refund-4: one declined manager beside two approvals still submits: ${JSON.stringify(results["refund-4"])}`);
+    const declined = results["refund-two-declines"]!;
+    expectNotSubmitted("refund-two-declines", declined, frames["refund-two-declines"]!, "approver",
+      "approvers-declined");
+    expect(same(declined.declined, ["manager-b", "manager-c"]) && same(declined.approved, ["manager-a"]) &&
+      declined.provider_requests === 0, `refund-two-declines: ${JSON.stringify(declined)}`);
+    const repeated = results["refund-7-repeated"]!;
+    expectNotSubmitted("refund-7-repeated", repeated, frames["refund-7-repeated"]!, "client",
+      "approvals-incomplete");
+    expect(same(repeated.approved, ["manager-b"]) &&
+      same(Object.entries(repeated.waiting as Json).sort(),
+        [["manager-a", "approval.duplicate-response"], ["manager-c", "pending"]]) &&
+      repeated.provider_requests === 0, `refund-7-repeated: ${JSON.stringify(repeated)}`);
+    expect(same(tamperedRun, { exit: 1, refused: true, signed: false }),
       `tampered request: ${JSON.stringify(tamperedRun)}`);
     expect(submitFrames(frames["refund-tampered"]!).length === 0 && results["refund-tampered"]!.provider_requests === 0,
       `tampered request reached the gateway: ${JSON.stringify(frames["refund-tampered"])}`);
@@ -593,18 +823,23 @@ async function main(): Promise<void> {
         decided_by: results[case_]!.decided_by, outcome, code, submit_frames: submitFrames(frames[case_]!).length,
       };
     }
-    // Only the reused-approvals case is sent by the journey itself, which asks
-    // for no signed outcome.
-    expect(frames["refund-8-reuse"]!.length === 1,
-      `refund-8-reuse: the witness saw ${JSON.stringify(frames["refund-8-reuse"])}`);
-    expect(warnings["refund-7-repeated"]!.includes("dropped the repeated approver manager-a"),
-      `refund-7-repeated: request did not name the dropped repeat: ${warnings["refund-7-repeated"]}`);
-    for (const case_ of ["refund-1-replay", "refund-7-retry"]) {
+    // The reused-approvals and self-approval cases are sent by the journey
+    // itself, which asks for no signed outcome.
+    for (const case_ of ["refund-8-reuse", "refund-self-approval"]) {
+      expect(frames[case_]!.length === 1, `${case_}: the witness saw ${JSON.stringify(frames[case_])}`);
+    }
+    expect(results["refund-self-approval"]!.sdk === "refused",
+      `the SDK authored a proposal whose actor is a listed approver: ${JSON.stringify(results["refund-self-approval"])}`);
+    for (const case_ of ["refund-2-lowered-threshold", "refund-6-lowered-two-approvals"]) {
+      expect(requests[case_]!.required === 1 && warnings[case_]!.includes("not the 2 the trust installs"),
+        `${case_}: request did not name the lowered threshold: ${warnings[case_]}`);
+    }
+    for (const case_ of ["refund-1-replay", "refund-2-retry"]) {
       expect(warnings[case_]!.includes("attempt store decides"),
         `${case_}: request did not warn that the operation ID was requested before`);
     }
     expect(results["refund-1-replay"]!.bundle === "unchanged", `replay: ${JSON.stringify(results["refund-1-replay"])}`);
-    expect(results["refund-7-retry"]!.bundle === "replaced", `retry: ${JSON.stringify(results["refund-7-retry"])}`);
+    expect(results["refund-2-retry"]!.bundle === "replaced", `retry: ${JSON.stringify(results["refund-2-retry"])}`);
 
     const control = results["refund-9-precheck"]!;
     expectNotSubmitted("refund-9-precheck", control, frames["refund-9-precheck"]!, "client", "precheck");
@@ -612,7 +847,7 @@ async function main(): Promise<void> {
     let negativeControl: Json;
     try {
       expectGatewayDecided("refund-9-precheck", control, frames["refund-9-precheck"]!, {
-        outcome: "denied", code: "composition-requirement-not-met",
+        outcome: "denied", code: "approval-threshold-not-met",
       });
       negativeControl = { guard_rejected: false };
     } catch (rejected) {
@@ -623,9 +858,11 @@ async function main(): Promise<void> {
       decided_by: control.decided_by, outcome: control.outcome, precheck: control.precheck,
       submit_frames: submitFrames(frames["refund-9-precheck"]!).length, guard_rejected: true,
     };
-    for (const case_ of ["refund-1-replay", "refund-8-reuse", "refund-7-retry", "refund-9-precheck"]) {
+    for (const case_ of ["refund-1-replay", "refund-8-reuse", "refund-2-retry", "refund-9-precheck"]) {
       expect(results[case_]!.provider_requests === 0, `${case_} reached the provider`);
     }
+
+    let stateLoss: Json | null = null;
     if (!live) {
       for (const operation of Object.keys(beforeLease)) {
         expect(results[operation]!.provider_requests === 0, `${operation} reached the provider`);
@@ -643,20 +880,58 @@ async function main(): Promise<void> {
         ? entry.stripe_account === null
         : entry.stripe_account === connectAccount),
       "Stripe-Account went on a credential read or missed an action request");
-      expect(JSON.stringify(onboarding.map((entry) => [entry.method, entry.path, entry.status])) === JSON.stringify([
+      expect(same(onboarding.map((entry) => [entry.method, entry.path, entry.status]), [
         ["GET", "/v1/balance", 200], ["GET", "/v1/account", 200],
         ["GET", "/v1/customers", 403], ["GET", "/v1/payouts", 403],
       ]), `install onboarding reads ${JSON.stringify(onboarding)}`);
-      const writes = entries.filter((entry) => entry.kind === "write");
+      let writes = entries.filter((entry) => entry.kind === "write");
       expect(writes.length === 2, `expected exactly 2 provider writes, saw ${writes.length}`);
       expect(writes.every((entry) => entry.well_formed === true), "provider saw a malformed refund");
-      expect(JSON.stringify(writes.map((entry) => entry.amount)) === JSON.stringify([1_500, 4_000]),
-        `provider writes ${JSON.stringify(writes)}`);
+      expect(same(writes.map((entry) => entry.amount), [1_500, 4_000]), `provider writes ${JSON.stringify(writes)}`);
       expect(writes[0]!.echo === observed.evidence?.echo,
         `refund-1 echo ${String(writes[0]!.echo)} != ${String(observed.evidence?.echo)}`);
       const readBack = `/v1/refunds/${String(writes[0]!.refund)}`;
       expect(entries.some((entry) => entry.path === readBack && entry.status === 200),
         `refund-1 was not read back at ${readBack}`);
+      const keys = {
+        "refund-1": idempotencyKey(facts.operator_namespace, "refund-1"),
+        "refund-4": idempotencyKey(facts.operator_namespace, "refund-4"),
+      };
+      expect(same(writes.map((entry) => entry.idempotency_key), [keys["refund-1"], keys["refund-4"]]),
+        `Idempotency-Key values ${JSON.stringify(writes.map((entry) => entry.idempotency_key))}`);
+      expect(!writes.some((entry) => entry.replayed === true), `provider replays ${JSON.stringify(writes)}`);
+
+      // State loss: the gateway's store is restored from the backup taken
+      // before the first refund, which still holds the shared connection
+      // record but no claim, and a client resubmits refund-1's approved proof
+      // and action. No claim stops it now; only the repeated Idempotency-Key
+      // keeps the double, like Stripe, from making a second refund. A wiped
+      // store would lose the connection record too, and the gateway would
+      // refuse every entry.
+      stateLoss = await journey.step("state loss: store restored from an older backup, refund-1 resubmitted",
+        async () => {
+          await journey.terminate(running!);
+          rmSync(join(journey.gatewayState, "attempts"), { recursive: true, force: true });
+          copyTree(attemptsBackup, join(journey.gatewayState, "attempts"));
+          await startGateway();
+          const first = entriesLog().find((entry) => entry.operation_id === "refund-1")!;
+          const proof = join(journey.work, "resubmit.proof");
+          const action = join(journey.work, "resubmit.action");
+          writeFileSync(proof, new Uint8Array(Buffer.from(first.proof_b64 as string, "base64url")));
+          writeFileSync(action, new Uint8Array(Buffer.from(first.action_b64 as string, "base64url")));
+          return JSON.parse(journey.run(journey.gateway, [
+            "submit", "--app-socket", journey.socket, "--proof", proof, "--action", action,
+          ]).stdout) as Json;
+        });
+      expect(stateLoss.outcome === "observed-by-provider" && stateLoss.status === 200,
+        `resubmitted refund-1: ${JSON.stringify(stateLoss)}`);
+      writes = journey.providerEntries().filter((entry) => entry.kind === "write");
+      expect(writes.length === 3, `expected 3 provider writes, saw ${writes.length}`);
+      expect(writes[2]!.idempotency_key === keys["refund-1"] && writes[2]!.replayed === true &&
+        writes[2]!.refund === writes[0]!.refund,
+      `resubmitted refund-1 was not de-duplicated: ${JSON.stringify(writes[2])}`);
+      const created = new Set(writes.map((entry) => entry.refund).filter((refund) => refund));
+      expect(created.size === 1, `expected 1 refund, saw ${JSON.stringify([...created])}`);
     }
 
     // README step 8: the audit bundle.
@@ -676,11 +951,10 @@ async function main(): Promise<void> {
     const unrecorded = new Set(exported.entries
       .filter((entry) => entry.outcome_b64 === null || entry.outcome_b64 === undefined)
       .map((entry) => entry.operation_id as string));
-    // refund-7-repeated's unsigned entry was replaced by its signed retry.
-    expect(JSON.stringify([...unrecorded].sort()) === JSON.stringify([
-      "refund-2-one-approval", "refund-3-over-ceiling", "refund-6-no-manager", "refund-other-account",
-    ]),
-    `entries without a signed outcome: ${JSON.stringify([...unrecorded])}`);
+    // refund-2-lowered-threshold's unsigned entry was replaced by its signed retry.
+    expect(same([...unrecorded].sort(), [
+      "refund-3-over-ceiling", "refund-6-lowered-two-approvals", "refund-other-account",
+    ]), `entries without a signed outcome: ${JSON.stringify([...unrecorded].sort())}`);
     const strict = await journey.step("offline audit (gateway stopped)",
       () => journey.audit(bundlePath, facts.trusted_context_sha256, observer));
     expect(strict.status !== 0 && strict.stderr.trim() === "audit.unverified",
@@ -704,17 +978,17 @@ async function main(): Promise<void> {
     const verdicts = Object.fromEntries(report.entries.map((entry) =>
       [entry.operation_id, `${entry.status} ${entry.code} ${String(entry.admitted)}`]));
     // One bundle entry per operation ID: the replay left refund-1's alone, the
-    // retry replaced refund-7-repeated's unsigned one, and the journey's own
-    // reused-approvals submission has none.
+    // retry replaced refund-2-lowered-threshold's unsigned one, and the
+    // journey's own reused-approvals and self-approval submissions have none.
     const bundled = exported.entries.map((entry) => entry.operation_id as string);
     const auditedRefusals: Record<string, string> = Object.fromEntries(Object.entries(expectedRefusals)
-      .filter(([operation]) => !["refund-1-replay", "refund-8-reuse", "refund-7-retry"].includes(operation))
+      .filter(([operation]) =>
+        !["refund-1-replay", "refund-8-reuse", "refund-self-approval", "refund-2-retry"].includes(operation))
       .map(([operation, [, code]]) => [operation, code]));
-    auditedRefusals["refund-7-repeated"] = expectedRefusals["refund-7-retry"]![1];
+    auditedRefusals["refund-2-lowered-threshold"] = expectedRefusals["refund-2-retry"]![1];
     expect(new Set(bundled).size === bundled.length, `bundle repeats an operation ID: ${JSON.stringify(bundled)}`);
-    expect(JSON.stringify([...bundled].sort()) ===
-      JSON.stringify(["refund-1", "refund-4", ...Object.keys(auditedRefusals)].sort()),
-    `bundle entries ${JSON.stringify([...bundled].sort())}`);
+    expect(same([...bundled].sort(), ["refund-1", "refund-4", ...Object.keys(auditedRefusals)].sort()),
+      `bundle entries ${JSON.stringify([...bundled].sort())}`);
     for (const operation of ["refund-1", "refund-4"]) {
       expect(verdicts[operation] === "verified audit.verified true", `audit ${operation}: ${verdicts[operation]}`);
     }
@@ -727,7 +1001,7 @@ async function main(): Promise<void> {
     const providerResults = Object.fromEntries(report.entries.map((entry) =>
       [entry.operation_id, entry.provider_result]));
     const entered = report.entries.filter((entry) => entry.status === "verified").map((entry) => entry.operation_id);
-    expect(JSON.stringify(entered) === JSON.stringify(["refund-1", "refund-4"]), `audit entered ${JSON.stringify(entered)}`);
+    expect(same(entered, ["refund-1", "refund-4"]), `audit entered ${JSON.stringify(entered)}`);
     for (const [operation, stage, status] of [
       ["refund-1", "observed-by-provider", 200], ["refund-4", "response-recorded", 400],
     ] as const) {
@@ -746,22 +1020,29 @@ async function main(): Promise<void> {
         result.refusal === code && result.http_status === null,
       `audit provider result ${operation}: ${JSON.stringify(result)}`);
     }
+    expect(report.verified === 2 && report.refused === 7 && report.unverified === 3 && report.inconsistent === 0,
+      `audit summary ${JSON.stringify([report.verified, report.refused, report.unverified, report.inconsistent])}`);
     expect(report.recovery.class === "linked-after-response", `audit recovery ${JSON.stringify(report.recovery)}`);
-    const verified = report.entries.find((entry) => entry.operation_id === "refund-1")!;
-    expect(verified.approvals.length === 3, "refund-1 should carry the agent and two managers");
-    expect(
-      JSON.stringify([...verified.approvals].sort()) ===
-        JSON.stringify(["agent", "manager-a", "manager-b"].map((name) => facts.principals[name]).sort()),
-      "refund-1 approvers",
-    );
+    // Only the managers whose approvals counted are listed; the agent, which
+    // signed the action, never is.
+    const principals = facts.principals;
+    for (const [operation, names] of [
+      ["refund-1", ["manager-a", "manager-b"]], ["refund-4", ["manager-a", "manager-c"]],
+    ] as const) {
+      const entry = report.entries.find((item) => item.operation_id === operation)!;
+      expect(same([...entry.approvals].sort(), names.map((name) => principals[name]).sort()),
+        `${operation} approvals: ${JSON.stringify(entry.approvals)}`);
+    }
     const recorded = new Set(report.approval_responses.map((item) =>
       `${item.operation_id} ${item.approver} ${item.decision}`));
     for (const [operation, name, decision] of [
-      ["refund-declined", "manager-a", "approve"], ["refund-declined", "manager-b", "decline"],
+      ["refund-two-declines", "manager-a", "approve"], ["refund-two-declines", "manager-b", "decline"],
+      ["refund-two-declines", "manager-c", "decline"],
       ["refund-1", "manager-a", "approve"], ["refund-1", "manager-b", "approve"],
+      ["refund-4", "manager-b", "decline"],
     ] as const) {
-      expect(recorded.has(`${operation} ${facts.principals[name]} ${decision}`),
-        `audit approval responses ${JSON.stringify([...recorded])}`);
+      expect(recorded.has(`${operation} ${principals[name]} ${decision}`),
+        `audit approval responses ${JSON.stringify([...recorded].sort())}`);
     }
 
     // Hostile: a tampered bundle is detected. Each case runs with
@@ -796,7 +1077,7 @@ async function main(): Promise<void> {
       const result = auditTampered(value);
       const findings = (JSON.parse(result.stdout) as Audited).entries
         .filter((entry) => entry.status === "inconsistent").map((entry) => entry.code);
-      expect(result.status !== 0 && JSON.stringify(findings) === JSON.stringify([code]),
+      expect(result.status !== 0 && same(findings, [code]),
         `tamper '${label}' not detected: ${JSON.stringify(findings)} ${result.stderr}`);
       detections[label] = code;
     }
@@ -850,6 +1131,8 @@ async function main(): Promise<void> {
       }])),
       provider_requests: live ? null : providerRequests.length,
       provider_writes: live ? null : writes.length,
+      provider_refunds: live ? null : new Set(writes.map((entry) => entry.refund).filter((refund) => refund)).size,
+      state_loss_resubmission: stateLoss,
       audit: {
         verified: report.verified, refused: report.refused, unverified: report.unverified,
         inconsistent: report.inconsistent,

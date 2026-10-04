@@ -2630,6 +2630,200 @@
         "propext"
       ],
       "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_decide_eq_threshold_counts",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action)),\n  Auths.Approval.approvalDecision env identifier requirement approvals =\n    Auths.thresholdCounts requirement.threshold\n      (Auths.Approval.countedCount requirement.approvers (Auths.Approval.outcomes env identifier requirement approvals))\n      (Auths.Approval.pendingCount requirement.approvers (Auths.Approval.outcomes env identifier requirement approvals))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_authorized_iff_distinct_quorum",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action)),\n  requirement.approvers.Nodup →\n    (Auths.Approval.approvalDecision env identifier requirement approvals = Auths.Generated.Truth.authorized ↔\n      ∃ chosen,\n        chosen.Nodup ∧\n          chosen ⊆ requirement.approvers ∧\n            requirement.threshold ≤ chosen.length ∧\n              ∀ principal ∈ chosen,\n                ∃ approval ∈ approvals,\n                  approval.approver = principal ∧\n                    Auths.Approval.verdict env identifier requirement approval = Auths.Approval.Verdict.counted)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_duplicate_irrelevant",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action)),\n  ∀ approval ∈ approvals,\n    Auths.Approval.approvalDecision env identifier requirement (approval :: approvals) =\n      Auths.Approval.approvalDecision env identifier requirement approvals"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_outsider_irrelevant",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action))\n  (approval : Auths.Approval.ApprovalRecord Action),\n  approval.approver ∉ requirement.approvers →\n    Auths.Approval.approvalDecision env identifier requirement (approval :: approvals) =\n      Auths.Approval.approvalDecision env identifier requirement approvals"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_other_action_irrelevant",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action))\n  (approval : Auths.Approval.ApprovalRecord Action),\n  approval.action ≠ env.action →\n    Auths.Approval.approvalDecision env identifier requirement (approval :: approvals) =\n      Auths.Approval.approvalDecision env identifier requirement approvals"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_other_requirement_irrelevant",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action))\n  (approval : Auths.Approval.ApprovalRecord Action),\n  approval.requirement ≠ identifier →\n    Auths.Approval.approvalDecision env identifier requirement (approval :: approvals) =\n      Auths.Approval.approvalDecision env identifier requirement approvals"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_self_approval_irrelevant",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action))\n  (approval : Auths.Approval.ApprovalRecord Action),\n  approval.approver ∈ env.authority →\n    Auths.Approval.approvalDecision env identifier requirement (approval :: approvals) =\n      Auths.Approval.approvalDecision env identifier requirement approvals"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_permutation_invariant",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) {left right : List (Auths.Approval.ApprovalRecord Action)},\n  left.Perm right →\n    Auths.Approval.approvalDecision env identifier requirement left =\n      Auths.Approval.approvalDecision env identifier requirement right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_monotone_in_approvals",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals extra : List (Auths.Approval.ApprovalRecord Action)),\n  (Auths.Approval.approvalDecision env identifier requirement approvals).le\n    (Auths.Approval.approvalDecision env identifier requirement (approvals ++ extra))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_antitone_in_threshold",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (approvers : List String) (approvals : List (Auths.Approval.ApprovalRecord Action)) {lower higher : ℕ},\n  lower ≤ higher →\n    (Auths.Approval.approvalDecision env identifier { approvers := approvers, threshold := higher } approvals).le\n      (Auths.Approval.approvalDecision env identifier { approvers := approvers, threshold := lower } approvals)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_antitone_in_approvers",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier threshold : ℕ)\n  (approvals : List (Auths.Approval.ApprovalRecord Action)) {fewer more : List String},\n  fewer ⊆ more →\n    fewer.Nodup →\n      (Auths.Approval.approvalDecision env identifier { approvers := fewer, threshold := threshold } approvals).le\n        (Auths.Approval.approvalDecision env identifier { approvers := more, threshold := threshold } approvals)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_authorized_meets",
+      "statement": "∀ {Action : Type} [inst : DecidableEq Action] (env : Auths.Approval.Environment Action) (identifier : ℕ)\n  (requirement : Auths.Approval.Requirement) (approvals : List (Auths.Approval.ApprovalRecord Action)),\n  requirement.approvers.Nodup →\n    Auths.Approval.approvalDecision env identifier requirement approvals = Auths.Generated.Truth.authorized →\n      Auths.Approval.meets\n        (List.map Auths.Approval.ApprovalRecord.approver\n          (List.filter\n            (fun approval =>\n              decide (Auths.Approval.verdict env identifier requirement approval = Auths.Approval.Verdict.counted))\n            approvals))\n        requirement"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.covers_monotone",
+      "statement": "∀ {approving : List String} {child parent : Auths.Approval.Requirement},\n  Auths.Approval.covers child parent → Auths.Approval.meets approving child → Auths.Approval.meets approving parent"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.covers_trans",
+      "statement": "∀ {child middle parent : Auths.Approval.Requirement},\n  Auths.Approval.covers child middle → Auths.Approval.covers middle parent → Auths.Approval.covers child parent"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_requirements_attenuate_refl",
+      "statement": "∀ (requirements : List Auths.Approval.Requirement), Auths.Approval.requirementsAttenuate requirements requirements"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_requirements_attenuate_trans",
+      "statement": "∀ {child middle parent : List Auths.Approval.Requirement},\n  Auths.Approval.requirementsAttenuate child middle →\n    Auths.Approval.requirementsAttenuate middle parent → Auths.Approval.requirementsAttenuate child parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_requirements_attenuate_monotone",
+      "statement": "∀ {approving : List String} {child parent : List Auths.Approval.Requirement},\n  Auths.Approval.requirementsAttenuate child parent →\n    (∀ requirement ∈ child, Auths.Approval.meets approving requirement) →\n      ∀ requirement ∈ parent, Auths.Approval.meets approving requirement"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_requirement_law_lawful",
+      "statement": "Auths.Approval.approvalRequirementLaw.Lawful"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_requirement_law_accepts_addition",
+      "statement": "∀ (requirements : List Auths.Approval.Requirement),\n  Auths.Approval.approvalRequirementLaw.attenuates (some requirements) none"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Approval",
+      "name": "Auths.Approval.approval_requirement_law_refuses_drop",
+      "statement": "∀ (requirements : List Auths.Approval.Requirement),\n  ¬Auths.Approval.approvalRequirementLaw.attenuates none (some requirements)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
       "module": "Auths.ExtensionLaw",
       "name": "Auths.exact_marker_law_lawful",
       "statement": "∀ (Body : Type u) (World : Type w), (Auths.exactMarkerLaw Body World).Lawful"
@@ -2965,6 +3159,83 @@
       "module": "Auths.Refinement.Observation",
       "name": "Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model",
       "statement": "∀ (child parent : auths_model.observation.ObservationRequirements),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Observation.RequirementValid requirement) →\n    (∀ requirement ∈ ↑parent, Auths.Refinement.Observation.RequirementValid requirement) →\n      auths_model.observation.observation_requirements_attenuate child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Observation.requirementsAttenuate (List.map Auths.Refinement.Observation.requirementOf ↑child)\n              (List.map Auths.Refinement.Observation.requirementOf ↑parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approver_verdict_refines_model",
+      "statement": "∀ (outcomes : Aeneas.Std.Slice auths_model.approval.ApprovalOutcome) (approver : auths_model.PrincipalId),\n  Auths.Refinement.Approval.OutcomesValid ↑outcomes →\n    Auths.Refinement.StringBounded approver →\n      ∃ result,\n        auths_model.approval.approver_verdict outcomes approver = Aeneas.Std.Result.ok result ∧\n          Auths.Refinement.Approval.verdictOf result =\n            Auths.Approval.approverVerdict (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes) approver"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_counts_refines_model",
+      "statement": "∀ (approvers : Aeneas.Std.Slice auths_model.PrincipalId)\n  (outcomes : Aeneas.Std.Slice auths_model.approval.ApprovalOutcome),\n  Auths.Refinement.Approval.PrincipalsValid ↑approvers →\n    Auths.Refinement.Approval.OutcomesValid ↑outcomes →\n      ∀ (threshold : Aeneas.Std.U16),\n        ∃ counts,\n          auths_model.approval.approval_counts approvers outcomes = Aeneas.Std.Result.ok counts ∧\n            ↑counts.counted =\n                Auths.Approval.countedCount (↑approvers) (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes) ∧\n              ↑counts.pending =\n                  Auths.Approval.pendingCount (↑approvers) (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes) ∧\n                Auths.thresholdCounts ↑threshold ↑counts.counted ↑counts.pending =\n                  Auths.Approval.decideCounts (↑threshold) (↑approvers)\n                    (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_principal_ids_contain_refines_model",
+      "statement": "∀ (principals : Aeneas.Std.Slice auths_model.PrincipalId) (principal : auths_model.PrincipalId),\n  Auths.Refinement.Approval.PrincipalsValid ↑principals →\n    Auths.Refinement.StringBounded principal →\n      auths_model.approval.principal_ids_contain principals principal =\n        Aeneas.Std.Result.ok (decide (principal ∈ ↑principals))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_principal_ids_subset_refines_model",
+      "statement": "∀ (narrower wider : Aeneas.Std.Slice auths_model.PrincipalId),\n  Auths.Refinement.Approval.PrincipalsValid ↑narrower →\n    Auths.Refinement.Approval.PrincipalsValid ↑wider →\n      auths_model.approval.principal_ids_subset narrower wider = Aeneas.Std.Result.ok (decide (↑narrower ⊆ ↑wider))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model",
+      "statement": "∀ (child parent : auths_model.approval.ApprovalRequirement),\n  Auths.Refinement.Approval.RequirementValid child →\n    Auths.Refinement.Approval.RequirementValid parent →\n      auths_model.approval.approval_requirement_covers child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Approval.covers (Auths.Refinement.Approval.requirementOf child)\n              (Auths.Refinement.Approval.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model",
+      "statement": "∀ (child : auths_model.approval.ApprovalRequirements) (parent : auths_model.approval.ApprovalRequirement),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Approval.RequirementValid requirement) →\n    Auths.Refinement.Approval.RequirementValid parent →\n      auths_model.approval.approval_requirement_retained child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (∃ candidate ∈ List.map Auths.Refinement.Approval.requirementOf ↑child,\n              Auths.Approval.covers candidate (Auths.Refinement.Approval.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model",
+      "statement": "∀ (child parent : auths_model.approval.ApprovalRequirements),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Approval.RequirementValid requirement) →\n    (∀ requirement ∈ ↑parent, Auths.Refinement.Approval.RequirementValid requirement) →\n      auths_model.approval.approval_requirements_attenuate child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Approval.requirementsAttenuate (List.map Auths.Refinement.Approval.requirementOf ↑child)\n              (List.map Auths.Refinement.Approval.requirementOf ↑parent)))"
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

@@ -7,12 +7,15 @@
 //! `every_fixture_vector_replays`.
 
 use super::*;
-use crate::{DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumApprover};
-use auths_codec::{encode_bundle, grant_signing_preimage};
+use crate::{DEFAULT_QUORUM_VALIDITY_SECONDS, MAX_APPROVERS, QuorumActor};
+use auths_codec::{
+    action_signing_preimage, encode_bundle, encode_signed_action, encode_signed_grant,
+    grant_signing_preimage,
+};
 use auths_model::{
     ActionConstraint, AssurancePolicyId, Audience, AudienceSet, CapabilityId, CriticalExtensions,
-    Permission, PermissionSet, ProfileId, ResourceId, SignatureEnvelope, StatusPolicy, Timestamp,
-    ValidityWindow,
+    Permission, PermissionSet, ProfileId, ResourceId, SignatureEnvelope, SignedAction, SignedGrant,
+    StatusPolicy, Timestamp, ValidityWindow,
 };
 use auths_profile_mcp::{McpProfile, McpToolCall, PROFILE_ID, PROFILE_VERSION};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
@@ -32,20 +35,23 @@ const EVALUATION_TIME: u64 = 1_790_000_000;
 const OPENED_AT: u64 = EVALUATION_TIME + 60;
 const DECIDED_AT: u64 = EVALUATION_TIME + 120;
 const CHALLENGE: [u8; 32] = [0x62; 32];
-const REQUIRED: u16 = 3;
+const REQUIRED: u16 = 2;
 const SHOWN_AMOUNT: u64 = 1_500;
 const SIGNED_AMOUNT: u64 = 150_000;
 
-/// Fixed test seeds: the requester, two managers, the agent's grant issuer,
+/// Fixed test seeds: the requester, three managers, the agent's grant issuer,
 /// and one principal outside the proposal.
-const MEMBERS: [(&str, u8); 5] = [
+const MEMBERS: [(&str, u8); 6] = [
     ("agent", 0x11),
-    ("manager-a", 0xa1),
-    ("manager-b", 0xb2),
+    ("manager-a", 0xc3),
+    ("manager-b", 0xa1),
+    ("manager-c", 0xb2),
     ("root", 0x01),
     ("outsider", 0xd4),
 ];
-const APPROVERS: [&str; 3] = ["agent", "manager-a", "manager-b"];
+/// The listed approvers by name, in the ascending principal order the
+/// requirement fixes; `proposal` checks the order.
+const MANAGERS: [&str; 3] = ["manager-a", "manager-b", "manager-c"];
 
 struct Member {
     name: &'static str,
@@ -142,11 +148,12 @@ fn proposal(amount: u64) -> QuorumProposal {
     let canonical = McpProfile
         .canonicalize(&call.canonical_bytes().expect("bytes"))
         .expect("canonical");
-    let approvers: Vec<_> = APPROVERS
+    let approvers: Vec<_> = MANAGERS
         .iter()
-        .map(|name| QuorumApprover::new(Member::named(name).principal, None).expect("approver"))
+        .map(|name| Member::named(name).principal)
         .collect();
-    QuorumProposal::new(
+    let grant = agent_grant();
+    let quorum = QuorumProposal::new(
         canonical,
         &call.audience().expect("audience"),
         CHALLENGE,
@@ -154,8 +161,32 @@ fn proposal(amount: u64) -> QuorumProposal {
         None,
         REQUIRED,
         &approvers,
+        &QuorumActor::new(Member::named("agent").principal, Some(&grant.0)).expect("actor"),
     )
-    .expect("proposal")
+    .expect("proposal");
+    assert_eq!(
+        quorum.approvers(),
+        approvers,
+        "managers are listed in order"
+    );
+    quorum
+}
+
+/// The agent's signed action for `quorum`, with its grant chain.
+fn agent_action(quorum: &QuorumProposal) -> QuorumAction {
+    let agent = Member::named("agent");
+    let descriptor = agent.descriptor();
+    let preimage = action_signing_preimage(quorum.envelope(), &descriptor).expect("preimage");
+    let signature = SignatureBytes::new(agent.sign(&preimage)).expect("signature");
+    QuorumAction::new(
+        SignedAction::new(
+            quorum.envelope().clone(),
+            SignatureEnvelope::new(descriptor, signature),
+        ),
+        vec![agent_grant()],
+        vec![agent.evidence()],
+    )
+    .expect("action")
 }
 
 fn agent_grant() -> (SignedGrant, Vec<EvidenceObject>) {
@@ -194,7 +225,7 @@ fn agent_grant() -> (SignedGrant, Vec<EvidenceObject>) {
     )
 }
 
-fn approve(reviewed: &ReviewedRequest, member: &Member, with_grant: bool) -> ApprovalResponse {
+fn approve(reviewed: &ReviewedRequest, member: &Member) -> ApprovalResponse {
     let pending = reviewed
         .prepare_approval(&member.principal, member.descriptor())
         .expect("addressed");
@@ -204,14 +235,10 @@ fn approve(reviewed: &ReviewedRequest, member: &Member, with_grant: bool) -> App
         "custody shows the review"
     );
     assert_eq!(pending.expires_at(), reviewed.window().expires_at());
+    assert!(pending.signing().request_id().starts_with("approval:"));
     let signature = member.sign(pending.signing().signing_preimage());
-    let grants = if with_grant {
-        vec![agent_grant()]
-    } else {
-        Vec::new()
-    };
     pending
-        .complete(&signature, grants, vec![member.evidence()])
+        .complete(&signature, vec![member.evidence()])
         .expect("response")
 }
 
@@ -222,7 +249,7 @@ fn decline(reviewed: &ReviewedRequest, member: &Member) -> ApprovalResponse {
     assert_eq!(pending.display(), reviewed.fields());
     let signature = member.sign(pending.signing_preimage());
     pending
-        .complete(&signature, Vec::new(), vec![member.evidence()])
+        .complete(&signature, vec![member.evidence()])
         .expect("response")
 }
 
@@ -235,19 +262,11 @@ fn reencode(request: &ApprovalRequest) -> Vec<u8> {
 fn rekeyed(mut request: ApprovalRequest) -> ApprovalRequest {
     request.request_id = request_id(
         &request.canonical_action,
-        &request.plan,
-        &request.envelope,
+        &request.statement,
         &request.approver,
     )
     .expect("request ID");
     request
-}
-
-fn approved_action(response: &ApprovalResponse) -> SignedAction {
-    match response.body() {
-        ResponseBody::Approve(action) => action.clone(),
-        ResponseBody::Decline(_) => panic!("not an approval"),
-    }
 }
 
 fn review_json(reviewed: &ReviewedRequest) -> Value {
@@ -334,16 +353,16 @@ fn open_vectors(issued: &[ApprovalRequest], other: &[ApprovalRequest]) -> Vec<Va
     };
 
     let mut unknown_key = encoded[1].clone();
-    unknown_key[0] = 0xab;
-    unknown_key.extend_from_slice(&[0x0a, 0x61, b'x']);
+    unknown_key[0] = 0xaa;
+    unknown_key.extend_from_slice(&[0x09, 0x61, b'x']);
 
     let canonical = reencode(&base);
     let at = canonical
         .windows(2)
-        .rposition(|pair| pair == [0x06, 0x03])
+        .rposition(|pair| pair == [0x05, 0x02])
         .expect("required field");
     let mut non_minimal = canonical[..at].to_vec();
-    non_minimal.extend_from_slice(&[0x06, 0x19, 0x00, 0x03]);
+    non_minimal.extend_from_slice(&[0x05, 0x19, 0x00, 0x02]);
     non_minimal.extend_from_slice(&canonical[at + 2..]);
 
     let mut oversized = encoded[1].clone();
@@ -360,13 +379,13 @@ fn open_vectors(issued: &[ApprovalRequest], other: &[ApprovalRequest]) -> Vec<Va
     let mut shows_less = other[1].clone();
     shows_less.canonical_action = base.canonical_action.clone();
     let shows_more = with(&|request| request.canonical_action = other[1].canonical_action.clone());
-    let manager_a = base.approver.clone();
-    let manager_b = issued[2].approver.clone();
+    let manager_a = issued[0].approver.clone();
+    let manager_c = issued[2].approver.clone();
 
     let cases = [
-        OpenCase::bytes("addressed-to-agent", encoded[0].clone(), None),
-        OpenCase::bytes("addressed-to-manager-a", encoded[1].clone(), None),
-        OpenCase::bytes("addressed-to-manager-b", encoded[2].clone(), None),
+        OpenCase::bytes("addressed-to-manager-a", encoded[0].clone(), None),
+        OpenCase::bytes("addressed-to-manager-b", encoded[1].clone(), None),
+        OpenCase::bytes("addressed-to-manager-c", encoded[2].clone(), None),
         OpenCase::text(
             "printable-form-with-surrounding-whitespace",
             format!("  {}\n", base.to_text().expect("text")),
@@ -411,34 +430,34 @@ fn open_vectors(issued: &[ApprovalRequest], other: &[ApprovalRequest]) -> Vec<Va
         ),
         OpenCase::bytes(
             "threshold-lowered",
-            reencode(&rekeyed(with(&|request| request.required = 2))),
-            Some(Code::PlanMismatch),
+            reencode(&rekeyed(with(&|request| request.required = 1))),
+            Some(Code::RequirementMismatch),
         ),
         OpenCase::bytes(
             "approver-replaced",
             reencode(&rekeyed(with(&|request| {
                 request.approvers[2] = outsider.clone();
             }))),
-            Some(Code::PlanMismatch),
+            Some(Code::RequirementMismatch),
         ),
         OpenCase::bytes(
             "approver-listed-twice",
             reencode(&rekeyed(with(&|request| {
                 request.approvers[2] = manager_a.clone();
             }))),
-            Some(Code::PlanMismatch),
+            Some(Code::RequirementMismatch),
         ),
         OpenCase::bytes(
-            "requester-not-listed",
+            "requester-listed-as-approver",
             reencode(&rekeyed(with(&|request| {
-                request.requester = outsider.clone();
+                request.requester = manager_c.clone();
             }))),
-            Some(Code::PlanMismatch),
+            Some(Code::RequirementMismatch),
         ),
         OpenCase::bytes(
             "addressed-to-another-approver",
             reencode(&rekeyed(with(&|request| {
-                request.approver = manager_b.clone();
+                request.approver = manager_c.clone();
             }))),
             Some(Code::NotAddressed),
         ),
@@ -460,7 +479,7 @@ fn open_vectors(issued: &[ApprovalRequest], other: &[ApprovalRequest]) -> Vec<Va
         )
         .at(window.expires_at + 1),
         OpenCase::bytes(
-            "window-differs-from-envelope",
+            "window-differs-from-statement",
             reencode(&with(&|request| request.window.expires_at += 1)),
             Some(Code::OutsideWindow),
         ),
@@ -493,74 +512,97 @@ fn status_json(status: &ApproverStatus, approver: &str) -> Value {
     }
 }
 
+/// A collection case: its name, the responses, and the in-process proof it
+/// must reproduce when it assembles.
+type CollectionCase<'a> = (&'a str, Vec<Vec<u8>>, Option<Vec<u8>>);
+
+fn collection_json(shown: &QuorumProposal, action: &QuorumAction, inputs: &[Vec<u8>]) -> Value {
+    let collection = collect(shown, inputs).expect("collects");
+    let mut value = json!({
+        "responses_b64": inputs.iter().map(|bytes| b64(bytes)).collect::<Vec<_>>(),
+        "statuses": collection
+            .statuses()
+            .iter()
+            .zip(MANAGERS)
+            .map(|(status, approver)| status_json(status, approver))
+            .collect::<Vec<_>>(),
+        "approved": collection.approved(),
+        "unattributed": collection
+            .unattributed()
+            .iter()
+            .map(|(index, code)| json!([index, code.as_str()]))
+            .collect::<Vec<_>>(),
+    });
+    match collection.assemble(action) {
+        Ok(bundle) => value["proof_b64"] = json!(b64(&encode_bundle(&bundle).expect("bytes"))),
+        Err(code) => value["assemble_code"] = json!(code.as_str()),
+    }
+    value
+}
+
 #[allow(clippy::too_many_lines)]
 fn generate() -> String {
     let members: Vec<Member> = MEMBERS
         .iter()
         .map(|(name, _)| Member::named(name))
         .collect();
-    let [agent, manager_a, manager_b, _, outsider] = [0, 1, 2, 3, 4].map(|index| &members[index]);
+    let [manager_a, manager_b, manager_c, outsider] = [1, 2, 3, 5].map(|index| &members[index]);
 
     let shown = proposal(SHOWN_AMOUNT);
     let signed = proposal(SIGNED_AMOUNT);
-    let issued = requests(&shown, &agent.principal).expect("requests");
-    let other = requests(&signed, &agent.principal).expect("requests");
-    assert_eq!(
-        requests(&shown, &outsider.principal).err(),
-        Some(ApprovalCode::PlanMismatch)
-    );
+    let issued = requests(&shown).expect("requests");
+    let other = requests(&signed).expect("requests");
     let opened = open_vectors(&issued, &other);
+    let action = agent_action(&shown);
+    let stray_action = agent_action(&signed);
 
     let reviewed: Vec<ReviewedRequest> = issued
         .iter()
         .map(|request| open(&request.encode().expect("encode"), "mcp", OPENED_AT).expect("opens"))
         .collect();
     assert_eq!(
-        reviewed[1]
+        reviewed[0]
             .prepare_approval(&outsider.principal, outsider.descriptor())
             .err(),
         Some(ApprovalCode::NotAddressed)
     );
     assert_eq!(
-        reviewed[1]
+        reviewed[0]
             .prepare_decline(&manager_b.principal, manager_b.descriptor(), DECIDED_AT)
             .err(),
         Some(ApprovalCode::NotAddressed)
     );
 
-    let approve_agent = approve(&reviewed[0], agent, true);
-    let approve_a = approve(&reviewed[1], manager_a, false);
-    let approve_b = approve(&reviewed[2], manager_b, false);
-    let decline_b = decline(&reviewed[2], manager_b);
-    let forged_envelope = {
-        let pending = reviewed[2]
+    let approve_a = approve(&reviewed[0], manager_a);
+    let approve_b = approve(&reviewed[1], manager_b);
+    let approve_c = approve(&reviewed[2], manager_c);
+    let decline_b = decline(&reviewed[1], manager_b);
+    let decline_c = decline(&reviewed[2], manager_c);
+    let forged_statement = {
+        let pending = reviewed[1]
             .prepare_approval(&manager_b.principal, manager_a.descriptor())
             .expect("pending");
         let signature = manager_a.sign(pending.signing().signing_preimage());
         ApprovalResponse {
-            request_id: issued[1].request_id,
+            request_id: issued[0].request_id,
             approver: manager_a.principal.clone(),
             body: ResponseBody::Approve(
                 pending
                     .signing
-                    .complete(SignatureBytes::new(signature).expect("signature")),
+                    .complete(
+                        SignatureBytes::new(signature).expect("signature"),
+                        vec![manager_a.evidence()],
+                    )
+                    .expect("approval"),
             ),
-            grants: Vec::new(),
-            action_evidence: vec![manager_a.evidence()],
         }
     };
-    let other_opened = open(&other[1].encode().expect("encode"), "mcp", OPENED_AT).expect("opens");
-    let other_proposal = approve(&other_opened, manager_a, false);
+    let other_opened = open(&other[0].encode().expect("encode"), "mcp", OPENED_AT).expect("opens");
+    let other_proposal = approve(&other_opened, manager_a);
     let mut wrong_approver = approve_a.clone();
     wrong_approver.approver = manager_b.principal.clone();
 
     let responses: Vec<(&str, Vec<u8>, &str, &str)> = vec![
-        (
-            "approve-agent-with-grant",
-            approve_agent.encode().expect("encode"),
-            "agent",
-            "approver",
-        ),
         (
             "approve-manager-a",
             approve_a.encode().expect("encode"),
@@ -574,14 +616,26 @@ fn generate() -> String {
             "approver",
         ),
         (
+            "approve-manager-c",
+            approve_c.encode().expect("encode"),
+            "manager-c",
+            "approver",
+        ),
+        (
             "decline-manager-b",
             decline_b.encode().expect("encode"),
             "manager-b",
             "approver",
         ),
         (
-            "signed-for-another-envelope",
-            forged_envelope.encode().expect("encode"),
+            "decline-manager-c",
+            decline_c.encode().expect("encode"),
+            "manager-c",
+            "approver",
+        ),
+        (
+            "signed-for-another-statement",
+            forged_statement.encode().expect("encode"),
             "manager-a",
             "attacker",
         ),
@@ -615,139 +669,162 @@ fn generate() -> String {
         }
     }
 
-    let in_process = shown
-        .assemble(&[
-            QuorumApproval::new(
-                approved_action(&approve_agent),
-                vec![agent_grant()],
-                vec![agent.evidence()],
-            )
-            .expect("approval"),
-            QuorumApproval::new(
-                approved_action(&approve_a),
-                Vec::new(),
-                vec![manager_a.evidence()],
-            )
-            .expect("approval"),
-            QuorumApproval::new(
-                approved_action(&approve_b),
-                Vec::new(),
-                vec![manager_b.evidence()],
-            )
-            .expect("approval"),
-        ])
-        .expect("in-process bundle");
-    let in_process = encode_bundle(&in_process).expect("bytes");
+    let approval = |response: &ApprovalResponse| match response.body() {
+        ResponseBody::Approve(approval) => approval.clone(),
+        ResponseBody::Decline(_) => panic!("not an approval"),
+    };
+    let in_process = |pair: [&ApprovalResponse; 2]| {
+        encode_bundle(
+            &shown
+                .assemble(&action, &pair.map(approval))
+                .expect("in-process bundle"),
+        )
+        .expect("bytes")
+    };
 
-    let collections: Vec<(&str, Vec<Vec<u8>>)> = vec![
+    let collections: Vec<CollectionCase<'_>> = vec![
         (
-            "every-approver-approved",
+            "managers-a-and-b-approved",
+            vec![response("approve-manager-a"), response("approve-manager-b")],
+            Some(in_process([&approve_a, &approve_b])),
+        ),
+        (
+            "managers-a-and-c-approved",
+            vec![response("approve-manager-a"), response("approve-manager-c")],
+            Some(in_process([&approve_a, &approve_c])),
+        ),
+        (
+            "managers-b-and-c-approved",
+            vec![response("approve-manager-c"), response("approve-manager-b")],
+            Some(in_process([&approve_b, &approve_c])),
+        ),
+        (
+            "every-manager-approved",
             vec![
-                response("approve-agent-with-grant"),
                 response("approve-manager-a"),
                 response("approve-manager-b"),
+                response("approve-manager-c"),
             ],
+            None,
         ),
         (
             "arrival-order-and-form-do-not-matter",
             vec![
                 response("approve-manager-b"),
-                approve_agent.to_text().expect("text").into_bytes(),
-                response("approve-manager-a"),
+                approve_a.to_text().expect("text").into_bytes(),
             ],
+            Some(in_process([&approve_a, &approve_b])),
         ),
         (
-            "one-approver-pending",
-            vec![
-                response("approve-agent-with-grant"),
-                response("approve-manager-a"),
-            ],
+            "one-approved-two-pending",
+            vec![response("approve-manager-a")],
+            None,
         ),
         (
-            "one-approver-declined",
+            "one-declined-two-approved",
             vec![
-                response("approve-agent-with-grant"),
                 response("approve-manager-a"),
                 response("decline-manager-b"),
+                response("approve-manager-c"),
             ],
+            Some(in_process([&approve_a, &approve_c])),
+        ),
+        (
+            "two-declined",
+            vec![
+                response("approve-manager-a"),
+                response("decline-manager-b"),
+                response("decline-manager-c"),
+            ],
+            None,
         ),
         (
             "second-response-from-one-approver",
             vec![
-                response("approve-agent-with-grant"),
                 response("approve-manager-a"),
                 response("approve-manager-b"),
                 response("approve-manager-a"),
             ],
+            None,
         ),
         (
             "approve-then-decline",
             vec![
-                response("approve-agent-with-grant"),
                 response("approve-manager-a"),
                 response("approve-manager-b"),
                 response("decline-manager-b"),
             ],
+            None,
         ),
         (
-            "signed-for-another-envelope",
+            "signed-for-another-statement",
             vec![
-                response("approve-agent-with-grant"),
-                response("signed-for-another-envelope"),
+                response("signed-for-another-statement"),
                 response("approve-manager-b"),
             ],
+            None,
         ),
         (
             "names-another-approver",
             vec![
-                response("approve-agent-with-grant"),
                 response("names-another-approver"),
                 response("approve-manager-b"),
             ],
+            None,
         ),
         (
             "unattributable-responses-do-not-count",
             vec![
-                response("approve-agent-with-grant"),
                 response("approve-manager-a"),
                 response("signed-for-another-proposal"),
                 response("garbage"),
-                response("approve-manager-b"),
+                response("approve-manager-c"),
             ],
+            Some(in_process([&approve_a, &approve_c])),
         ),
     ];
-    let collected: Vec<Value> = collections
+    let mut collected: Vec<Value> = collections
         .iter()
-        .map(|(name, inputs)| {
-            let collection = collect(&shown, inputs).expect("collects");
-            let mut value = json!({
-                "name": name,
-                "responses_b64": inputs.iter().map(|bytes| b64(bytes)).collect::<Vec<_>>(),
-                "statuses": collection
-                    .statuses()
-                    .iter()
-                    .zip(APPROVERS)
-                    .map(|(status, approver)| status_json(status, approver))
-                    .collect::<Vec<_>>(),
-                "unattributed": collection
-                    .unattributed()
-                    .iter()
-                    .map(|(index, code)| json!([index, code.as_str()]))
-                    .collect::<Vec<_>>(),
-            });
-            match collection.assemble() {
-                Ok(bundle) => {
-                    let proof = encode_bundle(&bundle).expect("bytes");
-                    assert_eq!(proof, in_process, "remote and in-process assembly agree");
-                    value["proof_b64"] = json!(b64(&proof));
-                }
-                Err(code) => value["assemble_code"] = json!(code.as_str()),
+        .map(|(name, inputs, expected)| {
+            let mut value = collection_json(&shown, &action, inputs);
+            if let Some(expected) = expected {
+                assert_eq!(
+                    value["proof_b64"].as_str(),
+                    Some(b64(expected).as_str()),
+                    "{name}: remote and in-process assembly agree"
+                );
             }
+            value["name"] = json!(name);
             value
         })
         .collect();
+    let mut stray = collection_json(
+        &shown,
+        &stray_action,
+        &[response("approve-manager-a"), response("approve-manager-b")],
+    );
+    assert_eq!(
+        stray["assemble_code"].as_str(),
+        Some(ApprovalCode::ActionMismatch.as_str())
+    );
+    stray["name"] = json!("actor-signed-another-action");
+    stray["action"] = json!("attacker");
+    collected.push(stray);
 
     let grant = agent_grant();
+    let evidence_json = |object: &EvidenceObject| {
+        json!({
+            "evidence_type": object.evidence_type().as_str(),
+            "evidence_media_type": object.media_type().as_str(),
+            "evidence_b64": b64(object.bytes()),
+        })
+    };
+    let action_json = |action: &QuorumAction| {
+        json!({
+            "signed_action_b64": b64(&encode_signed_action(action.action()).expect("action")),
+            "evidence": action.action_evidence.iter().map(evidence_json).collect::<Vec<_>>(),
+        })
+    };
     let fixture = json!({
         "schema": SCHEMA,
         "codes": ApprovalCode::ALL.iter().map(|code| code.as_str()).collect::<Vec<_>>(),
@@ -759,20 +836,19 @@ fn generate() -> String {
         "validity_seconds": DEFAULT_QUORUM_VALIDITY_SECONDS,
         "challenge_hex": hex(&CHALLENGE),
         "required": REQUIRED,
-        "approvers": APPROVERS,
+        "approvers": MANAGERS,
         "requester": "agent",
+        "requirement_id_hex": hex(shown.requirement_id().as_bytes()),
         "opened_at": OPENED_AT,
         "decided_at": DECIDED_AT,
         "members": members.iter().map(Member::json).collect::<Vec<_>>(),
         "agent_grant": {
             "signed_grant_b64": b64(&encode_signed_grant(&grant.0).expect("grant")),
-            "evidence": grant.1.iter().map(|object| json!({
-                "evidence_type": object.evidence_type().as_str(),
-                "evidence_media_type": object.media_type().as_str(),
-                "evidence_b64": b64(object.bytes()),
-            })).collect::<Vec<_>>(),
+            "evidence": grant.1.iter().map(evidence_json).collect::<Vec<_>>(),
         },
-        "requests": issued.iter().zip(APPROVERS).map(|(request, approver)| json!({
+        "agent_action": action_json(&action),
+        "attacker_action": action_json(&stray_action),
+        "requests": issued.iter().zip(MANAGERS).map(|(request, approver)| json!({
             "approver": approver,
             "request_id_hex": hex(&request.request_id),
             "request_b64": b64(&request.encode().expect("encode")),
@@ -836,6 +912,8 @@ fn every_fixture_vector_replays() {
         }
     }
     let shown = proposal(SHOWN_AMOUNT);
+    let action = agent_action(&shown);
+    let stray_action = agent_action(&proposal(SIGNED_AMOUNT));
     for case in corpus["collect"].as_array().expect("collect cases") {
         let inputs: Vec<Vec<u8>> = case["responses_b64"]
             .as_array()
@@ -843,37 +921,35 @@ fn every_fixture_vector_replays() {
             .iter()
             .map(bytes_of)
             .collect();
-        let collection = collect(&shown, &inputs).expect("collects");
-        let statuses: Vec<Value> = collection
-            .statuses()
-            .iter()
-            .zip(APPROVERS)
-            .map(|(status, approver)| status_json(status, approver))
-            .collect();
-        assert_eq!(json!(statuses), case["statuses"], "{}", case["name"]);
-        for status in collection.statuses() {
+        let chosen = if case.get("action").is_some() {
+            &stray_action
+        } else {
+            &action
+        };
+        let mut replayed = collection_json(&shown, chosen, &inputs);
+        replayed["name"] = case["name"].clone();
+        if let Some(origin) = case.get("action") {
+            replayed["action"] = origin.clone();
+        }
+        assert_eq!(&replayed, case, "{}", case["name"]);
+        for status in collect(&shown, &inputs).expect("collects").statuses() {
             if let ApproverStatus::Rejected(code) = status {
                 seen.insert(code.as_str().to_owned());
             }
         }
-        let unattributed: Vec<Value> = collection
-            .unattributed()
+        for [_, code] in case["unattributed"]
+            .as_array()
+            .expect("unattributed")
             .iter()
-            .map(|(index, code)| {
-                seen.insert(code.as_str().to_owned());
-                json!([index, code.as_str()])
+            .map(|pair| {
+                let pair = pair.as_array().expect("pair");
+                [pair[0].clone(), pair[1].clone()]
             })
-            .collect();
-        assert_eq!(json!(unattributed), case["unattributed"]);
-        match collection.assemble() {
-            Ok(bundle) => assert_eq!(
-                b64(&encode_bundle(&bundle).expect("bytes")),
-                case["proof_b64"].as_str().expect("proof")
-            ),
-            Err(code) => {
-                assert_eq!(Some(code.as_str()), case["assemble_code"].as_str());
-                seen.insert(code.as_str().to_owned());
-            }
+        {
+            seen.insert(code.as_str().expect("code").to_owned());
+        }
+        if let Some(code) = case["assemble_code"].as_str() {
+            seen.insert(code.to_owned());
         }
     }
     let every: std::collections::BTreeSet<String> = ApprovalCode::ALL
@@ -886,12 +962,11 @@ fn every_fixture_vector_replays() {
 #[test]
 fn requests_are_deterministic_and_round_trip() {
     let shown = proposal(SHOWN_AMOUNT);
-    let agent = Member::named("agent").principal;
-    let first = requests(&shown, &agent).expect("requests");
-    assert_eq!(first, requests(&shown, &agent).expect("requests"));
-    assert_eq!(first.len(), APPROVERS.len());
-    for (request, envelope) in first.iter().zip(shown.envelopes()) {
-        assert_eq!(request.approver(), envelope.actor());
+    let first = requests(&shown).expect("requests");
+    assert_eq!(first, requests(&shown).expect("requests"));
+    assert_eq!(first.len(), MANAGERS.len());
+    for (request, statement) in first.iter().zip(shown.statements()) {
+        assert_eq!(request.approver(), statement.approver());
         let bytes = request.encode().expect("encode");
         assert_eq!(decode_request(&bytes).expect("decode"), *request);
         let text = request.to_text().expect("text");
@@ -904,7 +979,7 @@ fn requests_are_deterministic_and_round_trip() {
 fn a_decline_signs_the_domain_separated_preimage() {
     let shown = proposal(SHOWN_AMOUNT);
     let manager = Member::named("manager-b");
-    let request = requests(&shown, &Member::named("agent").principal).expect("requests")[2]
+    let request = requests(&shown).expect("requests")[1]
         .encode()
         .expect("encode");
     let reviewed = open(&request, "mcp", OPENED_AT).expect("opens");
@@ -912,7 +987,7 @@ fn a_decline_signs_the_domain_separated_preimage() {
         .prepare_decline(&manager.principal, manager.descriptor(), DECIDED_AT)
         .expect("pending");
     let mut expected = Sha256::new();
-    expected.update(b"auths.approval-decline/1\0");
+    expected.update(b"auths.approval-decline/2\0");
     expected.update(reviewed.request_id());
     expected.update(DECIDED_AT.to_be_bytes());
     assert_eq!(
@@ -925,4 +1000,27 @@ fn a_decline_signs_the_domain_separated_preimage() {
             .starts_with("approval-decline:")
     );
     assert_eq!(pending.expires_at(), reviewed.window().expires_at());
+}
+
+#[test]
+fn an_approval_signs_the_profile_bound_statement() {
+    let shown = proposal(SHOWN_AMOUNT);
+    let manager = Member::named("manager-a");
+    let request = requests(&shown).expect("requests")[0]
+        .encode()
+        .expect("encode");
+    let reviewed = open(&request, "mcp", OPENED_AT).expect("opens");
+    assert_eq!(reviewed.statement(), &shown.statements()[0]);
+    let pending = reviewed
+        .prepare_approval(&manager.principal, manager.descriptor())
+        .expect("pending");
+    assert_eq!(
+        pending.signing().signing_preimage(),
+        auths_codec::approval_signing_preimage(
+            &shown.statements()[0],
+            &manager.descriptor(),
+            shown.canonical().profile(),
+        )
+        .expect("preimage")
+    );
 }

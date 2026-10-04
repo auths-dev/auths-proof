@@ -135,6 +135,23 @@ authorized result proves both that the branches satisfy the signed plan and
 that the outcome satisfies this host-required obligation. Distinct proof
 references alone never imply independent signers or roots.
 
+### Approval requirements
+
+Approvals are not plan branches. "At least K of these N principals approved
+this exact action" is an approval requirement held by the verifier: in the
+trusted context (key 16), with the approvers named by approver anchors (key
+15), or carried by a grant in the `approval-requirement-v1` critical
+extension. Approvers sign approval statements, carried unordered in the proof
+bundle (key 10), each bound to the exact action's media type, body digest,
+permission, and budget, the audience and challenge, a validity window, and the
+requirement identifier, under the action's profile. Each listed approver counts
+once; an unlisted principal, a principal of the action's own authority chain,
+a stray, forged, or repeated approval never counts, and the order of approvals
+never matters. The count is decided by the same threshold classifier plans
+use. The proof never sets a threshold: the requirement identifier approvals
+bind is the verifier's. `verification-algorithm.md` gives the steps and
+AP-SPEC-065 the full semantics.
+
 ### Action envelope
 
 Every signed action binds:

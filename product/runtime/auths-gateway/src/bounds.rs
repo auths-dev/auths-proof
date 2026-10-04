@@ -927,16 +927,16 @@ pub(crate) fn authorized_chains(
 
 /// What admission needs of the authorized branches.
 pub(crate) struct BranchFacts {
-    /// The actor of every authorized branch, in verified order.
-    pub(crate) actors: Vec<PrincipalId>,
     /// Every observation requirement of every grant of every branch.
     pub(crate) requirements: Vec<auths_model::ObservationRequirement>,
     /// The longest action validity window of any branch.
     pub(crate) validity_seconds: u64,
+    /// Every approver whose approval the verifier counted, ascending.
+    pub(crate) approvers: Vec<PrincipalId>,
 }
 
-/// The actors, observation requirements, and longest validity window of
-/// every authorized branch.
+/// The observation requirements and longest validity window of every
+/// authorized branch, and the approvers the verifier counted.
 pub(crate) fn authorized_branches(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
@@ -956,7 +956,7 @@ pub(crate) fn authorized_branches(
         }
     }
     Ok(BranchFacts {
-        actors: branches.iter().map(|branch| branch.actor.clone()).collect(),
+        approvers: counted_approvers(proof_cbor, verified)?,
         requirements,
         validity_seconds: branches
             .iter()
@@ -964,6 +964,40 @@ pub(crate) fn authorized_branches(
             .max()
             .unwrap_or(0),
     })
+}
+
+/// The approvers of the approvals the verifier counted for any approval
+/// requirement, by approval digest, deduplicated and ascending.
+fn counted_approvers(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+) -> Result<Vec<PrincipalId>, &'static str> {
+    let unavailable = "gateway.policy.proof-unavailable";
+    if verified.approval_satisfactions().is_empty() {
+        return Ok(Vec::new());
+    }
+    let bundle = auths_codec::decode_bundle(proof_cbor, &auths_model::VerifierLimits::default())
+        .map_err(|_| unavailable)?;
+    let digests = bundle
+        .approvals()
+        .iter()
+        .map(|approval| {
+            auths_codec::approval_digest(approval)
+                .map(|digest| (digest, approval.statement().approver()))
+                .map_err(|_| unavailable)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut approvers = std::collections::BTreeSet::new();
+    for satisfaction in verified.approval_satisfactions() {
+        for counted in satisfaction.approvals() {
+            let (_, approver) = digests
+                .iter()
+                .find(|(digest, _)| digest == counted)
+                .ok_or(unavailable)?;
+            approvers.insert((*approver).clone());
+        }
+    }
+    Ok(approvers.into_iter().collect())
 }
 
 fn carries_bound(grant: &SignedGrant) -> bool {

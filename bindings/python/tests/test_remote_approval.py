@@ -24,7 +24,7 @@ from auths.adapters.custody import (
     SigningResponse,
 )
 from auths.authoring import (
-    ApprovalMember,
+    ApprovalAction,
     ApprovalProposal,
     ApprovalRefused,
     GrantEvidence,
@@ -34,6 +34,7 @@ from auths.authoring import (
     decline,
     open_approval_request,
     propose_mcp_approval,
+    sign_approval_action,
 )
 from auths.self_hosted import ExactMcpTool, IntegerField, StringField
 
@@ -111,21 +112,6 @@ class SeededSigner:
         return None
 
 
-def _proposal(arguments: Optional[dict[str, Any]] = None) -> ApprovalProposal[Refund]:
-    values = arguments or FIXTURE["arguments"]
-    return propose_mcp_approval(
-        contract=TOOL,
-        command=Refund(**values),
-        required=FIXTURE["required"],
-        approvers=[
-            ApprovalMember(MEMBERS[name]["principal"]) for name in FIXTURE["approvers"]
-        ],
-        requester=MEMBERS[FIXTURE["requester"]]["principal"],
-        challenge=bytes.fromhex(FIXTURE["challenge_hex"]),
-        evaluation_time=FIXTURE["evaluation_time"],
-    )
-
-
 def _agent_grants() -> tuple[GrantEvidence, ...]:
     grant = FIXTURE["agent_grant"]
     return (
@@ -143,8 +129,34 @@ def _agent_grants() -> tuple[GrantEvidence, ...]:
     )
 
 
+def _proposal(arguments: Optional[dict[str, Any]] = None) -> ApprovalProposal[Refund]:
+    values = arguments or FIXTURE["arguments"]
+    return propose_mcp_approval(
+        contract=TOOL,
+        command=Refund(**values),
+        required=FIXTURE["required"],
+        approvers=[MEMBERS[name]["principal"] for name in FIXTURE["approvers"]],
+        actor=MEMBERS[FIXTURE["requester"]]["principal"],
+        actor_grant=_agent_grants()[0].signed_grant,
+        challenge=bytes.fromhex(FIXTURE["challenge_hex"]),
+        evaluation_time=FIXTURE["evaluation_time"],
+    )
+
+
+async def _action(proposal: ApprovalProposal[Refund]) -> ApprovalAction:
+    return await sign_approval_action(
+        proposal, SeededSigner(FIXTURE["requester"]), grants=_agent_grants()
+    )
+
+
 def test_python_issues_the_native_requests() -> None:
-    issued = approval_requests(_proposal())
+    proposal = _proposal()
+    assert proposal.requirement.required == FIXTURE["required"]
+    assert proposal.requirement.requirement_id.hex() == FIXTURE["requirement_id_hex"]
+    assert proposal.requirement.approvers == tuple(
+        MEMBERS[name]["principal"] for name in FIXTURE["approvers"]
+    )
+    issued = approval_requests(proposal)
     assert len(issued) == len(FIXTURE["requests"])
     for request, expected in zip(issued, FIXTURE["requests"]):
         assert request.approver == MEMBERS[expected["approver"]]["principal"]
@@ -153,18 +165,42 @@ def test_python_issues_the_native_requests() -> None:
         assert request.request_id.hex() == expected["request_id_hex"]
 
 
-def test_a_requester_outside_the_proposal_is_refused() -> None:
+def test_an_actor_listed_as_approver_is_refused_before_any_request() -> None:
+    with pytest.raises(ValueError):
+        propose_mcp_approval(
+            contract=TOOL,
+            command=Refund(**FIXTURE["arguments"]),
+            required=FIXTURE["required"],
+            approvers=[
+                MEMBERS[name]["principal"] for name in (*FIXTURE["approvers"], "agent")
+            ],
+            actor=MEMBERS["agent"]["principal"],
+            actor_grant=None,
+            challenge=bytes.fromhex(FIXTURE["challenge_hex"]),
+            evaluation_time=FIXTURE["evaluation_time"],
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_actor_signs_the_native_action() -> None:
     proposal = _proposal()
-    outsider = ApprovalProposal(
-        proposal.command,
-        proposal.action,
-        MEMBERS["outsider"]["principal"],
-        proposal.plan,
-        proposal._quorum,
+    signer = SeededSigner(FIXTURE["requester"])
+    action = await sign_approval_action(proposal, signer, grants=_agent_grants())
+    assert action.actor == proposal.actor
+    (request,) = signer.requests
+    assert request.object_kind == SigningObjectKind.ACTION
+    assert request.expires_at_unix_seconds == proposal.requirement.valid_until
+    expected = _native.parse_signed("action", _b64(FIXTURE["agent_action"]["signed_action_b64"]))
+    assert bytes(request.signing_preimage) == bytes(
+        _native.prepare_signing(
+            _native.unsigned_from_signed(expected),
+            request.descriptor.signature.principal_method,
+            request.descriptor.signature.verification_method,
+            request.descriptor.signature.suite,
+        ).signing_preimage
     )
-    with pytest.raises(ApprovalRefused) as refused:
-        approval_requests(outsider)
-    assert refused.value.code == "approval.plan-mismatch"
+    with pytest.raises(ValueError):
+        await sign_approval_action(proposal, SeededSigner("manager-a"))
 
 
 @pytest.mark.parametrize("case", FIXTURE["open"], ids=lambda case: case["name"])
@@ -201,48 +237,64 @@ def _reviewed(approver: str) -> Any:
 
 @pytest.mark.asyncio
 async def test_python_approves_and_declines_to_the_native_bytes() -> None:
-    for name, approver, with_grant in (
-        ("approve-agent-with-grant", "agent", True),
-        ("approve-manager-a", "manager-a", False),
-        ("approve-manager-b", "manager-b", False),
+    for name, approver in (
+        ("approve-manager-a", "manager-a"),
+        ("approve-manager-b", "manager-b"),
+        ("approve-manager-c", "manager-c"),
     ):
         reviewed = _reviewed(approver)
         signer = SeededSigner(approver)
-        response = await approve(
-            reviewed, signer, grants=_agent_grants() if with_grant else ()
-        )
+        response = await approve(reviewed, signer)
         assert response.decision == "approve"
         assert response.data == _b64(RESPONSES[name]["response_b64"])
+        assert response.text.startswith("auths-as2-")
         (request,) = signer.requests
-        assert request.object_kind == SigningObjectKind.ACTION
+        assert request.object_kind == SigningObjectKind.APPROVAL
+        assert request.request_id.startswith("approval:")
         assert tuple((field.label, field.value) for field in request.display) == reviewed.fields
         assert request.expires_at_unix_seconds == reviewed.valid_until
 
-    reviewed = _reviewed("manager-b")
-    signer = SeededSigner("manager-b")
-    response = await decline(reviewed, signer, now=FIXTURE["decided_at"])
-    assert response.decision == "decline"
-    assert response.data == _b64(RESPONSES["decline-manager-b"]["response_b64"])
-    (request,) = signer.requests
-    assert request.object_kind == SigningObjectKind.APPROVAL_DECLINE
-    assert request.request_id.startswith("approval-decline:")
-    assert request.expires_at_unix_seconds == reviewed.valid_until
+    for name, approver in (
+        ("decline-manager-b", "manager-b"),
+        ("decline-manager-c", "manager-c"),
+    ):
+        reviewed = _reviewed(approver)
+        signer = SeededSigner(approver)
+        response = await decline(reviewed, signer, now=FIXTURE["decided_at"])
+        assert response.decision == "decline"
+        assert response.data == _b64(RESPONSES[name]["response_b64"])
+        (request,) = signer.requests
+        assert request.object_kind == SigningObjectKind.APPROVAL_DECLINE
+        assert request.request_id.startswith("approval-decline:")
+        assert request.expires_at_unix_seconds == reviewed.valid_until
 
 
 @pytest.mark.asyncio
 async def test_only_the_addressed_approver_can_answer() -> None:
     reviewed = _reviewed("manager-a")
-    for answer in (approve(reviewed, SeededSigner("outsider")),):
+    for answer in (
+        approve(reviewed, SeededSigner("outsider")),
+        approve(reviewed, SeededSigner("agent")),
+        decline(reviewed, SeededSigner("manager-b"), now=FIXTURE["decided_at"]),
+    ):
         with pytest.raises(ApprovalRefused) as refused:
             await answer
         assert refused.value.code == "approval.not-addressed"
-    with pytest.raises(ApprovalRefused) as refused:
-        await decline(reviewed, SeededSigner("manager-b"), now=FIXTURE["decided_at"])
-    assert refused.value.code == "approval.not-addressed"
 
 
+def test_every_stable_code_is_exercised() -> None:
+    seen = {case["expect"] for case in FIXTURE["open"] if case["expect"]}
+    for case in FIXTURE["collect"]:
+        seen.update(status.get("code") for status in case["statuses"] if "code" in status)
+        seen.update(code for _, code in case["unattributed"])
+        if "assemble_code" in case:
+            seen.add(case["assemble_code"])
+    assert seen == set(FIXTURE["codes"])
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("case", FIXTURE["collect"], ids=lambda case: case["name"])
-def test_python_collects_every_vector(case: dict[str, Any]) -> None:
+async def test_python_collects_every_vector(case: dict[str, Any]) -> None:
     collection = collect_approvals(
         _proposal(), [_b64(item) for item in case["responses_b64"]]
     )
@@ -263,9 +315,14 @@ def test_python_collects_every_vector(case: dict[str, Any]) -> None:
         statuses.append(entry)
     assert statuses == case["statuses"]
     assert [list(item) for item in collection.unattributed] == case["unattributed"]
+    assert (collection.approved, collection.required) == (case["approved"], FIXTURE["required"])
+    proposal = (
+        _proposal(FIXTURE["attacker_arguments"]) if case.get("action") == "attacker" else _proposal()
+    )
+    action = await _action(proposal)
     if "proof_b64" in case:
-        assert collection.assemble() == _b64(case["proof_b64"])
+        assert collection.assemble(action) == _b64(case["proof_b64"])
     else:
         with pytest.raises(ApprovalRefused) as refused:
-            collection.assemble()
+            collection.assemble(action)
         assert refused.value.code == case["assemble_code"]

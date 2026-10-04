@@ -9,7 +9,7 @@ verification contracts.
 | --- | --- | --- | --- |
 | Submit one exact authorized write without an app provider credential | Gateway engine | `test/unit/gateway-client.test.js` | `tests/test_gateway_client.py` |
 | Verify a gateway-signed outcome and refuse a retired schema | Gateway outcome signer plus Rust verifier | `test/integration/gateway-outcome-v2.test.js` | `tests/test_gateway_outcome_v2.py` |
-| Require a threshold of named approvers for one exact action | Approval-quorum authoring and the Rust verifier | `test/integration/approval-quorum.test.js` | `tests/test_approval_quorum.py` |
+| Require approvals from any K of N named approvers for one exact action | Approval-quorum authoring and the Rust verifier | `test/integration/approval-quorum.test.js` | `tests/test_approval_quorum.py` |
 | Run one application-owned exact MCP operation | MCP profile plus self-hosted runner | `test/integration/self-hosted.test.js` | `tests/test_self_hosted_execution.py` |
 | Verify existing evidence without an effect | Rust verifier | `@auths-dev/sdk/verify` | `auths.verify` |
 | Install one coherent release | Runtime contract, topology, API inventory, and package tests | packed npm consumer | wheel-content and public-API checks |

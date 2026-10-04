@@ -53,7 +53,7 @@ An absent `encoding` means `"canonical"`. Any other value fails the audit.
 Both trees also contain independent target V1 semantic verifiers. They decode
 all proof and context objects, resolve the digest graph, verify all seven
 principal methods and both signature suites, apply attenuation, status,
-assurance, observation-requirement, and composition rules, and derive the
+assurance, observation-requirement, approval-requirement, and composition rules, and derive the
 three-valued result without consulting the expected manifest result:
 
 ```sh

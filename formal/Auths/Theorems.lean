@@ -16,7 +16,9 @@ import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
 import Auths.Refinement.Observation
+import Auths.Refinement.Approval
 import Auths.Observation
+import Auths.Approval
 
 namespace Auths
 
@@ -285,6 +287,26 @@ def theoremInventory : List Lean.Name :=
     `Auths.Observation.requirements_attenuate_monotone,
     `Auths.Observation.observation_requirement_law_lawful,
     `Auths.Observation.observation_requirement_law_accepts_addition,
+    `Auths.Approval.approval_decide_eq_threshold_counts,
+    `Auths.Approval.approval_authorized_iff_distinct_quorum,
+    `Auths.Approval.approval_duplicate_irrelevant,
+    `Auths.Approval.approval_outsider_irrelevant,
+    `Auths.Approval.approval_other_action_irrelevant,
+    `Auths.Approval.approval_other_requirement_irrelevant,
+    `Auths.Approval.approval_self_approval_irrelevant,
+    `Auths.Approval.approval_permutation_invariant,
+    `Auths.Approval.approval_monotone_in_approvals,
+    `Auths.Approval.approval_antitone_in_threshold,
+    `Auths.Approval.approval_antitone_in_approvers,
+    `Auths.Approval.approval_authorized_meets,
+    `Auths.Approval.covers_monotone,
+    `Auths.Approval.covers_trans,
+    `Auths.Approval.approval_requirements_attenuate_refl,
+    `Auths.Approval.approval_requirements_attenuate_trans,
+    `Auths.Approval.approval_requirements_attenuate_monotone,
+    `Auths.Approval.approval_requirement_law_lawful,
+    `Auths.Approval.approval_requirement_law_accepts_addition,
+    `Auths.Approval.approval_requirement_law_refuses_drop,
     `Auths.exact_marker_law_lawful,
     `Auths.exact_marker_law_refuses_addition,
     `Auths.Rich.ExtensionLawsNarrow.of_lawful,
@@ -316,7 +338,14 @@ def theoremInventory : List Lean.Name :=
     `Auths.Refinement.Observation.translated_observation_requirement_narrows_refines_model,
     `Auths.Refinement.Observation.translated_observation_requirement_covers_refines_model,
     `Auths.Refinement.Observation.translated_observation_requirement_retained_refines_model,
-    `Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model
+    `Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model,
+    `Auths.Refinement.Approval.translated_approver_verdict_refines_model,
+    `Auths.Refinement.Approval.translated_approval_counts_refines_model,
+    `Auths.Refinement.Approval.translated_principal_ids_contain_refines_model,
+    `Auths.Refinement.Approval.translated_principal_ids_subset_refines_model,
+    `Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model,
+    `Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model,
+    `Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model
   ]
 
 end Auths

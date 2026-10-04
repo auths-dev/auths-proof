@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "5a843cbfc298c278394cf9878bafc6e4f97e8d30da014a591ba16359cfdc1674",
+  "digest": "368d0e9a9785349f4f19ecbe85a591524c0a8ca458506d5a44e194810bc59f18",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "c0fb8a390f817b1b080db3f3947a5849f7c55a561962411129a0a740c8e37491",
+      "sha256": "e11d08de053ca87e33f265c6ff0bc55d4cca51777cf9b54f5c2fa39b4d032a24",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -40,6 +40,10 @@
       "sha256": "565c15302b0cc9270db1e28efa3862804846850ba933cc17aea8abcec4a65987"
     },
     {
+      "path": "core/crates/auths-model/src/approval.rs",
+      "sha256": "54cf44a9ef747ec21546a4086aecfb130bc7803b0d646430e6082df51e6e305f"
+    },
+    {
       "path": "core/crates/auths-model/src/bounded.rs",
       "sha256": "f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9"
     },
@@ -49,7 +53,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "28f03272d611a7678d7adcececf3e76dc35fe640a09e9ef00a6cfdb9a5950099"
+      "sha256": "e7cfe6bb9574c6b016aa63e70658c31e0b90903ec6479a49f4a2ceb64f5bad97"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",
@@ -89,7 +93,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "66082a1e48dbea94cda4e46331add492b26dbc12462fed3de9d57007c03be9f1"
+      "sha256": "38aa0babb5be3ac958c7e91f0640ad0ae3b6e4f265257642976dfe8bd3330850"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -321,11 +325,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "7c7bfe74acfcda91833a8da60674a1005e230233c8285c7596259016399aac56"
+      "sha256": "99d0378a44c59d6ce227033a5aa8af193d6b55fe76a519ba06e28d0f2ae2094d"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
-      "sha256": "0ffd560f4aa63652ff58a1bf4b18d3f9bec587b90440dece51b55808f88200f8"
+      "sha256": "9736ece0a2c869d4cf0a498282925da9d306eb05d8dd8f60bd7e8f6bed1dcd0b"
     },
     {
       "path": "xtask/src/formal_mutations.rs",
@@ -333,7 +337,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "fa7fd3d83a1dbf12ea83717f1b31214aab55d2b4c5d8378eae91722085719f2a"
+      "sha256": "1826078f21dbf946801413cb6cf1f66dfd7495c9de3853455fbf2eb151f899e6"
     },
     {
       "path": "xtask/src/fuzz.rs",

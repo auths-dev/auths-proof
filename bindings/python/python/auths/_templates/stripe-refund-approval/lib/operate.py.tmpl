@@ -46,6 +46,8 @@ from common import (  # noqa: E402
 )
 
 from auths.self_hosted import (  # noqa: E402
+    ApprovalRequirement,
+    ApproverAnchor,
     AssurancePolicy,
     AssuranceRequirement,
     Permission,
@@ -71,23 +73,22 @@ def _b64(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
 
 
-def _signer_file(directory: Path, grants: List[Dict[str, Any]], replace: bool = False) -> Path:
+def _signer_file(directory: Path) -> Path:
     """The ``auths.approval-signer/1`` file over ``directory``'s seed."""
     path = directory / "signer.json"
     document = {
         "schema": SIGNER_SCHEMA,
         "custody": "development-ed25519",
         "seed_file": "signing.seed",
-        "grants": grants,
     }
-    write_file(path, (json.dumps(document, indent=2) + "\n").encode(), 0o600, replace=replace)
+    write_file(path, (json.dumps(document, indent=2) + "\n").encode(), 0o600)
     return path
 
 
 def _new_key(directory: Path) -> Path:
     private_directory(directory)
     write_file(directory / "signing.seed", secrets.token_bytes(32), 0o600)
-    return _signer_file(directory, [])
+    return _signer_file(directory)
 
 
 def setup(arguments: List[str]) -> Dict[str, Any]:
@@ -138,7 +139,7 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
     permission = Permission("tools/call", f"{audience}/tools/{review['tool']}")
     challenge = secrets.token_bytes(32)
 
-    def anchor(name: str, depth: int) -> TrustAnchor:
+    def anchor(name: str) -> TrustAnchor:
         return TrustAnchor(
             name,
             principals[name],
@@ -149,12 +150,16 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
             (audience,),
             not_before,
             expires_at,
-            depth,
+            1,
             ASSURANCE,
         )
 
-    # The root may delegate once, to the agent; managers approve directly.
-    anchors = [anchor("root", 1)] + [anchor(name, 0) for name in managers]
+    # The root is the only trust anchor and may delegate once, to the agent.
+    # The managers are approver anchors: they approve and hold no authority.
+    anchors = [anchor("root")]
+    approvers = [
+        ApproverAnchor(principals[name], ("raw-key-v1",), not_before, expires_at) for name in managers
+    ]
     assurance = AssurancePolicy(
         ASSURANCE,
         (
@@ -164,18 +169,18 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
         ),
     )
     required = parameters["approvals"]
+    requirement = ApprovalRequirement(tuple(principals[name] for name in managers), required)
 
     def context(configuration: Any) -> bytes:
         return compile_trusted_context(
             anchors=anchors,
             assurance=assurance,
             configuration=configuration,
-            minimum_authorized_branches=required,
-            minimum_distinct_actors=required,
-            minimum_distinct_roots=required,
             evidence_types=("raw-key-v1",),
             critical_extensions=(bound["extension_id"],),
             request=TrustedContextRequest(audience, challenge, now),
+            approver_anchors=approvers,
+            approval_requirements=(requirement,),
         )
 
     gateway_context = context(bytes.fromhex(review["verifier_configuration"]))
@@ -203,27 +208,22 @@ def setup(arguments: List[str]) -> Dict[str, Any]:
     write_file(OPERATOR / "trust" / "gateway.context.cbor", gateway_context)
     write_file(OPERATOR / "trust" / "sdk.context.cbor", sdk_context)
     write_file(OPERATOR / "grant" / "agent.grant.cbor", grant.signed_grant)
-    # The agent keeps its grant chain in its own signer file, and the trust
-    # its bundle carries.
+    # The agent keeps its grant chain, which its signed refunds carry, and
+    # the trust its bundle carries.
     write_file(AGENT / "agent.grant.cbor", grant.signed_grant)
     write_file(AGENT / "trust" / "gateway.context.cbor", gateway_context, 0o644)
-    _signer_file(
-        AGENT,
-        [
+    chain = {
+        "signed_grant_b64": _b64(grant.signed_grant),
+        "evidence": [
             {
-                "signed_grant_b64": _b64(grant.signed_grant),
-                "evidence": [
-                    {
-                        "evidence_type": item.evidence_type,
-                        "media_type": item.media_type,
-                        "bytes_b64": _b64(item.bytes),
-                    }
-                    for item in grant.evidence
-                ],
+                "evidence_type": item.evidence_type,
+                "media_type": item.media_type,
+                "bytes_b64": _b64(item.bytes),
             }
+            for item in grant.evidence
         ],
-        replace=True,
-    )
+    }
+    write_file(AGENT / "grant.json", (json.dumps(chain, indent=2) + "\n").encode(), 0o600)
     trusted_context_sha256 = hashlib.sha256(gateway_context).hexdigest()
     facts = {
         "recipe_digest": review["recipe_digest"],

@@ -8,7 +8,8 @@ import { pathToFileURL } from "node:url";
 
 import { installPackedSdk } from "./helpers/packed-install.mjs";
 
-const seeds = { agent: 0x11, "manager-a": 0xa1, "manager-b": 0xb2 };
+const seeds = { agent: 0x11, "manager-a": 0xa1, "manager-b": 0xb2, "manager-c": 0xc3 };
+const managers = ["manager-a", "manager-b", "manager-c"];
 // Runs the CLI with its stdin on a pseudo-terminal and types `answer`.
 const onTerminal = `
 import os, pty, subprocess, sys
@@ -61,9 +62,9 @@ async function workspace(label) {
   const proposal = await sdk.proposeMcpApproval({
     contract,
     command: { amount: 1500, payment_intent: "pi_cli_0001" },
-    required: 3,
-    approvers: await Promise.all(Object.keys(seeds).map(async (name) => ({ principal: await principal(name) }))),
-    requester: await principal("agent"),
+    required: 2,
+    approvers: await Promise.all(managers.map(principal)),
+    actor: await principal("agent"),
     challenge: new Uint8Array(32).fill(0x63),
     evaluationTime: BigInt(Math.floor(Date.now() / 1000) - 5),
   });
@@ -102,7 +103,7 @@ test("packed CLI: an interactive yes approves and prints only the review", inter
   assert.match(result.stderr, /Signer: development custody/u);
   assert.match(result.stderr, /Approve this action\? \[y\/N\]/u);
   const response = await readFile(out, "utf8");
-  assert.match(response, /^auths-as1-/u);
+  assert.match(response, /^auths-as2-/u);
   assert.equal(await statusOf(proposal, manager, [response]), "approved");
 });
 
@@ -150,5 +151,17 @@ test("packed CLI: a tampered request is refused before anything is signed", asyn
   assert.equal(result.status, 1);
   assert.match(result.stderr, /approval\.action-mismatch/u);
   assert.doesNotMatch(result.stderr, /Approve this action\?/u);
+  assert.equal(existsSync(out), false);
+});
+
+test("packed CLI: a signer configuration carrying grants is refused before anything is signed", async () => {
+  const { base } = await workspace("grants");
+  await writeFile(`${base}.signer.json`, JSON.stringify({
+    schema: "auths.approval-signer/1", custody: "development-ed25519", seed_file: "grants.seed", grants: [],
+  }));
+  const out = `${base}.response`;
+  const result = run(base, `${base}.request`, ["--yes", "--out", out]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /carries no grants/u);
   assert.equal(existsSync(out), false);
 });

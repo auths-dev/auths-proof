@@ -256,6 +256,9 @@ func verifySemantic(
 	context, err := decodeContext(contextBytes)
 	if err != nil {
 		result.stage, result.decision, result.code = stageDecode, "denied", "malformed-proof"
+		if errors.Is(err, errContextLimit) {
+			result.code = "resource-limit-exceeded"
+		}
 		return result
 	}
 	// The canonical action is bounded and decoded before the proof is read.
@@ -459,7 +462,7 @@ func verifyPrincipalControl(
 	bindings := resolved.bindings
 	// Principal control starts by requiring the executable registry and
 	// configuration, after every reference has resolved.
-	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x36}, 32)) {
+	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x37}, 32)) {
 		return nil, denied("registry-manifest-mismatch")
 	}
 	localConfiguration, err := hex.DecodeString(adapters.Configuration)
@@ -741,6 +744,7 @@ func verifyAuthority(
 	var authorizedBranches [][]byte
 	var actionIDs [][]byte
 	var reports []participantReport
+	approvals := newApprovalEvaluator(bundle, canonical, context, adapters, controlByStatement)
 	branch := func(reference []byte) branchResult {
 		action := actionByRef[digestKey(reference)]
 		if action == nil {
@@ -786,6 +790,12 @@ func verifyAuthority(
 					canonical: canonical, context: context, adapters: adapters,
 				}.evaluate()
 			}
+			// Grant-carried approval requirements are the last step of each
+			// anchor's attempt. Every limit reached here is this attempt's
+			// failure, which the plan combines.
+			if err == nil {
+				err = branchApprovals(approvals, chain)
+			}
 			if err == nil {
 				return branchResult{actionID: action.id, reports: branchReports}
 			}
@@ -829,6 +839,14 @@ func verifyAuthority(
 		uint64(len(actors)) < context.composition.minimumDistinctActors ||
 		uint64(len(roots)) < context.composition.minimumDistinctRoots {
 		return nil, nil, nil, denied("composition-requirement-not-met")
+	}
+	// The trusted context's approval requirements, in ascending identifier
+	// order, after the composition minimums hold.
+	if err := approvals.evaluateList(context.approvalRequirements); err != nil {
+		if errors.Is(err, errApprovalEvaluations) {
+			return nil, nil, nil, denied("resource-limit-exceeded")
+		}
+		return nil, nil, nil, err
 	}
 	return actionIDs, authorizedBranches, reports, nil
 }
@@ -986,6 +1004,8 @@ func extensionLaw(id string, child, parent *criticalExtension, accepted []string
 		return parent != nil && bytes.Equal(child.bytes, parent.bytes)
 	case boundedPolicyExtension:
 		return boundedPolicyLaw(child, parent)
+	case approvalExtension:
+		return approvalLaw(child, parent)
 	case observationExtension:
 		childRequirements, err := decodeRequirements(child.bytes)
 		if err != nil {
@@ -1017,6 +1037,12 @@ func evaluateCriticalExtensions(extensions []criticalExtension, accepted []strin
 		}
 		if extension.id == boundedPolicyExtension {
 			if err := evaluateBoundedPolicyExtension(extension); err != nil {
+				return err
+			}
+			continue
+		}
+		if extension.id == approvalExtension {
+			if err := evaluateApprovalExtension(extension); err != nil {
 				return err
 			}
 			continue
@@ -1594,6 +1620,24 @@ func checkPrincipalStatus(
 	context *verifierContext,
 	controls map[string]verifiedControl,
 ) error {
+	return principalStatusIn(
+		policy, principal, listing,
+		func(issuer string) bool { return outOfScope(context.principalSnapshot.trust, issuer, anchor) },
+		context, controls,
+	)
+}
+
+// principalStatusIn evaluates one principal against the principal-status
+// snapshot, where a statement whose issuer excluded reports takes no part in
+// any step.
+func principalStatusIn(
+	policy statusPolicy,
+	principal string,
+	listing statusListing,
+	excluded func(issuer string) bool,
+	context *verifierContext,
+	controls map[string]verifiedControl,
+) error {
 	if policy.kind == 0 {
 		return nil
 	}
@@ -1603,8 +1647,7 @@ func checkPrincipalStatus(
 	snapshot := context.principalSnapshot
 	candidates := make([]statusEntry, 0)
 	for _, statement := range snapshot.statements {
-		if statement.principal != principal ||
-			outOfScope(snapshot.trust, statement.issuer, anchor) {
+		if statement.principal != principal || excluded(statement.issuer) {
 			continue
 		}
 		if err := statusControl(controls, 2, statement.id); err != nil {
