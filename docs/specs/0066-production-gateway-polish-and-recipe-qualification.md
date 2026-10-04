@@ -237,7 +237,7 @@ This release has exactly two adapter classes:
 - `local-file-v1`: the existing `PersistentCredentialStore`, development only;
   it preserves the current local demo and
   test journey. `--production` MUST refuse it with
-  `gateway.credential-store.production-plaintext-refused`.
+  `gateway.credential.production-plaintext-refused`.
 - `aws-secrets-manager-v1`: the maintained production reference adapter. It
   implements the existing store trait, uses workload identity, derives an
   internal caller-unresolvable object name from the deployment namespace,
@@ -296,6 +296,16 @@ location. Revoking the old generation before all in-flight leases finish is an
 operator error and MUST leave ambiguous attempts `unknown`, never silently
 resubmit them. Two gateway instances racing across a rotation MUST
 either use the complete old generation or the complete new generation.
+
+**Rotation between reload and lease.** A `rotate commit` can land after step 4
+of §5.3 (reload) and before step 6 (lease). The lease names the generation and
+reference commitment loaded at step 4. If the store no longer holds that exact
+generation, or the material commitment differs at step 7, the lease fails
+before any request byte exists. The attempt is recorded `not-entered` with
+`gateway.credential.unavailable`; no provider entry occurred, so the outcome is
+never `unknown`. The logical-operation claim keeps that recorded state under
+the existing lifecycle. A later submission for a new logical operation uses the
+new generation; the gateway never retries the same attempt with it.
 
 ## 6. Maintained signing custody
 
@@ -403,7 +413,16 @@ The canonical, bounded `auths.recipe-qualification/1` record contains:
 - residual assumptions and excluded claims.
 
 The detached `auths.recipe-qualification-attestation/1` signs the canonical
-record with a protected release key. Pull-request jobs may produce unsigned
+record with a protected release key.
+
+**Qualification signer custody (normative).** The release key is a signing key,
+so it lives behind `auths-custody` external signing custody (§6), under a
+workload identity used for nothing else: it MUST NOT be the observer identity,
+the provider-secret identity, or a repository or root identity. It is created
+in the reviewed root ceremony that AP-SPEC-038 §9.3 requires, recorded in that
+ceremony's evidence, and listed by key identifier in the release verifier's
+trust. Rotating or revoking the signer is itself a signed revocation-list entry;
+`revoked` signers invalidate every attestation they issued (§7.1). Pull-request jobs may produce unsigned
 proposals but MUST NOT access that key or update the trusted release index.
 
 ### 7.5 Required evidence wall
@@ -462,7 +481,7 @@ against the verified release index. A production connection with policy
 - an attestation exists and is trusted, current, and not revoked;
 - every §7.1 tuple member equals the running deployment and connection;
 - the recipe digest and profile lock rederive;
-- the clock and revocation data are available under production policy; and
+- the clock and revocation data are fresh under the bounds below; and
 - custody and store readiness match the qualified target.
 
 Failure disables that recipe before secret lease. It does not stop pure proof
@@ -474,6 +493,28 @@ or operator override.
 The release index and revocation list are signed, bounded local inputs updated
 through the operator plane. Runtime readiness performs no provider call and no
 qualification run.
+
+**Freshness bounds (normative).** The signed revocation list and release index
+each carry `issued_at`. Under production policy:
+
+- the revocation list MUST be no older than `max_revocation_age`, which
+  defaults to 24 hours and MUST NOT be configured above 72 hours; an older list
+  disables every `required` recipe with `gateway.qualification.revocation-stale`;
+- local time MUST NOT be earlier than either input's `issued_at`, and MUST lie
+  inside the attestation's validity window; a clock behind `issued_at`, or an
+  operator-declared time-sync check that is not passing, disables `required`
+  recipes with `gateway.qualification.clock-untrusted`;
+- both bounds are checked at startup, before every lease, and when either input
+  is replaced. A disabled recipe re-enables only after a fresh input passes
+  verification; there is no grace period.
+
+**Verified-index cache (normative).** The gateway verifies the release index,
+revocation list, and attestation signatures once per input version and keeps
+the verified result in memory, keyed by the inputs' digests. The per-lease
+check is then a constant-time comparison of the connection's §7.1 tuple with
+the cached entry, plus the freshness bounds. The cache is replaced atomically
+when an input changes or a validity or freshness boundary passes; it is never
+filled from an unverified input or a network fetch.
 
 ## 9. Recovery, upgrades, and operational polish
 
@@ -539,14 +580,16 @@ lease, including an external-version or commitment mismatch, records
 
 | Code | Meaning |
 | --- | --- |
-| `gateway.credential-store.adapter-unsupported` | closed credential-store kind is not supported |
-| `gateway.credential-store.production-plaintext-refused` | development secret source used under production policy |
+| `gateway.credential.adapter-unsupported` | closed credential-store kind is not supported |
+| `gateway.credential.production-plaintext-refused` | development secret source used under production policy |
 | `gateway.qualification.missing` | required attestation is absent |
 | `gateway.qualification.expired` | validity window ended |
 | `gateway.qualification.revoked` | qualification ID or signer is revoked |
 | `gateway.qualification.digest-mismatch` | recipe, lock, closure, corpus, or contract digest differs |
 | `gateway.qualification.target-mismatch` | binary, platform, store, schema, or custody target differs |
 | `gateway.qualification.unavailable` | signed index, clock, or revocation input cannot be checked |
+| `gateway.qualification.revocation-stale` | revocation list older than `max_revocation_age` |
+| `gateway.qualification.clock-untrusted` | local time is behind a signed input or the declared time-sync check is failing |
 | `gateway.readiness.connection-disabled` | operator has not enabled this connection generation |
 
 Errors MUST identify which typed precondition failed without echoing its raw
@@ -717,7 +760,44 @@ human-reviewable, the full hosted matrix is green, independent review confirms
 the core/provider boundary, and `stable_launch_ready` derives to `true` rather
 than being edited.
 
-## 15. Non-goals
+**Derivation of `stable_launch_ready` (normative).** `cargo xtask release-check`
+computes it; no file stores a hand-written value. It is `true` exactly when, for
+the release candidate:
+
+1. the signed release index holds at least two attestations that verify under
+   §8, including freshness;
+2. they cover at least two distinct `RecipeFamilyId`s, two distinct
+   `ProviderContractId`s, and two distinct provider identifiers;
+3. none is `stale` or `revoked`, and each records zero unauthorized provider
+   entries;
+4. each matches the release candidate's gateway semantic-closure digest and
+   target; and
+5. a signed `independent-boundary-review` record for the candidate's closure
+   digest is present, signed by a reviewer key distinct from the qualification
+   signer.
+
+Any other state derives `false`.
+
+## 15. Sequencing relative to the north star
+
+This spec is the production launch path. It does not replace the evidence the
+north star still lacks (`docs/PROGRAM_BOARD.md` §0): one run against a real
+provider and one unfamiliar-developer trial of the existing journey. Those come
+first, because they decide which operator polish matters.
+
+1. Before epic 1: a Stripe test-mode run of the north-star journey with the
+   owner's own test key, and one unfamiliar-developer trial.
+2. Epics 1 and 2 (types, threats, maintained custody and rotation): any real
+   deployment needs them.
+3. Epic 3 (qualification), then epics 4 and 5: when a design partner or the
+   trial shows operators need qualified recipes.
+
+Epics 2, 3, and 5 need new credentials (an AWS account with workload identity,
+a protected qualification environment, and disposable provider accounts). That
+is an owner decision under the program board's credential rule and is not
+granted by this spec.
+
+## 16. Non-goals
 
 - A general secret-management abstraction spanning signing and provider
   credentials.
@@ -733,7 +813,7 @@ than being edited.
   or qualification of an entire provider.
 - Preventing bypass by software that still holds its own provider credential.
 
-## 16. Rejected alternatives
+## 17. Rejected alternatives
 
 1. **Put provider semantics in Auths core.** This makes the verifier depend on
    changing external APIs and destroys the boundary this spec exists to close.

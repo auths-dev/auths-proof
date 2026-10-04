@@ -122,6 +122,7 @@ gates do not shrink.
 ## 3. Backlog — one paragraph each; specs only where the owner directed
 
 - **059 / 060** are implemented and merged; see §1.
+- **AP-SPEC-066 production gateway polish and recipe qualification.** Draft. Sequenced after the north-star evidence (§0 Next: the Stripe test-mode run and an unfamiliar-developer trial). Then epics 1–2 (types, threats, maintained custody and rotation); epic 3 (qualification) and epics 4–5 when a design partner or the trial shows operators need qualified recipes. Epics 2, 3 and 5 need new credentials (AWS workload identity, a protected qualification environment, disposable provider accounts), which is an owner decision under rule 9 (spec §15).
 - **060 §16 observer quorum.** Specified, not scheduled. It has value only once a second observer run by a different operator exists; today the gateway is the only observer. Start when such an operator exists. Approval quorum (queue item 7) is a different feature and needs no core change.
 - **Research spec 14 stages 2 and 3 — proof coverage of the decision-critical
   predicates and the control flow.** P2, 2 to 4 months, overlapping 061, whose
