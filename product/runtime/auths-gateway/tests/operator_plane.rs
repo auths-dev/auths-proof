@@ -271,6 +271,56 @@ fn a_development_gateway_serves_with_an_observer_made_after_install() {
     assert_eq!(status(&state)["state"], "active");
 }
 
+/// A shipped build never keeps a production provider secret in the local
+/// file, and never guesses a store from an unknown name.
+#[test]
+fn a_production_install_refuses_plaintext_and_unknown_credential_stores() {
+    let (_directory, root) = private_root();
+    let unknown = install(
+        &root,
+        &root.join("unknown"),
+        &[
+            "--account-label",
+            "synthetic-account",
+            "--credential-store",
+            "vault-v1",
+        ],
+        b"synthetic-token\n",
+    );
+    assert!(!unknown.status.success());
+    assert!(
+        stderr(&unknown).contains("gateway.credential.adapter-unsupported"),
+        "{}",
+        stderr(&unknown)
+    );
+    assert!(!root.join("unknown").join("installation.json").exists());
+
+    let plaintext = install(
+        &root,
+        &root.join("plaintext"),
+        &[
+            "--account-label",
+            "synthetic-account",
+            "--deployment",
+            "production",
+        ],
+        b"synthetic-token\n",
+    );
+    assert!(!plaintext.status.success());
+    let expected = if built_for_production_plaintext_tests() {
+        // A build made for tests reaches the next production check instead.
+        "gateway.install.operator-attestation-required"
+    } else {
+        "gateway.credential.production-plaintext-refused"
+    };
+    assert!(
+        stderr(&plaintext).contains(expected),
+        "{}",
+        stderr(&plaintext)
+    );
+    assert!(!root.join("plaintext").join("installation.json").exists());
+}
+
 #[test]
 fn a_production_install_needs_a_verifying_operator_attestation() {
     let (_directory, root) = private_root();
@@ -282,6 +332,14 @@ fn a_production_install_needs_a_verifying_operator_attestation() {
             "synthetic-account",
             "--deployment",
             "production",
+            "--credential-store",
+            "aws-secrets-manager-v1",
+            "--credential-namespace",
+            "test",
+            "--aws-region",
+            "eu-west-1",
+            "--aws-identity",
+            "instance-metadata",
         ],
         b"synthetic-token\n",
     );
@@ -306,6 +364,14 @@ fn a_production_install_needs_a_verifying_operator_attestation() {
             "synthetic-account",
             "--deployment",
             "production",
+            "--credential-store",
+            "aws-secrets-manager-v1",
+            "--credential-namespace",
+            "test",
+            "--aws-region",
+            "eu-west-1",
+            "--aws-identity",
+            "instance-metadata",
             "--operator-attestation",
             &attestation.display().to_string(),
         ],
@@ -443,9 +509,18 @@ thread_local! {
     };
 }
 
+/// Whether this build lets a production installation use the local file.
+fn built_for_production_plaintext_tests() -> bool {
+    cfg!(feature = "testkit-production-plaintext")
+}
+
 #[test]
 #[ignore = "needs the TLS PostgreSQL fixture"]
 fn postgres_production_processes_share_the_connection() {
+    assert!(
+        built_for_production_plaintext_tests(),
+        "run with --features testkit-production-plaintext: this test has no secret manager"
+    );
     POSTGRES.with(|slot| *slot.borrow_mut() = postgres_slots());
     let (_directory, root) = private_root();
     let first = root.join("first");

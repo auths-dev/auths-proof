@@ -8,7 +8,31 @@
 //! "ready" can only ever mean that every required check was made and passed.
 
 use crate::MAX_TRANSPORT_DURATION;
+use auths_connections::CredentialStoreKind;
 use std::time::Duration;
+
+/// Decides which credential store an operator's token selects.
+///
+/// The token must be exactly a maintained kind; nothing is defaulted or
+/// guessed. Under production policy the development local file is refused:
+/// it keeps the provider secret as plaintext on the gateway host.
+///
+/// # Errors
+///
+/// Returns `gateway.credential.adapter-unsupported` for any token outside
+/// the closed set, and `gateway.credential.production-plaintext-refused`
+/// for the local file under production policy.
+pub fn credential_store_policy(
+    token: &str,
+    production: bool,
+) -> Result<CredentialStoreKind, &'static str> {
+    let kind =
+        CredentialStoreKind::parse(token).map_err(|_| "gateway.credential.adapter-unsupported")?;
+    if production && !kind.is_production() {
+        return Err("gateway.credential.production-plaintext-refused");
+    }
+    Ok(kind)
+}
 
 /// How long a superseded credential generation is kept after the shared
 /// record commits its successor.

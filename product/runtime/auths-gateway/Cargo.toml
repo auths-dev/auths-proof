@@ -12,6 +12,11 @@ publish = false
 # provider requests to a plain-HTTP provider double on 127.0.0.1.
 loopback-provider = []
 testkit-harness = []
+# Tests only: lets a production installation keep its provider secret in the
+# local file, for tests of the production store and operator plane that have
+# no secret manager. The default build lacks it, so a shipped gateway always
+# refuses the local file under production policy.
+testkit-production-plaintext = []
 # Fuzzing only: exposes `auths_gateway::fuzzing`, thin wrappers over
 # crate-private parsers and rules for `auths-gateway-fuzz`.
 fuzzing = []
@@ -30,6 +35,7 @@ auths-approval-quorum.workspace = true
 auths-author.workspace = true
 auths-bounded-policy.workspace = true
 auths-connections.workspace = true
+auths-credentials-aws-secrets-manager.workspace = true
 auths-codec.workspace = true
 auths-did-keri.workspace = true
 auths-custody.workspace = true

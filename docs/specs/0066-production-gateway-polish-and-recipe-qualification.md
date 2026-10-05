@@ -1,9 +1,11 @@
 # AP-SPEC-066: Production gateway polish and recipe qualification
 
 - **Status:** Draft. Epic 1 (types, threats, and evidence contracts) is
-  implemented; §18 records its status and readings. No production credential
-  store, release verifier, runtime qualification gate, or qualified recipe
-  exists, and none is claimed by this document.
+  implemented; §18 records its status and readings. Epic 2 (production
+  custody and rotation) is implemented and has passed live against the
+  secret store and against a provider's test mode; §19 records it. No
+  release verifier, runtime qualification gate, or qualified recipe exists,
+  and none is claimed by this document.
 - **Depends on:** [AP-SPEC-038](0038-production-runtime-custody-observability-and-assurance.md)
   (production trust, custody, stores, and operations),
   [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md) (the
@@ -1208,4 +1210,121 @@ newer list without a later revocation. Reading 14 makes revocation permanent
 at each verifier so that a later list cannot undo one. Whether a 48-hour
 ceremony is acceptable is the owner's decision; the alternative is to amend
 the bound in §8, not to add a configuration that widens it.
+
+## 19. Epic 2 status and readings
+
+Epic 2 is implemented in code and tests, and the store contract has passed
+against the live service ([run 37304826956](https://github.com/auths-dev/auths-proof/actions/runs/37304826956), second attempt): real disposable secrets
+were written with the operator role, read with the runtime role, rotated,
+revoked, and deleted. That confirms the derived version identifier, the
+request signing, and the web-identity exchange against the real service.
+
+A gateway using the store has also run live ([run 37328109139](https://github.com/auths-dev/auths-proof/actions/runs/37328109139)): the north-star
+refund journey, hostile cases included, with the key installed into Secrets
+Manager and leased from it for every write, and the connection revoked at
+the end so nothing was left in the store. The offline audit of that run
+passed. Its provider was the counting double, so this shows the whole
+custody path through a real gateway and not a real provider's behavior.
+
+**A write to a live provider through this path has passed** ([run 37349590113](https://github.com/auths-dev/auths-proof/actions/runs/37349590113)). The
+north-star refund journey ran against Stripe test mode on the default gateway
+build, with the restricted test key taken into Secrets Manager at install and
+leased from it for every request: one 15.00 test refund confirmed by
+read-back, one refund the provider rejected, the hostile cases, and the
+offline audit. That is the done gate's "real disposable write using the
+maintained adapter".
+
+Three things about that run are not what the journey's README describes, and
+each narrows what it shows:
+
+- The owner's sandbox cannot use Connect, so the platform account stood in as
+  the account the refund is scoped to. The provider accepts its own account
+  in that header. Scoping to a genuinely distinct connected account is not
+  shown; AP-SPEC-066 §7.6 requires it for the Stripe qualification.
+- The job runs a copy of the journey whose operation identifiers carry the
+  run number, because the provider's idempotency window refuses the fixed
+  identifiers twice within 24 hours on one account.
+- Two earlier attempts failed on test data, not on the gateway: a payment of
+  1,000.00 where the journey assumes 60.00, and the idempotency window above.
+
+A later run ([run 37331000975](https://github.com/auths-dev/auths-proof/actions/runs/37331000975))
+adds two least-privilege facts at the store: the runtime role cannot delete,
+and the operator role cannot read what it wrote. The network client is also
+tested directly against a loopback service that answers wrongly.
+
+**The gateway's identity needs to write.** Rotation and revocation are
+performed by the serving process, so its workload identity needs create and
+delete on its own prefix as well as read. The store-level run shows that a
+read-only runtime identity and a write-only operator identity are possible
+at the store; the gateway does not yet split them, because that requires
+moving the store writes of rotation and revocation into the operator
+command. The live journey therefore uses a third role with all three
+permissions on the gateway's prefix. Splitting them is operator-plane work
+for Epic 4.
+
+The first attempts failed for a reason outside the code. This repository
+uses the identity provider's immutable subject, so the token's subject is
+`repo:auths-dev@260513770/auths-proof@1310728509:environment:gateway-custody-live`
+and not the name-only form the roles first trusted. The roles now trust
+exactly that subject.
+
+### 19.1 What exists
+
+| Task | Artifact |
+| --- | --- |
+| 1 sealed store behind the trait | The engine, install, and join hold `dyn ConnectionCredentialStore`. The trait gains `holds`, `confirm`, `retire_superseded`, and `delete_connection`, each answerable by a store private to one process and by one shared by all. One contract test runs against both in-repository stores. |
+| 2 `aws-secrets-manager-v1` | Crate `auths-credentials-aws-secrets-manager`: derived secret name and version identifier, the store over three service calls, request signing checked against the service's published vectors, a network client with one attempt per call bounded by the caller's deadline, and three workload-identity sources (web identity token, container endpoint, instance metadata) with no fallback between them. |
+| 3 rotation | `rotate-prepare` and `rotate-commit` on the operator socket and CLI; the one-step `rotate` is both. A superseded generation is retired after `CredentialRetirementDelay`, by exact generation. Both phases work on a disabled connection, which is the emergency cutover. |
+| 4 doctor and production policy | `install --credential-store`; `credential_store_policy` refuses an unknown kind and, under production policy, the local file. `doctor` reports the provider credential store separately from the observer and does not fail when no observer exists. |
+| 5 conformance | The store's tests drive the frozen `secret_names`, `version_references`, `lease`, and `rotation` sections of `custody-hostile.json`; the gateway drives `store_kinds` through the policy function. The live workflow `gateway-custody-live.yml` runs the store contract against the protected account. |
+
+The code inventory marks `gateway.credential.adapter-unsupported` and
+`gateway.credential.production-plaintext-refused` implemented. The pending
+assertion fired when the name derivation and then the two codes landed, as
+§18.1 said it would, and each time the vectors it guarded were given a driver.
+
+### 19.2 Readings (PROVISIONAL)
+
+1. **Client.** The minimal closed client over the existing HTTP and TLS
+   stack, as the custody plan recommended. The owner had not chosen; no
+   build script or native dependency was added.
+2. **Two-phase rotation carries the commitment.** `rotate-prepare` answers
+   with the successor's reference commitment and `rotate-commit` takes it. A
+   shared store cannot find a prepared secret by search, and the commitment
+   names it without revealing it or where it is kept.
+3. **A record that changed since the prepare commits nothing.** The
+   successor was stored for the generation after the one the prepare saw. A
+   state change in between makes the commit answer
+   `gateway.admin.rotation-not-prepared`; the operator prepares again.
+4. **Retirement is by exact generation.** The gateway remembers the
+   generation it superseded and revokes that one when the delay has passed.
+   The local stores also delete an unpublished successor the record has
+   moved past. That second rule fixes a defect the new tests found: a
+   prepared successor followed by a disable made the local store keep the
+   orphan and delete the credential that served.
+5. **This engine is stricter than §5.4 allows.** An attempt whose record
+   changes between its load and its lease is abandoned before the lease, so
+   no attempt leases the old generation after a commit. The retained
+   generation is therefore not needed by this engine today; it is kept
+   because §5.4 requires it and a later engine may rely on it.
+6. **The installation manifest is `auths.gateway-installation/4`.** It
+   records the credential-store kind and, for the production store, the
+   namespace, region, key, and named workload identity. It records no secret
+   and no external location. There is no reader for `/3`.
+7. **Workload identity is named, not discovered.** `--aws-identity` selects
+   exactly one of `web-identity`, `container`, or `instance-metadata`. A
+   static access key in the environment is not a source.
+8. **Tests of the production store without a secret manager.** The cargo
+   feature `testkit-production-plaintext` lets a production installation use
+   the local file. The default build lacks it, and a test asserts the shipped
+   refusal. The PostgreSQL workflow enables it for one test binary.
+9. **Orphaned secrets in the shared store.** A prepare that is never
+   committed, or an install that stops before its record is written, leaves a
+   secret no record names. Nothing can lease it. The gateway does not yet
+   delete it: the store cannot list, and the gateway keeps no durable note of
+   what it prepared. The operator-polish epic owns that collector.
+10. **Not driven end to end.** The frozen `lease` and `rotation` scenarios
+    are driven at the store. Their gateway-level stage and code
+    (`not-entered`, `gateway.credential.unavailable`) are the engine's
+    existing behavior for a failed lease and are not re-driven per scenario.
 

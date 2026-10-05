@@ -102,6 +102,11 @@
       "path": "product/runtime/auths-connections"
     },
     {
+      "name": "auths-credentials-aws-secrets-manager",
+      "layer": "product",
+      "path": "product/integrations/auths-credentials-aws-secrets-manager"
+    },
+    {
       "name": "auths-cross-company-incident-edgeshield-demo",
       "layer": "demos",
       "path": "demos/cross-company-incident-response/edgeshield-service"
@@ -2034,6 +2039,159 @@
       ]
     },
     {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "hmac",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "reqwest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "blocking",
+        "form",
+        "query",
+        "rustls"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
       "source": "auths-cross-company-incident-edgeshield-demo",
       "source_layer": "demos",
       "target": "auths-iroh",
@@ -3255,6 +3413,18 @@
       "source": "auths-gateway",
       "source_layer": "product",
       "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-credentials-aws-secrets-manager",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",

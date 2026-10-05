@@ -11,9 +11,8 @@
 
 use crate::{GatewayAttemptError, GatewayAttemptKey, GatewayAttemptStore, GatewayRecordEntry};
 use auths_connections::{
-    ConnectionAlias, ConnectionCredentialStore as _, ConnectionId, ConnectionRecord,
-    ConnectionRecordError, ConnectionState, CredentialStoreError, PersistentCredentialStore,
-    ProviderKind, SecretBytes,
+    ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionRecord,
+    ConnectionRecordError, ConnectionState, CredentialStoreError, ProviderKind, SecretBytes,
 };
 use sha2::{Digest as _, Sha256};
 use std::num::NonZeroU64;
@@ -215,7 +214,7 @@ impl SharedConnection {
 /// and a credential-store or connection-store code otherwise.
 pub async fn install_connection(
     shared: &SharedConnection,
-    credentials: &PersistentCredentialStore,
+    credentials: &dyn ConnectionCredentialStore,
     draft: impl FnOnce([u8; 32]) -> Result<ConnectionRecord, &'static str>,
     connection_id: &ConnectionId,
     secret: SecretBytes,
@@ -238,7 +237,7 @@ pub async fn install_connection(
     match inserted {
         Ok(loaded) => Ok(loaded.record().clone()),
         Err(code) => {
-            let _ = credentials.revoke_connection(connection_id);
+            let _ = credentials.delete_connection(connection_id, &[first]).await;
             Err(code)
         }
     }
@@ -259,7 +258,7 @@ pub async fn install_connection(
 /// onboarding codes of a refused candidate, and store codes otherwise.
 pub async fn join_connection(
     shared: &SharedConnection,
-    credentials: &PersistentCredentialStore,
+    credentials: &dyn ConnectionCredentialStore,
     recipe: &crate::CompiledRecipe,
     candidate: &zeroize::Zeroizing<Vec<u8>>,
 ) -> Result<ConnectionRecord, &'static str> {
@@ -284,13 +283,11 @@ pub async fn join_connection(
     .map_err(crate::onboarding::OnboardingFailure::install_code)?;
     let secret =
         SecretBytes::new(candidate.to_vec()).map_err(|_| "gateway.install.invalid-credential")?;
-    match credentials.store_confirmed(
-        record.connection_id(),
-        record.credential_generation(),
-        record.credential_reference_commitment(),
-        secret,
-    ) {
-        Ok(_) => Ok(record.clone()),
+    match credentials
+        .confirm(&record.credential_binding(), secret)
+        .await
+    {
+        Ok(()) => Ok(record.clone()),
         Err(CredentialStoreError::Substitution) => Err("gateway.install.join-commitment-mismatch"),
         Err(_) => Err("gateway.install.credential-store-unavailable"),
     }

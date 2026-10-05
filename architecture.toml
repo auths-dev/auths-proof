@@ -121,6 +121,7 @@ auths-github = "product"
 auths-config = "product"
 auths-custody = "product"
 auths-custody-aws-kms = "product"
+auths-credentials-aws-secrets-manager = "product"
 auths-custody-pkcs11 = "product"
 auths-did-keri = "core"
 auths-did-key = "core"
@@ -275,6 +276,13 @@ allowed_workspace_dependencies = [
 [dependency_boundaries.connection-credentials]
 roots = ["auths-connections"]
 allowed_workspace_dependencies = []
+
+# The production secret store is told identity and generation only, so it
+# reaches the connection crate and nothing else: no gateway, recipe,
+# provider, or verifier code.
+[dependency_boundaries.aws-secrets-manager-store]
+roots = ["auths-credentials-aws-secrets-manager"]
+allowed_workspace_dependencies = ["auths-connections"]
 
 # The qualification model reaches no core crate and no provider integration:
 # a qualification is evidence about a recipe, never verifier or provider code.

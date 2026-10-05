@@ -438,6 +438,28 @@ def flip_proof_byte(entry: Dict[str, Any]) -> None:
     entry["proof_b64"] = base64.urlsafe_b64encode(bytes(raw)).rstrip(b"=").decode()
 
 
+def revoke_installed_connection(gateway: str, journey: "Journey", loopback: List[str]) -> None:
+    """Revokes the connection so its secret is deleted from a shared store.
+
+    Every gateway the journey started has stopped by now, so this starts one
+    more, revokes through its admin socket, and stops it.
+    """
+    socket = journey.work / "cleanup.sock"
+    admin = journey.gateway_state / "admin.sock"
+    admin.unlink(missing_ok=True)
+    serving = journey.background(
+        gateway, "serve", "--state-dir", str(journey.gateway_state), "--app-socket", str(socket), *loopback
+    )
+    try:
+        deadline = time.monotonic() + 20
+        while not admin.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        revoked = journey.run(gateway, "revoke", "--state-dir", str(journey.gateway_state), check=False)
+        print(f"cleanup revoke: exit {revoked.returncode} {revoked.stdout.strip()}", file=sys.stderr)
+    finally:
+        journey.terminate(serving)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gateway", required=True, help="auths-gateway binary")
@@ -450,6 +472,11 @@ def main() -> int:
     args = parser.parse_args()
 
     live = args.stripe_test_mode
+    # Extra `install` arguments, as a JSON list: how a run selects the
+    # production credential store. The gateway then keeps the key there and
+    # not in its state directory, and the journey revokes the connection at
+    # the end so nothing is left in the store.
+    extra_install: List[str] = json.loads(os.environ.get("AUTHS_JOURNEY_INSTALL_ARGS", "[]"))
     if live:
         secret = os.environ.get("STRIPE_TEST_RESTRICTED_KEY", "")
         if not secret.startswith("rk_test_"):
@@ -469,6 +496,7 @@ def main() -> int:
 
     workdir = Path(tempfile.mkdtemp(prefix="auths-refunds-", dir="/tmp")).resolve()
     journey = Journey(args.gateway, workdir)
+    loopback: List[str] = []
     try:
         # README step 3: principals, trust, and the agent's bounded grant.
         facts = journey.step(
@@ -522,7 +550,6 @@ def main() -> int:
         # The double checks the bearer token by digest; the key itself stays
         # only in the gateway's credential store.
         mock_token_sha256 = hashlib.sha256(secret.encode()).hexdigest()
-        loopback: List[str] = []
 
         # README step 4: Stripe, here its local double.
         def start_double() -> None:
@@ -568,6 +595,7 @@ def main() -> int:
                 args.platform_account,
                 "--credential-stdin",
                 *loopback,
+                *extra_install,
                 stdin=key + "\n",
                 check=False,
             )
@@ -1499,6 +1527,9 @@ def main() -> int:
         summary = {
             "journey": "stripe-refund-approval",
             "provider": "stripe-test-mode" if live else "counting-mock",
+            "credential_store": extra_install[extra_install.index("--credential-store") + 1]
+            if "--credential-store" in extra_install
+            else "local-file-v1",
             "wall_seconds": round(time.monotonic() - journey.started, 2),
             "steps": journey.steps,
             "refunds": results,
@@ -1540,6 +1571,8 @@ def main() -> int:
         return 0
     finally:
         journey.stop()
+        if extra_install and (journey.gateway_state / "installation.json").exists():
+            revoke_installed_connection(args.gateway, journey, loopback)
         shutil.rmtree(workdir, ignore_errors=True)
 
 

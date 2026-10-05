@@ -65,6 +65,7 @@ members = [
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
     "product/integrations/auths-custody-aws-kms",
+    "product/integrations/auths-credentials-aws-secrets-manager",
     "product/integrations/auths-custody-pkcs11",
     "product/integrations/auths-resolver-did-web",
     "product/integrations/auths-radicle",
@@ -213,6 +214,7 @@ auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/
 auths-evidence-assemblers = { version = "1.0.0-rc.1", path = "product/integrations/auths-evidence-assemblers" }
 auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody" }
 auths-custody-aws-kms = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-aws-kms" }
+auths-credentials-aws-secrets-manager = { version = "1.0.0-rc.1", path = "product/integrations/auths-credentials-aws-secrets-manager" }
 auths-custody-pkcs11 = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-pkcs11" }
 auths-radicle = { version = "1.0.0-rc.1", path = "product/integrations/auths-radicle" }
 auths-git-signing = { version = "1.0.0-rc.1", path = "product/integrations/auths-git-signing" }
