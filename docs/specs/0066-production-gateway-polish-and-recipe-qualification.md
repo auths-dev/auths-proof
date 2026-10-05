@@ -1219,9 +1219,24 @@ were written with the operator role, read with the runtime role, rotated,
 revoked, and deleted. That confirms the derived version identifier, the
 request signing, and the web-identity exchange against the real service.
 
-It does not confirm a provider write through a gateway that uses this store:
-the run exercises the store, not a recipe. That end-to-end write belongs to
-the qualification epics.
+A gateway using the store has also run live ([run 37328109139](https://github.com/auths-dev/auths-proof/actions/runs/37328109139)): the north-star
+refund journey, hostile cases included, with the key installed into Secrets
+Manager and leased from it for every write, and the connection revoked at
+the end so nothing was left in the store. The offline audit of that run
+passed. Its provider was the counting double, so this shows the whole
+custody path through a real gateway and not a real provider's behavior. A
+write to a live provider through this path is the remaining part of the done
+gate and needs the owner's provider account identifiers.
+
+**The gateway's identity needs to write.** Rotation and revocation are
+performed by the serving process, so its workload identity needs create and
+delete on its own prefix as well as read. The store-level run shows that a
+read-only runtime identity and a write-only operator identity are possible
+at the store; the gateway does not yet split them, because that requires
+moving the store writes of rotation and revocation into the operator
+command. The live journey therefore uses a third role with all three
+permissions on the gateway's prefix. Splitting them is operator-plane work
+for Epic 4.
 
 The first attempts failed for a reason outside the code. This repository
 uses the identity provider's immutable subject, so the token's subject is
