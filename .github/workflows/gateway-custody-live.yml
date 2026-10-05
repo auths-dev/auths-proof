@@ -166,8 +166,10 @@ jobs:
     # Two things the journey assumes about its test data. The payment must be
     # exactly 60.00, because one hostile case is "30.01 is above half of the
     # payment". And the journey's operation identifiers are fixed, so the
-    # provider's idempotency window refuses a second run against the same
-    # account within 24 hours: rerun no sooner than a day after the last.
+    # provider's idempotency window would refuse a second run against the
+    # same account within 24 hours. This job therefore runs a copy of the
+    # journey whose operation identifiers carry the run number; nothing else
+    # in it differs.
     name: gateway journey against Stripe test mode
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -218,7 +220,11 @@ jobs:
           trap 'kill "${refresher}" 2>/dev/null || true; rm -f "${AWS_WEB_IDENTITY_TOKEN_FILE}"' EXIT
           export AUTHS_JOURNEY_INSTALL_ARGS="$(jq -cn --arg namespace "${NAMESPACE}" --arg key "${KMS_KEY}" \
             '["--credential-store","aws-secrets-manager-v1","--credential-namespace",$namespace,"--aws-region","eu-west-1","--aws-kms-key",$key,"--aws-identity","web-identity"]')"
-          ../../.journey-venv/bin/python journey.py \
+          copy="${RUNNER_TEMP}/provider-journey"
+          cp -R . "${copy}"
+          cd "${copy}"
+          sed -i -E "s/([\"'])refund-/\1r${GITHUB_RUN_ID}a${GITHUB_RUN_ATTEMPT}-/g" journey.py
+          "${GITHUB_WORKSPACE}/.journey-venv/bin/python" journey.py \
             --gateway "${GITHUB_WORKSPACE}/target/debug/auths-gateway" \
             --stripe-test-mode \
             --payment-intent "${PAYMENT_INTENT}" \
