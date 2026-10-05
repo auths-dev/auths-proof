@@ -10,14 +10,14 @@ description = "AWS Secrets Manager provider-secret store for the Auths gateway"
 [dependencies]
 auths-connections.workspace = true
 async-trait.workspace = true
+base64ct.workspace = true
 hex.workspace = true
 hmac.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
-
-[dev-dependencies]
-serde_json.workspace = true
 
 [lints]
 workspace = true

@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 345,
+  "freezeVersion": 346,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -94,7 +94,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 70,
+      "version": 71,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -102,7 +102,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "ad1921df96a0197ffac42b103eba516c6b98dce32a6320ed33ee0b3060cbbd3b"
+      "sha256": "128664f0c6c40c14a8f727a82f9c8d335e8752b417698077598b47750d60fd23"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 345,
+      "version": 346,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1103,7 +1103,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "c6fd7312d28eed481a799c4ab63d9c9ba9c902079945de96a4fe5c01a124976e"
+      "sha256": "f127f995a815af143110db1cd4e43866f76ec4775897d501df1ca5d94c813270"
     }
   ]
 }

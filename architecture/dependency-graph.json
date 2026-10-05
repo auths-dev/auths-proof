@@ -2065,6 +2065,20 @@
     {
       "source": "auths-credentials-aws-secrets-manager",
       "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
       "target": "hex",
       "target_layer": null,
       "scope": "external",
@@ -2089,10 +2103,27 @@
     {
       "source": "auths-credentials-aws-secrets-manager",
       "source_layer": "product",
+      "target": "reqwest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "blocking",
+        "form",
+        "query",
+        "rustls"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
       "target": "serde_json",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,

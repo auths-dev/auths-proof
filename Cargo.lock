@@ -437,8 +437,10 @@ version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-connections",
+ "base64ct",
  "hex",
  "hmac 0.12.1",
+ "reqwest",
  "serde_json",
  "sha2 0.10.9",
  "thiserror 2.0.19",
