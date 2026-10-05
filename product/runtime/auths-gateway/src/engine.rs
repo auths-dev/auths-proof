@@ -760,12 +760,15 @@ impl GatewayEngine {
         )
     }
 
-    fn lease(&self, prepared: &PreparedEntry) -> Result<StoredSecretLease, ()> {
+    /// Leases through the credential-store trait, naming exactly the
+    /// credential generation the loaded record seals.
+    async fn lease(&self, prepared: &PreparedEntry) -> Result<StoredSecretLease, ()> {
         self.credentials
-            .lease_for_record(
-                prepared.loaded.record(),
+            .lease_secret(
+                &prepared.loaded.record().credential_binding(),
                 Instant::now() + Duration::from_secs(30),
             )
+            .await
             .map_err(|_| ())
     }
 
@@ -805,7 +808,7 @@ impl GatewayEngine {
                 let Ok(prepared) = self.prepare_entry().await else {
                     return refused("gateway.observer.connection-unavailable");
                 };
-                let Ok(lease) = self.lease(&prepared) else {
+                let Ok(lease) = self.lease(&prepared).await else {
                     return refused("gateway.observer.credential-unavailable");
                 };
                 let port = LeasedTransport {
@@ -918,7 +921,7 @@ impl SubmitIo for EngineIo<'_> {
 
     async fn lease(&self) -> Option<StoredSecretLease> {
         let prepared = self.prepared.get()?;
-        self.engine.lease(prepared).ok()
+        self.engine.lease(prepared).await.ok()
     }
 
     fn secret_admitted(&self, lease: &StoredSecretLease, guard: &GuardChecks) -> bool {
@@ -1461,6 +1464,7 @@ mod tests {
                     Ok(prepared) => self
                         .engine
                         .lease(&prepared)
+                        .await
                         .err()
                         .map(|()| "lease".to_owned()),
                 }
@@ -1486,7 +1490,7 @@ mod tests {
             let host = &installation.first;
             let id = &installation.connection_id;
             let first = host.engine.prepare_entry().await.expect("active entry");
-            assert!(host.engine.lease(&first).is_ok());
+            assert!(host.engine.lease(&first).await.is_ok());
 
             let rotated = host
                 .engine

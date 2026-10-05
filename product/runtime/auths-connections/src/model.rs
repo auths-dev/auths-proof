@@ -643,6 +643,22 @@ impl ConnectionRecord {
         self.revoked_at_unix_seconds
     }
 
+    /// Returns what a credential store is told to lease this record's
+    /// current credential: the connection, both generations, and the
+    /// reference commitment, taken from this one record.
+    ///
+    /// The view authorizes nothing. The caller must first require an active
+    /// record that lists its workload and profile.
+    #[must_use]
+    pub fn credential_binding(&self) -> CredentialBinding {
+        CredentialBinding {
+            connection_id: self.connection_id.clone(),
+            generation: self.generation,
+            credential_generation: self.credential_generation,
+            reference_commitment: self.credential_reference_commitment,
+        }
+    }
+
     /// Decides whether reconciling an unresolved operation at `generation`
     /// may lease a credential from this record.
     ///
