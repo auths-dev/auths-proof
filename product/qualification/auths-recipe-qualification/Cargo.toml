@@ -12,15 +12,13 @@ description = "Recipe-scoped provider qualification records and release trust ar
 [dependencies]
 auths-connections.workspace = true
 base64ct.workspace = true
+ed25519-dalek.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
-ed25519-dalek.workspace = true
 
 [lints]
 workspace = true

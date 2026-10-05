@@ -1175,7 +1175,7 @@ independent-semantic-implementation = [
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#every_valid_artifact_decodes",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#every_structural_case_is_refused_with_its_reason",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#contract_drift_changes_the_contract_identifier",
-  "product/qualification/auths-recipe-qualification/src/vectors/verification.rs#verification_vectors_await_the_release_verifier",
+  "product/qualification/auths-recipe-qualification/src/vectors/verification.rs#every_verification_case_is_decided_as_frozen",
   "product/qualification/auths-recipe-qualification/src/model.rs#closed_derived_state_follows_only_its_transitions",
 ]
 

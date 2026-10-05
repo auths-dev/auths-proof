@@ -1,6 +1,6 @@
 {
   "schema": "auths.qualification-verification-vectors/1",
-  "status": "pending: no release verifier exists; the expectations are frozen, not yet driven",
+  "status": "driven: the release verifier decides every case as frozen",
   "precedence": [
     {
       "when": "the signer certificate or release index is unusable",

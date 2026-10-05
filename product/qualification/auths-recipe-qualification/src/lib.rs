@@ -2,11 +2,12 @@
 //! about one pinned recipe and provider contract, and the release trust
 //! artifacts that say who may attest to it.
 //!
-//! This crate owns types, canonical schemas, and bounds only. It decodes an
-//! artifact into a sealed value whose every structural rule already holds,
-//! and it gives the exact bytes each signature covers. It verifies no
-//! signature, reads no clock, derives no qualification state from inputs,
-//! and performs no I/O; those belong to the release verifier.
+//! This crate owns the types, canonical schemas, and bounds, and the release
+//! verifier. A decoder turns an artifact into a sealed value whose every
+//! structural rule already holds. The verifier checks signatures under a
+//! pinned trust root once, then derives a deployment's qualification state
+//! from those verified inputs, a time, and what earlier inputs revoked. The
+//! crate reads no clock and performs no I/O: its caller supplies both.
 //!
 //! Every artifact is RFC 8785 canonical JSON. A decoder accepts only the
 //! canonical bytes, refuses unknown members and unknown enumeration values,
@@ -20,6 +21,7 @@ mod error;
 mod ids;
 mod model;
 mod release;
+mod verify;
 
 #[cfg(test)]
 mod vectors;
@@ -50,4 +52,8 @@ pub use release::{
     RecipeQualificationAttestation, ReleaseIndexBody, ReleaseIndexEntry, ReleaseIndexStatement,
     RevocationListBody, RevocationListStatement, SIGNER_CERTIFICATE_SCHEMA, SignerCertificateBody,
     SignerCertificateStatement, TRUST_ROOT_SCHEMA, TrustRootBody,
+};
+pub use verify::{
+    QualificationInputs, QualificationRefusal, QualificationVerdict, VerifiedQualifications,
+    VerifierState,
 };
