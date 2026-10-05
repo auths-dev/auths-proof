@@ -30,6 +30,7 @@ mod semantic_closure;
 mod separation;
 mod store;
 mod submit;
+mod support;
 mod transport;
 
 #[cfg(test)]
@@ -125,5 +126,9 @@ pub use store::{
     GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
     PrivateDirectoryError, check_private_directory, check_private_directory_owned_by,
     pre_entry_digest,
+};
+pub use support::{
+    MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,
+    SupportFacts, support_bundle,
 };
 pub use transport::MAX_TRANSPORT_DURATION;

@@ -356,6 +356,21 @@ mod unix {
             #[arg(long, default_value_t = false)]
             tuple: bool,
         },
+        /// Write a redacted archive for a support request: versions,
+        /// digests, closed states, stable codes, and the digest and stage of
+        /// each stored attempt. It holds no proof, action, body, credential,
+        /// location, account, resource identifier, or header.
+        SupportBundle {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            /// Where to write the archive; standard output when absent.
+            #[arg(long)]
+            out: Option<PathBuf>,
+        },
         /// Ask the private operator socket for the connection state.
         Status {
             #[arg(long)]
@@ -2420,6 +2435,22 @@ mod unix {
         command: serde_json::Value,
         secret: Option<&[u8]>,
     ) -> Result<(), Failure> {
+        let response = admin_exchange(state_dir, admin_socket, command, secret).await?;
+        println!("{response}");
+        if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
+            Ok(())
+        } else {
+            Err("gateway.admin.refused".into())
+        }
+    }
+
+    /// Sends one admin command and returns the gateway's response.
+    async fn admin_exchange(
+        state_dir: &Path,
+        admin_socket: &AdminSocket,
+        command: serde_json::Value,
+        secret: Option<&[u8]>,
+    ) -> Result<serde_json::Value, Failure> {
         const CODE: &str = "gateway.admin.socket-unavailable";
         private_root(state_dir)?;
         check_admin_socket(admin_socket, &CLIENT_ADMIN_SOCKET)?;
@@ -2450,14 +2481,89 @@ mod unix {
             write_frame(&mut stream, secret).await?;
         }
         let bytes = read_frame(&mut stream).await?;
-        let response: serde_json::Value =
-            serde_json::from_slice(&bytes).map_err(|_| "gateway.admin.invalid-response")?;
-        println!("{response}");
-        if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
-            Ok(())
-        } else {
-            Err("gateway.admin.refused".into())
-        }
+        Ok(serde_json::from_slice(&bytes).map_err(|_| "gateway.admin.invalid-response")?)
+    }
+
+    /// What a serving gateway reports about its connection, or `None` when
+    /// none is serving or its answer is not a status.
+    async fn support_connection(
+        state_dir: &Path,
+        admin_socket: &AdminSocket,
+    ) -> Option<auths_gateway::SupportConnection> {
+        use auths_gateway::SupportConnectionState as State;
+        UnixStream::connect(&admin_socket.path).await.ok()?;
+        let command = serde_json::json!({"command": "status"});
+        let response = admin_exchange(state_dir, admin_socket, command, None)
+            .await
+            .ok()?;
+        let status = response.get("status")?;
+        let number = |member: &str| status.get(member).and_then(serde_json::Value::as_u64);
+        Some(auths_gateway::SupportConnection {
+            state: match status.get("state")?.as_str()? {
+                "active" => State::Active,
+                "disabled" => State::Disabled,
+                "revoked" => State::Revoked,
+                _ => return None,
+            },
+            generation: number("generation")?,
+            credential_generation: number("credential_generation")?,
+            credential_held: status.get("credential_held")?.as_bool()?,
+            in_flight: number("in_flight")?,
+        })
+    }
+
+    /// The digests, closed states, and attempt stages of an installation.
+    /// It blocks, so the caller must not be on an async executor.
+    fn support_facts(
+        state_dir: &Path,
+        connection: Option<auths_gateway::SupportConnection>,
+    ) -> Result<auths_gateway::SupportFacts, Failure> {
+        const CODE: &str = "gateway.support.unavailable";
+        let fixed = |text: &str| {
+            let mut bytes = [0_u8; 32];
+            hex::decode_to_slice(text, &mut bytes)
+                .map(|()| bytes)
+                .map_err(|_| CODE)
+        };
+        let manifest = installation(state_dir)?;
+        let executable = fs::read(std::env::current_exe().map_err(|_| CODE)?).map_err(|_| CODE)?;
+        let listed = open_attempts(
+            manifest.deployment,
+            manifest.attempt_store.as_ref().map(PathBuf::from),
+        )
+        .ok()
+        .and_then(|attempts| {
+            tokio::runtime::Builder::new_current_thread()
+                .build()
+                .ok()?
+                .block_on(attempts.stages(auths_gateway::MAX_SUPPORT_ATTEMPTS + 1))
+                .ok()
+        });
+        let attempts_truncated = listed
+            .as_ref()
+            .is_some_and(|listed| listed.len() > auths_gateway::MAX_SUPPORT_ATTEMPTS);
+        let attempts = listed
+            .map(|listed| {
+                listed
+                    .into_iter()
+                    .take(auths_gateway::MAX_SUPPORT_ATTEMPTS)
+                    .map(|(key, stage)| fixed(&key).map(|key| (key, stage)))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?;
+        Ok(auths_gateway::SupportFacts {
+            build_sha256: Sha256::digest(&executable).into(),
+            recipe_sha256: fixed(&manifest.recipe_digest)?,
+            profile_lock_sha256: fixed(&manifest.profile_lock_sha256)?,
+            trusted_context_sha256: fixed(&manifest.trusted_context_sha256)?,
+            production: manifest.deployment == Deployment::Production,
+            credential_store_kind: CredentialStoreKind::parse(&manifest.credential_store.kind)
+                .map_err(|_| CODE)?,
+            qualification: qualification_gate(state_dir, &manifest)?.status(),
+            connection,
+            attempts,
+            attempts_truncated,
+        })
     }
 
     async fn rotate(
@@ -2792,6 +2898,26 @@ mod unix {
                 }
                 let command = serde_json::json!({"command": "qualification-reload"});
                 admin_command(&state_dir, &admin_socket, command, None).await
+            }
+            Command::SupportBundle {
+                state_dir,
+                admin_socket,
+                out,
+            } => {
+                private_root(&state_dir)?;
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let connection = support_connection(&state_dir, &admin_socket).await;
+                let facts =
+                    tokio::task::spawn_blocking(move || support_facts(&state_dir, connection))
+                        .await
+                        .map_err(|_| "gateway.support.unavailable")??;
+                let archive = auths_gateway::support_bundle(&facts)?;
+                if let Some(path) = out {
+                    private_file(&path, &archive)?;
+                } else {
+                    println!("{}", String::from_utf8_lossy(&archive));
+                }
+                Ok(())
             }
             Command::QualificationStatus { state_dir, tuple } => {
                 tokio::task::spawn_blocking(move || qualification_status(&state_dir, tuple))

@@ -12,9 +12,9 @@
 //! that try to select custody or declare qualification, the fixed
 //! retirement delay, and redacted debug forms. The qualification codes are
 //! implemented by the gate, whose tests drive every verification vector.
-//! The rest wait for the readiness codes and the support bundle. For those
-//! this module asserts the shortfall: no product crate defines a readiness
-//! code, and the gateway has no support bundle. The secret-name and version
+//! The support bundle exists and its own test scans it for every canary of
+//! the `redaction` section. The readiness codes are still pending, and for
+//! those this module asserts the shortfall: no product crate defines one. The secret-name and version
 //! vectors are generated here from the stated derivation and driven by the
 //! Secrets Manager store's own tests, so the two agree or one of them fails. Those assertions are expected to fail when the implementing work
 //! lands, wherever it lands, and that work replaces each with the
@@ -1130,8 +1130,7 @@ fn every_hostile_class_has_a_vector() {
 
 /// The inventory is closed over the vectors, every existing code exists,
 /// and the rest of the production work has not landed: no product crate
-/// defines a new code or a code under a new family, and the gateway has no
-/// support bundle under any spelling. The secret-name and version vectors
+/// defines a new code or a code under a new family. The secret-name and version vectors
 /// are no longer pending: the Secrets Manager store derives them, and its
 /// own tests drive `secret_names` and `version_references`.
 #[test]
@@ -1181,13 +1180,5 @@ fn production_codes_await_their_epics() {
                 path.display()
             );
         }
-    }
-    for (path, text) in &gateway {
-        let folded = text.to_lowercase().replace(['-', '_', ' '], "");
-        assert!(
-            !folded.contains("supportbundle"),
-            "{} has a support bundle: scan it for every redaction canary",
-            path.display()
-        );
     }
 }
