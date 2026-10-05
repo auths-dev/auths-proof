@@ -17,6 +17,11 @@ testkit-harness = []
 # no secret manager. The default build lacks it, so a shipped gateway always
 # refuses the local file under production policy.
 testkit-production-plaintext = []
+# Tests only: lets a production installation run without a qualification,
+# for tests of the production store and operator plane that predate any
+# pinned qualification trust root. The default build lacks it, so a shipped
+# gateway always requires qualification under production policy.
+testkit-production-unqualified = []
 # Fuzzing only: exposes `auths_gateway::fuzzing`, thin wrappers over
 # crate-private parsers and rules for `auths-gateway-fuzz`.
 fuzzing = []
@@ -49,6 +54,7 @@ auths-profile-api.workspace = true
 auths-profile-mcp.workspace = true
 auths-raw-key.workspace = true
 auths-raw-key-core.workspace = true
+auths-recipe-qualification.workspace = true
 auths-registries.workspace = true
 auths-signature.workspace = true
 auths-stores.workspace = true
@@ -73,6 +79,7 @@ url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+auths-recipe-qualification-issuance = { workspace = true, features = ["testkit"] }
 auths-author.workspace = true
 auths-sdk.workspace = true
 auths-custody = { workspace = true, features = ["conformance"] }

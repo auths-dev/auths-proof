@@ -260,6 +260,8 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-profile-mcp" [label="normal"];
   "auths-gateway" -> "auths-raw-key" [label="normal"];
   "auths-gateway" -> "auths-raw-key-core" [label="normal"];
+  "auths-gateway" -> "auths-recipe-qualification" [label="normal"];
+  "auths-gateway" -> "auths-recipe-qualification-issuance" [label="dev"];
   "auths-gateway" -> "auths-registries" [label="normal"];
   "auths-gateway" -> "auths-sdk" [label="dev"];
   "auths-gateway" -> "auths-signature" [label="normal"];

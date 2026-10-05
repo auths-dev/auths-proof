@@ -10,9 +10,10 @@
 //! Vectors that today's types already decide are driven here: the closed
 //! credential-store kind, the secret bound, recipes and submission frames
 //! that try to select custody or declare qualification, the fixed
-//! retirement delay, and redacted debug forms. The rest wait for the
-//! maintained adapter, the release verifier, and the support bundle. For
-//! those this module asserts the shortfall: no product crate defines a new
+//! retirement delay, and redacted debug forms. The qualification codes are
+//! implemented by the gate, whose tests drive every verification vector.
+//! The rest wait for the readiness codes and the support bundle. For those
+//! this module asserts the shortfall: no product crate defines a readiness
 //! code, and the gateway has no support bundle. The secret-name and version
 //! vectors are generated here from the stated derivation and driven by the
 //! Secrets Manager store's own tests, so the two agree or one of them fails. Those assertions are expected to fail when the implementing work
@@ -54,14 +55,14 @@ const SECRET_VERSION_DOMAIN: &str = "auths.gateway-secret-version/1";
 const ROWS: &[&str] = &[
     "gateway.credential.adapter-unsupported credential-store install-and-serve implemented 2 C:store-kind-vault",
     "gateway.credential.production-plaintext-refused credential-store install-and-serve implemented 2 C:store-kind-local-file",
-    "gateway.qualification.missing qualification before-lease new 3 V:nothing-attested",
-    "gateway.qualification.expired qualification before-lease new 3 V:attestation-expired",
-    "gateway.qualification.revoked qualification before-lease new 3 V:qualification-revoked",
-    "gateway.qualification.digest-mismatch qualification before-lease new 3 V:wrong-recipe",
-    "gateway.qualification.target-mismatch qualification before-lease new 3 V:wrong-target-os",
-    "gateway.qualification.unavailable qualification before-lease new 3 V:index-signature-forged",
-    "gateway.qualification.revocation-stale qualification before-lease new 3 V:revocation-list-past-next-update",
-    "gateway.qualification.clock-untrusted qualification before-lease new 3 V:clock-untrusted",
+    "gateway.qualification.missing qualification before-lease implemented 3 V:nothing-attested",
+    "gateway.qualification.expired qualification before-lease implemented 3 V:attestation-expired",
+    "gateway.qualification.revoked qualification before-lease implemented 3 V:qualification-revoked",
+    "gateway.qualification.digest-mismatch qualification before-lease implemented 3 V:wrong-recipe",
+    "gateway.qualification.target-mismatch qualification before-lease implemented 3 V:wrong-target-os",
+    "gateway.qualification.unavailable qualification before-lease implemented 3 V:index-signature-forged",
+    "gateway.qualification.revocation-stale qualification before-lease implemented 3 V:revocation-list-past-next-update",
+    "gateway.qualification.clock-untrusted qualification before-lease implemented 3 V:clock-untrusted",
     "gateway.readiness.connection-disabled readiness doctor new 4 -",
     "gateway.attempt.replay engine recorded existing - C:lease-never-precedes-claim",
     "gateway.connection.credential-generation-missing engine before-claim existing - C:lease-generation-not-held",
@@ -70,9 +71,11 @@ const ROWS: &[&str] = &[
     "gateway.serve.credential-store-unavailable serve serve existing - -",
 ];
 
-/// Code families the production work introduces whole. Until their epics
-/// land, the gateway defines no code under them.
-const NEW_FAMILIES: &[&str] = &["gateway.qualification.", "gateway.readiness."];
+/// Code families the production work introduces whole and that are still
+/// pending. Until their epics land, the gateway defines no code under them.
+/// The qualification family is implemented: the gate's own tests drive
+/// every verification vector through it.
+const NEW_FAMILIES: &[&str] = &["gateway.readiness."];
 
 /// Every hostile class the production work must have a vector for.
 const REQUIRED_CLASSES: &[&str] = &[

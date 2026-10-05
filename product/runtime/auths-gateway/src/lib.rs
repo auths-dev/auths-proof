@@ -23,8 +23,10 @@ mod observer;
 mod onboarding;
 mod operator;
 mod pre_entry;
+mod qualification;
 mod readiness;
 pub mod recipe;
+mod semantic_closure;
 mod separation;
 mod store;
 mod submit;
@@ -40,6 +42,8 @@ mod observed_tests;
 mod pending_vectors;
 #[cfg(test)]
 mod property_tests;
+#[cfg(all(test, unix))]
+mod qualification_tests;
 #[cfg(test)]
 mod quorum_tests;
 #[cfg(test)]
@@ -87,6 +91,14 @@ pub use operator::{
     OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,
     OperatorInstallation, OperatorStatement, verify_operator_attestation,
 };
+#[cfg(any(test, feature = "testkit-harness"))]
+pub use qualification::FixedClock;
+pub use qualification::{
+    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
+    QUALIFICATION_POLICY_REFUSED, QualificationBundle, QualificationGate, QualificationPolicy,
+    QualificationStatus, SynchronizedHostClock, deployment_tuple, qualification_code,
+    qualification_policy,
+};
 pub use readiness::{
     ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,
     ProductionReadiness, ReadinessPrecondition, RequiredPreconditions, credential_store_policy,
@@ -100,6 +112,7 @@ pub use recipe::{
     RecoveryCapability, RecoveryClass, RecoveryDeclarations, RequestHeader, StateObservation,
     UnknownResolution, WriteMethod, echo_token, idempotency_key, recovery_capability,
 };
+pub use semantic_closure::GATEWAY_SEMANTIC_CLOSURE_SHA256;
 pub use separation::{
     PrincipalSeparationError, check_anchor_aliasing, check_principal_separation, key_identity,
     principals_overlap,

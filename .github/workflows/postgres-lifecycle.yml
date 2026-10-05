@@ -39,7 +39,7 @@ jobs:
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: |
           cargo test -p auths-gateway --lib -- --ignored postgres
-          cargo test -p auths-gateway --features testkit-production-plaintext --test operator_plane -- --ignored postgres
+          cargo test -p auths-gateway --features testkit-production-plaintext,testkit-production-unqualified --test operator_plane -- --ignored postgres
       - name: Stop fixture
         if: always()
         run: docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml down -v

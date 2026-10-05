@@ -13,6 +13,10 @@ description = "Assembles, signs, and stages recipe qualification evidence for th
 name = "auths-qualification"
 path = "src/bin/auths-qualification.rs"
 
+[features]
+# Tests only: a synthetic candidate and release hierarchy under fixed keys.
+testkit = []
+
 [dependencies]
 auths-connections.workspace = true
 auths-recipe-qualification.workspace = true

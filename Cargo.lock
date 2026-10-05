@@ -628,6 +628,8 @@ dependencies = [
  "auths-profile-mcp",
  "auths-raw-key",
  "auths-raw-key-core",
+ "auths-recipe-qualification",
+ "auths-recipe-qualification-issuance",
  "auths-registries",
  "auths-sdk",
  "auths-signature",

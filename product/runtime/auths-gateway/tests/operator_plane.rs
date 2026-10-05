@@ -26,6 +26,10 @@ const LOCK: &[u8] =
 const TRUST: &[u8] =
     include_bytes!("../../../../core/fixtures/v1/denied/untrusted-root.context.cbor");
 
+/// A provider contract identifier for production installs. It names no
+/// real contract; these tests reach no qualification.
+const CONTRACT: &str = "3333333333333333333333333333333333333333333333333333333333333333";
+
 thread_local! {
     /// The `PostgreSQL` secret slots every gateway command of this test
     /// thread inherits; empty for the development store.
@@ -303,6 +307,10 @@ fn a_production_install_refuses_plaintext_and_unknown_credential_stores() {
             "synthetic-account",
             "--deployment",
             "production",
+            "--recipe-family",
+            "example-field-update-v1",
+            "--provider-contract-id",
+            CONTRACT,
         ],
         b"synthetic-token\n",
     );
@@ -332,6 +340,10 @@ fn a_production_install_needs_a_verifying_operator_attestation() {
             "synthetic-account",
             "--deployment",
             "production",
+            "--recipe-family",
+            "example-field-update-v1",
+            "--provider-contract-id",
+            CONTRACT,
             "--credential-store",
             "aws-secrets-manager-v1",
             "--credential-namespace",
@@ -364,6 +376,10 @@ fn a_production_install_needs_a_verifying_operator_attestation() {
             "synthetic-account",
             "--deployment",
             "production",
+            "--recipe-family",
+            "example-field-update-v1",
+            "--provider-contract-id",
+            CONTRACT,
             "--credential-store",
             "aws-secrets-manager-v1",
             "--credential-namespace",
@@ -514,12 +530,21 @@ fn built_for_production_plaintext_tests() -> bool {
     cfg!(feature = "testkit-production-plaintext")
 }
 
+/// Whether this build lets a production installation run unqualified.
+fn built_for_production_unqualified_tests() -> bool {
+    cfg!(feature = "testkit-production-unqualified")
+}
+
 #[test]
 #[ignore = "needs the TLS PostgreSQL fixture"]
 fn postgres_production_processes_share_the_connection() {
     assert!(
         built_for_production_plaintext_tests(),
         "run with --features testkit-production-plaintext: this test has no secret manager"
+    );
+    assert!(
+        built_for_production_unqualified_tests(),
+        "run with --features testkit-production-unqualified: no qualification root is pinned"
     );
     POSTGRES.with(|slot| *slot.borrow_mut() = postgres_slots());
     let (_directory, root) = private_root();
@@ -530,6 +555,10 @@ fn postgres_production_processes_share_the_connection() {
     let production = [
         "--deployment",
         "production",
+        "--recipe-family",
+        "example-field-update-v1",
+        "--provider-contract-id",
+        CONTRACT,
         "--operator-attestation",
         attestation_argument.as_str(),
     ];

@@ -68,7 +68,7 @@
       "code": "gateway.qualification.clock-untrusted",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -79,7 +79,7 @@
       "code": "gateway.qualification.digest-mismatch",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -90,7 +90,7 @@
       "code": "gateway.qualification.expired",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -101,7 +101,7 @@
       "code": "gateway.qualification.missing",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -112,7 +112,7 @@
       "code": "gateway.qualification.revocation-stale",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -123,7 +123,7 @@
       "code": "gateway.qualification.revoked",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -134,7 +134,7 @@
       "code": "gateway.qualification.target-mismatch",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",
@@ -145,7 +145,7 @@
       "code": "gateway.qualification.unavailable",
       "owner": "qualification",
       "stage": "before-lease",
-      "status": "new",
+      "status": "implemented",
       "epic": 3,
       "case": {
         "fixture": "../qualification/verification-vectors.json",

@@ -256,6 +256,19 @@ impl VerifiedQualifications {
         }
     }
 
+    /// Whether the certificate, the release index, and the revocation list
+    /// each verified, and the list is no older than the one `state` records
+    /// as accepted. Inputs that fail this authenticate nothing, whatever
+    /// else they contain.
+    #[must_use]
+    pub fn inputs_usable(&self, state: &VerifierState) -> bool {
+        self.certificate.is_some()
+            && self.index.is_some()
+            && self.revocations.as_ref().is_some_and(|list| {
+                list.body().statement.sequence >= state.accepted_revocation_sequence
+            })
+    }
+
     /// Adds what the verified revocation list names to `state` and raises
     /// the accepted sequence. A list older than the accepted one is ignored.
     pub fn remember(&self, state: &mut VerifierState) {

@@ -16,6 +16,8 @@ mod error;
 mod proposal;
 mod sign;
 pub mod stages;
+#[cfg(feature = "testkit")]
+pub mod testkit;
 
 pub use error::IssuanceError;
 pub use proposal::{CaseReport, NotApplicable, QualificationProposal, RecordDraft, evidence};

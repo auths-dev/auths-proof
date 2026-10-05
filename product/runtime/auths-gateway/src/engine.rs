@@ -234,6 +234,9 @@ pub struct GatewayEngine {
     profile: ConnectionProfile,
     connection: SharedConnection,
     credentials: Arc<dyn ConnectionCredentialStore>,
+    /// Whether this deployment's recipe is qualified; consulted before every
+    /// lease.
+    qualification: Arc<crate::QualificationGate>,
     attempts: GatewayAttempts,
     in_flight: AtomicU64,
     /// The gateway clock of the last successful slot sweep; zero before one.
@@ -299,6 +302,7 @@ impl GatewayEngine {
             profile,
             connection: SharedConnection::new(attempts.store(), provider, alias),
             credentials,
+            qualification: Arc::new(crate::QualificationGate::unconfigured()),
             attempts,
             in_flight: AtomicU64::new(0),
             last_sweep: AtomicU64::new(0),
@@ -317,6 +321,25 @@ impl GatewayEngine {
     pub fn with_loopback_provider(mut self, port: u16) -> Self {
         self.loopback_port = Some(port);
         self
+    }
+
+    /// Installs the qualification gate the operator plane built for this
+    /// deployment. Without one, every lease is refused as unqualified.
+    #[must_use]
+    pub fn with_qualification(mut self, gate: Arc<crate::QualificationGate>) -> Self {
+        self.qualification = gate;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_qualification(&mut self, gate: Arc<crate::QualificationGate>) {
+        self.qualification = gate;
+    }
+
+    /// The qualification gate, for the operator plane to reload and report.
+    #[must_use]
+    pub fn qualification(&self) -> &crate::QualificationGate {
+        &self.qualification
     }
 
     /// Installs the operator-provisioned observer key. Without one, every
@@ -901,6 +924,7 @@ impl GatewayEngine {
         }
         let descriptor = GatewayConnectionDescriptor::from_record(record, &self.recipe)
             .map_err(|_| "gateway.connection.recipe-mismatch")?;
+        self.qualification.check()?;
         if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
@@ -932,6 +956,9 @@ impl GatewayEngine {
     /// Leases through the credential-store trait, naming exactly the
     /// credential generation the loaded record seals.
     async fn lease(&self, prepared: &PreparedEntry) -> Result<StoredSecretLease, ()> {
+        // Time moved since the entry was prepared, so the gate is asked
+        // again: nothing reaches the credential store unqualified.
+        self.qualification.check().map_err(|_| ())?;
         self.credentials
             .lease_secret(
                 &prepared.loaded.record().credential_binding(),
@@ -1430,7 +1457,7 @@ pub(crate) async fn observe_read_back(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn airtable_recipe() -> CompiledRecipe {
@@ -1530,7 +1557,8 @@ mod tests {
                 credentials,
                 attempts,
             )
-            .expect("engine");
+            .expect("engine")
+            .with_qualification(Arc::new(crate::QualificationGate::development()));
             let mut engine = engine;
             engine.retirement_delay = Duration::ZERO;
             Host {
@@ -1644,6 +1672,17 @@ mod tests {
                         .await
                         .err()
                         .map(|()| "lease".to_owned()),
+                }
+            }
+
+            /// Prepares an entry, runs `between`, and reports whether the
+            /// lease is then refused.
+            pub(crate) async fn lease_refused_after(&self, between: impl FnOnce()) -> bool {
+                let prepared = self.engine.prepare_entry().await;
+                between();
+                match prepared {
+                    Ok(prepared) => self.engine.lease(&prepared).await.is_err(),
+                    Err(_) => true,
                 }
             }
 

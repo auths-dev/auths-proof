@@ -3623,6 +3623,32 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-recipe-qualification",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-recipe-qualification-issuance",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "testkit"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-registries",
       "target_layer": "core",
       "scope": "internal",
