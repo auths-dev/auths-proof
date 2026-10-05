@@ -57,6 +57,7 @@ members = [
     "product/sdk/auths-sdk",
     "product/sdk/auths-approval-quorum",
     "product/qualification/auths-recipe-qualification",
+    "product/qualification/auths-recipe-qualification-issuance",
     "product/errors/auths-errors",
     "product/policy/auths-bounded-policy",
     "product/policy/auths-bounded-policy/fuzz",
@@ -205,6 +206,7 @@ auths-operations-otel = { version = "1.0.0-rc.1", path = "product/operations/aut
 auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-approval-quorum = { version = "1.0.0-rc.1", path = "product/sdk/auths-approval-quorum" }
 auths-recipe-qualification = { version = "1.0.0-rc.1", path = "product/qualification/auths-recipe-qualification" }
+auths-recipe-qualification-issuance = { version = "1.0.0-rc.1", path = "product/qualification/auths-recipe-qualification-issuance" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-sigstore-bundle-import = { version = "1.0.0-rc.1", path = "product/tools/auths-sigstore-bundle-import" }
 auths-openapi-derive = { version = "1.0.0-rc.1", path = "product/tools/auths-openapi-derive" }

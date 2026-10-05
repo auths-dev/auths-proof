@@ -17,7 +17,9 @@
 #![forbid(unsafe_code)]
 
 mod canonical;
+mod closure;
 mod error;
+mod evidence;
 mod ids;
 mod model;
 mod release;
@@ -26,8 +28,30 @@ mod verify;
 #[cfg(test)]
 mod vectors;
 
+/// The file a release directory keeps its signer certificate in.
+pub const RELEASE_SIGNER_CERTIFICATE_FILE: &str = "signer-certificate.json";
+/// The file a release directory keeps its revocation list in.
+pub const RELEASE_REVOCATION_LIST_FILE: &str = "revocation-list.json";
+/// The file a release directory keeps its release index in.
+pub const RELEASE_INDEX_FILE: &str = "release-index.json";
+/// The directory a release directory keeps its records in, one file per
+/// qualification named `<qualification id>.json`.
+pub const RELEASE_RECORDS_DIRECTORY: &str = "records";
+/// The directory a release directory keeps its attestations in, one file
+/// per qualification named `<qualification id>.json`.
+pub const RELEASE_ATTESTATIONS_DIRECTORY: &str = "attestations";
+
 pub use canonical::{Artifact, Canonical};
+pub use closure::{
+    GatewaySemanticClosure, MAX_SEMANTIC_CLOSURE_BYTES, MAX_SEMANTIC_CLOSURE_FILES,
+    SEMANTIC_CLOSURE_SCHEMA, SemanticClosureBody, SemanticClosureFile,
+};
 pub use error::QualificationFormatError;
+pub use evidence::{
+    ClosureFault, EVIDENCE_SCHEMA, EvidenceBody, EvidenceCase, MAX_EVIDENCE_BYTES,
+    MAX_EVIDENCE_CASES, QualificationEvidence, TUPLE_DIGEST_DOMAIN, WallRow,
+    verify_evidence_closure,
+};
 pub use ids::{
     BoundedText, GitCommit, InvalidIdentifier, PublicKeyB64, QualificationId, QualificationRootId,
     QualificationSignerId, RecipeFamilyId, Sha256Digest, SignatureB64,

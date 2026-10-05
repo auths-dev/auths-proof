@@ -472,6 +472,11 @@
       "path": "product/qualification/auths-recipe-qualification"
     },
     {
+      "name": "auths-recipe-qualification-issuance",
+      "layer": "product",
+      "path": "product/qualification/auths-recipe-qualification-issuance"
+    },
+    {
       "name": "auths-records-api",
       "layer": "product",
       "path": "product/integrations/auths-records-api"
@@ -11230,6 +11235,180 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "auths-recipe-qualification",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "clap",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-recipe-qualification-issuance",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
     },
     {
       "source": "auths-records-api",

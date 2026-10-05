@@ -1571,6 +1571,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-recipe-qualification-issuance"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-connections",
+ "auths-recipe-qualification",
+ "base64ct",
+ "clap",
+ "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
+ "hex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
 name = "auths-records-api"
 version = "1.0.0-rc.1"
 dependencies = [

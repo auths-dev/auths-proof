@@ -97,6 +97,7 @@ auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
 auths-approval-quorum = "product"
 auths-recipe-qualification = "product"
+auths-recipe-qualification-issuance = "product"
 auths-identity = "core"
 auths-identity-authority = "core"
 auths-identity-raw-key = "core"
@@ -289,6 +290,13 @@ allowed_workspace_dependencies = ["auths-connections"]
 [dependency_boundaries.recipe-qualification]
 roots = ["auths-recipe-qualification"]
 allowed_workspace_dependencies = ["auths-connections"]
+
+# Release tooling assembles and signs qualifications from the model alone. It
+# reaches no gateway, recipe, provider, or verifier code, and no gateway
+# reaches it: a family's oracle is an argument to this crate's stages.
+[dependency_boundaries.recipe-qualification-issuance]
+roots = ["auths-recipe-qualification-issuance"]
+allowed_workspace_dependencies = ["auths-connections", "auths-recipe-qualification"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

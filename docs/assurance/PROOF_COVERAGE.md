@@ -7,7 +7,7 @@
 At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `6731517e74f54bd55b12186b6ca1c366db64b51e26ad48cbf8d6424d39287e17` over the 89 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `aa2ed884c2a3f36b66103057966c4d6ec0610647696c4f8b163225bba4026b76` over the 89 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5`. Figures computed under a different role table are not comparable.

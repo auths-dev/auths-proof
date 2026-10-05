@@ -1160,8 +1160,8 @@ kind = "cargo"
 layer = "product"
 path = "product/qualification/auths-recipe-qualification"
 core_apis = []
-protocol_versions = ["auths.provider-contract/1", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-schema-vectors/1", "auths.qualification-verification-vectors/1"]
-wire_objects = ["ProviderContract", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
+protocol_versions = ["auths.provider-contract/1", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1", "auths.qualification-tuple/1", "auths.gateway-semantic-closure/1", "auths.qualification-schema-vectors/1", "auths.qualification-verification-vectors/1"]
+wire_objects = ["GatewaySemanticClosure", "ProviderContract", "QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
 fixture_suites = ["bindings/fixtures/qualification"]
 principal_families = []
 signature_families = ["ed25519-v1"]
@@ -1177,6 +1177,33 @@ independent-semantic-implementation = [
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#contract_drift_changes_the_contract_identifier",
   "product/qualification/auths-recipe-qualification/src/vectors/verification.rs#every_verification_case_is_decided_as_frozen",
   "product/qualification/auths-recipe-qualification/src/model.rs#closed_derived_state_follows_only_its_transitions",
+]
+
+[packages.auths-recipe-qualification-issuance]
+kind = "cargo"
+layer = "product"
+path = "product/qualification/auths-recipe-qualification-issuance"
+core_apis = []
+protocol_versions = ["auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1"]
+wire_objects = ["QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
+fixture_suites = []
+principal_families = []
+signature_families = ["ed25519-v1"]
+profiles = []
+transports = []
+configuration_inputs = ["record-draft", "stage-case-reports", "qualification-trust-root-key-file", "release-signer-key-file"]
+security_state = ["qualification-trust-root-key", "release-signer-key"]
+
+[packages.auths-recipe-qualification-issuance.claims]
+proof-author-or-assembler = [
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_record_is_assembled_from_its_evidence_and_closes_over_it",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_run_with_a_failed_case_produces_no_evidence",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#assembly_refuses_a_wall_that_is_not_whole",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_record_does_not_close_over_other_evidence",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_signed_release_qualifies_its_deployment_and_nothing_else",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#each_signing_role_refuses_what_is_not_its_own",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#the_freshness_and_rotation_stages_hold_on_a_valid_candidate",
+  "product/qualification/auths-recipe-qualification-issuance/tests/cli.rs#a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not",
 ]
 
 [packages.auths-bounded-policy]
