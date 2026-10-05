@@ -44,12 +44,16 @@ const SECRET_NAME_DOMAIN: &str = "auths.gateway-secret-name/1";
 const SECRET_VERSION_DOMAIN: &str = "auths.gateway-secret-version/1";
 
 /// One row per code: code, owner, stage, status, epic (`-` for an existing
-/// code), and the producing case as `<fixture letter>:<case id>` (`-` when
+/// code), and the producing case. A status is `existing` for a code that
+/// predates this work, `implemented` for one this work added and a test
+/// here drives, and `new` for one still pending.
+///
+/// Columns: code, owner, stage, status, epic, and the producing case as `<fixture letter>:<case id>` (`-` when
 /// no vector can produce it). C is the custody vectors and V the
 /// qualification verification vectors.
 const ROWS: &[&str] = &[
-    "gateway.credential.adapter-unsupported credential-store install-and-serve new 2 C:store-kind-vault",
-    "gateway.credential.production-plaintext-refused credential-store install-and-serve new 2 C:store-kind-local-file",
+    "gateway.credential.adapter-unsupported credential-store install-and-serve implemented 2 C:store-kind-vault",
+    "gateway.credential.production-plaintext-refused credential-store install-and-serve implemented 2 C:store-kind-local-file",
     "gateway.qualification.missing qualification before-lease new 3 V:nothing-attested",
     "gateway.qualification.expired qualification before-lease new 3 V:attestation-expired",
     "gateway.qualification.revoked qualification before-lease new 3 V:qualification-revoked",
@@ -840,26 +844,26 @@ fn store_kind_vectors_match_the_closed_kind() {
     let corpus = load(CUSTODY_FILE);
     for case in corpus["store_kinds"].as_array().expect("store kinds") {
         let id = case["id"].as_str().expect("id");
-        let parsed = CredentialStoreKind::parse(case["token"].as_str().expect("token")).ok();
+        let token = case["token"].as_str().expect("token");
+        let parsed = CredentialStoreKind::parse(token).ok();
         assert_eq!(
             json!(parsed.map(CredentialStoreKind::as_str)),
             case["kind"],
             "case {id}"
         );
-        let development = &case["expect"]["development"]["code"];
-        let production = &case["expect"]["production"]["code"];
-        match parsed {
-            None => {
-                assert_eq!(development, ADAPTER_UNSUPPORTED, "case {id}");
-                assert_eq!(production, ADAPTER_UNSUPPORTED, "case {id}");
-            }
-            Some(kind) => {
-                assert!(development.is_null(), "case {id}");
-                assert_eq!(production.is_null(), kind.is_production(), "case {id}");
-                if !kind.is_production() {
-                    assert_eq!(production, PLAINTEXT_REFUSED, "case {id}");
-                }
-            }
+        // The policy the gateway applies at install and at serve.
+        for (policy, production) in [("development", false), ("production", true)] {
+            let decided = crate::credential_store_policy(token, production);
+            assert_eq!(
+                json!(decided.err()),
+                case["expect"][policy]["code"],
+                "case {id} under {policy} policy"
+            );
+            assert_eq!(
+                decided.ok(),
+                parsed.filter(|_| decided.is_ok()),
+                "case {id}"
+            );
         }
     }
 }
@@ -1137,7 +1141,9 @@ fn production_codes_await_their_epics() {
         let code = entry["code"].as_str().expect("code");
         assert!(listed.insert(code.to_owned()), "duplicate {code}");
         match entry["status"].as_str().expect("status") {
-            "existing" => assert!(crate_defines_code(&gateway, code), "{code} is missing"),
+            "existing" | "implemented" => {
+                assert!(crate_defines_code(&gateway, code), "{code} is missing");
+            }
             "new" => assert!(
                 !crate_defines_code(&all, code),
                 "{code} now exists: replace its pending vectors with conformance tests"

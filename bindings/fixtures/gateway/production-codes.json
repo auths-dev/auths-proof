@@ -27,7 +27,7 @@
       "code": "gateway.credential.adapter-unsupported",
       "owner": "credential-store",
       "stage": "install-and-serve",
-      "status": "new",
+      "status": "implemented",
       "epic": 2,
       "case": {
         "fixture": "custody-hostile.json",
@@ -38,7 +38,7 @@
       "code": "gateway.credential.production-plaintext-refused",
       "owner": "credential-store",
       "stage": "install-and-serve",
-      "status": "new",
+      "status": "implemented",
       "epic": 2,
       "case": {
         "fixture": "custody-hostile.json",

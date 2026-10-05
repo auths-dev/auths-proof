@@ -243,6 +243,7 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-bounded-policy" [label="normal"];
   "auths-gateway" -> "auths-codec" [label="normal"];
   "auths-gateway" -> "auths-connections" [label="normal"];
+  "auths-gateway" -> "auths-credentials-aws-secrets-manager" [label="normal"];
   "auths-gateway" -> "auths-custody" [label="dev"];
   "auths-gateway" -> "auths-custody" [label="normal"];
   "auths-gateway" -> "auths-custody-aws-kms" [label="dev"];

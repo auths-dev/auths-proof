@@ -14,8 +14,9 @@ fn main() {
 #[cfg(unix)]
 mod unix {
     use auths_connections::{
-        ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionRecord, ConnectionState,
-        PersistentCredentialStore, ProviderKind, SecretBytes, SemanticId,
+        ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionProfile,
+        ConnectionRecord, ConnectionState, CredentialStoreKind, PersistentCredentialStore,
+        ProviderKind, SecretBytes, SemanticId,
     };
     use auths_gateway::app::{
         APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA, AppObservation, AppSubmission, SessionClock,
@@ -63,7 +64,7 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/3";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/4";
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     use auths_gateway::admin::{
@@ -174,6 +175,24 @@ mod unix {
             /// Required for production.
             #[arg(long)]
             operator_attestation: Option<PathBuf>,
+            /// Where the provider secret is kept: `local-file-v1`
+            /// (development only) or `aws-secrets-manager-v1`. Production
+            /// refuses the local file.
+            #[arg(long, default_value = "local-file-v1")]
+            credential_store: String,
+            /// The deployment namespace of the production credential store.
+            #[arg(long)]
+            credential_namespace: Option<String>,
+            /// The region of the production credential store.
+            #[arg(long)]
+            aws_region: Option<String>,
+            /// The key new secrets are encrypted under.
+            #[arg(long)]
+            aws_kms_key: Option<String>,
+            /// The workload identity the gateway uses: `web-identity`,
+            /// `container`, or `instance-metadata`.
+            #[arg(long)]
+            aws_identity: Option<String>,
             /// Development only: the absolute directory of the file store
             /// the processes of one host share. Defaults to the state
             /// directory's own store.
@@ -497,6 +516,105 @@ mod unix {
         /// The development file store's absolute directory; absent for
         /// production, which uses the `PostgreSQL` store.
         attempt_store: Option<String>,
+        /// Where provider secrets are kept. It names no secret and no
+        /// external location.
+        credential_store: CredentialStoreSettings,
+    }
+
+    /// The operator's choice of credential store and, for the production
+    /// store, its deployment namespace, region, key, and workload identity.
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct CredentialStoreSettings {
+        kind: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        namespace: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        kms_key: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        identity: Option<String>,
+    }
+
+    /// Whether production custody policy applies. It always does for a
+    /// production deployment in a shipped build; only a build made for
+    /// tests can relax it.
+    const fn production_custody(deployment: Deployment) -> bool {
+        matches!(deployment, Deployment::Production)
+            && !cfg!(feature = "testkit-production-plaintext")
+    }
+
+    /// Opens the credential store the settings select, under the
+    /// deployment's policy. `unavailable` is the caller's code for a store
+    /// that is selected and permitted but cannot be opened.
+    fn open_credentials(
+        state_dir: &Path,
+        settings: &CredentialStoreSettings,
+        deployment: Deployment,
+        unavailable: &'static str,
+    ) -> Result<Arc<dyn ConnectionCredentialStore>, &'static str> {
+        use auths_credentials_aws_secrets_manager::{
+            AwsSecretsManagerStore, ContainerEndpoint, DeploymentNamespace, HttpSecretsApi,
+            InstanceMetadata, Region, WebIdentity, WorkloadIdentity,
+        };
+        let kind =
+            auths_gateway::credential_store_policy(&settings.kind, production_custody(deployment))?;
+        let aws_only = [
+            &settings.namespace,
+            &settings.region,
+            &settings.kms_key,
+            &settings.identity,
+        ];
+        match kind {
+            CredentialStoreKind::LocalFileV1 => {
+                if aws_only.iter().any(|setting| setting.is_some()) {
+                    return Err(unavailable);
+                }
+                Ok(Arc::new(
+                    PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
+                        .map_err(|_| unavailable)?,
+                ))
+            }
+            CredentialStoreKind::AwsSecretsManagerV1 => {
+                let namespace = settings
+                    .namespace
+                    .as_deref()
+                    .and_then(|value| DeploymentNamespace::parse(value).ok())
+                    .ok_or(unavailable)?;
+                let region = settings
+                    .region
+                    .as_deref()
+                    .and_then(|value| Region::parse(value).ok())
+                    .ok_or(unavailable)?;
+                let variable = |name: &str| std::env::var(name).map_err(|_| unavailable);
+                // Each identity is selected by name. None falls back to another.
+                let identity: Box<dyn WorkloadIdentity> = match settings.identity.as_deref() {
+                    Some("web-identity") => Box::new(
+                        WebIdentity::new(
+                            &region,
+                            variable("AWS_ROLE_ARN")?,
+                            variable("AWS_WEB_IDENTITY_TOKEN_FILE")?,
+                        )
+                        .map_err(|_| unavailable)?,
+                    ),
+                    Some("container") => Box::new(
+                        ContainerEndpoint::new(
+                            variable("AWS_CONTAINER_CREDENTIALS_FULL_URI")?,
+                            variable("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")?,
+                        )
+                        .map_err(|_| unavailable)?,
+                    ),
+                    Some("instance-metadata") => {
+                        Box::new(InstanceMetadata::new().map_err(|_| unavailable)?)
+                    }
+                    _ => return Err(unavailable),
+                };
+                let api = HttpSecretsApi::new(region, settings.kms_key.clone(), identity)
+                    .map_err(|_| unavailable)?;
+                Ok(Arc::new(AwsSecretsManagerStore::new(api, namespace)))
+            }
+        }
     }
 
     impl Installation {
@@ -790,8 +908,14 @@ mod unix {
         deployment: Deployment,
         operator_attestation: Option<PathBuf>,
         attempt_store: Option<PathBuf>,
+        credential_store: CredentialStoreSettings,
         loopback_provider: Option<u16>,
     ) -> Result<(), Failure> {
+        // The store choice is checked before anything is read or written.
+        auths_gateway::credential_store_policy(
+            &credential_store.kind,
+            production_custody(deployment),
+        )?;
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin".into());
         }
@@ -830,6 +954,7 @@ mod unix {
             deployment,
             operator_attestation_sha256: None,
             attempt_store: store_path.as_ref().map(|path| path.display().to_string()),
+            credential_store,
         };
         let attestation = match (operator_attestation, deployment) {
             (Some(path), _) => {
@@ -855,11 +980,15 @@ mod unix {
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
         };
-        let credentials = PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
-            .map_err(|_| "gateway.install.credential-store-unavailable")?;
+        let credentials = open_credentials(
+            &state_dir,
+            &manifest.credential_store,
+            deployment,
+            "gateway.install.credential-store-unavailable",
+        )?;
         let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
         if join {
-            join_connection(&shared, &credentials, &recipe, &candidate).await?;
+            join_connection(&shared, &*credentials, &recipe, &candidate).await?;
         } else {
             let account_label = account_label.ok_or("gateway.install.invalid-account-label")?;
             if account_label.is_empty() || account_label.len() > 256 {
@@ -883,7 +1012,7 @@ mod unix {
             let record_id = connection_id.clone();
             install_connection(
                 &shared,
-                &credentials,
+                &*credentials,
                 move |reference| {
                     ConnectionRecord::new(
                         provider,
@@ -1054,10 +1183,12 @@ mod unix {
                 .map_err(|_| "gateway.serve.invalid-alias")?,
             "gateway".to_owned(),
             profile,
-            Arc::new(
-                PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
-                    .map_err(|_| "gateway.serve.credential-store-unavailable")?,
-            ),
+            open_credentials(
+                state_dir,
+                &manifest.credential_store,
+                manifest.deployment,
+                "gateway.serve.credential-store-unavailable",
+            )?,
             open_attempts(
                 manifest.deployment,
                 manifest.attempt_store.as_ref().map(PathBuf::from),
@@ -1920,8 +2051,24 @@ mod unix {
     ) -> Result<(), &'static str> {
         let state =
             fs::symlink_metadata(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
-        let credential = fs::symlink_metadata(state_dir.join("credentials.cbor"))
-            .map_err(|_| "gateway.doctor.credential-unavailable")?;
+        // Only the development store keeps a credential file in the state
+        // directory. The production store keeps nothing there to protect.
+        let custody = installation(state_dir)
+            .map_err(|_| "gateway.doctor.state-unavailable")?
+            .credential_store
+            .kind;
+        let credential_file = if custody == CredentialStoreKind::LocalFileV1.as_str() {
+            Some(
+                fs::symlink_metadata(state_dir.join("credentials.cbor"))
+                    .map_err(|_| "gateway.doctor.credential-unavailable")?,
+            )
+        } else {
+            None
+        };
+        let credential_private = credential_file.as_ref().is_none_or(|credential| {
+            let exposed = credential.permissions().mode() & 0o077 != 0;
+            credential.file_type().is_file() && !exposed
+        });
         let admin =
             fs::symlink_metadata(admin_socket).map_err(|_| "gateway.doctor.admin-unavailable")?;
         let admin_parent_private = admin_socket
@@ -1937,14 +2084,15 @@ mod unix {
         };
         if !state.file_type().is_dir()
             || state.permissions().mode() & 0o077 != 0
-            || !credential.file_type().is_file()
-            || credential.permissions().mode() & 0o077 != 0
+            || !credential_private
             || !admin.file_type().is_socket()
             || !admin_parent_private
             || !app.file_type().is_socket()
             || !secure_socket_parent(app_socket, state.uid())
             || app.uid() != state.uid()
-            || state.uid() != credential.uid()
+            || credential_file
+                .as_ref()
+                .is_some_and(|credential| state.uid() != credential.uid())
             || state.uid() == application_uid
             || !observer_private
         {
@@ -1974,9 +2122,16 @@ mod unix {
         if !status.success() {
             return Err("gateway.doctor.isolation-not-established");
         }
+        let observer = if state_dir.join(OBSERVER_SEED).exists() {
+            "configured"
+        } else {
+            "not configured (signed outcomes unavailable)"
+        };
         println!(
             "gateway state and admin socket denied to app UID; app socket reachable. Independent token copies and egress policy not checked."
         );
+        println!("provider credential store: {custody}");
+        println!("observer: {observer}");
         Ok(())
     }
 
@@ -2018,11 +2173,23 @@ mod unix {
                 deployment,
                 operator_attestation,
                 attempt_store,
+                credential_store,
+                credential_namespace,
+                aws_region,
+                aws_kms_key,
+                aws_identity,
                 #[cfg(feature = "loopback-provider")]
                 loopback_provider,
             } => {
                 #[cfg(not(feature = "loopback-provider"))]
                 let loopback_provider = None;
+                let credential_store = CredentialStoreSettings {
+                    kind: credential_store,
+                    namespace: credential_namespace,
+                    region: aws_region,
+                    kms_key: aws_kms_key,
+                    identity: aws_identity,
+                };
                 install(
                     state_dir,
                     recipe,
@@ -2038,6 +2205,7 @@ mod unix {
                     deployment,
                     operator_attestation,
                     attempt_store,
+                    credential_store,
                     loopback_provider,
                 )
                 .await

@@ -48,6 +48,13 @@ pub trait WorkloadIdentity: Send + Sync {
     async fn session(&self, deadline: Instant) -> Result<SessionCredentials, SecretsApiError>;
 }
 
+#[async_trait]
+impl WorkloadIdentity for Box<dyn WorkloadIdentity> {
+    async fn session(&self, deadline: Instant) -> Result<SessionCredentials, SecretsApiError> {
+        (**self).session(deadline).await
+    }
+}
+
 fn text(value: &mut Value, member: &str) -> Option<String> {
     match value.get_mut(member)?.take() {
         Value::String(text) if !text.is_empty() => Some(text),
