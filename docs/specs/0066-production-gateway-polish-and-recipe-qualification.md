@@ -1224,9 +1224,19 @@ refund journey, hostile cases included, with the key installed into Secrets
 Manager and leased from it for every write, and the connection revoked at
 the end so nothing was left in the store. The offline audit of that run
 passed. Its provider was the counting double, so this shows the whole
-custody path through a real gateway and not a real provider's behavior. A
-write to a live provider through this path is the remaining part of the done
-gate and needs the owner's provider account identifiers.
+custody path through a real gateway and not a real provider's behavior.
+
+**Open: a write to a live provider through this path.** It is the remaining
+part of Epic 2's done gate. The owner stored a Stripe restricted test key as
+the environment's secret on 2026-10-05 and then deferred the run; it still
+needs a platform account, a connected account, a refundable payment, and a
+refunded payment from the test account. Until it runs, Epic 2 is not done by
+its own gate.
+
+A later run ([run 37331000975](https://github.com/auths-dev/auths-proof/actions/runs/37331000975))
+adds two least-privilege facts at the store: the runtime role cannot delete,
+and the operator role cannot read what it wrote. The network client is also
+tested directly against a loopback service that answers wrongly.
 
 **The gateway's identity needs to write.** Rotation and revocation are
 performed by the serving process, so its workload identity needs create and
