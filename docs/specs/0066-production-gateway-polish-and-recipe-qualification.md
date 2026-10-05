@@ -2,8 +2,8 @@
 
 - **Status:** Draft. Epic 1 (types, threats, and evidence contracts) is
   implemented; §18 records its status and readings. Epic 2 (production
-  custody and rotation) is implemented except for its live run, which waits
-  for the owner's approval of the protected environment; §19 records it. No
+  custody and rotation) is implemented and its store contract has passed
+  against the live service; §19 records it. No
   release verifier, runtime qualification gate, or qualified recipe exists,
   and none is claimed by this document.
 - **Depends on:** [AP-SPEC-038](0038-production-runtime-custody-observability-and-assurance.md)
@@ -1213,11 +1213,21 @@ the bound in §8, not to add a configuration that widens it.
 
 ## 19. Epic 2 status and readings
 
-Epic 2 is implemented in code and tests. Its done gate also requires a real
-disposable write through the maintained adapter; the workflow that performs
-the store's part of that exists and has not run, because it waits for a
-required reviewer. Until it passes, nothing here has touched the live service
-and the adapter's behavior against it is unconfirmed.
+Epic 2 is implemented in code and tests, and the store contract has passed
+against the live service ([run 37304826956](https://github.com/auths-dev/auths-proof/actions/runs/37304826956), second attempt): real disposable secrets
+were written with the operator role, read with the runtime role, rotated,
+revoked, and deleted. That confirms the derived version identifier, the
+request signing, and the web-identity exchange against the real service.
+
+It does not confirm a provider write through a gateway that uses this store:
+the run exercises the store, not a recipe. That end-to-end write belongs to
+the qualification epics.
+
+The first attempts failed for a reason outside the code. This repository
+uses the identity provider's immutable subject, so the token's subject is
+`repo:auths-dev@260513770/auths-proof@1310728509:environment:gateway-custody-live`
+and not the name-only form the roles first trusted. The roles now trust
+exactly that subject.
 
 ### 19.1 What exists
 
