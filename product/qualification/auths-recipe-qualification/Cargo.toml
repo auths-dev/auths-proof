@@ -1,0 +1,26 @@
+[package]
+name = "auths-recipe-qualification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+description = "Recipe-scoped provider qualification records and release trust artifacts for the Auths gateway"
+
+[dependencies]
+auths-connections.workspace = true
+base64ct.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

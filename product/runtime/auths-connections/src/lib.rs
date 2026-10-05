@@ -13,11 +13,12 @@ mod registry;
 
 pub use credential::{
     ConnectionCredentialStore, CredentialReferenceCommitment, CredentialStoreError,
-    InMemoryCredentialStore, PersistentCredentialStore, SecretBytes, StoredSecretLease,
+    CredentialStoreKind, InMemoryCredentialStore, PersistentCredentialStore, SecretBytes,
+    StoredSecretLease, UnknownCredentialStoreKind,
 };
 pub use model::{
     ConnectionAlias, ConnectionBinding, ConnectionId, ConnectionProfile, ConnectionRecord,
-    ConnectionRecordError, ConnectionState, ProviderKind, SemanticId,
+    ConnectionRecordError, ConnectionState, CredentialBinding, ProviderKind, SemanticId,
 };
 pub use registry::{ConnectionRegistry, ConnectionRegistryError, RegistryLimits};
 

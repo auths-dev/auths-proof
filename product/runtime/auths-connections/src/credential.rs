@@ -1,4 +1,4 @@
-use crate::{ConnectionBinding, ConnectionId, ConnectionRecord, kernel};
+use crate::{ConnectionId, ConnectionRecord, CredentialBinding, kernel};
 use async_trait::async_trait;
 use minicbor::{Decoder, Encoder, encode::Write as CborWrite};
 use sha2::{Digest as _, Sha256};
@@ -25,7 +25,9 @@ const MAXIMUM_SECRET_BYTES: usize = 65_536;
 
 /// Privileged secret bytes accepted only by connection administration.
 ///
-/// The bytes are zeroized when the value is dropped.
+/// Invariant `bounded-redacted-input`: the value is non-empty and at most
+/// 65,536 bytes, is zeroized when dropped, prints nothing of itself under
+/// `Debug`, and has no serialization, comparison, or display form.
 pub struct SecretBytes(Zeroizing<Vec<u8>>);
 
 impl SecretBytes {
@@ -59,6 +61,10 @@ fn valid_secret_length(length: usize) -> bool {
 }
 
 /// Commitment to an internal, caller-unresolvable credential reference.
+///
+/// Invariant `caller-unresolvable-reference`: a connection binds the exact
+/// stored secret generation through this value, which reveals neither where
+/// the secret is kept nor anything of the secret.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct CredentialReferenceCommitment([u8; 32]);
 
@@ -89,7 +95,9 @@ impl fmt::Debug for CredentialReferenceCommitment {
 
 /// Deadline-bound lease visible only to a provider adapter.
 ///
-/// The leased copy is zeroized when the lease is dropped.
+/// Invariant `deadline-bound-zeroized`: the bytes can be borrowed only
+/// before the deadline, and the leased copy is zeroized when the lease is
+/// dropped.
 pub struct StoredSecretLease {
     bytes: Zeroizing<Vec<u8>>,
     deadline: Instant,
@@ -115,13 +123,78 @@ impl fmt::Debug for StoredSecretLease {
     }
 }
 
+/// The maintained credential-store kinds.
+///
+/// Invariant `closed-store-kind`: the set is exactly the kinds below. A
+/// kind is selected by the operator, never by a recipe, an action, or an
+/// application, and an unknown token is refused rather than mapped to a
+/// default.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum CredentialStoreKind {
+    /// The owner-only local credential file. Development only: the secret
+    /// is plaintext on the gateway host's disk.
+    LocalFileV1,
+    /// AWS Secrets Manager read through workload identity at an exact
+    /// immutable version. The maintained production kind.
+    AwsSecretsManagerV1,
+}
+
+/// A credential-store kind token outside the closed set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
+#[error("unknown credential-store kind")]
+pub struct UnknownCredentialStoreKind;
+
+impl CredentialStoreKind {
+    /// Every maintained kind, in canonical token order.
+    pub const ALL: [Self; 2] = [Self::AwsSecretsManagerV1, Self::LocalFileV1];
+
+    /// Parses the exact canonical token of a maintained kind.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnknownCredentialStoreKind`] for every other value,
+    /// including a token that differs only in case, surrounding space, or
+    /// version.
+    pub fn parse(token: &str) -> Result<Self, UnknownCredentialStoreKind> {
+        Self::ALL
+            .into_iter()
+            .find(|kind| kind.as_str() == token)
+            .ok_or(UnknownCredentialStoreKind)
+    }
+
+    /// Returns the canonical token.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LocalFileV1 => "local-file-v1",
+            Self::AwsSecretsManagerV1 => "aws-secrets-manager-v1",
+        }
+    }
+
+    /// Whether a production deployment may hold provider secrets in this
+    /// kind. The local file never qualifies.
+    #[must_use]
+    pub const fn is_production(self) -> bool {
+        match self {
+            Self::LocalFileV1 => false,
+            Self::AwsSecretsManagerV1 => true,
+        }
+    }
+}
+
 /// Generic secret-store mechanism. It knows identity and generation only.
+///
+/// Invariant `identity-and-generation-only`: every method takes a connection
+/// identity, generations, secret bytes, or a [`CredentialBinding`], and none
+/// of those carries a provider, recipe, address, header, or action. A store
+/// has nothing else to select by.
 ///
 /// A stored credential is keyed by the connection generation at which it was
 /// installed or rotated in. Administrative changes that carry no new secret
-/// advance the connection generation without storing anything, so the
-/// credential retained for a generation is the newest stored generation of
-/// that connection that is not newer than it.
+/// advance the connection generation without storing anything. A binding
+/// therefore names both generations, and a lease reads exactly the
+/// credential generation the binding names: a store never chooses a
+/// generation on the caller's behalf.
 #[async_trait]
 pub trait ConnectionCredentialStore: Send + Sync {
     /// Installs the first credential generation.
@@ -132,11 +205,12 @@ pub trait ConnectionCredentialStore: Send + Sync {
         secret: SecretBytes,
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError>;
 
-    /// Leases the credential retained for the generation named by a sealed
-    /// binding, after matching the binding's credential-reference commitment.
+    /// Leases the credential stored at exactly the credential generation a
+    /// binding names, after matching the binding's reference commitment in
+    /// constant time.
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError>;
 
@@ -244,18 +318,14 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
 
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
         let entries = self
             .entries
             .read()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        let (_, stored) = retained_entry(&entries, binding.connection_id(), binding.generation())
-            .ok_or(CredentialStoreError::Unavailable)?;
-        if stored.commitment.as_bytes() != binding.credential_reference_commitment() {
-            return Err(CredentialStoreError::Substitution);
-        }
+        let stored = binding_entry(&entries, binding)?;
         Ok(StoredSecretLease {
             bytes: stored.bytes.clone(),
             deadline,
@@ -662,6 +732,34 @@ fn retained_entry<'entries>(
         .map(|((_, stored), entry)| (*stored, entry))
 }
 
+/// The entry a binding names: stored at exactly the binding's credential
+/// generation, which must also be the newest stored generation not after the
+/// binding's generation, with the binding's commitment.
+///
+/// The second condition keeps a superseded credential from serving a later
+/// generation even if a binding were ever to name one.
+fn binding_entry<'entries>(
+    entries: &'entries BTreeMap<(String, u64), StoredSecret>,
+    binding: &CredentialBinding,
+) -> Result<&'entries StoredSecret, CredentialStoreError> {
+    let connection_id = binding.connection_id();
+    let stored = connection_generations(entries, connection_id).collect::<Vec<_>>();
+    let generation = kernel::lease_generation(
+        binding.generation().get(),
+        binding.credential_generation().get(),
+        &stored,
+    )
+    .ok_or(CredentialStoreError::Unavailable)?;
+    let entry = entries
+        .get(&(connection_id.as_str().to_owned(), generation))
+        .ok_or(CredentialStoreError::Unavailable)?;
+    if entry.commitment.matches(binding.reference_commitment()) {
+        Ok(entry)
+    } else {
+        Err(CredentialStoreError::Substitution)
+    }
+}
+
 /// The entry that serves `record`: stored at exactly the generation
 /// [`kernel::lease_generation`] selects, with the record's commitment.
 fn record_entry<'entries>(
@@ -733,18 +831,14 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
 
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
         let entries = self
             .entries
             .lock()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        let (_, stored) = retained_entry(&entries, binding.connection_id(), binding.generation())
-            .ok_or(CredentialStoreError::Unavailable)?;
-        if stored.commitment.as_bytes() != binding.credential_reference_commitment() {
-            return Err(CredentialStoreError::Substitution);
-        }
+        let stored = binding_entry(&entries, binding)?;
         Ok(StoredSecretLease {
             bytes: stored.bytes.clone(),
             deadline,
@@ -1071,6 +1165,7 @@ fn credential_commitment(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ConnectionBinding;
     use crate::model::tests::record;
 
     #[test]
@@ -1089,6 +1184,41 @@ mod tests {
     }
 
     #[test]
+    fn closed_store_kind_accepts_exactly_its_canonical_tokens() {
+        for kind in CredentialStoreKind::ALL {
+            assert_eq!(CredentialStoreKind::parse(kind.as_str()), Ok(kind));
+        }
+        let mut tokens: Vec<&str> = CredentialStoreKind::ALL
+            .iter()
+            .map(|kind| kind.as_str())
+            .collect();
+        let listed = tokens.clone();
+        tokens.sort_unstable();
+        tokens.dedup();
+        assert_eq!(tokens, listed, "tokens are unique and in canonical order");
+        assert!(!CredentialStoreKind::LocalFileV1.is_production());
+        assert!(CredentialStoreKind::AwsSecretsManagerV1.is_production());
+        for unknown in [
+            "",
+            "local-file",
+            "local-file-v2",
+            "Local-File-V1",
+            " local-file-v1",
+            "aws-secrets-manager-v1\n",
+            "aws-secrets-manager",
+            "latest",
+            "env",
+            "vault-v1",
+        ] {
+            assert_eq!(
+                CredentialStoreKind::parse(unknown),
+                Err(UnknownCredentialStoreKind),
+                "{unknown:?}"
+            );
+        }
+    }
+
+    #[test]
     fn binding_commitment_substitution_fails_closed() {
         let connection = record();
         let binding = ConnectionBinding {
@@ -1099,6 +1229,7 @@ mod tests {
             descriptor_schema: connection.descriptor_schema().clone(),
             descriptor: connection.descriptor().to_vec(),
             generation: connection.generation(),
+            credential_generation: connection.credential_generation(),
             descriptor_commitment: *connection.descriptor_commitment(),
             account_commitment: *connection.account_commitment(),
             credential_reference_commitment: [9; 32],
@@ -1111,7 +1242,9 @@ mod tests {
         );
         let lease = async {
             install.await.unwrap();
-            store.lease_secret(&binding, Instant::now()).await
+            store
+                .lease_secret(&binding.credential(), Instant::now())
+                .await
         };
         assert_eq!(
             futures_lite_for_tests(lease).unwrap_err(),
@@ -1147,13 +1280,15 @@ mod tests {
             descriptor_schema: connection.descriptor_schema().clone(),
             descriptor: connection.descriptor().to_vec(),
             generation: connection.generation(),
+            credential_generation: connection.credential_generation(),
             descriptor_commitment: *connection.descriptor_commitment(),
             account_commitment: *connection.account_commitment(),
             credential_reference_commitment: *commitment.as_bytes(),
         };
-        let lease = futures_lite_for_tests(
-            reopened.lease_secret(&binding, Instant::now() + std::time::Duration::from_secs(1)),
-        )
+        let lease = futures_lite_for_tests(reopened.lease_secret(
+            &binding.credential(),
+            Instant::now() + std::time::Duration::from_secs(1),
+        ))
         .unwrap();
         assert_eq!(lease.expose(Instant::now()).unwrap(), b"super-secret-value");
         assert!(!format!("{lease:?}").contains("super-secret"));
@@ -1294,6 +1429,7 @@ mod tests {
 #[cfg(test)]
 mod generation_tests {
     use super::*;
+    use crate::ConnectionBinding;
     use crate::model::tests::record;
 
     const CONNECTION: &str = "conn_AAAAAAAAAAAAAAAAAAAAAA";
@@ -1334,7 +1470,13 @@ mod generation_tests {
         (directory, path, store)
     }
 
-    fn binding_at(value: u64, commitment: CredentialReferenceCommitment) -> ConnectionBinding {
+    /// A binding at connection generation `value` naming the credential
+    /// stored at `credential`.
+    fn binding_at(
+        value: u64,
+        credential: u64,
+        commitment: CredentialReferenceCommitment,
+    ) -> ConnectionBinding {
         let connection = record();
         ConnectionBinding {
             provider_kind: connection.provider_kind().clone(),
@@ -1344,6 +1486,7 @@ mod generation_tests {
             descriptor_schema: connection.descriptor_schema().clone(),
             descriptor: connection.descriptor().to_vec(),
             generation: generation(value),
+            credential_generation: generation(credential),
             descriptor_commitment: *connection.descriptor_commitment(),
             account_commitment: *connection.account_commitment(),
             credential_reference_commitment: *commitment.as_bytes(),
@@ -1355,7 +1498,7 @@ mod generation_tests {
         binding: &ConnectionBinding,
     ) -> Result<Vec<u8>, CredentialStoreError> {
         let deadline = Instant::now() + std::time::Duration::from_secs(5);
-        let leased = ready(store.lease_secret(binding, deadline))?;
+        let leased = ready(store.lease_secret(&binding.credential(), deadline))?;
         leased.expose(Instant::now()).map(<[u8]>::to_vec)
     }
 
@@ -1374,7 +1517,7 @@ mod generation_tests {
         let id = ConnectionId::parse(CONNECTION).unwrap();
         let first = ready(store.install(&id, generation(1), secret(b"first-secret"))).unwrap();
         assert_eq!(
-            lease(&store, &binding_at(3, first)).unwrap(),
+            lease(&store, &binding_at(3, 1, first)).unwrap(),
             b"first-secret"
         );
         assert_eq!(
@@ -1384,31 +1527,42 @@ mod generation_tests {
         assert_eq!(
             lease(
                 &store,
-                &binding_at(3, CredentialReferenceCommitment([9; 32]))
+                &binding_at(3, 1, CredentialReferenceCommitment([9; 32]))
             )
             .unwrap_err(),
             CredentialStoreError::Substitution
+        );
+        assert_eq!(
+            lease(&store, &binding_at(3, 2, first)).unwrap_err(),
+            CredentialStoreError::Unavailable,
+            "a lease reads the named credential generation and searches for no other"
         );
 
         let second =
             ready(store.replace(&id, generation(3), generation(4), secret(b"second-secret")))
                 .unwrap();
         assert_eq!(
-            lease(&store, &binding_at(4, second)).unwrap(),
+            lease(&store, &binding_at(4, 4, second)).unwrap(),
             b"second-secret"
         );
         assert_eq!(
-            lease(&store, &binding_at(6, second)).unwrap(),
+            lease(&store, &binding_at(6, 4, second)).unwrap(),
             b"second-secret"
         );
         assert_eq!(
-            lease(&store, &binding_at(3, first)).unwrap(),
-            b"first-secret"
+            lease(&store, &binding_at(3, 1, first)).unwrap(),
+            b"first-secret",
+            "an attempt admitted before the rotation keeps its whole old generation"
         );
         assert_eq!(
-            lease(&store, &binding_at(4, first)).unwrap_err(),
-            CredentialStoreError::Substitution,
+            lease(&store, &binding_at(4, 1, first)).unwrap_err(),
+            CredentialStoreError::Unavailable,
             "a superseded credential never serves a later generation"
+        );
+        assert_eq!(
+            lease(&store, &binding_at(4, 4, first)).unwrap_err(),
+            CredentialStoreError::Substitution,
+            "the commitment is matched at the named generation"
         );
         assert_eq!(stored(&store, CONNECTION), [1, 4]);
     }
@@ -1590,7 +1744,7 @@ mod generation_tests {
         assert!(stored(&store, CONNECTION).is_empty());
         assert_eq!(stored(&store, OTHER_CONNECTION), [1]);
         assert_eq!(
-            lease(&store, &binding_at(1, first)).unwrap_err(),
+            lease(&store, &binding_at(1, 1, first)).unwrap_err(),
             CredentialStoreError::Unavailable
         );
         store

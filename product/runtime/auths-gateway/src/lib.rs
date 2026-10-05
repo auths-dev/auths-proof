@@ -23,6 +23,7 @@ mod observer;
 mod onboarding;
 mod operator;
 mod pre_entry;
+mod readiness;
 pub mod recipe;
 mod separation;
 mod store;
@@ -86,6 +87,10 @@ pub use operator::{
     OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,
     OperatorInstallation, OperatorStatement, verify_operator_attestation,
 };
+pub use readiness::{
+    ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,
+    ProductionReadiness, ReadinessPrecondition, RequiredPreconditions,
+};
 pub use recipe::{
     ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,
     ClosedProviderRequest, CompiledRecipe, CredentialReadMethod, CredentialRequirement,
@@ -108,3 +113,4 @@ pub use store::{
     PrivateDirectoryError, check_private_directory, check_private_directory_owned_by,
     pre_entry_digest,
 };
+pub use transport::MAX_TRANSPORT_DURATION;

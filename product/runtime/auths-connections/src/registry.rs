@@ -181,6 +181,7 @@ impl ConnectionRegistry {
             || record.contract() != binding.contract()
             || record.descriptor_schema() != binding.descriptor_schema()
             || record.generation() != binding.generation()
+            || record.credential_generation() != binding.credential_generation()
             || record.descriptor_commitment() != binding.descriptor_commitment()
             || record.account_commitment() != binding.account_commitment()
         {
@@ -324,6 +325,7 @@ fn binding(record: &ConnectionRecord) -> ConnectionBinding {
         descriptor_schema: record.descriptor_schema().clone(),
         descriptor: record.descriptor().to_vec(),
         generation: record.generation(),
+        credential_generation: record.credential_generation(),
         descriptor_commitment: *record.descriptor_commitment(),
         account_commitment: *record.account_commitment(),
         credential_reference_commitment: *record.credential_reference_commitment(),

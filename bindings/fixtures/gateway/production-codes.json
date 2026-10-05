@@ -1,0 +1,172 @@
+{
+  "schema": "auths.gateway-production-codes/1",
+  "codes": [
+    {
+      "code": "gateway.attempt.replay",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "custody-hostile.json",
+        "id": "lease-never-precedes-claim"
+      }
+    },
+    {
+      "code": "gateway.connection.credential-generation-missing",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "custody-hostile.json",
+        "id": "lease-generation-not-held"
+      }
+    },
+    {
+      "code": "gateway.credential.adapter-unsupported",
+      "owner": "credential-store",
+      "stage": "install-and-serve",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "custody-hostile.json",
+        "id": "store-kind-vault"
+      }
+    },
+    {
+      "code": "gateway.credential.production-plaintext-refused",
+      "owner": "credential-store",
+      "stage": "install-and-serve",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "custody-hostile.json",
+        "id": "store-kind-local-file"
+      }
+    },
+    {
+      "code": "gateway.credential.unavailable",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "custody-hostile.json",
+        "id": "lease-commitment-mismatch"
+      }
+    },
+    {
+      "code": "gateway.install.credential-store-unavailable",
+      "owner": "install",
+      "stage": "install",
+      "status": "existing",
+      "epic": null,
+      "case": null
+    },
+    {
+      "code": "gateway.qualification.clock-untrusted",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "clock-untrusted"
+      }
+    },
+    {
+      "code": "gateway.qualification.digest-mismatch",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "wrong-recipe"
+      }
+    },
+    {
+      "code": "gateway.qualification.expired",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "attestation-expired"
+      }
+    },
+    {
+      "code": "gateway.qualification.missing",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "nothing-attested"
+      }
+    },
+    {
+      "code": "gateway.qualification.revocation-stale",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "revocation-list-past-next-update"
+      }
+    },
+    {
+      "code": "gateway.qualification.revoked",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "qualification-revoked"
+      }
+    },
+    {
+      "code": "gateway.qualification.target-mismatch",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "wrong-target-os"
+      }
+    },
+    {
+      "code": "gateway.qualification.unavailable",
+      "owner": "qualification",
+      "stage": "before-lease",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "../qualification/verification-vectors.json",
+        "id": "index-signature-forged"
+      }
+    },
+    {
+      "code": "gateway.readiness.connection-disabled",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "new",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.serve.credential-store-unavailable",
+      "owner": "serve",
+      "stage": "serve",
+      "status": "existing",
+      "epic": null,
+      "case": null
+    }
+  ]
+}
