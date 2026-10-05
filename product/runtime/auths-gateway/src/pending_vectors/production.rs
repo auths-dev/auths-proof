@@ -13,8 +13,9 @@
 //! retirement delay, and redacted debug forms. The rest wait for the
 //! maintained adapter, the release verifier, and the support bundle. For
 //! those this module asserts the shortfall: no product crate defines a new
-//! code or the secret-name derivation, and the gateway has no support
-//! bundle. Those assertions are expected to fail when the implementing work
+//! code, and the gateway has no support bundle. The secret-name and version
+//! vectors are generated here from the stated derivation and driven by the
+//! Secrets Manager store's own tests, so the two agree or one of them fails. Those assertions are expected to fail when the implementing work
 //! lands, wherever it lands, and that work replaces each with the
 //! conformance test that drives its vectors.
 
@@ -429,7 +430,7 @@ fn secret_version(connection: &str, generation: u64, commitment: &[u8; 32]) -> S
 
 fn secret_name_cases() -> Vec<Value> {
     let first = "conn_AAAAAAAAAAAAAAAAAAAAAA";
-    let second = "conn_BBBBBBBBBBBBBBBBBBBBBB";
+    let second = "conn_BBBBBBBBBBBBBBBBBBBBBA";
     [
         (
             "secret-name-first-generation",
@@ -1121,9 +1122,11 @@ fn every_hostile_class_has_a_vector() {
 }
 
 /// The inventory is closed over the vectors, every existing code exists,
-/// and the production work has not landed: no product crate defines a new
-/// code, a code under a new family, or the secret-name derivation, and the
-/// gateway has no support bundle under any spelling.
+/// and the rest of the production work has not landed: no product crate
+/// defines a new code or a code under a new family, and the gateway has no
+/// support bundle under any spelling. The secret-name and version vectors
+/// are no longer pending: the Secrets Manager store derives them, and its
+/// own tests drive `secret_names` and `version_references`.
 #[test]
 fn production_codes_await_their_epics() {
     let inventory = load(CODES_FILE);
@@ -1162,13 +1165,10 @@ fn production_codes_await_their_epics() {
         "codes without an inventory entry: {missing:?}"
     );
     for (path, text) in &all {
-        for marker in NEW_FAMILIES
-            .iter()
-            .chain(&[SECRET_NAME_DOMAIN, SECRET_VERSION_DOMAIN])
-        {
+        for marker in NEW_FAMILIES {
             assert!(
                 !text.contains(&format!("\"{marker}")),
-                "{} defines {marker}: drive the pending vectors through it",
+                "{} defines a code under {marker}: drive the pending vectors through it",
                 path.display()
             );
         }

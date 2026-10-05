@@ -186,6 +186,30 @@ proof-author-or-assembler = [
   "product/integrations/auths-custody/src/lib.rs#a_key_refuses_a_signer_describing_another_identity",
 ]
 
+[packages.auths-credentials-aws-secrets-manager]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-credentials-aws-secrets-manager"
+core_apis = []
+protocol_versions = ["auths.connection-credential-store/1", "auths.gateway-secret-name/1", "auths.gateway-secret-version/1", "auths.gateway-custody-vectors/1"]
+wire_objects = ["CredentialBinding"]
+fixture_suites = ["bindings/fixtures/gateway"]
+principal_families = []
+signature_families = []
+profiles = []
+transports = []
+configuration_inputs = ["deployment-namespace"]
+security_state = ["credential-generation", "credential-reference", "exact-secret-version"]
+
+[packages.auths-credentials-aws-secrets-manager.claims]
+independent-semantic-implementation = [
+  "product/integrations/auths-credentials-aws-secrets-manager/src/names.rs#frozen_secret_names_and_versions_are_derived",
+  "product/integrations/auths-credentials-aws-secrets-manager/src/names.rs#frozen_version_references_are_classified",
+  "product/integrations/auths-credentials-aws-secrets-manager/src/store.rs#hostile_answers_never_reach_the_caller",
+  "product/integrations/auths-credentials-aws-secrets-manager/src/store.rs#rotation_keeps_the_old_generation_until_it_is_revoked",
+  "product/integrations/auths-credentials-aws-secrets-manager/src/sigv4.rs#the_published_plain_get_vector_is_reproduced",
+]
+
 [packages.auths-custody-aws-kms]
 kind = "cargo"
 layer = "product"

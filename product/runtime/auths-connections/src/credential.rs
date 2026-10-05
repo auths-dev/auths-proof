@@ -48,6 +48,14 @@ impl SecretBytes {
     fn expose(&self) -> &[u8] {
         self.0.as_slice()
     }
+
+    /// Borrows the bytes for a credential-store implementation that must
+    /// write them to where it keeps secrets. Nothing else may call this: the
+    /// bytes must not be logged, compared, serialized, or kept.
+    #[must_use]
+    pub fn expose_to_store(&self) -> &[u8] {
+        self.expose()
+    }
 }
 
 impl fmt::Debug for SecretBytes {
@@ -69,6 +77,14 @@ fn valid_secret_length(length: usize) -> bool {
 pub struct CredentialReferenceCommitment([u8; 32]);
 
 impl CredentialReferenceCommitment {
+    /// Computes the commitment every credential store uses for `secret`
+    /// stored for `connection_id` at `generation`, so that a record sealed
+    /// by one store is leased identically by another.
+    #[must_use]
+    pub fn of(connection_id: &ConnectionId, generation: NonZeroU64, secret: &[u8]) -> Self {
+        credential_commitment(connection_id, generation, secret)
+    }
+
     /// Returns the fixed-width commitment bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -104,6 +120,14 @@ pub struct StoredSecretLease {
 }
 
 impl StoredSecretLease {
+    /// Wraps bytes a credential store has already matched against the
+    /// binding's reference commitment. Only a store implementation may call
+    /// this.
+    #[must_use]
+    pub const fn from_store(bytes: Zeroizing<Vec<u8>>, deadline: Instant) -> Self {
+        Self { bytes, deadline }
+    }
+
     /// Borrows the secret before its deadline.
     ///
     /// # Errors

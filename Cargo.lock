@@ -432,6 +432,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-credentials-aws-secrets-manager"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "auths-connections",
+ "hex",
+ "hmac 0.12.1",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
 name = "auths-cross-company-incident-edgeshield-demo"
 version = "1.0.0-rc.1"
 dependencies = [

@@ -552,11 +552,11 @@
         "id": "secret-name-another-connection",
         "class": "valid",
         "namespace": "production-eu-1",
-        "connection_id": "conn_BBBBBBBBBBBBBBBBBBBBBB",
+        "connection_id": "conn_BBBBBBBBBBBBBBBBBBBBBA",
         "credential_generation": 1,
         "reference_commitment": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
-        "name": "auths-gateway/27c381c3f3a16d6872e51c4bf36c095b72fb972183dbd4f74b0f62e56ffed55f",
-        "version_id": "2bbb699f547a5b593f5c586f6f50165c2b62ec761d3520c0213ce76dd22c5589"
+        "name": "auths-gateway/501cc4ee0616b1a08a306c65aaa1a36f7f7022cb03e664ac62166c1716210233",
+        "version_id": "f3186e803652447d1a03a87ac6be4aa6cef407ad2e217c472f746edf80ced09d"
       },
       {
         "id": "secret-name-another-namespace",
