@@ -45,6 +45,71 @@ context.
 | Removed `did:web` key backdates a statement | Historical document state and exact-statement existence are separate required claims |
 | Host retry amplification | `Indeterminate` never authorizes; hosts must bound retries and require new trusted facts |
 
+## Production gateway: provider-secret custody and recipe qualification
+
+This section covers the generalized gateway's production deployment
+([AP-SPEC-066](specs/0066-production-gateway-polish-and-recipe-qualification.md)).
+The verifier's claim above is unchanged. What is added is a claim about where a
+provider credential lives and about what a `qualified` label means.
+
+**Status.** The types, schemas, bounds, and hostile vectors exist. The
+production credential store, the release verifier, the runtime qualification
+gate, and the support bundle do not. A row marked *specified* names a control
+with frozen vectors and no implementation; it protects nothing yet.
+
+### Added trust assumptions
+
+- The cloud provider's workload identity correctly names the gateway
+  workload, and its access policy is the operator's.
+- The secret manager returns the exact version requested, or fails.
+- The qualification trust root's private key is offline: absent from this
+  repository and from pull-request and qualification runners.
+- The protected release environment releases the signing key only after
+  manual approval. That key is software-held; nothing here claims hardware
+  protection or non-exportability for it.
+- The deployment's time synchronization is honest when it reports a trusted
+  clock.
+
+### Threats and controls
+
+| Threat | Control | Status |
+|---|---|---|
+| An application, action, or recipe selects a credential generation, store, location, version, or injection header | The recipe source and the submission frame refuse unknown members; the store kind is a closed operator choice; a store is told identity, generation, and commitment only | enforced |
+| A credential store is asked to find "the current" secret | The sealed binding names the exact credential generation; a lease reads that generation and searches for no other; a superseded credential never serves a later generation | enforced for the in-repository stores |
+| Another workload assumes the gateway's identity and reads provider secrets | Workload identity scoped to the gateway's namespace and to read-only access on its own secret names; the qualification signer, observer, application, and grant-root identities are distinct from it | specified |
+| The secret manager is compromised or returns other material | The connection record seals a commitment to the exact material; the lease compares it in constant time and fails before any request byte exists; the gateway requests an exact immutable version, never a stage or alias | commitment check enforced; exact-version read specified |
+| The secret manager is unreachable | The lease fails closed as `gateway.credential.unavailable`; there is no fallback to another generation, a local file, an environment variable, or cached material | specified |
+| A plaintext development store is used in production | Production policy refuses the local file kind; unknown kinds are refused, not defaulted | kind type enforced; production refusal specified |
+| Rotation leaves an attempt with half of each generation | Generation and commitment are replaced as one record; an admitted attempt keeps its whole old generation, retained for 20 seconds, longer than the 15-second transport bound | delay invariant enforced at compile time; rotation commands specified |
+| A possibly compromised credential keeps being used during cutover | Disable, wait the retirement delay, rotate, revoke, enable; an attempt that has not entered when the old generation is revoked is recorded not entered and never retried with the new one | specified |
+| Secret material leaks through logs, traces, metrics, debug output, or a support bundle | Secret types print a fixed redacted form and have no serialization; the support bundle excludes every listed source and is scanned for planted canaries | debug forms enforced; bundle specified |
+| A recipe, connection, SDK, flag, or operator declares a recipe qualified | The qualification state has no parser; it is derived only from verified signed inputs. A recipe that names a qualification member is refused at compile | enforced for the type and the recipe source |
+| The qualification trust root is compromised | Every certificate and revocation it signs is forgeable; recovery is a separately reviewed release that pins a successor root, never a runtime fetch. The root signs only certificates and revocations, so its key is used rarely and offline | specified; residual risk accepted |
+| The release signer is compromised | The root revokes the signer, which invalidates every attestation it issued regardless of issue time. A signer cannot sign a certificate, a revocation, or a root: each artifact kind has its own signing domain and the certificate lists the kinds it permits | domains and closed kinds enforced; revocation specified |
+| A forged, replayed, or cross-kind signature is presented | Each signature covers the schema, a NUL byte, and the canonical statement; a signature for one artifact kind never verifies as another | preimages enforced; verification specified |
+| An expired or stale input keeps a recipe enabled | Freshness comes only from signed fields with fixed maxima (90 days, 365 days, 72 hours); no configuration, flag, or grace period widens them; a revocation list past its next update disables every required recipe | bounds enforced at decode; gate specified |
+| The gateway's clock is wrong | A closed clock trust state from a maintained deployment adapter; an untrusted clock, or local time behind a signed issue time, disables every required recipe | type enforced; adapter specified |
+| The provider changes its API while the recipe bytes stay the same | The provider contract identifier is a digest of the API release, the OpenAPI slice, the manual assumptions, the environment class, the corpus, the oracle version, and the declarations; any change makes the qualification stale | identifier enforced; staleness specified |
+| An older revocation list or release index is replayed | Revocation lists carry an increasing sequence; a list older than the one already accepted is refused | specified |
+| The runtime gateway becomes a qualification runner, or the runner becomes a runtime credential broker | The gateway performs no provider call, network trust fetch, or qualification run for readiness; the qualification credential is environment-scoped and distinct from every production connection credential; the qualification model depends on no core or provider crate, enforced by `architecture.toml` | dependency boundary enforced; separation of credentials specified |
+| A pull request signs or imports a qualification | Pull-request jobs produce unsigned proposals only and cannot reach either private key or update the release index | specified |
+| A successful HTTP response is counted as a qualified live effect | A record whose live effects are not all confirmed by read-back does not decode | enforced |
+
+### Not protected by this section
+
+- An application that holds its own provider credential can call the provider
+  directly. Custody removes the credential from the application; it cannot
+  remove one the application already has.
+- A provider secret is exportable by nature: it exists in gateway memory for
+  the length of one request. Custody bounds where it rests, not that.
+- Qualification is evidence about one pinned recipe and provider contract at
+  one time. It does not say the provider performed, settled, or will preserve
+  the effect, or that it will behave tomorrow as it did during the run.
+- A compromised cloud account, secret manager operator, or gateway host is
+  outside these controls.
+- Separation of persons: a second key does not prove a second person. The
+  human release review is a judgment recorded on the program board.
+
 ## Not protected
 
 Auths cannot prevent:

@@ -1,0 +1,1061 @@
+{
+  "schema": "auths.gateway-custody-vectors/1",
+  "store_kinds": [
+    {
+      "id": "store-kind-aws",
+      "class": "valid",
+      "token": "aws-secrets-manager-v1",
+      "kind": "aws-secrets-manager-v1",
+      "expect": {
+        "development": {
+          "code": null
+        },
+        "production": {
+          "code": null
+        }
+      }
+    },
+    {
+      "id": "store-kind-local-file",
+      "class": "production-plaintext",
+      "token": "local-file-v1",
+      "kind": "local-file-v1",
+      "expect": {
+        "development": {
+          "code": null
+        },
+        "production": {
+          "code": "gateway.credential.production-plaintext-refused"
+        }
+      }
+    },
+    {
+      "id": "store-kind-empty",
+      "class": "unknown-enum-member",
+      "token": "",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-environment",
+      "class": "production-plaintext",
+      "token": "env",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-dotenv",
+      "class": "production-plaintext",
+      "token": ".env",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-latest",
+      "class": "mutable-alias",
+      "token": "latest",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-unversioned",
+      "class": "mutable-alias",
+      "token": "aws-secrets-manager",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-later-version",
+      "class": "unknown-enum-member",
+      "token": "aws-secrets-manager-v2",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-uppercase",
+      "class": "non-canonical",
+      "token": "AWS-SECRETS-MANAGER-V1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-trailing-space",
+      "class": "non-canonical",
+      "token": "aws-secrets-manager-v1 ",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-unicode-hyphen",
+      "class": "unicode-confusion",
+      "token": "local‐file‐v1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-vault",
+      "class": "unknown-enum-member",
+      "token": "vault-v1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-gcp",
+      "class": "unknown-enum-member",
+      "token": "gcp-secret-manager-v1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-azure",
+      "class": "unknown-enum-member",
+      "token": "azure-key-vault-v1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-testkit",
+      "class": "unknown-enum-member",
+      "token": "testkit-memory-v1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-plugin",
+      "class": "selection",
+      "token": "plugin:./adapter.so",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-executable",
+      "class": "selection",
+      "token": "exec:/usr/local/bin/fetch-secret",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-address",
+      "class": "selection",
+      "token": "https://secrets.example/v1",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    },
+    {
+      "id": "store-kind-traversal",
+      "class": "reference-traversal",
+      "token": "../credentials.cbor",
+      "kind": null,
+      "expect": {
+        "development": {
+          "code": "gateway.credential.adapter-unsupported"
+        },
+        "production": {
+          "code": "gateway.credential.adapter-unsupported"
+        }
+      }
+    }
+  ],
+  "secret_bounds": [
+    {
+      "id": "secret-empty",
+      "class": "oversize",
+      "bytes": 0,
+      "accepted": false
+    },
+    {
+      "id": "secret-one-byte",
+      "class": "oversize",
+      "bytes": 1,
+      "accepted": true
+    },
+    {
+      "id": "secret-at-limit",
+      "class": "oversize",
+      "bytes": 65536,
+      "accepted": true
+    },
+    {
+      "id": "secret-over-limit",
+      "class": "oversize",
+      "bytes": 65537,
+      "accepted": false
+    }
+  ],
+  "recipe_selection": {
+    "base": "stripe",
+    "cases": [
+      {
+        "id": "recipe-names-credential-generation",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential/generation",
+            "value": 7
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-credential-store",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential/store",
+            "value": "aws-secrets-manager-v1"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-secret-location",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential/secret_location",
+            "value": "auths-gateway/another-connection"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-secret-version",
+        "class": "mutable-alias",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential/version",
+            "value": "latest"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-secret-path",
+        "class": "reference-traversal",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential/path",
+            "value": "../../another-connection/credentials.cbor"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-renames-bearer-header",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential/header",
+            "value": "X-Credential"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-store-at-root",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential_store",
+            "value": "local-file-v1"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-generation-at-root",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/credential_generation",
+            "value": 1
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-injects-authorization-header",
+        "class": "selection",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/provider_headers/Authorization",
+            "value": "Bearer injected"
+          }
+        ],
+        "code": "gateway.recipe.invalid-provider-header"
+      },
+      {
+        "id": "recipe-declares-qualified",
+        "class": "self-declared-qualification",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/qualification",
+            "value": "qualified"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-declares-qualification-state",
+        "class": "self-declared-qualification",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/qualification_state",
+            "value": "qualified"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-names-qualification",
+        "class": "self-declared-qualification",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/qualification_id",
+            "value": "qlf_00000000000000000000000000000001"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      },
+      {
+        "id": "recipe-relaxes-qualification-policy",
+        "class": "self-declared-qualification",
+        "mutations": [
+          {
+            "op": "set",
+            "pointer": "/qualification_policy",
+            "value": "optional"
+          }
+        ],
+        "code": "gateway.recipe.invalid-source"
+      }
+    ]
+  },
+  "frame_selection": [
+    {
+      "id": "frame-names-credential-generation",
+      "class": "selection",
+      "member": "credential_generation",
+      "accepted": false,
+      "value": 2
+    },
+    {
+      "id": "frame-names-credential-store",
+      "class": "selection",
+      "member": "credential_store",
+      "accepted": false,
+      "value": "local-file-v1"
+    },
+    {
+      "id": "frame-names-secret-location",
+      "class": "selection",
+      "member": "secret_location",
+      "accepted": false,
+      "value": "auths-gateway/another"
+    },
+    {
+      "id": "frame-names-credential-header",
+      "class": "selection",
+      "member": "credential_header",
+      "accepted": false,
+      "value": "X-Credential"
+    },
+    {
+      "id": "frame-names-connection",
+      "class": "selection",
+      "member": "connection",
+      "accepted": false,
+      "value": "another-connection"
+    },
+    {
+      "id": "frame-declares-qualification",
+      "class": "selection",
+      "member": "qualification_state",
+      "accepted": false,
+      "value": "qualified"
+    },
+    {
+      "id": "frame-supplies-clock",
+      "class": "selection",
+      "member": "clock",
+      "accepted": false,
+      "value": "trusted"
+    }
+  ],
+  "secret_names": {
+    "name_domain": "auths.gateway-secret-name/1",
+    "version_domain": "auths.gateway-secret-version/1",
+    "cases": [
+      {
+        "id": "secret-name-first-generation",
+        "class": "valid",
+        "namespace": "production-eu-1",
+        "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+        "credential_generation": 1,
+        "reference_commitment": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "name": "auths-gateway/16e667b1bdd5540c3b67c6ea170118e3d09560d54ab66e20e1a9a180d1535d75",
+        "version_id": "20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf5536178b3"
+      },
+      {
+        "id": "secret-name-next-generation",
+        "class": "valid",
+        "namespace": "production-eu-1",
+        "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+        "credential_generation": 2,
+        "reference_commitment": "5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b",
+        "name": "auths-gateway/bf8b93583e827b34cef6c42c31d72b6033851a4f5b0bb845d2dde16aa4ab9fc6",
+        "version_id": "67fb193095813485aabb7276228738af83101a7252f7508c9bf1249424b5c4ea"
+      },
+      {
+        "id": "secret-name-another-connection",
+        "class": "valid",
+        "namespace": "production-eu-1",
+        "connection_id": "conn_BBBBBBBBBBBBBBBBBBBBBB",
+        "credential_generation": 1,
+        "reference_commitment": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "name": "auths-gateway/27c381c3f3a16d6872e51c4bf36c095b72fb972183dbd4f74b0f62e56ffed55f",
+        "version_id": "2bbb699f547a5b593f5c586f6f50165c2b62ec761d3520c0213ce76dd22c5589"
+      },
+      {
+        "id": "secret-name-another-namespace",
+        "class": "valid",
+        "namespace": "staging-eu-1",
+        "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+        "credential_generation": 1,
+        "reference_commitment": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+        "name": "auths-gateway/784c0356c3a18271ff53e395daa96c7b6cdba7e6255adf92903e86130c43a62a",
+        "version_id": "20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf5536178b3"
+      },
+      {
+        "id": "secret-name-another-commitment",
+        "class": "valid",
+        "namespace": "production-eu-1",
+        "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+        "credential_generation": 1,
+        "reference_commitment": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+        "name": "auths-gateway/16e667b1bdd5540c3b67c6ea170118e3d09560d54ab66e20e1a9a180d1535d75",
+        "version_id": "f15eb80cb8999c64ef5edff5294e3d7715515cd1472996a19bec30ecc35f50ac"
+      }
+    ]
+  },
+  "version_references": [
+    {
+      "id": "version-exact",
+      "class": "valid",
+      "reference": "20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf5536178b3",
+      "accepted": true
+    },
+    {
+      "id": "version-current-stage",
+      "class": "mutable-alias",
+      "reference": "AWSCURRENT",
+      "accepted": false
+    },
+    {
+      "id": "version-pending-stage",
+      "class": "mutable-alias",
+      "reference": "AWSPENDING",
+      "accepted": false
+    },
+    {
+      "id": "version-previous-stage",
+      "class": "mutable-alias",
+      "reference": "AWSPREVIOUS",
+      "accepted": false
+    },
+    {
+      "id": "version-latest",
+      "class": "mutable-alias",
+      "reference": "latest",
+      "accepted": false
+    },
+    {
+      "id": "version-empty",
+      "class": "mutable-alias",
+      "reference": "",
+      "accepted": false
+    },
+    {
+      "id": "version-uppercase",
+      "class": "non-canonical",
+      "reference": "20ED7D5D54E198C8E19D2EA81FB264248362A7E98B3D2305675BBBF5536178B3",
+      "accepted": false
+    },
+    {
+      "id": "version-truncated",
+      "class": "non-canonical",
+      "reference": "20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf5536178b",
+      "accepted": false
+    },
+    {
+      "id": "version-extended",
+      "class": "oversize",
+      "reference": "20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf5536178b30",
+      "accepted": false
+    },
+    {
+      "id": "version-traversal",
+      "class": "reference-traversal",
+      "reference": "../20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf553617",
+      "accepted": false
+    },
+    {
+      "id": "version-fullwidth-digit",
+      "class": "unicode-confusion",
+      "reference": "０20ed7d5d54e198c8e19d2ea81fb264248362a7e98b3d2305675bbbf5536178b",
+      "accepted": false
+    }
+  ],
+  "lease": [
+    {
+      "id": "lease-commitment-mismatch",
+      "class": "commitment-mismatch",
+      "given": [
+        "the stored material differs from the sealed reference commitment"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-version-drift",
+      "class": "mutable-alias",
+      "given": [
+        "the store answers with a version other than the exact one requested"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-adapter-timeout",
+      "class": "adapter-timeout",
+      "given": [
+        "the store does not answer before the lease deadline"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-partial-response",
+      "class": "partial-response",
+      "given": [
+        "the store's response ends before its declared length"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-oversize-response",
+      "class": "oversize",
+      "given": [
+        "the store's response exceeds the response limit"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-oversize-secret",
+      "class": "oversize",
+      "given": [
+        "the stored secret exceeds 65,536 bytes"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-expired",
+      "class": "expired-lease",
+      "given": [
+        "the lease deadline passes before any request byte exists"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-store-unreachable-with-local-file",
+      "class": "selection",
+      "given": [
+        "the production store is unreachable",
+        "a local credential file holds a secret for the same connection"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-store-unreachable-with-environment-secret",
+      "class": "selection",
+      "given": [
+        "the production store is unreachable",
+        "the process environment holds a provider token"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-sealed-generation-revoked-with-successor",
+      "class": "selection",
+      "given": [
+        "the sealed credential generation is revoked",
+        "a newer generation of the same connection is stored"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "lease-generation-not-held",
+      "class": "commitment-mismatch",
+      "given": [
+        "no secret is stored at the sealed credential generation"
+      ],
+      "expect": {
+        "stage": "refused-before-claim",
+        "code": "gateway.connection.credential-generation-missing",
+        "leases": 0,
+        "provider_entries": 0
+      }
+    },
+    {
+      "id": "lease-never-precedes-claim",
+      "class": "selection",
+      "given": [
+        "the logical operation was already claimed"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.attempt.replay",
+        "leases": 0,
+        "provider_entries": 0
+      }
+    }
+  ],
+  "rotation": [
+    {
+      "id": "rotation-commit-between-reload-and-lease",
+      "class": "rotation-race",
+      "given": [
+        "an attempt reloads the record at the old generation",
+        "the rotation commits before the attempt leases"
+      ],
+      "expect": {
+        "stage": "entered",
+        "generation_used": "old",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "rotation-attempt-after-commit",
+      "class": "rotation-race",
+      "given": [
+        "the rotation commits",
+        "a new attempt reloads the record"
+      ],
+      "expect": {
+        "stage": "entered",
+        "generation_used": "new",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "rotation-two-instances",
+      "class": "rotation-race",
+      "given": [
+        "instance A admits an attempt before the commit",
+        "instance B admits an attempt after the commit"
+      ],
+      "expect": {
+        "instance_a": "old",
+        "instance_b": "new",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "rotation-old-revoked-before-entry",
+      "class": "rotation-race",
+      "given": [
+        "the operator revokes the old generation before the retirement delay",
+        "an attempt admitted under the old generation has not entered"
+      ],
+      "expect": {
+        "stage": "not-entered",
+        "code": "gateway.credential.unavailable",
+        "provider_entries": 0,
+        "fallback_used": false,
+        "retried_with_another_generation": false
+      }
+    },
+    {
+      "id": "rotation-old-revoked-after-entry",
+      "class": "rotation-race",
+      "given": [
+        "an attempt under the old generation has handed its request to transport",
+        "the operator revokes the old generation"
+      ],
+      "expect": {
+        "stage": "entered",
+        "generation_used": "old",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "crash-after-prepare",
+      "class": "crash-stage",
+      "given": [
+        "the new version is written",
+        "the process stops before the commit"
+      ],
+      "expect": {
+        "record_generation": "old",
+        "serves": "old",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "crash-after-commit",
+      "class": "crash-stage",
+      "given": [
+        "the shared record commits the new generation",
+        "the process stops before retirement"
+      ],
+      "expect": {
+        "record_generation": "new",
+        "serves": "new",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "crash-during-retirement",
+      "class": "crash-stage",
+      "given": [
+        "the retirement delay has passed",
+        "the process stops while revoking the old version"
+      ],
+      "expect": {
+        "record_generation": "new",
+        "serves": "new",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "crash-after-install-write",
+      "class": "crash-stage",
+      "given": [
+        "the first version is written",
+        "the process stops before the record is inserted"
+      ],
+      "expect": {
+        "record_generation": "none",
+        "serves": "none",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    },
+    {
+      "id": "crash-after-revoke",
+      "class": "crash-stage",
+      "given": [
+        "the operator revokes the connection",
+        "the process stops before the store deletes"
+      ],
+      "expect": {
+        "record_generation": "revoked",
+        "serves": "none",
+        "mixed_generation": false,
+        "unauthorized_provider_entries": 0
+      }
+    }
+  ],
+  "retirement": {
+    "delay_seconds": 20,
+    "transport_seconds": 15,
+    "cases": [
+      {
+        "id": "retire-after-0-seconds",
+        "class": "rotation-race",
+        "seconds_after_commit": 0,
+        "may_revoke": false
+      },
+      {
+        "id": "retire-after-15-seconds",
+        "class": "rotation-race",
+        "seconds_after_commit": 15,
+        "may_revoke": false
+      },
+      {
+        "id": "retire-after-19-seconds",
+        "class": "rotation-race",
+        "seconds_after_commit": 19,
+        "may_revoke": false
+      },
+      {
+        "id": "retire-after-20-seconds",
+        "class": "rotation-race",
+        "seconds_after_commit": 20,
+        "may_revoke": true
+      },
+      {
+        "id": "retire-after-21-seconds",
+        "class": "rotation-race",
+        "seconds_after_commit": 21,
+        "may_revoke": true
+      }
+    ]
+  },
+  "redaction": {
+    "debug": [
+      {
+        "id": "debug-secret-bytes",
+        "class": "debug-serialization",
+        "debug": "SecretBytes([REDACTED])"
+      },
+      {
+        "id": "debug-stored-secret-lease",
+        "class": "debug-serialization",
+        "debug": "StoredSecretLease([REDACTED])"
+      },
+      {
+        "id": "debug-reference-commitment",
+        "class": "debug-serialization",
+        "debug": "CredentialReferenceCommitment([REDACTED])"
+      }
+    ],
+    "canaries": {
+      "classes": [
+        "support-bundle-canary",
+        "telemetry-canary"
+      ],
+      "surfaces": [
+        "logs",
+        "traces",
+        "metrics",
+        "support-bundle",
+        "evidence-artifacts"
+      ],
+      "sources": [
+        {
+          "source": "proof",
+          "canary": "auths-canary-proof-not-a-secret"
+        },
+        {
+          "source": "grant",
+          "canary": "auths-canary-grant-not-a-secret"
+        },
+        {
+          "source": "action",
+          "canary": "auths-canary-action-not-a-secret"
+        },
+        {
+          "source": "request-body",
+          "canary": "auths-canary-request-body-not-a-secret"
+        },
+        {
+          "source": "response-body",
+          "canary": "auths-canary-response-body-not-a-secret"
+        },
+        {
+          "source": "credential",
+          "canary": "auths-canary-credential-not-a-secret"
+        },
+        {
+          "source": "external-credential-location",
+          "canary": "auths-canary-external-credential-location-not-a-secret"
+        },
+        {
+          "source": "key-manager-resource-name",
+          "canary": "auths-canary-key-manager-resource-name-not-a-secret"
+        },
+        {
+          "source": "provider-account-id",
+          "canary": "auths-canary-provider-account-id-not-a-secret"
+        },
+        {
+          "source": "provider-resource-id",
+          "canary": "auths-canary-provider-resource-id-not-a-secret"
+        },
+        {
+          "source": "raw-header",
+          "canary": "auths-canary-raw-header-not-a-secret"
+        }
+      ]
+    }
+  }
+}

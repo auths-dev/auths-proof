@@ -1,0 +1,1152 @@
+{
+  "schema": "auths.qualification-schema-vectors/1",
+  "limits": {
+    "trust_root_bytes": 1024,
+    "signer_certificate_bytes": 4096,
+    "revocation_list_bytes": 65536,
+    "release_index_bytes": 131072,
+    "record_bytes": 65536,
+    "attestation_bytes": 4096,
+    "provider_contract_bytes": 16384,
+    "revoked_signers": 64,
+    "revoked_qualifications": 1024,
+    "index_entries": 256,
+    "installed_packages": 8,
+    "provider_resources": 32,
+    "record_statements": 32,
+    "manual_assumptions": 32,
+    "qualification_seconds": 7776000,
+    "signer_seconds": 31536000,
+    "revocation_seconds": 259200
+  },
+  "valid": {
+    "trust_root": "{\"public_key_b64\":\"0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc\",\"root_id\":\"auths-qualification-root-1\",\"schema\":\"auths.qualification-trust-root/1\",\"signature_suite\":\"ed25519-v1\"}",
+    "signer_certificate": "{\"root_signature_b64\":\"obGs_sPHvOXfTu8emdHu3odSbdq3PEW0XwoKhrOSb1LQTgq9LOvFPrRcuhE6Tis01Ac9ndvtGQiey6UWh0MmBg\",\"statement\":{\"issued_at\":1789913600,\"not_after\":1805465600,\"not_before\":1789913600,\"permitted_artifact_kinds\":[\"qualification-release-index\",\"recipe-qualification-attestation\"],\"public_key_b64\":\"oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA\",\"root_id\":\"auths-qualification-root-1\",\"schema\":\"auths.qualification-signer-certificate/1\",\"signature_suite\":\"ed25519-v1\",\"signer_id\":\"release-signer-2026-10\",\"signer_kind\":\"protected-software-release-key-v1\"}}",
+    "revocation_list": "{\"root_signature_b64\":\"nVaEVMHFGD_kiB0SIdz3uK3Xh0YlYrUJY-PRkV7_sCAc6mGs39yQxxGsiShFyuVrE_NxGHNnX40Lg6mi_w_hAw\",\"statement\":{\"issued_at\":1789996400,\"next_update\":1790255600,\"revoked_qualifications\":[],\"revoked_signers\":[],\"root_id\":\"auths-qualification-root-1\",\"schema\":\"auths.qualification-revocation-list/1\",\"sequence\":7}}",
+    "release_index": "{\"signature_b64\":\"QMMwlBk-GT36P5vZFGmqwVaI6dSlhiDIy6b69926s_4UkaNLW8VDkrCtAQtedDPG_B7Mwa7vteWiAtHHGJSuCQ\",\"statement\":{\"entries\":[{\"attestation_sha256\":\"70d270e747fcf8bca9f408758ddcc1cd4470bd0dc8fa675ea68ce960146c8bbd\",\"qualification_id\":\"qlf_01010101010101010101010101010101\",\"record_sha256\":\"d7a00ddda1c3b7afa99bb997fd9d88f864937a104e1b8cdd4370ebb914c6d306\"}],\"issued_at\":1789996400,\"schema\":\"auths.qualification-release-index/1\",\"signature_suite\":\"ed25519-v1\",\"signer_id\":\"release-signer-2026-10\"}}",
+    "record": "{\"capabilities\":[{\"capability\":\"credential-guard\",\"result\":\"exercised\"},{\"capability\":\"version-pin\",\"result\":\"exercised\"},{\"capability\":\"account-binding\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"},{\"capability\":\"denied-reads\",\"result\":\"exercised\"},{\"capability\":\"ceiling\",\"result\":\"exercised\"},{\"capability\":\"budget\",\"result\":\"exercised\"},{\"capability\":\"idempotency\",\"result\":\"exercised\"},{\"capability\":\"response-locator\",\"result\":\"exercised\"},{\"capability\":\"echo\",\"result\":\"exercised\"},{\"capability\":\"observation\",\"result\":\"exercised\"},{\"capability\":\"recovery\",\"result\":\"exercised\"},{\"capability\":\"observer-rotation\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"}],\"corpus_manifest_sha256\":\"d6c1cad9a6b0fe0fc27d1f8107c2381e8b9ab1bbfc04a47aa8234140de74a23f\",\"custody_descriptor\":\"aws-secrets-manager-v1 with workload identity\",\"evidence\":[{\"cases\":12,\"evidence_sha256\":\"c3a2a799eb04b1ee53a22495e0d95171a9f42f2ad557b639f3fe5440bbed90e7\",\"member\":\"conformance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"dfd5b5dccc73cae91abec7a76c332dae145eb37eddb18f56dca2e68f2dbc81ab\",\"member\":\"differential\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"a05d5182b4f20eb67c0d95622a70f1e4ac87d1d1b8b7fab219a2276b6da41256\",\"member\":\"hostile\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"00beb3d9e44f8d20d5da8861818ecd7b430714f959a6613dbd2d870997eb90f8\",\"member\":\"live\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"3a4e01d7b8d11480e334d0d2fffc2efeeaf2363d21f9107094c3cfc3c063b362\",\"member\":\"recovery\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"6b428d653e06c75268e2e33f234f30f9cc24616c42faf551699f7a7ac2376011\",\"member\":\"rotation\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"e8713a54bfb187836d4db2f34f181129f2e03f7221bc2d3247134470adcacee8\",\"member\":\"restart\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8824a7669543ecf652b651fa2d370c548e09b73c1babac841cd689389a1fdcbe\",\"member\":\"multi-instance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"f31f29dc30a4e8ccd3aea69c012656c2811ac194881147b2cced5dd7dc1a7d9b\",\"member\":\"redaction\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8e91fde286bdbb80e6d6245e7ab9dab68f92e790922170195fc80aab2eeb227b\",\"member\":\"installed-consumer\",\"result\":\"passed\",\"unauthorized_provider_entries\":0}],\"excluded_claims\":[\"the provider performed or settled the business effect\"],\"generated_artifacts_sha256\":\"fff3ece48e4f5271825e80b355a1243a4c30619329bbbc70bc4e5c1b242973e2\",\"installed_packages\":[{\"name\":\"auths-gateway\",\"sha256\":\"8a58d99c69c098e53c2197df2c6a6a16b131c69798f728db134c978f77e95360\",\"version\":\"1.0.0-rc.1\"},{\"name\":\"auths-python\",\"sha256\":\"59b028e3e66e681bfa195fb6afee775b91f30fc418f05f86353bc71cd021d2f9\",\"version\":\"1.0.0rc1\"}],\"live_effects\":{\"confirmed_by_read_back\":4,\"entered\":4},\"not_after\":1797768800,\"not_before\":1789992800,\"provenance\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"environment\":\"recipe-qualification\",\"repository\":\"github.com/auths-dev/auths-proof\",\"workflow\":\".github/workflows/recipe-qualification.yml\"},\"provider_kind\":\"example-payments\",\"provider_resources\":[\"refund:fixture-0001\",\"refund:fixture-0002\"],\"qualification_id\":\"qlf_01010101010101010101010101010101\",\"recipe_decision_record_sha256\":\"0c2328dfcdc21fcd917fd242dd16f9adf1354395a472e589e2778dee99527081\",\"residual_assumptions\":[\"the provider keeps its test mode separate from live data\"],\"schema\":\"auths.recipe-qualification/1\",\"source_closure_sha256\":\"00023b3a6fbf90b531085365646cda2ffcac182f6eaedf453eb680b63ae33106\",\"store_descriptor\":\"postgresql 16 with TLS\",\"tuple\":{\"compiled_recipe_sha256\":\"262f5ef11b349645f2421c533220fc6bbfd70c4a5395f5d65c601406eba7d4ef\",\"gateway_semantic_closure_sha256\":\"01ec13346b098e4f5e1c64a995a50ce15ef339dc1f304966a45c94e80638203b\",\"profile_lock_sha256\":\"4dd8982feedb83403f985de3e1a952a90060e44035ab797e5313ff93957a22d5\",\"provider_contract_id\":\"f15f154a38de58de1b27c70c61a6b20fe532746e2e4462576dbd3d27d76cce3d\",\"recipe_family\":\"example-refund-v1\",\"target\":{\"arch\":\"x86_64\",\"credential_store_kind\":\"aws-secrets-manager-v1\",\"gateway_build_sha256\":\"42194bc83fbd821aaede008519091b4516baf914f8c2e27f3f2ac7a25f7485c3\",\"gateway_package\":\"auths-gateway\",\"gateway_version\":\"1.0.0-rc.1\",\"os\":\"linux\",\"store_kind\":\"postgresql-v1\",\"store_schema\":\"auths.lifecycle.postgresql/5\"}}}",
+    "attestation": "{\"signature_b64\":\"oR2QsmEvCp-fGvV0ysEM-a3opOp6SlgJzb63U4ESuZz0yRPlyoOK39PhRELjaiaMzpiRyj-LVUmnKkd3pvFNAQ\",\"statement\":{\"issued_at\":1789992800,\"not_after\":1797768800,\"not_before\":1789992800,\"qualification_id\":\"qlf_01010101010101010101010101010101\",\"record_sha256\":\"d7a00ddda1c3b7afa99bb997fd9d88f864937a104e1b8cdd4370ebb914c6d306\",\"schema\":\"auths.recipe-qualification-attestation/1\",\"signature_suite\":\"ed25519-v1\",\"signer_id\":\"release-signer-2026-10\"}}",
+    "provider_contract": "{\"api_release\":\"2026-09-01.fixture\",\"corpus_manifest_sha256\":\"d6c1cad9a6b0fe0fc27d1f8107c2381e8b9ab1bbfc04a47aa8234140de74a23f\",\"declarations\":{\"idempotency_sha256\":\"d6ee51b4b1b7adbf404892f9326dd33a8d42047c0d7592aa8366ad4fcf99a300\",\"observation_sha256\":\"41eecb260924ac4b305313888b59325a24161b0c9d60ecda92ab26bc10e3fbf5\",\"recovery_sha256\":\"871f9dded4942ff0262f147ca7fd4992b38da2741bac401abf3cd8dc43d4d2d3\",\"retention_sha256\":\"5e783fc5c0cf8950b44fd3095ff0679df34660600d0e7a59cedb2084e850aec7\"},\"environment_class\":\"provider-test-mode\",\"manual_assumptions\":[\"a refund of a refunded payment is rejected, not repeated\",\"the idempotency key is honored for at least 24 hours\"],\"openapi_slice_sha256\":\"b11c8865e81ede17d33a255a677549fa87ba045c67077495b8749fc5455c0b2f\",\"oracle_version\":\"oracle-1\",\"provider\":\"example-payments\",\"schema\":\"auths.provider-contract/1\"}"
+  },
+  "provider_contract_id": "f15f154a38de58de1b27c70c61a6b20fe532746e2e4462576dbd3d27d76cce3d",
+  "cases": [
+    {
+      "id": "record-extra-member",
+      "artifact": "record",
+      "class": "extra-field",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/reviewed",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "record-self-declared-state",
+      "artifact": "record",
+      "class": "self-declared-qualification",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/state",
+          "value": "qualified"
+        }
+      ]
+    },
+    {
+      "id": "record-unknown-evidence-member",
+      "artifact": "record",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/0/member",
+          "value": "mock"
+        }
+      ]
+    },
+    {
+      "id": "record-failed-member-result",
+      "artifact": "record",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/3/result",
+          "value": "failed"
+        }
+      ]
+    },
+    {
+      "id": "record-skipped-member-result",
+      "artifact": "record",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/4/result",
+          "value": "not-applicable"
+        }
+      ]
+    },
+    {
+      "id": "record-unknown-credential-store",
+      "artifact": "record",
+      "class": "wrong-credential-store",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/tuple/target/credential_store_kind",
+          "value": "vault-v1"
+        }
+      ]
+    },
+    {
+      "id": "record-unknown-store-kind",
+      "artifact": "record",
+      "class": "wrong-store",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/tuple/target/store_kind",
+          "value": "sqlite-v1"
+        }
+      ]
+    },
+    {
+      "id": "record-unknown-architecture",
+      "artifact": "record",
+      "class": "wrong-target",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/tuple/target/arch",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "id": "record-uppercase-digest",
+      "artifact": "record",
+      "class": "non-canonical",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/tuple/compiled_recipe_sha256",
+          "value": "262F5EF11B349645F2421C533220FC6BBFD70C4A5395F5D65C601406EBA7D4EF"
+        }
+      ]
+    },
+    {
+      "id": "record-unicode-family",
+      "artifact": "record",
+      "class": "unicode-confusion",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/tuple/recipe_family",
+          "value": "example-rеfund-v1"
+        }
+      ]
+    },
+    {
+      "id": "record-unicode-resource",
+      "artifact": "record",
+      "class": "unicode-confusion",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_resources/0",
+          "value": "refund:fixture‐0001"
+        }
+      ]
+    },
+    {
+      "id": "record-abbreviated-commit",
+      "artifact": "record",
+      "class": "mutable-alias",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provenance/commit",
+          "value": "0123456"
+        }
+      ]
+    },
+    {
+      "id": "record-branch-as-commit",
+      "artifact": "record",
+      "class": "mutable-alias",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provenance/commit",
+          "value": "main"
+        }
+      ]
+    },
+    {
+      "id": "record-other-schema-version",
+      "artifact": "record",
+      "class": "unknown-enum-member",
+      "reason": "unknown-schema",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/schema",
+          "value": "auths.recipe-qualification/2"
+        }
+      ]
+    },
+    {
+      "id": "record-attestation-schema",
+      "artifact": "record",
+      "class": "unknown-enum-member",
+      "reason": "unknown-schema",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/schema",
+          "value": "auths.recipe-qualification-attestation/1"
+        }
+      ]
+    },
+    {
+      "id": "record-member-missing",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "remove",
+          "pointer": "/evidence/9"
+        }
+      ]
+    },
+    {
+      "id": "record-members-out-of-order",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/0",
+          "value": {
+            "cases": 12,
+            "evidence_sha256": "dfd5b5dccc73cae91abec7a76c332dae145eb37eddb18f56dca2e68f2dbc81ab",
+            "member": "differential",
+            "result": "passed",
+            "unauthorized_provider_entries": 0
+          }
+        },
+        {
+          "op": "set",
+          "pointer": "/evidence/1",
+          "value": {
+            "cases": 12,
+            "evidence_sha256": "c3a2a799eb04b1ee53a22495e0d95171a9f42f2ad557b639f3fe5440bbed90e7",
+            "member": "conformance",
+            "result": "passed",
+            "unauthorized_provider_entries": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "record-member-repeated",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/1",
+          "value": {
+            "cases": 12,
+            "evidence_sha256": "c3a2a799eb04b1ee53a22495e0d95171a9f42f2ad557b639f3fe5440bbed90e7",
+            "member": "conformance",
+            "result": "passed",
+            "unauthorized_provider_entries": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "record-unauthorized-provider-entry",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/2/unauthorized_provider_entries",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "record-member-without-cases",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/evidence/5/cases",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "record-live-response-without-read-back",
+      "artifact": "record",
+      "class": "response-without-read-back",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/live_effects/confirmed_by_read_back",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "id": "record-no-live-effect",
+      "artifact": "record",
+      "class": "response-without-read-back",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/live_effects",
+          "value": {
+            "entered": 0,
+            "confirmed_by_read_back": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "record-capability-omitted",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "remove",
+          "pointer": "/capabilities/11"
+        }
+      ]
+    },
+    {
+      "id": "record-not-applicable-without-reason",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "remove",
+          "pointer": "/capabilities/2/reason"
+        }
+      ]
+    },
+    {
+      "id": "record-exercised-with-reason",
+      "artifact": "record",
+      "class": "evidence-not-closed",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/capabilities/0/reason",
+          "value": "not needed"
+        }
+      ]
+    },
+    {
+      "id": "record-window-91-days",
+      "artifact": "record",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/not_after",
+          "value": 1797855200
+        }
+      ]
+    },
+    {
+      "id": "record-window-reversed",
+      "artifact": "record",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/not_after",
+          "value": 1789992800
+        }
+      ]
+    },
+    {
+      "id": "record-resources-unsorted",
+      "artifact": "record",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_resources/0",
+          "value": "refund:fixture-0002"
+        },
+        {
+          "op": "set",
+          "pointer": "/provider_resources/1",
+          "value": "refund:fixture-0001"
+        }
+      ]
+    },
+    {
+      "id": "record-resource-repeated",
+      "artifact": "record",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_resources/1",
+          "value": "refund:fixture-0001"
+        }
+      ]
+    },
+    {
+      "id": "record-no-packages",
+      "artifact": "record",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/installed_packages",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "record-nine-packages",
+      "artifact": "record",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/installed_packages",
+          "count": 9,
+          "width": 2,
+          "template": {
+            "name": "package-{}",
+            "version": "1",
+            "sha256": "00023b3a6fbf90b531085365646cda2ffcac182f6eaedf453eb680b63ae33106"
+          }
+        }
+      ]
+    },
+    {
+      "id": "record-33-resources",
+      "artifact": "record",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/provider_resources",
+          "count": 33,
+          "width": 4,
+          "template": "refund:fixture-{}"
+        }
+      ]
+    },
+    {
+      "id": "record-oversized",
+      "artifact": "record",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 65537
+    },
+    {
+      "id": "record-trailing-newline",
+      "artifact": "record",
+      "class": "non-canonical",
+      "reason": "non-canonical",
+      "text": "{\"capabilities\":[{\"capability\":\"credential-guard\",\"result\":\"exercised\"},{\"capability\":\"version-pin\",\"result\":\"exercised\"},{\"capability\":\"account-binding\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"},{\"capability\":\"denied-reads\",\"result\":\"exercised\"},{\"capability\":\"ceiling\",\"result\":\"exercised\"},{\"capability\":\"budget\",\"result\":\"exercised\"},{\"capability\":\"idempotency\",\"result\":\"exercised\"},{\"capability\":\"response-locator\",\"result\":\"exercised\"},{\"capability\":\"echo\",\"result\":\"exercised\"},{\"capability\":\"observation\",\"result\":\"exercised\"},{\"capability\":\"recovery\",\"result\":\"exercised\"},{\"capability\":\"observer-rotation\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"}],\"corpus_manifest_sha256\":\"d6c1cad9a6b0fe0fc27d1f8107c2381e8b9ab1bbfc04a47aa8234140de74a23f\",\"custody_descriptor\":\"aws-secrets-manager-v1 with workload identity\",\"evidence\":[{\"cases\":12,\"evidence_sha256\":\"c3a2a799eb04b1ee53a22495e0d95171a9f42f2ad557b639f3fe5440bbed90e7\",\"member\":\"conformance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"dfd5b5dccc73cae91abec7a76c332dae145eb37eddb18f56dca2e68f2dbc81ab\",\"member\":\"differential\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"a05d5182b4f20eb67c0d95622a70f1e4ac87d1d1b8b7fab219a2276b6da41256\",\"member\":\"hostile\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"00beb3d9e44f8d20d5da8861818ecd7b430714f959a6613dbd2d870997eb90f8\",\"member\":\"live\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"3a4e01d7b8d11480e334d0d2fffc2efeeaf2363d21f9107094c3cfc3c063b362\",\"member\":\"recovery\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"6b428d653e06c75268e2e33f234f30f9cc24616c42faf551699f7a7ac2376011\",\"member\":\"rotation\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"e8713a54bfb187836d4db2f34f181129f2e03f7221bc2d3247134470adcacee8\",\"member\":\"restart\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8824a7669543ecf652b651fa2d370c548e09b73c1babac841cd689389a1fdcbe\",\"member\":\"multi-instance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"f31f29dc30a4e8ccd3aea69c012656c2811ac194881147b2cced5dd7dc1a7d9b\",\"member\":\"redaction\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8e91fde286bdbb80e6d6245e7ab9dab68f92e790922170195fc80aab2eeb227b\",\"member\":\"installed-consumer\",\"result\":\"passed\",\"unauthorized_provider_entries\":0}],\"excluded_claims\":[\"the provider performed or settled the business effect\"],\"generated_artifacts_sha256\":\"fff3ece48e4f5271825e80b355a1243a4c30619329bbbc70bc4e5c1b242973e2\",\"installed_packages\":[{\"name\":\"auths-gateway\",\"sha256\":\"8a58d99c69c098e53c2197df2c6a6a16b131c69798f728db134c978f77e95360\",\"version\":\"1.0.0-rc.1\"},{\"name\":\"auths-python\",\"sha256\":\"59b028e3e66e681bfa195fb6afee775b91f30fc418f05f86353bc71cd021d2f9\",\"version\":\"1.0.0rc1\"}],\"live_effects\":{\"confirmed_by_read_back\":4,\"entered\":4},\"not_after\":1797768800,\"not_before\":1789992800,\"provenance\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"environment\":\"recipe-qualification\",\"repository\":\"github.com/auths-dev/auths-proof\",\"workflow\":\".github/workflows/recipe-qualification.yml\"},\"provider_kind\":\"example-payments\",\"provider_resources\":[\"refund:fixture-0001\",\"refund:fixture-0002\"],\"qualification_id\":\"qlf_01010101010101010101010101010101\",\"recipe_decision_record_sha256\":\"0c2328dfcdc21fcd917fd242dd16f9adf1354395a472e589e2778dee99527081\",\"residual_assumptions\":[\"the provider keeps its test mode separate from live data\"],\"schema\":\"auths.recipe-qualification/1\",\"source_closure_sha256\":\"00023b3a6fbf90b531085365646cda2ffcac182f6eaedf453eb680b63ae33106\",\"store_descriptor\":\"postgresql 16 with TLS\",\"tuple\":{\"compiled_recipe_sha256\":\"262f5ef11b349645f2421c533220fc6bbfd70c4a5395f5d65c601406eba7d4ef\",\"gateway_semantic_closure_sha256\":\"01ec13346b098e4f5e1c64a995a50ce15ef339dc1f304966a45c94e80638203b\",\"profile_lock_sha256\":\"4dd8982feedb83403f985de3e1a952a90060e44035ab797e5313ff93957a22d5\",\"provider_contract_id\":\"f15f154a38de58de1b27c70c61a6b20fe532746e2e4462576dbd3d27d76cce3d\",\"recipe_family\":\"example-refund-v1\",\"target\":{\"arch\":\"x86_64\",\"credential_store_kind\":\"aws-secrets-manager-v1\",\"gateway_build_sha256\":\"42194bc83fbd821aaede008519091b4516baf914f8c2e27f3f2ac7a25f7485c3\",\"gateway_package\":\"auths-gateway\",\"gateway_version\":\"1.0.0-rc.1\",\"os\":\"linux\",\"store_kind\":\"postgresql-v1\",\"store_schema\":\"auths.lifecycle.postgresql/5\"}}}\n"
+    },
+    {
+      "id": "record-exponent-time",
+      "artifact": "record",
+      "class": "non-canonical",
+      "reason": "malformed",
+      "text": "{\"capabilities\":[{\"capability\":\"credential-guard\",\"result\":\"exercised\"},{\"capability\":\"version-pin\",\"result\":\"exercised\"},{\"capability\":\"account-binding\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"},{\"capability\":\"denied-reads\",\"result\":\"exercised\"},{\"capability\":\"ceiling\",\"result\":\"exercised\"},{\"capability\":\"budget\",\"result\":\"exercised\"},{\"capability\":\"idempotency\",\"result\":\"exercised\"},{\"capability\":\"response-locator\",\"result\":\"exercised\"},{\"capability\":\"echo\",\"result\":\"exercised\"},{\"capability\":\"observation\",\"result\":\"exercised\"},{\"capability\":\"recovery\",\"result\":\"exercised\"},{\"capability\":\"observer-rotation\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"}],\"corpus_manifest_sha256\":\"d6c1cad9a6b0fe0fc27d1f8107c2381e8b9ab1bbfc04a47aa8234140de74a23f\",\"custody_descriptor\":\"aws-secrets-manager-v1 with workload identity\",\"evidence\":[{\"cases\":12,\"evidence_sha256\":\"c3a2a799eb04b1ee53a22495e0d95171a9f42f2ad557b639f3fe5440bbed90e7\",\"member\":\"conformance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"dfd5b5dccc73cae91abec7a76c332dae145eb37eddb18f56dca2e68f2dbc81ab\",\"member\":\"differential\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"a05d5182b4f20eb67c0d95622a70f1e4ac87d1d1b8b7fab219a2276b6da41256\",\"member\":\"hostile\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"00beb3d9e44f8d20d5da8861818ecd7b430714f959a6613dbd2d870997eb90f8\",\"member\":\"live\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"3a4e01d7b8d11480e334d0d2fffc2efeeaf2363d21f9107094c3cfc3c063b362\",\"member\":\"recovery\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"6b428d653e06c75268e2e33f234f30f9cc24616c42faf551699f7a7ac2376011\",\"member\":\"rotation\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"e8713a54bfb187836d4db2f34f181129f2e03f7221bc2d3247134470adcacee8\",\"member\":\"restart\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8824a7669543ecf652b651fa2d370c548e09b73c1babac841cd689389a1fdcbe\",\"member\":\"multi-instance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"f31f29dc30a4e8ccd3aea69c012656c2811ac194881147b2cced5dd7dc1a7d9b\",\"member\":\"redaction\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8e91fde286bdbb80e6d6245e7ab9dab68f92e790922170195fc80aab2eeb227b\",\"member\":\"installed-consumer\",\"result\":\"passed\",\"unauthorized_provider_entries\":0}],\"excluded_claims\":[\"the provider performed or settled the business effect\"],\"generated_artifacts_sha256\":\"fff3ece48e4f5271825e80b355a1243a4c30619329bbbc70bc4e5c1b242973e2\",\"installed_packages\":[{\"name\":\"auths-gateway\",\"sha256\":\"8a58d99c69c098e53c2197df2c6a6a16b131c69798f728db134c978f77e95360\",\"version\":\"1.0.0-rc.1\"},{\"name\":\"auths-python\",\"sha256\":\"59b028e3e66e681bfa195fb6afee775b91f30fc418f05f86353bc71cd021d2f9\",\"version\":\"1.0.0rc1\"}],\"live_effects\":{\"confirmed_by_read_back\":4,\"entered\":4},\"not_after\":1797768800,\"not_before\":1.7899928e9,\"provenance\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"environment\":\"recipe-qualification\",\"repository\":\"github.com/auths-dev/auths-proof\",\"workflow\":\".github/workflows/recipe-qualification.yml\"},\"provider_kind\":\"example-payments\",\"provider_resources\":[\"refund:fixture-0001\",\"refund:fixture-0002\"],\"qualification_id\":\"qlf_01010101010101010101010101010101\",\"recipe_decision_record_sha256\":\"0c2328dfcdc21fcd917fd242dd16f9adf1354395a472e589e2778dee99527081\",\"residual_assumptions\":[\"the provider keeps its test mode separate from live data\"],\"schema\":\"auths.recipe-qualification/1\",\"source_closure_sha256\":\"00023b3a6fbf90b531085365646cda2ffcac182f6eaedf453eb680b63ae33106\",\"store_descriptor\":\"postgresql 16 with TLS\",\"tuple\":{\"compiled_recipe_sha256\":\"262f5ef11b349645f2421c533220fc6bbfd70c4a5395f5d65c601406eba7d4ef\",\"gateway_semantic_closure_sha256\":\"01ec13346b098e4f5e1c64a995a50ce15ef339dc1f304966a45c94e80638203b\",\"profile_lock_sha256\":\"4dd8982feedb83403f985de3e1a952a90060e44035ab797e5313ff93957a22d5\",\"provider_contract_id\":\"f15f154a38de58de1b27c70c61a6b20fe532746e2e4462576dbd3d27d76cce3d\",\"recipe_family\":\"example-refund-v1\",\"target\":{\"arch\":\"x86_64\",\"credential_store_kind\":\"aws-secrets-manager-v1\",\"gateway_build_sha256\":\"42194bc83fbd821aaede008519091b4516baf914f8c2e27f3f2ac7a25f7485c3\",\"gateway_package\":\"auths-gateway\",\"gateway_version\":\"1.0.0-rc.1\",\"os\":\"linux\",\"store_kind\":\"postgresql-v1\",\"store_schema\":\"auths.lifecycle.postgresql/5\"}}}"
+    },
+    {
+      "id": "record-repeated-member",
+      "artifact": "record",
+      "class": "non-canonical",
+      "reason": "malformed",
+      "text": "{\"schema\":\"auths.recipe-qualification/1\",\"capabilities\":[{\"capability\":\"credential-guard\",\"result\":\"exercised\"},{\"capability\":\"version-pin\",\"result\":\"exercised\"},{\"capability\":\"account-binding\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"},{\"capability\":\"denied-reads\",\"result\":\"exercised\"},{\"capability\":\"ceiling\",\"result\":\"exercised\"},{\"capability\":\"budget\",\"result\":\"exercised\"},{\"capability\":\"idempotency\",\"result\":\"exercised\"},{\"capability\":\"response-locator\",\"result\":\"exercised\"},{\"capability\":\"echo\",\"result\":\"exercised\"},{\"capability\":\"observation\",\"result\":\"exercised\"},{\"capability\":\"recovery\",\"result\":\"exercised\"},{\"capability\":\"observer-rotation\",\"reason\":\"the qualified recipe and target declare none\",\"result\":\"not-applicable\"}],\"corpus_manifest_sha256\":\"d6c1cad9a6b0fe0fc27d1f8107c2381e8b9ab1bbfc04a47aa8234140de74a23f\",\"custody_descriptor\":\"aws-secrets-manager-v1 with workload identity\",\"evidence\":[{\"cases\":12,\"evidence_sha256\":\"c3a2a799eb04b1ee53a22495e0d95171a9f42f2ad557b639f3fe5440bbed90e7\",\"member\":\"conformance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"dfd5b5dccc73cae91abec7a76c332dae145eb37eddb18f56dca2e68f2dbc81ab\",\"member\":\"differential\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"a05d5182b4f20eb67c0d95622a70f1e4ac87d1d1b8b7fab219a2276b6da41256\",\"member\":\"hostile\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"00beb3d9e44f8d20d5da8861818ecd7b430714f959a6613dbd2d870997eb90f8\",\"member\":\"live\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"3a4e01d7b8d11480e334d0d2fffc2efeeaf2363d21f9107094c3cfc3c063b362\",\"member\":\"recovery\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"6b428d653e06c75268e2e33f234f30f9cc24616c42faf551699f7a7ac2376011\",\"member\":\"rotation\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"e8713a54bfb187836d4db2f34f181129f2e03f7221bc2d3247134470adcacee8\",\"member\":\"restart\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8824a7669543ecf652b651fa2d370c548e09b73c1babac841cd689389a1fdcbe\",\"member\":\"multi-instance\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"f31f29dc30a4e8ccd3aea69c012656c2811ac194881147b2cced5dd7dc1a7d9b\",\"member\":\"redaction\",\"result\":\"passed\",\"unauthorized_provider_entries\":0},{\"cases\":12,\"evidence_sha256\":\"8e91fde286bdbb80e6d6245e7ab9dab68f92e790922170195fc80aab2eeb227b\",\"member\":\"installed-consumer\",\"result\":\"passed\",\"unauthorized_provider_entries\":0}],\"excluded_claims\":[\"the provider performed or settled the business effect\"],\"generated_artifacts_sha256\":\"fff3ece48e4f5271825e80b355a1243a4c30619329bbbc70bc4e5c1b242973e2\",\"installed_packages\":[{\"name\":\"auths-gateway\",\"sha256\":\"8a58d99c69c098e53c2197df2c6a6a16b131c69798f728db134c978f77e95360\",\"version\":\"1.0.0-rc.1\"},{\"name\":\"auths-python\",\"sha256\":\"59b028e3e66e681bfa195fb6afee775b91f30fc418f05f86353bc71cd021d2f9\",\"version\":\"1.0.0rc1\"}],\"live_effects\":{\"confirmed_by_read_back\":4,\"entered\":4},\"not_after\":1797768800,\"not_before\":1789992800,\"provenance\":{\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"environment\":\"recipe-qualification\",\"repository\":\"github.com/auths-dev/auths-proof\",\"workflow\":\".github/workflows/recipe-qualification.yml\"},\"provider_kind\":\"example-payments\",\"provider_resources\":[\"refund:fixture-0001\",\"refund:fixture-0002\"],\"qualification_id\":\"qlf_01010101010101010101010101010101\",\"recipe_decision_record_sha256\":\"0c2328dfcdc21fcd917fd242dd16f9adf1354395a472e589e2778dee99527081\",\"residual_assumptions\":[\"the provider keeps its test mode separate from live data\"],\"schema\":\"auths.recipe-qualification/1\",\"source_closure_sha256\":\"00023b3a6fbf90b531085365646cda2ffcac182f6eaedf453eb680b63ae33106\",\"store_descriptor\":\"postgresql 16 with TLS\",\"tuple\":{\"compiled_recipe_sha256\":\"262f5ef11b349645f2421c533220fc6bbfd70c4a5395f5d65c601406eba7d4ef\",\"gateway_semantic_closure_sha256\":\"01ec13346b098e4f5e1c64a995a50ce15ef339dc1f304966a45c94e80638203b\",\"profile_lock_sha256\":\"4dd8982feedb83403f985de3e1a952a90060e44035ab797e5313ff93957a22d5\",\"provider_contract_id\":\"f15f154a38de58de1b27c70c61a6b20fe532746e2e4462576dbd3d27d76cce3d\",\"recipe_family\":\"example-refund-v1\",\"target\":{\"arch\":\"x86_64\",\"credential_store_kind\":\"aws-secrets-manager-v1\",\"gateway_build_sha256\":\"42194bc83fbd821aaede008519091b4516baf914f8c2e27f3f2ac7a25f7485c3\",\"gateway_package\":\"auths-gateway\",\"gateway_version\":\"1.0.0-rc.1\",\"os\":\"linux\",\"store_kind\":\"postgresql-v1\",\"store_schema\":\"auths.lifecycle.postgresql/5\"}}}"
+    },
+    {
+      "id": "certificate-hardware-signer-kind",
+      "artifact": "signer_certificate",
+      "class": "wrong-signer-kind",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/signer_kind",
+          "value": "hardware-release-key-v1"
+        }
+      ]
+    },
+    {
+      "id": "certificate-kms-signer-kind",
+      "artifact": "signer_certificate",
+      "class": "wrong-signer-kind",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/signer_kind",
+          "value": "aws-kms-p256-v1"
+        }
+      ]
+    },
+    {
+      "id": "certificate-unknown-suite",
+      "artifact": "signer_certificate",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/signature_suite",
+          "value": "p256-sha256-v1"
+        }
+      ]
+    },
+    {
+      "id": "certificate-permits-certificates",
+      "artifact": "signer_certificate",
+      "class": "signer-signed-root-artifact",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/permitted_artifact_kinds",
+          "value": [
+            "qualification-release-index",
+            "qualification-signer-certificate"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "certificate-permits-revocations",
+      "artifact": "signer_certificate",
+      "class": "signer-signed-root-artifact",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/permitted_artifact_kinds",
+          "value": [
+            "qualification-release-index",
+            "qualification-revocation-list"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "certificate-permits-nothing",
+      "artifact": "signer_certificate",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/permitted_artifact_kinds",
+          "value": []
+        }
+      ]
+    },
+    {
+      "id": "certificate-kinds-unsorted",
+      "artifact": "signer_certificate",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/permitted_artifact_kinds",
+          "value": [
+            "recipe-qualification-attestation",
+            "qualification-release-index"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "certificate-kind-repeated",
+      "artifact": "signer_certificate",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/permitted_artifact_kinds",
+          "value": [
+            "qualification-release-index",
+            "qualification-release-index"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "certificate-window-366-days",
+      "artifact": "signer_certificate",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/not_after",
+          "value": 1821536000
+        }
+      ]
+    },
+    {
+      "id": "certificate-issued-after-expiry",
+      "artifact": "signer_certificate",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/issued_at",
+          "value": 1805465600
+        }
+      ]
+    },
+    {
+      "id": "certificate-maximum-age-member",
+      "artifact": "signer_certificate",
+      "class": "widened-time-bound",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/maximum_age_seconds",
+          "value": 63072000
+        }
+      ]
+    },
+    {
+      "id": "certificate-short-key",
+      "artifact": "signer_certificate",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/public_key_b64",
+          "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      ]
+    },
+    {
+      "id": "certificate-oversized",
+      "artifact": "signer_certificate",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 4097
+    },
+    {
+      "id": "revocation-window-73-hours",
+      "artifact": "revocation_list",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/next_update",
+          "value": 1790259200
+        }
+      ]
+    },
+    {
+      "id": "revocation-next-update-at-issue",
+      "artifact": "revocation_list",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/next_update",
+          "value": 1789996400
+        }
+      ]
+    },
+    {
+      "id": "revocation-grace-member",
+      "artifact": "revocation_list",
+      "class": "widened-time-bound",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/grace_seconds",
+          "value": 86400
+        }
+      ]
+    },
+    {
+      "id": "revocation-sequence-zero",
+      "artifact": "revocation_list",
+      "class": "non-canonical",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/sequence",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "revocation-signers-unsorted",
+      "artifact": "revocation_list",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/revoked_signers",
+          "value": [
+            "signer-b",
+            "signer-a"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "revocation-qualification-repeated",
+      "artifact": "revocation_list",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/statement/revoked_qualifications",
+          "count": 2,
+          "width": 1,
+          "template": "qlf_0000000000000000000000000000000a"
+        }
+      ]
+    },
+    {
+      "id": "revocation-65-signers",
+      "artifact": "revocation_list",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/statement/revoked_signers",
+          "count": 65,
+          "width": 4,
+          "template": "signer-{}"
+        }
+      ]
+    },
+    {
+      "id": "revocation-1025-qualifications",
+      "artifact": "revocation_list",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/statement/revoked_qualifications",
+          "count": 1025,
+          "width": 32,
+          "template": "qlf_{}"
+        }
+      ]
+    },
+    {
+      "id": "revocation-oversized",
+      "artifact": "revocation_list",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 65537
+    },
+    {
+      "id": "index-entry-repeated",
+      "artifact": "release_index",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/entries",
+          "value": [
+            {
+              "attestation_sha256": "70d270e747fcf8bca9f408758ddcc1cd4470bd0dc8fa675ea68ce960146c8bbd",
+              "qualification_id": "qlf_01010101010101010101010101010101",
+              "record_sha256": "d7a00ddda1c3b7afa99bb997fd9d88f864937a104e1b8cdd4370ebb914c6d306"
+            },
+            {
+              "attestation_sha256": "70d270e747fcf8bca9f408758ddcc1cd4470bd0dc8fa675ea68ce960146c8bbd",
+              "qualification_id": "qlf_01010101010101010101010101010101",
+              "record_sha256": "d7a00ddda1c3b7afa99bb997fd9d88f864937a104e1b8cdd4370ebb914c6d306"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "index-257-entries",
+      "artifact": "release_index",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/statement/entries",
+          "count": 257,
+          "width": 32,
+          "template": {
+            "attestation_sha256": "70d270e747fcf8bca9f408758ddcc1cd4470bd0dc8fa675ea68ce960146c8bbd",
+            "qualification_id": "qlf_{}",
+            "record_sha256": "d7a00ddda1c3b7afa99bb997fd9d88f864937a104e1b8cdd4370ebb914c6d306"
+          }
+        }
+      ]
+    },
+    {
+      "id": "index-own-freshness-member",
+      "artifact": "release_index",
+      "class": "widened-time-bound",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/next_update",
+          "value": 1821536000
+        }
+      ]
+    },
+    {
+      "id": "index-oversized",
+      "artifact": "release_index",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 131073
+    },
+    {
+      "id": "attestation-window-91-days",
+      "artifact": "attestation",
+      "class": "widened-time-bound",
+      "reason": "invalid-time-window",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/not_after",
+          "value": 1797855200
+        }
+      ]
+    },
+    {
+      "id": "attestation-embedded-state",
+      "artifact": "attestation",
+      "class": "self-declared-qualification",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/state",
+          "value": "qualified"
+        }
+      ]
+    },
+    {
+      "id": "attestation-unknown-suite",
+      "artifact": "attestation",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/statement/signature_suite",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "id": "attestation-short-signature",
+      "artifact": "attestation",
+      "class": "forged",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/signature_b64",
+          "value": "AAAA"
+        }
+      ]
+    },
+    {
+      "id": "attestation-oversized",
+      "artifact": "attestation",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 4097
+    },
+    {
+      "id": "trust-root-private-key-member",
+      "artifact": "trust_root",
+      "class": "extra-field",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/private_key_b64",
+          "value": "not-a-key"
+        }
+      ]
+    },
+    {
+      "id": "trust-root-unknown-suite",
+      "artifact": "trust_root",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/signature_suite",
+          "value": "rsa-pkcs1-sha256-v1"
+        }
+      ]
+    },
+    {
+      "id": "trust-root-members-reordered",
+      "artifact": "trust_root",
+      "class": "non-canonical",
+      "reason": "non-canonical",
+      "text": "{\"signature_suite\":\"ed25519-v1\",\"schema\":\"auths.qualification-trust-root/1\",\"root_id\":\"auths-qualification-root-1\",\"public_key_b64\":\"0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc\"}"
+    },
+    {
+      "id": "trust-root-spaced",
+      "artifact": "trust_root",
+      "class": "non-canonical",
+      "reason": "non-canonical",
+      "text": "{\"public_key_b64\": \"0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc\",\"root_id\":\"auths-qualification-root-1\",\"schema\":\"auths.qualification-trust-root/1\",\"signature_suite\":\"ed25519-v1\"}"
+    },
+    {
+      "id": "trust-root-oversized",
+      "artifact": "trust_root",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 1025
+    },
+    {
+      "id": "contract-mock-environment",
+      "artifact": "provider_contract",
+      "class": "unknown-enum-member",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/environment_class",
+          "value": "mock"
+        }
+      ]
+    },
+    {
+      "id": "contract-null-slice",
+      "artifact": "provider_contract",
+      "class": "non-canonical",
+      "reason": "non-canonical",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/openapi_slice_sha256",
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "contract-assumptions-unsorted",
+      "artifact": "provider_contract",
+      "class": "non-canonical",
+      "reason": "list-order",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/manual_assumptions",
+          "value": [
+            "b assumption",
+            "a assumption"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contract-33-assumptions",
+      "artifact": "provider_contract",
+      "class": "oversize",
+      "reason": "list-bound",
+      "mutations": [
+        {
+          "op": "fill",
+          "pointer": "/manual_assumptions",
+          "count": 33,
+          "width": 4,
+          "template": "assumption {}"
+        }
+      ]
+    },
+    {
+      "id": "contract-unicode-provider",
+      "artifact": "provider_contract",
+      "class": "unicode-confusion",
+      "reason": "malformed",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider",
+          "value": "exаmple-payments"
+        }
+      ]
+    },
+    {
+      "id": "contract-oversized",
+      "artifact": "provider_contract",
+      "class": "oversize",
+      "reason": "oversized",
+      "pad_to": 16385
+    }
+  ],
+  "contract_drift": [
+    {
+      "id": "contract-drift-api-release",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/api_release",
+          "value": "2026-10-01.fixture"
+        }
+      ],
+      "provider_contract_id": "7271e90abf303056fc7a376c7d08787557985696adb0c0165c94eca309b4a344"
+    },
+    {
+      "id": "contract-drift-slice",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/openapi_slice_sha256",
+          "value": "abababababababababababababababababababababababababababababababab"
+        }
+      ],
+      "provider_contract_id": "38fbfa89823c8afa0b4b5bc8469456c8ebdf6183ea23e442ade6b15e6caa5814"
+    },
+    {
+      "id": "contract-drift-slice-removed",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "remove",
+          "pointer": "/openapi_slice_sha256"
+        }
+      ],
+      "provider_contract_id": "b6acee900b758d92bb8f275dbce4bad167030dfa5852ffd4fa19d625c87e6394"
+    },
+    {
+      "id": "contract-drift-assumption",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/manual_assumptions/1",
+          "value": "the idempotency key is honored for at least 1 hour"
+        }
+      ],
+      "provider_contract_id": "75bc9a49e113b3b4411e9979029b29f031c547df1047658a5083b078b6b10f1d"
+    },
+    {
+      "id": "contract-drift-environment",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/environment_class",
+          "value": "disposable-live-resources"
+        }
+      ],
+      "provider_contract_id": "ffaeae0873fdb193f5b363adb7b7961b3e8a886d8f2a39829ec70624ae043d64"
+    },
+    {
+      "id": "contract-drift-corpus",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/corpus_manifest_sha256",
+          "value": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+        }
+      ],
+      "provider_contract_id": "9a83b043a0b44a5ac83ef82336625806e74fa161a0450acd55f4692d6c0efde3"
+    },
+    {
+      "id": "contract-drift-oracle",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/oracle_version",
+          "value": "oracle-2"
+        }
+      ],
+      "provider_contract_id": "c5bd67d4b5fa1795793bf3d49d360d6e8e23250ac39f30da487ca63c58607e5f"
+    },
+    {
+      "id": "contract-drift-recovery",
+      "class": "contract-drift",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/declarations/recovery_sha256",
+          "value": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        }
+      ],
+      "provider_contract_id": "9da0492c1880406365f116dde233d28c96c7a83c9edfa109798d5f10da24d939"
+    }
+  ]
+}

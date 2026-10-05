@@ -1,7 +1,9 @@
 # AP-SPEC-066: Production gateway polish and recipe qualification
 
-- **Status:** Draft. No implementation or production-qualified recipe is
-  claimed by this document.
+- **Status:** Draft. Epic 1 (types, threats, and evidence contracts) is
+  implemented; §18 records its status and readings. No production credential
+  store, release verifier, runtime qualification gate, or qualified recipe
+  exists, and none is claimed by this document.
 - **Depends on:** [AP-SPEC-038](0038-production-runtime-custody-observability-and-assurance.md)
   (production trust, custody, stores, and operations),
   [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md) (the
@@ -175,7 +177,7 @@ or SDK user needs them; bindings MUST NOT reimplement validation.
 | `CredentialReferenceCommitment` | existing `auths-connections` credential module | `caller-unresolvable-reference`: the connection binds the exact internal secret generation without exposing its location or material |
 | `StoredSecretLease` | existing `auths-connections` credential module | `deadline-bound-zeroized`: secret bytes are visible only to the provider adapter before the deadline and zeroized on drop |
 | `SecretBytes` | existing `auths-connections` credential module | `bounded-redacted-input`: non-empty bounded operator input, zeroized on drop and redacted under `Debug` |
-| `ConnectionBinding` | existing `auths-connections` model | `sealed-generation-binding`: connection ID, credential generation and reference commitment are loaded from durable operator state as one unit |
+| `ConnectionBinding` | existing `auths-connections` model | `sealed-generation-binding`: connection ID, connection generation, explicit credential generation and reference commitment are loaded from durable operator state as one unit; a store reads exactly the named credential generation and never searches for one |
 | `CredentialStoreKind` | `auths-connections` credential module | `closed-store-kind`: exactly the maintained development or production credential-store kinds; unknown values reject |
 | `CredentialRetirementDelay` | gateway operator model | `outlives-entered-transport`: a fixed 20 seconds, exceeding the gateway's 15-second maximum transport duration; changing either value requires one invariant test and qualification drift |
 | `QualificationTrustRoot` | release policy | `offline-trust-root`: pinned identifier and public key whose private key is absent from pull-request and qualification runners |
@@ -194,6 +196,14 @@ or SDK user needs them; bindings MUST NOT reimplement validation.
 Newtype constructors MUST enforce size, grammar, canonicalization, and closed
 enumerations. Raw strings MUST NOT cross connection, custody, qualification,
 or readiness APIs where one of these types applies.
+
+The owners are these packages: the credential module and model are
+`auths-connections`; the gateway operator model and API are the `readiness`
+module of `auths-gateway`; the qualification model and release policy are the
+`model` and `release` modules of `auths-recipe-qualification`. Types that
+exist only as members of a type above (the qualification tuple, the provider
+contract's inputs, evidence members and capabilities, the release index, the
+readiness preconditions) share that type's owner and invariant.
 
 ## 5. Production provider-secret custody
 
@@ -235,7 +245,20 @@ pub trait ConnectionCredentialStore: Send + Sync {
 The existing trait, `SecretBytes`, `CredentialReferenceCommitment`,
 `StoredSecretLease`, and `ConnectionBinding` remain normative. Implementation
 MAY add a closed `kind`/readiness projection without changing the store's
-authority. A lease is requested only by the gateway after verification,
+authority.
+
+**Explicit credential generation (owner decision, 2026-10-05).** A connection
+record has two generations: `generation` advances on every change, and
+`credential_generation` is the generation at which the current secret was
+installed or rotated in. The sealed `ConnectionBinding` carries both, and
+`lease_secret` reads the secret stored at exactly the binding's credential
+generation. A store MUST NOT resolve "the newest generation not after" a
+connection generation: a secret manager that reads one exact immutable version
+cannot do so without listing, and a search is a way to be handed another
+generation. The in-repository stores additionally refuse a binding whose
+credential generation is not the newest one stored at or before its
+connection generation, so a superseded credential never serves a later
+generation. A lease is requested only by the gateway after verification,
 policy, one-use claim, capacity reservation, connection reload, and
 qualification check. The store receives no URL, method, body, header name,
 recipe, proof, provider name, or authority to select another connection.
@@ -796,6 +819,8 @@ Done when all types have named invariants and owners, every ambiguity has a
 hostile vector, architecture policy proves no core/provider dependency was
 added, and the fixtures fail for the intended missing implementation.
 
+Status: implemented; see §18.
+
 ### Epic 2 — Ship production custody and rotation
 
 Tasks:
@@ -962,3 +987,165 @@ credential is required for launch.
    signing keys improves key protection but does not change the exact-action
    boundary. Launch uses an honestly labelled protected software release
    signer and makes no signed-observer claim when no external observer exists.
+
+## 18. Epic 1 status and readings
+
+Epic 1 is implemented. It adds types, schemas, bounds, fixtures, and
+documents. It adds no production credential store, no signature verification,
+no qualification state derived from inputs, no runtime gate, no stable code,
+and no binding surface.
+
+### 18.1 What exists
+
+| Task | Artifact |
+| --- | --- |
+| 1 abstraction case | [case 0008](../research/domains/abstraction-cases/0008-provider-secret-custody-and-recipe-qualification.md) |
+| 2 types | `auths-connections` (`CredentialStoreKind`, explicit credential generation in `ConnectionBinding`); `auths-gateway` `readiness` (`CredentialRetirementDelay`, `ClockTrustState`, `ProductionReadiness`); `auths-recipe-qualification` (every qualification-model and release-policy type) |
+| 2 schemas and bounds | seven canonical artifacts in `auths-recipe-qualification`, each with a schema identifier, a byte limit, and list and time bounds |
+| 2 stable-code fixture | `bindings/fixtures/gateway/production-codes.json`: the 11 new codes of §10 and 5 existing codes the vectors expect |
+| 2 hostile vectors | `bindings/fixtures/gateway/custody-hostile.json` (89 cases and 11 redaction canaries); `bindings/fixtures/qualification/schema-vectors.json` (78 structural cases, 8 contract drifts); `bindings/fixtures/qualification/verification-vectors.json` (49 cases) |
+| 3 threat model | [threat model](../threat-model.md), "Production gateway: provider-secret custody and recipe qualification" |
+| 4 plans | [custody plan](../plans/GATEWAY_AWS_SECRETS_MANAGER_CUSTODY_PLAN.md); [protected-run plan](../plans/RECIPE_QUALIFICATION_PROTECTED_RUN_PLAN.md) |
+
+Done gate:
+
+- **Named invariants and owners.** Each §4 type states its invariant on the
+  type; §4 names the owning package.
+- **A hostile vector for every ambiguity.** The gateway test
+  `every_hostile_class_has_a_vector` requires a case for each of the 34
+  classes §11 lists.
+- **No core or provider dependency.** `architecture.toml` has two dependency
+  boundaries: `auths-connections` reaches no workspace crate, and
+  `auths-recipe-qualification` reaches only `auths-connections`.
+- **Fixtures fail for the missing implementation.** Vectors that today's types
+  decide are driven as tests. For the rest, `production_codes_await_their_epics`
+  (gateway) and `verification_vectors_await_the_release_verifier`
+  (qualification) assert the shortfall: no new code, no code under
+  `gateway.qualification.` or `gateway.readiness.`, no secret-name derivation,
+  and no support bundle exists. Each fails when its implementing epic lands,
+  and that epic replaces it with the conformance test that drives the vectors.
+
+### 18.2 Owner decisions (2026-10-05)
+
+1. The start gate of §15 step 1 is met: the owner states that the Stripe
+   test-mode run and the unfamiliar-developer trial are done. This document
+   does not hold their artifact links.
+2. The sealed binding carries an explicit credential generation (§5.1).
+3. Where the qualification and release-policy types live was delegated to the
+   implementer; reading 1 is the choice taken.
+
+### 18.3 Readings (PROVISIONAL)
+
+Each was taken unattended as the narrower or fail-closed reading. The owner
+may change any of them; the fixtures change with it.
+
+1. **Package.** The qualification model and release policy are one new
+   product crate, `auths-recipe-qualification`. It performs no I/O, depends on
+   `auths-connections` only (for `CredentialStoreKind` and `ProviderKind`),
+   and is what both the gateway and release tooling will use, so neither
+   depends on the other.
+2. **Encoding.** Every artifact is RFC 8785 canonical JSON, as the operator
+   attestation is. A decoder checks the size limit, parses strictly (unknown
+   members, unknown enumeration values, repeated members, and wrong types are
+   refused), requires the input to equal its own canonical form, and then
+   checks structural rules. A signature covers the schema identifier, a NUL
+   byte, and the canonical statement.
+3. **Signature suite.** The closed set has one member, `ed25519-v1`: a
+   32-byte key and a 64-byte signature, base64url without padding.
+4. **Identifiers.** `RecipeFamilyId`, signer identifiers, and root identifiers
+   are `[a-z][a-z0-9-]{0,63}`. A qualification identifier is `qlf_` and 32
+   lowercase hexadecimal characters. A digest is 64 lowercase hexadecimal
+   characters. Opaque text is printable ASCII within its bound, so Unicode
+   look-alikes are refused.
+5. **Bounds.** Trust root 1 KiB; signer certificate 4 KiB; revocation list
+   64 KiB with at most 64 signers and 1,024 qualifications; release index
+   128 KiB with at most 256 entries; record 64 KiB; attestation 4 KiB;
+   provider contract 16 KiB with at most 32 manual assumptions. A record lists
+   1 to 8 installed packages, 1 to 32 provider resources, and at most 32
+   residual assumptions and 32 excluded claims.
+6. **Target.** Operating system (`linux`, `macos`), architecture (`x86_64`,
+   `aarch64`), gateway package name, version and build digest, store kind
+   (`postgresql-v1`, `shared-file-v1`) and schema, and credential-store kind.
+7. **Record.** The record names the connection's existing `ProviderKind`
+   outside the tuple, for the launch derivation of §14. It lists the ten
+   evidence members of §7.4 in a fixed order; the only representable result is
+   `passed`, each with at least one case and zero unauthorized provider
+   entries. It lists twelve capabilities in a fixed order (credential guard,
+   version pin, account binding, denied reads, ceiling, budget, idempotency,
+   response locator, echo, observation, recovery, observer rotation), each
+   `exercised`, or `not-applicable` with a reason. `live_effects` requires at
+   least one entered write and a read-back for every one.
+8. **Attestation.** The attestation signs the record's digest and carries its
+   own issue time and window of at most 90 days, which must lie within the
+   record's window. Re-signing after a signer rotation changes the
+   attestation, not the record.
+9. **Permitted artifact kinds.** Exactly `qualification-release-index` and
+   `recipe-qualification-attestation`. A certificate that names a certificate
+   or a revocation list does not decode.
+10. **Provider contract.** `auths.provider-contract/1` holds the provider and
+    API release as opaque text, an optional OpenAPI slice digest, sorted
+    manual assumptions, an environment class (`provider-test-mode` or
+    `disposable-live-resources`), the corpus manifest digest, the oracle
+    version, and digests of the observation, recovery, idempotency, and
+    retention declarations. `ProviderContractId` is SHA-256 of the schema, a
+    NUL byte, and the canonical contract.
+11. **States.** `stale` may become `revoked`, which §7.1's diagram omits:
+    a stale qualification whose signer is revoked is revoked. `revoked` is
+    terminal. A recipe is `unqualified` when no usable chain or record exists,
+    `candidate` when a closed record exists without a trusted attestation that
+    is valid now, and `stale` when an attestation chain verifies but a tuple
+    member, a validity window, the clock, or the revocation list does not
+    hold.
+12. **Codes where §10 is silent.** A forged, outsider-signed, wrong-signer,
+    wrong-record, not-yet-valid, or record-outliving attestation is
+    `gateway.qualification.missing`: no trusted attestation is valid now. A
+    certificate or index that does not verify, names another root, lacks the
+    needed artifact kind, or a revocation list that does not verify or is
+    older than one already accepted, is `gateway.qualification.unavailable`.
+    A deployment whose recipe family no record names is
+    `gateway.qualification.missing`.
+13. **Precedence.** When several faults hold a verifier reports the first of:
+    unavailable, revoked, clock-untrusted, revocation-stale, missing, expired,
+    digest-mismatch, target-mismatch. Revocation is reported whenever a
+    verified list names it, including under an untrusted clock or from a list
+    past its next update.
+14. **Verifier state.** A verifier keeps the highest revocation-list sequence
+    it has accepted and every signer and qualification any verified list has
+    named. A later list that omits one does not restore it.
+15. **Store kind.** The tokens are `local-file-v1` and
+    `aws-secrets-manager-v1`. Every other token, including one that differs
+    in case, spacing, or version, is `gateway.credential.adapter-unsupported`
+    under both policies. `local-file-v1` under production policy is
+    `gateway.credential.production-plaintext-refused`.
+16. **Readiness.** Nine required preconditions (trust, store, recipe,
+    qualification, provider-secret custody, connection generation, clock,
+    transport policy, operator-plane isolation) and observer custody, which
+    blocks only when an observer is configured and not ready. The type reports
+    which precondition failed. Stable codes attach in Epic 4.
+17. **External naming.** The custody plan derives the secret name from the
+    deployment namespace, connection identifier, and credential generation,
+    and the version identifier from the connection identifier, generation,
+    and reference commitment. Five derivations are frozen as vectors. The
+    plan lists one assumption about the service that the first protected run
+    must confirm.
+18. **Code inventory.** The new codes have their own inventory,
+    `production-codes.json`, because the `epic` field of `codes.json` numbers
+    AP-SPEC-063's epics. `gateway.readiness.connection-disabled` has no
+    producing vector: it is a readiness reason that Epic 4 produces.
+19. **Bindings.** Python and TypeScript projections and closed code unions are
+    Epic 4 work, as AP-SPEC-063 epic 1 left its bindings to later epics.
+20. **Fourth provider.** The abstraction case compares Postmark as its
+    header-API-key provider, on paper only.
+
+### 18.4 A finding for the owner
+
+§8 bounds a revocation list at 72 hours, and §7.4 keeps the root that signs it
+offline. Together they require a root ceremony at least every 72 hours for as
+long as any production recipe is enabled; a missed one disables every required
+recipe. The protected-run plan sets a 48-hour cadence and explains why signing
+future-dated lists in advance is not a safe way to relax it: such a list is a
+newer list without a later revocation. Reading 14 makes revocation permanent
+at each verifier so that a later list cannot undo one. Whether a 48-hour
+ceremony is acceptable is the owner's decision; the alternative is to amend
+the bound in §8, not to add a configuration that widens it.
+

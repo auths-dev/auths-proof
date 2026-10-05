@@ -13,7 +13,8 @@ mod registry;
 
 pub use credential::{
     ConnectionCredentialStore, CredentialReferenceCommitment, CredentialStoreError,
-    InMemoryCredentialStore, PersistentCredentialStore, SecretBytes, StoredSecretLease,
+    CredentialStoreKind, InMemoryCredentialStore, PersistentCredentialStore, SecretBytes,
+    StoredSecretLease, UnknownCredentialStoreKind,
 };
 pub use model::{
     ConnectionAlias, ConnectionBinding, ConnectionId, ConnectionProfile, ConnectionRecord,

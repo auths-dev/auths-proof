@@ -1538,6 +1538,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-recipe-qualification"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-connections",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "auths-records-api"
 version = "1.0.0-rc.1"
 dependencies = [

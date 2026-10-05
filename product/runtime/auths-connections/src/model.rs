@@ -675,18 +675,25 @@ impl ConnectionRecord {
     }
 
     /// Reconstructs the exact sealed binding for an unresolved older
-    /// generation after the caller has authenticated the operation and loaded
-    /// the commitment of the credential retained for that generation.
+    /// generation after the caller has authenticated the operation and loaded,
+    /// as one unit, the credential generation that served it and the
+    /// commitment of the credential stored there.
     ///
     /// # Errors
     ///
-    /// Returns every refusal of [`Self::authorize_recovery_lease`].
+    /// Returns every refusal of [`Self::authorize_recovery_lease`], and
+    /// [`ConnectionRecordError::InvalidGeneration`] for a credential
+    /// generation newer than `generation`.
     pub fn binding_for_recovery(
         &self,
         generation: NonZeroU64,
+        credential_generation: NonZeroU64,
         credential_reference_commitment: CredentialReferenceCommitment,
     ) -> Result<ConnectionBinding, ConnectionRecordError> {
         self.authorize_recovery_lease(generation)?;
+        if credential_generation > generation {
+            return Err(ConnectionRecordError::InvalidGeneration);
+        }
         Ok(ConnectionBinding {
             provider_kind: self.provider_kind.clone(),
             alias: self.alias.clone(),
@@ -695,6 +702,7 @@ impl ConnectionRecord {
             descriptor_schema: self.descriptor_schema.clone(),
             descriptor: self.descriptor.clone(),
             generation,
+            credential_generation,
             descriptor_commitment: self.descriptor_commitment,
             account_commitment: self.account_commitment,
             credential_reference_commitment: *credential_reference_commitment.as_bytes(),
@@ -828,6 +836,12 @@ impl ConnectionRecord {
 }
 
 /// Internal operation binding produced only by an authorized registry lookup.
+///
+/// Invariant `sealed-generation-binding`: the connection identity, the
+/// credential generation, and the credential-reference commitment are taken
+/// from one durable record as one unit. No caller can assemble a binding from
+/// separately chosen parts, so a credential store never has to search for the
+/// generation a binding means.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConnectionBinding {
     pub(crate) provider_kind: ProviderKind,
@@ -837,6 +851,7 @@ pub struct ConnectionBinding {
     pub(crate) descriptor_schema: SemanticId,
     pub(crate) descriptor: Vec<u8>,
     pub(crate) generation: NonZeroU64,
+    pub(crate) credential_generation: NonZeroU64,
     pub(crate) descriptor_commitment: [u8; 32],
     pub(crate) account_commitment: [u8; 32],
     pub(crate) credential_reference_commitment: [u8; 32],
@@ -878,6 +893,12 @@ impl ConnectionBinding {
     #[must_use]
     pub const fn generation(&self) -> NonZeroU64 {
         self.generation
+    }
+    /// Returns the exact generation at which the bound credential was
+    /// installed or rotated in. It never exceeds [`Self::generation`].
+    #[must_use]
+    pub const fn credential_generation(&self) -> NonZeroU64 {
+        self.credential_generation
     }
     /// Returns the bound descriptor commitment.
     #[must_use]
@@ -1214,12 +1235,17 @@ pub(crate) mod tests {
             .transition_state(ConnectionState::Disabled, 11)
             .unwrap();
         assert_eq!(disabled.authorize_recovery_lease(first), Ok(()));
+        let recovered = disabled
+            .binding_for_recovery(first, first, commitment)
+            .unwrap();
+        assert_eq!(recovered.generation(), first);
+        assert_eq!(recovered.credential_generation(), first);
         assert_eq!(
             disabled
-                .binding_for_recovery(first, commitment)
-                .unwrap()
-                .generation(),
-            first
+                .binding_for_recovery(first, disabled.generation(), commitment)
+                .unwrap_err(),
+            ConnectionRecordError::InvalidGeneration,
+            "a credential generation never exceeds the generation it serves"
         );
         assert_eq!(
             disabled.authorize_recovery_lease(NonZeroU64::new(3).unwrap()),
@@ -1236,7 +1262,7 @@ pub(crate) mod tests {
             );
             assert_eq!(
                 revoked
-                    .binding_for_recovery(generation, commitment)
+                    .binding_for_recovery(generation, first, commitment)
                     .unwrap_err(),
                 ConnectionRecordError::Revoked
             );

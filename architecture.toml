@@ -96,6 +96,7 @@ no_std_packages = [
 auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
 auths-approval-quorum = "product"
+auths-recipe-qualification = "product"
 auths-identity = "core"
 auths-identity-authority = "core"
 auths-identity-raw-key = "core"
@@ -268,6 +269,18 @@ allowed_workspace_dependencies = [
   "auths-sigstore-keyless",
   "auths-verifier",
 ]
+
+# The credential store knows connection identity and generation only, so it
+# reaches no other workspace crate: no verifier, provider, or gateway code.
+[dependency_boundaries.connection-credentials]
+roots = ["auths-connections"]
+allowed_workspace_dependencies = []
+
+# The qualification model reaches no core crate and no provider integration:
+# a qualification is evidence about a recipe, never verifier or provider code.
+[dependency_boundaries.recipe-qualification]
+roots = ["auths-recipe-qualification"]
+allowed_workspace_dependencies = ["auths-connections"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

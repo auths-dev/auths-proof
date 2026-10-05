@@ -21,12 +21,17 @@
 //! `bounds-aggregate.json` through both stores. So have the key-identity
 //! vectors: `keys` checks every key identity and overlap they pin, and
 //! separation by key.
+//!
+//! `production` holds the vectors of the production custody and
+//! qualification work, which is pending in the same way: it drives what
+//! today's types already decide and asserts the shortfall for the rest.
 
 pub(crate) mod attempts;
 pub(crate) mod bounds;
 mod codes;
 mod keys;
 mod outcomes;
+mod production;
 mod recipes;
 
 use serde_json::Value;

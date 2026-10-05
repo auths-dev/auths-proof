@@ -24,6 +24,13 @@ use zeroize::Zeroizing;
 const MAX_WRITE_RESPONSE_BYTES: usize = 65_536;
 const MAX_SECRET_BYTES: usize = 4_096;
 
+/// The longest one provider request may run once it has entered transport.
+///
+/// A superseded credential generation is kept for longer than this, so an
+/// attempt that entered under it always finishes with the credential it
+/// leased. Changing this value changes what a qualification was run against.
+pub const MAX_TRANSPORT_DURATION: Duration = Duration::from_secs(15);
+
 /// Secret-free transport failure. `Unknown` is possible after network entry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
 pub(crate) enum GatewayTransportError {
@@ -233,7 +240,7 @@ impl GatewayHttpTransport {
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(15))
+            .timeout(MAX_TRANSPORT_DURATION)
             .pool_max_idle_per_host(0)
             .build()
             .map_err(|_| GatewayTransportError::NotEntered)?;
@@ -424,7 +431,7 @@ fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTr
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(15))
+        .timeout(MAX_TRANSPORT_DURATION)
         .pool_max_idle_per_host(0)
         .resolve(hostname, pinned)
         .build()
@@ -529,7 +536,7 @@ mod tests {
         )
         .expect("record");
         let binding = record
-            .binding_for_recovery(NonZeroU64::MIN, commitment)
+            .binding_for_recovery(NonZeroU64::MIN, NonZeroU64::MIN, commitment)
             .expect("binding");
         store
             .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
@@ -735,7 +742,7 @@ mod tests {
         )
         .expect("record");
         let binding = record
-            .binding_for_recovery(generation, commitment)
+            .binding_for_recovery(generation, generation, commitment)
             .expect("binding");
         store
             .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
