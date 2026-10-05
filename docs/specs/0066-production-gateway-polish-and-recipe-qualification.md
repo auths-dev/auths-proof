@@ -2,8 +2,8 @@
 
 - **Status:** Draft. Epic 1 (types, threats, and evidence contracts) is
   implemented; §18 records its status and readings. Epic 2 (production
-  custody and rotation) is implemented and its store contract has passed
-  against the live service; §19 records it. No
+  custody and rotation) is implemented and has passed live against the
+  secret store and against a provider's test mode; §19 records it. No
   release verifier, runtime qualification gate, or qualified recipe exists,
   and none is claimed by this document.
 - **Depends on:** [AP-SPEC-038](0038-production-runtime-custody-observability-and-assurance.md)
@@ -1226,12 +1226,26 @@ the end so nothing was left in the store. The offline audit of that run
 passed. Its provider was the counting double, so this shows the whole
 custody path through a real gateway and not a real provider's behavior.
 
-**Open: a write to a live provider through this path.** It is the remaining
-part of Epic 2's done gate. The owner stored a Stripe restricted test key as
-the environment's secret on 2026-10-05 and then deferred the run; it still
-needs a platform account, a connected account, a refundable payment, and a
-refunded payment from the test account. Until it runs, Epic 2 is not done by
-its own gate.
+**A write to a live provider through this path has passed** ([run 37349590113](https://github.com/auths-dev/auths-proof/actions/runs/37349590113)). The
+north-star refund journey ran against Stripe test mode on the default gateway
+build, with the restricted test key taken into Secrets Manager at install and
+leased from it for every request: one 15.00 test refund confirmed by
+read-back, one refund the provider rejected, the hostile cases, and the
+offline audit. That is the done gate's "real disposable write using the
+maintained adapter".
+
+Three things about that run are not what the journey's README describes, and
+each narrows what it shows:
+
+- The owner's sandbox cannot use Connect, so the platform account stood in as
+  the account the refund is scoped to. The provider accepts its own account
+  in that header. Scoping to a genuinely distinct connected account is not
+  shown; AP-SPEC-066 §7.6 requires it for the Stripe qualification.
+- The job runs a copy of the journey whose operation identifiers carry the
+  run number, because the provider's idempotency window refuses the fixed
+  identifiers twice within 24 hours on one account.
+- Two earlier attempts failed on test data, not on the gateway: a payment of
+  1,000.00 where the journey assumes 60.00, and the idempotency window above.
 
 A later run ([run 37331000975](https://github.com/auths-dev/auths-proof/actions/runs/37331000975))
 adds two least-privilege facts at the store: the runtime role cannot delete,
