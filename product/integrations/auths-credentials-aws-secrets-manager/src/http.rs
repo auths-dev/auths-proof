@@ -190,6 +190,8 @@ pub struct HttpSecretsApi<I> {
     client: Client,
     region: Region,
     host: String,
+    /// The URL every call is sent to: the regional service endpoint.
+    endpoint: String,
     key: Option<String>,
     identity: I,
     session: Mutex<Option<std::sync::Arc<SessionCredentials>>>,
@@ -214,6 +216,7 @@ impl<I: WorkloadIdentity> HttpSecretsApi<I> {
         Ok(Self {
             client: pinned_client(true).map_err(|_| InvalidDeployment)?,
             host: format!("secretsmanager.{}.amazonaws.com", region.as_str()),
+            endpoint: format!("https://secretsmanager.{}.amazonaws.com/", region.as_str()),
             region,
             key,
             identity,
@@ -276,7 +279,7 @@ impl<I: WorkloadIdentity> HttpSecretsApi<I> {
         });
         let request = self
             .client
-            .post(format!("https://{}/", self.host))
+            .post(&self.endpoint)
             .header("content-type", CONTENT_TYPE)
             .header("x-amz-date", date.as_str())
             .header("x-amz-security-token", session.session_token.as_str())
@@ -342,6 +345,248 @@ impl<I: WorkloadIdentity> SecretsApi for HttpSecretsApi<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read as _, Write as _};
+    use std::net::{TcpListener, TcpStream};
+
+    /// A workload identity with fixed, plainly fake session credentials.
+    struct FixedIdentity;
+
+    #[async_trait]
+    impl WorkloadIdentity for FixedIdentity {
+        async fn session(&self, _deadline: Instant) -> Result<SessionCredentials, SecretsApiError> {
+            Ok(SessionCredentials {
+                access_key_id: "ASIAEXAMPLE".to_owned(),
+                secret_access_key: Zeroizing::new("example-secret".to_owned()),
+                session_token: Zeroizing::new("example-token".to_owned()),
+                expires_at_unix_seconds: u64::MAX,
+            })
+        }
+    }
+
+    /// How the loopback service answers its one request.
+    enum Reply {
+        /// A complete response with this status and body.
+        Complete(u16, Vec<u8>),
+        /// Declares more bytes than it sends, then closes.
+        Truncated,
+        /// Answers only after this long.
+        Late(Duration),
+    }
+
+    /// Serves one request on a loopback port and returns the request it
+    /// received. Plain HTTP: only this test module can point a client here.
+    fn serve_once(reply: Reply) -> (String, std::thread::JoinHandle<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let endpoint = format!("http://{}/", listener.local_addr().expect("address"));
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let request = read_request(&mut stream);
+            match reply {
+                Reply::Complete(status, body) => {
+                    let head = format!(
+                        "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(&body);
+                }
+                Reply::Truncated => {
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 200 X\r\ncontent-length: 500\r\nconnection: close\r\n\r\n{\"Ver",
+                    );
+                }
+                Reply::Late(delay) => {
+                    std::thread::sleep(delay);
+                    let _ = stream.write_all(b"HTTP/1.1 200 X\r\ncontent-length: 2\r\n\r\n{}");
+                }
+            }
+            request
+        });
+        (endpoint, handle)
+    }
+
+    fn read_request(stream: &mut TcpStream) -> String {
+        let mut received = Vec::new();
+        let mut buffer = [0_u8; 4_096];
+        loop {
+            let count = stream.read(&mut buffer).expect("read");
+            received.extend_from_slice(&buffer[..count]);
+            let text = String::from_utf8_lossy(&received).into_owned();
+            if let Some((head, body)) = text.split_once("\r\n\r\n") {
+                let length = head
+                    .lines()
+                    .find_map(|line| {
+                        line.to_ascii_lowercase()
+                            .strip_prefix("content-length: ")
+                            .map(str::to_owned)
+                    })
+                    .and_then(|value| value.trim().parse::<usize>().ok())
+                    .unwrap_or(0);
+                if body.len() >= length || count == 0 {
+                    return text;
+                }
+            }
+            if count == 0 {
+                return text;
+            }
+        }
+    }
+
+    fn client(endpoint: String) -> HttpSecretsApi<FixedIdentity> {
+        HttpSecretsApi {
+            client: pinned_client(false).expect("client"),
+            region: Region::parse("eu-west-1").expect("region"),
+            host: "secretsmanager.eu-west-1.amazonaws.com".to_owned(),
+            endpoint,
+            key: None,
+            identity: FixedIdentity,
+            session: Mutex::new(None),
+        }
+    }
+
+    fn soon() -> Instant {
+        Instant::now() + Duration::from_secs(5)
+    }
+
+    #[tokio::test]
+    async fn a_read_is_signed_and_addressed_to_one_exact_version() {
+        let version = "ab".repeat(32);
+        let body = format!(r#"{{"SecretBinary":"AP9zZWNyZXQ=","VersionId":"{version}"}}"#);
+        let (endpoint, served) = serve_once(Reply::Complete(200, body.into_bytes()));
+        let secret = client(endpoint)
+            .get("auths-gateway/00ff", &version, soon())
+            .await
+            .expect("secret");
+        assert_eq!(secret.version, version);
+        assert_eq!(secret.bytes.as_slice(), b"\x00\xffsecret");
+        let request = served.join().expect("request").to_ascii_lowercase();
+        assert!(request.starts_with("post / http/1.1"));
+        assert!(request.contains("x-amz-target: secretsmanager.getsecretvalue"));
+        assert!(request.contains("authorization: aws4-hmac-sha256 credential=asiaexample/"));
+        assert!(request.contains(
+            "signedheaders=content-type;host;x-amz-date;x-amz-security-token;x-amz-target"
+        ));
+        assert!(request.contains(&format!(
+            r#"{{"secretid":"auths-gateway/00ff","versionid":"{version}"}}"#
+        )));
+        assert!(!request.contains("awscurrent"));
+    }
+
+    /// Every reply the service could wrongly give is one refusal, and none
+    /// yields a secret.
+    #[tokio::test]
+    async fn hostile_replies_yield_no_secret() {
+        let version = "ab".repeat(32);
+        let oversized = format!(
+            r#"{{"SecretBinary":"{}","VersionId":"{version}"}}"#,
+            "A".repeat(MAXIMUM_RESPONSE_BYTES)
+        );
+        let replies = [
+            ("truncated", Reply::Truncated, SecretsApiError::Unavailable),
+            (
+                "oversized",
+                Reply::Complete(200, oversized.into_bytes()),
+                SecretsApiError::Unavailable,
+            ),
+            (
+                "not json",
+                Reply::Complete(200, b"<html>".to_vec()),
+                SecretsApiError::Unavailable,
+            ),
+            (
+                "no secret",
+                Reply::Complete(200, br#"{"VersionId":"v"}"#.to_vec()),
+                SecretsApiError::Unavailable,
+            ),
+            (
+                "redirect",
+                Reply::Complete(
+                    307,
+                    br#"{"SecretBinary":"AP9zZWNyZXQ=","VersionId":"v"}"#.to_vec(),
+                ),
+                SecretsApiError::Unavailable,
+            ),
+            (
+                "not found",
+                Reply::Complete(400, br#"{"__type":"ResourceNotFoundException"}"#.to_vec()),
+                SecretsApiError::NotFound,
+            ),
+            (
+                "denied",
+                Reply::Complete(
+                    400,
+                    br#"{"__type":"AccessDeniedException","Message":"detail"}"#.to_vec(),
+                ),
+                SecretsApiError::Unavailable,
+            ),
+            (
+                "server error",
+                Reply::Complete(500, Vec::new()),
+                SecretsApiError::Unavailable,
+            ),
+        ];
+        for (name, reply, refusal) in replies {
+            let (endpoint, served) = serve_once(reply);
+            let outcome = client(endpoint)
+                .get("auths-gateway/00ff", &version, soon())
+                .await;
+            assert_eq!(outcome.map(drop), Err(refusal), "{name}");
+            served.join().expect("request");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_reply_after_the_deadline_is_refused_and_not_retried() {
+        let (endpoint, served) = serve_once(Reply::Late(Duration::from_millis(600)));
+        let started = Instant::now();
+        let outcome = client(endpoint)
+            .get(
+                "auths-gateway/00ff",
+                &"ab".repeat(32),
+                Instant::now() + Duration::from_millis(150),
+            )
+            .await;
+        assert_eq!(outcome.map(drop), Err(SecretsApiError::Unavailable));
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "the call ended at its deadline"
+        );
+        // The service saw exactly one request: a second would hang the join.
+        served.join().expect("one request");
+    }
+
+    #[tokio::test]
+    async fn a_create_that_reports_another_version_is_refused() {
+        let version = "ab".repeat(32);
+        let other = format!(r#"{{"Name":"n","VersionId":"{}"}}"#, "cd".repeat(32));
+        let (endpoint, served) = serve_once(Reply::Complete(200, other.into_bytes()));
+        let outcome = client(endpoint)
+            .create("auths-gateway/00ff", &version, b"s", soon())
+            .await;
+        assert_eq!(outcome, Err(SecretsApiError::Unavailable));
+        served.join().expect("request");
+
+        let same = format!(r#"{{"Name":"n","VersionId":"{version}"}}"#);
+        let (endpoint, served) = serve_once(Reply::Complete(200, same.into_bytes()));
+        let outcome = client(endpoint)
+            .create("auths-gateway/00ff", &version, b"s", soon())
+            .await;
+        assert_eq!(outcome, Ok(()));
+        assert!(
+            served
+                .join()
+                .expect("request")
+                .contains(r#""SecretBinary":"cw==""#)
+        );
+
+        let exists = br#"{"__type":"ResourceExistsException"}"#.to_vec();
+        let (endpoint, served) = serve_once(Reply::Complete(400, exists));
+        let outcome = client(endpoint)
+            .create("auths-gateway/00ff", &version, b"s", soon())
+            .await;
+        assert_eq!(outcome, Err(SecretsApiError::Exists));
+        served.join().expect("request");
+    }
 
     #[test]
     fn regions_are_one_host_label() {

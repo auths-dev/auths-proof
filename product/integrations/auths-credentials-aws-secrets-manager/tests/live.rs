@@ -95,6 +95,7 @@ async fn leased(
 
 #[tokio::test]
 #[ignore = "needs the protected account's roles and a web identity token"]
+#[allow(clippy::too_many_lines, reason = "one contract, read top to bottom")]
 async fn the_store_holds_its_contract_against_the_service() {
     // First, apart from any secret: each role yields session credentials.
     let region = Region::parse(setting("AUTHS_CUSTODY_LIVE_REGION")).expect("region");
@@ -155,6 +156,22 @@ async fn the_store_holds_its_contract_against_the_service() {
             .install(&connection, generation(9), secret(b"auths-live-refused"))
             .await;
         assert_eq!(refused.map(drop), Err(CredentialStoreError::Unavailable));
+
+        // Nor can it delete: after its refused revoke the secret still leases.
+        assert_eq!(
+            runtime.revoke(&connection, generation(1)).await,
+            Err(CredentialStoreError::Unavailable)
+        );
+        assert_eq!(
+            leased(&runtime, &serving).await?,
+            b"auths-live-first-not-a-secret"
+        );
+
+        // The operator role writes and deletes and cannot read what it wrote.
+        assert_eq!(
+            leased(&operator, &serving).await,
+            Err(CredentialStoreError::Unavailable)
+        );
 
         // A second install of the same generation conflicts.
         let again = operator
