@@ -27,7 +27,7 @@ use crate::{
 };
 use auths_connections::{
     ConnectionAlias, ConnectionCredentialStore, ConnectionProfile, ConnectionRecord,
-    ConnectionState, PersistentCredentialStore, ProviderKind, SecretBytes, StoredSecretLease,
+    ConnectionState, ProviderKind, SecretBytes, StoredSecretLease,
 };
 use auths_model::{
     CanonicalAction, ObservationRequirement, ResourceId, Timestamp, TrustedContext,
@@ -40,8 +40,8 @@ use auths_registries::ImmutableRegistries;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -233,7 +233,7 @@ pub struct GatewayEngine {
     workload_id: String,
     profile: ConnectionProfile,
     connection: SharedConnection,
-    credentials: PersistentCredentialStore,
+    credentials: Arc<dyn ConnectionCredentialStore>,
     attempts: GatewayAttempts,
     in_flight: AtomicU64,
     /// The gateway clock of the last successful slot sweep; zero before one.
@@ -266,7 +266,7 @@ impl GatewayEngine {
         alias: ConnectionAlias,
         workload_id: String,
         profile: ConnectionProfile,
-        credentials: PersistentCredentialStore,
+        credentials: Arc<dyn ConnectionCredentialStore>,
         attempts: GatewayAttempts,
     ) -> Result<Self, GatewayEngineConfigurationError> {
         if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
@@ -411,7 +411,7 @@ impl GatewayEngine {
                     .map_err(|_| "gateway.admin.transition-unavailable")
             })
             .await?;
-        self.delete_superseded_credentials(&disabled);
+        self.delete_superseded_credentials(&disabled).await;
         Ok(self.drained("gateway.admin.disabled").await)
     }
 
@@ -473,8 +473,8 @@ impl GatewayEngine {
         let mut candidate = candidate;
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.admin.invalid-credential")?;
-        if self.credentials.holds_record_credential(record).is_err() {
-            return self.accept_rotation(record, secret);
+        if self.holds(record).await.is_err() {
+            return self.accept_rotation(record, secret).await;
         }
         if record.state() != ConnectionState::Active {
             return Err("gateway.admin.connection-not-active");
@@ -495,7 +495,7 @@ impl GatewayEngine {
             .await
         {
             Ok(rotated) => {
-                self.delete_superseded_credentials(&rotated);
+                self.delete_superseded_credentials(&rotated).await;
                 Ok(self.drained("gateway.admin.rotated").await)
             }
             Err(code) => {
@@ -510,24 +510,23 @@ impl GatewayEngine {
     }
 
     /// Takes the secret a rotation through another process committed.
-    fn accept_rotation(
+    async fn accept_rotation(
         &self,
         record: &ConnectionRecord,
         secret: SecretBytes,
     ) -> Result<GatewayAdminOutcome, &'static str> {
-        match self.credentials.store_confirmed(
-            record.connection_id(),
-            record.credential_generation(),
-            record.credential_reference_commitment(),
-            secret,
-        ) {
-            Ok(_) => {}
+        match self
+            .credentials
+            .confirm(&record.credential_binding(), secret)
+            .await
+        {
+            Ok(()) => {}
             Err(auths_connections::CredentialStoreError::Substitution) => {
                 return Err("gateway.admin.generation-conflict");
             }
             Err(_) => return Err("gateway.admin.credential-unavailable"),
         }
-        self.delete_superseded_credentials(record);
+        self.delete_superseded_credentials(record).await;
         // Taking a secret changes no shared state, so nothing is drained.
         let in_flight = self.in_flight();
         Ok(GatewayAdminOutcome {
@@ -562,10 +561,19 @@ impl GatewayEngine {
     /// The gateway leases only the credential generation, so nothing needs an
     /// older one. Best effort: a failed deletion is repeated by the next
     /// rotation, disable, or revoke.
-    fn delete_superseded_credentials(&self, current: &ConnectionRecord) {
+    async fn delete_superseded_credentials(&self, current: &ConnectionRecord) {
         let _ = self
             .credentials
-            .retain_generations(current.connection_id(), &[current.generation()]);
+            .retire_superseded(&current.credential_binding())
+            .await;
+    }
+
+    /// Whether this process's credential store serves `record`.
+    async fn holds(&self, record: &ConnectionRecord) -> Result<(), ()> {
+        self.credentials
+            .holds(&record.credential_binding())
+            .await
+            .map_err(|_| ())
     }
 
     /// Revokes the connection in every process sharing the store, retaining
@@ -594,7 +602,8 @@ impl GatewayEngine {
             .await?;
         let deleted = self
             .credentials
-            .revoke_connection(revoked.connection_id())
+            .delete_connection(revoked.connection_id(), &[revoked.credential_generation()])
+            .await
             .map_err(|_| "gateway.admin.credential-deletion-incomplete");
         let outcome = self.drained("gateway.admin.revoked").await;
         deleted.map(|()| outcome)
@@ -619,7 +628,7 @@ impl GatewayEngine {
             .to_owned(),
             generation: record.generation().get(),
             credential_generation: record.credential_generation().get(),
-            credential_held: self.credentials.holds_record_credential(record).is_ok(),
+            credential_held: self.holds(record).await.is_ok(),
             in_flight: self.in_flight(),
             last_sweep: Some(self.last_sweep.load(Ordering::SeqCst)).filter(|clock| *clock != 0),
             gateway_clock,
@@ -732,7 +741,7 @@ impl GatewayEngine {
         }
         let descriptor = GatewayConnectionDescriptor::from_record(record, &self.recipe)
             .map_err(|_| "gateway.connection.recipe-mismatch")?;
-        if self.credentials.holds_record_credential(record).is_err() {
+        if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
         #[cfg(feature = "loopback-provider")]
@@ -1288,6 +1297,9 @@ mod tests {
             _state: tempfile::TempDir,
             credentials_directory: std::path::PathBuf,
             pub(crate) engine: GatewayEngine,
+            /// The same store the engine holds, for assertions on what it
+            /// stores.
+            store: Arc<auths_connections::PersistentCredentialStore>,
         }
 
         /// A connection installed through a first host on a shared store.
@@ -1329,12 +1341,15 @@ mod tests {
             let state = tempfile::tempdir().expect("state");
             let credentials_directory = state.path().join("credentials");
             private_directory(&credentials_directory);
-            let credentials = PersistentCredentialStore::open_with_limits(
-                credentials_directory.join("credentials.cbor"),
-                credential_entries,
-                1 << 20,
-            )
-            .expect("credential store");
+            let store = Arc::new(
+                auths_connections::PersistentCredentialStore::open_with_limits(
+                    credentials_directory.join("credentials.cbor"),
+                    credential_entries,
+                    1 << 20,
+                )
+                .expect("credential store"),
+            );
+            let credentials: Arc<dyn ConnectionCredentialStore> = store.clone();
             let root = crate::harness::Signer::new(0x11);
             let observer = crate::harness::Signer::new(0x33);
             let trust = auths_codec::encode_verifier_context(
@@ -1360,6 +1375,7 @@ mod tests {
                 _state: state,
                 credentials_directory,
                 engine,
+                store,
             }
         }
 
@@ -1378,7 +1394,7 @@ mod tests {
             let recipe = airtable_recipe();
             crate::install_connection(
                 &first.engine.connection,
-                &first.engine.credentials,
+                &*first.engine.credentials,
                 |reference| {
                     ConnectionRecord::new(
                         provider(),
@@ -1436,8 +1452,7 @@ mod tests {
                 &self,
                 connection_id: &auths_connections::ConnectionId,
             ) -> Vec<u64> {
-                self.engine
-                    .credentials
+                self.store
                     .stored_generations(connection_id)
                     .expect("stored generations")
                     .into_iter()
@@ -1476,7 +1491,7 @@ mod tests {
             ) -> Result<ConnectionRecord, &'static str> {
                 crate::join_connection(
                     &self.engine.connection,
-                    &self.engine.credentials,
+                    &*self.engine.credentials,
                     &self.engine.recipe,
                     &candidate(secret),
                 )
@@ -1842,7 +1857,7 @@ mod tests {
             let recipe = airtable_recipe();
             let refused = crate::install_connection(
                 &second.engine.connection,
-                &second.engine.credentials,
+                &*second.engine.credentials,
                 |reference| {
                     ConnectionRecord::new(
                         provider(),

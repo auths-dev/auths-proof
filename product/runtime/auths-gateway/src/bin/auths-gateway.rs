@@ -1024,8 +1024,10 @@ mod unix {
                 .map_err(|_| "gateway.serve.invalid-alias")?,
             "gateway".to_owned(),
             profile,
-            PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
-                .map_err(|_| "gateway.serve.credential-store-unavailable")?,
+            Arc::new(
+                PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
+                    .map_err(|_| "gateway.serve.credential-store-unavailable")?,
+            ),
             open_attempts(
                 manifest.deployment,
                 manifest.attempt_store.as_ref().map(PathBuf::from),

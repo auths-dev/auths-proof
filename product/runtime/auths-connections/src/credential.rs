@@ -230,6 +230,41 @@ pub trait ConnectionCredentialStore: Send + Sync {
         connection_id: &ConnectionId,
         generation: NonZeroU64,
     ) -> Result<(), CredentialStoreError>;
+
+    /// Checks, without leasing, that [`Self::lease_secret`] would succeed for
+    /// `binding`.
+    async fn holds(&self, binding: &CredentialBinding) -> Result<(), CredentialStoreError>;
+
+    /// Confirms that this store serves `binding` with exactly `secret`. A
+    /// store private to one process takes the secret in when its commitment
+    /// at the binding's credential generation equals the binding's, so a
+    /// process that did not install or rotate a secret can serve it. A store
+    /// shared by every process stores nothing and only checks.
+    ///
+    /// Repeating it with the same secret succeeds.
+    async fn confirm(
+        &self,
+        binding: &CredentialBinding,
+        secret: SecretBytes,
+    ) -> Result<(), CredentialStoreError>;
+
+    /// Deletes, best effort, the generations of the binding's connection
+    /// that no generation from the binding's onward can need. A store that
+    /// cannot enumerate its generations deletes nothing; its caller revokes
+    /// exact generations instead.
+    async fn retire_superseded(
+        &self,
+        binding: &CredentialBinding,
+    ) -> Result<(), CredentialStoreError>;
+
+    /// Deletes every generation of one connection that this store can find,
+    /// and each generation in `known`. A connection with nothing stored
+    /// succeeds, so a repeated call finishes an earlier incomplete deletion.
+    async fn delete_connection(
+        &self,
+        connection_id: &ConnectionId,
+        known: &[NonZeroU64],
+    ) -> Result<(), CredentialStoreError>;
 }
 
 /// Bounded in-memory conformance implementation.
@@ -388,6 +423,82 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
         entries
             .remove(&key)
             .ok_or(CredentialStoreError::Unavailable)?;
+        Ok(())
+    }
+
+    async fn holds(&self, binding: &CredentialBinding) -> Result<(), CredentialStoreError> {
+        let entries = self
+            .entries
+            .read()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        binding_entry(&entries, binding).map(|_| ())
+    }
+
+    async fn confirm(
+        &self,
+        binding: &CredentialBinding,
+        secret: SecretBytes,
+    ) -> Result<(), CredentialStoreError> {
+        let connection_id = binding.connection_id();
+        let generation = binding.credential_generation();
+        let commitment = credential_commitment(connection_id, generation, secret.expose());
+        if !commitment.matches(binding.reference_commitment()) {
+            return Err(CredentialStoreError::Substitution);
+        }
+        let key = (connection_id.as_str().to_owned(), generation.get());
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        if let Some(existing) = entries.get(&key) {
+            return if existing.holds(&commitment, secret.expose()) {
+                Ok(())
+            } else {
+                Err(CredentialStoreError::Conflict)
+            };
+        }
+        if entries.len() >= self.maximum_entries
+            || Self::total_bytes(&entries)
+                .checked_add(secret.expose().len())
+                .is_none_or(|value| value > self.maximum_bytes)
+        {
+            return Err(CredentialStoreError::Capacity);
+        }
+        entries.insert(
+            key,
+            StoredSecret {
+                bytes: Zeroizing::new(secret.expose().to_vec()),
+                commitment,
+            },
+        );
+        Ok(())
+    }
+
+    async fn retire_superseded(
+        &self,
+        binding: &CredentialBinding,
+    ) -> Result<(), CredentialStoreError> {
+        let id = binding.connection_id().as_str();
+        let keep = binding.credential_generation().get();
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        entries.retain(|(connection, generation), _| connection != id || *generation >= keep);
+        Ok(())
+    }
+
+    async fn delete_connection(
+        &self,
+        connection_id: &ConnectionId,
+        _known: &[NonZeroU64],
+    ) -> Result<(), CredentialStoreError> {
+        let id = connection_id.as_str();
+        let mut entries = self
+            .entries
+            .write()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        entries.retain(|(connection, _), _| connection != id);
         Ok(())
     }
 }
@@ -904,6 +1015,43 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
                 .ok_or(CredentialStoreError::Unavailable)?;
             Ok(())
         })
+    }
+
+    async fn holds(&self, binding: &CredentialBinding) -> Result<(), CredentialStoreError> {
+        let entries = self
+            .entries
+            .lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        binding_entry(&entries, binding).map(|_| ())
+    }
+
+    async fn confirm(
+        &self,
+        binding: &CredentialBinding,
+        secret: SecretBytes,
+    ) -> Result<(), CredentialStoreError> {
+        self.store_confirmed(
+            binding.connection_id(),
+            binding.credential_generation(),
+            binding.reference_commitment(),
+            secret,
+        )
+        .map(|_| ())
+    }
+
+    async fn retire_superseded(
+        &self,
+        binding: &CredentialBinding,
+    ) -> Result<(), CredentialStoreError> {
+        self.retain_generations(binding.connection_id(), &[binding.generation()])
+    }
+
+    async fn delete_connection(
+        &self,
+        connection_id: &ConnectionId,
+        _known: &[NonZeroU64],
+    ) -> Result<(), CredentialStoreError> {
+        self.revoke_connection(connection_id)
     }
 }
 
@@ -1509,6 +1657,93 @@ mod generation_tests {
             .into_iter()
             .map(NonZeroU64::get)
             .collect()
+    }
+
+    /// The part of the trait every store must answer the same way, whether
+    /// it keeps secrets in memory, in a local file, or in a secret manager.
+    fn follows_the_store_contract(store: &dyn ConnectionCredentialStore) {
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let first = ready(store.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        let serving = binding_at(3, 1, first).credential();
+        assert_eq!(ready(store.holds(&serving)), Ok(()));
+        assert_eq!(
+            ready(store.holds(&binding_at(3, 2, first).credential())),
+            Err(CredentialStoreError::Unavailable),
+            "holding is checked at the named generation only"
+        );
+        assert_eq!(
+            ready(store.confirm(&serving, secret(b"first-secret"))),
+            Ok(()),
+            "confirming the secret already served changes nothing"
+        );
+        assert_eq!(
+            ready(store.confirm(&serving, secret(b"another-secret"))),
+            Err(CredentialStoreError::Substitution),
+            "a secret that does not match the commitment is never taken"
+        );
+
+        let second =
+            ready(store.replace(&id, generation(3), generation(4), secret(b"second-secret")))
+                .unwrap();
+        let rotated = binding_at(4, 4, second).credential();
+        assert_eq!(
+            ready(store.holds(&serving)),
+            Ok(()),
+            "the old generation is retained"
+        );
+        assert_eq!(ready(store.retire_superseded(&rotated)), Ok(()));
+        assert_eq!(
+            ready(store.holds(&serving)),
+            Err(CredentialStoreError::Unavailable),
+            "a retired generation is gone"
+        );
+        assert_eq!(ready(store.holds(&rotated)), Ok(()));
+
+        assert_eq!(
+            ready(store.delete_connection(&id, &[generation(4)])),
+            Ok(())
+        );
+        assert_eq!(
+            ready(store.holds(&rotated)),
+            Err(CredentialStoreError::Unavailable)
+        );
+        assert_eq!(
+            ready(store.delete_connection(&id, &[generation(4)])),
+            Ok(()),
+            "deleting a connection with nothing stored succeeds"
+        );
+    }
+
+    #[test]
+    fn every_store_follows_the_store_contract() {
+        follows_the_store_contract(&InMemoryCredentialStore::new(8, 1_024).unwrap());
+        let (_directory, _path, store) = private_store(8);
+        follows_the_store_contract(&store);
+    }
+
+    /// A process that did not install a secret takes it in by confirming it.
+    #[test]
+    fn confirming_takes_a_matching_secret_into_an_empty_store() {
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let commitment = credential_commitment(&id, generation(1), b"first-secret");
+        let serving = binding_at(2, 1, commitment).credential();
+        let memory = InMemoryCredentialStore::new(8, 1_024).unwrap();
+        let (_directory, _path, file) = private_store(8);
+        let stores: [&dyn ConnectionCredentialStore; 2] = [&memory, &file];
+        for store in stores {
+            assert_eq!(
+                ready(store.holds(&serving)),
+                Err(CredentialStoreError::Unavailable)
+            );
+            assert_eq!(
+                ready(store.confirm(&serving, secret(b"first-secret"))),
+                Ok(())
+            );
+            assert_eq!(ready(store.holds(&serving)), Ok(()));
+            let deadline = Instant::now() + std::time::Duration::from_secs(5);
+            let lease = ready(store.lease_secret(&serving, deadline)).unwrap();
+            assert_eq!(lease.expose(Instant::now()).unwrap(), b"first-secret");
+        }
     }
 
     #[test]
