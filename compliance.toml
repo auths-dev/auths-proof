@@ -1177,6 +1177,8 @@ independent-semantic-implementation = [
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#contract_drift_changes_the_contract_identifier",
   "product/qualification/auths-recipe-qualification/src/vectors/verification.rs#every_verification_case_is_decided_as_frozen",
   "product/qualification/auths-recipe-qualification/src/model.rs#closed_derived_state_follows_only_its_transitions",
+  "product/qualification/auths-recipe-qualification/src/evidence.rs#the_scenario_catalogue_covers_every_wall_row_and_member",
+  "product/qualification/auths-recipe-qualification/src/evidence.rs#a_capability_is_shown_only_in_its_own_member",
 ]
 
 [packages.auths-recipe-qualification-issuance]
@@ -1191,7 +1193,7 @@ principal_families = []
 signature_families = ["ed25519-v1"]
 profiles = []
 transports = []
-configuration_inputs = ["record-draft", "stage-case-reports", "qualification-trust-root-key-file", "release-signer-key-file"]
+configuration_inputs = ["record-draft", "stage-case-reports", "family-harness", "qualification-trust-root-key-file", "release-signer-key-file"]
 security_state = ["qualification-trust-root-key", "release-signer-key"]
 
 [packages.auths-recipe-qualification-issuance.claims]
@@ -1204,6 +1206,9 @@ proof-author-or-assembler = [
   "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#each_signing_role_refuses_what_is_not_its_own",
   "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#the_freshness_and_rotation_stages_hold_on_a_valid_candidate",
   "product/qualification/auths-recipe-qualification-issuance/tests/cli.rs#a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#every_required_scenario_is_needed_to_close_the_wall",
+  "product/qualification/auths-recipe-qualification-issuance/tests/protected_run.rs#a_pull_request_reaches_no_secret_and_no_signing_job",
+  "product/qualification/auths-recipe-qualification-issuance/tests/protected_run.rs#the_repository_holds_no_qualification_key",
 ]
 
 [packages.auths-bounded-policy]

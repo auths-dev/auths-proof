@@ -8,7 +8,7 @@ mod common;
 use auths_recipe_qualification::{
     ClosureFault, EvidenceMemberKind, GitCommit, LiveEffects, QualificationFormatError,
     QualificationInputs, QualificationRefusal, QualificationRootId, QualificationSignerId,
-    RecipeQualificationState, VerifiedQualifications, VerifierState, WallRow,
+    RecipeQualificationState, Scenario, VerifiedQualifications, VerifierState,
 };
 use auths_recipe_qualification_issuance::{
     CaseReport, CertificateRequest, IssuanceError, NotApplicable, QualificationProposal,
@@ -100,7 +100,7 @@ fn a_run_with_a_failed_case_produces_no_evidence() {
             QualificationFormatError::InvalidEvidence
         ))
     );
-    let misplaced = vec![CaseReport::new("misplaced", WallRow::Redaction, true).expect("case")];
+    let misplaced = vec![CaseReport::new("misplaced", Scenario::LogScan, true).expect("case")];
     assert_eq!(
         evidence(member, &commit(), &tuple(), misplaced, None),
         Err(IssuanceError::Format(
@@ -133,16 +133,16 @@ fn assembly_refuses_a_wall_that_is_not_whole() {
         "a member is absent"
     );
 
-    // The hostile member without its secret-isolation row.
+    // The hostile member without its secret-isolation scenario.
     let member = EvidenceMemberKind::Hostile;
     let partial: Vec<CaseReport> = cases(member)
         .into_iter()
-        .filter(|case| case.wall_row != WallRow::SecretIsolation)
+        .filter(|case| case.scenario != Scenario::ApplicationCannotReadSecret)
         .collect();
     let partial = evidence(member, &commit(), &tuple(), partial, None).expect("evidence");
     assert_eq!(
         QualificationProposal::assemble(draft(), replace(member, partial)),
-        Err(IssuanceError::Closure(ClosureFault::WallRow))
+        Err(IssuanceError::Closure(ClosureFault::Scenario))
     );
 
     let other_commit = GitCommit::parse("f".repeat(40)).expect("commit");
@@ -183,6 +183,49 @@ fn assembly_refuses_a_wall_that_is_not_whole() {
     );
 }
 
+/// Removing the cases of any one scenario every record needs leaves a wall
+/// that does not close, whichever member holds it.
+#[test]
+fn every_required_scenario_is_needed_to_close_the_wall() {
+    for scenario in Scenario::ALL {
+        if !scenario.always_required() {
+            continue;
+        }
+        let member = scenario.member();
+        let remaining: Vec<CaseReport> = cases(member)
+            .into_iter()
+            .filter(|case| case.scenario != scenario)
+            .collect();
+        let rebuilt = evidence(
+            member,
+            &commit(),
+            &tuple(),
+            remaining,
+            common::live_effects(member),
+        );
+        let outcome = rebuilt.and_then(|artifact| {
+            let mut all = all_evidence();
+            let position = all
+                .iter()
+                .position(|held| held.body().member == member)
+                .expect("member");
+            all[position] = artifact;
+            QualificationProposal::assemble(draft(), all)
+        });
+        assert!(
+            matches!(
+                outcome,
+                Err(
+                    IssuanceError::Closure(ClosureFault::Scenario | ClosureFault::Capability)
+                        | IssuanceError::Format(QualificationFormatError::ListBound)
+                        | IssuanceError::Capability
+                )
+            ),
+            "{scenario:?}: {outcome:?}"
+        );
+    }
+}
+
 #[test]
 fn a_record_does_not_close_over_other_evidence() {
     let assembled = proposal();
@@ -208,7 +251,7 @@ fn a_record_does_not_close_over_other_evidence() {
     // not name.
     let member = EvidenceMemberKind::Redaction;
     let mut more = cases(member);
-    more.push(CaseReport::new("one-more", WallRow::Redaction, true).expect("case"));
+    more.push(CaseReport::new("one-more", Scenario::LogScan, true).expect("case"));
     let substituted = evidence(member, &commit(), &tuple(), more, None).expect("evidence");
     let mut held = bytes(assembled.evidence());
     held[8] = substituted.canonical_bytes().to_vec();
@@ -334,14 +377,21 @@ fn the_differential_stage_reports_every_disagreement() {
         |member| format!("member-{member}"),
         |member| member % 2 == 0,
         |member| member % 2 == 0 || *member == 3,
+        |accepted| *accepted,
     )
     .expect("reports");
     let passed: Vec<bool> = reports.iter().map(|case| case.passed).collect();
     assert_eq!(passed, [true, true, false, true]);
-    assert!(
-        reports
-            .iter()
-            .all(|case| case.wall_row == WallRow::OracleAgreement)
+    let scenarios: Vec<Scenario> = reports.iter().map(|case| case.scenario).collect();
+    assert_eq!(
+        scenarios,
+        [
+            Scenario::OracleRejects,
+            Scenario::OracleAccepts,
+            Scenario::OracleRejects,
+            Scenario::OracleAccepts
+        ],
+        "each case records whether the oracle accepted"
     );
 }
 
@@ -350,7 +400,15 @@ fn the_redaction_stage_finds_a_canary_in_every_spelling() {
     use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
     let canary: &[u8] = b"canary-value-not-a-secret";
     let scan = |bytes: &[u8]| {
-        stages::redaction(&[canary], &[stages::ScanSource { name: "log", bytes }]).expect("scan")[0]
+        stages::redaction(
+            &[canary],
+            &[stages::ScanSource {
+                kind: stages::SourceKind::Log,
+                name: "log",
+                bytes,
+            }],
+        )
+        .expect("scan")[0]
             .passed
     };
     assert!(scan(b"request accepted, nothing else recorded"));
@@ -369,6 +427,7 @@ fn the_redaction_stage_finds_a_canary_in_every_spelling() {
         stages::redaction(
             &[b"short"],
             &[stages::ScanSource {
+                kind: stages::SourceKind::Trace,
                 name: "log",
                 bytes: b"x"
             }]
@@ -383,6 +442,7 @@ fn the_redaction_stage_finds_a_canary_in_every_spelling() {
         stages::redaction(
             &[],
             &[stages::ScanSource {
+                kind: stages::SourceKind::Trace,
                 name: "log",
                 bytes: b"x"
             }]
@@ -434,6 +494,12 @@ fn the_freshness_and_rotation_stages_hold_on_a_valid_candidate() {
         stages::signer_rotation(&proposal, record.not_after),
         Err(IssuanceError::Window)
     );
+
+    // The two stages run together for a tuple alone, before any record of
+    // the run exists.
+    let together = stages::trust_transitions(&tuple(), NOW).expect("trust transitions");
+    assert_eq!(together.len(), 11);
+    assert!(together.iter().all(|case| case.passed), "{together:?}");
 
     // Both stages' cases are admissible evidence for the rotation member.
     let mut reported = cases(EvidenceMemberKind::Rotation);

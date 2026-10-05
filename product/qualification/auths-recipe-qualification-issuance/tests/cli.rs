@@ -271,14 +271,21 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
         &at("freshness.cases.json"),
     ]);
     succeed(&[
-        "stage-rotation",
-        "--proposal-dir",
-        &at("proposal"),
+        "stage-trust",
+        "--tuple",
+        &at("tuple.json"),
         "--now",
         &now,
         "--out",
-        &at("rotation.cases.json"),
+        &at("trust.cases.json"),
     ]);
+    let trust: Vec<serde_json::Value> =
+        serde_json::from_slice(&fs::read(at("trust.cases.json")).expect("cases")).expect("JSON");
+    assert_eq!(
+        trust.len(),
+        11,
+        "seven rotation cases and four freshness cases"
+    );
     fs::write(at("canaries"), "canary-value-not-a-secret\n").expect("canaries");
     fs::write(at("gateway.log"), "attempt recorded\n").expect("log");
     succeed(&[
@@ -286,9 +293,9 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
         "--canaries",
         &at("canaries"),
         "--source",
-        &at("gateway.log"),
+        &format!("log={}", at("gateway.log")),
         "--source",
-        &at("proposal/record.json"),
+        &format!("evidence={}", at("proposal/record.json")),
         "--out",
         &at("redaction.cases.json"),
     ]);
@@ -303,7 +310,7 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
             "--canaries",
             &at("canaries"),
             "--source",
-            &at("leaky.log"),
+            &format!("log={}", at("leaky.log")),
             "--out",
             &at("leaky.cases.json")
         ])

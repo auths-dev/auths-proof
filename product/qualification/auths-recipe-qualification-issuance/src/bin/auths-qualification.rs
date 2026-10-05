@@ -147,10 +147,11 @@ enum Command {
         #[arg(long)]
         now: Option<u64>,
     },
-    /// Run the signer-rotation stage over a proposal.
-    StageRotation {
+    /// Run the signer-rotation and freshness stages for a tuple on this
+    /// build's release machinery.
+    StageTrust {
         #[arg(long)]
-        proposal_dir: PathBuf,
+        tuple: PathBuf,
         #[arg(long)]
         now: Option<u64>,
         #[arg(long)]
@@ -174,8 +175,10 @@ enum Command {
     StageRedaction {
         #[arg(long)]
         canaries: PathBuf,
+        /// A source as `<kind>=<path>`, where the kind is `log`, `trace`,
+        /// `metric`, `support-bundle`, or `evidence`.
         #[arg(long = "source", required = true)]
-        sources: Vec<PathBuf>,
+        sources: Vec<String>,
         #[arg(long)]
         out: PathBuf,
     },
@@ -569,13 +572,13 @@ fn build(command: Command) -> Result<(), Failure> {
 
 fn stage(command: Command) -> Result<(), Failure> {
     match command {
-        Command::StageRotation {
-            proposal_dir,
+        Command::StageTrust {
+            tuple,
             now: at,
             out,
         } => write_cases(
             &out,
-            &stages::signer_rotation(&proposal(&proposal_dir)?, now(at)?)?,
+            &stages::trust_transitions(&json::<QualificationTuple>(&tuple)?, now(at)?)?,
         ),
         Command::StageFreshness {
             root,
@@ -605,21 +608,25 @@ fn stage(command: Command) -> Result<(), Failure> {
                 .split(|byte| *byte == b'\n')
                 .filter(|line| !line.is_empty())
                 .collect();
-            let contents = sources
+            let mut named = Vec::with_capacity(sources.len());
+            for source in &sources {
+                let (kind, path) = source
+                    .split_once('=')
+                    .and_then(|(kind, path)| Some((stages::SourceKind::parse(kind)?, path)))
+                    .ok_or_else(|| Failure("qualification.invalid-source".to_owned()))?;
+                let path = Path::new(path);
+                let name = path
+                    .file_name()
+                    .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+                named.push((kind, name, read(path)?));
+            }
+            let scanned: Vec<stages::ScanSource<'_>> = named
                 .iter()
-                .map(|path| read(path))
-                .collect::<Result<Vec<_>, _>>()?;
-            let names: Vec<String> = sources
-                .iter()
-                .map(|path| {
-                    path.file_name()
-                        .map_or_else(String::new, |name| name.to_string_lossy().into_owned())
+                .map(|(kind, name, bytes)| stages::ScanSource {
+                    kind: *kind,
+                    name,
+                    bytes,
                 })
-                .collect();
-            let scanned: Vec<stages::ScanSource<'_>> = names
-                .iter()
-                .zip(&contents)
-                .map(|(name, bytes)| stages::ScanSource { name, bytes })
                 .collect();
             write_cases(&out, &stages::redaction(&canaries, &scanned)?)
         }
@@ -640,7 +647,7 @@ fn run(command: Command) -> Result<(), Failure> {
         | Command::Certify { .. }
         | Command::Revoke { .. } => ceremony(command),
         Command::Evidence { .. } | Command::Assemble { .. } => build(command),
-        Command::StageRotation { .. }
+        Command::StageTrust { .. }
         | Command::StageFreshness { .. }
         | Command::StageRedaction { .. }
         | Command::ContractId { .. } => stage(command),

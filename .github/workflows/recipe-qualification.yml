@@ -1,0 +1,252 @@
+name: Recipe qualification
+
+# The protected run that qualifies recipe families. Started by hand on the
+# default branch, it builds the candidate, gathers offline and live evidence
+# for every family under qualification/families, assembles one record per
+# family, signs them into one release index, and verifies the result as a
+# gateway would.
+#
+# A pull request that changes a family or this run gets the candidate and
+# offline-evidence job only. It has no environment and no secret, so it can
+# neither gather live evidence, assemble a closed record, nor sign.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "qualification/**"
+      - ".github/workflows/recipe-qualification.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recipe-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  families:
+    name: list the families
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - id: list
+        shell: bash
+        run: |
+          set -euo pipefail
+          list="$(find qualification/families -mindepth 1 -maxdepth 1 -type d -exec basename {} \; \
+            | sort | jq -R . | jq -cs .)"
+          echo "list=${list}" >> "${GITHUB_OUTPUT}"
+          echo "families: ${list}"
+
+  offline:
+    name: candidate and offline evidence (${{ matrix.family }})
+    needs: families
+    if: needs.families.outputs.list != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      matrix:
+        family: ${{ fromJSON(needs.families.outputs.list) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the candidate and run the offline stages
+        shell: bash
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: qualification/run/offline.sh "${FAMILY}" "${RUNNER_TEMP}/work"
+      - name: Keep the candidate's binaries with its evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/work/bin"
+          cp target/release/auths-gateway target/release/auths-qualification "${RUNNER_TEMP}/work/bin/"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: offline-${{ matrix.family }}
+          path: ${{ runner.temp }}/work
+          if-no-files-found: error
+          retention-days: 30
+
+  live:
+    # Disposable provider resources, through the candidate gateway. Each
+    # family has its own protected environment holding only that family's
+    # qualification credential, which is not a production credential.
+    name: live evidence (${{ matrix.family }})
+    needs: [families, offline]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: recipe-qualification-live-${{ matrix.family }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true
+      matrix:
+        family: ${{ fromJSON(needs.families.outputs.list) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: offline-${{ matrix.family }}
+          path: ${{ runner.temp }}/work
+      - name: Run the family's live harness
+        shell: bash
+        env:
+          FAMILY: ${{ matrix.family }}
+          AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL: ${{ secrets.QUALIFICATION_PROVIDER_CREDENTIAL }}
+        run: |
+          set -euo pipefail
+          chmod +x "${RUNNER_TEMP}/work/bin/"*
+          export AUTHS_GATEWAY="${RUNNER_TEMP}/work/bin/auths-gateway"
+          export AUTHS_QUALIFICATION="${RUNNER_TEMP}/work/bin/auths-qualification"
+          "qualification/families/${FAMILY}/harness" live "${RUNNER_TEMP}/work"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: live-${{ matrix.family }}
+          path: ${{ runner.temp }}/work
+          if-no-files-found: error
+          retention-days: 30
+
+  assemble:
+    name: assemble the record (${{ matrix.family }})
+    needs: [families, live]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        family: ${{ fromJSON(needs.families.outputs.list) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: live-${{ matrix.family }}
+          path: ${{ runner.temp }}/work
+      - name: Scan, build the evidence, and assemble
+        shell: bash
+        env:
+          FAMILY: ${{ matrix.family }}
+          RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          chmod +x "${RUNNER_TEMP}/work/bin/"*
+          export AUTHS_QUALIFICATION="${RUNNER_TEMP}/work/bin/auths-qualification"
+          qualification/run/assemble.sh "${FAMILY}" "${RUNNER_TEMP}/work" \
+            "recipe-qualification-live-${FAMILY}" "${RUN}"
+          mkdir -p "${RUNNER_TEMP}/proposal"
+          cp -R "${RUNNER_TEMP}/work/proposal/." "${RUNNER_TEMP}/proposal/"
+          cp "${RUNNER_TEMP}/work/bin/auths-qualification" "${RUNNER_TEMP}/proposal/"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: proposal-${{ matrix.family }}
+          path: ${{ runner.temp }}/proposal
+          if-no-files-found: error
+          retention-days: 90
+
+  sign:
+    # The only job that holds the release signer's key. It waits for a
+    # required reviewer of its environment, re-verifies every record's
+    # evidence closure, attests each record, and signs one index listing
+    # exactly this run's records. It signs nothing else.
+    name: sign the release
+    needs: assemble
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: recipe-qualification-signing
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: proposal-*
+          path: ${{ runner.temp }}/proposals
+      - name: Sign every proposal into one release
+        shell: bash
+        env:
+          QUALIFICATION_RELEASE_SIGNER_KEY: ${{ secrets.QUALIFICATION_RELEASE_SIGNER_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for required in qualification-trust-root.json signer-certificate.json revocation-list.json; do
+            test -s "qualification/trust/${required}" \
+              || { echo "qualification.trust-not-published ${required}" >&2; exit 1; }
+          done
+          key="${RUNNER_TEMP}/release-signer.key"
+          trap 'rm -f "${key}"' EXIT
+          printf '%s' "${QUALIFICATION_RELEASE_SIGNER_KEY}" > "${key}"
+          tool="$(find "${RUNNER_TEMP}/proposals" -name auths-qualification | sort | head -n 1)"
+          chmod +x "${tool}"
+          arguments=()
+          for proposal in "${RUNNER_TEMP}"/proposals/proposal-*; do
+            arguments+=(--proposal-dir "${proposal}")
+          done
+          "${tool}" sign "${arguments[@]}" --signer-key "${key}" \
+            --certificate qualification/trust/signer-certificate.json \
+            --out-dir "${RUNNER_TEMP}/release"
+          cp qualification/trust/revocation-list.json "${RUNNER_TEMP}/release/revocation-list.json"
+          mkdir -p "${RUNNER_TEMP}/release-inputs"
+          for proposal in "${RUNNER_TEMP}"/proposals/proposal-*; do
+            cp "${proposal}/tuple.json" "${RUNNER_TEMP}/release-inputs/$(basename "${proposal}").tuple.json"
+          done
+          cp "${tool}" "${RUNNER_TEMP}/release-inputs/auths-qualification"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: signed-release
+          path: |
+            ${{ runner.temp }}/release
+            ${{ runner.temp }}/release-inputs
+          if-no-files-found: error
+          retention-days: 90
+
+  verify:
+    name: verify as a gateway would
+    needs: sign
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: signed-release
+          path: ${{ runner.temp }}/signed
+      - name: Verify every family under the pinned root
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="${RUNNER_TEMP}/signed/release-inputs/auths-qualification"
+          chmod +x "${tool}"
+          for tuple in "${RUNNER_TEMP}"/signed/release-inputs/*.tuple.json; do
+            "${tool}" verify --root qualification/trust/qualification-trust-root.json \
+              --release-dir "${RUNNER_TEMP}/signed/release" --deployment "${tuple}"
+            "${tool}" stage-freshness --root qualification/trust/qualification-trust-root.json \
+              --release-dir "${RUNNER_TEMP}/signed/release" --deployment "${tuple}" \
+              --out "${RUNNER_TEMP}/freshness.json"
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-release
+          path: ${{ runner.temp }}/signed/release
+          if-no-files-found: error
+          retention-days: 90

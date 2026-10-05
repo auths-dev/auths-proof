@@ -8,15 +8,16 @@
 //! a scan compares bytes.
 
 use crate::{
-    CaseReport, CertificateRequest, IssuanceError, QualificationProposal, ReleaseSigner,
-    RootSigner, SigningSeed,
+    CaseReport, CertificateRequest, IssuanceError, QualificationProposal, RecordDraft,
+    ReleaseSigner, RootSigner, SigningSeed, evidence,
 };
 use auths_recipe_qualification::{
-    QualificationFormatError, QualificationInputs, QualificationRefusal, QualificationReleaseIndex,
+    CapabilityKind, EvidenceMemberKind, GitCommit, LiveEffects, QualificationFormatError,
+    QualificationInputs, QualificationRefusal, QualificationReleaseIndex,
     QualificationRevocationList, QualificationRootId, QualificationSignerCertificate,
     QualificationSignerId, QualificationTrustRoot, QualificationTuple,
-    RecipeQualificationAttestation, RecipeQualificationState, VerifiedQualifications,
-    VerifierState, WallRow,
+    RecipeQualificationAttestation, RecipeQualificationState, Scenario, VerifiedQualifications,
+    VerifierState,
 };
 use base64ct::{Base64Unpadded, Base64UrlUnpadded, Encoding as _};
 
@@ -27,8 +28,11 @@ pub const MIN_CANARY_BYTES: usize = 8;
 /// Runs a family's corpus through its pure oracle and through a gateway and
 /// reports, per corpus member, whether the two verdicts are equal.
 ///
-/// The oracle is test-only code the family owns. It is an argument here so
-/// that no gateway build contains one.
+/// `accepts` says whether a verdict is an acceptance, so each case is
+/// recorded as an agreed acceptance or an agreed rejection: a corpus that
+/// exercises only one of the two does not close the wall. The oracle is
+/// test-only code the family owns. It is an argument here so that no
+/// gateway build contains one.
 ///
 /// # Errors
 ///
@@ -39,23 +43,68 @@ pub fn differential<Member, Verdict: PartialEq>(
     identifier: impl Fn(&Member) -> String,
     oracle: impl Fn(&Member) -> Verdict,
     gateway: impl Fn(&Member) -> Verdict,
+    accepts: impl Fn(&Verdict) -> bool,
 ) -> Result<Vec<CaseReport>, IssuanceError> {
     corpus
         .iter()
         .map(|member| {
-            CaseReport::new(
-                &identifier(member),
-                WallRow::OracleAgreement,
-                oracle(member) == gateway(member),
-            )
+            let expected = oracle(member);
+            let scenario = if accepts(&expected) {
+                Scenario::OracleAccepts
+            } else {
+                Scenario::OracleRejects
+            };
+            CaseReport::new(&identifier(member), scenario, expected == gateway(member))
         })
         .collect()
+}
+
+/// What kind of output a scanned source is.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceKind {
+    /// A log.
+    Log,
+    /// A trace.
+    Trace,
+    /// A metric export.
+    Metric,
+    /// A support bundle.
+    SupportBundle,
+    /// An evidence artifact.
+    Evidence,
+}
+
+impl SourceKind {
+    /// Parses the kind's token.
+    #[must_use]
+    pub fn parse(token: &str) -> Option<Self> {
+        match token {
+            "log" => Some(Self::Log),
+            "trace" => Some(Self::Trace),
+            "metric" => Some(Self::Metric),
+            "support-bundle" => Some(Self::SupportBundle),
+            "evidence" => Some(Self::Evidence),
+            _ => None,
+        }
+    }
+
+    const fn scenario(self) -> Scenario {
+        match self {
+            Self::Log => Scenario::LogScan,
+            Self::Trace => Scenario::TraceScan,
+            Self::Metric => Scenario::MetricScan,
+            Self::SupportBundle => Scenario::SupportBundleScan,
+            Self::Evidence => Scenario::EvidenceScan,
+        }
+    }
 }
 
 /// One named byte source a redaction scan reads: a log, a trace, a metric
 /// export, a support bundle, or an evidence artifact.
 #[derive(Clone, Copy, Debug)]
 pub struct ScanSource<'source> {
+    /// What kind of output the source is.
+    pub kind: SourceKind,
     /// The case identifier the source is reported under.
     pub name: &'source str,
     /// The source's bytes.
@@ -129,7 +178,7 @@ pub fn redaction(
             let clean = !forbidden
                 .iter()
                 .any(|spelling| contains(source.bytes, spelling));
-            CaseReport::new(source.name, WallRow::Redaction, clean)
+            CaseReport::new(source.name, source.kind.scenario(), clean)
         })
         .collect()
 }
@@ -144,7 +193,7 @@ fn expect(
 ) -> Result<CaseReport, IssuanceError> {
     let verdict = verified.evaluate(deployment, now, clock_trusted, state);
     let passed = verdict.refusal == expected && verdict.permits_lease() == expected.is_none();
-    CaseReport::new(id, WallRow::Rotation, passed)
+    CaseReport::new(id, Scenario::Freshness, passed)
 }
 
 /// Checks that signed inputs which qualify `deployment` at `now` stop doing
@@ -311,7 +360,7 @@ pub fn signer_rotation(
         |id: &str, verified: &VerifiedQualifications, state: &mut VerifierState, expected| {
             verified.remember(state);
             let verdict = verified.evaluate(deployment, now, true, state);
-            CaseReport::new(id, WallRow::Rotation, verdict.state == expected)
+            CaseReport::new(id, Scenario::SignerRotation, verdict.state == expected)
                 .map(|case| cases.push(case))
         };
     let clean = list(1, &[])?;
@@ -388,7 +437,7 @@ fn self_certification(
     );
     CaseReport::new(
         "rotation-signer-cannot-certify",
-        WallRow::Rotation,
+        Scenario::SignerRotation,
         verdict.state == RecipeQualificationState::Unqualified,
     )
 }
@@ -405,7 +454,164 @@ fn open_evidence(proposal: &QualificationProposal) -> Result<CaseReport, Issuanc
     let open = QualificationProposal::from_parts(proposal.record().canonical_bytes(), &evidence);
     CaseReport::new(
         "rotation-open-evidence-is-not-resigned",
-        WallRow::Rotation,
+        Scenario::SignerRotation,
         matches!(open, Err(IssuanceError::Closure(_))),
     )
+}
+
+/// The capabilities a placeholder candidate declares not applicable.
+pub(crate) const PLACEHOLDER_ABSENT: [CapabilityKind; 2] = [
+    CapabilityKind::AccountBinding,
+    CapabilityKind::ObserverRotation,
+];
+
+/// One passing case per scenario of `member` that every record needs, and
+/// one per capability the member shows. The cases stand for no run: they
+/// fill a candidate whose only use is to exercise the release machinery.
+///
+/// # Panics
+///
+/// Never: the identifiers are fixed bounded text.
+#[must_use]
+pub fn placeholder_cases(member: EvidenceMemberKind) -> Vec<CaseReport> {
+    let case = |name: String, scenario| {
+        CaseReport::new(&name, scenario, true)
+            .unwrap_or_else(|_| unreachable!("a fixed identifier is bounded text"))
+    };
+    let mut cases: Vec<CaseReport> = Scenario::ALL
+        .into_iter()
+        .filter(|scenario| scenario.member() == member && scenario.always_required())
+        .map(|scenario| {
+            let mut reported = case(format!("scenario-{scenario:?}"), scenario);
+            if scenario == Scenario::ResponseLoss {
+                reported.capabilities = vec![CapabilityKind::Recovery];
+            }
+            reported
+        })
+        .collect();
+    if member == EvidenceMemberKind::Live {
+        for capability in CapabilityKind::ALL {
+            if Scenario::DeclaredCapability.may_show(capability)
+                && !PLACEHOLDER_ABSENT.contains(&capability)
+            {
+                let mut reported = case(
+                    format!("capability-{capability:?}"),
+                    Scenario::DeclaredCapability,
+                );
+                reported.capabilities = vec![capability];
+                cases.push(reported);
+            }
+        }
+    }
+    cases
+}
+
+/// A closed proposal for `tuple` whose evidence is placeholder cases, valid
+/// for 90 days from two hours before `now`.
+pub(crate) fn synthetic_proposal(
+    index: u8,
+    tuple: &QualificationTuple,
+    now: u64,
+) -> Result<QualificationProposal, IssuanceError> {
+    const COMMIT: &str = "0000000000000000000000000000000000000000";
+    let digest = |byte: &str| byte.repeat(32);
+    let start = now
+        .checked_sub(2 * HOUR)
+        .ok_or(QualificationFormatError::InvalidTimeWindow)?;
+    let draft: RecordDraft = serde_json::from_value(serde_json::json!({
+        "qualification_id": format!("qlf_{}", hex::encode([index; 16])),
+        "provider_kind": "placeholder",
+        "tuple": tuple,
+        "not_before": start,
+        "not_after": start + 90 * 24 * HOUR,
+        "provenance": {
+            "repository": "placeholder",
+            "commit": COMMIT,
+            "workflow": "placeholder",
+            "environment": "placeholder",
+        },
+        "source_closure_sha256": digest("00"),
+        "generated_artifacts_sha256": digest("00"),
+        "installed_packages": [
+            {"name": "placeholder", "version": "0", "sha256": digest("00")},
+        ],
+        "recipe_decision_record_sha256": digest("00"),
+        "corpus_manifest_sha256": digest("00"),
+        "not_applicable": [
+            {"capability": "account-binding", "reason": "a placeholder candidate"},
+            {"capability": "observer-rotation", "reason": "a placeholder candidate"},
+        ],
+        "provider_resources": ["placeholder"],
+        "custody_descriptor": "placeholder",
+        "store_descriptor": "placeholder",
+        "residual_assumptions": [],
+        "excluded_claims": ["everything: this record stands for no run"],
+    }))
+    .map_err(|_| QualificationFormatError::Malformed)?;
+    let commit = GitCommit::parse(COMMIT).map_err(|_| QualificationFormatError::Malformed)?;
+    let artifacts = EvidenceMemberKind::ALL
+        .into_iter()
+        .map(|member| {
+            let live = (member == EvidenceMemberKind::Live).then_some(LiveEffects {
+                entered: 1,
+                confirmed_by_read_back: 1,
+            });
+            evidence(member, &commit, tuple, placeholder_cases(member), live)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    QualificationProposal::assemble(draft, artifacts)
+}
+
+/// Runs the signer-rotation and freshness stages for `tuple` on the release
+/// machinery of this build.
+///
+/// The stages need a closed record to sign and none exists before the
+/// run's own record is assembled, so they use a placeholder candidate for
+/// the same tuple under a root made for the stage. What they show is that
+/// this build's issuance and verification keep every trust transition and
+/// enforce every signed time bound; they show nothing about a provider.
+///
+/// # Errors
+///
+/// Returns what [`signer_rotation`] and [`freshness`] return.
+pub fn trust_transitions(
+    tuple: &QualificationTuple,
+    now: u64,
+) -> Result<Vec<CaseReport>, IssuanceError> {
+    let candidate = synthetic_proposal(0, tuple, now)?;
+    let mut cases = signer_rotation(&candidate, now)?;
+    let record = candidate.record().body();
+    let malformed = |_| QualificationFormatError::Malformed;
+    let root = RootSigner::create(
+        &SigningSeed::generate()?,
+        QualificationRootId::parse("freshness-stage-root").map_err(malformed)?,
+    )?;
+    let seed = SigningSeed::generate()?;
+    let certificate = root.certify(CertificateRequest {
+        signer_id: QualificationSignerId::parse("freshness-stage-signer").map_err(malformed)?,
+        public_key_b64: seed.public_key(),
+        issued_at: record.not_before,
+        not_before: record.not_before,
+        not_after: record.not_after,
+    })?;
+    let signer = ReleaseSigner::open(&seed, certificate)?;
+    // Everything is issued a minute before `now`, so the stage can also
+    // step behind the issue time without leaving the record's window.
+    let issued = now - 60;
+    let release = Release::issue(&signer, &candidate, issued)?;
+    let list = root.revoke(1, issued, now + HOUR, Vec::new(), Vec::new())?;
+    cases.extend(freshness(
+        root.trust_root(),
+        &QualificationInputs {
+            signer_certificate: &release.certificate,
+            revocation_list: list.canonical_bytes(),
+            release_index: &release.index,
+            records: &[candidate.record().canonical_bytes()],
+            attestations: &[&release.attestation],
+        },
+        tuple,
+        &VerifierState::default(),
+        now,
+    )?);
+    Ok(cases)
 }

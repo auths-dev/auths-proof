@@ -6,8 +6,8 @@
 //! The artifact behind each digest lists the cases. A record *closes over*
 //! its artifacts when every digest, count, counter, capability, and live
 //! effect it states can be recomputed from them, they were produced on the
-//! record's commit for the record's tuple, and every row of the evidence
-//! wall has a case in each member that row belongs to.
+//! record's commit for the record's tuple, and every scenario the evidence
+//! wall requires has a case in the member that scenario belongs to.
 
 use crate::canonical::{self, Artifact, Canonical, Sealed};
 use crate::model::{
@@ -81,21 +81,213 @@ impl WallRow {
         Self::Redaction,
         Self::InstalledConsumer,
     ];
+}
 
-    /// The members that must each hold a case for this row.
+/// One thing a protected run must show. Every case is evidence for exactly
+/// one scenario, and every scenario belongs to one wall row and one member.
+///
+/// The set is closed and names no provider: a scenario says what kind of
+/// attempt or check was made, and the family's harness decides how to make
+/// it against its own provider.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Scenario {
+    /// Source and generated artifacts are unmodified.
+    CleanSource,
+    /// The compiled recipe digest rederives from the installed source.
+    RecipeDigestRederives,
+    /// The recipe compiler and interpreter vectors pass.
+    RecipeVectors,
+    /// The closed-enumeration hostile recipe cases are refused.
+    ClosedEnumerationHostile,
+    /// The oracle and the gateway both accept a corpus member.
+    OracleAccepts,
+    /// The oracle and the gateway both reject a corpus member.
+    OracleRejects,
+    /// An application process without a credential cannot read secret
+    /// material.
+    ApplicationCannotReadSecret,
+    /// A forged proof enters no provider.
+    ForgedProof,
+    /// An action altered after approval enters no provider.
+    AlteredAction,
+    /// A replayed proof enters no provider a second time.
+    ProofReplay,
+    /// A fresh challenge for the same logical operation enters no provider a
+    /// second time.
+    FreshChallengeReplay,
+    /// A direct attempt on the provider without the gateway does not
+    /// succeed.
+    DirectProviderAttempt,
+    /// An ambiguous provider response causes no second entry.
+    AmbiguousResponse,
+    /// Two gateway instances racing one operation enter the provider once.
+    TwoInstanceRace,
+    /// A restart mid-operation causes no unauthorized entry.
+    Restart,
+    /// A crash at a stage boundary causes no unauthorized entry.
+    Crash,
+    /// A changed credential-store kind fails before provider entry.
+    StoreKindDrift,
+    /// A changed credential generation fails before provider entry.
+    GenerationDrift,
+    /// A changed reference commitment fails before provider entry.
+    CommitmentDrift,
+    /// A changed pinned external version fails before provider entry.
+    ExternalVersionDrift,
+    /// A provider-secret rotation keeps its typed generation transitions.
+    ProviderSecretRotation,
+    /// A qualification-signer rotation keeps its trust transitions.
+    SignerRotation,
+    /// The signed time bounds of the release inputs are enforced.
+    Freshness,
+    /// An observer rotation keeps its trust transitions; required only when
+    /// the target declares an observer.
+    ObserverRotation,
+    /// A declared provider capability is exercised.
+    DeclaredCapability,
+    /// A successful live write is confirmed by the declared read-back.
+    ReadBackConfirmsWrite,
+    /// A lost response converges only under the declared recovery
+    /// capability and otherwise stays unknown.
+    ResponseLoss,
+    /// Delayed visibility converges only under the declared recovery
+    /// capability and otherwise stays unknown.
+    DelayedVisibility,
+    /// Logs hold no planted secret or provider datum.
+    LogScan,
+    /// Traces hold no planted secret or provider datum.
+    TraceScan,
+    /// Metrics hold no planted secret or provider datum.
+    MetricScan,
+    /// Support bundles hold no planted secret or provider datum.
+    SupportBundleScan,
+    /// Evidence artifacts hold no planted secret or provider datum.
+    EvidenceScan,
+    /// An installed consumer completes the documented journey.
+    InstalledJourney,
+    /// The installed consumer imports no repository source.
+    NoRepositoryImport,
+    /// The installed consumer receives no provider token.
+    NoProviderToken,
+}
+
+impl Scenario {
+    /// Every scenario, in the wall's order.
+    pub const ALL: [Self; 36] = [
+        Self::CleanSource,
+        Self::RecipeDigestRederives,
+        Self::RecipeVectors,
+        Self::ClosedEnumerationHostile,
+        Self::OracleAccepts,
+        Self::OracleRejects,
+        Self::ApplicationCannotReadSecret,
+        Self::ForgedProof,
+        Self::AlteredAction,
+        Self::ProofReplay,
+        Self::FreshChallengeReplay,
+        Self::DirectProviderAttempt,
+        Self::AmbiguousResponse,
+        Self::TwoInstanceRace,
+        Self::Restart,
+        Self::Crash,
+        Self::StoreKindDrift,
+        Self::GenerationDrift,
+        Self::CommitmentDrift,
+        Self::ExternalVersionDrift,
+        Self::ProviderSecretRotation,
+        Self::SignerRotation,
+        Self::Freshness,
+        Self::ObserverRotation,
+        Self::DeclaredCapability,
+        Self::ReadBackConfirmsWrite,
+        Self::ResponseLoss,
+        Self::DelayedVisibility,
+        Self::LogScan,
+        Self::TraceScan,
+        Self::MetricScan,
+        Self::SupportBundleScan,
+        Self::EvidenceScan,
+        Self::InstalledJourney,
+        Self::NoRepositoryImport,
+        Self::NoProviderToken,
+    ];
+
+    /// The wall row this scenario is evidence for.
     #[must_use]
-    pub const fn members(self) -> &'static [EvidenceMemberKind] {
+    pub const fn row(self) -> WallRow {
+        match self {
+            Self::CleanSource | Self::RecipeDigestRederives => WallRow::CleanSource,
+            Self::RecipeVectors | Self::ClosedEnumerationHostile => WallRow::RecipeVectors,
+            Self::OracleAccepts | Self::OracleRejects => WallRow::OracleAgreement,
+            Self::ApplicationCannotReadSecret => WallRow::SecretIsolation,
+            Self::ForgedProof
+            | Self::AlteredAction
+            | Self::ProofReplay
+            | Self::FreshChallengeReplay
+            | Self::DirectProviderAttempt
+            | Self::AmbiguousResponse
+            | Self::TwoInstanceRace
+            | Self::Restart
+            | Self::Crash => WallRow::UnauthorizedEntry,
+            Self::StoreKindDrift
+            | Self::GenerationDrift
+            | Self::CommitmentDrift
+            | Self::ExternalVersionDrift => WallRow::CustodyDrift,
+            Self::ProviderSecretRotation
+            | Self::SignerRotation
+            | Self::Freshness
+            | Self::ObserverRotation => WallRow::Rotation,
+            Self::DeclaredCapability => WallRow::DeclaredCapabilities,
+            Self::ReadBackConfirmsWrite => WallRow::ReadBack,
+            Self::ResponseLoss | Self::DelayedVisibility => WallRow::Recovery,
+            Self::LogScan
+            | Self::TraceScan
+            | Self::MetricScan
+            | Self::SupportBundleScan
+            | Self::EvidenceScan => WallRow::Redaction,
+            Self::InstalledJourney | Self::NoRepositoryImport | Self::NoProviderToken => {
+                WallRow::InstalledConsumer
+            }
+        }
+    }
+
+    /// The one member whose artifact holds this scenario's cases.
+    #[must_use]
+    pub const fn member(self) -> EvidenceMemberKind {
         use EvidenceMemberKind as Member;
         match self {
-            Self::CleanSource | Self::RecipeVectors => &[Member::Conformance],
-            Self::OracleAgreement => &[Member::Differential],
-            Self::SecretIsolation => &[Member::Hostile],
-            Self::UnauthorizedEntry => &[Member::Hostile, Member::Restart, Member::MultiInstance],
-            Self::CustodyDrift | Self::Rotation => &[Member::Rotation],
-            Self::DeclaredCapabilities | Self::ReadBack => &[Member::Live],
-            Self::Recovery => &[Member::Recovery],
-            Self::Redaction => &[Member::Redaction],
-            Self::InstalledConsumer => &[Member::InstalledConsumer],
+            Self::TwoInstanceRace => Member::MultiInstance,
+            Self::Restart | Self::Crash => Member::Restart,
+            _ => match self.row() {
+                WallRow::CleanSource | WallRow::RecipeVectors => Member::Conformance,
+                WallRow::OracleAgreement => Member::Differential,
+                WallRow::SecretIsolation | WallRow::UnauthorizedEntry => Member::Hostile,
+                WallRow::CustodyDrift | WallRow::Rotation => Member::Rotation,
+                WallRow::DeclaredCapabilities | WallRow::ReadBack => Member::Live,
+                WallRow::Recovery => Member::Recovery,
+                WallRow::Redaction => Member::Redaction,
+                WallRow::InstalledConsumer => Member::InstalledConsumer,
+            },
+        }
+    }
+
+    /// Whether every record needs a case for this scenario. The two that do
+    /// not are required exactly when a capability they show is exercised.
+    #[must_use]
+    pub const fn always_required(self) -> bool {
+        !matches!(self, Self::ObserverRotation | Self::DeclaredCapability)
+    }
+
+    /// Whether a case for this scenario may show `capability` exercised.
+    #[must_use]
+    pub const fn may_show(self, capability: CapabilityKind) -> bool {
+        match capability {
+            CapabilityKind::Recovery => {
+                matches!(self, Self::ResponseLoss | Self::DelayedVisibility)
+            }
+            CapabilityKind::ObserverRotation => matches!(self, Self::ObserverRotation),
+            _ => matches!(self, Self::DeclaredCapability),
         }
     }
 }
@@ -128,8 +320,8 @@ impl CapabilityKind {
 pub struct EvidenceCase {
     /// The case's identifier within its member.
     pub id: BoundedText<96>,
-    /// The wall row the case is evidence for.
-    pub wall_row: WallRow,
+    /// What the case shows.
+    pub scenario: Scenario,
     /// The capabilities the case exercised, sorted and unique.
     pub capabilities: Vec<CapabilityKind>,
     /// Provider entries the case observed that no approval authorized.
@@ -174,12 +366,18 @@ impl Artifact for EvidenceBody {
         canonical::strictly_ascending(&identifiers)?;
         for case in &self.cases {
             canonical::strictly_ascending(&case.capabilities)?;
-            let row_belongs = case.wall_row.members().contains(&self.member);
+            let belongs = case.scenario.member() == self.member;
             let capabilities_belong = case
                 .capabilities
                 .iter()
-                .all(|capability| capability.member() == self.member);
-            if !row_belongs || !capabilities_belong {
+                .all(|capability| case.scenario.may_show(*capability));
+            // A capability case that shows no capability is evidence of
+            // nothing.
+            let shows_something = !matches!(
+                case.scenario,
+                Scenario::DeclaredCapability | Scenario::ObserverRotation
+            ) || !case.capabilities.is_empty();
+            if !belongs || !capabilities_belong || !shows_something {
                 return Err(QualificationFormatError::InvalidEvidence);
             }
         }
@@ -201,8 +399,8 @@ impl Artifact for EvidenceBody {
 /// A decoded evidence artifact.
 ///
 /// Invariant `passed-cases-only`: the value lists between 1 and 256 cases
-/// that passed, each for a wall row and capabilities that belong to its
-/// member, on one commit and for one tuple. A failed case cannot be
+/// that passed, each for a scenario that belongs to its member and
+/// capabilities that scenario may show, on one commit and for one tuple. A failed case cannot be
 /// represented.
 pub type QualificationEvidence = Canonical<EvidenceBody>;
 
@@ -237,9 +435,9 @@ pub enum ClosureFault {
     /// An artifact was produced on another commit or for another tuple.
     #[error("evidence was produced for another candidate")]
     Candidate,
-    /// A wall row has no case in a member it belongs to.
-    #[error("a wall row has no evidence")]
-    WallRow,
+    /// A required scenario has no case.
+    #[error("a required scenario has no evidence")]
+    Scenario,
     /// A capability's result is not what the cases show.
     #[error("a capability result differs from the evidence")]
     Capability,
@@ -257,7 +455,7 @@ impl ClosureFault {
             Self::Digest => "digest",
             Self::Counter => "counter",
             Self::Candidate => "candidate",
-            Self::WallRow => "wall-row",
+            Self::Scenario => "scenario",
             Self::Capability => "capability",
             Self::LiveEffects => "live-effects",
         }
@@ -270,8 +468,8 @@ impl ClosureFault {
 /// that each stated digest is the digest of a presented artifact, that the
 /// counts, counters, capability results, and live effects are the ones the
 /// cases show, that every artifact was produced on the record's commit for
-/// the record's tuple, and that every wall row has a case in each member it
-/// belongs to.
+/// the record's tuple, and that every scenario the wall always requires has
+/// a case.
 ///
 /// # Errors
 ///
@@ -309,23 +507,21 @@ pub fn verify_evidence_closure(
             return Err(ClosureFault::Candidate);
         }
     }
-    let has_case = |member: EvidenceMemberKind, row: WallRow| {
-        evidence
-            .iter()
-            .filter(|artifact| artifact.body().member == member)
-            .any(|artifact| {
-                artifact
-                    .body()
-                    .cases
-                    .iter()
-                    .any(|case| case.wall_row == row)
-            })
+    let has_case = |scenario: Scenario| {
+        evidence.iter().any(|artifact| {
+            artifact
+                .body()
+                .cases
+                .iter()
+                .any(|case| case.scenario == scenario)
+        })
     };
-    let rows_covered = WallRow::ALL
+    let wall_whole = Scenario::ALL
         .into_iter()
-        .all(|row| row.members().iter().all(|member| has_case(*member, row)));
-    if !rows_covered {
-        return Err(ClosureFault::WallRow);
+        .filter(|scenario| scenario.always_required())
+        .all(has_case);
+    if !wall_whole {
+        return Err(ClosureFault::Scenario);
     }
     let exercised = |capability: CapabilityKind| {
         evidence.iter().any(|artifact| {
@@ -349,4 +545,54 @@ pub fn verify_evidence_closure(
         return Err(ClosureFault::LiveEffects);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    /// Every row of the wall is reached by a scenario every record needs,
+    /// every member holds one, and the tokens are distinct.
+    #[test]
+    fn the_scenario_catalogue_covers_every_wall_row_and_member() {
+        let required: Vec<Scenario> = Scenario::ALL
+            .into_iter()
+            .filter(|scenario| scenario.always_required())
+            .collect();
+        assert_eq!(required.len(), 34);
+        let rows: BTreeSet<WallRow> = required.iter().map(|scenario| scenario.row()).collect();
+        let every_row: BTreeSet<WallRow> = WallRow::ALL
+            .into_iter()
+            .filter(|row| *row != WallRow::DeclaredCapabilities)
+            .collect();
+        assert_eq!(
+            rows, every_row,
+            "the capability row is required per capability"
+        );
+        let members: BTreeSet<EvidenceMemberKind> =
+            required.iter().map(|scenario| scenario.member()).collect();
+        assert_eq!(members.len(), EvidenceMemberKind::ALL.len());
+        let tokens: BTreeSet<String> = Scenario::ALL
+            .into_iter()
+            .map(|scenario| serde_json::to_string(&scenario).expect("token"))
+            .collect();
+        assert_eq!(tokens.len(), Scenario::ALL.len());
+    }
+
+    /// A capability is shown only by a scenario of the member that
+    /// capability belongs to.
+    #[test]
+    fn a_capability_is_shown_only_in_its_own_member() {
+        for capability in CapabilityKind::ALL {
+            let showing: Vec<Scenario> = Scenario::ALL
+                .into_iter()
+                .filter(|scenario| scenario.may_show(capability))
+                .collect();
+            assert!(!showing.is_empty(), "{capability:?} can be shown");
+            for scenario in showing {
+                assert_eq!(scenario.member(), capability.member(), "{capability:?}");
+            }
+        }
+    }
 }

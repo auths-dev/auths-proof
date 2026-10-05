@@ -563,6 +563,7 @@ digraph auths_architecture {
   "auths-recipe-qualification" -> "auths-connections" [label="normal"];
   "auths-recipe-qualification-issuance" -> "auths-connections" [label="normal"];
   "auths-recipe-qualification-issuance" -> "auths-recipe-qualification" [label="normal"];
+  "auths-recipe-qualification-issuance" -> "auths-recipe-qualification-issuance" [label="dev"];
   "auths-records-api" -> "auths-bounded-policy" [label="normal"];
   "auths-records-api" -> "auths-lifecycle" [label="normal"];
   "auths-records-api" -> "auths-model" [label="normal"];

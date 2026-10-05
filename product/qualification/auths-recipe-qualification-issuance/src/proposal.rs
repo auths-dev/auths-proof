@@ -6,8 +6,8 @@ use auths_recipe_qualification::{
     BoundedText, CapabilityKind, CapabilityResult, EVIDENCE_SCHEMA, EvidenceBody, EvidenceCase,
     EvidenceMember, EvidenceMemberKind, EvidenceResult, ExercisedCapability, GitCommit,
     InstalledPackage, LiveEffects, Provenance, QUALIFICATION_RECORD_SCHEMA, QualificationEvidence,
-    QualificationId, QualificationTuple, RecipeQualificationRecord, RecordBody, Sha256Digest,
-    WallRow, verify_evidence_closure,
+    QualificationId, QualificationTuple, RecipeQualificationRecord, RecordBody, Scenario,
+    Sha256Digest, verify_evidence_closure,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 pub struct CaseReport {
     /// The case's identifier within its member.
     pub id: BoundedText<96>,
-    /// The wall row the case is evidence for.
-    pub wall_row: WallRow,
+    /// What the case shows.
+    pub scenario: Scenario,
     /// The capabilities the case exercised.
     #[serde(default)]
     pub capabilities: Vec<CapabilityKind>,
@@ -30,18 +30,18 @@ pub struct CaseReport {
 }
 
 impl CaseReport {
-    /// A case for `wall_row` that passed or did not, with no capability and
+    /// A case for `scenario` that passed or did not, with no capability and
     /// no unauthorized entry.
     ///
     /// # Errors
     ///
     /// Returns [`IssuanceError::Format`] when `id` is not bounded printable
     /// text.
-    pub fn new(id: &str, wall_row: WallRow, passed: bool) -> Result<Self, IssuanceError> {
+    pub fn new(id: &str, scenario: Scenario, passed: bool) -> Result<Self, IssuanceError> {
         Ok(Self {
             id: BoundedText::parse(id)
                 .map_err(|_| auths_recipe_qualification::QualificationFormatError::Malformed)?,
-            wall_row,
+            scenario,
             capabilities: Vec::new(),
             passed,
             unauthorized_provider_entries: 0,
@@ -78,7 +78,7 @@ pub fn evidence(
             case.capabilities.dedup();
             EvidenceCase {
                 id: case.id,
-                wall_row: case.wall_row,
+                scenario: case.scenario,
                 capabilities: case.capabilities,
                 unauthorized_provider_entries: 0,
             }

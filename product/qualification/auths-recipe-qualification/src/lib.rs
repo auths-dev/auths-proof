@@ -49,7 +49,7 @@ pub use closure::{
 pub use error::QualificationFormatError;
 pub use evidence::{
     ClosureFault, EVIDENCE_SCHEMA, EvidenceBody, EvidenceCase, MAX_EVIDENCE_BYTES,
-    MAX_EVIDENCE_CASES, QualificationEvidence, TUPLE_DIGEST_DOMAIN, WallRow,
+    MAX_EVIDENCE_CASES, QualificationEvidence, Scenario, TUPLE_DIGEST_DOMAIN, WallRow,
     verify_evidence_closure,
 };
 pub use ids::{

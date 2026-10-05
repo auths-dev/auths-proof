@@ -9,7 +9,7 @@
 
 /// The digest of `semantic-closure.json`, the closure of this build.
 pub const GATEWAY_SEMANTIC_CLOSURE_SHA256: &str =
-    "6ff2c67029ba0296024ece2616bfe1306e4430ecc31ea33783e887f45ba425d2";
+    "acaf150bbbd629628f80ad9301d866f160d26abe7fe7221fecd9ca45e6a5bb64";
 
 #[cfg(test)]
 mod tests {

@@ -5,10 +5,9 @@
 #![allow(dead_code, reason = "each test binary uses its own part")]
 
 use auths_recipe_qualification::{
-    CapabilityKind, EvidenceMemberKind, GitCommit, LiveEffects, QualificationEvidence,
-    QualificationTuple, WallRow,
+    EvidenceMemberKind, GitCommit, LiveEffects, QualificationEvidence, QualificationTuple,
 };
-use auths_recipe_qualification_issuance::{CaseReport, RecordDraft, evidence};
+use auths_recipe_qualification_issuance::{RecordDraft, evidence};
 use serde_json::{Value, json};
 
 pub const NOW: u64 = 1_790_000_000;
@@ -80,34 +79,7 @@ pub fn draft() -> RecordDraft {
     serde_json::from_value(draft_json()).expect("draft")
 }
 
-/// The capabilities the synthetic family does not have.
-pub const ABSENT: [CapabilityKind; 2] = [
-    CapabilityKind::AccountBinding,
-    CapabilityKind::ObserverRotation,
-];
-
-/// One passing case per wall row of `member`, and one per capability the
-/// member shows.
-pub fn cases(member: EvidenceMemberKind) -> Vec<CaseReport> {
-    let mut cases: Vec<CaseReport> = WallRow::ALL
-        .into_iter()
-        .filter(|row| row.members().contains(&member))
-        .map(|row| CaseReport::new(&format!("row-{row:?}"), row, true).expect("case"))
-        .collect();
-    for capability in CapabilityKind::ALL {
-        if capability.member() == member && !ABSENT.contains(&capability) {
-            let row = match member {
-                EvidenceMemberKind::Recovery => WallRow::Recovery,
-                _ => WallRow::DeclaredCapabilities,
-            };
-            let mut case =
-                CaseReport::new(&format!("capability-{capability:?}"), row, true).expect("case");
-            case.capabilities = vec![capability];
-            cases.push(case);
-        }
-    }
-    cases
-}
+pub use auths_recipe_qualification_issuance::testkit::cases;
 
 pub fn live_effects(member: EvidenceMemberKind) -> Option<LiveEffects> {
     (member == EvidenceMemberKind::Live).then_some(LiveEffects {
