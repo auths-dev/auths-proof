@@ -1402,7 +1402,9 @@ mod unix {
 
     /// Builds the installation's gate and loads the inputs the operator
     /// imported. The policy is decided again from the deployment, so an
-    /// edited manifest cannot relax production.
+    /// edited manifest cannot relax production. Only a changed installation
+    /// is an error; unreadable inputs or remembered revocations give a gate
+    /// that qualifies nothing.
     fn qualification_gate(
         state_dir: &Path,
         manifest: &Installation,
@@ -1416,14 +1418,20 @@ mod unix {
             Deployment::Production => Box::new(SynchronizedHostClock),
             Deployment::Development => Box::new(DevelopmentClock),
         };
+        // What this host remembers as revoked must be readable for anything
+        // to qualify. Damage disables the recipe, not the process: the gate
+        // is then built with no root, which nothing satisfies.
+        let remembered = read_verifier_state(state_dir);
+        let root = qualification_root(state_dir, manifest)?.filter(|_| remembered.is_ok());
         let gate = QualificationGate::new(
             policy,
-            qualification_root(state_dir, manifest)?,
+            root,
             qualification_deployment(state_dir, manifest),
             clock,
-            read_verifier_state(state_dir)?,
+            remembered.unwrap_or_default(),
         );
-        qualification_reload(state_dir, &gate)?;
+        // Inputs that cannot be read leave the gate holding nothing.
+        let _ = qualification_reload(state_dir, &gate);
         Ok(gate)
     }
 

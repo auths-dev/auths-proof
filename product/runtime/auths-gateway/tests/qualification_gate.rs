@@ -376,14 +376,25 @@ fn a_host_qualifies_only_from_a_release_its_root_signed() {
         "policy=required state=revoked code=gateway.qualification.revoked"
     );
 
-    // Damage to what the host remembers refuses rather than forgets.
+    // Damage to what the host remembers refuses rather than forgets, and
+    // disables the recipe without stopping the gateway.
     fs::write(state.join("qualification-state.json"), b"{}").expect("damage");
     let damaged = status();
     assert!(!damaged.status.success());
+    assert_eq!(
+        text(&damaged.stdout).trim(),
+        format!("policy=required state=unqualified code={UNAVAILABLE}")
+    );
     assert!(
-        text(&damaged.stderr).starts_with(UNAVAILABLE),
-        "{}",
-        text(&damaged.stderr)
+        text(&import(&root.join("omitting")).stderr).starts_with(UNAVAILABLE),
+        "nothing is imported over a damaged record"
+    );
+    let (_serving, ready) = serve(&state, &root.join("app.sock"));
+    assert!(
+        ready.contains(&format!(
+            "qualification policy=required state=unqualified code={UNAVAILABLE}"
+        )),
+        "{ready}"
     );
 }
 
