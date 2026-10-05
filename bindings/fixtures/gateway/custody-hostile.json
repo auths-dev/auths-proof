@@ -273,25 +273,43 @@
       "id": "secret-empty",
       "class": "oversize",
       "bytes": 0,
-      "accepted": false
+      "accepted": false,
+      "injectable": false
     },
     {
       "id": "secret-one-byte",
       "class": "oversize",
       "bytes": 1,
-      "accepted": true
+      "accepted": true,
+      "injectable": true
     },
     {
-      "id": "secret-at-limit",
+      "id": "secret-at-injection-limit",
+      "class": "oversize",
+      "bytes": 4096,
+      "accepted": true,
+      "injectable": true
+    },
+    {
+      "id": "secret-over-injection-limit",
+      "class": "oversize",
+      "bytes": 4097,
+      "accepted": true,
+      "injectable": false
+    },
+    {
+      "id": "secret-at-store-limit",
       "class": "oversize",
       "bytes": 65536,
-      "accepted": true
+      "accepted": true,
+      "injectable": false
     },
     {
-      "id": "secret-over-limit",
+      "id": "secret-over-store-limit",
       "class": "oversize",
       "bytes": 65537,
-      "accepted": false
+      "accepted": false,
+      "injectable": false
     }
   ],
   "recipe_selection": {
@@ -358,8 +376,8 @@
         "code": "gateway.recipe.invalid-source"
       },
       {
-        "id": "recipe-renames-bearer-header",
-        "class": "selection",
+        "id": "recipe-bearer-carries-header-member",
+        "class": "extra-field",
         "mutations": [
           {
             "op": "set",
@@ -763,7 +781,7 @@
       "id": "lease-sealed-generation-revoked-with-successor",
       "class": "selection",
       "given": [
-        "the sealed credential generation is revoked",
+        "the sealed credential generation is revoked after the claim and before the lease",
         "a newer generation of the same connection is stored"
       ],
       "expect": {
@@ -778,7 +796,7 @@
       "id": "lease-generation-not-held",
       "class": "commitment-mismatch",
       "given": [
-        "no secret is stored at the sealed credential generation"
+        "no secret is stored at the sealed credential generation when the attempt is admitted"
       ],
       "expect": {
         "stage": "refused-before-claim",

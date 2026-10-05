@@ -89,7 +89,7 @@ pub use operator::{
 };
 pub use readiness::{
     ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,
-    ProductionReadiness, ReadinessPrecondition, RequiredPreconditions, UnknownClockTrustState,
+    ProductionReadiness, ReadinessPrecondition, RequiredPreconditions,
 };
 pub use recipe::{
     ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,

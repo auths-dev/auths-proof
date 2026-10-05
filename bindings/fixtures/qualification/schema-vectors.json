@@ -342,6 +342,23 @@
       ]
     },
     {
+      "id": "record-observation-not-applicable",
+      "artifact": "record",
+      "class": "response-without-read-back",
+      "reason": "invalid-evidence",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/capabilities/9",
+          "value": {
+            "capability": "observation",
+            "result": "not-applicable",
+            "reason": "the recipe declares no read-back"
+          }
+        }
+      ]
+    },
+    {
       "id": "record-capability-omitted",
       "artifact": "record",
       "class": "evidence-not-closed",

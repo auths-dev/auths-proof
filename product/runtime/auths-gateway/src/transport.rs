@@ -22,7 +22,9 @@ use url::Url;
 use zeroize::Zeroizing;
 
 const MAX_WRITE_RESPONSE_BYTES: usize = 65_536;
-const MAX_SECRET_BYTES: usize = 4_096;
+/// The longest credential the transport injects into a header. A credential
+/// store accepts longer secrets; one above this bound is never sent.
+pub(crate) const MAX_SECRET_BYTES: usize = 4_096;
 
 /// The longest one provider request may run once it has entered transport.
 ///
@@ -539,7 +541,10 @@ mod tests {
             .binding_for_recovery(NonZeroU64::MIN, NonZeroU64::MIN, commitment)
             .expect("binding");
         store
-            .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
+            .lease_secret(
+                &binding.credential(),
+                Instant::now() + Duration::from_secs(30),
+            )
             .await
             .expect("lease")
     }
@@ -745,7 +750,10 @@ mod tests {
             .binding_for_recovery(generation, generation, commitment)
             .expect("binding");
         store
-            .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
+            .lease_secret(
+                &binding.credential(),
+                Instant::now() + Duration::from_secs(30),
+            )
             .await
             .expect("lease")
     }

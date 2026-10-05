@@ -48,8 +48,10 @@ argument, an environment variable, or an application input. It is stored under
 a connection identity and a credential generation. The shared connection
 record carries the generation and a commitment, never the bytes or where they
 are kept. A lease is requested only after the claim, names exactly one sealed
-generation, has a deadline, and is zeroized when dropped. The store is not told
-the provider, recipe, origin, header name, or action. Which header carries the
+generation, has a deadline, and is zeroized when dropped. The store receives a
+`CredentialBinding`, which holds the connection, its two generations, and the
+commitment; it is not told the provider, recipe, origin, header name, or
+action. Which header carries the
 bytes is the recipe's committed declaration, applied by the gateway after the
 lease; the store behaves the same for `Authorization` and for
 `X-Postmark-Server-Token`.
@@ -89,7 +91,7 @@ a plugin, or a field the store or the qualification types interpret.
 | Environment class | provider test mode | disposable live resources | disposable live resources | provider test mode | closed enumeration, family-chosen |
 | Corpus, oracle, live cases | refund | field update | task creation | none | domain semantic; test-only, family-owned |
 | Capabilities present | most | few | few | few | identical accounting, family-owned reasons |
-| Read-back that confirms a live write | refund read | record read | task read | none declared | recipe data; no shared meaning of success |
+| Read-back that confirms a live write | refund read | record read | task read | none declared; one is required before it could qualify | recipe data; no shared meaning of success |
 
 The retention row is the one place a provider difference might have argued
 for a parameter. It does not. The 20 seconds protect an attempt that already
@@ -121,8 +123,9 @@ AP-SPEC-066 §4. Executable evidence in this change:
   1,536 combinations; a recipe or a submission frame that tries to select
   custody or declare qualification is refused.
 - `auths-recipe-qualification`: every artifact decodes only from its canonical
-  bytes; 78 structural cases are each refused with a pinned reason; eight
-  contract drifts each change the contract identifier.
+  bytes; 79 structural cases are each refused with a pinned reason; eight
+  contract drifts each change the contract identifier; a record does not close
+  without an exercised read-back.
 
 Fixtures: `bindings/fixtures/qualification/schema-vectors.json` and
 `verification-vectors.json`, and `bindings/fixtures/gateway/custody-hostile.json`
@@ -145,8 +148,9 @@ policy by the custody epic.
 
 ## Performance
 
-Custody: a lease is one exact-key lookup and one constant-time comparison, as
-before. Qualification: decoding is bounded by the size limits (at most
+Custody: a lease in the local stores is a scan of one connection's stored
+generations, one exact-key lookup, and one constant-time comparison. The
+comparison was not constant-time before this change. Qualification: decoding is bounded by the size limits (at most
 128 KiB for the release index); signature verification happens once per input
 digest and is the verifier epic's cost to measure, not this change's.
 

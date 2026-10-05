@@ -14,9 +14,10 @@
 
 `aws-secrets-manager-v1`, one implementation of the existing
 `auths_connections::ConnectionCredentialStore`. It stores and leases opaque
-bytes for one connection identity and one credential generation. It is not
-told the provider, recipe, origin, header, or action, and it has no
-configuration that names any of them.
+bytes for one connection identity and one credential generation. A lease
+receives a `CredentialBinding`: the connection, its two generations, and the
+reference commitment. The adapter is not told the provider, recipe, origin,
+header, or action, and it has no configuration that names any of them.
 
 It lives in a new product crate, `auths-credentials-aws-secrets-manager`,
 beside `auths-custody-aws-kms`. `auths-connections` keeps no network
@@ -99,7 +100,9 @@ origins and the regional Secrets Manager and STS endpoints.
 - Connect timeout 2 seconds. The whole call is bounded by the lease deadline
   the gateway passes; the client makes one attempt and never retries past it.
 - Response body at most 128 KiB, read with a hard limit before parsing.
-- Secret at most 65,536 bytes, which is also the service's own limit.
+- Secret at most 65,536 bytes, which is also the service's own limit. The
+  gateway's transport injects at most 4,096 bytes into a header; a longer
+  stored secret is refused at injection and never sent.
 - TLS to the regional endpoint with the existing `rustls` stack. No proxy, no
   redirect, no endpoint override in production.
 

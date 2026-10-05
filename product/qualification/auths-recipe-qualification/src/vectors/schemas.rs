@@ -274,6 +274,15 @@ fn record_evidence_cases(valid: &Value) -> Vec<Value> {
             )],
         ),
         c(
+            "record-observation-not-applicable",
+            "response-without-read-back",
+            vec![set(
+                "/capabilities/9",
+                json!({"capability": "observation", "result": "not-applicable",
+                    "reason": "the recipe declares no read-back"}),
+            )],
+        ),
+        c(
             "record-capability-omitted",
             "evidence-not-closed",
             vec![remove("/capabilities/11")],

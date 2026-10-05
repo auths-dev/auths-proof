@@ -125,8 +125,10 @@ configuration, which the spec forbids and the schema has no member for.
   no provider effect is rerun because key storage changed. The old
   certificate expires or is revoked.
 - **Signer compromise.** The root revokes the signer. Every attestation it
-  issued is invalid regardless of issue time, and every recipe it attested is
-  disabled until a new signer re-attests.
+  issued is invalid regardless of issue time and stays revoked. A recipe it
+  attested is disabled until a new signer attests its record again after
+  re-verifying the evidence closure; that new attestation is a new
+  qualification lifecycle, not the revoked one restored.
 - **Qualification revocation.** The root names the qualification in the next
   list. The family's decision record says what triggers this.
 - **Root rotation.** A separately reviewed release pins the successor root.
@@ -147,8 +149,9 @@ performs no provider call, no network trust fetch, and no qualification run.
 | --- | --- |
 | forged, outsider-signed, another root, lacking permission | a broken chain never yields `qualified`; an unusable certificate or index is `unavailable` |
 | signer-signed certificate or revocation list | a release signer cannot sign what only the root may sign |
-| expired, not yet valid, issued ahead, past next update, untrusted clock | each signed time bound is enforced, with its own code |
+| expired, not yet valid, issued ahead, past next update, untrusted clock | each signed time bound is enforced; a window that has ended is `expired`, one that has not started is `missing` |
 | revoked signer or qualification, alone and combined | revocation is reported before every later fault and is permanent |
+| two faults at once, one case per adjacent pair | the order in which faults are reported |
 | wrong recipe, lock, contract, closure, target, store, credential store | any tuple difference is stale, digest members before target members |
 | second target, another qualification revoked | a correct deployment is `qualified` and nothing else is disturbed |
 

@@ -9,7 +9,6 @@
 
 use crate::MAX_TRANSPORT_DURATION;
 use std::time::Duration;
-use thiserror::Error;
 
 /// How long a superseded credential generation is kept after the shared
 /// record commits its successor.
@@ -51,8 +50,9 @@ const _: () = assert!(
 /// Whether the deployment's clock may be used to judge signed time bounds.
 ///
 /// Invariant `closed-clock-readiness`: the state is exactly trusted or
-/// untrusted, and only a maintained deployment adapter produces it. A
-/// recipe, an application, an SDK, or a configuration value cannot.
+/// untrusted, and only a maintained deployment adapter produces it. The type
+/// has no parser, so a recipe, an application, an SDK, or a configuration
+/// value cannot supply one.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ClockTrustState {
     /// The deployment's time synchronization reports a usable clock.
@@ -61,26 +61,7 @@ pub enum ClockTrustState {
     Untrusted,
 }
 
-/// A clock trust token outside the closed set.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
-#[error("unknown clock trust state")]
-pub struct UnknownClockTrustState;
-
 impl ClockTrustState {
-    /// Parses the exact canonical token.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`UnknownClockTrustState`] for every other value. An unknown
-    /// token is never read as trusted.
-    pub fn parse(token: &str) -> Result<Self, UnknownClockTrustState> {
-        match token {
-            "trusted" => Ok(Self::Trusted),
-            "untrusted" => Ok(Self::Untrusted),
-            _ => Err(UnknownClockTrustState),
-        }
-    }
-
     /// Returns the canonical token.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -301,17 +282,9 @@ mod tests {
     }
 
     #[test]
-    fn closed_clock_readiness_reads_only_its_two_tokens() {
-        for state in [ClockTrustState::Trusted, ClockTrustState::Untrusted] {
-            assert_eq!(ClockTrustState::parse(state.as_str()), Ok(state));
-        }
-        for unknown in ["", "Trusted", "trusted ", "true", "synchronized", "unknown"] {
-            assert_eq!(
-                ClockTrustState::parse(unknown),
-                Err(UnknownClockTrustState),
-                "{unknown:?}"
-            );
-        }
+    fn closed_clock_readiness_has_two_distinct_tokens() {
+        assert_eq!(ClockTrustState::Trusted.as_str(), "trusted");
+        assert_eq!(ClockTrustState::Untrusted.as_str(), "untrusted");
     }
 
     #[test]

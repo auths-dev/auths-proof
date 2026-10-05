@@ -73,9 +73,11 @@ mod provider_kind {
 /// The identifier of one provider contract: the domain-separated digest of
 /// its bounded inputs.
 ///
-/// Invariant `pinned-contract`: the value is derived from a decoded
-/// [`ProviderContract`] and from nothing else. A gateway treats it as an
-/// opaque digest and learns no provider meaning from it.
+/// Invariant `pinned-contract`: the only way to compute the value is
+/// [`ProviderContract::contract_id`] on a decoded contract. A record or a
+/// deployment tuple may also carry one as a claimed digest; such a value is
+/// compared for equality and never interpreted. A gateway learns no
+/// provider meaning from it.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProviderContractId(Sha256Digest);
@@ -249,21 +251,28 @@ pub struct QualificationTuple {
 /// The qualification state of one recipe.
 ///
 /// Invariant `closed-derived-state`: the state is exactly one of the five
-/// values below and is derived only by the release verifier. The type has no
-/// parser, so a recipe, a connection, an SDK, a configuration value, or an
-/// operator flag cannot supply one.
+/// values below and is derived only by the release verifier from signed
+/// inputs. The type has no parser, so a recipe, a connection, an SDK, a
+/// configuration value, or an operator flag cannot supply one.
+///
+/// An attestation is *usable* when the signed release index lists it and its
+/// record, its signature and its signer's certificate verify, it names that
+/// record, and its window has started and lies within the record's.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum RecipeQualificationState {
-    /// No accepted decision record or evidence exists for the recipe.
+    /// The signer certificate or release index cannot be used, or the index
+    /// lists no closed record for the recipe's family.
     Unqualified,
-    /// A closed record exists and no trusted attestation covers it.
+    /// The index lists a closed record for the family and no usable
+    /// attestation exists for it.
     Candidate,
-    /// A trusted, current, unrevoked attestation covers the exact tuple.
+    /// A usable, current, unrevoked attestation covers the exact tuple.
     Qualified,
-    /// An attestation exists but a tuple member, a validity window, or a
-    /// signed freshness input no longer holds.
+    /// A usable attestation exists but a tuple member differs, a validity
+    /// window has ended, the clock cannot be trusted, or the revocation
+    /// list cannot be used or is no longer fresh.
     Stale,
-    /// The qualification or its signer is revoked.
+    /// The qualification or the signer of its attestation is revoked.
     Revoked,
 }
 
@@ -289,11 +298,17 @@ impl RecipeQualificationState {
         }
     }
 
-    /// Whether a recipe in this state may next be in `next`.
+    /// Whether one qualification in this state may next be in `next`, as the
+    /// release process issues, expires, and revokes it.
     ///
     /// Revocation is terminal and reaches every state that has evidence: a
     /// revoked qualification never becomes anything else, and a stale one can
-    /// still be revoked.
+    /// still be revoked. A new qualification of the same recipe, with its own
+    /// identifier or a new signer's attestation, starts its own lifecycle.
+    ///
+    /// This is not a constraint on successive values a gateway derives. A
+    /// gateway derives the state afresh from its current verified inputs, so
+    /// removing an index entry returns a recipe to unqualified.
     #[must_use]
     pub const fn may_become(self, next: Self) -> bool {
         matches!(
@@ -561,7 +576,14 @@ impl RecordBody {
         let capabilities_hold = self.capabilities.iter().all(|capability| {
             (capability.result == CapabilityResult::NotApplicable) == capability.reason.is_some()
         });
-        let live_holds = self.live_effects.entered >= 1
+        // A live write counts only when the declared read-back confirmed it,
+        // so a record cannot close for a recipe that declares no observation.
+        let observation_exercised = self.capabilities.iter().any(|capability| {
+            capability.capability == CapabilityKind::Observation
+                && capability.result == CapabilityResult::Exercised
+        });
+        let live_holds = observation_exercised
+            && self.live_effects.entered >= 1
             && self.live_effects.confirmed_by_read_back == self.live_effects.entered;
         members_listed && members_hold && capabilities_listed && capabilities_hold && live_holds
     }
@@ -613,9 +635,10 @@ impl Artifact for RecordBody {
 /// A decoded qualification record.
 ///
 /// Invariant `evidence-closed`: every evidence member and every capability
-/// is listed exactly once with its digest, every member passed at least one
-/// case with zero unauthorized provider entries, every live effect has its
-/// read-back, and the validity window is at most 90 days.
+/// is listed exactly once, every member carries its digest and passed at
+/// least one case with zero unauthorized provider entries, the observation
+/// capability was exercised and every live effect has its read-back, and the
+/// validity window is at most 90 days.
 pub type RecipeQualificationRecord = Canonical<RecordBody>;
 
 #[cfg(test)]

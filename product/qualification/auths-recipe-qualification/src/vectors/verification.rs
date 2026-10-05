@@ -13,10 +13,12 @@
 //! that omits one does not restore it.
 //!
 //! No verifier exists yet. The test below asserts exactly that shortfall:
-//! the inputs decode under the frozen schemas, and nothing in this crate
-//! produces a qualification code. It is expected to fail when the verifier
-//! lands; the change that adds it replaces this assertion with the
-//! conformance test that drives every case.
+//! the inputs decode under the frozen schemas, and this crate has no
+//! signature dependency outside its tests and no function that verifies. It
+//! is expected to fail when the verifier lands; the change that adds it
+//! replaces this assertion with the conformance test that drives every case.
+
+#![allow(clippy::too_many_lines, reason = "case tables read top to bottom")]
 
 use super::{
     DAY, HOUR, Keys, NOW, attestation, attestation_statement, certificate, certificate_statement,
@@ -46,16 +48,42 @@ const UNAVAILABLE: &str = "gateway.qualification.unavailable";
 const REVOCATION_STALE: &str = "gateway.qualification.revocation-stale";
 const CLOCK_UNTRUSTED: &str = "gateway.qualification.clock-untrusted";
 
-/// The order in which a verifier reports when several faults hold.
-const PRECEDENCE: [&str; 8] = [
-    UNAVAILABLE,
-    REVOKED,
-    CLOCK_UNTRUSTED,
-    REVOCATION_STALE,
-    MISSING,
-    EXPIRED,
-    DIGEST_MISMATCH,
-    TARGET_MISMATCH,
+/// The order in which a verifier reports when several faults hold: each
+/// condition with the code it reports. Nothing about a recipe is
+/// authenticated while the certificate or index is unusable, so that comes
+/// first; a revocation the verifier has authenticated comes before every
+/// other fault, including an unusable or stale revocation list.
+const PRECEDENCE: [(&str, &str); 9] = [
+    (
+        "the signer certificate or release index is unusable",
+        UNAVAILABLE,
+    ),
+    (
+        "a verified revocation list, now or earlier, names the qualification or its signer",
+        REVOKED,
+    ),
+    (
+        "the revocation list is unusable or older than one already accepted",
+        UNAVAILABLE,
+    ),
+    (
+        "the clock is untrusted, or local time is before a signed issue time",
+        CLOCK_UNTRUSTED,
+    ),
+    (
+        "the revocation list is past its next update",
+        REVOCATION_STALE,
+    ),
+    (
+        "no usable attestation exists for the recipe family",
+        MISSING,
+    ),
+    (
+        "the attestation's or the signer certificate's window has ended",
+        EXPIRED,
+    ),
+    ("a digest member of the tuple differs", DIGEST_MISMATCH),
+    ("a target member of the tuple differs", TARGET_MISMATCH),
 ];
 
 /// The base inputs and the statements the cases rebuild from.
@@ -179,11 +207,25 @@ fn trust_cases(parts: &Parts) -> Vec<Value> {
     let only = |kind: QualificationArtifactKind| {
         parts.certificate(|statement| statement.permitted_artifact_kinds = vec![kind])
     };
+    let forged_attestation = with_forged_signature(&parts.attestation_text);
+    // Really signed by the release signer, but not the attestation the index lists.
+    let reissued_attestation = {
+        let mut statement = parts.attestation_statement.clone();
+        statement.issued_at += 1;
+        text(&attestation(statement, &keys.signer))
+    };
     vec![
         case(
             "attestation-signature-forged",
             "forged",
-            json!({"attestations": [with_forged_signature(&parts.attestation_text)]}),
+            json!({"attestations": [forged_attestation], "release_index": parts.index_for(&forged_attestation)}),
+            Candidate,
+            Some(MISSING),
+        ),
+        case(
+            "attestation-not-the-indexed-one",
+            "forged",
+            json!({"attestations": [reissued_attestation]}),
             Candidate,
             Some(MISSING),
         ),
@@ -283,10 +325,7 @@ fn attestation_cases(parts: &Parts) -> Vec<Value> {
         case(
             "attestation-outlives-record",
             "widened-time-bound",
-            changed(|statement| {
-                statement.not_before += DAY;
-                statement.not_after += DAY;
-            }),
+            outlives_record(parts),
             Candidate,
             Some(MISSING),
         ),
@@ -304,8 +343,124 @@ fn attestation_cases(parts: &Parts) -> Vec<Value> {
             "index-omits-qualification",
             "missing",
             json!({"release_index": text(&index(index_statement(Vec::new()), &parts.keys.signer))}),
+            RecipeQualificationState::Unqualified,
+            Some(MISSING),
+        ),
+    ]
+}
+
+/// A record valid for 60 days with an attestation valid for 90: the signer
+/// claims a longer life than the evidence has. Every window has started.
+fn outlives_record(parts: &Parts) -> Value {
+    let mut short = record(1, tuple());
+    short.not_after = short.not_before + 60 * DAY;
+    let record_text = text(&short);
+    let attestation_text = text(&attestation(
+        attestation_statement(&record_text, 1),
+        &parts.keys.signer,
+    ));
+    let entries = vec![index_entry(1, &record_text, &attestation_text)];
+    json!({
+        "records": [record_text],
+        "attestations": [attestation_text],
+        "release_index": text(&index(index_statement(entries), &parts.keys.signer)),
+    })
+}
+
+/// Two faults at once, one case for each adjacent pair of the precedence,
+/// so the order itself is pinned and not only each fault alone.
+fn precedence_cases(parts: &Parts) -> Vec<Value> {
+    use RecipeQualificationState::{Candidate, Revoked, Stale, Unqualified};
+    let keys = &parts.keys;
+    let naming_qualification =
+        parts.revocation(|statement| statement.revoked_qualifications = vec![qualification_id(1)]);
+    let outsider_attestation = text(&attestation(
+        parts.attestation_statement.clone(),
+        &keys.outsider,
+    ));
+    let outsider = json!({
+        "attestations": [outsider_attestation],
+        "release_index": parts.index_for(&outsider_attestation),
+    });
+    let with = |mut replace: Value, member: &str, value: Value| {
+        replace[member] = value;
+        replace
+    };
+    let past_next_update = parts.revocation_statement.next_update + 1;
+    let expiry = parts.attestation_statement.not_after;
+    let fresh_at_expiry = parts.revocation(|statement| {
+        statement.issued_at = expiry + 1 - HOUR;
+        statement.next_update = expiry + 1 - HOUR + 72 * HOUR;
+    });
+    let expired_certificate = parts.certificate(|statement| {
+        statement.issued_at = NOW - 30 * DAY;
+        statement.not_before = NOW - 30 * DAY;
+        statement.not_after = NOW - 1;
+    });
+    vec![
+        case(
+            "unusable-index-before-revocation",
+            "precedence",
+            json!({
+                "release_index": with_forged_signature(&parts.index_for(&parts.attestation_text)),
+                "revocation_list": naming_qualification,
+            }),
+            Unqualified,
+            Some(UNAVAILABLE),
+        ),
+        case(
+            "known-revocation-before-unusable-list",
+            "precedence",
+            json!({
+                "known_revocations": {"signers": [], "qualifications": [qualification_id(1)]},
+                "revocation_list": text(&revocation(parts.revocation_statement.clone(), &keys.signer)),
+            }),
+            Revoked,
+            Some(REVOKED),
+        ),
+        case(
+            "unusable-list-before-untrusted-clock",
+            "precedence",
+            json!({
+                "clock": "untrusted",
+                "revocation_list": text(&revocation(parts.revocation_statement.clone(), &keys.signer)),
+            }),
+            Stale,
+            Some(UNAVAILABLE),
+        ),
+        case(
+            "untrusted-clock-before-stale-list",
+            "precedence",
+            json!({"clock": "untrusted", "now": past_next_update}),
+            Stale,
+            Some(CLOCK_UNTRUSTED),
+        ),
+        case(
+            "stale-list-before-missing",
+            "precedence",
+            with(outsider.clone(), "now", json!(past_next_update)),
+            Candidate,
+            Some(REVOCATION_STALE),
+        ),
+        case(
+            "missing-before-expired",
+            "precedence",
+            with(outsider, "signer_certificate", json!(expired_certificate)),
             Candidate,
             Some(MISSING),
+        ),
+        case(
+            "expired-before-digest-mismatch",
+            "precedence",
+            json!({
+                "now": expiry + 1,
+                "revocation_list": fresh_at_expiry,
+                "deployment": Parts::deployment(|deployed| {
+                    deployed.compiled_recipe_sha256 = digest_of("another compiled recipe");
+                }),
+            }),
+            Stale,
+            Some(EXPIRED),
         ),
     ]
 }
@@ -603,6 +758,7 @@ fn document() -> Value {
         presence_cases(&parts),
         trust_cases(&parts),
         attestation_cases(&parts),
+        precedence_cases(&parts),
         time_cases(&parts),
         revocation_cases(&parts),
         digest_cases(),
@@ -612,7 +768,10 @@ fn document() -> Value {
     json!({
         "schema": SCHEMA,
         "status": "pending: no release verifier exists; the expectations are frozen, not yet driven",
-        "precedence": PRECEDENCE,
+        "precedence": PRECEDENCE
+            .iter()
+            .map(|(condition, code)| json!({"when": condition, "code": code}))
+            .collect::<Vec<_>>(),
         "base": parts.base(),
         "cases": cases,
     })
@@ -666,8 +825,8 @@ fn require_decodable(id: &str, inputs: &Value) {
 
 /// The vectors are ready and the verifier is not: every input decodes, every
 /// expectation is one of the frozen states and codes, every code and state
-/// is expected by some case, and nothing in this crate yet produces a
-/// qualification code.
+/// is expected by some case, and this crate has no signature dependency
+/// outside its tests and no function that verifies.
 #[test]
 fn verification_vectors_await_the_release_verifier() {
     let corpus = load(FILE);
@@ -695,12 +854,28 @@ fn verification_vectors_await_the_release_verifier() {
         .map(|state| state.as_str().to_owned())
         .collect();
     assert_eq!(states, every_state);
-    let every_code: BTreeSet<String> = PRECEDENCE.iter().map(|code| (*code).to_owned()).collect();
+    let every_code: BTreeSet<String> = PRECEDENCE
+        .iter()
+        .map(|(_, code)| (*code).to_owned())
+        .collect();
     assert_eq!(codes, every_code);
+    // A verifier needs a signature dependency outside tests and a function
+    // that verifies. Neither exists yet.
+    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
+        .expect("manifest");
+    let dependencies = manifest
+        .split("[dependencies]")
+        .nth(1)
+        .and_then(|rest| rest.split("\n[").next())
+        .expect("dependencies table");
+    assert!(
+        !dependencies.contains("ed25519") && !dependencies.contains("signature"),
+        "the crate now depends on a signature crate: drive these vectors through the verifier"
+    );
     for (path, text) in crate_sources() {
         assert!(
-            !text.contains("gateway.qualification."),
-            "{} produces a qualification code: drive these vectors through it",
+            !text.contains("fn verify") && !text.contains("gateway.qualification."),
+            "{} verifies or reports a qualification code: drive these vectors through it",
             path.display()
         );
     }

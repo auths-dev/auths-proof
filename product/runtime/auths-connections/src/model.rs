@@ -674,16 +674,24 @@ impl ConnectionRecord {
         Ok(())
     }
 
-    /// Reconstructs the exact sealed binding for an unresolved older
-    /// generation after the caller has authenticated the operation and loaded,
-    /// as one unit, the credential generation that served it and the
-    /// commitment of the credential stored there.
+    /// Reconstructs the sealed binding of an unresolved operation at
+    /// `generation`. The caller must first authenticate the operation and
+    /// supply the credential generation and commitment that operation
+    /// durably recorded when it was admitted.
+    ///
+    /// The record checks what it can. No rotation has happened since its own
+    /// credential generation, so an operation at or after that generation
+    /// was served by exactly the record's credential: for such a generation
+    /// the supplied credential generation and commitment must equal the
+    /// record's. Only an operation that predates the last rotation is bound
+    /// to the older pair the caller supplies.
     ///
     /// # Errors
     ///
     /// Returns every refusal of [`Self::authorize_recovery_lease`], and
     /// [`ConnectionRecordError::InvalidGeneration`] for a credential
-    /// generation newer than `generation`.
+    /// generation newer than `generation`, or for a pair that differs from
+    /// the record's at a generation the record's credential serves.
     pub fn binding_for_recovery(
         &self,
         generation: NonZeroU64,
@@ -692,6 +700,12 @@ impl ConnectionRecord {
     ) -> Result<ConnectionBinding, ConnectionRecordError> {
         self.authorize_recovery_lease(generation)?;
         if credential_generation > generation {
+            return Err(ConnectionRecordError::InvalidGeneration);
+        }
+        if generation >= self.credential_generation
+            && (credential_generation != self.credential_generation
+                || !credential_reference_commitment.matches(&self.credential_reference_commitment))
+        {
             return Err(ConnectionRecordError::InvalidGeneration);
         }
         Ok(ConnectionBinding {
@@ -835,13 +849,16 @@ impl ConnectionRecord {
     }
 }
 
-/// Internal operation binding produced only by an authorized registry lookup.
+/// Internal operation binding produced only from a durable connection record.
 ///
 /// Invariant `sealed-generation-binding`: the connection identity, the
-/// credential generation, and the credential-reference commitment are taken
-/// from one durable record as one unit. No caller can assemble a binding from
-/// separately chosen parts, so a credential store never has to search for the
-/// generation a binding means.
+/// credential generation, and the credential-reference commitment name one
+/// stored credential as one unit. A registry lookup takes all three from the
+/// current record. Recovery of an older operation takes them from what that
+/// operation recorded, and the record refuses a pair that contradicts it.
+/// The fields are private to this crate, so no other code can build a
+/// binding, and a credential store never has to search for the generation a
+/// binding means.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConnectionBinding {
     pub(crate) provider_kind: ProviderKind,
@@ -917,6 +934,66 @@ impl ConnectionBinding {
     #[must_use]
     pub const fn credential_reference_commitment(&self) -> &[u8; 32] {
         &self.credential_reference_commitment
+    }
+
+    /// Returns the part of this binding a credential store is told.
+    #[must_use]
+    pub fn credential(&self) -> CredentialBinding {
+        CredentialBinding {
+            connection_id: self.connection_id.clone(),
+            generation: self.generation,
+            credential_generation: self.credential_generation,
+            reference_commitment: self.credential_reference_commitment,
+        }
+    }
+}
+
+/// Everything a credential store is told about one lease: the connection,
+/// its two generations, and the reference commitment.
+///
+/// Invariant `store-view`: the value carries no provider kind, alias,
+/// contract, descriptor, account, recipe, address, header, or action, and
+/// only [`ConnectionBinding::credential`] produces one. A store therefore
+/// cannot select by, or learn, anything but identity and generation.
+#[derive(Clone, Eq, PartialEq)]
+pub struct CredentialBinding {
+    connection_id: ConnectionId,
+    generation: NonZeroU64,
+    credential_generation: NonZeroU64,
+    reference_commitment: [u8; 32],
+}
+
+impl CredentialBinding {
+    /// Returns the connection whose credential is leased.
+    #[must_use]
+    pub const fn connection_id(&self) -> &ConnectionId {
+        &self.connection_id
+    }
+    /// Returns the connection generation the operation was admitted at.
+    #[must_use]
+    pub const fn generation(&self) -> NonZeroU64 {
+        self.generation
+    }
+    /// Returns the exact generation at which the credential is stored. It
+    /// never exceeds [`Self::generation`].
+    #[must_use]
+    pub const fn credential_generation(&self) -> NonZeroU64 {
+        self.credential_generation
+    }
+    /// Returns the commitment the stored credential must match.
+    #[must_use]
+    pub const fn reference_commitment(&self) -> &[u8; 32] {
+        &self.reference_commitment
+    }
+}
+
+impl fmt::Debug for CredentialBinding {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CredentialBinding")
+            .field("generation", &self.generation)
+            .field("credential_generation", &self.credential_generation)
+            .finish_non_exhaustive()
     }
 }
 
@@ -1230,10 +1307,11 @@ pub(crate) mod tests {
     #[test]
     fn only_a_revoked_record_refuses_every_recovery_lease() {
         let first = NonZeroU64::new(1).unwrap();
-        let commitment = CredentialReferenceCommitment::for_tests([3; 32]);
         let disabled = record()
             .transition_state(ConnectionState::Disabled, 11)
             .unwrap();
+        let commitment =
+            CredentialReferenceCommitment::for_tests(*disabled.credential_reference_commitment());
         assert_eq!(disabled.authorize_recovery_lease(first), Ok(()));
         let recovered = disabled
             .binding_for_recovery(first, first, commitment)
@@ -1246,6 +1324,29 @@ pub(crate) mod tests {
                 .unwrap_err(),
             ConnectionRecordError::InvalidGeneration,
             "a credential generation never exceeds the generation it serves"
+        );
+        assert_eq!(
+            disabled
+                .binding_for_recovery(
+                    disabled.generation(),
+                    first,
+                    CredentialReferenceCommitment::for_tests([9; 32]),
+                )
+                .unwrap_err(),
+            ConnectionRecordError::InvalidGeneration,
+            "a generation the record's credential serves is bound to the record's commitment"
+        );
+        let store_view = recovered.credential();
+        assert_eq!(store_view.connection_id(), recovered.connection_id());
+        assert_eq!(store_view.credential_generation(), first);
+        assert_eq!(
+            store_view.reference_commitment(),
+            recovered.credential_reference_commitment()
+        );
+        assert_eq!(
+            format!("{store_view:?}"),
+            "CredentialBinding { generation: 1, credential_generation: 1, .. }",
+            "the store's view prints no commitment and no connection identity"
         );
         assert_eq!(
             disabled.authorize_recovery_lease(NonZeroU64::new(3).unwrap()),

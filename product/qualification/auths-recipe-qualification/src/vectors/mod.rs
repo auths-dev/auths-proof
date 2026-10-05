@@ -136,20 +136,29 @@ pub(super) fn apply_mutation(document: &mut Value, mutation: &Value) {
 
 /// Every Rust source file of this crate outside this module, with its text.
 fn crate_sources() -> Vec<(PathBuf, String)> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(&directory)
-        .expect("source directory")
-        .map(|entry| entry.expect("directory entry").path())
-        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("rs"))
-        .collect();
-    entries.sort();
-    entries
-        .into_iter()
-        .map(|path| {
-            let text = std::fs::read_to_string(&path).expect("source text");
-            (path, text)
-        })
-        .collect()
+    fn walk(directory: &Path, found: &mut Vec<(PathBuf, String)>) {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(directory)
+            .expect("source directory")
+            .map(|entry| entry.expect("directory entry").path())
+            .collect();
+        entries.sort();
+        for path in entries {
+            if path.is_dir() {
+                if path.file_name().and_then(|name| name.to_str()) != Some("vectors") {
+                    walk(&path, found);
+                }
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                let text = std::fs::read_to_string(&path).expect("source text");
+                found.push((path, text));
+            }
+        }
+    }
+    let mut found = Vec::new();
+    walk(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &mut found,
+    );
+    found
 }
 
 /// A digest that names what it stands for and is plainly not a secret.

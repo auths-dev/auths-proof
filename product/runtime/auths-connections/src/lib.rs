@@ -18,7 +18,7 @@ pub use credential::{
 };
 pub use model::{
     ConnectionAlias, ConnectionBinding, ConnectionId, ConnectionProfile, ConnectionRecord,
-    ConnectionRecordError, ConnectionState, ProviderKind, SemanticId,
+    ConnectionRecordError, ConnectionState, CredentialBinding, ProviderKind, SemanticId,
 };
 pub use registry::{ConnectionRegistry, ConnectionRegistryError, RegistryLimits};
 

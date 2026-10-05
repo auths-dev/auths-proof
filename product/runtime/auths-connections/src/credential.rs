@@ -1,4 +1,4 @@
-use crate::{ConnectionBinding, ConnectionId, ConnectionRecord, kernel};
+use crate::{ConnectionId, ConnectionRecord, CredentialBinding, kernel};
 use async_trait::async_trait;
 use minicbor::{Decoder, Encoder, encode::Write as CborWrite};
 use sha2::{Digest as _, Sha256};
@@ -184,14 +184,15 @@ impl CredentialStoreKind {
 
 /// Generic secret-store mechanism. It knows identity and generation only.
 ///
-/// Invariant `identity-and-generation-only`: a store is told a connection
-/// identity, a credential generation, and a commitment, and nothing about a
-/// provider, recipe, address, header, or action.
+/// Invariant `identity-and-generation-only`: every method takes a connection
+/// identity, generations, secret bytes, or a [`CredentialBinding`], and none
+/// of those carries a provider, recipe, address, header, or action. A store
+/// has nothing else to select by.
 ///
 /// A stored credential is keyed by the connection generation at which it was
 /// installed or rotated in. Administrative changes that carry no new secret
-/// advance the connection generation without storing anything. A sealed
-/// binding therefore names both generations, and a lease reads exactly the
+/// advance the connection generation without storing anything. A binding
+/// therefore names both generations, and a lease reads exactly the
 /// credential generation the binding names: a store never chooses a
 /// generation on the caller's behalf.
 #[async_trait]
@@ -205,11 +206,11 @@ pub trait ConnectionCredentialStore: Send + Sync {
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError>;
 
     /// Leases the credential stored at exactly the credential generation a
-    /// sealed binding names, after matching the binding's
-    /// credential-reference commitment in constant time.
+    /// binding names, after matching the binding's reference commitment in
+    /// constant time.
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError>;
 
@@ -317,7 +318,7 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
 
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
         let entries = self
@@ -731,15 +732,15 @@ fn retained_entry<'entries>(
         .map(|((_, stored), entry)| (*stored, entry))
 }
 
-/// The entry a sealed binding names: stored at exactly the binding's
-/// credential generation, which must also be the newest stored generation
-/// not after the binding's generation, with the binding's commitment.
+/// The entry a binding names: stored at exactly the binding's credential
+/// generation, which must also be the newest stored generation not after the
+/// binding's generation, with the binding's commitment.
 ///
 /// The second condition keeps a superseded credential from serving a later
 /// generation even if a binding were ever to name one.
 fn binding_entry<'entries>(
     entries: &'entries BTreeMap<(String, u64), StoredSecret>,
-    binding: &ConnectionBinding,
+    binding: &CredentialBinding,
 ) -> Result<&'entries StoredSecret, CredentialStoreError> {
     let connection_id = binding.connection_id();
     let stored = connection_generations(entries, connection_id).collect::<Vec<_>>();
@@ -752,10 +753,7 @@ fn binding_entry<'entries>(
     let entry = entries
         .get(&(connection_id.as_str().to_owned(), generation))
         .ok_or(CredentialStoreError::Unavailable)?;
-    if entry
-        .commitment
-        .matches(binding.credential_reference_commitment())
-    {
+    if entry.commitment.matches(binding.reference_commitment()) {
         Ok(entry)
     } else {
         Err(CredentialStoreError::Substitution)
@@ -833,7 +831,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
 
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
         let entries = self
@@ -1167,6 +1165,7 @@ fn credential_commitment(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ConnectionBinding;
     use crate::model::tests::record;
 
     #[test]
@@ -1243,7 +1242,9 @@ mod tests {
         );
         let lease = async {
             install.await.unwrap();
-            store.lease_secret(&binding, Instant::now()).await
+            store
+                .lease_secret(&binding.credential(), Instant::now())
+                .await
         };
         assert_eq!(
             futures_lite_for_tests(lease).unwrap_err(),
@@ -1284,9 +1285,10 @@ mod tests {
             account_commitment: *connection.account_commitment(),
             credential_reference_commitment: *commitment.as_bytes(),
         };
-        let lease = futures_lite_for_tests(
-            reopened.lease_secret(&binding, Instant::now() + std::time::Duration::from_secs(1)),
-        )
+        let lease = futures_lite_for_tests(reopened.lease_secret(
+            &binding.credential(),
+            Instant::now() + std::time::Duration::from_secs(1),
+        ))
         .unwrap();
         assert_eq!(lease.expose(Instant::now()).unwrap(), b"super-secret-value");
         assert!(!format!("{lease:?}").contains("super-secret"));
@@ -1427,6 +1429,7 @@ mod tests {
 #[cfg(test)]
 mod generation_tests {
     use super::*;
+    use crate::ConnectionBinding;
     use crate::model::tests::record;
 
     const CONNECTION: &str = "conn_AAAAAAAAAAAAAAAAAAAAAA";
@@ -1495,7 +1498,7 @@ mod generation_tests {
         binding: &ConnectionBinding,
     ) -> Result<Vec<u8>, CredentialStoreError> {
         let deadline = Instant::now() + std::time::Duration::from_secs(5);
-        let leased = ready(store.lease_secret(binding, deadline))?;
+        let leased = ready(store.lease_secret(&binding.credential(), deadline))?;
         leased.expose(Instant::now()).map(<[u8]>::to_vec)
     }
 

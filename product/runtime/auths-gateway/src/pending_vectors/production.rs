@@ -12,10 +12,11 @@
 //! that try to select custody or declare qualification, the fixed
 //! retirement delay, and redacted debug forms. The rest wait for the
 //! maintained adapter, the release verifier, and the support bundle. For
-//! those this module asserts the shortfall: no new code, secret-name
-//! derivation, or support bundle exists in the gateway. Those assertions
-//! are expected to fail when the implementing work lands, and that work
-//! replaces each with the conformance test that drives its vectors.
+//! those this module asserts the shortfall: no product crate defines a new
+//! code or the secret-name derivation, and the gateway has no support
+//! bundle. Those assertions are expected to fail when the implementing work
+//! lands, wherever it lands, and that work replaces each with the
+//! conformance test that drives its vectors.
 
 #![allow(clippy::too_many_lines, reason = "case tables read top to bottom")]
 
@@ -229,15 +230,28 @@ fn store_kind_cases() -> Vec<Value> {
     ]
 }
 
+/// `accepted` is whether a credential store takes the secret; `injectable`
+/// is whether the transport will put it in a header. A stored secret above
+/// the injection bound is never sent.
 fn secret_bound_cases() -> Vec<Value> {
     [
-        ("secret-empty", 0, false),
-        ("secret-one-byte", 1, true),
-        ("secret-at-limit", 65_536, true),
-        ("secret-over-limit", 65_537, false),
+        ("secret-empty", 0, false, false),
+        ("secret-one-byte", 1, true, true),
+        ("secret-at-injection-limit", 4_096, true, true),
+        ("secret-over-injection-limit", 4_097, true, false),
+        ("secret-at-store-limit", 65_536, true, false),
+        ("secret-over-store-limit", 65_537, false, false),
     ]
     .into_iter()
-    .map(|(id, bytes, accepted)| json!({"id": id, "class": "oversize", "bytes": bytes, "accepted": accepted}))
+    .map(|(id, bytes, accepted, injectable)| {
+        json!({
+            "id": id,
+            "class": "oversize",
+            "bytes": bytes,
+            "accepted": accepted,
+            "injectable": injectable,
+        })
+    })
     .collect()
 }
 
@@ -285,8 +299,8 @@ fn recipe_selection_cases() -> Vec<Value> {
             source,
         ),
         set(
-            "recipe-renames-bearer-header",
-            "selection",
+            "recipe-bearer-carries-header-member",
+            "extra-field",
             "/credential/header",
             json!("X-Credential"),
             source,
@@ -601,7 +615,7 @@ fn lease_cases() -> Vec<Value> {
             "lease-sealed-generation-revoked-with-successor",
             "selection",
             &[
-                "the sealed credential generation is revoked",
+                "the sealed credential generation is revoked after the claim and before the lease",
                 "a newer generation of the same connection is stored",
             ],
             unavailable(),
@@ -609,7 +623,9 @@ fn lease_cases() -> Vec<Value> {
         scenario(
             "lease-generation-not-held",
             "commitment-mismatch",
-            &["no secret is stored at the sealed credential generation"],
+            &[
+                "no secret is stored at the sealed credential generation when the attempt is admitted",
+            ],
             json!({
                 "stage": "refused-before-claim",
                 "code": GENERATION_MISSING,
@@ -858,11 +874,20 @@ fn secret_bound_vectors_match_the_secret_type() {
             "case {}",
             case["id"]
         );
+        assert_eq!(
+            json!((1..=crate::transport::MAX_SECRET_BYTES).contains(&length)),
+            case["injectable"],
+            "case {}",
+            case["id"]
+        );
     }
 }
 
-/// A recipe cannot name a credential generation, store, location, version,
-/// or injection header, and cannot declare itself qualified.
+/// A recipe cannot name a credential generation, store, location, or
+/// version, cannot add `Authorization` as a provider header, and cannot
+/// declare itself qualified. Which header carries the credential is the
+/// recipe's own committed declaration; the recipe corpus holds the cases
+/// that refuse a reserved header there.
 #[test]
 fn recipes_cannot_select_custody_or_declare_qualification() {
     let corpus = load(CUSTODY_FILE);
@@ -974,7 +999,10 @@ async fn secret_debug_forms_are_redacted() {
         .binding_for_recovery(generation, generation, commitment)
         .expect("binding");
     let lease = store
-        .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
+        .lease_secret(
+            &binding.credential(),
+            Instant::now() + Duration::from_secs(30),
+        )
         .await
         .expect("lease");
     let forms = [
@@ -1046,23 +1074,34 @@ fn classes(value: &Value, found: &mut BTreeSet<String>) {
     }
 }
 
-/// The Rust sources of a sibling crate's `src` directory, top level only,
-/// which leaves out its test-vector modules.
-fn sibling_sources(relative: &str) -> Vec<(PathBuf, String)> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
-    let mut paths: Vec<PathBuf> = std::fs::read_dir(&directory)
-        .expect("sibling source directory")
-        .map(|entry| entry.expect("directory entry").path())
-        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("rs"))
-        .collect();
-    paths.sort();
-    paths
-        .into_iter()
-        .map(|path| {
-            let text = std::fs::read_to_string(&path).expect("source text");
-            (path, text)
-        })
-        .collect()
+/// Every Rust source file of every product crate, outside test-vector
+/// modules. The adapter, the verifier, and the operator commands may land in
+/// any product crate, so the shortfall is asserted over all of them.
+fn product_sources() -> Vec<(PathBuf, String)> {
+    fn walk(directory: &Path, found: &mut Vec<(PathBuf, String)>) {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(directory)
+            .expect("source directory")
+            .map(|entry| entry.expect("directory entry").path())
+            .collect();
+        entries.sort();
+        for path in entries {
+            let name = path.file_name().and_then(|name| name.to_str());
+            if path.is_dir() {
+                if !matches!(name, Some("pending_vectors" | "vectors" | "target")) {
+                    walk(&path, found);
+                }
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                let text = std::fs::read_to_string(&path).expect("source text");
+                found.push((path, text));
+            }
+        }
+    }
+    let mut found = Vec::new();
+    walk(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        &mut found,
+    );
+    found
 }
 
 #[test]
@@ -1082,18 +1121,14 @@ fn every_hostile_class_has_a_vector() {
 }
 
 /// The inventory is closed over the vectors, every existing code exists,
-/// and the production work has not landed: no new code, no code under a
-/// new family, no secret-name derivation, and no support bundle exists in
-/// the gateway, the connection crate, or the qualification crate.
+/// and the production work has not landed: no product crate defines a new
+/// code, a code under a new family, or the secret-name derivation, and the
+/// gateway has no support bundle under any spelling.
 #[test]
 fn production_codes_await_their_epics() {
     let inventory = load(CODES_FILE);
     let gateway = crate_sources();
-    let mut all = sibling_sources("../auths-connections/src");
-    all.extend(sibling_sources(
-        "../../qualification/auths-recipe-qualification/src",
-    ));
-    all.extend(gateway.iter().cloned());
+    let all = product_sources();
     let mut listed = BTreeSet::new();
     for entry in inventory["codes"].as_array().expect("codes") {
         let code = entry["code"].as_str().expect("code");
@@ -1138,10 +1173,12 @@ fn production_codes_await_their_epics() {
             );
         }
     }
-    let binary = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bin/auths-gateway.rs");
-    let binary = std::fs::read_to_string(binary).expect("gateway binary source");
-    assert!(
-        !binary.contains("support-bundle"),
-        "the support bundle exists: scan it for every redaction canary"
-    );
+    for (path, text) in &gateway {
+        let folded = text.to_lowercase().replace(['-', '_', ' '], "");
+        assert!(
+            !folded.contains("supportbundle"),
+            "{} has a support bundle: scan it for every redaction canary",
+            path.display()
+        );
+    }
 }

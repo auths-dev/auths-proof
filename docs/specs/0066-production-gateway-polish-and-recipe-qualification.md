@@ -178,6 +178,7 @@ or SDK user needs them; bindings MUST NOT reimplement validation.
 | `StoredSecretLease` | existing `auths-connections` credential module | `deadline-bound-zeroized`: secret bytes are visible only to the provider adapter before the deadline and zeroized on drop |
 | `SecretBytes` | existing `auths-connections` credential module | `bounded-redacted-input`: non-empty bounded operator input, zeroized on drop and redacted under `Debug` |
 | `ConnectionBinding` | existing `auths-connections` model | `sealed-generation-binding`: connection ID, connection generation, explicit credential generation and reference commitment are loaded from durable operator state as one unit; a store reads exactly the named credential generation and never searches for one |
+| `CredentialBinding` | `auths-connections` model | `store-view`: the only lease argument a credential store receives: connection ID, both generations and the reference commitment, produced only from a sealed `ConnectionBinding`; it carries no provider kind, alias, contract, descriptor or account |
 | `CredentialStoreKind` | `auths-connections` credential module | `closed-store-kind`: exactly the maintained development or production credential-store kinds; unknown values reject |
 | `CredentialRetirementDelay` | gateway operator model | `outlives-entered-transport`: a fixed 20 seconds, exceeding the gateway's 15-second maximum transport duration; changing either value requires one invariant test and qualification drift |
 | `QualificationTrustRoot` | release policy | `offline-trust-root`: pinned identifier and public key whose private key is absent from pull-request and qualification runners |
@@ -224,7 +225,7 @@ pub trait ConnectionCredentialStore: Send + Sync {
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError>;
     async fn lease_secret(
         &self,
-        binding: &ConnectionBinding,
+        binding: &CredentialBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError>;
     async fn replace(
@@ -258,7 +259,16 @@ cannot do so without listing, and a search is a way to be handed another
 generation. The in-repository stores additionally refuse a binding whose
 credential generation is not the newest one stored at or before its
 connection generation, so a superseded credential never serves a later
-generation. A lease is requested only by the gateway after verification,
+generation.
+
+A store does not receive the `ConnectionBinding` itself, which also carries
+the provider kind and descriptor for the gateway's own use. It receives the
+binding's `CredentialBinding` view, so `identity-and-generation-only` holds
+by type and not by convention. A binding for an unresolved older operation is
+rebuilt from what that operation recorded; for any generation at or after the
+record's credential generation the record refuses a credential generation or
+commitment other than its own, so a superseded credential cannot be bound to
+a generation the current credential serves. A lease is requested only by the gateway after verification,
 policy, one-use claim, capacity reservation, connection reload, and
 qualification check. The store receives no URL, method, body, header name,
 recipe, proof, provider name, or authority to select another connection.
@@ -1000,10 +1010,10 @@ and no binding surface.
 | Task | Artifact |
 | --- | --- |
 | 1 abstraction case | [case 0008](../research/domains/abstraction-cases/0008-provider-secret-custody-and-recipe-qualification.md) |
-| 2 types | `auths-connections` (`CredentialStoreKind`, explicit credential generation in `ConnectionBinding`); `auths-gateway` `readiness` (`CredentialRetirementDelay`, `ClockTrustState`, `ProductionReadiness`); `auths-recipe-qualification` (every qualification-model and release-policy type) |
+| 2 types | `auths-connections` (`CredentialStoreKind`, explicit credential generation in `ConnectionBinding`, the `CredentialBinding` store view); `auths-gateway` `readiness` (`CredentialRetirementDelay`, `ClockTrustState`, `ProductionReadiness`); `auths-recipe-qualification` (every qualification-model and release-policy type) |
 | 2 schemas and bounds | seven canonical artifacts in `auths-recipe-qualification`, each with a schema identifier, a byte limit, and list and time bounds |
 | 2 stable-code fixture | `bindings/fixtures/gateway/production-codes.json`: the 11 new codes of §10 and 5 existing codes the vectors expect |
-| 2 hostile vectors | `bindings/fixtures/gateway/custody-hostile.json` (89 cases and 11 redaction canaries); `bindings/fixtures/qualification/schema-vectors.json` (78 structural cases, 8 contract drifts); `bindings/fixtures/qualification/verification-vectors.json` (49 cases) |
+| 2 hostile vectors | `bindings/fixtures/gateway/custody-hostile.json` (91 cases and 11 redaction canaries); `bindings/fixtures/qualification/schema-vectors.json` (79 structural cases, 8 contract drifts); `bindings/fixtures/qualification/verification-vectors.json` (57 cases) |
 | 3 threat model | [threat model](../threat-model.md), "Production gateway: provider-secret custody and recipe qualification" |
 | 4 plans | [custody plan](../plans/GATEWAY_AWS_SECRETS_MANAGER_CUSTODY_PLAN.md); [protected-run plan](../plans/RECIPE_QUALIFICATION_PROTECTED_RUN_PLAN.md) |
 
@@ -1018,12 +1028,16 @@ Done gate:
   boundaries: `auths-connections` reaches no workspace crate, and
   `auths-recipe-qualification` reaches only `auths-connections`.
 - **Fixtures fail for the missing implementation.** Vectors that today's types
-  decide are driven as tests. For the rest, `production_codes_await_their_epics`
-  (gateway) and `verification_vectors_await_the_release_verifier`
-  (qualification) assert the shortfall: no new code, no code under
-  `gateway.qualification.` or `gateway.readiness.`, no secret-name derivation,
-  and no support bundle exists. Each fails when its implementing epic lands,
-  and that epic replaces it with the conformance test that drives the vectors.
+  decide are driven as tests. For the rest, two tests assert the shortfall.
+  `production_codes_await_their_epics` (gateway) requires that no product
+  crate defines a new code, a code under `gateway.qualification.` or
+  `gateway.readiness.`, or the secret-name derivation, and that the gateway
+  has no support bundle under any spelling.
+  `verification_vectors_await_the_release_verifier` (qualification) requires
+  that the crate has no signature dependency outside its tests and no
+  function that verifies. Each fails when its implementing epic lands, in
+  whichever crate it lands, and that epic replaces it with the conformance
+  test that drives the vectors.
 
 ### 18.2 Owner decisions (2026-10-05)
 
@@ -1074,7 +1088,9 @@ may change any of them; the fixtures change with it.
    version pin, account binding, denied reads, ceiling, budget, idempotency,
    response locator, echo, observation, recovery, observer rotation), each
    `exercised`, or `not-applicable` with a reason. `live_effects` requires at
-   least one entered write and a read-back for every one.
+   least one entered write and a read-back for every one, and the observation
+   capability must be `exercised`: a record cannot close for a recipe that
+   declares no read-back, because nothing would confirm its live writes.
 8. **Attestation.** The attestation signs the record's digest and carries its
    own issue time and window of at most 90 days, which must lie within the
    record's window. Re-signing after a signer rotation changes the
@@ -1089,13 +1105,23 @@ may change any of them; the fixtures change with it.
     version, and digests of the observation, recovery, idempotency, and
     retention declarations. `ProviderContractId` is SHA-256 of the schema, a
     NUL byte, and the canonical contract.
-11. **States.** `stale` may become `revoked`, which §7.1's diagram omits:
-    a stale qualification whose signer is revoked is revoked. `revoked` is
-    terminal. A recipe is `unqualified` when no usable chain or record exists,
-    `candidate` when a closed record exists without a trusted attestation that
-    is valid now, and `stale` when an attestation chain verifies but a tuple
-    member, a validity window, the clock, or the revocation list does not
-    hold.
+11. **States.** Using reading 12's definition of a usable attestation, a
+    gateway derives exactly one state from its current verified inputs:
+    `unqualified` when the signer certificate or release index is unusable,
+    or the index lists no closed record for the recipe's family; `candidate`
+    when the index lists such a record and no usable attestation exists for
+    it; `revoked` when a verified list, now or earlier, names the
+    qualification or the signer of its attestation; `stale` when a usable
+    attestation exists and a tuple member differs, a window has ended, the
+    clock cannot be trusted, or the revocation list is unusable or past its
+    next update; and `qualified` otherwise. An unsigned record that the
+    signed index does not list changes nothing. The transitions of §7.1 are
+    the lifecycle of one qualification as the release process issues,
+    expires, and revokes it, with one edge added: `stale` may become
+    `revoked`. `revoked` is terminal for that qualification; a new
+    attestation by a new signer, or a new qualification, starts its own
+    lifecycle. The transitions do not constrain successive values a gateway
+    derives: removing an index entry returns a recipe to `unqualified`.
 12. **Codes where §10 is silent.** An attestation is *usable* when the
     release index lists it and its record by digest, its signature verifies
     under a signer whose certificate verifies under the pinned root and
@@ -1111,11 +1137,19 @@ may change any of them; the fixtures change with it.
     verify, names another root, or lacks the index artifact kind, and a
     revocation list that does not verify or is older than one already
     accepted, is `gateway.qualification.unavailable`.
-13. **Precedence.** When several faults hold a verifier reports the first of:
-    unavailable, revoked, clock-untrusted, revocation-stale, missing, expired,
-    digest-mismatch, target-mismatch. Revocation is reported whenever a
-    verified list names it, including under an untrusted clock or from a list
-    past its next update.
+13. **Precedence.** When several faults hold a verifier reports the first of
+    nine conditions: the certificate or index is unusable (`unavailable`); a
+    verified list, now or earlier, names the qualification or its signer
+    (`revoked`); the revocation list is unusable or older than one already
+    accepted (`unavailable`); the clock is untrusted or local time is before
+    a signed issue time (`clock-untrusted`); the revocation list is past its
+    next update (`revocation-stale`); no usable attestation exists
+    (`missing`); a window has ended (`expired`); a digest member differs
+    (`digest-mismatch`); a target member differs (`target-mismatch`). Nothing
+    about a recipe is authenticated while the certificate or index is
+    unusable, so that comes first. An authenticated revocation comes before
+    every later fault, including an unusable or stale list and an untrusted
+    clock. One two-fault vector pins each adjacent pair.
 14. **Verifier state.** A verifier keeps the highest revocation-list sequence
     it has accepted and every signer and qualification any verified list has
     named. A later list that omits one does not restore it.
@@ -1143,6 +1177,25 @@ may change any of them; the fixtures change with it.
     Epic 4 work, as AP-SPEC-063 epic 1 left its bindings to later epics.
 20. **Fourth provider.** The abstraction case compares Postmark as its
     header-API-key provider, on paper only.
+21. **Store view.** `lease_secret` takes a `CredentialBinding`, not the
+    `ConnectionBinding` §5.1 first showed, so a store cannot read the
+    provider kind or descriptor. The record validates a recovery binding as
+    §5.1 now states.
+22. **Injection header.** §11's "action or recipe attempts to choose an
+    injection header" is read as: no action, submission frame, or store
+    chooses it. The header is the recipe's own committed declaration under
+    the approved digest; a bearer recipe has no header member, and the
+    recipe corpus already refuses a provider-reserved header there and
+    `Authorization` as a provider header.
+23. **Two secret bounds.** A credential store accepts 1 to 65,536 bytes. The
+    transport injects at most 4,096 bytes into a header, as it did before
+    this work; a stored secret above that is refused at injection and never
+    sent. The vectors pin both.
+24. **What the binding change reaches today.** The gateway's serving path
+    still leases through the local store's record-based lease, which already
+    read the record's exact credential generation. The trait's `lease_secret`
+    is what the production adapter will implement; moving the engine onto
+    the trait is Epic 2 task 1.
 
 ### 18.4 A finding for the owner
 
