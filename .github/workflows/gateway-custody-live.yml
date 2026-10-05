@@ -44,6 +44,37 @@ jobs:
             | jq -r '.value' > "${token_file}"
           test -s "${token_file}"
           echo "AUTHS_CUSTODY_LIVE_TOKEN_FILE=${token_file}" >> "${GITHUB_ENV}"
+      - name: Preflight the roles with the service's own client
+        # Shows the service's own error when a role cannot be assumed or a
+        # secret cannot be created, which the store deliberately does not.
+        # It prints role names and error text only, never a credential.
+        shell: bash
+        env:
+          AWS_REGION: eu-west-1
+          OPERATOR_ROLE: arn:aws:iam::585985124542:role/auths-gateway-custody-operator
+          RUNTIME_ROLE: arn:aws:iam::585985124542:role/auths-gateway-custody-runtime
+          KMS_KEY: arn:aws:kms:eu-west-1:585985124542:key/1e1c85ae-7d9c-4f2d-978f-bd672b597907
+          SECRET_NAME: auths-gateway/preflight-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -uo pipefail
+          assume() {
+            aws sts assume-role-with-web-identity --role-arn "$1" \
+              --role-session-name custody-preflight --duration-seconds 900 \
+              --web-identity-token "file://${AUTHS_CUSTODY_LIVE_TOKEN_FILE}" \
+              --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text
+          }
+          echo "runtime role:"; assume "${RUNTIME_ROLE}" >/dev/null && echo "  assumable"
+          echo "operator role:"
+          read -r key secret token < <(assume "${OPERATOR_ROLE}") || { echo "  not assumable"; exit 0; }
+          echo "  assumable"
+          export AWS_ACCESS_KEY_ID="${key}" AWS_SECRET_ACCESS_KEY="${secret}" AWS_SESSION_TOKEN="${token}"
+          version="$(printf 'preflight' | sha256sum | cut -d' ' -f1)"
+          echo "create with a 64-character version identifier:"
+          aws secretsmanager create-secret --name "${SECRET_NAME}" --kms-key-id "${KMS_KEY}" \
+            --client-request-token "${version}" --secret-binary "cHJlZmxpZ2h0" \
+            --query 'VersionId' --output text || true
+          aws secretsmanager delete-secret --secret-id "${SECRET_NAME}" \
+            --force-delete-without-recovery --query 'Name' --output text || true
       - name: Run the store contract against the service
         env:
           AUTHS_CUSTODY_LIVE_REGION: eu-west-1

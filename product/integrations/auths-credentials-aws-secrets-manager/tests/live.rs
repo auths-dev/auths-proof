@@ -13,6 +13,7 @@ use auths_connections::{
 };
 use auths_credentials_aws_secrets_manager::{
     AwsSecretsManagerStore, DeploymentNamespace, HttpSecretsApi, Region, WebIdentity,
+    WorkloadIdentity as _,
 };
 use std::num::NonZeroU64;
 use std::time::{Duration, Instant};
@@ -95,6 +96,26 @@ async fn leased(
 #[tokio::test]
 #[ignore = "needs the protected account's roles and a web identity token"]
 async fn the_store_holds_its_contract_against_the_service() {
+    // First, apart from any secret: each role yields session credentials.
+    let region = Region::parse(setting("AUTHS_CUSTODY_LIVE_REGION")).expect("region");
+    for role in [
+        "AUTHS_CUSTODY_LIVE_OPERATOR_ROLE",
+        "AUTHS_CUSTODY_LIVE_RUNTIME_ROLE",
+    ] {
+        let identity = WebIdentity::new(
+            &region,
+            setting(role),
+            setting("AUTHS_CUSTODY_LIVE_TOKEN_FILE"),
+        )
+        .expect("identity");
+        let session = identity
+            .session(Instant::now() + Duration::from_secs(15))
+            .await;
+        assert!(
+            session.is_ok(),
+            "{role}: the token exchange did not yield session credentials"
+        );
+    }
     let operator = store("AUTHS_CUSTODY_LIVE_OPERATOR_ROLE");
     let runtime = store("AUTHS_CUSTODY_LIVE_RUNTIME_ROLE");
     let connection = ConnectionId::generate().expect("connection");
