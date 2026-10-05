@@ -1359,9 +1359,11 @@ Done gate:
 - **Forged or drifted records fail before credential lease.** The gateway
   tests drive the gate in front of the engine's lease: forged, unsigned,
   another root's, revoked, expired, stale, clock-untrusted, digest-drifted,
-  and target-drifted inputs each refuse with the frozen code and the
-  credential store is not asked. All 57 verification vectors decide the gate
-  as frozen.
+  and target-drifted inputs each refuse with the frozen code when an entry
+  is prepared, which is before the lease call, and a lease attempted after
+  the inputs went stale is refused. The tests assert the refusal; they do not
+  instrument the credential store. All 57 verification vectors decide the
+  gate as frozen.
 - **Pull requests cannot sign or import.** The workflow test
   `a_pull_request_reaches_no_secret_and_no_signing_job` reads the workflow and
   fails if any job but live evidence and signing reaches a secret or an
@@ -1389,9 +1391,11 @@ remain pending for Epic 4, and the pending assertion still guards them.
 - **No production qualification.** A production gateway pins no trust root, so
   it finds every recipe unqualified and leases nothing. Existing production
   tests run in a build made for tests that relaxes this.
-- **The support-bundle scan cannot pass yet.** The wall requires a scan of a
-  support bundle, and the gateway has none until Epic 4. No record can close
-  before then.
+- **The support-bundle scan has nothing real to scan yet.** The wall requires
+  a `support-bundle-scan` case, and the gateway has no support bundle until
+  Epic 4. The scan checks whatever file a harness presents as one; nothing
+  yet checks that the file is a gateway's bundle. A record with that case
+  before Epic 4 would be claiming a scan of something that does not exist.
 - **The production clock adapter covers one synchronization service**
   (reading 12).
 
@@ -1448,7 +1452,10 @@ Each was taken unattended as the narrower or fail-closed reading.
    member before the run's record exists, so they run for the run's tuple on
    a placeholder candidate under a root made for the stage and discarded with
    it. They show that this build's issuance and verification keep each trust
-   transition and enforce each signed time bound.
+   transition, and that inputs which qualify stop doing so under an untrusted
+   clock, behind a signed issue time, and past the list's next update. The
+   stage does not step past an attestation's or a certificate's end; the
+   verification vectors cover those.
 7. **Redaction.** A source fails when it contains a planted canary as raw
    bytes, in either hexadecimal case, or in either base64 alphabet at any of
    the three alignments. A canary shorter than 8 bytes, or a scan with no
@@ -1490,13 +1497,21 @@ Each was taken unattended as the narrower or fail-closed reading.
     not-entered with its qualification code, and again inside the lease,
     because time passes between the two.
 14. **Inputs.** `qualification-import` verifies a release directory under the
-    installation's root and replaces the host's inputs in one rename. It
-    refuses when the certificate, index, or revocation list is unusable or
-    the list is older than one already accepted; authentic inputs are kept
-    whatever state they derive. A serving gateway rereads them through the
+    installation's root, records what the new inputs establish, and then
+    replaces the host's inputs by renaming the old directory away and the new
+    one in. A failure between those steps leaves no inputs or old inputs
+    below the recorded floor, and either way nothing qualifies. It refuses
+    when the certificate, index, or revocation list is unusable, the list is
+    older than one already accepted, or the index was issued before one
+    already accepted; authentic inputs are kept whatever state they derive.
+    When a serving gateway cannot read its inputs it drops the ones it held. A serving gateway rereads them through the
     operator socket and verifies only when their digest changed.
-15. **Remembered revocations.** Kept per host in the state directory, not in
-    the shared store. A host that has not imported a newer list keeps serving
+15. **Remembered revocations and floors.** A verifier keeps, besides the
+    revocation-list sequence of §18.3 reading 14, the latest issue time of a
+    release index it has accepted, and refuses an index issued earlier. That
+    is what stops a qualification a later index dropped, without revoking
+    it, from being restored by presenting the older index. All of it is kept
+    per host in the state directory, not in the shared store. A host that has not imported a newer list keeps serving
     under its own list until that list's next update, which is the bound §8
     sets. A missing record means nothing was accepted; a damaged one refuses.
 16. **One index per run.** A release signer signs one index listing exactly
@@ -1516,6 +1531,23 @@ Each was taken unattended as the narrower or fail-closed reading.
     qualification policy, state, and code in place of "no provider-effect
     qualification".
 
+20. **Several attestations for one family.** When more than one usable
+    attestation exists for the deployment's family and none qualifies it, the
+    refusal reported is that of the attestation nearest to qualifying: one
+    that differs only in target is reported before one that has expired.
+    §18.3 reading 13 orders the faults of a single attestation; this reading
+    covers the case it leaves open. No combination yields `qualified` unless
+    one attestation qualifies outright.
+21. **What the run trusts.** A family's harness is code on the default
+    branch and is trusted as reviewed code: it authors the tuple and the case
+    reports. The run does not trust what a harness leaves behind as a
+    program. Assembly, signing, and verification each build the release tool
+    from the commit; the signer's key is given only to that build; the trust
+    stages are rerun at assembly; the candidate's facts are taken from the
+    job that ran before any live harness; and a tuple naming another family
+    is refused. The redaction scan runs in the live job, the only place the
+    canaries exist, and the canaries are deleted before anything is uploaded.
+
 ### 20.4 Decisions for the owner
 
 1. **Root ceremony.** Create the root offline with
@@ -1529,3 +1561,7 @@ Each was taken unattended as the narrower or fail-closed reading.
    exception for the kernel call.
 4. **Revocation cadence** (§18.4) is still open.
 5. **Remembered revocations** (reading 15): per host, or in the shared store.
+6. **Live environments.** Each `recipe-qualification-live-<family>`
+   environment must be created with a required reviewer and the default
+   branch only before its credential is stored. The workflow's own guard is
+   in a file a pull request can change; the environment's rule is not.

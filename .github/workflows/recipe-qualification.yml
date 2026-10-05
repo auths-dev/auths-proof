@@ -99,6 +99,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the release tool from this commit
+        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: offline-${{ matrix.family }}
@@ -114,6 +119,15 @@ jobs:
           export AUTHS_GATEWAY="${RUNNER_TEMP}/work/bin/auths-gateway"
           export AUTHS_QUALIFICATION="${RUNNER_TEMP}/work/bin/auths-qualification"
           "qualification/families/${FAMILY}/harness" live "${RUNNER_TEMP}/work"
+      - name: Scan what the run kept, then remove the canaries
+        # The scan runs here because the canaries exist only here. A failed
+        # scan fails the job before anything is uploaded.
+        shell: bash
+        run: |
+          set -euo pipefail
+          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
+          qualification/run/redact.sh "${RUNNER_TEMP}/work"
+          test ! -e "${RUNNER_TEMP}/work/canaries"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: live-${{ matrix.family }}
@@ -135,24 +149,34 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the release tool from this commit
+        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: live-${{ matrix.family }}
           path: ${{ runner.temp }}/work
-      - name: Scan, build the evidence, and assemble
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: offline-${{ matrix.family }}
+          path: ${{ runner.temp }}/offline
+      - name: Build the evidence and assemble
         shell: bash
         env:
           FAMILY: ${{ matrix.family }}
           RUN: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          chmod +x "${RUNNER_TEMP}/work/bin/"*
-          export AUTHS_QUALIFICATION="${RUNNER_TEMP}/work/bin/auths-qualification"
+          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
+          # The candidate's facts are the ones recorded before any live
+          # harness ran.
+          cp "${RUNNER_TEMP}/offline/facts.json" "${RUNNER_TEMP}/work/facts.json"
           qualification/run/assemble.sh "${FAMILY}" "${RUNNER_TEMP}/work" \
             "recipe-qualification-live-${FAMILY}" "${RUN}"
           mkdir -p "${RUNNER_TEMP}/proposal"
           cp -R "${RUNNER_TEMP}/work/proposal/." "${RUNNER_TEMP}/proposal/"
-          cp "${RUNNER_TEMP}/work/bin/auths-qualification" "${RUNNER_TEMP}/proposal/"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: proposal-${{ matrix.family }}
@@ -175,6 +199,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the release tool from this commit
+        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: proposal-*
@@ -193,8 +222,9 @@ jobs:
           key="${RUNNER_TEMP}/release-signer.key"
           trap 'rm -f "${key}"' EXIT
           printf '%s' "${QUALIFICATION_RELEASE_SIGNER_KEY}" > "${key}"
-          tool="$(find "${RUNNER_TEMP}/proposals" -name auths-qualification | sort | head -n 1)"
-          chmod +x "${tool}"
+          # The key is given only to the tool this job built from the
+          # reviewed commit, never to a binary another job produced.
+          tool="${GITHUB_WORKSPACE}/target/release/auths-qualification"
           arguments=()
           for proposal in "${RUNNER_TEMP}"/proposals/proposal-*; do
             arguments+=(--proposal-dir "${proposal}")
@@ -207,7 +237,6 @@ jobs:
           for proposal in "${RUNNER_TEMP}"/proposals/proposal-*; do
             cp "${proposal}/tuple.json" "${RUNNER_TEMP}/release-inputs/$(basename "${proposal}").tuple.json"
           done
-          cp "${tool}" "${RUNNER_TEMP}/release-inputs/auths-qualification"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: signed-release
@@ -227,6 +256,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the release tool from this commit
+        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: signed-release
@@ -235,8 +269,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tool="${RUNNER_TEMP}/signed/release-inputs/auths-qualification"
-          chmod +x "${tool}"
+          tool="${GITHUB_WORKSPACE}/target/release/auths-qualification"
           for tuple in "${RUNNER_TEMP}"/signed/release-inputs/*.tuple.json; do
             "${tool}" verify --root qualification/trust/qualification-trust-root.json \
               --release-dir "${RUNNER_TEMP}/signed/release" --deployment "${tuple}"

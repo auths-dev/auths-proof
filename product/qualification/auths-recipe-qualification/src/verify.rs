@@ -100,6 +100,10 @@ impl QualificationVerdict {
 pub struct VerifierState {
     /// The highest revocation-list sequence accepted so far.
     pub accepted_revocation_sequence: u64,
+    /// The latest issue time of a release index accepted so far. An index
+    /// issued earlier is refused, so a qualification a later index dropped
+    /// cannot be brought back by presenting the older index again.
+    pub accepted_index_issued_at: u64,
     /// Every signer a verified list has named.
     pub revoked_signers: BTreeSet<QualificationSignerId>,
     /// Every qualification a verified list has named.
@@ -263,15 +267,28 @@ impl VerifiedQualifications {
     #[must_use]
     pub fn inputs_usable(&self, state: &VerifierState) -> bool {
         self.certificate.is_some()
-            && self.index.is_some()
+            && self.current_index(state).is_some()
             && self.revocations.as_ref().is_some_and(|list| {
                 list.body().statement.sequence >= state.accepted_revocation_sequence
             })
     }
 
-    /// Adds what the verified revocation list names to `state` and raises
-    /// the accepted sequence. A list older than the accepted one is ignored.
+    /// The verified index, unless `state` has accepted a later one.
+    fn current_index(&self, state: &VerifierState) -> Option<&QualificationReleaseIndex> {
+        self.index
+            .as_ref()
+            .filter(|index| index.body().statement.issued_at >= state.accepted_index_issued_at)
+    }
+
+    /// Adds what the verified revocation list names to `state`, and raises
+    /// the accepted list sequence and index issue time. A list older than
+    /// the accepted one lowers nothing; what it names is still remembered.
     pub fn remember(&self, state: &mut VerifierState) {
+        if let (Some(_), Some(index)) = (&self.certificate, &self.index) {
+            state.accepted_index_issued_at = state
+                .accepted_index_issued_at
+                .max(index.body().statement.issued_at);
+        }
         let Some(list) = &self.revocations else {
             return;
         };
@@ -306,7 +323,8 @@ impl VerifiedQualifications {
     ) -> QualificationVerdict {
         use QualificationRefusal as Refusal;
         use RecipeQualificationState as State;
-        let (Some(certificate), Some(index)) = (&self.certificate, &self.index) else {
+        let (Some(certificate), Some(index)) = (&self.certificate, self.current_index(state))
+        else {
             return QualificationVerdict::refused(State::Unqualified, Refusal::Unavailable);
         };
         let signer = &certificate.body().statement;

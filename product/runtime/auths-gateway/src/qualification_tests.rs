@@ -166,7 +166,9 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
     clock.set(NOW);
 
     // Forged and unsigned inputs.
-    let mut forged = bundle.clone();
+    // Each keeps the list the gate last accepted, so only the fault named
+    // can be what refuses.
+    let mut forged = expired.clone();
     let last = forged.release_index.len() - 3;
     forged.release_index[last] ^= 1;
     assert!(gate.load(&forged));
@@ -174,7 +176,7 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
         refusal(host).await.as_deref(),
         Some("gateway.qualification.unavailable")
     );
-    let mut unsigned = bundle.clone();
+    let mut unsigned = expired.clone();
     unsigned.release_index.clear();
     unsigned.attestations.clear();
     assert!(gate.load(&unsigned));
@@ -362,6 +364,7 @@ fn every_frozen_verification_case_decides_the_gate() {
             revoked_signers: serde_json::from_value(known["signers"].clone()).expect("signers"),
             revoked_qualifications: serde_json::from_value(known["qualifications"].clone())
                 .expect("qualifications"),
+            ..VerifierState::default()
         };
         let clock = Arc::new(FixedClock::at(input("now").as_u64().expect("now")));
         clock.trust_is(input("clock") == "trusted");

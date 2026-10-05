@@ -4,9 +4,9 @@
 #
 #   assemble.sh <family> <work-dir> <environment> <run-identifier>
 #
-# Reads what offline.sh and the family's live harness wrote into <work-dir>,
-# scans every output for the run's canaries, builds one evidence artifact per
-# member, and assembles the record. Refuses unless the record closes.
+# Reads what offline.sh, the family's live harness, and redact.sh wrote into
+# <work-dir>, runs the trust stages, builds one evidence artifact per member,
+# and assembles the record. Refuses unless the record closes.
 # Writes <work-dir>/proposal.
 set -euo pipefail
 
@@ -18,26 +18,19 @@ root="$(git rev-parse --show-toplevel)"
 directory="${root}/qualification/families/${family}"
 tool="${AUTHS_QUALIFICATION:-${root}/target/release/auths-qualification}"
 
-for required in tuple.json packages.json facts.json live-effects.json resources.json canaries; do
+for required in tuple.json packages.json facts.json live-effects.json resources.json cases/redaction.scan.json; do
   [ -s "${work}/${required}" ] || { echo "qualification.evidence-incomplete ${required}" >&2; exit 1; }
 done
 commit="$(jq -r .commit "${work}/facts.json")"
 [ "${commit}" = "$(git -C "${root}" rev-parse HEAD)" ] || { echo "qualification.commit-changed" >&2; exit 1; }
 
-# Redaction: every log, trace, metric export, and support bundle the run
-# kept, and every case report that becomes evidence.
-sources=()
-for kind in log trace metric support-bundle; do
-  while IFS= read -r -d '' file; do
-    sources+=(--source "${kind}=${file}")
-  done < <(find "${work}/scan/${kind}" -type f -print0 2>/dev/null | sort -z)
-done
-while IFS= read -r -d '' file; do
-  sources+=(--source "evidence=${file}")
-done < <(find "${work}/cases" -type f -name '*.json' -print0 | sort -z)
-"${tool}" stage-redaction --canaries "${work}/canaries" "${sources[@]}" \
-  --out "${work}/redaction.cases.json"
-mv "${work}/redaction.cases.json" "${work}/cases/redaction.scan.json"
+# The tuple names this family and nothing else's.
+[ "$(jq -r .recipe_family "${work}/tuple.json")" = "${family}" ] \
+  || { echo "qualification.tuple-names-another-family" >&2; exit 1; }
+
+# The trust stages are run here, by the tool this job built, whatever the
+# harness left under that name.
+"${tool}" stage-trust --tuple "${work}/tuple.json" --out "${work}/cases/rotation.trust.json"
 
 mkdir -p "${work}/evidence"
 for member in conformance differential hostile live recovery rotation restart multi-instance redaction installed-consumer; do

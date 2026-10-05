@@ -381,6 +381,12 @@ impl QualificationGate {
         true
     }
 
+    /// Drops the held result, so nothing qualifies until inputs load again.
+    /// The operator plane calls this when the host's inputs cannot be read.
+    pub fn unload(&self) {
+        *self.loaded.write().unwrap_or_else(PoisonError::into_inner) = None;
+    }
+
     fn held(&self) -> Option<Arc<Loaded>> {
         self.loaded
             .read()

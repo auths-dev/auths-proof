@@ -215,11 +215,8 @@ fn every_required_scenario_is_needed_to_close_the_wall() {
         assert!(
             matches!(
                 outcome,
-                Err(
-                    IssuanceError::Closure(ClosureFault::Scenario | ClosureFault::Capability)
-                        | IssuanceError::Format(QualificationFormatError::ListBound)
-                        | IssuanceError::Capability
-                )
+                Err(IssuanceError::Closure(ClosureFault::Scenario)
+                    | IssuanceError::Format(QualificationFormatError::ListBound))
             ),
             "{scenario:?}: {outcome:?}"
         );

@@ -1300,6 +1300,7 @@ mod unix {
     #[serde(deny_unknown_fields)]
     struct StoredVerifierState {
         accepted_revocation_sequence: u64,
+        accepted_index_issued_at: u64,
         revoked_signers: Vec<QualificationSignerId>,
         revoked_qualifications: Vec<QualificationId>,
     }
@@ -1309,8 +1310,12 @@ mod unix {
     /// damage cannot forget a revocation.
     fn read_verifier_state(state_dir: &Path) -> Result<VerifierState, &'static str> {
         let path = state_dir.join(QUALIFICATION_STATE_FILE);
-        if !path.exists() {
-            return Ok(VerifierState::default());
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(VerifierState::default());
+            }
+            Err(_) => return Err("gateway.qualification.unavailable"),
+            Ok(_) => {}
         }
         let stored: StoredVerifierState = read_bounded(&path, 256 * 1024)
             .ok()
@@ -1318,6 +1323,7 @@ mod unix {
             .ok_or("gateway.qualification.unavailable")?;
         Ok(VerifierState {
             accepted_revocation_sequence: stored.accepted_revocation_sequence,
+            accepted_index_issued_at: stored.accepted_index_issued_at,
             revoked_signers: stored.revoked_signers.into_iter().collect(),
             revoked_qualifications: stored.revoked_qualifications.into_iter().collect(),
         })
@@ -1326,6 +1332,7 @@ mod unix {
     fn write_verifier_state(state_dir: &Path, state: &VerifierState) -> Result<(), &'static str> {
         let stored = StoredVerifierState {
             accepted_revocation_sequence: state.accepted_revocation_sequence,
+            accepted_index_issued_at: state.accepted_index_issued_at,
             revoked_signers: state.revoked_signers.iter().cloned().collect(),
             revoked_qualifications: state.revoked_qualifications.iter().cloned().collect(),
         };
@@ -1462,7 +1469,8 @@ mod unix {
         state_dir: &Path,
         gate: &QualificationGate,
     ) -> Result<(), &'static str> {
-        let bundle = qualification_bundle(&state_dir.join(QUALIFICATION_DIRECTORY))?;
+        let bundle = qualification_bundle(&state_dir.join(QUALIFICATION_DIRECTORY))
+            .inspect_err(|_| gate.unload())?;
         if gate.load(&bundle) {
             write_verifier_state(state_dir, &gate.verifier_state())?;
         }
@@ -1496,6 +1504,10 @@ mod unix {
                 "not a release this installation's root signed",
             ));
         }
+        // What the new inputs establish is recorded before they replace the
+        // old ones. If the replacement then fails, the old inputs meet a
+        // floor they are below and nothing qualifies.
+        write_verifier_state(state_dir, &candidate.verifier_state())?;
         let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
         let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
         let current = state_dir.join(QUALIFICATION_DIRECTORY);
@@ -1540,7 +1552,6 @@ mod unix {
         if retired.exists() {
             fs::remove_dir_all(&retired).map_err(failed)?;
         }
-        write_verifier_state(state_dir, &candidate.verifier_state())?;
         println!(
             "imported qualification inputs: state={} code={}",
             status.state.as_str(),

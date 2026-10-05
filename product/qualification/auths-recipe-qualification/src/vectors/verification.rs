@@ -839,6 +839,7 @@ fn every_verification_case_is_decided_as_frozen() {
             revoked_signers: serde_json::from_value(known["signers"].clone()).expect("signers"),
             revoked_qualifications: serde_json::from_value(known["qualifications"].clone())
                 .expect("qualifications"),
+            ..VerifierState::default()
         };
         let deployment: QualificationTuple =
             serde_json::from_value(input(&corpus, case, "deployment").clone()).expect("tuple");

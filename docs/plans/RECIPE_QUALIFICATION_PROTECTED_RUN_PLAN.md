@@ -53,6 +53,10 @@ which let a pull request assemble.
 The index a signer issues lists exactly the records of one run, so one run
 qualifies every family together.
 
+The redaction scan runs inside job 3, where the canaries are, and they are
+deleted before the job uploads anything. Jobs 4, 5, and 6 each build the
+release tool from the commit and run no program another job produced.
+
 The qualification provider credential is scoped to the disposable resources of
 the run and is not a production connection credential. The runtime gateway
 never calls this workflow, and this workflow never serves runtime traffic.

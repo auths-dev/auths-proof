@@ -46,7 +46,8 @@ and writes:
 - `live-effects.json`: `{"entered", "confirmed_by_read_back"}`;
 - `resources.json`: sanitized identifiers of the disposable resources;
 - `canaries`: every secret and provider datum planted for the run, one per
-  line;
+  line. The live job scans everything below for them with `run/redact.sh`
+  and deletes this file before it uploads anything;
 - `scan/log/`, `scan/trace/`, `scan/metric/`, `scan/support-bundle/`: every
   output the run kept.
 
@@ -72,4 +73,14 @@ first ceremony, and until then the signing job refuses to run.
 ## `run/`
 
 The scripts the workflow's jobs call. `offline.sh` and `assemble.sh` need no
-secret and can be run on a development host.
+secret and can be run on a development host. `redact.sh` runs in the live
+job.
+
+## Environments
+
+Each family's live environment, `recipe-qualification-live-<family>`, must be
+created with a required reviewer and the default branch only **before** its
+credential is stored in it. The signing environment already has both rules.
+The harness of a family is trusted as reviewed code on the default branch;
+the run does not execute anything a harness leaves behind as a program in
+the jobs that assemble, sign, or verify.

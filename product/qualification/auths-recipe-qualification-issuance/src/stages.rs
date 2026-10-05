@@ -483,7 +483,7 @@ pub fn placeholder_cases(member: EvidenceMemberKind) -> Vec<CaseReport> {
         .filter(|scenario| scenario.member() == member && scenario.always_required())
         .map(|scenario| {
             let mut reported = case(format!("scenario-{scenario:?}"), scenario);
-            if scenario == Scenario::ResponseLoss {
+            if scenario.may_show(CapabilityKind::Recovery) {
                 reported.capabilities = vec![CapabilityKind::Recovery];
             }
             reported

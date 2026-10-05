@@ -101,6 +101,36 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
         sign.iter().any(|line| line.contains("rm -f \"${key}\"")),
         "the key file is removed when the job ends"
     );
+    // The key is used only by a tool the signing job built itself, and no
+    // privileged or signing-path job runs a binary another job produced.
+    for name in ["assemble", "sign", "verify"] {
+        let lines = &jobs[name];
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.starts_with("run: cargo build --locked --release")),
+            "{name} builds its own tool"
+        );
+        assert!(
+            !lines.iter().any(|line| line.contains("chmod +x")),
+            "{name} runs no downloaded binary"
+        );
+    }
+    // The canaries never leave the job that planted them.
+    let live = &jobs["live"];
+    let scan = live
+        .iter()
+        .position(|line| line.contains("redact.sh"))
+        .expect("the live job scans");
+    let upload = live
+        .iter()
+        .position(|line| line.contains("upload-artifact"))
+        .expect("the live job uploads");
+    assert!(scan < upload, "the scan precedes the upload");
+    assert!(
+        live.iter()
+            .any(|line| line.contains("test ! -e") && line.contains("canaries"))
+    );
 
     // No other workflow names the signer's key, and nothing in the
     // repository runs on a trigger that gives a pull request's code secrets.
