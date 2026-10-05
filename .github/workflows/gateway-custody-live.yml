@@ -162,6 +162,12 @@ jobs:
     # one refund request the provider rejects. The account has no connected
     # accounts, so the platform account stands in as the account the refund
     # is scoped to; the provider accepts its own account in that header.
+    #
+    # Two things the journey assumes about its test data. The payment must be
+    # exactly 60.00, because one hostile case is "30.01 is above half of the
+    # payment". And the journey's operation identifiers are fixed, so the
+    # provider's idempotency window refuses a second run against the same
+    # account within 24 hours: rerun no sooner than a day after the last.
     name: gateway journey against Stripe test mode
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -193,8 +199,8 @@ jobs:
           NAMESPACE: provider-${{ github.run_id }}-${{ github.run_attempt }}
           KMS_KEY: arn:aws:kms:eu-west-1:585985124542:key/1e1c85ae-7d9c-4f2d-978f-bd672b597907
           STRIPE_ACCOUNT: acct_1QekbYID70YvJ7mY
-          PAYMENT_INTENT: pi_3UNFVEID70YvJ7mY0klCby6W
-          REFUNDED_PAYMENT_INTENT: pi_3UNFVGID70YvJ7mY0yGLrwlv
+          PAYMENT_INTENT: pi_3UNFd7ID70YvJ7mY1CGGkPca
+          REFUNDED_PAYMENT_INTENT: pi_3UNFd9ID70YvJ7mY19AAEtyv
         run: |
           set -euo pipefail
           umask 077
