@@ -523,6 +523,189 @@ mod tests {
         );
     }
 
+    fn custody_vectors() -> serde_json::Value {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../bindings/fixtures/gateway/custody-hostile.json"
+        );
+        serde_json::from_slice(&std::fs::read(path).expect("custody vectors")).expect("JSON")
+    }
+
+    /// Every frozen lease scenario the store decides: the lease is refused
+    /// and nothing else is read. A scenario the gateway decides before any
+    /// lease is named as such, so a new scenario cannot be left undriven.
+    #[test]
+    fn frozen_lease_scenarios_are_refused_by_the_store() {
+        let vectors = custody_vectors();
+        for case in vectors["lease"].as_array().expect("lease cases") {
+            let id = case["id"].as_str().expect("id");
+            let double = Double::new();
+            let store = store(&double);
+            let first = ready(store.install(&connection(), generation(1), secret(b"first")))
+                .expect("install");
+            let serving = binding(1, 1, first);
+            let fault = match id {
+                "lease-commitment-mismatch" => Fault::OtherBytes,
+                "lease-version-drift" => Fault::AnotherVersion,
+                "lease-adapter-timeout"
+                | "lease-store-unreachable-with-local-file"
+                | "lease-store-unreachable-with-environment-secret" => Fault::Unreachable,
+                "lease-partial-response" => Fault::Empty,
+                "lease-oversize-response" | "lease-oversize-secret" => Fault::Oversized,
+                "lease-expired" => Fault::AfterDeadline,
+                "lease-sealed-generation-revoked-with-successor" => {
+                    ready(store.replace(
+                        &connection(),
+                        generation(1),
+                        generation(2),
+                        secret(b"second"),
+                    ))
+                    .expect("successor");
+                    ready(store.revoke(&connection(), generation(1))).expect("revoke");
+                    Fault::None
+                }
+                // Decided by the gateway before any lease is requested.
+                "lease-generation-not-held" | "lease-never-precedes-claim" => {
+                    assert_eq!(case["expect"]["leases"], 0, "case {id}");
+                    continue;
+                }
+                other => panic!("no driver for lease scenario {other}"),
+            };
+            *double.fault.lock().expect("fault") = fault;
+            let deadline = if fault == Fault::AfterDeadline {
+                Instant::now()
+                    .checked_sub(Duration::from_millis(1))
+                    .expect("past")
+            } else {
+                Instant::now() + Duration::from_secs(5)
+            };
+            let refused = ready(store.lease_secret(&serving, deadline)).map(drop);
+            assert!(refused.is_err(), "case {id} leased");
+            assert_eq!(case["expect"]["stage"], "not-entered", "case {id}");
+            assert_eq!(case["expect"]["fallback_used"], false, "case {id}");
+            assert_eq!(
+                case["expect"]["retried_with_another_generation"], false,
+                "case {id}"
+            );
+            let reads = double.reads.lock().expect("reads");
+            assert!(
+                reads.iter().all(|(name, _)| {
+                    *name
+                        == secret_name(
+                            &DeploymentNamespace::parse("production-eu-1").expect("namespace"),
+                            &connection(),
+                            generation(1),
+                        )
+                }),
+                "case {id} read another generation"
+            );
+        }
+    }
+
+    /// Every frozen rotation and crash scenario, at the store: each
+    /// generation is whole, and a crash at any stage leaves a store that
+    /// serves exactly what the record names.
+    #[test]
+    fn frozen_rotation_scenarios_hold_at_the_store() {
+        let vectors = custody_vectors();
+        for case in vectors["rotation"].as_array().expect("rotation cases") {
+            let id = case["id"].as_str().expect("id");
+            let double = Double::new();
+            let store = store(&double);
+            let other_instance = AwsSecretsManagerStore::new(
+                &double,
+                DeploymentNamespace::parse("production-eu-1").expect("namespace"),
+            );
+            let first = ready(store.install(&connection(), generation(1), secret(b"first")))
+                .expect("install");
+            let old = binding(1, 1, first);
+            let prepare = || {
+                ready(store.replace(
+                    &connection(),
+                    generation(1),
+                    generation(2),
+                    secret(b"second"),
+                ))
+                .expect("prepare")
+            };
+            match id {
+                "rotation-commit-between-reload-and-lease" | "crash-after-prepare" => {
+                    prepare();
+                    assert_eq!(leased(&store, &old).expect("old"), b"first", "case {id}");
+                }
+                "rotation-attempt-after-commit" | "crash-after-commit" => {
+                    let new = binding(2, 2, prepare());
+                    assert_eq!(leased(&store, &new).expect("new"), b"second", "case {id}");
+                    assert_eq!(leased(&store, &old).expect("old"), b"first", "case {id}");
+                }
+                "rotation-two-instances" => {
+                    let new = binding(2, 2, prepare());
+                    assert_eq!(leased(&store, &old).expect("A"), b"first", "case {id}");
+                    assert_eq!(
+                        leased(&other_instance, &new).expect("B"),
+                        b"second",
+                        "case {id}"
+                    );
+                }
+                "rotation-old-revoked-before-entry" => {
+                    let new = binding(2, 2, prepare());
+                    ready(store.revoke(&connection(), generation(1))).expect("revoke");
+                    assert_eq!(
+                        leased(&store, &old),
+                        Err(CredentialStoreError::Unavailable),
+                        "case {id}"
+                    );
+                    assert_eq!(leased(&store, &new).expect("new"), b"second", "case {id}");
+                }
+                "rotation-old-revoked-after-entry" => {
+                    prepare();
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    let held =
+                        ready(store.lease_secret(&old, deadline)).expect("lease before revoke");
+                    ready(store.revoke(&connection(), generation(1))).expect("revoke");
+                    assert_eq!(
+                        held.expose(Instant::now()).expect("held"),
+                        b"first",
+                        "case {id}"
+                    );
+                }
+                "crash-during-retirement" => {
+                    let new = binding(2, 2, prepare());
+                    ready(store.revoke(&connection(), generation(1))).expect("revoke");
+                    assert_eq!(
+                        ready(store.delete_connection(&connection(), &[generation(1)])),
+                        Ok(()),
+                        "case {id}: retirement can be repeated"
+                    );
+                    assert_eq!(leased(&store, &new).expect("new"), b"second", "case {id}");
+                }
+                "crash-after-install-write" => {
+                    // No record names the stored secret, so nothing leases it,
+                    // and a new install uses a new connection identifier.
+                    let again = ConnectionId::parse("conn_BBBBBBBBBBBBBBBBBBBBBA").expect("id");
+                    assert!(ready(store.install(&again, generation(1), secret(b"first"))).is_ok());
+                }
+                "crash-after-revoke" => {
+                    let known = [generation(1)];
+                    assert_eq!(
+                        ready(store.delete_connection(&connection(), &known)),
+                        Ok(())
+                    );
+                    assert_eq!(
+                        ready(store.delete_connection(&connection(), &known)),
+                        Ok(())
+                    );
+                    assert_eq!(
+                        leased(&store, &old),
+                        Err(CredentialStoreError::Unavailable),
+                        "case {id}"
+                    );
+                }
+                other => panic!("no driver for rotation scenario {other}"),
+            }
+        }
+    }
+
     #[test]
     fn the_store_never_prints_a_secret() {
         let double = Double::new();

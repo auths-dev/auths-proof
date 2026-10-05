@@ -1,0 +1,57 @@
+name: Gateway custody live
+
+# Runs the Secrets Manager credential store against the protected account.
+# The job waits for a required reviewer of the `gateway-custody-live`
+# environment, then assumes two roles through this repository's identity
+# token. No access key is stored anywhere.
+on:
+  pull_request:
+    paths:
+      - "product/integrations/auths-credentials-aws-secrets-manager/**"
+      - ".github/workflows/gateway-custody-live.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gateway-custody-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  store-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: gateway-custody-live
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Request the workload identity token
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          token_file="${RUNNER_TEMP}/custody-identity-token"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+            | jq -r '.value' > "${token_file}"
+          test -s "${token_file}"
+          echo "AUTHS_CUSTODY_LIVE_TOKEN_FILE=${token_file}" >> "${GITHUB_ENV}"
+      - name: Run the store contract against the service
+        env:
+          AUTHS_CUSTODY_LIVE_REGION: eu-west-1
+          AUTHS_CUSTODY_LIVE_NAMESPACE: live-${{ github.run_id }}-${{ github.run_attempt }}
+          AUTHS_CUSTODY_LIVE_KMS_KEY: arn:aws:kms:eu-west-1:585985124542:key/1e1c85ae-7d9c-4f2d-978f-bd672b597907
+          AUTHS_CUSTODY_LIVE_OPERATOR_ROLE: arn:aws:iam::585985124542:role/auths-gateway-custody-operator
+          AUTHS_CUSTODY_LIVE_RUNTIME_ROLE: arn:aws:iam::585985124542:role/auths-gateway-custody-runtime
+        run: cargo test -p auths-credentials-aws-secrets-manager --test live -- --ignored
+      - name: Remove the identity token
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/custody-identity-token"

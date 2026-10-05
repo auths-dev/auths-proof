@@ -1,7 +1,10 @@
 # AWS Secrets Manager credential store: implementation and conformance plan
 
-- **Status:** plan. No adapter, emulator, AWS account, role, or credential
-  exists. Nothing here is implemented or claimed.
+- **Status:** implemented except the live run; see AP-SPEC-066 §19. The
+  adapter, its in-memory double, rotation, and production policy exist. The
+  workflow `gateway-custody-live.yml` runs the store against the protected
+  account and has not yet run. Sections below are the plan as written;
+  §19.2 records where the implementation chose differently.
 - **Spec:** [AP-SPEC-066](../specs/0066-production-gateway-polish-and-recipe-qualification.md)
   §5, Epic 2. Abstraction case
   [0008](../research/domains/abstraction-cases/0008-provider-secret-custody-and-recipe-qualification.md).

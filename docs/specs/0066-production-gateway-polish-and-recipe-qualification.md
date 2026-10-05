@@ -1,9 +1,11 @@
 # AP-SPEC-066: Production gateway polish and recipe qualification
 
 - **Status:** Draft. Epic 1 (types, threats, and evidence contracts) is
-  implemented; §18 records its status and readings. No production credential
-  store, release verifier, runtime qualification gate, or qualified recipe
-  exists, and none is claimed by this document.
+  implemented; §18 records its status and readings. Epic 2 (production
+  custody and rotation) is implemented except for its live run, which waits
+  for the owner's approval of the protected environment; §19 records it. No
+  release verifier, runtime qualification gate, or qualified recipe exists,
+  and none is claimed by this document.
 - **Depends on:** [AP-SPEC-038](0038-production-runtime-custody-observability-and-assurance.md)
   (production trust, custody, stores, and operations),
   [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md) (the
@@ -1208,4 +1210,72 @@ newer list without a later revocation. Reading 14 makes revocation permanent
 at each verifier so that a later list cannot undo one. Whether a 48-hour
 ceremony is acceptable is the owner's decision; the alternative is to amend
 the bound in §8, not to add a configuration that widens it.
+
+## 19. Epic 2 status and readings
+
+Epic 2 is implemented in code and tests. Its done gate also requires a real
+disposable write through the maintained adapter; the workflow that performs
+the store's part of that exists and has not run, because it waits for a
+required reviewer. Until it passes, nothing here has touched the live service
+and the adapter's behavior against it is unconfirmed.
+
+### 19.1 What exists
+
+| Task | Artifact |
+| --- | --- |
+| 1 sealed store behind the trait | The engine, install, and join hold `dyn ConnectionCredentialStore`. The trait gains `holds`, `confirm`, `retire_superseded`, and `delete_connection`, each answerable by a store private to one process and by one shared by all. One contract test runs against both in-repository stores. |
+| 2 `aws-secrets-manager-v1` | Crate `auths-credentials-aws-secrets-manager`: derived secret name and version identifier, the store over three service calls, request signing checked against the service's published vectors, a network client with one attempt per call bounded by the caller's deadline, and three workload-identity sources (web identity token, container endpoint, instance metadata) with no fallback between them. |
+| 3 rotation | `rotate-prepare` and `rotate-commit` on the operator socket and CLI; the one-step `rotate` is both. A superseded generation is retired after `CredentialRetirementDelay`, by exact generation. Both phases work on a disabled connection, which is the emergency cutover. |
+| 4 doctor and production policy | `install --credential-store`; `credential_store_policy` refuses an unknown kind and, under production policy, the local file. `doctor` reports the provider credential store separately from the observer and does not fail when no observer exists. |
+| 5 conformance | The store's tests drive the frozen `secret_names`, `version_references`, `lease`, and `rotation` sections of `custody-hostile.json`; the gateway drives `store_kinds` through the policy function. The live workflow `gateway-custody-live.yml` runs the store contract against the protected account. |
+
+The code inventory marks `gateway.credential.adapter-unsupported` and
+`gateway.credential.production-plaintext-refused` implemented. The pending
+assertion fired when the name derivation and then the two codes landed, as
+§18.1 said it would, and each time the vectors it guarded were given a driver.
+
+### 19.2 Readings (PROVISIONAL)
+
+1. **Client.** The minimal closed client over the existing HTTP and TLS
+   stack, as the custody plan recommended. The owner had not chosen; no
+   build script or native dependency was added.
+2. **Two-phase rotation carries the commitment.** `rotate-prepare` answers
+   with the successor's reference commitment and `rotate-commit` takes it. A
+   shared store cannot find a prepared secret by search, and the commitment
+   names it without revealing it or where it is kept.
+3. **A record that changed since the prepare commits nothing.** The
+   successor was stored for the generation after the one the prepare saw. A
+   state change in between makes the commit answer
+   `gateway.admin.rotation-not-prepared`; the operator prepares again.
+4. **Retirement is by exact generation.** The gateway remembers the
+   generation it superseded and revokes that one when the delay has passed.
+   The local stores also delete an unpublished successor the record has
+   moved past. That second rule fixes a defect the new tests found: a
+   prepared successor followed by a disable made the local store keep the
+   orphan and delete the credential that served.
+5. **This engine is stricter than §5.4 allows.** An attempt whose record
+   changes between its load and its lease is abandoned before the lease, so
+   no attempt leases the old generation after a commit. The retained
+   generation is therefore not needed by this engine today; it is kept
+   because §5.4 requires it and a later engine may rely on it.
+6. **The installation manifest is `auths.gateway-installation/4`.** It
+   records the credential-store kind and, for the production store, the
+   namespace, region, key, and named workload identity. It records no secret
+   and no external location. There is no reader for `/3`.
+7. **Workload identity is named, not discovered.** `--aws-identity` selects
+   exactly one of `web-identity`, `container`, or `instance-metadata`. A
+   static access key in the environment is not a source.
+8. **Tests of the production store without a secret manager.** The cargo
+   feature `testkit-production-plaintext` lets a production installation use
+   the local file. The default build lacks it, and a test asserts the shipped
+   refusal. The PostgreSQL workflow enables it for one test binary.
+9. **Orphaned secrets in the shared store.** A prepare that is never
+   committed, or an install that stops before its record is written, leaves a
+   secret no record names. Nothing can lease it. The gateway does not yet
+   delete it: the store cannot list, and the gateway keeps no durable note of
+   what it prepared. The operator-polish epic owns that collector.
+10. **Not driven end to end.** The frozen `lease` and `rotation` scenarios
+    are driven at the store. Their gateway-level stage and code
+    (`not-entered`, `gateway.credential.unavailable`) are the engine's
+    existing behavior for a failed lease and are not re-driven per scenario.
 

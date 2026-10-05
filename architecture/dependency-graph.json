@@ -2159,6 +2159,27 @@
     {
       "source": "auths-credentials-aws-secrets-manager",
       "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-credentials-aws-secrets-manager",
+      "source_layer": "product",
       "target": "zeroize",
       "target_layer": null,
       "scope": "external",
