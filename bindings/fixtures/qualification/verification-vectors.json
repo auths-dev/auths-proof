@@ -224,7 +224,7 @@
     },
     {
       "id": "certificate-lacks-attestation-permission",
-      "class": "wrong-signer-kind",
+      "class": "wrong-artifact-kind",
       "replace": {
         "signer_certificate": "{\"root_signature_b64\":\"ocC3VZwgk0DBUXtzV_ThjjfAqV2PxICJM965QTqW4onsn6pBOBBVMQiaAN1gw_DwaUCMIU5_Kr1aDpa7FiECAQ\",\"statement\":{\"issued_at\":1789913600,\"not_after\":1805465600,\"not_before\":1789913600,\"permitted_artifact_kinds\":[\"qualification-release-index\"],\"public_key_b64\":\"oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA\",\"root_id\":\"auths-qualification-root-1\",\"schema\":\"auths.qualification-signer-certificate/1\",\"signature_suite\":\"ed25519-v1\",\"signer_id\":\"release-signer-2026-10\",\"signer_kind\":\"protected-software-release-key-v1\"}}"
       },
@@ -236,7 +236,7 @@
     },
     {
       "id": "certificate-lacks-index-permission",
-      "class": "wrong-signer-kind",
+      "class": "wrong-artifact-kind",
       "replace": {
         "signer_certificate": "{\"root_signature_b64\":\"7BmhbBPgkAHU4udKDdR60NcAokpTIXHe40r-ixo2t-Lhe8Wc46YdmtbNZyLy8iIrODEX5s-uI0xLSMDCunQaCg\",\"statement\":{\"issued_at\":1789913600,\"not_after\":1805465600,\"not_before\":1789913600,\"permitted_artifact_kinds\":[\"recipe-qualification-attestation\"],\"public_key_b64\":\"oJql9HpnWYAv-VX43C0qFKXJnSO-l_hkEn_5ODRVpPA\",\"root_id\":\"auths-qualification-root-1\",\"schema\":\"auths.qualification-signer-certificate/1\",\"signature_suite\":\"ed25519-v1\",\"signer_id\":\"release-signer-2026-10\",\"signer_kind\":\"protected-software-release-key-v1\"}}"
       },
@@ -644,7 +644,7 @@
     },
     {
       "id": "wrong-semantic-closure",
-      "class": "wrong-target",
+      "class": "wrong-closure",
       "replace": {
         "deployment": {
           "recipe_family": "example-refund-v1",

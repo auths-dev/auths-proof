@@ -240,14 +240,14 @@ fn trust_cases(parts: &Parts) -> Vec<Value> {
         ),
         case(
             "certificate-lacks-attestation-permission",
-            "wrong-signer-kind",
+            "wrong-artifact-kind",
             json!({"signer_certificate": only(QualificationArtifactKind::QualificationReleaseIndex)}),
             Candidate,
             Some(MISSING),
         ),
         case(
             "certificate-lacks-index-permission",
-            "wrong-signer-kind",
+            "wrong-artifact-kind",
             json!({"signer_certificate": only(QualificationArtifactKind::RecipeQualificationAttestation)}),
             Unqualified,
             Some(UNAVAILABLE),
@@ -490,7 +490,7 @@ fn digest_cases() -> Vec<Value> {
             drifted.api_release = super::bounded("2026-10-01.fixture");
             deployed.provider_contract_id = super::decoded_contract(&drifted).contract_id();
         }),
-        drifted("wrong-semantic-closure", "wrong-target", |deployed| {
+        drifted("wrong-semantic-closure", "wrong-closure", |deployed| {
             deployed.gateway_semantic_closure_sha256 = digest_of("another semantic closure");
         }),
         drifted("digest-and-target-differ", "wrong-recipe", |deployed| {

@@ -1096,14 +1096,21 @@ may change any of them; the fixtures change with it.
     is valid now, and `stale` when an attestation chain verifies but a tuple
     member, a validity window, the clock, or the revocation list does not
     hold.
-12. **Codes where §10 is silent.** A forged, outsider-signed, wrong-signer,
-    wrong-record, not-yet-valid, or record-outliving attestation is
-    `gateway.qualification.missing`: no trusted attestation is valid now. A
-    certificate or index that does not verify, names another root, lacks the
-    needed artifact kind, or a revocation list that does not verify or is
-    older than one already accepted, is `gateway.qualification.unavailable`.
-    A deployment whose recipe family no record names is
-    `gateway.qualification.missing`.
+12. **Codes where §10 is silent.** An attestation is *usable* when the
+    release index lists it and its record by digest, its signature verifies
+    under a signer whose certificate verifies under the pinned root and
+    permits attestations, it names that record, its window lies within the
+    record's window, and its window has started. Whether a window has *ended*
+    is not part of being usable. With no usable attestation for the
+    deployment's recipe family the code is `gateway.qualification.missing`:
+    this covers a forged, outsider-signed, wrong-signer, wrong-record,
+    record-outliving, or not-yet-valid attestation, an index that omits it,
+    an absent record, and a family no record names. With a usable attestation
+    whose window, or whose signer certificate's window, has ended, the code is
+    `gateway.qualification.expired`. A certificate or index that does not
+    verify, names another root, or lacks the index artifact kind, and a
+    revocation list that does not verify or is older than one already
+    accepted, is `gateway.qualification.unavailable`.
 13. **Precedence.** When several faults hold a verifier reports the first of:
     unavailable, revoked, clock-untrusted, revocation-stale, missing, expired,
     digest-mismatch, target-mismatch. Revocation is reported whenever a

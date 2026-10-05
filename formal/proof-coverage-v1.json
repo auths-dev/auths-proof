@@ -16,9 +16,9 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5",
-  "inputs_sha256": "dd4bd7ea1702110edfeddfa2e58b3ccb6cdd0431d1ba6679dc935e51c3126743",
+  "inputs_sha256": "53c612e5ff16ff5e4d0f8b1f05238e85eee3658681373de48ad8c3c2ad3c3a75",
   "inputs": {
-    "Cargo.toml": "sha256:5c93a8dad4d173e3d0a229967c859a805b88f556df57af2ab281d6806a2e613e",
+    "Cargo.toml": "sha256:5d0c870382e09f3f286a1e27be816bf69f28173ea4904268b53308d0faa00733",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
     "core/crates/auths-algebra-kernel/src/generated.rs": "sha256:ae4bcbef42a408c7ffa0c6a74a42f7de177a6f14479e51d205acf830bda05960",
     "core/crates/auths-algebra-kernel/src/lib.rs": "sha256:6654667eeb9b353d6648954c9fd2e8838462a82ce6b2803eb49e1366892c68c6",
@@ -84,11 +84,11 @@
     "product/policy/auths-bounded-policy/src/lib.rs": "sha256:76a18638b810e62e594d6e951504679305ce21841388e0c282ad51cd7841b91c",
     "product/policy/auths-bounded-policy/src/receipt.rs": "sha256:3b9eae82f349956d3e7f29b57b254bff5ce67cc703e6cf43445ce2827676d1ad",
     "product/policy/auths-bounded-policy/src/registry.rs": "sha256:4e251ea5833559841f8ee0bd9b66c0c01c39fa5e3a21720a19c4e8adbfcb99d0",
-    "product/runtime/auths-connections/src/credential.rs": "sha256:9314436e813b8b5c496301e7f10dc0175e1c75bad3e59d3ac3597fc0b02ded59",
+    "product/runtime/auths-connections/src/credential.rs": "sha256:95ec89b3e004fe88a61bdca7d2ee1874fe4d973da766b2e826ddc988d0705200",
     "product/runtime/auths-connections/src/kernel.rs": "sha256:a456af19526ef7b19278551fd8d97606b6e7aa5a195e70bdd85d1e0786090ce8",
-    "product/runtime/auths-connections/src/lib.rs": "sha256:0164e5f6a109f4da16d007e8cde9d38f7e902fff9ac4c76261d9c833b433640b",
-    "product/runtime/auths-connections/src/model.rs": "sha256:f09288d441edcab8bd9e2c4a8c4e1d299c28a91ec2a7ecd207a235a2b8956453",
-    "product/runtime/auths-connections/src/registry.rs": "sha256:1855dc8140370f57fa52489684e43e4fa1f4672bb65117cb4cd71d4edff5ae83",
+    "product/runtime/auths-connections/src/lib.rs": "sha256:8dd1514fb4d1cb389c31210fb4261da0813a7668b5449c28cccbd4885d9bf42b",
+    "product/runtime/auths-connections/src/model.rs": "sha256:1f9bdd4c3cb3b339b9f66abc973e96e24cc72321acdafa0e60b53e58ecb69a79",
+    "product/runtime/auths-connections/src/registry.rs": "sha256:e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946",
     "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:e9d65744bae273d65face4285e5d2da75c06a92ab48f7b8333d496604e31c63c",
     "product/runtime/auths-gateway-kernel/src/lib.rs": "sha256:cfda6f8453426564c085475f183b6f790b438768a19668f1b65d33ba59dc8632",
     "product/runtime/auths-gateway-kernel/src/order.rs": "sha256:e0045f877c4b7fe3860c291039853885064ddcdebba7c9b345ab65e81e646dda",
@@ -245,33 +245,33 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1115,
-      "span_lines": 10478,
-      "code_lines": 10459,
+      "functions": 1120,
+      "span_lines": 10522,
+      "code_lines": 10503,
       "by_level": {
         "translated": {
           "functions": 210,
-          "function_share": 0.1883,
+          "function_share": 0.1875,
           "span_lines": 2519,
-          "span_line_share": 0.2404,
+          "span_line_share": 0.2394,
           "code_lines": 2508,
-          "code_line_share": 0.2398
+          "code_line_share": 0.2388
         },
         "direct": {
           "functions": 70,
-          "function_share": 0.0628,
+          "function_share": 0.0625,
           "span_lines": 1035,
-          "span_line_share": 0.0988,
+          "span_line_share": 0.0984,
           "code_lines": 1024,
-          "code_line_share": 0.0979
+          "code_line_share": 0.0975
         },
         "closure": {
           "functions": 210,
-          "function_share": 0.1883,
+          "function_share": 0.1875,
           "span_lines": 2519,
-          "span_line_share": 0.2404,
+          "span_line_share": 0.2394,
           "code_lines": 2508,
-          "code_line_share": 0.2398
+          "code_line_share": 0.2388
         }
       }
     },
@@ -548,8 +548,8 @@
       "refined_closure_code_lines": 182
     },
     "product/runtime/auths-connections": {
-      "decision_functions": 130,
-      "decision_code_lines": 1684,
+      "decision_functions": 135,
+      "decision_code_lines": 1728,
       "translated": 5,
       "refined_closure": 5,
       "refined_closure_code_lines": 51
