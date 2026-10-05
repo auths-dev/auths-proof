@@ -52,10 +52,13 @@ This section covers the generalized gateway's production deployment
 The verifier's claim above is unchanged. What is added is a claim about where a
 provider credential lives and about what a `qualified` label means.
 
-**Status.** The types, schemas, bounds, and hostile vectors exist. The
-production credential store, the release verifier, the runtime qualification
-gate, and the support bundle do not. A row marked *specified* names a control
-with frozen vectors and no implementation; it protects nothing yet.
+**Status.** The production credential store, the release verifier, the
+issuance tooling, and the runtime qualification gate exist. The support
+bundle does not. No qualification trust root or release signer has been
+created, no recipe is qualified, and the protected run has not been held: the
+qualification controls below are enforced in code and exercised only under
+keys made for tests. A row marked *specified* names a control with frozen
+vectors and no implementation; it protects nothing yet.
 
 ### Added trust assumptions
 
@@ -83,16 +86,16 @@ with frozen vectors and no implementation; it protects nothing yet.
 | Rotation leaves an attempt with half of each generation | Generation and commitment are replaced as one record; an admitted attempt keeps its whole old generation, retained for 20 seconds, longer than the 15-second transport bound | delay invariant enforced at compile time; rotation commands specified |
 | A possibly compromised credential keeps being used during cutover | Disable, wait the retirement delay, rotate, revoke, enable; an attempt that has not entered when the old generation is revoked is recorded not entered and never retried with the new one | specified |
 | Secret material leaks through logs, traces, metrics, debug output, or a support bundle | Secret types print a fixed redacted form and have no serialization; the support bundle excludes every listed source and is scanned for planted canaries | debug forms enforced; bundle specified |
-| A recipe, connection, SDK, flag, or operator declares a recipe qualified | The qualification state has no parser; it is derived only from verified signed inputs. A recipe that names a qualification member is refused at compile | enforced for the type and the recipe source |
+| A recipe, connection, SDK, flag, or operator declares a recipe qualified | The qualification state has no parser; it is derived only from verified signed inputs. A recipe that names a qualification member is refused at compile | enforced: the state is derived only by the gate from verified inputs; production refuses the optional policy |
 | The qualification trust root is compromised | Every certificate and revocation it signs is forgeable; recovery is a separately reviewed release that pins a successor root, never a runtime fetch. The root signs only certificates and revocations, so its key is used rarely and offline | specified; residual risk accepted |
 | The release signer is compromised | The root revokes the signer, which invalidates every attestation it issued regardless of issue time. A signer cannot sign a certificate, a revocation, or a root: each artifact kind has its own signing domain and the certificate lists the kinds it permits | domains and closed kinds enforced; revocation specified |
-| A forged, replayed, or cross-kind signature is presented | Each signature covers the schema, a NUL byte, and the canonical statement; a signature for one artifact kind never verifies as another | preimages enforced; verification specified |
-| An expired or stale input keeps a recipe enabled | Freshness comes only from signed fields with fixed maxima (90 days, 365 days, 72 hours); no configuration, flag, or grace period widens them; a revocation list past its next update disables every required recipe | bounds enforced at decode; gate specified |
-| The gateway's clock is wrong | A closed clock trust state from a maintained deployment adapter; an untrusted clock, or local time behind a signed issue time, disables every required recipe | type enforced; adapter specified |
+| A forged, replayed, or cross-kind signature is presented | Each signature covers the schema, a NUL byte, and the canonical statement; a signature for one artifact kind never verifies as another | enforced: the verifier checks each signature under its own domain |
+| An expired or stale input keeps a recipe enabled | Freshness comes only from signed fields with fixed maxima (90 days, 365 days, 72 hours); no configuration, flag, or grace period widens them; a revocation list past its next update disables every required recipe | enforced at decode and at the gate before every lease |
+| The gateway's clock is wrong | A closed clock trust state from a maintained deployment adapter; an untrusted clock, or local time behind a signed issue time, disables every required recipe | enforced; the production adapter reads one synchronization service's marker |
 | The provider changes its API while the recipe bytes stay the same | The provider contract identifier is a digest of the API release, the OpenAPI slice, the manual assumptions, the environment class, the corpus, the oracle version, and the declarations; any change makes the qualification stale | identifier enforced; staleness specified |
-| An older revocation list or release index is replayed | Revocation lists carry an increasing sequence; a list older than the one already accepted is refused | specified |
-| The runtime gateway becomes a qualification runner, or the runner becomes a runtime credential broker | The gateway performs no provider call, network trust fetch, or qualification run for readiness; the qualification credential is environment-scoped and distinct from every production connection credential; the qualification model depends on no core or provider crate, enforced by `architecture.toml` | dependency boundary enforced; separation of credentials specified |
-| A pull request signs or imports a qualification | Pull-request jobs produce unsigned proposals only and cannot reach either private key or update the release index | specified |
+| An older revocation list or release index is replayed | Revocation lists carry an increasing sequence; a list older than the one already accepted is refused | enforced: the gate treats an older list as unusable and import refuses it; revocations are remembered per host |
+| The runtime gateway becomes a qualification runner, or the runner becomes a runtime credential broker | The gateway performs no provider call, network trust fetch, or qualification run for readiness; the qualification credential is environment-scoped and distinct from every production connection credential; the qualification model depends on no core or provider crate, enforced by `architecture.toml` | enforced: the gate reads local inputs only and a gateway build contains no issuance crate |
+| A pull request signs or imports a qualification | Pull-request jobs produce unsigned proposals only and cannot reach either private key or update the release index | enforced: a test reads the workflow; the signing environment admits only the default branch with a reviewer; import refuses anything no signer indexed |
 | A successful HTTP response is counted as a qualified live effect | A record whose live effects are not all confirmed by read-back does not decode | enforced |
 
 ### Not protected by this section
