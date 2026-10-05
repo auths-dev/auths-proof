@@ -361,6 +361,31 @@ mod unix {
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
         },
+        /// First phase of a two-phase rotation: store the new credential
+        /// from stdin without publishing it, and print its commitment.
+        RotatePrepare {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            #[arg(long, default_value_t = false)]
+            credential_stdin: bool,
+        },
+        /// Second phase: publish the prepared credential the commitment
+        /// names to every process sharing the store.
+        RotateCommit {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+            /// The commitment `rotate-prepare` printed.
+            #[arg(long)]
+            commitment: String,
+        },
         /// Operator-only: create the observer signing key in gateway state.
         ObserverInit {
             #[arg(long)]
@@ -500,6 +525,10 @@ mod unix {
         status: Option<GatewayAdminStatus>,
         #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<GatewaySubmitResult>,
+        /// The reference commitment of a prepared successor. It names the
+        /// stored secret without revealing it or where it is kept.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        commitment: Option<String>,
     }
 
     impl AdminResponse {
@@ -512,6 +541,7 @@ mod unix {
                 in_flight: None,
                 status: None,
                 result: None,
+                commitment: None,
             }
         }
 
@@ -1121,6 +1151,8 @@ mod unix {
         Enable,
         Revoke,
         Rotate(Zeroizing<Vec<u8>>),
+        RotatePrepare(Zeroizing<Vec<u8>>),
+        RotateCommit([u8; 32]),
         Status,
         Reobserve(String),
     }
@@ -1143,21 +1175,45 @@ mod unix {
             AdminRequestCommand::Reobserve { operation_id } => {
                 Ok(AdminCommand::Reobserve(operation_id))
             }
-            AdminRequestCommand::Rotate {} => {
-                let mut secret = clock
-                    .read_frame(stream)
-                    .await
-                    .map_err(|_| "gateway.admin.invalid-credential")?;
-                if secret.is_empty()
-                    || secret.len() > 4_096
-                    || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte))
+            AdminRequestCommand::Rotate {} => read_admin_secret(clock, stream)
+                .await
+                .map(AdminCommand::Rotate),
+            AdminRequestCommand::RotatePrepare {} => read_admin_secret(clock, stream)
+                .await
+                .map(AdminCommand::RotatePrepare),
+            AdminRequestCommand::RotateCommit { commitment } => {
+                let mut bytes = [0_u8; 32];
+                let lowercase = commitment
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+                if commitment.len() != 64
+                    || !lowercase
+                    || hex::decode_to_slice(&commitment, &mut bytes).is_err()
                 {
-                    secret.zeroize();
-                    return Err("gateway.admin.invalid-credential");
+                    return Err("gateway.admin.invalid-frame");
                 }
-                Ok(AdminCommand::Rotate(Zeroizing::new(secret)))
+                Ok(AdminCommand::RotateCommit(bytes))
             }
         }
+    }
+
+    /// Reads the secret frame a rotation carries.
+    async fn read_admin_secret(
+        clock: &SessionClock,
+        stream: &mut UnixStream,
+    ) -> Result<Zeroizing<Vec<u8>>, &'static str> {
+        let mut secret = clock
+            .read_frame(stream)
+            .await
+            .map_err(|_| "gateway.admin.invalid-credential")?;
+        if secret.is_empty()
+            || secret.len() > 4_096
+            || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte))
+        {
+            secret.zeroize();
+            return Err("gateway.admin.invalid-credential");
+        }
+        Ok(Zeroizing::new(secret))
     }
 
     /// Serves one admin connection within [`ADMIN_SESSION_LIMITS`]. The peer
@@ -1174,6 +1230,19 @@ mod unix {
                 Ok(AdminCommand::Revoke) => AdminResponse::of(engine.revoke_connection().await),
                 Ok(AdminCommand::Rotate(secret)) => {
                     AdminResponse::of(engine.rotate_connection(secret).await)
+                }
+                Ok(AdminCommand::RotatePrepare(secret)) => {
+                    match engine.prepare_rotation(secret).await {
+                        Ok(commitment) => AdminResponse {
+                            ok: true,
+                            commitment: Some(hex::encode(commitment)),
+                            ..AdminResponse::refused("gateway.admin.rotation-prepared")
+                        },
+                        Err(code) => AdminResponse::refused(code),
+                    }
+                }
+                Ok(AdminCommand::RotateCommit(commitment)) => {
+                    AdminResponse::of(engine.commit_rotation(commitment).await)
                 }
                 Ok(AdminCommand::Status) => match engine.status().await {
                     Ok(status) => AdminResponse {
@@ -1711,6 +1780,7 @@ mod unix {
         state_dir: &Path,
         admin_socket: &AdminSocket,
         credential_stdin: bool,
+        command: &str,
     ) -> Result<(), Failure> {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.admin.credential-must-be-piped-to-stdin".into());
@@ -1734,7 +1804,7 @@ mod unix {
         admin_command(
             state_dir,
             admin_socket,
-            serde_json::json!({"command": "rotate"}),
+            serde_json::json!({"command": command}),
             Some(bytes.as_slice()),
         )
         .await
@@ -2112,7 +2182,35 @@ mod unix {
                 credential_stdin,
             } => {
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
-                rotate(&state_dir, &admin_socket, credential_stdin).await
+                rotate(&state_dir, &admin_socket, credential_stdin, "rotate").await
+            }
+            Command::RotatePrepare {
+                state_dir,
+                admin_socket,
+                credential_stdin,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                rotate(
+                    &state_dir,
+                    &admin_socket,
+                    credential_stdin,
+                    "rotate-prepare",
+                )
+                .await
+            }
+            Command::RotateCommit {
+                state_dir,
+                admin_socket,
+                commitment,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                admin_command(
+                    &state_dir,
+                    &admin_socket,
+                    serde_json::json!({"command": "rotate-commit", "commitment": commitment}),
+                    None,
+                )
+                .await
             }
             Command::ObserverInit { state_dir } => observer_init(&state_dir),
             Command::ObserverShow { state_dir } => observer_show(&state_dir),

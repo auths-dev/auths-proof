@@ -273,9 +273,14 @@ pub trait ConnectionCredentialStore: Send + Sync {
     ) -> Result<(), CredentialStoreError>;
 
     /// Deletes, best effort, the generations of the binding's connection
-    /// that no generation from the binding's onward can need. A store that
-    /// cannot enumerate its generations deletes nothing; its caller revokes
-    /// exact generations instead.
+    /// that nothing from the binding onward can need: every generation older
+    /// than the binding's credential generation, and every generation after
+    /// it up to the binding's generation. The second group is a successor
+    /// that was stored and never published; the record has since moved past
+    /// it, so no record can ever name it. The credential generation itself
+    /// and anything newer than the binding's generation are kept. A store
+    /// that cannot enumerate its generations deletes nothing; its caller
+    /// revokes exact generations instead.
     async fn retire_superseded(
         &self,
         binding: &CredentialBinding,
@@ -503,12 +508,15 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
         binding: &CredentialBinding,
     ) -> Result<(), CredentialStoreError> {
         let id = binding.connection_id().as_str();
-        let keep = binding.credential_generation().get();
+        let serving = binding.credential_generation().get();
+        let reached = binding.generation().get();
         let mut entries = self
             .entries
             .write()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        entries.retain(|(connection, generation), _| connection != id || *generation >= keep);
+        entries.retain(|(connection, generation), _| {
+            connection != id || *generation == serving || *generation > reached
+        });
         Ok(())
     }
 
@@ -1067,7 +1075,15 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
         &self,
         binding: &CredentialBinding,
     ) -> Result<(), CredentialStoreError> {
-        self.retain_generations(binding.connection_id(), &[binding.generation()])
+        let serving = binding.credential_generation().get();
+        let reached = binding.generation().get();
+        self.delete_generations(binding.connection_id(), |generations| {
+            generations
+                .iter()
+                .copied()
+                .filter(|stored| *stored != serving && *stored <= reached)
+                .collect()
+        })
     }
 
     async fn delete_connection(
@@ -1723,12 +1739,28 @@ mod generation_tests {
         );
         assert_eq!(ready(store.holds(&rotated)), Ok(()));
 
+        // A successor stored at 5 and never published, then a state change
+        // to 5: retiring must drop the orphan and keep the live credential.
+        ready(store.replace(&id, generation(4), generation(5), secret(b"unpublished"))).unwrap();
+        let moved_past = binding_at(5, 4, second).credential();
+        assert_eq!(
+            ready(store.holds(&moved_past)),
+            Err(CredentialStoreError::Unavailable),
+            "an unpublished successor at the record's generation blocks the lease"
+        );
+        assert_eq!(ready(store.retire_superseded(&moved_past)), Ok(()));
+        assert_eq!(
+            ready(store.holds(&moved_past)),
+            Ok(()),
+            "retiring removes the orphan and never the credential that serves"
+        );
+
         assert_eq!(
             ready(store.delete_connection(&id, &[generation(4)])),
             Ok(())
         );
         assert_eq!(
-            ready(store.holds(&rotated)),
+            ready(store.holds(&moved_past)),
             Err(CredentialStoreError::Unavailable)
         );
         assert_eq!(

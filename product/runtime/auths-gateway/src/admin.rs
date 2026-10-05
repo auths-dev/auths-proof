@@ -1,6 +1,7 @@
 //! The operator socket's request frame: one JSON object with exactly the
 //! schema, the command, and that command's arguments. A secret, which only
-//! `rotate` carries, travels in a second frame and never in this one.
+//! `rotate` and `rotate-prepare` carry, travels in a second frame and never
+//! in this one.
 
 use serde::Deserialize;
 
@@ -23,6 +24,15 @@ pub enum AdminRequestCommand {
     Revoke {},
     /// Rotate the credential; the secret follows in a second frame.
     Rotate {},
+    /// Store a successor credential without publishing it; the secret
+    /// follows in a second frame. Answers with its reference commitment.
+    RotatePrepare {},
+    /// Publish the prepared successor the commitment names.
+    RotateCommit {
+        /// The reference commitment `rotate-prepare` answered with, as 64
+        /// lowercase hexadecimal characters.
+        commitment: String,
+    },
     /// Report connection state.
     Status {},
     /// Re-observe one logical operation, read-only.
@@ -45,4 +55,42 @@ pub fn parse_admin_request(bytes: &[u8]) -> Result<AdminRequestCommand, &'static
         return Err(invalid);
     }
     serde_json::from_value(serde_json::Value::Object(request)).map_err(|_| invalid)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(command: &str) -> Result<AdminRequestCommand, &'static str> {
+        parse_admin_request(
+            format!("{{\"schema\":\"{ADMIN_REQUEST_SCHEMA}\",{command}}}").as_bytes(),
+        )
+    }
+
+    #[test]
+    fn two_phase_rotation_frames_are_closed() {
+        assert_eq!(
+            parse("\"command\":\"rotate-prepare\""),
+            Ok(AdminRequestCommand::RotatePrepare {})
+        );
+        assert_eq!(
+            parse("\"command\":\"rotate-commit\",\"commitment\":\"ab\""),
+            Ok(AdminRequestCommand::RotateCommit {
+                commitment: "ab".to_owned()
+            })
+        );
+        for refused in [
+            "\"command\":\"rotate-commit\"",
+            "\"command\":\"rotate-prepare\",\"commitment\":\"ab\"",
+            "\"command\":\"rotate-prepare\",\"secret\":\"s\"",
+            "\"command\":\"rotate-commit\",\"commitment\":\"ab\",\"generation\":2",
+            "\"command\":\"rotate-rollback\"",
+        ] {
+            assert_eq!(
+                parse(refused),
+                Err("gateway.admin.invalid-frame"),
+                "{refused}"
+            );
+        }
+    }
 }

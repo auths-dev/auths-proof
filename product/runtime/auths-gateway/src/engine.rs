@@ -239,8 +239,22 @@ pub struct GatewayEngine {
     /// The gateway clock of the last successful slot sweep; zero before one.
     last_sweep: AtomicU64,
     drain_limit: Duration,
+    /// How long a superseded credential generation is kept after the shared
+    /// record commits its successor.
+    retirement_delay: Duration,
+    /// Superseded generations this process still has to retire.
+    retirements: std::sync::Mutex<Vec<Retirement>>,
     #[cfg(feature = "loopback-provider")]
     loopback_port: Option<u16>,
+}
+
+/// One superseded credential generation and when it may be revoked.
+struct Retirement {
+    due: Instant,
+    /// The record that superseded it.
+    successor: auths_connections::CredentialBinding,
+    /// The exact generation to revoke, when this process knows it.
+    superseded: Option<std::num::NonZeroU64>,
 }
 
 /// The shared record a submission loaded before its claim, and the
@@ -289,6 +303,8 @@ impl GatewayEngine {
             in_flight: AtomicU64::new(0),
             last_sweep: AtomicU64::new(0),
             drain_limit: DRAIN_LIMIT,
+            retirement_delay: crate::CredentialRetirementDelay::FIXED.as_duration(),
+            retirements: std::sync::Mutex::new(Vec::new()),
             #[cfg(feature = "loopback-provider")]
             loopback_port: None,
         })
@@ -476,37 +492,120 @@ impl GatewayEngine {
         if self.holds(record).await.is_err() {
             return self.accept_rotation(record, secret).await;
         }
-        if record.state() != ConnectionState::Active {
-            return Err("gateway.admin.connection-not-active");
+        let commitment = self.store_successor(record, secret).await?;
+        let committed = self.commit_successor(&current, commitment).await;
+        if committed.is_err()
+            && let Some(next) =
+                auths_connections::kernel::next_generation(record.generation().get())
+                    .and_then(std::num::NonZeroU64::new)
+        {
+            // A one-step rotation has no later commit, so its unpublished
+            // successor is discarded now rather than by the next prepare.
+            let _ = self.credentials.revoke(record.connection_id(), next).await;
         }
+        committed
+    }
+
+    /// Stores `secret` at the generation after `record`'s without changing
+    /// the shared record, and returns its reference commitment. Nothing
+    /// leases the stored secret until a commit publishes it.
+    async fn store_successor(
+        &self,
+        record: &ConnectionRecord,
+        secret: SecretBytes,
+    ) -> Result<[u8; 32], &'static str> {
         let next = auths_connections::kernel::next_generation(record.generation().get())
             .and_then(std::num::NonZeroU64::new)
             .ok_or("gateway.admin.generation-exhausted")?;
         // Nothing can name a generation the record has not reached, so a
         // successor left by an earlier failed rotation is discarded, not reused.
         let _ = self.credentials.revoke(record.connection_id(), next).await;
-        let commitment = self
-            .credentials
+        self.credentials
             .replace(record.connection_id(), record.generation(), next, secret)
             .await
-            .map_err(|_| "gateway.admin.credential-unavailable")?;
-        match self
-            .publish_rotation(&current, *commitment.as_bytes())
-            .await
-        {
+            .map(|commitment| *commitment.as_bytes())
+            .map_err(|_| "gateway.admin.credential-unavailable")
+    }
+
+    /// Publishes the stored successor whose commitment is `commitment`, then
+    /// schedules the superseded generation for retirement.
+    async fn commit_successor(
+        &self,
+        current: &LoadedConnection,
+        commitment: [u8; 32],
+    ) -> Result<GatewayAdminOutcome, &'static str> {
+        let record = current.record();
+        match self.publish_rotation(current, commitment).await {
             Ok(rotated) => {
+                self.schedule_retirement(&rotated, Some(record.credential_generation()));
                 self.delete_superseded_credentials(&rotated).await;
                 Ok(self.drained("gateway.admin.rotated").await)
             }
             Err(code) => {
-                // The record still names its previous secret. If this deletion
-                // fails too, the unpublished successor still cannot be leased:
-                // it is newer than the credential generation, so no record
-                // selects it, and the next rotation supersedes it.
-                let _ = self.credentials.revoke(record.connection_id(), next).await;
+                // The record still names its previous secret. An unpublished
+                // successor cannot be leased: it is newer than the credential
+                // generation, so no record selects it, and the next prepare
+                // discards it.
                 Err(code)
             }
         }
+    }
+
+    /// The first phase of a two-phase rotation: checks the candidate against
+    /// the recipe's declared credential checks, stores it at the next
+    /// generation, and returns its reference commitment. The shared record
+    /// is unchanged, so every process keeps serving the current credential.
+    /// It works on a disabled connection, which is how a possibly
+    /// compromised credential is replaced.
+    ///
+    /// # Errors
+    /// A refused candidate, a revoked connection, or a process that does not
+    /// serve the current credential stores nothing.
+    pub async fn prepare_rotation(
+        &self,
+        candidate: zeroize::Zeroizing<Vec<u8>>,
+    ) -> Result<[u8; 32], &'static str> {
+        let current = self.load_for_admin().await?;
+        let record = current.record();
+        if record.state() == ConnectionState::Revoked {
+            return Err("gateway.admin.connection-not-active");
+        }
+        crate::onboarding::check_candidate_credential(
+            &self.recipe,
+            self.recipe.review().credential(),
+            &candidate,
+            crate::onboarding::OnboardingAccount::Commitment(*record.account_commitment()),
+        )
+        .await
+        .map_err(crate::onboarding::OnboardingFailure::admin_code)?;
+        let mut candidate = candidate;
+        let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+            .map_err(|_| "gateway.admin.invalid-credential")?;
+        if self.holds(record).await.is_err() {
+            return Err("gateway.admin.credential-unavailable");
+        }
+        self.store_successor(record, secret).await
+    }
+
+    /// The second phase: replaces the credential generation and reference
+    /// commitment in the shared record with one compare-and-swap, only when
+    /// the store holds, at the next generation, exactly the secret
+    /// `commitment` names. The superseded generation is kept for the
+    /// retirement delay.
+    ///
+    /// # Errors
+    /// Returns `gateway.admin.rotation-not-prepared` when no such secret is
+    /// stored, which includes a record that changed since the prepare; the
+    /// operator prepares again. A lost compare-and-swap changes nothing.
+    pub async fn commit_rotation(
+        &self,
+        commitment: [u8; 32],
+    ) -> Result<GatewayAdminOutcome, &'static str> {
+        let current = self.load_for_admin().await?;
+        if current.record().state() == ConnectionState::Revoked {
+            return Err("gateway.admin.connection-not-active");
+        }
+        self.commit_successor(&current, commitment).await
     }
 
     /// Takes the secret a rotation through another process committed.
@@ -526,6 +625,7 @@ impl GatewayEngine {
             }
             Err(_) => return Err("gateway.admin.credential-unavailable"),
         }
+        self.schedule_retirement(record, None);
         self.delete_superseded_credentials(record).await;
         // Taking a secret changes no shared state, so nothing is drained.
         let in_flight = self.in_flight();
@@ -551,6 +651,15 @@ impl GatewayEngine {
                 timestamp,
             )
             .map_err(|_| "gateway.admin.transition-unavailable")?;
+        // The record may only name a credential the store really serves.
+        if self
+            .credentials
+            .holds(&replacement.credential_binding())
+            .await
+            .is_err()
+        {
+            return Err("gateway.admin.rotation-not-prepared");
+        }
         match self.connection.replace(current, &replacement).await {
             Ok(committed) => Ok(committed.record().clone()),
             Err(SharedConnectionError::Conflict) => Err("gateway.admin.generation-conflict"),
@@ -562,10 +671,61 @@ impl GatewayEngine {
     /// older one. Best effort: a failed deletion is repeated by the next
     /// rotation, disable, or revoke.
     async fn delete_superseded_credentials(&self, current: &ConnectionRecord) {
-        let _ = self
-            .credentials
-            .retire_superseded(&current.credential_binding())
-            .await;
+        self.collect_retired(current, Instant::now()).await;
+    }
+
+    /// Remembers that `successor` superseded a credential generation, which
+    /// may be revoked once the retirement delay has passed.
+    fn schedule_retirement(
+        &self,
+        successor: &ConnectionRecord,
+        superseded: Option<std::num::NonZeroU64>,
+    ) {
+        if let Ok(mut retirements) = self.retirements.lock() {
+            retirements.push(Retirement {
+                due: Instant::now() + self.retirement_delay,
+                successor: successor.credential_binding(),
+                superseded,
+            });
+        }
+    }
+
+    /// Retires every superseded generation that is due at `now`: revokes the
+    /// exact generation where it is known, then lets the store delete what
+    /// nothing can need. While a retirement is still pending nothing older
+    /// is deleted, so an attempt admitted before the commit keeps its whole
+    /// generation. Best effort: a failed deletion is repeated by the next
+    /// rotation, disable, or revoke.
+    async fn collect_retired(&self, current: &ConnectionRecord, now: Instant) {
+        let (due, pending) = match self.retirements.lock() {
+            Ok(mut retirements) => {
+                let (due, kept): (Vec<_>, Vec<_>) = retirements
+                    .drain(..)
+                    .partition(|retirement| retirement.due <= now);
+                let pending = !kept.is_empty();
+                *retirements = kept;
+                (due, pending)
+            }
+            Err(_) => return,
+        };
+        for retirement in due {
+            if let Some(generation) = retirement.superseded {
+                let _ = self
+                    .credentials
+                    .revoke(retirement.successor.connection_id(), generation)
+                    .await;
+            }
+            let _ = self
+                .credentials
+                .retire_superseded(&retirement.successor)
+                .await;
+        }
+        if !pending {
+            let _ = self
+                .credentials
+                .retire_superseded(&current.credential_binding())
+                .await;
+        }
     }
 
     /// Whether this process's credential store serves `record`.
@@ -1371,6 +1531,8 @@ mod tests {
                 attempts,
             )
             .expect("engine");
+            let mut engine = engine;
+            engine.retirement_delay = Duration::ZERO;
             Host {
                 _state: state,
                 credentials_directory,
@@ -1539,6 +1701,140 @@ mod tests {
             assert_eq!(
                 host.entry_refusal().await.as_deref(),
                 Some("gateway.connection.unavailable")
+            );
+        }
+
+        #[tokio::test]
+        async fn a_prepared_rotation_changes_nothing_until_it_is_committed() {
+            let installation = installation(8).await;
+            let host = &installation.first;
+            let id = &installation.connection_id;
+            let before = host.engine.status().await.expect("status");
+
+            let commitment = host
+                .engine
+                .prepare_rotation(candidate("prepared-secret"))
+                .await
+                .expect("prepare");
+            let prepared = host.engine.status().await.expect("status");
+            assert_eq!(
+                prepared.generation, before.generation,
+                "the record is unchanged"
+            );
+            assert_eq!(prepared.credential_generation, before.credential_generation);
+            assert!(
+                prepared.credential_held,
+                "the current credential still serves"
+            );
+            assert_eq!(
+                host.stored(id).len(),
+                2,
+                "the successor is stored beside it"
+            );
+            assert!(host.entry_refusal().await.is_none());
+
+            assert_eq!(
+                host.engine.commit_rotation([9; 32]).await.unwrap_err(),
+                "gateway.admin.rotation-not-prepared",
+                "a commitment the store does not hold commits nothing"
+            );
+            assert_eq!(
+                host.engine.status().await.expect("status").generation,
+                before.generation
+            );
+
+            let outcome = host
+                .engine
+                .commit_rotation(commitment)
+                .await
+                .expect("commit");
+            assert_eq!(outcome.code, "gateway.admin.rotated");
+            let rotated = host.engine.status().await.expect("status");
+            assert_eq!(rotated.generation, before.generation + 1);
+            assert_eq!(rotated.credential_generation, before.generation + 1);
+            assert!(rotated.credential_held);
+            assert_eq!(
+                host.engine.commit_rotation(commitment).await.unwrap_err(),
+                "gateway.admin.rotation-not-prepared",
+                "a commit is not repeatable"
+            );
+        }
+
+        #[tokio::test]
+        async fn a_record_that_changed_since_the_prepare_is_not_committed() {
+            let installation = installation(8).await;
+            let host = &installation.first;
+            let commitment = host
+                .engine
+                .prepare_rotation(candidate("prepared-secret"))
+                .await
+                .expect("prepare");
+            host.engine.disable_connection().await.expect("disable");
+            assert_eq!(
+                host.engine.commit_rotation(commitment).await.unwrap_err(),
+                "gateway.admin.rotation-not-prepared",
+                "the successor was stored for the generation before the disable"
+            );
+            // The emergency flow: rotate while disabled, then enable.
+            let again = host
+                .engine
+                .prepare_rotation(candidate("prepared-secret"))
+                .await
+                .expect("prepare while disabled");
+            host.engine
+                .commit_rotation(again)
+                .await
+                .expect("commit while disabled");
+            host.engine.enable_connection().await.expect("enable");
+            assert!(host.engine.status().await.expect("status").credential_held);
+            assert!(host.entry_refusal().await.is_none());
+        }
+
+        #[tokio::test]
+        async fn a_superseded_generation_is_kept_for_the_retirement_delay() {
+            let installation = installation(8).await;
+            let mut first = installation.first;
+            let id = installation.connection_id.clone();
+            first.engine.retirement_delay = crate::CredentialRetirementDelay::FIXED.as_duration();
+            let before = first.stored(&id);
+            first
+                .engine
+                .rotate_connection(candidate("rotated-secret"))
+                .await
+                .expect("rotate");
+            let mut kept = before.clone();
+            kept.push(before[before.len() - 1] + 1);
+            assert_eq!(
+                first.stored(&id),
+                kept,
+                "the old generation is still stored"
+            );
+
+            let record = first
+                .engine
+                .load_for_admin()
+                .await
+                .expect("record")
+                .record()
+                .clone();
+            let committed = Instant::now();
+            first
+                .engine
+                .collect_retired(&record, committed + Duration::from_secs(19))
+                .await;
+            assert_eq!(
+                first.stored(&id),
+                kept,
+                "19 seconds after the commit it is kept"
+            );
+            first
+                .engine
+                .collect_retired(&record, committed + Duration::from_secs(21))
+                .await;
+            assert_eq!(
+                first.stored(&id),
+                [kept[kept.len() - 1]],
+                "after the delay only the current generation remains"
             );
         }
 
