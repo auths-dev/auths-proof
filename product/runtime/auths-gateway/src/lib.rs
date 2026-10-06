@@ -52,6 +52,8 @@ mod quorum_tests;
 #[cfg(test)]
 mod scenario_tests;
 #[cfg(test)]
+mod simulation_attestation;
+#[cfg(test)]
 mod store_testkit;
 
 pub use audit::{

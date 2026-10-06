@@ -17,6 +17,7 @@ REPORTS = (
     "stripe-refund-v1.json",
     "airtable-record-update-v1.json",
     "bootstrap/simulation.json",
+    "provider-signature-verification.json",
 )
 
 
@@ -65,6 +66,7 @@ def main() -> None:
             parser.error("candidate harness digest mismatch")
         source_dirty = False
         command = [str(harness), "qualification_simulation", "--nocapture"]
+        verification = [str(harness), "qualification_tests::verify_simulation_reports", "--exact", "--nocapture"]
         working_directory = output
     else:
         source_commit = subprocess.check_output(
@@ -76,6 +78,8 @@ def main() -> None:
         harness_sha256 = None
         command = [args.cargo, "test", "--locked", "-p", "auths-gateway",
             "--features", "loopback-provider", "--lib", "qualification_simulation", "--", "--nocapture"]
+        verification = command[:command.index("qualification_simulation")] + [
+            "qualification_tests::verify_simulation_reports", "--", "--exact", "--nocapture"]
         working_directory = repository
     # Provider and signing credentials are not needed and do not reach tests.
     environment = {
@@ -85,12 +89,13 @@ def main() -> None:
     environment["AUTHS_QUALIFICATION_SIMULATION_OUTPUT"] = str(output)
     started = time.monotonic()
     with tempfile.TemporaryFile() as log:
-        result = subprocess.run(command, cwd=working_directory, env=environment, stdout=log, stderr=subprocess.STDOUT,
-            timeout=1800, check=False)
-        if result.returncode:
-            log.seek(0, os.SEEK_END)
-            log.seek(max(0, log.tell() - 8192))
-            raise SystemExit(log.read().decode("utf-8", errors="replace"))
+        for stage in (command, verification):
+            result = subprocess.run(stage, cwd=working_directory, env=environment, stdout=log, stderr=subprocess.STDOUT,
+                timeout=1800, check=False)
+            if result.returncode:
+                log.seek(0, os.SEEK_END)
+                log.seek(max(0, log.tell() - 8192))
+                raise SystemExit(log.read().decode("utf-8", errors="replace"))
     summaries = []
     for name in REPORTS:
         path = output / name
@@ -106,6 +111,13 @@ def main() -> None:
         record = json.loads(path.read_bytes())
         if record["excluded_claims"] != ["everything: this record stands for no run"]:
             raise SystemExit("bootstrap fixture scope changed")
+    # The second native stage re-reads and cryptographically verifies these
+    # exact files after both family runs complete. They are detached simulation
+    # signatures, with no production root or protected-run authority.
+    for family in ("stripe-refund-v1", "airtable-record-update-v1"):
+        signature = output / f"{family}.attestation.json"
+        if signature.is_symlink() or signature.stat().st_size > 4096:
+            raise SystemExit("invalid simulation signature")
     public_members = []
     for path in sorted(output.rglob("*.json")):
         if path.is_symlink() or path.stat().st_size > 1_048_576:
@@ -122,6 +134,7 @@ def main() -> None:
         "families": [summary.get("family") for summary in summaries[:2]],
         "provider_case_count": sum(len(summary["cases"]) for summary in summaries[:2]),
         "public_artifacts": public_members,
+        "provider_reports": "detached simulation signatures verified from published bytes",
         "keys": "generated in memory and zeroized; no private key files",
         "excluded_claims": ["protected live evidence", "production qualification", "human acceptance"],
     }

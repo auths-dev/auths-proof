@@ -1677,7 +1677,11 @@ import. Unsigned and expired inputs cannot lease; verified test import can.
 The signed placeholder records explicitly claim no provider run. Separate
 Stripe and Airtable harness reports measure actual native driver leases, entries,
 fresh read-back, replay, reopen, response loss and response-record crash against
-independent wire oracles and mutable doubles. The production pinned root stays
+independent wire oracles and mutable doubles. Each measured provider report
+also has a detached signature under a fresh self-signed simulation key; the
+runner re-reads and verifies the exact published bytes in a separate native
+stage. These signatures have no production or protected-run authority.
+The production pinned root stays
 unchanged and stable launch readiness stays false. The rehearsal is a maintained
 CI job and needs no external credentials.
 

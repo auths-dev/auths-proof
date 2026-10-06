@@ -41,7 +41,9 @@ manifest contract requires exactly one digest-bound projection.
 The owner assigned the agent an independent operator simulation, including the
 first signing ceremony and both provider harnesses. `simulation/run.py` performs
 that work with fresh in-memory signing keys, explicit placeholder trust-machine
-records and measured provider-driver reports. It imports signed fixtures under
+records and measured provider-driver reports. Detached simulation signatures
+bind the measured report bytes and are verified after publication. Their keys
+are explicitly self-signed and have no protected-run authority. It imports signed fixtures under
 required test trust and measures real engine credential-store calls. No private
 keys or production trust inputs are written. This work does not wait for a human
 ceremony or real provider credentials.

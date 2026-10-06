@@ -117,6 +117,53 @@ async fn an_engine_without_a_configured_gate_leases_nothing() {
     assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
 }
 
+#[test]
+fn verify_simulation_reports() {
+    use sha2::Digest as _;
+    use std::io::Read as _;
+
+    let Some(directory) = std::env::var_os("AUTHS_QUALIFICATION_SIMULATION_OUTPUT") else {
+        return;
+    };
+    let directory = std::path::PathBuf::from(directory);
+    let bounded = |path: &std::path::Path, maximum: u64| {
+        assert!(
+            std::fs::symlink_metadata(path)
+                .expect("metadata")
+                .file_type()
+                .is_file()
+        );
+        let mut bytes = Vec::new();
+        std::fs::File::open(path)
+            .expect("public file")
+            .take(maximum + 1)
+            .read_to_end(&mut bytes)
+            .expect("bounded public file");
+        assert!(bytes.len() as u64 <= maximum);
+        bytes
+    };
+    let mut verified = Vec::new();
+    for family in ["stripe-refund-v1", "airtable-record-update-v1"] {
+        let report = bounded(&directory.join(format!("{family}.json")), 1_048_576);
+        let signature = bounded(&directory.join(format!("{family}.attestation.json")), 4096);
+        assert!(crate::simulation_attestation::verify(&report, &signature));
+        verified.push(
+            json!({"family": family, "report_sha256": hex::encode(sha2::Sha256::digest(&report)),
+            "signature_sha256": hex::encode(sha2::Sha256::digest(&signature))}),
+        );
+    }
+    std::fs::write(
+        directory.join("provider-signature-verification.json"),
+        serde_json::to_vec_pretty(
+            &json!({"schema": "auths.provider-simulation-signature-verification/1",
+            "simulation": true, "stable_launch_ready": false, "verified": verified,
+            "scope": "detached self-signed simulation reports; no production trust"}),
+        )
+        .expect("verification report"),
+    )
+    .expect("write verification report");
+}
+
 /// Rehearses the first ceremony under fresh ephemeral trust. The signed
 /// records are deliberately the issuance testkit's placeholder records;
 /// their excluded claim says they stand for no provider run. Family driver

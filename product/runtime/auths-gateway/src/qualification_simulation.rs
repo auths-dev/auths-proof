@@ -235,11 +235,15 @@ fn publish(family: Family, recipe: &CompiledRecipe, cases: &[Measurement]) {
     if let Some(directory) = std::env::var_os("AUTHS_QUALIFICATION_SIMULATION_OUTPUT") {
         let directory = std::path::PathBuf::from(directory);
         std::fs::create_dir_all(&directory).expect("report directory");
+        let bytes = serde_json::to_vec_pretty(&report).expect("report");
+        let signature = crate::simulation_attestation::sign(&bytes, family.name());
+        std::fs::write(directory.join(format!("{}.json", family.name())), bytes)
+            .expect("write report");
         std::fs::write(
-            directory.join(format!("{}.json", family.name())),
-            serde_json::to_vec_pretty(&report).expect("report"),
+            directory.join(format!("{}.attestation.json", family.name())),
+            signature,
         )
-        .expect("write report");
+        .expect("write detached simulation signature");
     }
 }
 

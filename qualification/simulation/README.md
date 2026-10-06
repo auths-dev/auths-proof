@@ -15,6 +15,11 @@ recipes and drive the native submission driver over durable file claims and
 mutable counting providers. Independent vertical wire oracles check the actual
 method, URL, headers, body and idempotency commitment before each write. Reports
 measure credential leases, write entries and fresh read-back confirmations.
+Each measured report has a detached Ed25519 simulation attestation from a fresh
+in-memory key. A separate native stage re-reads the published files and verifies
+their signatures and report digests. Changed bytes or simulation scope refuse.
+These self-signed reports have no production or protected-run signing authority;
+the disposable root ceremony below exercises that separate trust machinery.
 They exercise exact writes, original/fresh proof replay, reopening the store,
 lost responses, and crashes before the response record is durable.
 
