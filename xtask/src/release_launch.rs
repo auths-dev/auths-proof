@@ -175,6 +175,7 @@ pub(crate) fn projection(repository: &Path, commit: &str) -> Result<Value, Strin
         return Ok(report);
     };
     let candidate = candidate(repository, commit)?;
+    report["evaluated_at"] = json!(now);
     report["target"] =
         serde_json::to_value(&candidate.target).map_err(|_| "candidate target unencodable")?;
     match evaluate(repository, &candidate, &root, now) {

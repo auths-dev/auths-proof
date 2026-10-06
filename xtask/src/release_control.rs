@@ -178,6 +178,7 @@ fn finalize_preparation(
             "conformance": [
                 digest_reference("target/release-evidence/platform.json")?,
                 digest_reference("target/compliance/report.json")?,
+                digest_reference("target/release-evidence/launch-readiness.json")?,
             ],
             "benchmarks": [
                 digest_reference("demos/benchmarks/profiles/release.toml")?,
