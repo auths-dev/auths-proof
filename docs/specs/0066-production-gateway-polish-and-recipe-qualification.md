@@ -1646,7 +1646,11 @@ source-free packaged simulation passed 47 steps in Docker against the verified
 `f1f92c3f` package after fixing development file-rotation and tuple-declaration
 friction. The sanitized report is
 `deployment/gateway/evidence/operator-simulation-2026-10-06.json`.
-Exact-current-commit hosted verification remains pending; no live provider,
+The exact `393edc52` candidate subsequently passed all 26 main CI jobs and the
+six package/isolation/PostgreSQL/recipe/SDK workflows. Its source-free hosted
+rehearsal passed all 47 steps in 0.553 seconds, and the downloaded archive passed
+the same 47 steps in Docker in 6.162 seconds. PR #205 merged as `4623d635` on
+2026-10-06 under the owner's labeled-simulation deliverable. No live provider,
 production AWS rotation or production PostgreSQL PITR is claimed by this run.
 Epic 5
 also lacks the owner's offline root ceremony, protected signer secret,

@@ -435,5 +435,8 @@ ADR 0014 (Stripe Connect refund) and ADR 0015 (Airtable field update) remain
 proposed; neither has an executable protected family corpus or a qualification.
 The documented first-attestation bootstrap cycle and reviewed dynamic resource
 binding must be resolved before live qualification. The production lease gate
-has not been relaxed. GitHub verification and Epic 4's current main CI are still
-pending; the passing Docker simulation does not close these live gates.
+has not been relaxed. Epic 4's exact `393edc52` candidate passed all 26 main CI
+jobs plus the six package/isolation/PostgreSQL/recipe/SDK workflows and the
+47-step Docker rehearsal. PR #205 merged on 2026-10-06 as `4623d635` under the
+owner's labeled-simulation deliverable. Production live and human claims remain
+explicitly unexercised. Epic 5's current GitHub verification remains pending.
