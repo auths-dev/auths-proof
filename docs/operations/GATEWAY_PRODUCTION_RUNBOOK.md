@@ -141,7 +141,7 @@ updates running during the upgrade.
 
 ## Independent operator trial
 
-Give a person unfamiliar with this implementation only the signed packaged
+Give a person unfamiliar with this implementation only the verified packaged
 binaries, packages, public configuration and this runbook. Record participant
 identity/role, artifact digests, dates, timings, attempted commands, redacted
 reports and defects. They deploy both hosts, diagnose an unavailable credential,
