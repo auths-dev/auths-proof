@@ -234,6 +234,7 @@ pub struct GatewayEngine {
     profile: ConnectionProfile,
     connection: SharedConnection,
     credentials: Arc<dyn ConnectionCredentialStore>,
+    credential_journal: Option<crate::CredentialJournal>,
     /// Whether this deployment's recipe is qualified; consulted before every
     /// lease.
     qualification: Arc<crate::QualificationGate>,
@@ -302,6 +303,7 @@ impl GatewayEngine {
             profile,
             connection: SharedConnection::new(attempts.store(), provider, alias),
             credentials,
+            credential_journal: None,
             qualification: Arc::new(crate::QualificationGate::unconfigured()),
             attempts,
             in_flight: AtomicU64::new(0),
@@ -328,6 +330,81 @@ impl GatewayEngine {
     pub fn with_generation_floor(mut self, floor: crate::GenerationFloor) -> Self {
         self.connection = self.connection.with_generation_floor(floor);
         self
+    }
+
+    /// Attaches durable cleanup notes recorded before custody writes.
+    #[must_use]
+    pub fn with_credential_journal(mut self, journal: crate::CredentialJournal) -> Self {
+        self.credential_journal = Some(journal);
+        self
+    }
+
+    async fn note_credential(
+        &self,
+        record: &ConnectionRecord,
+        next: std::num::NonZeroU64,
+    ) -> Result<(), &'static str> {
+        if let Some(journal) = self.credential_journal.clone() {
+            let id = record.connection_id().clone();
+            let current = record.credential_generation();
+            tokio::task::spawn_blocking(move || {
+                journal.register(&id, current)?;
+                journal.register(&id, next)
+            })
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        }
+        Ok(())
+    }
+
+    /// Collects at most sixteen exact generations from durable notes. It
+    /// waits the fixed retirement delay after observing the shared record,
+    /// requires it unchanged, and never deletes its active credential or a
+    /// future prepared generation. Run under operator workload identity.
+    /// Existing attempts and provider state are never changed.
+    ///
+    /// # Errors
+    /// A damaged journal, changed connection or failed deletion refuses and
+    /// retains the obligation for a later operator run.
+    pub async fn collect_credentials(&self) -> Result<usize, &'static str> {
+        let journal = self
+            .credential_journal
+            .clone()
+            .ok_or("gateway.admin.credential-journal-unavailable")?;
+        let current = self.load_for_admin().await?;
+        let record = current.record().clone();
+        let id = record.connection_id().clone();
+        let reading = journal.clone();
+        let generations = tokio::task::spawn_blocking(move || reading.generations(&id))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        tokio::time::sleep(self.retirement_delay).await;
+        let latest = self.load_for_admin().await?;
+        if !latest.unchanged(&current) {
+            return Err("gateway.admin.generation-conflict");
+        }
+        let mut deleted = 0;
+        for generation in generations
+            .into_iter()
+            .filter(|generation| {
+                *generation <= record.generation()
+                    && (record.state() == ConnectionState::Revoked
+                        || *generation != record.credential_generation())
+            })
+            .take(16)
+        {
+            self.credentials
+                .revoke(record.connection_id(), generation)
+                .await
+                .map_err(|_| "gateway.admin.credential-deletion-incomplete")?;
+            let updating = journal.clone();
+            let id = record.connection_id().clone();
+            tokio::task::spawn_blocking(move || updating.forget(&id, generation))
+                .await
+                .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+            deleted += 1;
+        }
+        Ok(deleted)
     }
 
     /// Installs the qualification gate the operator plane built for this
@@ -541,6 +618,7 @@ impl GatewayEngine {
         let next = auths_connections::kernel::next_generation(record.generation().get())
             .and_then(std::num::NonZeroU64::new)
             .ok_or("gateway.admin.generation-exhausted")?;
+        self.note_credential(record, next).await?;
         // Nothing can name a generation the record has not reached, so a
         // successor left by an earlier failed rotation is discarded, not reused.
         let _ = self.credentials.revoke(record.connection_id(), next).await;
@@ -1928,6 +2006,85 @@ pub(crate) mod tests {
             assert_eq!(
                 floor.accept(&disabled),
                 Err("gateway.connection.restore-rollback")
+            );
+        }
+
+        #[tokio::test]
+        async fn durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets()
+        {
+            let mut installation = installation(8).await;
+            let host = &mut installation.first;
+            let record = host.record().await;
+            let journal = crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("private root")
+                    .to_path_buf(),
+            );
+            journal.initialize(record.connection_id()).expect("journal");
+            journal
+                .register(record.connection_id(), record.credential_generation())
+                .expect("initial note");
+            host.engine.credential_journal = Some(journal.clone());
+            host.engine
+                .prepare_rotation(candidate("abandoned-secret"))
+                .await
+                .expect("prepare");
+            assert_eq!(host.stored(&installation.connection_id), [1, 2]);
+            host.engine.disable_connection().await.expect("disable");
+            // Reopening notes models the operator process exiting after prepare.
+            host.engine.credential_journal = Some(crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("root")
+                    .to_path_buf(),
+            ));
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .expect("collect abandoned"),
+                1
+            );
+            assert_eq!(host.stored(&installation.connection_id), [1]);
+            host.engine
+                .rotate_connection(candidate("published-secret"))
+                .await
+                .expect("rotate while disabled");
+            host.engine
+                .collect_credentials()
+                .await
+                .expect("collect old");
+            assert_eq!(host.stored(&installation.connection_id), [3]);
+            host.engine
+                .prepare_rotation(candidate("future-secret"))
+                .await
+                .expect("prepare future");
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .expect("keep future"),
+                0
+            );
+            assert_eq!(host.stored(&installation.connection_id), [3, 4]);
+            let before = host.leases.load(Ordering::SeqCst);
+            host.engine
+                .connection
+                .stop(true, wall_clock_seconds().expect("clock"))
+                .await
+                .expect("store-only revoke");
+            host.engine
+                .collect_credentials()
+                .await
+                .expect("collect revoked");
+            assert!(host.stored(&installation.connection_id).is_empty());
+            assert_eq!(host.leases.load(Ordering::SeqCst), before);
+            assert!(
+                journal
+                    .generations(&installation.connection_id)
+                    .expect("notes")
+                    .is_empty()
             );
         }
 

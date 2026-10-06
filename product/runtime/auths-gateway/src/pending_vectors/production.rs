@@ -70,6 +70,7 @@ const ROWS: &[&str] = &[
     "gateway.readiness.transport-unavailable readiness doctor implemented 4 -",
     "gateway.readiness.observer-unavailable readiness doctor implemented 4 -",
     "gateway.connection.restore-rollback connection before-lease implemented 4 -",
+    "gateway.admin.credential-journal-unavailable operator before-custody implemented 4 -",
     "gateway.attempt.replay engine recorded existing - C:lease-never-precedes-claim",
     "gateway.connection.credential-generation-missing engine before-claim existing - C:lease-generation-not-held",
     "gateway.credential.unavailable engine recorded existing - C:lease-commitment-mismatch",

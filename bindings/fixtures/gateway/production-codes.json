@@ -2,6 +2,14 @@
   "schema": "auths.gateway-production-codes/1",
   "codes": [
     {
+      "code": "gateway.admin.credential-journal-unavailable",
+      "owner": "operator",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
       "code": "gateway.attempt.replay",
       "owner": "engine",
       "stage": "recorded",

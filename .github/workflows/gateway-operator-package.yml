@@ -52,7 +52,10 @@ jobs:
           bin/auths-gateway doctor --help
           bin/auths-qualification --help
       - name: Verify systemd unit syntax
-        run: systemd-analyze verify deployment/gateway/systemd/*.service deployment/gateway/systemd/*.timer
+        run: |
+          sudo install -D "$RUNNER_TEMP/operator/auths-gateway-operator/bin/auths-gateway" /opt/auths/bin/auths-gateway
+          sudo install -D "$RUNNER_TEMP/operator/auths-gateway-operator/bin/run-with-postgres-url" /opt/auths/bin/run-with-postgres-url
+          systemd-analyze verify deployment/gateway/systemd/*.service deployment/gateway/systemd/*.timer
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gateway-operator-package

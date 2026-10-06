@@ -13,6 +13,7 @@ mod audit;
 mod binding;
 mod bounds;
 mod connection;
+mod credential_journal;
 mod echo_verify;
 mod engine;
 #[cfg(feature = "fuzzing")]
@@ -70,6 +71,7 @@ pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
     install_connection, join_connection,
 };
+pub use credential_journal::CredentialJournal;
 pub use echo_verify::{
     ECHO_VERIFICATION_NOTE, ECHO_VERIFICATION_SCHEMA, EchoResult, EchoVerification,
     EchoVerifyError, MAX_ECHO_POINTER_BYTES, MAX_ECHO_RECORD_BYTES, canonical_action_commitment,

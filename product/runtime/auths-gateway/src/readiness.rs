@@ -9,6 +9,7 @@
 
 use crate::MAX_TRANSPORT_DURATION;
 use auths_connections::CredentialStoreKind;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Decides which credential store an operator's token selects.
@@ -173,7 +174,8 @@ impl ReadinessPrecondition {
 }
 
 /// The outcome of one required check.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum PreconditionState {
     /// The check was made and passed.
     Ready,
@@ -182,7 +184,8 @@ pub enum PreconditionState {
 }
 
 /// The state of observer signing custody.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum ObserverCustodyState {
     /// No observer is configured. Signed observer outcomes are unavailable,
     /// which is reported and does not make the deployment unready.
@@ -195,7 +198,8 @@ pub enum ObserverCustodyState {
 
 /// The state of every required precondition. Each one must be named: there
 /// is no default, so a check that was never made cannot be read as passed.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequiredPreconditions {
     /// See [`ReadinessPrecondition::Trust`].
     pub trust: PreconditionState,

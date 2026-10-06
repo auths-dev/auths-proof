@@ -448,6 +448,12 @@ mod unix {
             #[arg(long, default_value_t = false)]
             store_only: bool,
         },
+        /// Collect exact superseded or abandoned generations under operator
+        /// workload identity, retaining the active and future generations.
+        CredentialCollect {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
         /// Rotate the credential via the private operator socket and stdin.
         Rotate {
             #[arg(long)]
@@ -562,6 +568,12 @@ mod unix {
             app_uid: u32,
             #[arg(long)]
             app_gid: u32,
+        },
+        /// Internal owner-UID runtime checks; isolation is checked by doctor.
+        #[command(hide = true)]
+        ReadinessProbe {
+            #[arg(long)]
+            state_dir: PathBuf,
         },
         /// Internal privilege-dropped read/connect probe. No secret is printed.
         #[command(hide = true)]
@@ -1227,6 +1239,14 @@ mod unix {
             account_hash.update(account_label.as_bytes());
             let account_commitment: [u8; 32] = account_hash.finalize().into();
             let timestamp = now()?;
+            let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
+            let id = connection_id.clone();
+            tokio::task::spawn_blocking(move || {
+                journal.initialize(&id)?;
+                journal.register(&id, NonZeroU64::MIN)
+            })
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
             let record_id = connection_id.clone();
             install_connection(
                 &shared,
@@ -1263,6 +1283,16 @@ mod unix {
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")?
             .ok_or("gateway.install.connection-store-unavailable")?;
+        if join {
+            let journal = auths_gateway::CredentialJournal::new(state_dir.clone());
+            let record = installed.record().clone();
+            tokio::task::spawn_blocking(move || {
+                journal.initialize(record.connection_id())?;
+                journal.register(record.connection_id(), record.credential_generation())
+            })
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        }
         let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
         let record = installed.record().clone();
         tokio::task::spawn_blocking(move || floor.initialize(&record))
@@ -1779,7 +1809,10 @@ mod unix {
         };
         let engine = engine
             .with_qualification(Arc::new(qualification_gate(state_dir, &manifest)?))
-            .with_generation_floor(auths_gateway::GenerationFloor::new(state_dir.to_path_buf()));
+            .with_generation_floor(auths_gateway::GenerationFloor::new(state_dir.to_path_buf()))
+            .with_credential_journal(auths_gateway::CredentialJournal::new(
+                state_dir.to_path_buf(),
+            ));
         // Separation is checked against an authenticated operator. A
         // development installation without one keeps its observer key
         // outside the trust it installed, as `observer-init` creates it after
@@ -2826,6 +2859,83 @@ mod unix {
         Ok(())
     }
 
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct DoctorRuntime {
+        required: auths_gateway::RequiredPreconditions,
+        observer: auths_gateway::ObserverCustodyState,
+        qualification_code: Option<DoctorCode>,
+    }
+
+    #[derive(Clone, Deserialize, Serialize)]
+    #[serde(try_from = "String", into = "String")]
+    struct DoctorCode(&'static str);
+
+    impl TryFrom<String> for DoctorCode {
+        type Error = &'static str;
+        fn try_from(code: String) -> Result<Self, Self::Error> {
+            use auths_recipe_qualification::QualificationRefusal;
+            [
+                QualificationRefusal::Unavailable,
+                QualificationRefusal::Revoked,
+                QualificationRefusal::ClockUntrusted,
+                QualificationRefusal::RevocationStale,
+                QualificationRefusal::Missing,
+                QualificationRefusal::Expired,
+                QualificationRefusal::DigestMismatch,
+                QualificationRefusal::TargetMismatch,
+            ]
+            .into_iter()
+            .map(auths_gateway::qualification_code)
+            .find(|known| *known == code)
+            .map(Self)
+            .ok_or("gateway.doctor.invalid-runtime-report")
+        }
+    }
+
+    impl From<DoctorCode> for String {
+        fn from(code: DoctorCode) -> Self {
+            code.0.to_owned()
+        }
+    }
+
+    async fn runtime_doctor(state_dir: &Path) -> Result<DoctorRuntime, &'static str> {
+        let directory = state_dir.to_path_buf();
+        let engine = tokio::task::spawn_blocking(move || load_engine(&directory))
+            .await
+            .map_err(|_| "gateway.doctor.state-unavailable")?
+            .map_err(|failure| failure.code)?;
+        let manifest = installation(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
+        let qualification = engine.qualification().status();
+        let kind = CredentialStoreKind::parse(&manifest.credential_store.kind)
+            .map_err(|_| "gateway.credential.adapter-unsupported")?;
+        let mut checks = engine.readiness_checks(kind).await;
+        checks.clock = if auths_gateway::DeploymentClock::trust(&SynchronizedHostClock)
+            == auths_gateway::ClockTrustState::Trusted
+        {
+            auths_gateway::PreconditionState::Ready
+        } else {
+            auths_gateway::PreconditionState::NotReady
+        };
+        // load_engine verified pins, authenticated operator, separation and
+        // observer custody. Development is never production-ready.
+        if manifest.deployment != Deployment::Production {
+            checks.trust = auths_gateway::PreconditionState::NotReady;
+        }
+        let observer = match load_observer(state_dir)? {
+            None => auths_gateway::ObserverCustodyState::NotConfigured,
+            Some(key) if key.custody() != ObserverCustody::Software => {
+                auths_gateway::ObserverCustodyState::Ready
+            }
+            Some(_) => auths_gateway::ObserverCustodyState::NotReady,
+        };
+        Ok(DoctorRuntime {
+            required: checks,
+            observer,
+            qualification_code: qualification.code.map(DoctorCode),
+        })
+    }
+
     async fn doctor(
         state_dir: &Path,
         admin_socket: &Path,
@@ -2906,38 +3016,35 @@ mod unix {
         if !status.success() {
             return Err("gateway.doctor.isolation-not-established");
         }
+        // Runtime checks run as the actual gateway owner, so root does not
+        // accidentally bypass file ownership checks or mutate its custody.
+        let binary = std::env::current_exe().map_err(|_| "gateway.doctor.binary-unavailable")?;
         let directory = state_dir.to_path_buf();
-        let engine = tokio::task::spawn_blocking(move || load_engine(&directory))
-            .await
-            .map_err(|_| "gateway.doctor.state-unavailable")?
-            .map_err(|failure| failure.code)?;
-        let manifest = installation(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
-        let qualification = engine.qualification().status();
-        let kind = CredentialStoreKind::parse(&custody)
-            .map_err(|_| "gateway.credential.adapter-unsupported")?;
-        let mut checks = engine.readiness_checks(kind).await;
-        checks.clock = if auths_gateway::DeploymentClock::trust(&SynchronizedHostClock)
-            == auths_gateway::ClockTrustState::Trusted
-        {
-            auths_gateway::PreconditionState::Ready
-        } else {
-            auths_gateway::PreconditionState::NotReady
-        };
-        checks.operator_plane_isolation = auths_gateway::PreconditionState::Ready;
-        // load_engine verified pins, authenticated operator, separation and
-        // observer custody. Development is never production-ready.
-        if manifest.deployment != Deployment::Production {
-            checks.trust = auths_gateway::PreconditionState::NotReady;
+        let uid = state.uid();
+        let gid = state.gid();
+        let output = tokio::task::spawn_blocking(move || {
+            std::process::Command::new(binary)
+                .arg("readiness-probe")
+                .arg("--state-dir")
+                .arg(directory)
+                .uid(uid)
+                .gid(gid)
+                .output()
+        })
+        .await
+        .map_err(|_| "gateway.doctor.probe-unavailable")?
+        .map_err(|_| "gateway.doctor.probe-unavailable")?;
+        if !output.status.success() || output.stdout.len() > 64 * 1024 {
+            return Err("gateway.doctor.runtime-check-unavailable");
         }
-        let observer = match load_observer(state_dir)? {
-            None => auths_gateway::ObserverCustodyState::NotConfigured,
-            Some(key) if key.custody() != ObserverCustody::Software => {
-                auths_gateway::ObserverCustodyState::Ready
-            }
-            Some(_) => auths_gateway::ObserverCustodyState::NotReady,
-        };
-        let readiness = auths_gateway::ProductionReadiness::new(checks, observer);
-        println!("{}", readiness.report(qualification.code));
+        let mut checked: DoctorRuntime = serde_json::from_slice(&output.stdout)
+            .map_err(|_| "gateway.doctor.invalid-runtime-report")?;
+        checked.required.operator_plane_isolation = auths_gateway::PreconditionState::Ready;
+        let readiness = auths_gateway::ProductionReadiness::new(checked.required, checked.observer);
+        println!(
+            "{}",
+            readiness.report(checked.qualification_code.map(|code| code.0))
+        );
         if !readiness.is_ready() {
             return Err("gateway.doctor.not-ready");
         }
@@ -3206,6 +3313,15 @@ mod unix {
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 operator_attest(&state_dir, &admin_socket.path, &operator_attestation)
             }
+            Command::CredentialCollect { state_dir } => {
+                let engine = operator_engine(&state_dir).await?;
+                let deleted = engine.collect_credentials().await?;
+                println!(
+                    "{}",
+                    serde_json::json!({"schema": "auths.gateway-credential-collection/1", "deleted": deleted})
+                );
+                Ok(())
+            }
             Command::Rotate {
                 state_dir,
                 admin_socket,
@@ -3309,6 +3425,14 @@ mod unix {
                     app_gid,
                 )
                 .await?)
+            }
+            Command::ReadinessProbe { state_dir } => {
+                let checked = runtime_doctor(&state_dir).await?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&checked).map_err(|_| "gateway.output")?
+                );
+                Ok(())
             }
             Command::Probe {
                 state_dir,

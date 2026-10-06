@@ -35,10 +35,19 @@ it. Retain only the returned reference commitment. Then use `rotate-commit
 --operator-process --state-dir ... --commitment ...` to atomically publish it.
 Check status on both hosts; each must see the same shared generation and hold
 the exact committed credential generation. The old generation remains for at
-least the fixed 20-second retirement delay. Repeat the exercise with a stop
+least the fixed 20-second retirement delay. Run `credential-collect --state-dir
+...` under operator identity on each host that created a generation; it waits
+20 seconds after observing the record, requires that record unchanged, then
+deletes at most sixteen obsolete exact generations. It keeps the active and
+future prepared generations. Rerun after a conflict or deletion failure.
+Durable `credential-journal.json` notes are written before storing a candidate,
+so partial setup or a process exit does not lose its cleanup obligation.
+An abandoned future generation becomes collectable after disabling advances
+the shared generation past it. Collect before preparing another successor. Repeat the exercise with a stop
 between prepare and commit; a stale commitment must fail, leaving the old
-record authoritative. For emergency cutover: disable, rotate while disabled,
-verify both hosts, then enable. Never retain a new secret in terminal history.
+record authoritative. For emergency cutover: disable, wait the fixed 20 seconds for entries on
+both hosts, rotate while disabled, collect old generations under operator
+identity, verify both hosts, then enable. Never retain a new secret in terminal history.
 Operator-process drainage describes only that short-lived process; wait for
 all serving hosts separately before retiring external credentials.
 
@@ -67,8 +76,8 @@ in an online agent workspace.
 ## Backup, point-in-time restore and restart
 
 Archive PostgreSQL WAL continuously and take encrypted snapshots. Back up
-public installation files, operator attestation, qualification inputs and host
-floors. Keep `connection-floor.json` and qualification verifier floors in an
+public installation files, operator attestation, qualification inputs, credential
+journals and host floors. Keep `connection-floor.json` and qualification verifier floors in an
 independent current recovery record; never restore older floors together with
 an older database. Before an exercise, record connection and credential
 generations, recipe/lock digests, qualification issue-time/revocation floors
