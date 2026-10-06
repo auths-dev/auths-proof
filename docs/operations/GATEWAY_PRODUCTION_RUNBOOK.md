@@ -63,12 +63,23 @@ all serving hosts separately before retiring external credentials.
 
 The offline owner certifies a new protected software release signer with the
 ceremony tool. Publish the new certificate, current signed revocation list,
-release index and exact attestations together. Import on each host, invoke
-qualification-reload on each serving operator socket and inspect derived status.
-Do not extend validity by editing files or the clock. Test an expired
-attestation, expired certificate, stale revocation list, untrusted clock,
-revoked signer and revoked qualification with the disposable trust exercise.
-Every required recipe must stop before lease. Keep the signed input digests,
+release index and exact attestations together. On each host, run
+`auths-gateway qualification-import --state-dir ... --from ...`; add
+`--admin-socket ...` when serving uses a nondefault socket. Import verifies and
+stores the inputs, then automatically requests `qualification-reload` from
+the serving operator socket. If the gateway is stopped, it reads them at its
+next start. There is no separate `qualification-reload` CLI command. Inspect
+`auths-gateway qualification-status --state-dir ...` and the serving `status`
+response after import, so a failed reload cannot be mistaken for acceptance.
+Do not extend validity by editing files or the clock. Rehearse signer rotation,
+signer revocation, stale revocation inputs and untrusted-clock refusal with
+`auths-qualification stage-trust --tuple ... --out ...`, using the candidate's
+public tuple. That tool uses disposable test signing material and proves the
+trust mechanism; it does not rotate a production root or prove a gateway's
+lease boundary. Separately exercise expired attestations, expired certificates,
+revoked qualifications and those other signed input faults on the disposable
+gateway deployment: every required recipe must stop before lease. Keep the
+signed input digests,
 closed codes and zero-entry/lease witnesses; no private key enters support
 bundles or gateway hosts. Publish a root-signed revocation list at least every
 24 hours (72 hours is the hard maximum), including when nothing is revoked.
