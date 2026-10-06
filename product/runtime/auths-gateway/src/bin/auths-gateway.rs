@@ -2867,9 +2867,18 @@ mod unix {
         qualification_code: Option<DoctorCode>,
     }
 
-    #[derive(Clone, Deserialize, Serialize)]
-    #[serde(try_from = "String", into = "String")]
+    #[derive(Clone, Serialize)]
+    #[serde(into = "String")]
     struct DoctorCode(&'static str);
+
+    impl<'de> Deserialize<'de> for DoctorCode {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Self::try_from(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+        }
+    }
 
     impl TryFrom<String> for DoctorCode {
         type Error = &'static str;

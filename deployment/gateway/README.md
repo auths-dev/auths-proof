@@ -51,7 +51,9 @@ attestation and production credential store using `auths-gateway install`.
 Pipe the disposable credential from the operator's secret source into stdin;
 never put it in argv or a shell literal. Copy the signed qualification inputs
 with `qualification-import`; run `doctor` as root, then use `enable` only
-when all required checks pass. `doctor` prints `auths.gateway-readiness/1` and
+after all other required checks pass. While disabled, the connection check
+correctly fails: keep app ingress isolated, enable, rerun doctor, and only
+admit app traffic after the full report passes. `doctor` prints `auths.gateway-readiness/1` and
 returns nonzero on any failed check. Development installations always fail
 production readiness. Follow the [operations runbook](../../docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md).
 
@@ -102,7 +104,7 @@ database rehearsal and explicitly makes no replay-continuity claim.
 Hosted PostgreSQL and isolation workflows exercise the packaged command's
 store, multi-host admin, actual application UID denial and restore-floor
 refusal. They use disposable custody and do not establish production workload
-identity, firewall or point-in-time restore operation. Record those live
+identity, firewall or production point-in-time restore operation. Record those live
 reference exercises before declaring Epic 4 complete. Use the trial protocol
 in the runbook with a person unfamiliar with the implementation; an automated
 or simulated onboarding run cannot close that gate.

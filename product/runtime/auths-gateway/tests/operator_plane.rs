@@ -19,7 +19,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-const BIN: &str = env!("CARGO_BIN_EXE_auths-gateway");
+const BIN: &str = match option_env!("AUTHS_GATEWAY_OPERATOR_TEST_BINARY") {
+    Some(packaged) => packaged,
+    None => env!("CARGO_BIN_EXE_auths-gateway"),
+};
 const RECIPE: &[u8] = include_bytes!("../../../../bindings/fixtures/gateway/airtable/recipe.json");
 const LOCK: &[u8] =
     include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json");
@@ -602,11 +605,7 @@ fn an_emergency_stop_works_with_no_running_gateway_or_readable_custody() {
     );
     assert!(installed.status.success(), "{}", stderr(&installed));
     fs::remove_file(state.join("credentials.cbor")).expect("remove custody");
-    fs::write(
-        state.join("qualification-verifier-state.json"),
-        b"unavailable",
-    )
-    .expect("bad qualification");
+    fs::write(state.join("qualification-state.json"), b"unavailable").expect("bad qualification");
     for (command, expected) in [
         ("disable", "disabled"),
         ("disable", "disabled"),

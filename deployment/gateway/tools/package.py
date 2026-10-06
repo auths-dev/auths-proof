@@ -28,7 +28,10 @@ def main():
     reference = root / "deployment/gateway"
     for path in sorted(reference.rglob("*")):
         if path.is_file() and "tools" not in path.relative_to(reference).parts and path.name != "run-with-postgres-url":
-            files["reference/" + path.relative_to(reference).as_posix()] = (path.read_bytes(), 0o644)
+            data = path.read_bytes()
+            if path == reference / "README.md":
+                data = data.replace(b"../../docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md", b"../docs/GATEWAY_PRODUCTION_RUNBOOK.md")
+            files["reference/" + path.relative_to(reference).as_posix()] = (data, 0o644)
     manifest = {
         "schema": "auths.gateway-operator-package/1",
         "source_commit": args.commit,

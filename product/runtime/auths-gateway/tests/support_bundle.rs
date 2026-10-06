@@ -15,7 +15,10 @@ use std::{
     process::{Child, Command, Output, Stdio},
 };
 
-const BIN: &str = env!("CARGO_BIN_EXE_auths-gateway");
+const BIN: &str = match option_env!("AUTHS_GATEWAY_OPERATOR_TEST_BINARY") {
+    Some(packaged) => packaged,
+    None => env!("CARGO_BIN_EXE_auths-gateway"),
+};
 const RECIPE: &[u8] = include_bytes!("../../../../bindings/fixtures/gateway/airtable/recipe.json");
 const LOCK: &[u8] =
     include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json");

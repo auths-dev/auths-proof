@@ -46,6 +46,8 @@ jobs:
           for item in manifest['files']:
               assert hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() == item['sha256']
           assert not list(Path('.').rglob('*.rs'))
+          assert (Path('reference') / '../docs/GATEWAY_PRODUCTION_RUNBOOK.md').is_file()
+          assert '../docs/GATEWAY_PRODUCTION_RUNBOOK.md' in Path('reference/README.md').read_text()
           PY
           bin/auths-gateway disable --help | grep -- --store-only
           bin/auths-gateway rotate-prepare --help | grep -- --operator-process
@@ -56,6 +58,12 @@ jobs:
           sudo install -D "$RUNNER_TEMP/operator/auths-gateway-operator/bin/auths-gateway" /opt/auths/bin/auths-gateway
           sudo install -D "$RUNNER_TEMP/operator/auths-gateway-operator/bin/run-with-postgres-url" /opt/auths/bin/run-with-postgres-url
           systemd-analyze verify deployment/gateway/systemd/*.service deployment/gateway/systemd/*.timer
+      - name: Exercise the extracted release binary with disposable installations
+        env:
+          AUTHS_GATEWAY_OPERATOR_TEST_BINARY: ${{ runner.temp }}/operator/auths-gateway-operator/bin/auths-gateway
+        run: |
+          cargo test --locked -p auths-gateway --test operator_plane --test support_bundle
+          cargo test --locked -p auths-gateway --test isolated_process -- --ignored
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gateway-operator-package
