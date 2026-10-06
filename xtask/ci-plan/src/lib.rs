@@ -3329,6 +3329,21 @@ serde = "1"
         assert!(!opentofu.contains("postgresql_live"));
         assert!(!opentofu.contains("records_api_live"));
 
+        assert_eq!(
+            phases_for("deployment/gateway/systemd/auths-gateway.service"),
+            BTreeSet::from([
+                "authoritative",
+                "compliance",
+                "secrets",
+                "postgresql_live",
+                "release"
+            ])
+        );
+        assert_eq!(
+            phases_for("deployment/gateway/tools/exercise-postgres-restore.sh"),
+            phases_for("deployment/gateway/systemd/auths-gateway.service")
+        );
+
         let control_plane = phases_for(".github/actions/setup-rust-cache/action.yml");
         for phase in &loaded.manifest.phases {
             assert!(control_plane.contains(phase.id.as_str()));

@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "3d7b77451c335933a5aab866761f8672e773055a752661349c71fabf3b9e4f87",
+  "digest": "f3b8cc9336cc95cfabab6629e583f58717601435d678375a62416160a2efb461",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -273,7 +273,7 @@
     },
     {
       "path": "xtask/ci-plan/src/lib.rs",
-      "sha256": "b1cc615464d99787ff3259678f98a7644ee3715ce20c6bd308f391c4822dd7cb"
+      "sha256": "aeae292998e347454a2396933d4e4968460c70c165f88b7a6586985582a0463c"
     },
     {
       "path": "xtask/ci-plan/src/main.rs",

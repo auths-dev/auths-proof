@@ -155,6 +155,14 @@ kind = "prefix"
 value = "qualification/"
 phases = ["authoritative", "compliance", "secrets"]
 
+# Gateway deployment and packaged operator assets include the PostgreSQL
+# recovery boundary and release handoff, without changing other providers.
+[[rules]]
+id = "gateway-deployment"
+kind = "prefix"
+value = "deployment/gateway/"
+phases = ["authoritative", "compliance", "secrets", "postgresql_live", "release"]
+
 [[rules]]
 id = "interoperability-fixtures"
 kind = "prefix"
