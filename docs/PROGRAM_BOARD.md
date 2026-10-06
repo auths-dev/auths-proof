@@ -356,3 +356,9 @@ neither live recipe environment exists; the offline owner root ceremony and
 live-provider qualification remain unclaimed. Python packaging must normalize
 the requested semver to PEP 440 `0.0.1rc1`, preserving `0.0.1-rc1` as the
 release/tag identifier. No publication or qualified launch is claimed yet.
+
+Owner clarification (2026-10-06): publish the RC as a GitHub prerelease with
+downloadable Python wheel assets; PyPI publication is not required. Download
+those published assets, verify their checksums and install them in clean
+environments for the simulated onboarding pilot. Local checkout installs do
+not demonstrate that release handoff.
