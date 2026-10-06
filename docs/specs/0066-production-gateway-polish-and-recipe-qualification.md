@@ -1636,7 +1636,12 @@ This is not Epic 4 acceptance yet. A live two-host reference exercise of
 workload identity, firewall, PostgreSQL point-in-time restore and the runbooks
 remains. The owner now assigns the agent a labeled operator simulation and
 handles real users offline; no independent human result is claimed. The
-source-free packaged simulation and its defect reruns are being implemented.
+source-free packaged simulation passed 47 steps in Docker against the verified
+`f1f92c3f` package after fixing development file-rotation and tuple-declaration
+friction. The sanitized report is
+`deployment/gateway/evidence/operator-simulation-2026-10-06.json`.
+Exact-current-commit hosted verification remains pending; no live provider,
+production AWS rotation or production PostgreSQL PITR is claimed by this run.
 Epic 5
 also lacks the owner's offline root ceremony, protected signer secret,
 two protected provider environments and human release review. On 2026-10-06,

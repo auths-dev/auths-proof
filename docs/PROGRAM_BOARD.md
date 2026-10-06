@@ -403,3 +403,14 @@ The next run passed rotation on both restarted hosts, then refused tuple
 export because the development install omitted a family and contract. The
 rehearsal now declares an explicitly synthetic family/contract at install;
 those identifiers carry no production qualification claim.
+
+The corrected Docker rehearsal passed all 47 steps in 5.848 seconds against
+the downloaded `f1f92c3f` archive. The container mounted only that archive,
+public inputs and the report directory; networking was disabled, with a
+synthetic public-address DNS entry solely for transport construction. No
+provider request or TLS session was exercised. The sanitized result is
+`deployment/gateway/evidence/operator-simulation-2026-10-06.json`. It covers
+shared controls, retained-floor restore refusal, drained file rotation,
+privilege-dropped diagnostics, support redaction, disposable trust stages,
+restart and store-only outage controls. Exact-current-commit hosted rehearsal
+and CI remain pending. Live production and human adoption claims remain open.

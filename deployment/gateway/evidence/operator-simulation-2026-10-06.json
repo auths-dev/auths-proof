@@ -1,0 +1,353 @@
+{
+  "archive_sha256": "70b585794b4883a9f85897446bf13ccc334d711570b0dee3148413788f577cd4",
+  "command_count": 47,
+  "elapsed_seconds": 5.848,
+  "friction": [
+    {
+      "code": "operator.platform-linux-only",
+      "resolution": "rehearse on Ubuntu CI"
+    },
+    {
+      "code": "operator.development-custody-snapshot",
+      "resolution": "drain development hosts before separate-process file rotation; restart both afterward"
+    },
+    {
+      "code": "operator.production-inputs-unprovisioned",
+      "resolution": "owner supplies offline public root and protected live inputs"
+    }
+  ],
+  "independent_human_trial": false,
+  "not_exercised": [
+    "live AWS workload identity",
+    "live provider writes and unknown recovery",
+    "production qualification import",
+    "production PostgreSQL PITR",
+    "upgrade to a distinct attested candidate"
+  ],
+  "participant": "agent-simulation",
+  "passed": true,
+  "production_qualification": false,
+  "schema": "auths.operator-simulation/1",
+  "source_commit": "f1f92c3fb2d3d6f30f86547e69fa3958a9426a8a",
+  "steps": [
+    {
+      "command": "review",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.114,
+      "step": "review-recipe"
+    },
+    {
+      "command": "install",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.138,
+      "step": "install"
+    },
+    {
+      "command": "install",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.142,
+      "step": "join-second-host"
+    },
+    {
+      "command": "support-bundle",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.234,
+      "step": "offline-support"
+    },
+    {
+      "code": "gateway.credential.production-plaintext-refused",
+      "command": "install",
+      "exit_code": 1,
+      "passed": true,
+      "seconds": 0.076,
+      "step": "refuse-production-plaintext"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.17,
+      "step": "start-first"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.17,
+      "step": "start-second"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.105,
+      "step": "status-first"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.102,
+      "step": "status-second"
+    },
+    {
+      "code": "gateway.doctor.not-ready",
+      "command": "doctor",
+      "exit_code": 1,
+      "passed": true,
+      "seconds": 0.379,
+      "step": "diagnose-development-first"
+    },
+    {
+      "command": "disable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.099,
+      "step": "disable-first"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.093,
+      "step": "status-second"
+    },
+    {
+      "command": "enable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.096,
+      "step": "enable-second"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.093,
+      "step": "status-first"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.021,
+      "step": "drain-first"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.018,
+      "step": "drain-second"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.164,
+      "step": "start-first"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.164,
+      "step": "start-second"
+    },
+    {
+      "command": "disable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.107,
+      "step": "disable-first"
+    },
+    {
+      "command": "enable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.105,
+      "step": "enable-second"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.096,
+      "step": "status-first"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.093,
+      "step": "status-second"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.02,
+      "step": "drain-first"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.021,
+      "step": "drain-second"
+    },
+    {
+      "code": "gateway.admin.connection-unavailable",
+      "command": "rotate-prepare",
+      "exit_code": 1,
+      "passed": true,
+      "seconds": 0.175,
+      "step": "refuse-stale-restore"
+    },
+    {
+      "command": "rotate-prepare",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.2,
+      "step": "rotate-prepare-first"
+    },
+    {
+      "command": "rotate-commit",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.19,
+      "step": "rotate-commit-first"
+    },
+    {
+      "command": "rotate",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.196,
+      "step": "rotate-second"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.166,
+      "step": "start-first"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.169,
+      "step": "start-second"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.101,
+      "step": "status-first"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.1,
+      "step": "status-second"
+    },
+    {
+      "command": "support-bundle",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.226,
+      "step": "redacted-support"
+    },
+    {
+      "code": "gateway.reobserve.not-observable",
+      "command": "reobserve",
+      "exit_code": 1,
+      "passed": true,
+      "seconds": 0.077,
+      "step": "reobserve-first"
+    },
+    {
+      "command": "qualification-status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.168,
+      "step": "deployment-tuple"
+    },
+    {
+      "command": "stage-trust",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.096,
+      "step": "disposable-signer-rotation-and-freshness"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.019,
+      "step": "drain-first"
+    },
+    {
+      "command": "serve",
+      "passed": true,
+      "seconds": 0.162,
+      "step": "start-first"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.1,
+      "step": "status-first"
+    },
+    {
+      "command": "status",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.091,
+      "step": "status-second"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.019,
+      "step": "drain-first"
+    },
+    {
+      "command": "SIGTERM",
+      "passed": true,
+      "seconds": 0.019,
+      "step": "drain-second"
+    },
+    {
+      "command": "install",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.14,
+      "step": "install-outage-fixture"
+    },
+    {
+      "command": "disable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.101,
+      "step": "outage-disable"
+    },
+    {
+      "command": "disable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.096,
+      "step": "outage-disable"
+    },
+    {
+      "command": "revoke",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.101,
+      "step": "outage-revoke"
+    },
+    {
+      "command": "disable",
+      "exit_code": 0,
+      "passed": true,
+      "seconds": 0.098,
+      "step": "outage-disable"
+    }
+  ]
+}
