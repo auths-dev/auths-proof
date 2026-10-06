@@ -94,6 +94,11 @@ socket paths, and reports incomplete drainage rather than success on timeout.
 
 ## Evidence and human trial
 
+The PostgreSQL workflow also runs `tools/exercise-postgres-restore.sh`: it
+takes a physical backup, archives WAL, restores to a named point, confirms
+pre-target records survive and post-target records do not. This is a disposable
+database rehearsal and explicitly makes no replay-continuity claim.
+
 Hosted PostgreSQL and isolation workflows exercise the packaged command's
 store, multi-host admin, actual application UID denial and restore-floor
 refusal. They use disposable custody and do not establish production workload

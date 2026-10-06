@@ -84,6 +84,22 @@ generations, recipe/lock digests, qualification issue-time/revocation floors
 and attempt counts on both hosts. Disable app ingress and new entries; stop
 both binaries and retain unknown/response-recorded operations.
 
+For a self-hosted PostgreSQL server, take the physical backup with the
+maintained PostgreSQL client: `pg_basebackup --host postgres.internal
+--username auths_backup --pgdata /secure/backups/candidate --format plain
+--wal-method stream --checkpoint fast`. Supply the password with an owner-only
+PGPASSFILE and require `PGSSLMODE=verify-full` with the reviewed CA. Test WAL
+archiving before the backup. Create a named point with
+`SELECT pg_create_restore_point('reviewed_restore_point')` and retain its WAL.
+On the isolated replacement server, restore the physical backup into an empty
+private data directory, create `recovery.signal`, and set `restore_command`
+to copy exact archived WAL files, `recovery_target_name` to that reviewed point
+and `recovery_target_action` to `promote`. Start with the replacement's own TLS
+certificate and hostname. Verify records committed before the target exist
+and those committed after it do not; retain the closed exercise report.
+The disposable hosted exercise automates these mechanics. It does not make a
+claim about missing replay rows or external provider effects.
+
 Restore snapshot plus WAL to a new PostgreSQL endpoint, validate its TLS name
 and schema, and keep original hosts stopped. Start each replacement from its
 current independently retained floor files and reviewed installed inputs.

@@ -21,6 +21,7 @@ from auths.gateway import (
     GatewayClient,
     GatewayEndpoint,
     GatewayObservationRefused,
+    GatewayNotEntered,
     GatewayObserved,
     GatewayObservedByProvider,
     GatewayPreEntryObservations,
@@ -103,6 +104,25 @@ def test_client_rejects_invalid_endpoint_and_oversized_input(socket_dir) -> None
     client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
     with pytest.raises(ValueError):
         asyncio.run(client.submit(proof=b"", action=b"action"))
+
+
+@pytest.mark.parametrize("code", [
+    "gateway.qualification.missing",
+    "gateway.qualification.expired",
+    "gateway.qualification.revoked",
+    "gateway.qualification.digest-mismatch",
+    "gateway.qualification.target-mismatch",
+    "gateway.qualification.unavailable",
+    "gateway.qualification.revocation-stale",
+    "gateway.qualification.clock-untrusted",
+    "gateway.connection.restore-rollback",
+])
+def test_operator_gate_refusals_remain_not_entered_with_the_native_code(code) -> None:
+    from auths.gateway import _parse_result
+
+    result = _parse_result(json.dumps({"outcome": "not-entered", "code": code}).encode())
+    assert result == GatewayNotEntered(code)
+    assert result.outcome == "not-entered"
 
 
 def test_result_parser_does_not_infer_effect() -> None:
