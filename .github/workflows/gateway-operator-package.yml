@@ -1,0 +1,126 @@
+name: Gateway operator package
+
+on:
+  pull_request:
+    paths:
+      - 'deployment/gateway/**'
+      - 'product/runtime/auths-gateway/**'
+      - 'product/qualification/**'
+      - 'docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md'
+      - '.github/workflows/gateway-operator-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build shipped operator binaries without test features
+        run: cargo build --locked --release -p auths-gateway -p auths-recipe-qualification-issuance --bin auths-gateway --bin auths-qualification
+      - name: Make the source-free handoff
+        run: |
+          python3 deployment/gateway/tools/package.py \
+            --gateway target/release/auths-gateway \
+            --qualification target/release/auths-qualification \
+            --commit "$(git rev-parse HEAD)" \
+            --output target/gateway-operator-package.tgz
+      - name: Verify the packaged payload and command surfaces
+        run: |
+          mkdir -p "$RUNNER_TEMP/operator"
+          tar xzf target/gateway-operator-package.tgz -C "$RUNNER_TEMP/operator"
+          cd "$RUNNER_TEMP/operator/auths-gateway-operator"
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          manifest = json.loads(Path('manifest.json').read_text())
+          assert manifest['schema'] == 'auths.gateway-operator-package/1'
+          for item in manifest['files']:
+              assert hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() == item['sha256']
+          assert not list(Path('.').rglob('*.rs'))
+          assert (Path('reference') / '../docs/GATEWAY_PRODUCTION_RUNBOOK.md').is_file()
+          assert '../docs/GATEWAY_PRODUCTION_RUNBOOK.md' in Path('reference/README.md').read_text()
+          PY
+          bin/auths-gateway disable --help | grep -- --store-only
+          bin/auths-gateway rotate-prepare --help | grep -- --operator-process
+          bin/auths-gateway doctor --help
+          bin/auths-qualification --help
+      - name: Verify systemd unit syntax
+        run: |
+          sudo install -D "$RUNNER_TEMP/operator/auths-gateway-operator/bin/auths-gateway" /opt/auths/bin/auths-gateway
+          sudo install -D "$RUNNER_TEMP/operator/auths-gateway-operator/bin/run-with-postgres-url" /opt/auths/bin/run-with-postgres-url
+          systemd-analyze verify deployment/gateway/systemd/*.service deployment/gateway/systemd/*.timer
+      - name: Exercise the extracted release binary with disposable installations
+        env:
+          AUTHS_GATEWAY_OPERATOR_TEST_BINARY: ${{ runner.temp }}/operator/auths-gateway-operator/bin/auths-gateway
+        run: |
+          cargo test --locked -p auths-gateway --test operator_plane --test support_bundle
+          cargo test --locked -p auths-gateway --test isolated_process -- --ignored
+      - name: Prepare public inputs for the operator simulation
+        run: |
+          mkdir -p target/operator-simulation-kit
+          cp deployment/gateway/tools/operator-simulation.py target/operator-simulation-kit/
+          cp bindings/fixtures/gateway/airtable/recipe.json target/operator-simulation-kit/
+          cp bindings/fixtures/gateway/airtable/profile.lock.json target/operator-simulation-kit/
+          cp core/fixtures/v1/denied/untrusted-root.context.cbor target/operator-simulation-kit/trusted.context.cbor
+          cp bindings/fixtures/gateway/custody-hostile.json target/operator-simulation-kit/
+          cd target/operator-simulation-kit
+          sha256sum operator-simulation.py recipe.json profile.lock.json trusted.context.cbor custody-hostile.json > SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gateway-operator-simulation-kit
+          path: target/operator-simulation-kit/
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gateway-operator-package
+          path: |
+            target/gateway-operator-package.tgz
+            target/gateway-operator-package.tgz.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  operator-simulation:
+    name: source-free operator simulation
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No checkout, source build, repository import, or provider secret in this job.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: gateway-operator-package
+          path: package
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: gateway-operator-simulation-kit
+          path: kit
+      - name: Verify the simulation kit
+        working-directory: kit
+        run: sha256sum -c SHA256SUMS
+      - name: Rehearse the documented operator commands and measure friction
+        env:
+          AUTHS_SIMULATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          sudo python3 kit/operator-simulation.py \
+            --archive "$GITHUB_WORKSPACE/package/gateway-operator-package.tgz" \
+            --inputs "$GITHUB_WORKSPACE/kit" \
+            --expected-commit "$AUTHS_SIMULATION_COMMIT" \
+            --report "$GITHUB_WORKSPACE/reports/operator-simulation.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: gateway-operator-simulation-report
+          path: reports/operator-simulation.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -16,7 +16,7 @@ use auths_recipe_qualification::{
 };
 use sha2::{Digest as _, Sha256};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The install-time refusal of a qualification policy that is unknown or
 /// that production does not permit.
@@ -106,11 +106,13 @@ fn system_seconds() -> Option<u64> {
         .map(|elapsed| elapsed.as_secs())
 }
 
-/// The production clock adapter: trusted exactly while the host's time
-/// synchronization service has recorded a synchronization.
+/// The production clock adapter: trusted while the host's synchronization
+/// marker records a sample no more than fifteen minutes old.
 ///
-/// The service records one by creating a fixed marker file. The path is a
-/// constant of this adapter and no configuration names another.
+/// Missing, future-dated, stale, symlinked or nonregular markers refuse. On
+/// Unix, group/world-writable markers also refuse. The service updates the
+/// fixed file after each synchronization; mere existence cannot establish
+/// freshness. Neither the path nor the age bound is configurable.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SynchronizedHostClock;
 
@@ -122,17 +124,40 @@ impl SynchronizedHostClock {
 
 impl sealed::Sealed for SynchronizedHostClock {}
 
+const MAX_SYNCHRONIZATION_AGE: Duration = Duration::from_mins(15);
+
+fn synchronization_marker_trust(path: &std::path::Path, now: SystemTime) -> ClockTrustState {
+    let Ok(marker) = std::fs::symlink_metadata(path) else {
+        return ClockTrustState::Untrusted;
+    };
+    if !marker.is_file() {
+        return ClockTrustState::Untrusted;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        if marker.permissions().mode() & 0o022 != 0 {
+            return ClockTrustState::Untrusted;
+        }
+    }
+    let age = marker
+        .modified()
+        .ok()
+        .and_then(|sample| now.duration_since(sample).ok());
+    if age.is_some_and(|age| age <= MAX_SYNCHRONIZATION_AGE) {
+        ClockTrustState::Trusted
+    } else {
+        ClockTrustState::Untrusted
+    }
+}
+
 impl DeploymentClock for SynchronizedHostClock {
     fn now(&self) -> Option<u64> {
         system_seconds()
     }
 
     fn trust(&self) -> ClockTrustState {
-        if std::fs::metadata(Self::MARKER).is_ok_and(|marker| marker.is_file()) {
-            ClockTrustState::Trusted
-        } else {
-            ClockTrustState::Untrusted
-        }
+        synchronization_marker_trust(std::path::Path::new(Self::MARKER), SystemTime::now())
     }
 }
 
@@ -538,4 +563,80 @@ pub fn deployment_tuple(facts: &DeploymentFacts<'_>) -> Option<QualificationTupl
             credential_store_kind: facts.credential_store_kind,
         },
     })
+}
+
+#[cfg(test)]
+mod clock_tests {
+    use super::*;
+    use std::fs::{File, FileTimes};
+
+    #[test]
+    fn synchronization_marker_requires_a_recent_nonfuture_sample() {
+        let directory = tempfile::tempdir().expect("temporary clock state");
+        let path = directory.path().join("synchronized");
+        let now = UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        assert_eq!(
+            synchronization_marker_trust(&path, now),
+            ClockTrustState::Untrusted
+        );
+        let marker = File::create(&path).expect("marker");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            marker
+                .set_permissions(std::fs::Permissions::from_mode(0o644))
+                .expect("marker permissions");
+        }
+        for (sample, expected) in [
+            (now, ClockTrustState::Trusted),
+            (now - MAX_SYNCHRONIZATION_AGE, ClockTrustState::Trusted),
+            (
+                now - MAX_SYNCHRONIZATION_AGE - Duration::from_secs(1),
+                ClockTrustState::Untrusted,
+            ),
+            (now + Duration::from_secs(1), ClockTrustState::Untrusted),
+        ] {
+            marker
+                .set_times(FileTimes::new().set_modified(sample))
+                .expect("set sample time");
+            assert_eq!(synchronization_marker_trust(&path, now), expected);
+        }
+        assert_eq!(
+            synchronization_marker_trust(directory.path(), now),
+            ClockTrustState::Untrusted
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn synchronization_marker_refuses_links_and_untrusted_write_permissions() {
+        use std::os::unix::fs::{PermissionsExt as _, symlink};
+        let directory = tempfile::tempdir().expect("temporary clock state");
+        let path = directory.path().join("synchronized");
+        let now = UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        let marker = File::create(&path).expect("marker");
+        marker
+            .set_times(FileTimes::new().set_modified(now))
+            .expect("set sample time");
+        for mode in [0o644, 0o664, 0o646] {
+            marker
+                .set_permissions(std::fs::Permissions::from_mode(mode))
+                .expect("set permissions");
+            let expected = if mode == 0o644 {
+                ClockTrustState::Trusted
+            } else {
+                ClockTrustState::Untrusted
+            };
+            assert_eq!(synchronization_marker_trust(&path, now), expected);
+        }
+        marker
+            .set_permissions(std::fs::Permissions::from_mode(0o644))
+            .expect("private marker");
+        let link = directory.path().join("link");
+        symlink(&path, &link).expect("link");
+        assert_eq!(
+            synchronization_marker_trust(&link, now),
+            ClockTrustState::Untrusted
+        );
+    }
 }

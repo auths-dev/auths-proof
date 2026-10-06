@@ -984,6 +984,13 @@ pub trait GatewayAttemptStore: Send + Sync {
     /// # Errors
     /// Returns [`GatewayAttemptError::Unavailable`] when storage fails.
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError>;
+
+    /// Lists at most `limit` keys of stored attempts, in key order. A key is
+    /// a digest and names no operation.
+    ///
+    /// # Errors
+    /// Returns [`GatewayAttemptError::Unavailable`] when storage fails.
+    fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError>;
 }
 
 /// Atomic file store for one host. This is not a multi-host store and does
@@ -1287,6 +1294,10 @@ fn valid_file_name(name: &str) -> bool {
 }
 
 impl GatewayAttemptStore for FileGatewayAttemptStore {
+    fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        self.claimed_keys(limit)
+    }
+
     fn insert_all(
         &self,
         entries: &[GatewayRecordEntry],
@@ -1418,7 +1429,39 @@ impl Drop for PostgresGatewayAttemptStore {
     }
 }
 
+impl FileGatewayAttemptStore {
+    fn claimed_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        let _lock = self.shared()?;
+        let mut keys = Vec::new();
+        for entry in fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)? {
+            let name = entry
+                .map_err(|_| GatewayAttemptError::Unavailable)?
+                .file_name();
+            let key = name
+                .to_str()
+                .filter(|name| valid_file_name(name))
+                .and_then(|name| name.strip_prefix("claim-"))
+                .and_then(|name| name.strip_suffix(".json"));
+            if let Some(key) = key {
+                let mut bytes = [0_u8; 32];
+                hex::decode_to_slice(key, &mut bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+                keys.push(GatewayAttemptKey(bytes));
+            }
+        }
+        keys.sort_unstable();
+        keys.truncate(limit);
+        Ok(keys)
+    }
+}
+
 impl GatewayAttemptStore for PostgresGatewayAttemptStore {
+    fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        self.store()?
+            .list_gateway_record_keys(GatewayRecordKind::Attempt, limit)
+            .map(|keys| keys.into_iter().map(GatewayAttemptKey).collect())
+            .map_err(postgres_error)
+    }
+
     fn insert_all(
         &self,
         entries: &[GatewayRecordEntry],
@@ -1579,6 +1622,40 @@ impl GatewayAttempts {
                 record,
             },
         })
+    }
+
+    /// Lists at most `limit` stored attempts as the hexadecimal digest that
+    /// keys each one and its conservative stage. Nothing else of an attempt
+    /// is returned: no operation identifier, argument, or provider value.
+    ///
+    /// # Errors
+    /// Malformed state is a hard failure.
+    pub async fn stages(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<(String, GatewayAttemptStage)>, GatewayAttemptError> {
+        let store = Arc::clone(&self.store);
+        blocking(move || {
+            store
+                .attempt_keys(limit)?
+                .into_iter()
+                .filter_map(|key| {
+                    let stage = store
+                        .load(GatewayRecordKind::Attempt, &key)
+                        .and_then(|bytes| bytes.map(|bytes| decode(&bytes)).transpose())
+                        .and_then(|record| record.map(|record| record.snapshot(true)).transpose());
+                    match stage {
+                        Ok(Some(snapshot)) => {
+                            Some(Ok((hex::encode(key.as_bytes()), snapshot.stage())))
+                        }
+                        // Deleted between the listing and the read.
+                        Ok(None) => None,
+                        Err(error) => Some(Err(error)),
+                    }
+                })
+                .collect()
+        })
+        .await
     }
 
     /// Reads a secret-free durable snapshot. An `attempting` stage is

@@ -248,7 +248,8 @@ pub trait ConnectionCredentialStore: Send + Sync {
         secret: SecretBytes,
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError>;
 
-    /// Revokes one exact generation.
+    /// Revokes one exact generation. An already absent generation succeeds,
+    /// so durable cleanup obligations can be retried after a lost response.
     async fn revoke(
         &self,
         connection_id: &ConnectionId,
@@ -449,9 +450,7 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
             .entries
             .write()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        entries
-            .remove(&key)
-            .ok_or(CredentialStoreError::Unavailable)?;
+        entries.remove(&key);
         Ok(())
     }
 
@@ -1042,9 +1041,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
         let key = (connection_id.as_str().to_owned(), generation.get());
         self.mutate(|entries| {
             // Dropping the removed entry zeroizes its secret.
-            entries
-                .remove(&key)
-                .ok_or(CredentialStoreError::Unavailable)?;
+            entries.remove(&key);
             Ok(())
         })
     }
@@ -1438,6 +1435,51 @@ mod tests {
             futures_lite_for_tests(lease).unwrap_err(),
             CredentialStoreError::Substitution
         );
+    }
+
+    #[test]
+    fn exact_revocation_can_be_retried_after_a_lost_cleanup_response() {
+        let directory = tempfile::tempdir().expect("directory");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700))
+                .expect("private directory");
+        }
+        let memory = InMemoryCredentialStore::new(4, 1024).expect("memory");
+        let file = PersistentCredentialStore::open_with_limits(
+            directory.path().join("credentials.cbor"),
+            4,
+            1024,
+        )
+        .expect("file");
+        let record = record();
+        for store in [
+            &memory as &dyn ConnectionCredentialStore,
+            &file as &dyn ConnectionCredentialStore,
+        ] {
+            futures_lite_for_tests(store.install(
+                record.connection_id(),
+                NonZeroU64::MIN,
+                SecretBytes::new(b"cleanup-fixture".to_vec()).expect("secret"),
+            ))
+            .expect("install");
+            assert_eq!(
+                futures_lite_for_tests(store.revoke(record.connection_id(), NonZeroU64::MIN)),
+                Ok(())
+            );
+            assert_eq!(
+                futures_lite_for_tests(store.revoke(record.connection_id(), NonZeroU64::MIN)),
+                Ok(())
+            );
+            assert_eq!(
+                futures_lite_for_tests(store.revoke(
+                    record.connection_id(),
+                    NonZeroU64::new(2).expect("generation")
+                )),
+                Ok(())
+            );
+        }
     }
 
     #[test]

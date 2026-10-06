@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+: "${CREDENTIALS_DIRECTORY:?systemd credential directory is required}"
+AUTHS_POSTGRES_URL=$(cat "$CREDENTIALS_DIRECTORY/postgres-url")
+export AUTHS_POSTGRES_URL
+exec "$@"

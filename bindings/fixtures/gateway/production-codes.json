@@ -2,6 +2,14 @@
   "schema": "auths.gateway-production-codes/1",
   "codes": [
     {
+      "code": "gateway.admin.credential-journal-unavailable",
+      "owner": "operator",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
       "code": "gateway.attempt.replay",
       "owner": "engine",
       "stage": "recorded",
@@ -22,6 +30,14 @@
         "fixture": "custody-hostile.json",
         "id": "lease-generation-not-held"
       }
+    },
+    {
+      "code": "gateway.connection.restore-rollback",
+      "owner": "connection",
+      "stage": "before-lease",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
     },
     {
       "code": "gateway.credential.adapter-unsupported",
@@ -156,7 +172,47 @@
       "code": "gateway.readiness.connection-disabled",
       "owner": "readiness",
       "stage": "doctor",
-      "status": "new",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.observer-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.recipe-drift",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.store-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.transport-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.trust-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
       "epic": 4,
       "case": null
     },
@@ -166,6 +222,30 @@
       "stage": "serve",
       "status": "existing",
       "epic": null,
+      "case": null
+    },
+    {
+      "code": "gateway.support.attempts-unavailable",
+      "owner": "support",
+      "stage": "support-bundle",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.support.connection-unavailable",
+      "owner": "support",
+      "stage": "support-bundle",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.support.unavailable",
+      "owner": "support",
+      "stage": "support-bundle",
+      "status": "implemented",
+      "epic": 4,
       "case": null
     }
   ]

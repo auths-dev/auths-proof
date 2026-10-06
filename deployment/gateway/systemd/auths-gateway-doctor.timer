@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Auths readiness check
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+Unit=auths-gateway-doctor.service
+
+[Install]
+WantedBy=timers.target

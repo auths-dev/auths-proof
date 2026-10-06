@@ -12,8 +12,8 @@ use auths_connections::{
     CredentialStoreError, ProviderKind, SecretBytes, SemanticId,
 };
 use auths_credentials_aws_secrets_manager::{
-    AwsSecretsManagerStore, DeploymentNamespace, HttpSecretsApi, Region, WebIdentity,
-    WorkloadIdentity as _,
+    AdministrativeSecretsApi, AwsSecretsManagerStore, DeploymentNamespace, HttpSecretsApi, Region,
+    WebIdentity, WorkloadIdentity as _,
 };
 use std::num::NonZeroU64;
 use std::time::{Duration, Instant};
@@ -22,7 +22,7 @@ fn setting(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"))
 }
 
-fn store(role: &str) -> AwsSecretsManagerStore<HttpSecretsApi<WebIdentity>> {
+fn api(role: &str) -> HttpSecretsApi<WebIdentity> {
     let region = Region::parse(setting("AUTHS_CUSTODY_LIVE_REGION")).expect("region");
     let identity = WebIdentity::new(
         &region,
@@ -31,10 +31,13 @@ fn store(role: &str) -> AwsSecretsManagerStore<HttpSecretsApi<WebIdentity>> {
     )
     .expect("identity");
     let key = std::env::var("AUTHS_CUSTODY_LIVE_KMS_KEY").ok();
-    let api = HttpSecretsApi::new(region, key, identity).expect("client");
+    HttpSecretsApi::new(region, key, identity).expect("client")
+}
+
+fn store(role: &str) -> AwsSecretsManagerStore<HttpSecretsApi<WebIdentity>> {
     let namespace =
         DeploymentNamespace::parse(setting("AUTHS_CUSTODY_LIVE_NAMESPACE")).expect("namespace");
-    AwsSecretsManagerStore::new(api, namespace)
+    AwsSecretsManagerStore::new(api(role), namespace)
 }
 
 fn generation(value: u64) -> NonZeroU64 {
@@ -119,6 +122,13 @@ async fn the_store_holds_its_contract_against_the_service() {
     }
     let operator = store("AUTHS_CUSTODY_LIVE_OPERATOR_ROLE");
     let runtime = store("AUTHS_CUSTODY_LIVE_RUNTIME_ROLE");
+    let administrative = AwsSecretsManagerStore::new(
+        AdministrativeSecretsApi::new(
+            api("AUTHS_CUSTODY_LIVE_RUNTIME_ROLE"),
+            api("AUTHS_CUSTODY_LIVE_OPERATOR_ROLE"),
+        ),
+        DeploymentNamespace::parse(setting("AUTHS_CUSTODY_LIVE_NAMESPACE")).expect("namespace"),
+    );
     let connection = ConnectionId::generate().expect("connection");
     // Generation 9 is the write the runtime role must be refused; it is
     // listed so that a role that was wrongly allowed leaves nothing behind.
@@ -143,6 +153,7 @@ async fn the_store_holds_its_contract_against_the_service() {
             b"auths-live-first-not-a-secret"
         );
         runtime.holds(&serving).await?;
+        administrative.holds(&serving).await?;
 
         // Another commitment names another version, which does not exist.
         let other = CredentialReferenceCommitment::of(&connection, generation(1), b"other");
@@ -181,7 +192,7 @@ async fn the_store_holds_its_contract_against_the_service() {
 
         // Rotation: the old generation is kept until it is revoked, and a
         // revoked generation is never answered by its successor.
-        let second = operator
+        let second = administrative
             .replace(
                 &connection,
                 generation(1),
@@ -191,6 +202,7 @@ async fn the_store_holds_its_contract_against_the_service() {
             .await?;
         let old = binding(&connection, 1, 1, first);
         let new = binding(&connection, 2, 2, second);
+        administrative.holds(&new).await?;
         assert_eq!(
             leased(&runtime, &old).await?,
             b"auths-live-first-not-a-secret"
@@ -199,7 +211,7 @@ async fn the_store_holds_its_contract_against_the_service() {
             leased(&runtime, &new).await?,
             b"auths-live-second-not-a-secret"
         );
-        operator.revoke(&connection, generation(1)).await?;
+        administrative.revoke(&connection, generation(1)).await?;
         assert_eq!(
             leased(&runtime, &old).await,
             Err(CredentialStoreError::Unavailable)

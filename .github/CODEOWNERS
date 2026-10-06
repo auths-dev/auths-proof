@@ -7,3 +7,5 @@
 /product/ @auths-dev/product-maintainers @auths-dev/security
 /bindings/ @auths-dev/binding-maintainers @auths-dev/security
 /demos/ @auths-dev/product-maintainers
+
+/deployment/ @auths-dev/product-maintainers @auths-dev/security

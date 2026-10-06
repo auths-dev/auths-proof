@@ -887,7 +887,12 @@ Tasks:
 Done when a clean operator can deploy, diagnose, rotate, disable, restore and
 reconcile without source checkout or secret exposure; every diagnostic phrase
 corresponds to an actual typed check; and the trial's defects are fixed and
-rerun. The implementer MUST NOT simulate the unfamiliar-operator trial.
+rerun. The implementer MUST NOT represent a simulated trial as an independent
+human result. Owner clarification (2026-10-06): the agent's deliverable is a
+labeled operator simulation from packaged artifacts; the owner handles real
+users offline. The simulation must fix and rerun its defects and explicitly
+report which production/live operations its inputs do not exercise. Human
+adoption and production qualification claims still require their own evidence.
 
 ### Epic 5 — Qualify two recipes and close the launch gate
 
@@ -1601,3 +1606,44 @@ submission-driver, persistent-store, credential-lease and counting-provider
 observations into replay and lost-response recovery stages.
 Hosted verification of these additions is pending; no live qualification or
 owner trust ceremony is claimed.
+
+
+## 21. Epic 4 implementation and remaining acceptance (2026-10-06)
+
+The operator-polish branch adds a bounded canary-scanned support bundle,
+typed production doctor report, store-only emergency disable/revoke, separate
+operator-process rotation under its own workload identity, graceful listener
+shutdown and a durable host generation floor. The floor rejects an older
+restored connection or changed bytes at an accepted generation before lease.
+The maintained systemd deployment reference is `deployment/gateway/`; the
+operations and independent trial protocol are in
+`docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md`. Code at `f1f92c3f` passed
+[all main CI jobs](https://github.com/auths-dev/auths-proof/actions/runs/37421643170)
+and the six operator-package, isolation, PostgreSQL, recipe and SDK-package
+workflows. The downloaded operator archive and all eleven payload digests
+were verified against that commit. Protected live custody is still awaiting
+environment approval; these automated checks do not close the live or human
+acceptance gates below.
+
+The production clock adapter now rejects a synchronization marker older than
+fifteen minutes, a future timestamp, a symlink/nonregular file or an unsafe
+write mode. Mere existence did not bound trust after synchronization stopped.
+The packaged reference caps systemd-timesyncd polling at five minutes. This is
+a fixed adapter bound, not an operator override of signed validity windows or
+a claim that a compromised time source is trustworthy.
+
+This is not Epic 4 acceptance yet. A live two-host reference exercise of
+workload identity, firewall, PostgreSQL point-in-time restore and the runbooks
+remains. The owner now assigns the agent a labeled operator simulation and
+handles real users offline; no independent human result is claimed. The
+source-free packaged simulation passed 47 steps in Docker against the verified
+`f1f92c3f` package after fixing development file-rotation and tuple-declaration
+friction. The sanitized report is
+`deployment/gateway/evidence/operator-simulation-2026-10-06.json`.
+Exact-current-commit hosted verification remains pending; no live provider,
+production AWS rotation or production PostgreSQL PITR is claimed by this run.
+Epic 5
+also lacks the owner's offline root ceremony, protected signer secret,
+two protected provider environments and human release review. On 2026-10-06,
+GitHub environment/secret metadata confirmed no qualification signer secret
+and neither family live environment. No production recipe is qualified.

@@ -296,3 +296,16 @@ test("gateway client refuses unbounded observation requests before connecting", 
     await assert.rejects(client.observePreEntry(operation), TypeError);
   }
 });
+
+
+test("operator gate refusals remain not-entered with the native code", { skip: process.platform === "win32" }, async () => {
+  for (const code of [
+    "gateway.qualification.missing", "gateway.qualification.expired",
+    "gateway.qualification.revoked", "gateway.qualification.digest-mismatch",
+    "gateway.qualification.target-mismatch", "gateway.qualification.unavailable",
+    "gateway.qualification.revocation-stale", "gateway.qualification.clock-untrusted",
+    "gateway.connection.restore-rollback",
+  ]) {
+    assert.deepEqual(await replyOnce(JSON.stringify({ outcome: "not-entered", code })), { outcome: "not-entered", code });
+  }
+});

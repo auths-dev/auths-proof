@@ -94,6 +94,10 @@ impl RecordingStore {
 }
 
 impl GatewayAttemptStore for RecordingStore {
+    fn attempt_keys(&self, limit: usize) -> Result<Vec<GatewayAttemptKey>, GatewayAttemptError> {
+        self.inner.attempt_keys(limit)
+    }
+
     fn insert_all(
         &self,
         entries: &[GatewayRecordEntry],

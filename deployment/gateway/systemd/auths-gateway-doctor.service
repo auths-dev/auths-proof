@@ -1,0 +1,20 @@
+[Unit]
+Description=Check Auths production readiness and emit the bounded report
+After=auths-gateway.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/etc/auths/runtime.conf
+LoadCredential=postgres-url:/etc/auths/postgres-url
+ExecStart=/opt/auths/bin/run-with-postgres-url /opt/auths/bin/auths-gateway doctor --state-dir /var/lib/auths/gateway --app-socket /run/auths-app/gateway.sock --app-uid 62002 --app-gid 62000
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/auths/gateway
+ReadOnlyPaths=/run/auths-identity/runtime
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal

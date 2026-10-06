@@ -50,6 +50,19 @@ The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
 runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway
 submission, and an offline audit.
 
+Keep the exact `code` on a `not-entered` result. Qualification refusals and
+`gateway.connection.restore-rollback` mean this submission stopped before
+provider entry; they do not establish the outcome of any earlier attempt.
+An `unknown` result means the write may have happened. Retain its operation
+identifier and ask the operator to reconcile it with `reobserve`; do not
+resubmit it as a new operation. Signed observations require a separately
+configured observer. An absent observer does not establish a signed outcome.
+
+The operator's `doctor` report lists each required production check and
+returns nonzero if any check fails. Use the
+[production operations runbook](../../docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md)
+for diagnosis, emergency stop, rotation and recovery.
+
 ## Author the proof
 
 `@auths-dev/sdk/self-hosted` generates an exact MCP-shaped tool from a

@@ -123,10 +123,14 @@ impl<A: SecretsApi> ConnectionCredentialStore for AwsSecretsManagerStore<A> {
         generation: NonZeroU64,
     ) -> Result<(), CredentialStoreError> {
         let name = secret_name(&self.namespace, connection_id, generation);
-        self.api
+        match self
+            .api
             .delete(&name, Instant::now() + ADMINISTRATION_DEADLINE)
             .await
-            .map_err(|_| CredentialStoreError::Unavailable)
+        {
+            Ok(()) | Err(SecretsApiError::NotFound) => Ok(()),
+            Err(_) => Err(CredentialStoreError::Unavailable),
+        }
     }
 
     async fn holds(&self, binding: &CredentialBinding) -> Result<(), CredentialStoreError> {
@@ -476,6 +480,16 @@ mod tests {
             b"second",
             "a revoked generation is never answered by another"
         );
+    }
+
+    #[test]
+    fn deleting_an_exact_generation_is_idempotent_for_cleanup_retries() {
+        let double = Double::new();
+        let store = store(&double);
+        ready(store.install(&connection(), generation(1), secret(b"first"))).expect("install");
+        assert_eq!(ready(store.revoke(&connection(), generation(1))), Ok(()));
+        assert_eq!(ready(store.revoke(&connection(), generation(1))), Ok(()));
+        assert_eq!(ready(store.revoke(&connection(), generation(2))), Ok(()));
     }
 
     #[test]

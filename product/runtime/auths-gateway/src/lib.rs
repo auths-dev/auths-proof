@@ -13,10 +13,12 @@ mod audit;
 mod binding;
 mod bounds;
 mod connection;
+mod credential_journal;
 mod echo_verify;
 mod engine;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
+mod generation_floor;
 #[cfg(unix)]
 pub mod listener;
 mod observer;
@@ -30,6 +32,7 @@ mod semantic_closure;
 mod separation;
 mod store;
 mod submit;
+mod support;
 mod transport;
 
 #[cfg(test)]
@@ -68,6 +71,7 @@ pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
     install_connection, join_connection,
 };
+pub use credential_journal::CredentialJournal;
 pub use echo_verify::{
     ECHO_VERIFICATION_NOTE, ECHO_VERIFICATION_SCHEMA, EchoResult, EchoVerification,
     EchoVerifyError, MAX_ECHO_POINTER_BYTES, MAX_ECHO_RECORD_BYTES, canonical_action_commitment,
@@ -78,6 +82,7 @@ pub use engine::{
     GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
     SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
 };
+pub use generation_floor::GenerationFloor;
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,
@@ -125,5 +130,9 @@ pub use store::{
     GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
     PrivateDirectoryError, check_private_directory, check_private_directory_owned_by,
     pre_entry_digest,
+};
+pub use support::{
+    MAX_SUPPORT_ATTEMPTS, SUPPORT_BUNDLE_SCHEMA, SupportConnection, SupportConnectionState,
+    SupportFacts, support_bundle,
 };
 pub use transport::MAX_TRANSPORT_DURATION;

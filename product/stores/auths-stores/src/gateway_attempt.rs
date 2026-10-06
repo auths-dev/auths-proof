@@ -219,6 +219,38 @@ impl PostgresLifecycleStore {
         .transpose()
     }
 
+    /// Lists at most `limit` keys of the records of `kind`, in key order.
+    /// The records themselves are not read.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError::LimitExceeded`] for a limit the database cannot
+    /// hold, [`StoreError::Corrupt`] for a key of another width, and a
+    /// closed store error when the database is unavailable.
+    pub fn list_gateway_record_keys(
+        &self,
+        kind: GatewayRecordKind,
+        limit: usize,
+    ) -> Result<Vec<[u8; 32]>, StoreError> {
+        let limit = i64::try_from(limit).map_err(|_| StoreError::LimitExceeded)?;
+        let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
+        client
+            .query(
+                "SELECT record_key FROM auths_gateway_records
+                 WHERE record_kind = $1
+                 ORDER BY record_key
+                 LIMIT $2",
+                &[&kind.as_str(), &limit],
+            )
+            .map_err(|error| map_postgres_error(&error))?
+            .iter()
+            .map(|row| {
+                let key: Vec<u8> = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+                <[u8; 32]>::try_from(key.as_slice()).map_err(|_| StoreError::Corrupt)
+            })
+            .collect()
+    }
+
     /// Replaces the record of `kind` under `key` with `next` only while it
     /// still holds exactly `current`. Slots are insert-only.
     ///

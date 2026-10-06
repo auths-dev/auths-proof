@@ -12,9 +12,9 @@
 //! that try to select custody or declare qualification, the fixed
 //! retirement delay, and redacted debug forms. The qualification codes are
 //! implemented by the gate, whose tests drive every verification vector.
-//! The rest wait for the readiness codes and the support bundle. For those
-//! this module asserts the shortfall: no product crate defines a readiness
-//! code, and the gateway has no support bundle. The secret-name and version
+//! The support bundle exists and its own test scans it for every canary of
+//! the `redaction` section. Readiness checks and restore floors are implemented
+//! and exercised in readiness and engine tests. The secret-name and version
 //! vectors are generated here from the stated derivation and driven by the
 //! Secrets Manager store's own tests, so the two agree or one of them fails. Those assertions are expected to fail when the implementing work
 //! lands, wherever it lands, and that work replaces each with the
@@ -63,7 +63,17 @@ const ROWS: &[&str] = &[
     "gateway.qualification.unavailable qualification before-lease implemented 3 V:index-signature-forged",
     "gateway.qualification.revocation-stale qualification before-lease implemented 3 V:revocation-list-past-next-update",
     "gateway.qualification.clock-untrusted qualification before-lease implemented 3 V:clock-untrusted",
-    "gateway.readiness.connection-disabled readiness doctor new 4 -",
+    "gateway.readiness.connection-disabled readiness doctor implemented 4 -",
+    "gateway.readiness.trust-unavailable readiness doctor implemented 4 -",
+    "gateway.readiness.store-unavailable readiness doctor implemented 4 -",
+    "gateway.readiness.recipe-drift readiness doctor implemented 4 -",
+    "gateway.readiness.transport-unavailable readiness doctor implemented 4 -",
+    "gateway.readiness.observer-unavailable readiness doctor implemented 4 -",
+    "gateway.connection.restore-rollback connection before-lease implemented 4 -",
+    "gateway.admin.credential-journal-unavailable operator before-custody implemented 4 -",
+    "gateway.support.unavailable support support-bundle implemented 4 -",
+    "gateway.support.attempts-unavailable support support-bundle implemented 4 -",
+    "gateway.support.connection-unavailable support support-bundle implemented 4 -",
     "gateway.attempt.replay engine recorded existing - C:lease-never-precedes-claim",
     "gateway.connection.credential-generation-missing engine before-claim existing - C:lease-generation-not-held",
     "gateway.credential.unavailable engine recorded existing - C:lease-commitment-mismatch",
@@ -75,7 +85,7 @@ const ROWS: &[&str] = &[
 /// pending. Until their epics land, the gateway defines no code under them.
 /// The qualification family is implemented: the gate's own tests drive
 /// every verification vector through it.
-const NEW_FAMILIES: &[&str] = &["gateway.readiness."];
+const NEW_FAMILIES: &[&str] = &[];
 
 /// Every hostile class the production work must have a vector for.
 const REQUIRED_CLASSES: &[&str] = &[
@@ -1130,8 +1140,7 @@ fn every_hostile_class_has_a_vector() {
 
 /// The inventory is closed over the vectors, every existing code exists,
 /// and the rest of the production work has not landed: no product crate
-/// defines a new code or a code under a new family, and the gateway has no
-/// support bundle under any spelling. The secret-name and version vectors
+/// defines a new code or a code under a new family. The secret-name and version vectors
 /// are no longer pending: the Secrets Manager store derives them, and its
 /// own tests drive `secret_names` and `version_references`.
 #[test]
@@ -1181,13 +1190,5 @@ fn production_codes_await_their_epics() {
                 path.display()
             );
         }
-    }
-    for (path, text) in &gateway {
-        let folded = text.to_lowercase().replace(['-', '_', ' '], "");
-        assert!(
-            !folded.contains("supportbundle"),
-            "{} has a support bundle: scan it for every redaction canary",
-            path.display()
-        );
     }
 }

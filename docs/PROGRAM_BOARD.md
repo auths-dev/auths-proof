@@ -342,3 +342,75 @@ executable corpus runner and measured-observation contract, workflow wiring,
 CLI/script-pipeline tests, and direct credential-lease counters. Hosted
 verification is pending. Production family corpora, the owner's root ceremony,
 live qualifications, operator trial and launch acceptance remain unclaimed.
+
+
+### AP-SPEC-066 unattended continuation (2026-10-06)
+
+Owner direction: finish Epic 4, then Epic 5, then publish the Python SDK
+release candidate `0.0.1-rc1` and run a simulated onboarding pilot across all
+recipes with measured friction and a backlog. Epic 3 PR #204 is merged.
+Epic 4 implementation is on `gateway-operator-polish`; acceptance is still
+open. The simulated pilot does not replace the independent operator trial or
+human release review. Signing environment metadata contains no secret and
+neither live recipe environment exists; the offline owner root ceremony and
+live-provider qualification remain unclaimed. Python packaging must normalize
+the requested semver to PEP 440 `0.0.1rc1`, preserving `0.0.1-rc1` as the
+release/tag identifier. No publication or qualified launch is claimed yet.
+
+Owner clarification (2026-10-06): publish the RC as a GitHub prerelease with
+downloadable Python wheel assets; PyPI publication is not required. Download
+those published assets, verify their checksums and install them in clean
+environments for the simulated onboarding pilot. Local checkout installs do
+not demonstrate that release handoff.
+
+Epic 4 code at `f1f92c3f` passed every job in
+[main CI](https://github.com/auths-dev/auths-proof/actions/runs/37421643170),
+including authoritative tests, Lean, Kani, formal evidence and CI qualification.
+The six operator-package, isolation, PostgreSQL, recipe and SDK-package
+workflows also passed. The
+[operator package](https://github.com/auths-dev/auths-proof/actions/runs/37421643189)
+was downloaded and verified: archive SHA-256
+`70b585794b4883a9f85897446bf13ccc334d711570b0dee3148413788f577cd4`
+and all eleven payload digests match. Frozen evidence uses freeze version 369,
+manifest-byte version 58 and release-metadata version 369. Protocol identities
+and proof statements are unchanged. This is engineering evidence;
+[protected live custody](https://github.com/auths-dev/auths-proof/actions/runs/37421643146)
+still awaits environment approval, and live/human acceptance remains open.
+
+Owner clarification (2026-10-06): merge each epic PR when that epic is complete
+and CI is green. This authorizes those merges without another confirmation;
+it does not waive the spec's live or independent-human acceptance gates.
+
+Owner correction (2026-10-06): the agent simulates being an operator, fixes
+the observed friction and reruns the packaged rehearsal; the owner handles
+real users offline. This supersedes the earlier requirement for the agent to
+wait for an independent participant before continuing engineering. The
+simulation is labeled as such and cannot qualify live providers or establish
+independent human adoption. A separate source-free Ubuntu job downloads the
+operator archive and simulation kit, runs the documented CLI against
+disposable development installations, and records command timing and friction.
+Its hosted result is pending. Continue with Epic 5 engineering after this
+rehearsal; protected live inputs and release-signing keys remain explicit
+external prerequisites for signed qualification.
+
+The first local Docker rehearsal used the verified `f1f92c3f` archive without
+a source mount or network. It passed 31 steps, then found that separate-process
+rotation does not reload development file custody in running hosts. The
+rehearsal and runbook now keep those hosts drained during file rotation and
+restart both before checking the committed generation. The defect rerun is
+pending; no production AWS rotation result is inferred from this procedure.
+The next run passed rotation on both restarted hosts, then refused tuple
+export because the development install omitted a family and contract. The
+rehearsal now declares an explicitly synthetic family/contract at install;
+those identifiers carry no production qualification claim.
+
+The corrected Docker rehearsal passed all 47 steps in 5.848 seconds against
+the downloaded `f1f92c3f` archive. The container mounted only that archive,
+public inputs and the report directory; networking was disabled, with a
+synthetic public-address DNS entry solely for transport construction. No
+provider request or TLS session was exercised. The sanitized result is
+`deployment/gateway/evidence/operator-simulation-2026-10-06.json`. It covers
+shared controls, retained-floor restore refusal, drained file rotation,
+privilege-dropped diagnostics, support redaction, disposable trust stages,
+restart and store-only outage controls. Exact-current-commit hosted rehearsal
+and CI remain pending. Live production and human adoption claims remain open.

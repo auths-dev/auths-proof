@@ -234,6 +234,7 @@ pub struct GatewayEngine {
     profile: ConnectionProfile,
     connection: SharedConnection,
     credentials: Arc<dyn ConnectionCredentialStore>,
+    credential_journal: Option<crate::CredentialJournal>,
     /// Whether this deployment's recipe is qualified; consulted before every
     /// lease.
     qualification: Arc<crate::QualificationGate>,
@@ -302,6 +303,7 @@ impl GatewayEngine {
             profile,
             connection: SharedConnection::new(attempts.store(), provider, alias),
             credentials,
+            credential_journal: None,
             qualification: Arc::new(crate::QualificationGate::unconfigured()),
             attempts,
             in_flight: AtomicU64::new(0),
@@ -321,6 +323,88 @@ impl GatewayEngine {
     pub fn with_loopback_provider(mut self, port: u16) -> Self {
         self.loopback_port = Some(port);
         self
+    }
+
+    /// Pins the host's independently retained anti-rollback witness.
+    #[must_use]
+    pub fn with_generation_floor(mut self, floor: crate::GenerationFloor) -> Self {
+        self.connection = self.connection.with_generation_floor(floor);
+        self
+    }
+
+    /// Attaches durable cleanup notes recorded before custody writes.
+    #[must_use]
+    pub fn with_credential_journal(mut self, journal: crate::CredentialJournal) -> Self {
+        self.credential_journal = Some(journal);
+        self
+    }
+
+    async fn note_credential(
+        &self,
+        record: &ConnectionRecord,
+        next: std::num::NonZeroU64,
+    ) -> Result<(), &'static str> {
+        if let Some(journal) = self.credential_journal.clone() {
+            let id = record.connection_id().clone();
+            let current = record.credential_generation();
+            tokio::task::spawn_blocking(move || {
+                journal.register(&id, current)?;
+                journal.register(&id, next)
+            })
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        }
+        Ok(())
+    }
+
+    /// Collects at most sixteen exact generations from durable notes. It
+    /// waits the fixed retirement delay after observing the shared record,
+    /// requires it unchanged, and never deletes its active credential or a
+    /// future prepared generation. Run under operator workload identity.
+    /// Existing attempts and provider state are never changed.
+    ///
+    /// # Errors
+    /// A damaged journal, changed connection or failed deletion refuses and
+    /// retains the obligation for a later operator run.
+    pub async fn collect_credentials(&self) -> Result<usize, &'static str> {
+        let journal = self
+            .credential_journal
+            .clone()
+            .ok_or("gateway.admin.credential-journal-unavailable")?;
+        let current = self.load_for_admin().await?;
+        let record = current.record().clone();
+        let id = record.connection_id().clone();
+        let reading = journal.clone();
+        let generations = tokio::task::spawn_blocking(move || reading.generations(&id))
+            .await
+            .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+        tokio::time::sleep(self.retirement_delay).await;
+        let latest = self.load_for_admin().await?;
+        if !latest.unchanged(&current) {
+            return Err("gateway.admin.generation-conflict");
+        }
+        let mut deleted = 0;
+        for generation in generations
+            .into_iter()
+            .filter(|generation| {
+                *generation <= record.generation()
+                    && (record.state() == ConnectionState::Revoked
+                        || *generation != record.credential_generation())
+            })
+            .take(16)
+        {
+            self.credentials
+                .revoke(record.connection_id(), generation)
+                .await
+                .map_err(|_| "gateway.admin.credential-deletion-incomplete")?;
+            let updating = journal.clone();
+            let id = record.connection_id().clone();
+            tokio::task::spawn_blocking(move || updating.forget(&id, generation))
+                .await
+                .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
+            deleted += 1;
+        }
+        Ok(deleted)
     }
 
     /// Installs the qualification gate the operator plane built for this
@@ -439,18 +523,12 @@ impl GatewayEngine {
     /// # Errors
     /// A failed durable transition never reports disabled.
     pub async fn disable_connection(&self) -> Result<GatewayAdminOutcome, &'static str> {
-        let disabled = self
-            .change_state(|record, now| {
-                if record.state() != ConnectionState::Active {
-                    return Err("gateway.admin.connection-not-active");
-                }
-                record
-                    .transition_state(ConnectionState::Disabled, now)
-                    .map(Some)
-                    .map_err(|_| "gateway.admin.transition-unavailable")
-            })
+        self.connection
+            .stop(
+                false,
+                wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?,
+            )
             .await?;
-        self.delete_superseded_credentials(&disabled).await;
         Ok(self.drained("gateway.admin.disabled").await)
     }
 
@@ -540,6 +618,7 @@ impl GatewayEngine {
         let next = auths_connections::kernel::next_generation(record.generation().get())
             .and_then(std::num::NonZeroU64::new)
             .ok_or("gateway.admin.generation-exhausted")?;
+        self.note_credential(record, next).await?;
         // Nothing can name a generation the record has not reached, so a
         // successor left by an earlier failed rotation is discarded, not reused.
         let _ = self.credentials.revoke(record.connection_id(), next).await;
@@ -818,6 +897,52 @@ impl GatewayEngine {
         })
     }
 
+    /// Performs the runtime part of production readiness without leasing a
+    /// credential or contacting a provider. The caller must separately check
+    /// process isolation, deployment clock and observer policy. This checks
+    /// the shared record, exact recipe binding, current generation, bounded
+    /// secret-store confirmation and pinned transport construction.
+    pub async fn readiness_checks(
+        &self,
+        credential_store: auths_connections::CredentialStoreKind,
+    ) -> crate::RequiredPreconditions {
+        use crate::PreconditionState::{NotReady, Ready};
+        let mut checks = crate::RequiredPreconditions {
+            trust: Ready,
+            store: NotReady,
+            recipe: NotReady,
+            qualification: if self.qualification.status().state
+                == auths_recipe_qualification::RecipeQualificationState::Qualified
+            {
+                Ready
+            } else {
+                NotReady
+            },
+            provider_secret_custody: NotReady,
+            connection_generation: NotReady,
+            clock: NotReady,
+            transport_policy: NotReady,
+            operator_plane_isolation: NotReady,
+        };
+        if let Ok(Some(loaded)) = self.connection.load().await {
+            checks.store = Ready;
+            let record = loaded.record();
+            if let Ok(descriptor) = GatewayConnectionDescriptor::from_record(record, &self.recipe) {
+                checks.recipe = Ready;
+                if GatewayHttpTransport::prepare(&self.recipe, descriptor.credential()).is_ok() {
+                    checks.transport_policy = Ready;
+                }
+            }
+            if credential_store.is_production() && self.holds(record).await.is_ok() {
+                checks.provider_secret_custody = Ready;
+            }
+            if authorizes_entry(record, &self.workload_id, &self.profile) {
+                checks.connection_generation = Ready;
+            }
+        }
+        checks
+    }
+
     /// Performs the operator's read-only re-observation of one stored
     /// attempt: one read-back from the stored plan under a fresh lease that
     /// passes every credential check, when the recipe digest is unchanged
@@ -916,6 +1041,9 @@ impl GatewayEngine {
     async fn prepare_entry(&self) -> Result<PreparedEntry, &'static str> {
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
+            Err(SharedConnectionError::Rollback) => {
+                return Err("gateway.connection.restore-rollback");
+            }
             Ok(None) | Err(_) => return Err("gateway.connection.unavailable"),
         };
         let record = loaded.record();
@@ -1825,6 +1953,218 @@ pub(crate) mod tests {
         }
 
         #[tokio::test]
+        async fn a_restored_store_below_the_host_floor_cannot_lease_after_restart() {
+            restored_store_floor(crate::store_testkit::Backend::File).await;
+        }
+
+        #[tokio::test]
+        #[ignore = "requires the TLS PostgreSQL fixture"]
+        async fn postgres_restore_below_the_host_floor_cannot_lease_after_restart() {
+            restored_store_floor(crate::store_testkit::Backend::Postgres).await;
+        }
+
+        async fn restored_store_floor(backend: crate::store_testkit::Backend) {
+            let installation = installation_on(backend, 8).await;
+            let first = &installation.first;
+            let old = first.record().await;
+            let directory = tempfile::tempdir().expect("floor directory");
+            let floor = crate::GenerationFloor::new(directory.path().to_path_buf());
+            floor.initialize(&old).expect("first generation");
+            let disabled = first
+                .engine
+                .connection
+                .stop(false, wall_clock_seconds().expect("clock"))
+                .await
+                .expect("disable");
+            floor.accept(&disabled).expect("new generation");
+            let raw = SharedConnection::new(
+                first.engine.attempts.store(),
+                old.provider_kind().clone(),
+                old.alias().clone(),
+            );
+            let current = raw.load().await.expect("load").expect("connection");
+            raw.replace(&current, &old)
+                .await
+                .expect("simulate restored database");
+            let guarded = raw
+                .with_generation_floor(crate::GenerationFloor::new(directory.path().to_path_buf()));
+            assert_eq!(guarded.load().await, Err(SharedConnectionError::Rollback));
+            let mut restarted = host(first.engine.attempts.clone(), 8);
+            restarted.engine.connection = guarded;
+            let before = restarted.leases.load(Ordering::SeqCst);
+            assert_eq!(
+                restarted.entry_refusal().await.as_deref(),
+                Some("gateway.connection.restore-rollback")
+            );
+            assert_eq!(restarted.leases.load(Ordering::SeqCst), before);
+            assert_eq!(
+                floor.accept(&old),
+                Err("gateway.connection.restore-rollback")
+            );
+            std::fs::write(directory.path().join("connection-floor.json"), b"corrupt")
+                .expect("corrupt floor");
+            assert_eq!(
+                floor.accept(&disabled),
+                Err("gateway.connection.restore-rollback")
+            );
+            for (generation, digest) in [
+                (0, "00".repeat(32)),
+                (1, "invalid-digest".to_owned()),
+                (1, "AA".repeat(32)),
+            ] {
+                let damaged = serde_json::to_vec(&serde_json::json!({
+                    "schema": "auths.gateway-generation-floor/1",
+                    "generation": generation,
+                    "record_sha256": digest,
+                }))
+                .expect("damaged floor");
+                let path = directory.path().join("connection-floor.json");
+                std::fs::write(&path, &damaged).expect("write damaged floor");
+                assert_eq!(
+                    floor.accept(&disabled),
+                    Err("gateway.connection.restore-rollback")
+                );
+                assert_eq!(std::fs::read(path).expect("retained floor"), damaged);
+                assert_eq!(
+                    restarted.entry_refusal().await.as_deref(),
+                    Some("gateway.connection.restore-rollback")
+                );
+                assert_eq!(restarted.leases.load(Ordering::SeqCst), before);
+            }
+        }
+
+        #[tokio::test]
+        async fn durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets()
+        {
+            let mut installation = installation(8).await;
+            let host = &mut installation.first;
+            let record = host.record().await;
+            let journal = crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("private root")
+                    .to_path_buf(),
+            );
+            journal.initialize(record.connection_id()).expect("journal");
+            journal
+                .register(record.connection_id(), record.credential_generation())
+                .expect("initial note");
+            host.engine.credential_journal = Some(journal.clone());
+            host.engine
+                .prepare_rotation(candidate("abandoned-secret"))
+                .await
+                .expect("prepare");
+            assert_eq!(host.stored(&installation.connection_id), [1, 2]);
+            host.engine.disable_connection().await.expect("disable");
+            // Reopening notes models the operator process exiting after prepare.
+            host.engine.credential_journal = Some(crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("root")
+                    .to_path_buf(),
+            ));
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .expect("collect abandoned"),
+                1
+            );
+            assert_eq!(host.stored(&installation.connection_id), [1]);
+            host.engine
+                .rotate_connection(candidate("published-secret"))
+                .await
+                .expect("rotate while disabled");
+            host.engine
+                .collect_credentials()
+                .await
+                .expect("collect old");
+            assert_eq!(host.stored(&installation.connection_id), [3]);
+            host.engine
+                .prepare_rotation(candidate("future-secret"))
+                .await
+                .expect("prepare future");
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .expect("keep future"),
+                0
+            );
+            assert_eq!(host.stored(&installation.connection_id), [3, 4]);
+            let before = host.leases.load(Ordering::SeqCst);
+            host.engine
+                .connection
+                .stop(true, wall_clock_seconds().expect("clock"))
+                .await
+                .expect("store-only revoke");
+            host.engine
+                .collect_credentials()
+                .await
+                .expect("collect revoked");
+            assert!(host.stored(&installation.connection_id).is_empty());
+            assert_eq!(host.leases.load(Ordering::SeqCst), before);
+            assert!(
+                journal
+                    .generations(&installation.connection_id)
+                    .expect("notes")
+                    .is_empty()
+            );
+        }
+
+        #[tokio::test]
+        async fn readiness_and_emergency_stop_make_no_credential_lease() {
+            let installation = installation(8).await;
+            let host = &installation.first;
+            let before = host.leases.load(Ordering::SeqCst);
+            let checked = host
+                .engine
+                .readiness_checks(auths_connections::CredentialStoreKind::LocalFileV1)
+                .await;
+            assert_eq!(checked.store, crate::PreconditionState::Ready);
+            assert_eq!(checked.recipe, crate::PreconditionState::Ready);
+            assert_eq!(
+                checked.connection_generation,
+                crate::PreconditionState::Ready
+            );
+            assert_eq!(
+                checked.provider_secret_custody,
+                crate::PreconditionState::NotReady
+            );
+            assert_eq!(checked.qualification, crate::PreconditionState::NotReady);
+            // Remove custody entirely. The store-only stop is still usable,
+            // is idempotent, and does not touch or reclassify attempts.
+            std::fs::remove_dir_all(&host.credentials_directory).expect("remove custody");
+            let now = wall_clock_seconds().expect("clock");
+            let stopped = host.engine.connection.stop(false, now).await.expect("stop");
+            assert_eq!(stopped.state(), ConnectionState::Disabled);
+            let repeated = host
+                .engine
+                .connection
+                .stop(false, now)
+                .await
+                .expect("repeat");
+            assert_eq!(stopped.generation(), repeated.generation());
+            let revoked = host
+                .engine
+                .connection
+                .stop(true, now)
+                .await
+                .expect("revoke");
+            assert_eq!(revoked.state(), ConnectionState::Revoked);
+            assert_eq!(
+                host.engine
+                    .connection
+                    .stop(false, now)
+                    .await
+                    .expect("stop revoked")
+                    .state(),
+                ConnectionState::Revoked
+            );
+            assert_eq!(host.leases.load(Ordering::SeqCst), before);
+        }
+
+        #[tokio::test]
         async fn a_prepared_rotation_changes_nothing_until_it_is_committed() {
             let installation = installation(8).await;
             let host = &installation.first;
@@ -1882,8 +2222,19 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn a_record_that_changed_since_the_prepare_is_not_committed() {
-            let installation = installation(8).await;
-            let host = &installation.first;
+            let mut installation = installation(8).await;
+            let host = &mut installation.first;
+            let journal = crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("private root")
+                    .to_path_buf(),
+            );
+            journal
+                .initialize(&installation.connection_id)
+                .expect("journal");
+            host.engine.credential_journal = Some(journal);
+            let leases = host.leases.load(Ordering::SeqCst);
             let commitment = host
                 .engine
                 .prepare_rotation(candidate("prepared-secret"))
@@ -1895,7 +2246,22 @@ pub(crate) mod tests {
                 "gateway.admin.rotation-not-prepared",
                 "the successor was stored for the generation before the disable"
             );
-            // The emergency flow: rotate while disabled, then enable.
+            assert_eq!(
+                host.engine
+                    .prepare_rotation(candidate("prepared-secret"))
+                    .await,
+                Err("gateway.admin.credential-unavailable"),
+                "the abandoned successor blocks the current generation until collected"
+            );
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .expect("collect abandoned"),
+                1
+            );
+            // The emergency flow collects the abandoned successor before
+            // preparing another rotation while the connection remains disabled.
             let again = host
                 .engine
                 .prepare_rotation(candidate("prepared-secret"))
@@ -1905,9 +2271,15 @@ pub(crate) mod tests {
                 .commit_rotation(again)
                 .await
                 .expect("commit while disabled");
+            assert_eq!(host.record().await.state(), ConnectionState::Disabled);
+            assert_eq!(
+                host.entry_refusal().await.as_deref(),
+                Some("gateway.connection.unavailable")
+            );
+            assert_eq!(host.leases.load(Ordering::SeqCst), leases);
             host.engine.enable_connection().await.expect("enable");
             assert!(host.engine.status().await.expect("status").credential_held);
-            assert!(host.entry_refusal().await.is_none());
+            assert_eq!(host.entry_refusal().await, None);
         }
 
         #[tokio::test]
@@ -2034,10 +2406,16 @@ pub(crate) mod tests {
                 .await
                 .expect("repeated revoke");
             assert!(host.stored(&installation.connection_id).is_empty());
-            assert_eq!(
-                host.engine.disable_connection().await,
-                Err("gateway.admin.connection-not-active")
-            );
+            let generation = host.record().await.generation();
+            let stopped = host
+                .engine
+                .disable_connection()
+                .await
+                .expect("stop revoked");
+            assert_eq!(stopped.code, "gateway.admin.disabled");
+            assert_eq!(host.record().await.state(), ConnectionState::Revoked);
+            assert_eq!(host.record().await.generation(), generation);
+            assert!(host.stored(&installation.connection_id).is_empty());
         }
 
         async fn a_second_host_joins_only_with_the_matching_secret_after_state_changes(

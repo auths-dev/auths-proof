@@ -1,4 +1,4 @@
-freeze_version = 358
+freeze_version = 369
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -16,10 +16,10 @@ freeze_version = 358
 "auths.frozen-bytes/core/fixtures/v1/manifest.json" = 15
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 57
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 58
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 19
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 16
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 95
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 97
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 4
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 3
@@ -45,7 +45,7 @@ freeze_version = 358
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 114
+"auths.identity.protocol" = 123
 "auths.modular-components" = 20
 "auths.portable-abi-bindings" = 121
 "auths.product.bounded-domains" = 19
@@ -60,11 +60,11 @@ freeze_version = 358
 "auths.product.mcp-closed-execution" = 31
 "auths.product.mechanism-profile-conformance" = 12
 "auths.product.operations" = 5
-"auths.product.public-sdk-contract" = 111
+"auths.product.public-sdk-contract" = 120
 "auths.product.receipts" = 13
 "auths.product.release-assurance" = 7
 "auths.product.simplified-waist" = 19
-"auths.product.vocabulary" = 23
+"auths.product.vocabulary" = 24
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 79
-"auths.release.public-surface" = 358
+"auths.release.public-surface" = 369

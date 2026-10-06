@@ -16,7 +16,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-const BIN: &str = env!("CARGO_BIN_EXE_auths-gateway");
+const BIN: &str = match option_env!("AUTHS_GATEWAY_OPERATOR_TEST_BINARY") {
+    Some(packaged) => packaged,
+    None => env!("CARGO_BIN_EXE_auths-gateway"),
+};
 const RECIPE: &[u8] = include_bytes!("../../../../bindings/fixtures/gateway/airtable/recipe.json");
 const LOCK: &[u8] =
     include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json");
@@ -73,13 +76,20 @@ fn run_doctor(state: &Path, app_socket: &Path, group: &str, phase: &str) {
         .output()
         .expect("run distinct-UID doctor");
     assert!(
-        doctor.status.success(),
-        "distinct-UID boundary failed during {phase}: {}",
-        String::from_utf8_lossy(&doctor.stderr)
+        !doctor.status.success(),
+        "development is not production-ready during {phase}"
     );
-    assert!(
-        String::from_utf8_lossy(&doctor.stdout).contains("gateway state and admin socket denied")
-    );
+    assert!(String::from_utf8_lossy(&doctor.stderr).contains("gateway.doctor.not-ready"));
+    let report: serde_json::Value =
+        serde_json::from_slice(&doctor.stdout).expect("readiness report");
+    assert_eq!(report["ready"], false);
+    let isolation = report["checks"]
+        .as_array()
+        .expect("checks")
+        .iter()
+        .find(|check| check["check"] == "operator-plane-isolation")
+        .expect("isolation check");
+    assert_eq!(isolation["ready"], true);
 }
 
 fn doctor_command(
@@ -271,10 +281,15 @@ fn distinct_uid_cannot_reach_a_relocated_admin_socket() {
     let relocated = doctor_command(&state, Some(&admin_socket), &app_socket, group.trim())
         .output()
         .expect("run distinct-UID doctor");
+    assert!(!relocated.status.success());
+    assert!(String::from_utf8_lossy(&relocated.stderr).contains("gateway.doctor.not-ready"));
+    let report: serde_json::Value = serde_json::from_slice(&relocated.stdout).expect("report");
     assert!(
-        relocated.status.success(),
-        "distinct-UID boundary failed with a relocated admin socket: {}",
-        String::from_utf8_lossy(&relocated.stderr)
+        report["checks"]
+            .as_array()
+            .expect("checks")
+            .iter()
+            .any(|check| check["check"] == "operator-plane-isolation" && check["ready"] == true)
     );
 
     let forgotten = doctor_command(&state, None, &app_socket, group.trim())
