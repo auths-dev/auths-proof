@@ -2222,8 +2222,14 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn a_record_that_changed_since_the_prepare_is_not_committed() {
-            let installation = installation(8).await;
-            let host = &installation.first;
+            let mut installation = installation(8).await;
+            let host = &mut installation.first;
+            let journal = crate::CredentialJournal::new(host._state.path().to_path_buf());
+            journal
+                .initialize(&installation.connection_id)
+                .expect("journal");
+            host.engine.credential_journal = Some(journal);
+            let leases = host.leases.load(Ordering::SeqCst);
             let commitment = host
                 .engine
                 .prepare_rotation(candidate("prepared-secret"))
@@ -2235,7 +2241,22 @@ pub(crate) mod tests {
                 "gateway.admin.rotation-not-prepared",
                 "the successor was stored for the generation before the disable"
             );
-            // The emergency flow: rotate while disabled, then enable.
+            assert_eq!(
+                host.engine
+                    .prepare_rotation(candidate("prepared-secret"))
+                    .await,
+                Err("gateway.admin.credential-unavailable"),
+                "the abandoned successor blocks the current generation until collected"
+            );
+            assert_eq!(
+                host.engine
+                    .collect_credentials()
+                    .await
+                    .expect("collect abandoned"),
+                1
+            );
+            // The emergency flow collects the abandoned successor before
+            // preparing another rotation while the connection remains disabled.
             let again = host
                 .engine
                 .prepare_rotation(candidate("prepared-secret"))
@@ -2245,9 +2266,15 @@ pub(crate) mod tests {
                 .commit_rotation(again)
                 .await
                 .expect("commit while disabled");
+            assert_eq!(host.record().await.state(), ConnectionState::Disabled);
+            assert_eq!(
+                host.entry_refusal().await.as_deref(),
+                Some("gateway.connection.unavailable")
+            );
+            assert_eq!(host.leases.load(Ordering::SeqCst), leases);
             host.engine.enable_connection().await.expect("enable");
             assert!(host.engine.status().await.expect("status").credential_held);
-            assert!(host.entry_refusal().await.is_none());
+            assert_eq!(host.entry_refusal().await, None);
         }
 
         #[tokio::test]
@@ -2374,10 +2401,16 @@ pub(crate) mod tests {
                 .await
                 .expect("repeated revoke");
             assert!(host.stored(&installation.connection_id).is_empty());
-            assert_eq!(
-                host.engine.disable_connection().await,
-                Err("gateway.admin.connection-not-active")
-            );
+            let generation = host.record().await.generation();
+            let stopped = host
+                .engine
+                .disable_connection()
+                .await
+                .expect("stop revoked");
+            assert_eq!(stopped.code, "gateway.admin.disabled");
+            assert_eq!(host.record().await.state(), ConnectionState::Revoked);
+            assert_eq!(host.record().await.generation(), generation);
+            assert!(host.stored(&installation.connection_id).is_empty());
         }
 
         async fn a_second_host_joins_only_with_the_matching_secret_after_state_changes(

@@ -188,7 +188,7 @@ mod tests {
         );
         let reopened = CredentialJournal::new(directory.path().to_path_buf());
         assert_eq!(reopened.generations(&id).expect("notes").len(), 64);
-        let foreign = ConnectionId::parse("conn_BBBBBBBBBBBBBBBBBBBBBB").expect("id");
+        let foreign = ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAQ").expect("foreign id");
         assert_eq!(reopened.generations(&foreign), Err(CODE));
         reopened
             .forget(&id, NonZeroU64::MIN)
