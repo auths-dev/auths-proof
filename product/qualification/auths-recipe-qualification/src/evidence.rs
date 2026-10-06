@@ -107,6 +107,9 @@ pub enum Scenario {
     /// An application process without a credential cannot read secret
     /// material.
     ApplicationCannotReadSecret,
+    /// All required typed production doctor checks pass. Required for the
+    /// stable launch projection, never inferred from development readiness.
+    ProductionReadiness,
     /// A forged proof enters no provider.
     ForgedProof,
     /// An action altered after approval enters no provider.
@@ -174,7 +177,7 @@ pub enum Scenario {
 
 impl Scenario {
     /// Every scenario, in the wall's order.
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 37] = [
         Self::CleanSource,
         Self::RecipeDigestRederives,
         Self::RecipeVectors,
@@ -182,6 +185,7 @@ impl Scenario {
         Self::OracleAccepts,
         Self::OracleRejects,
         Self::ApplicationCannotReadSecret,
+        Self::ProductionReadiness,
         Self::ForgedProof,
         Self::AlteredAction,
         Self::ProofReplay,
@@ -220,7 +224,9 @@ impl Scenario {
             Self::CleanSource | Self::RecipeDigestRederives => WallRow::CleanSource,
             Self::RecipeVectors | Self::ClosedEnumerationHostile => WallRow::RecipeVectors,
             Self::OracleAccepts | Self::OracleRejects => WallRow::OracleAgreement,
-            Self::ApplicationCannotReadSecret => WallRow::SecretIsolation,
+            Self::ApplicationCannotReadSecret | Self::ProductionReadiness => {
+                WallRow::SecretIsolation
+            }
             Self::ForgedProof
             | Self::AlteredAction
             | Self::ProofReplay
@@ -272,11 +278,15 @@ impl Scenario {
         }
     }
 
-    /// Whether every record needs a case for this scenario. The two that do
-    /// not are required exactly when a capability they show is exercised.
+    /// Whether every record needs a case for this scenario. Capability cases
+    /// are required when declared; production readiness is additionally
+    /// required by the stable launch projection.
     #[must_use]
     pub const fn always_required(self) -> bool {
-        !matches!(self, Self::ObserverRotation | Self::DeclaredCapability)
+        !matches!(
+            self,
+            Self::ObserverRotation | Self::DeclaredCapability | Self::ProductionReadiness
+        )
     }
 
     /// Whether a case for this scenario may show `capability` exercised.

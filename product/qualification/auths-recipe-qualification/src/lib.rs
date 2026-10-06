@@ -21,6 +21,7 @@ mod closure;
 mod error;
 mod evidence;
 mod ids;
+mod launch;
 mod model;
 mod release;
 mod verify;
@@ -56,6 +57,7 @@ pub use ids::{
     BoundedText, GitCommit, InvalidIdentifier, PublicKeyB64, QualificationId, QualificationRootId,
     QualificationSignerId, RecipeFamilyId, Sha256Digest, SignatureB64,
 };
+pub use launch::LaunchCandidate;
 pub use model::{
     CapabilityKind, CapabilityResult, ContractDeclarations, EvidenceMember, EvidenceMemberKind,
     EvidenceResult, ExercisedCapability, InstalledPackage, LifecycleStoreKind, LiveEffects,

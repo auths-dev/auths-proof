@@ -85,10 +85,6 @@ mod unix {
     const QUALIFICATION_STATE_FILE: &str = "qualification-state.json";
     /// A development installation's own trust root.
     const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
-    /// The qualification trust root this build pins. It is `None` until a
-    /// reviewed release pins the root the offline ceremony created; until
-    /// then a production gateway finds every recipe unqualified.
-    const PINNED_QUALIFICATION_ROOT: Option<&[u8]> = None;
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     use auths_gateway::admin::{
@@ -1489,7 +1485,7 @@ mod unix {
                 Some(bytes)
             }
             (Some(_), Deployment::Production) => return Err("gateway.serve.invalid-installation"),
-            (None, _) => PINNED_QUALIFICATION_ROOT.map(<[u8]>::to_vec),
+            (None, _) => auths_gateway::PINNED_QUALIFICATION_ROOT.map(<[u8]>::to_vec),
         };
         bytes
             .map(|bytes| {

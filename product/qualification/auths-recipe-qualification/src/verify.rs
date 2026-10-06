@@ -12,10 +12,11 @@
 //! compared as a digest.
 
 use crate::{
-    Canonical, QualificationArtifactKind, QualificationId, QualificationReleaseIndex,
-    QualificationRevocationList, QualificationSignerCertificate, QualificationSignerId,
-    QualificationTrustRoot, QualificationTuple, RecipeQualificationAttestation,
-    RecipeQualificationRecord, RecipeQualificationState, Sha256Digest,
+    Canonical, LaunchCandidate, LifecycleStoreKind, QualificationArtifactKind,
+    QualificationEvidence, QualificationId, QualificationReleaseIndex, QualificationRevocationList,
+    QualificationSignerCertificate, QualificationSignerId, QualificationTrustRoot,
+    QualificationTuple, RecipeQualificationAttestation, RecipeQualificationRecord,
+    RecipeQualificationState, Scenario, Sha256Digest, verify_evidence_closure,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 use std::collections::BTreeSet;
@@ -157,6 +158,120 @@ pub struct VerifiedQualifications {
 }
 
 impl VerifiedQualifications {
+    /// Computes AP-SPEC-066's technical stable launch gate for `candidate`.
+    ///
+    /// Every index entry must have its own usable attestation, match the clean
+    /// candidate's exact build, target and semantic closure, remain qualified
+    /// at the supplied trusted time, and close over the presented protected
+    /// evidence, including production readiness. At least two distinct recipe
+    /// families, contracts and provider kinds must be covered. Missing or
+    /// excess evidence, a development target, an unusable extra index entry,
+    /// or any failed condition returns false. This does not represent the
+    /// separate human release judgment or independent operator adoption.
+    #[must_use]
+    pub fn stable_launch_ready(
+        &self,
+        candidate: &LaunchCandidate,
+        evidence: &[QualificationEvidence],
+        now: u64,
+        clock_trusted: bool,
+        state: &VerifierState,
+    ) -> bool {
+        let Some(index) = self.current_index(state) else {
+            return false;
+        };
+        if candidate.target.store_kind != LifecycleStoreKind::PostgresqlV1
+            || !candidate.target.credential_store_kind.is_production()
+            || self.listed.len() != index.body().statement.entries.len()
+            || self.listed.len() < 2
+            || evidence.len() != self.listed.len() * crate::EvidenceMemberKind::ALL.len()
+        {
+            return false;
+        }
+        let mut families = BTreeSet::new();
+        let mut contracts = BTreeSet::new();
+        let mut providers = BTreeSet::new();
+        let mut used_evidence = BTreeSet::new();
+        for listed in &self.listed {
+            let record = listed.record.body();
+            if !self.launch_record_matches(listed, candidate, now, state)
+                || !self
+                    .evaluate(&record.tuple, now, clock_trusted, state)
+                    .permits_lease()
+            {
+                return false;
+            }
+            let artifacts: Option<Vec<QualificationEvidence>> = record
+                .evidence
+                .iter()
+                .map(|member| {
+                    let artifact = evidence
+                        .iter()
+                        .find(|artifact| artifact.digest() == member.evidence_sha256)?;
+                    used_evidence.insert(artifact.digest());
+                    Some(artifact.clone())
+                })
+                .collect();
+            let Some(artifacts) = artifacts else {
+                return false;
+            };
+            if verify_evidence_closure(&listed.record, &artifacts).is_err()
+                || !artifacts.iter().any(|artifact| {
+                    artifact
+                        .body()
+                        .cases
+                        .iter()
+                        .any(|case| case.scenario == Scenario::ProductionReadiness)
+                })
+            {
+                return false;
+            }
+            families.insert(record.tuple.recipe_family.clone());
+            contracts.insert(record.tuple.provider_contract_id);
+            providers.insert(record.provider_kind.as_str());
+        }
+        used_evidence.len() == evidence.len()
+            && families.len() >= 2
+            && contracts.len() >= 2
+            && providers.len() >= 2
+    }
+
+    fn launch_record_matches(
+        &self,
+        listed: &Listed,
+        candidate: &LaunchCandidate,
+        now: u64,
+        state: &VerifierState,
+    ) -> bool {
+        let record = listed.record.body();
+        // Family evaluation selects its best attestation. Inspect this entry's
+        // own signed window and revocation too; an extra claim cannot hide
+        // behind a fresh unrevoked entry for the same family.
+        listed.attestation.as_ref().is_some_and(|attestation| {
+            let statement = &attestation.body().statement;
+            now >= statement.issued_at && now >= statement.not_before && now <= statement.not_after
+        }) && record.provenance.commit == candidate.commit
+            && record.tuple.target == candidate.target
+            && record.tuple.gateway_semantic_closure_sha256
+                == candidate.gateway_semantic_closure_sha256
+            && !state
+                .revoked_qualifications
+                .contains(&record.qualification_id)
+            && !self.revocations.as_ref().is_some_and(|list| {
+                list.body()
+                    .statement
+                    .revoked_qualifications
+                    .contains(&record.qualification_id)
+            })
+            && record.provenance.repository.as_str() == "github.com/auths-dev/auths-proof"
+            && record.provenance.workflow.as_str() == ".github/workflows/recipe-qualification.yml"
+            && record.provenance.environment.as_str()
+                == format!(
+                    "recipe-qualification-live-{}",
+                    record.tuple.recipe_family.as_str()
+                )
+    }
+
     /// Checks every signature under the pinned `root`. An input that does
     /// not decode or verify is kept as absent; nothing is trusted from it.
     #[must_use]

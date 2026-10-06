@@ -414,3 +414,17 @@ shared controls, retained-floor restore refusal, drained file rotation,
 privilege-dropped diagnostics, support redaction, disposable trust stages,
 restart and store-only outage controls. Exact-current-commit hosted rehearsal
 and CI remain pending. Live production and human adoption claims remain open.
+
+Epic 5 engineering is underway on `codex/recipe-qualification`, based on the
+operator-polish candidate. The exact `393edc52` source-free hosted rehearsal
+passed 47 steps in 0.553 seconds; its downloaded archive passed the same 47
+steps in local Docker in 6.162 seconds, including manifest and payload checks.
+Main CI remains pending. The initial Epic 5 change derives stable launch
+readiness from every signed index entry, exact candidate/production target,
+freshness and revocation, three independence dimensions and complete
+digest-bound evidence. Each launch claim additionally needs protected
+production readiness evidence. The signing output retains those artifacts;
+`release-check` emits the projection. No production root is pinned, so the
+current projection remains false. Hosted verification of this implementation
+is pending. Provider ADRs/corpora/harnesses, live qualification, signed release
+publication and the installed SDK pilot remain outstanding.

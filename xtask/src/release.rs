@@ -297,7 +297,13 @@ pub(crate) fn release_evidence() -> Result<(), String> {
     let platform_path = evidence.join("platform.json");
     platform_artifact(&platform_path)?;
     let mut evidence_checksums = BTreeMap::new();
+    let launch_path = evidence.join("launch-readiness.json");
+    let launch = release_launch::projection(&root(), &commit)?;
+    fs::write(&launch_path, pretty_json(&launch, "launch readiness")?)
+        .map_err(|error| format!("could not write launch projection: {error}"))?;
+    println!("stable_launch_ready: {}", launch["stable_launch_ready"]);
     for relative in [
+        "target/release-evidence/launch-readiness.json",
         "target/release-evidence/platform.json",
         "target/release-evidence/platform.sha256",
         "target/compliance/inventory.json",

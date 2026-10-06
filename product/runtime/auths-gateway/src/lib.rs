@@ -99,10 +99,10 @@ pub use operator::{
 #[cfg(any(test, feature = "testkit-harness"))]
 pub use qualification::FixedClock;
 pub use qualification::{
-    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
-    QUALIFICATION_POLICY_REFUSED, QualificationBundle, QualificationGate, QualificationPolicy,
-    QualificationStatus, SynchronizedHostClock, deployment_tuple, qualification_code,
-    qualification_policy,
+    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA,
+    PINNED_QUALIFICATION_ROOT, POSTGRES_STORE_SCHEMA, QUALIFICATION_POLICY_REFUSED,
+    QualificationBundle, QualificationGate, QualificationPolicy, QualificationStatus,
+    SynchronizedHostClock, deployment_tuple, qualification_code, qualification_policy,
 };
 pub use readiness::{
     ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,

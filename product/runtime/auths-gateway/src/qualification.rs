@@ -27,6 +27,11 @@ pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/5";
 /// The schema identifier of the development file store.
 pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/3";
 
+/// The public qualification root this gateway build pins. A reviewed release
+/// supplies only the offline ceremony's public artifact here. Until then both
+/// the runtime and release projection authenticate no qualification.
+pub const PINNED_QUALIFICATION_ROOT: Option<&[u8]> = None;
+
 /// The stable code of one refusal.
 #[must_use]
 pub const fn qualification_code(refusal: QualificationRefusal) -> &'static str {

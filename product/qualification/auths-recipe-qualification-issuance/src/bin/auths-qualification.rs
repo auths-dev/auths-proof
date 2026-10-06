@@ -428,6 +428,19 @@ fn sign(
         .zip(&attestations)
         .collect();
     let index = signer.index(issued_at, &listed)?;
+    // Publish the exact evidence already reverified at signing. The launch
+    // projection checks these bytes against the signed record's digests;
+    // counters or a case label alone cannot substitute for artifact closure.
+    for proposal in &proposals {
+        for artifact in proposal.evidence() {
+            write(
+                &out_dir
+                    .join(EVIDENCE_DIRECTORY)
+                    .join(format!("{}.json", artifact.digest().to_hex())),
+                artifact.canonical_bytes(),
+            )?;
+        }
+    }
     for (record, attestation) in &listed {
         let name = format!("{}.json", record.body().qualification_id.as_str());
         write(

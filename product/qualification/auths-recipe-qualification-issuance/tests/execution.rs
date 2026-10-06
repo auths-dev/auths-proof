@@ -30,6 +30,51 @@ fn run(
 }
 
 #[test]
+fn production_readiness_requires_a_read_only_live_probe_on_a_production_target() {
+    use auths_recipe_qualification::{BoundedText, LifecycleStoreKind};
+    use auths_recipe_qualification_issuance::execution::{Operation, RunPhase};
+    let mut case = executable_corpus()
+        .cases
+        .into_iter()
+        .find(|case| case.scenario == Scenario::ApplicationCannotReadSecret)
+        .expect("probe");
+    case.scenario = Scenario::ProductionReadiness;
+    case.phase = RunPhase::Live;
+    case.steps.truncate(1);
+    case.steps[0].operation = Operation::Probe;
+    let expected = &mut case.steps[0].expected;
+    expected.verdict.outcome = RunOutcome::Complete;
+    expected.verdict.code = BoundedText::parse("production-readiness-passed").expect("code");
+    expected.verdict.request_sha256 = None;
+    expected.verdict.evidence_sha256 = Some(tuple().profile_lock_sha256);
+    expected.credential_leases = 0;
+    expected.provider_entries = 0;
+    expected.confirmed_by_read_back = 0;
+    assert!(run(&case, |_, _| {}).is_ok());
+    for index in 0..4 {
+        let mut changed = case.clone();
+        match index {
+            0 => changed.phase = RunPhase::Offline,
+            1 => changed.steps[0].expected.credential_leases = 1,
+            2 => changed.steps[0].expected.provider_entries = 1,
+            _ => changed.steps[0].expected.verdict.evidence_sha256 = None,
+        }
+        assert_eq!(run(&changed, |_, _| {}), Err(IssuanceError::CaseFailed));
+    }
+    let mut development = tuple();
+    development.target.store_kind = LifecycleStoreKind::SharedFileV1;
+    let mut invoked = false;
+    assert_eq!(
+        case.execute(&development, |_, _| {
+            invoked = true;
+            Err(IssuanceError::CaseFailed)
+        }),
+        Err(IssuanceError::CaseFailed)
+    );
+    assert!(!invoked);
+}
+
+#[test]
 fn every_stage_executes_its_operations_and_a_missing_runner_refuses() {
     let corpus = executable_corpus();
     corpus.validate().expect("complete corpus");

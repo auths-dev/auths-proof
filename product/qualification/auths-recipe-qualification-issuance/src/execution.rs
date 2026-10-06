@@ -229,6 +229,19 @@ impl RunCase {
                 has(Op::InstalledConsumer)
             }
             S::DeclaredCapability => has(Op::Submit) || has(Op::Probe),
+            S::ProductionReadiness => {
+                has(Op::Probe)
+                    && self.steps.iter().all(|step| {
+                        step.operation == Op::Probe
+                            && step.expected.verdict.outcome == RunOutcome::Complete
+                            && step.expected.verdict.code.as_str() == "production-readiness-passed"
+                            && step.expected.verdict.request_sha256.is_none()
+                            && step.expected.verdict.evidence_sha256.is_some()
+                            && step.expected.credential_leases == 0
+                            && step.expected.provider_entries == 0
+                            && step.expected.confirmed_by_read_back == 0
+                    })
+            }
             _ => has(Op::Probe),
         };
         let live_only = matches!(
@@ -240,6 +253,7 @@ impl RunCase {
                 | S::InstalledJourney
                 | S::NoRepositoryImport
                 | S::NoProviderToken
+                | S::ProductionReadiness
         );
         if !harness_scenario(self.scenario)
             || !required
@@ -280,6 +294,13 @@ impl RunCase {
         mut observe: impl FnMut(usize, &RunStep) -> Result<RunObservation, IssuanceError>,
     ) -> Result<(CaseReport, LiveEffects), IssuanceError> {
         self.validate()?;
+        if self.scenario == Scenario::ProductionReadiness
+            && (tuple.target.store_kind
+                != auths_recipe_qualification::LifecycleStoreKind::PostgresqlV1
+                || !tuple.target.credential_store_kind.is_production())
+        {
+            return Err(IssuanceError::CaseFailed);
+        }
         let tuple_digest = tuple.digest()?;
         let mut observations = Vec::with_capacity(self.steps.len());
         let mut effects = LiveEffects {

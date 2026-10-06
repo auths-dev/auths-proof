@@ -9,6 +9,32 @@ The specification is
 No family is qualified and none is present here yet. The two launch families
 arrive with their decision records.
 
+`cargo xtask release-check` generates `target/release-evidence/launch-readiness.json`.
+Its `stable_launch_ready` value comes from the gateway build's pinned public
+root, current signed inputs and their actual evidence; no checked-in flag can
+set it. The current build pins no root and therefore derives false. Missing
+qualification permits a prerelease while preventing a stable launch claim.
+
+The release builder reads public signed inputs from
+`target/qualification-release/<exact-candidate-commit>/`. These downloaded
+public artifacts are build inputs, not a source commit containing a reference
+to itself. The signing tool includes
+the canonical evidence at `evidence/<artifact-digest>.json`, alongside the
+index, records, attestations, certificate and revocation list. The projection
+verifies every referenced artifact and requires two distinct families,
+contracts and provider kinds on the same production candidate. Its clock
+must pass the maintained synchronization check. Human release review remains
+a separate requirement.
+
+A `production-readiness` case is additionally required for each stable launch
+claim. It runs only in the protected live phase against PostgreSQL and
+production custody, without a lease or provider entry. The reviewed harness
+must run the candidate's doctor and check every required typed row, including
+qualification, then return `production-readiness-passed` and the digest of its
+actual report. Development `not-ready` reports cannot satisfy it. This case
+is optional for intermediate qualification records; its absence always makes
+the stable launch projection false.
+
 ## `families/<family>/`
 
 One directory per recipe family, named by its `RecipeFamilyId`.
