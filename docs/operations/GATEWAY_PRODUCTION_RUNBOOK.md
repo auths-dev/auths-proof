@@ -71,6 +71,11 @@ the serving operator socket. If the gateway is stopped, it reads them at its
 next start. There is no separate `qualification-reload` CLI command. Inspect
 `auths-gateway qualification-status --state-dir ...` and the serving `status`
 response after import, so a failed reload cannot be mistaken for acceptance.
+The production clock requires a synchronization sample at most fifteen minutes
+old, with no future timestamp; stopping time synchronization must make
+`gateway.qualification.clock-untrusted` appear once that bound is exceeded.
+Restore synchronization through the reviewed time service, not by touching its
+marker. The reference polling interval is at most five minutes.
 Do not extend validity by editing files or the clock. Rehearse signer rotation,
 signer revocation, stale revocation inputs and untrusted-clock refusal with
 `auths-qualification stage-trust --tuple ... --out ...`, using the candidate's

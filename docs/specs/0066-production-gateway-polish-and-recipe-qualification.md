@@ -1614,6 +1614,13 @@ The maintained systemd deployment reference is `deployment/gateway/`; the
 operations and independent trial protocol are in
 `docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md`. Hosted verification is pending.
 
+The production clock adapter now rejects a synchronization marker older than
+fifteen minutes, a future timestamp, a symlink/nonregular file or an unsafe
+write mode. Mere existence did not bound trust after synchronization stopped.
+The packaged reference caps systemd-timesyncd polling at five minutes. This is
+a fixed adapter bound, not an operator override of signed validity windows or
+a claim that a compromised time source is trustworthy.
+
 This is not Epic 4 acceptance yet. A live two-host reference exercise of
 workload identity, firewall, PostgreSQL point-in-time restore and the runbooks
 remains, as does the independently performed unfamiliar-operator trial and

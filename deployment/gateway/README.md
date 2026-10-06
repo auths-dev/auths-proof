@@ -78,9 +78,16 @@ checks process/socket isolation and pinned transport construction, not an
 unconfigured external firewall. A successful readiness report is not proof
 that an application lacks an independently obtained provider token.
 
-Enable systemd-timesyncd. Its fixed synchronization marker is the clock trust
-input; missing synchronization disables required recipes. Monitor that marker,
-not merely a running time service. The optional observer is absent in this
+Install `timesyncd/50-auths-gateway.conf` as
+`/etc/systemd/timesyncd.conf.d/50-auths-gateway.conf`, configure the reviewed
+time sources and restart systemd-timesyncd. The drop-in caps polling at five
+minutes. Its fixed synchronization marker is the clock trust input; samples
+older than fifteen minutes, future-dated samples, missing/nonregular markers
+and group/world-writable markers disable required recipes. This bounds the
+trust retained after synchronization stops; it does not establish that an
+untrusted time source is correct. Permit the synchronization service's separate
+UID only the reviewed time endpoints, and alert before the sample-age limit.
+The optional observer is absent in this
 reference, explicitly reported as unavailable for signed outcomes. To add one,
 provision the reviewed distinct custody-backed signing identity and restrict
 its endpoint; never use a software observer in production.

@@ -1591,6 +1591,8 @@ security_state = ["durable-credential-cleanup-notes", "host-generation-floor", "
 
 [packages.auths-gateway.claims]
 operational-diagnostics = [
+  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_requires_a_recent_nonfuture_sample",
+  "product/runtime/auths-gateway/src/qualification.rs#synchronization_marker_refuses_links_and_untrusted_write_permissions",
   "product/runtime/auths-gateway/src/credential_journal.rs#notes_survive_restart_and_refuse_missing_corrupt_full_or_foreign_state",
   "product/runtime/auths-gateway/src/engine.rs#durable_cleanup_retires_abandoned_generations_and_keeps_active_and_future_secrets",
   "product/runtime/auths-gateway/src/readiness.rs#the_projection_names_every_check_and_retains_precise_qualification_failure",
