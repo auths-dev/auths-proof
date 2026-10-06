@@ -292,10 +292,21 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
     succeed(&borrowed(&sign("proposal", "signer.key")));
     // A consumer must be able to verify the signed record's closure using
     // only the published release, after the unsigned proposal is unavailable.
+    let proposal_record =
+        auths_recipe_qualification::RecipeQualificationRecord::from_canonical_json(
+            &fs::read(at("proposal/record.json")).expect("proposal record"),
+        )
+        .expect("record");
+    let published_record = at(&format!(
+        "release/records/{}.json",
+        proposal_record.body().qualification_id.as_str()
+    ));
     let record = auths_recipe_qualification::RecipeQualificationRecord::from_canonical_json(
-        &fs::read(at("proposal/record.json")).expect("proposal record"),
+        &fs::read(&published_record).expect("published record"),
     )
-    .expect("record");
+    .expect("published canonical record");
+    assert_eq!(record.digest(), proposal_record.digest());
+    fs::remove_dir_all(at("proposal")).expect("discard unsigned proposal");
     let artifacts: Vec<auths_recipe_qualification::QualificationEvidence> = record
         .body()
         .evidence
@@ -378,7 +389,7 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
         "--source",
         &format!("log={}", at("gateway.log")),
         "--source",
-        &format!("evidence={}", at("proposal/record.json")),
+        &format!("evidence={published_record}"),
         "--out",
         &at("redaction.cases.json"),
     ]);
