@@ -138,7 +138,12 @@ database is current; recover its floors before starting it.
 
 For each response-recorded or unknown operation, use `reobserve --state-dir
 ... --operation-id ...` once. It uses the stored plan and a fresh read-only
-check under the declared capability. Confirmed evidence may advance the
+check under the declared capability. Reobserve requires an enabled connection
+because it leases a credential; a disabled or revoked connection refuses even
+this read. Only when the restored state passes the continuity and retained-floor
+checks, keep app ingress blocked on both hosts, require every other readiness
+check to pass, enable and rerun full doctor before reconciling. Do not enable
+a quarantined restore to work around a refusal. Confirmed evidence may advance the
 record; missing or delayed evidence stays unknown. Reobserve again after
 visibility returns; never issue a new provider write as recovery. Keep the
 opaque operation digest and stage only in support evidence.
@@ -151,9 +156,13 @@ support bundles and floors, and upgrade one host. It must derive the same
 recipe and connection generations; the old host must refuse a changed binding
 rather than choosing a stale credential. A binary without a current exact
 tuple attestation stays disabled. Validate doctor and read-only reconciliation
-before replacing the second host and enabling. Do not mix obsolete store
-schemas or interpret restore as replay continuity. Keep expiry and revocation
-updates running during the upgrade.
+with app ingress blocked on both hosts: while disabled, the connection check
+must fail and every other required check must pass. Enable within that isolated
+window, rerun full doctor and reconcile without submitting a new operation.
+Disable again before replacing the second host. Check its candidate the same
+way, then enable, require full doctor on both hosts and only then admit app
+traffic. Do not mix obsolete store schemas or interpret restore as replay
+continuity. Keep expiry and revocation updates running during the upgrade.
 
 ## Independent operator trial
 
