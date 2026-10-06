@@ -34,7 +34,10 @@ def main() -> None:
     shutil.copyfile(executables[0], executable)
     executable.chmod(0o755)
     with executable.open("rb") as stream:
-        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        hasher = hashlib.sha256()
+        for chunk in iter(lambda: stream.read(131_072), b""):
+            hasher.update(chunk)
+        digest = hasher.hexdigest()
     repository = Path(__file__).resolve().parents[2]
     if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=repository):
         parser.error("candidate kit requires committed source")

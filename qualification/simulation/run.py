@@ -57,7 +57,10 @@ def main() -> None:
         if harness.is_symlink() or not harness.is_file() or harness.stat().st_size > 536_870_912:
             parser.error("invalid native harness")
         with harness.open("rb") as stream:
-            harness_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: stream.read(131_072), b""):
+                digest.update(chunk)
+            harness_sha256 = digest.hexdigest()
         if harness_sha256 != metadata.get("harness_sha256"):
             parser.error("candidate harness digest mismatch")
         source_dirty = False

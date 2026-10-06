@@ -29,7 +29,7 @@ the trust transition, while provider measurements are separate artifacts.
 CI also packages the compiled native harness with its SHA-256 and commit.
 It runs that kit in Docker with networking disabled and no source checkout
 mounted. Download the `qualification-simulation-kit-*` artifact, make the
-`qualification-harness` executable, and run with Python 3.12:
+`qualification-harness` executable, and run with Python 3.9 or later:
 
 ```sh
 chmod +x /path/to/kit/qualification-harness
