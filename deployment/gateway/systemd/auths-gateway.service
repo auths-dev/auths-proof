@@ -1,0 +1,37 @@
+[Unit]
+Description=Auths production gateway
+After=network-online.target systemd-timesyncd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=auths-gateway
+Group=auths-app-socket
+UMask=0077
+EnvironmentFile=/etc/auths/runtime.conf
+ExecStart=/opt/auths/bin/auths-gateway serve --state-dir /var/lib/auths/gateway --app-socket /run/auths-app/gateway.sock
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=35
+KillSignal=SIGTERM
+LimitNOFILE=512
+MemoryMax=512M
+CPUQuota=200%
+TasksMax=128
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/auths/gateway /run/auths-app
+ReadOnlyPaths=/run/auths-identity/runtime /run/systemd/timesync
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

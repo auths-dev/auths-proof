@@ -323,6 +323,13 @@ impl GatewayEngine {
         self
     }
 
+    /// Pins the host's independently retained anti-rollback witness.
+    #[must_use]
+    pub fn with_generation_floor(mut self, floor: crate::GenerationFloor) -> Self {
+        self.connection = self.connection.with_generation_floor(floor);
+        self
+    }
+
     /// Installs the qualification gate the operator plane built for this
     /// deployment. Without one, every lease is refused as unqualified.
     #[must_use]
@@ -439,18 +446,12 @@ impl GatewayEngine {
     /// # Errors
     /// A failed durable transition never reports disabled.
     pub async fn disable_connection(&self) -> Result<GatewayAdminOutcome, &'static str> {
-        let disabled = self
-            .change_state(|record, now| {
-                if record.state() != ConnectionState::Active {
-                    return Err("gateway.admin.connection-not-active");
-                }
-                record
-                    .transition_state(ConnectionState::Disabled, now)
-                    .map(Some)
-                    .map_err(|_| "gateway.admin.transition-unavailable")
-            })
+        self.connection
+            .stop(
+                false,
+                wall_clock_seconds().ok_or("gateway.admin.clock-unavailable")?,
+            )
             .await?;
-        self.delete_superseded_credentials(&disabled).await;
         Ok(self.drained("gateway.admin.disabled").await)
     }
 
@@ -818,6 +819,52 @@ impl GatewayEngine {
         })
     }
 
+    /// Performs the runtime part of production readiness without leasing a
+    /// credential or contacting a provider. The caller must separately check
+    /// process isolation, deployment clock and observer policy. This checks
+    /// the shared record, exact recipe binding, current generation, bounded
+    /// secret-store confirmation and pinned transport construction.
+    pub async fn readiness_checks(
+        &self,
+        credential_store: auths_connections::CredentialStoreKind,
+    ) -> crate::RequiredPreconditions {
+        use crate::PreconditionState::{NotReady, Ready};
+        let mut checks = crate::RequiredPreconditions {
+            trust: Ready,
+            store: NotReady,
+            recipe: NotReady,
+            qualification: if self.qualification.status().state
+                == auths_recipe_qualification::RecipeQualificationState::Qualified
+            {
+                Ready
+            } else {
+                NotReady
+            },
+            provider_secret_custody: NotReady,
+            connection_generation: NotReady,
+            clock: NotReady,
+            transport_policy: NotReady,
+            operator_plane_isolation: NotReady,
+        };
+        if let Ok(Some(loaded)) = self.connection.load().await {
+            checks.store = Ready;
+            let record = loaded.record();
+            if let Ok(descriptor) = GatewayConnectionDescriptor::from_record(record, &self.recipe) {
+                checks.recipe = Ready;
+                if GatewayHttpTransport::prepare(&self.recipe, descriptor.credential()).is_ok() {
+                    checks.transport_policy = Ready;
+                }
+            }
+            if credential_store.is_production() && self.holds(record).await.is_ok() {
+                checks.provider_secret_custody = Ready;
+            }
+            if authorizes_entry(record, &self.workload_id, &self.profile) {
+                checks.connection_generation = Ready;
+            }
+        }
+        checks
+    }
+
     /// Performs the operator's read-only re-observation of one stored
     /// attempt: one read-back from the stored plan under a fresh lease that
     /// passes every credential check, when the recipe digest is unchanged
@@ -916,6 +963,9 @@ impl GatewayEngine {
     async fn prepare_entry(&self) -> Result<PreparedEntry, &'static str> {
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
+            Err(SharedConnectionError::Rollback) => {
+                return Err("gateway.connection.restore-rollback");
+            }
             Ok(None) | Err(_) => return Err("gateway.connection.unavailable"),
         };
         let record = loaded.record();
@@ -1822,6 +1872,115 @@ pub(crate) mod tests {
                 host.entry_refusal().await.as_deref(),
                 Some("gateway.connection.unavailable")
             );
+        }
+
+        #[tokio::test]
+        async fn a_restored_store_below_the_host_floor_cannot_lease_after_restart() {
+            restored_store_floor(crate::store_testkit::Backend::File).await;
+        }
+
+        #[tokio::test]
+        #[ignore = "requires the TLS PostgreSQL fixture"]
+        async fn postgres_restore_below_the_host_floor_cannot_lease_after_restart() {
+            restored_store_floor(crate::store_testkit::Backend::Postgres).await;
+        }
+
+        async fn restored_store_floor(backend: crate::store_testkit::Backend) {
+            let installation = installation_on(backend, 8).await;
+            let first = &installation.first;
+            let old = first.record().await;
+            let directory = tempfile::tempdir().expect("floor directory");
+            let floor = crate::GenerationFloor::new(directory.path().to_path_buf());
+            floor.initialize(&old).expect("first generation");
+            let disabled = first
+                .engine
+                .connection
+                .stop(false, wall_clock_seconds().expect("clock"))
+                .await
+                .expect("disable");
+            floor.accept(&disabled).expect("new generation");
+            let raw = SharedConnection::new(
+                first.engine.attempts.store(),
+                old.provider_kind().clone(),
+                old.alias().clone(),
+            );
+            let current = raw.load().await.expect("load").expect("connection");
+            raw.replace(&current, &old)
+                .await
+                .expect("simulate restored database");
+            let guarded = raw
+                .with_generation_floor(crate::GenerationFloor::new(directory.path().to_path_buf()));
+            assert_eq!(guarded.load().await, Err(SharedConnectionError::Rollback));
+            let mut restarted = host(first.engine.attempts.clone(), 8);
+            restarted.engine.connection = guarded;
+            let before = restarted.leases.load(Ordering::SeqCst);
+            assert_eq!(
+                restarted.entry_refusal().await.as_deref(),
+                Some("gateway.connection.restore-rollback")
+            );
+            assert_eq!(restarted.leases.load(Ordering::SeqCst), before);
+            assert_eq!(
+                floor.accept(&old),
+                Err("gateway.connection.restore-rollback")
+            );
+            std::fs::write(directory.path().join("connection-floor.json"), b"corrupt")
+                .expect("corrupt floor");
+            assert_eq!(
+                floor.accept(&disabled),
+                Err("gateway.connection.restore-rollback")
+            );
+        }
+
+        #[tokio::test]
+        async fn readiness_and_emergency_stop_make_no_credential_lease() {
+            let installation = installation(8).await;
+            let host = &installation.first;
+            let before = host.leases.load(Ordering::SeqCst);
+            let checked = host
+                .engine
+                .readiness_checks(auths_connections::CredentialStoreKind::LocalFileV1)
+                .await;
+            assert_eq!(checked.store, crate::PreconditionState::Ready);
+            assert_eq!(checked.recipe, crate::PreconditionState::Ready);
+            assert_eq!(
+                checked.connection_generation,
+                crate::PreconditionState::Ready
+            );
+            assert_eq!(
+                checked.provider_secret_custody,
+                crate::PreconditionState::NotReady
+            );
+            assert_eq!(checked.qualification, crate::PreconditionState::NotReady);
+            // Remove custody entirely. The store-only stop is still usable,
+            // is idempotent, and does not touch or reclassify attempts.
+            std::fs::remove_dir_all(&host.credentials_directory).expect("remove custody");
+            let now = wall_clock_seconds().expect("clock");
+            let stopped = host.engine.connection.stop(false, now).await.expect("stop");
+            assert_eq!(stopped.state(), ConnectionState::Disabled);
+            let repeated = host
+                .engine
+                .connection
+                .stop(false, now)
+                .await
+                .expect("repeat");
+            assert_eq!(stopped.generation(), repeated.generation());
+            let revoked = host
+                .engine
+                .connection
+                .stop(true, now)
+                .await
+                .expect("revoke");
+            assert_eq!(revoked.state(), ConnectionState::Revoked);
+            assert_eq!(
+                host.engine
+                    .connection
+                    .stop(false, now)
+                    .await
+                    .expect("stop revoked")
+                    .state(),
+                ConnectionState::Revoked
+            );
+            assert_eq!(host.leases.load(Ordering::SeqCst), before);
         }
 
         #[tokio::test]

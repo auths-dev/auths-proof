@@ -342,3 +342,17 @@ executable corpus runner and measured-observation contract, workflow wiring,
 CLI/script-pipeline tests, and direct credential-lease counters. Hosted
 verification is pending. Production family corpora, the owner's root ceremony,
 live qualifications, operator trial and launch acceptance remain unclaimed.
+
+
+### AP-SPEC-066 unattended continuation (2026-10-06)
+
+Owner direction: finish Epic 4, then Epic 5, then publish the Python SDK
+release candidate `0.0.1-rc1` and run a simulated onboarding pilot across all
+recipes with measured friction and a backlog. Epic 3 PR #204 is merged.
+Epic 4 implementation is on `gateway-operator-polish`; acceptance is still
+open. The simulated pilot does not replace the independent operator trial or
+human release review. Signing environment metadata contains no secret and
+neither live recipe environment exists; the offline owner root ceremony and
+live-provider qualification remain unclaimed. Python packaging must normalize
+the requested semver to PEP 440 `0.0.1rc1`, preserving `0.0.1-rc1` as the
+release/tag identifier. No publication or qualified launch is claimed yet.

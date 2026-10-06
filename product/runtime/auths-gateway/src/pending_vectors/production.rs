@@ -13,8 +13,8 @@
 //! retirement delay, and redacted debug forms. The qualification codes are
 //! implemented by the gate, whose tests drive every verification vector.
 //! The support bundle exists and its own test scans it for every canary of
-//! the `redaction` section. The readiness codes are still pending, and for
-//! those this module asserts the shortfall: no product crate defines one. The secret-name and version
+//! the `redaction` section. Readiness checks and restore floors are implemented
+//! and exercised in readiness and engine tests. The secret-name and version
 //! vectors are generated here from the stated derivation and driven by the
 //! Secrets Manager store's own tests, so the two agree or one of them fails. Those assertions are expected to fail when the implementing work
 //! lands, wherever it lands, and that work replaces each with the
@@ -63,7 +63,13 @@ const ROWS: &[&str] = &[
     "gateway.qualification.unavailable qualification before-lease implemented 3 V:index-signature-forged",
     "gateway.qualification.revocation-stale qualification before-lease implemented 3 V:revocation-list-past-next-update",
     "gateway.qualification.clock-untrusted qualification before-lease implemented 3 V:clock-untrusted",
-    "gateway.readiness.connection-disabled readiness doctor new 4 -",
+    "gateway.readiness.connection-disabled readiness doctor implemented 4 -",
+    "gateway.readiness.trust-unavailable readiness doctor implemented 4 -",
+    "gateway.readiness.store-unavailable readiness doctor implemented 4 -",
+    "gateway.readiness.recipe-drift readiness doctor implemented 4 -",
+    "gateway.readiness.transport-unavailable readiness doctor implemented 4 -",
+    "gateway.readiness.observer-unavailable readiness doctor implemented 4 -",
+    "gateway.connection.restore-rollback connection before-lease implemented 4 -",
     "gateway.attempt.replay engine recorded existing - C:lease-never-precedes-claim",
     "gateway.connection.credential-generation-missing engine before-claim existing - C:lease-generation-not-held",
     "gateway.credential.unavailable engine recorded existing - C:lease-commitment-mismatch",
@@ -75,7 +81,7 @@ const ROWS: &[&str] = &[
 /// pending. Until their epics land, the gateway defines no code under them.
 /// The qualification family is implemented: the gate's own tests drive
 /// every verification vector through it.
-const NEW_FAMILIES: &[&str] = &["gateway.readiness."];
+const NEW_FAMILIES: &[&str] = &[];
 
 /// Every hostile class the production work must have a vector for.
 const REQUIRED_CLASSES: &[&str] = &[

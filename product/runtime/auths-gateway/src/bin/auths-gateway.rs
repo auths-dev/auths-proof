@@ -320,6 +320,10 @@ mod unix {
             /// defaults to `<state-dir>/admin.sock`.
             #[arg(long)]
             admin_socket: Option<PathBuf>,
+            /// Commit directly to the shared store without a running gateway.
+            /// Does not delete credentials or claim in-flight drainage.
+            #[arg(long, default_value_t = false)]
+            store_only: bool,
         },
         /// Ask the private operator socket to enable a disabled connection.
         Enable {
@@ -439,6 +443,10 @@ mod unix {
             /// defaults to `<state-dir>/admin.sock`.
             #[arg(long)]
             admin_socket: Option<PathBuf>,
+            /// Commit directly to the shared store without a running gateway.
+            /// Does not delete credentials or claim in-flight drainage.
+            #[arg(long, default_value_t = false)]
+            store_only: bool,
         },
         /// Rotate the credential via the private operator socket and stdin.
         Rotate {
@@ -450,6 +458,10 @@ mod unix {
             admin_socket: Option<PathBuf>,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// Run under the operator's workload identity in this process.
+            /// The serving gateway may retain its read-only runtime role.
+            #[arg(long, default_value_t = false)]
+            operator_process: bool,
         },
         /// First phase of a two-phase rotation: store the new credential
         /// from stdin without publishing it, and print its commitment.
@@ -462,6 +474,10 @@ mod unix {
             admin_socket: Option<PathBuf>,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// Run under the operator's workload identity in this process.
+            /// The serving gateway may retain its read-only runtime role.
+            #[arg(long, default_value_t = false)]
+            operator_process: bool,
         },
         /// Second phase: publish the prepared credential the commitment
         /// names to every process sharing the store.
@@ -475,6 +491,10 @@ mod unix {
             /// The commitment `rotate-prepare` printed.
             #[arg(long)]
             commitment: String,
+            /// Run under the operator's workload identity in this process.
+            /// The serving gateway may retain its read-only runtime role.
+            #[arg(long, default_value_t = false)]
+            operator_process: bool,
         },
         /// Operator-only: create the observer signing key in gateway state.
         ObserverInit {
@@ -1238,6 +1258,16 @@ mod unix {
             )
             .await?;
         }
+        let installed = shared
+            .load()
+            .await
+            .map_err(|_| "gateway.install.connection-store-unavailable")?
+            .ok_or("gateway.install.connection-store-unavailable")?;
+        let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
+        let record = installed.record().clone();
+        tokio::task::spawn_blocking(move || floor.initialize(&record))
+            .await
+            .map_err(|_| "gateway.install.connection-store-unavailable")??;
         private_file(&state_dir.join("recipe.json"), &source)?;
         private_file(&state_dir.join("profile.lock.json"), &lock)?;
         private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
@@ -1747,7 +1777,9 @@ mod unix {
             Some(observer) => engine.with_observer(observer),
             None => engine,
         };
-        let engine = engine.with_qualification(Arc::new(qualification_gate(state_dir, &manifest)?));
+        let engine = engine
+            .with_qualification(Arc::new(qualification_gate(state_dir, &manifest)?))
+            .with_generation_floor(auths_gateway::GenerationFloor::new(state_dir.to_path_buf()));
         // Separation is checked against an authenticated operator. A
         // development installation without one keeps its observer key
         // outside the trust it installed, as `observer-init` creates it after
@@ -2134,9 +2166,11 @@ mod unix {
         // never take an admin permit.
         let app_engine = Arc::clone(&engine);
         let sweep_engine = Arc::clone(&engine);
+        let app_permits = Arc::new(Semaphore::new(app_capacity));
+        let admin_permits = Arc::new(Semaphore::new(ADMIN_CAPACITY));
         let app_listener = serve_listener(
             app,
-            Arc::new(Semaphore::new(app_capacity)),
+            Arc::clone(&app_permits),
             "app",
             |_: &UnixStream| true,
             move |stream, permit| {
@@ -2150,7 +2184,7 @@ mod unix {
         let owner = rustix::process::geteuid().as_raw();
         let admin_listener = serve_listener(
             admin,
-            Arc::new(Semaphore::new(ADMIN_CAPACITY)),
+            Arc::clone(&admin_permits),
             "admin",
             move |stream: &UnixStream| admin_peer_admitted(stream, owner),
             move |stream, permit| {
@@ -2173,10 +2207,36 @@ mod unix {
                 }
             }
         };
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .map_err(|_| "gateway.serve.signal-unavailable")?;
         tokio::select! {
             never = app_listener => match never {},
             never = admin_listener => match never {},
             never = sweeper => match never {},
+            _ = terminate.recv() => {},
+            _ = tokio::signal::ctrl_c() => {},
+        }
+        // The listeners have been dropped: no new session can be admitted.
+        // Waiting for permits includes pre-entry and admin sessions, not
+        // just transports already counted by the engine.
+        let drained = tokio::time::timeout(Duration::from_secs(25), async {
+            let _app = app_permits
+                .acquire_many(u32::try_from(app_capacity).map_err(|_| "gateway.serve.capacity")?)
+                .await
+                .map_err(|_| "gateway.serve.capacity")?;
+            let _admin = admin_permits
+                .acquire_many(u32::try_from(ADMIN_CAPACITY).map_err(|_| "gateway.serve.capacity")?)
+                .await
+                .map_err(|_| "gateway.serve.capacity")?;
+            Ok::<_, &'static str>(())
+        })
+        .await;
+        let _ = fs::remove_file(&app_socket);
+        let _ = fs::remove_file(admin_path);
+        match drained {
+            Ok(result) => Ok(result?),
+            Err(_) => Err("gateway.serve.shutdown-incomplete".into()),
         }
     }
 
@@ -2566,11 +2626,60 @@ mod unix {
         })
     }
 
+    /// The emergency operator path opens only installation metadata and the
+    /// shared lifecycle store. It never opens qualification or custody inputs.
+    async fn emergency_stop(state_dir: &Path, revoke: bool) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        let manifest = installation(state_dir)?;
+        let deployment = manifest.deployment;
+        let store_path = manifest.attempt_store.as_ref().map(PathBuf::from);
+        let attempts = tokio::task::spawn_blocking(move || open_attempts(deployment, store_path))
+            .await
+            .map_err(|_| "gateway.admin.connection-unavailable")??;
+        let shared = SharedConnection::new(
+            attempts.store(),
+            ProviderKind::parse(manifest.provider).map_err(|_| "gateway.serve.invalid-provider")?,
+            ConnectionAlias::parse(manifest.alias).map_err(|_| "gateway.serve.invalid-alias")?,
+        );
+        let record = shared.stop(revoke, now()?).await?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema": "auths.gateway-emergency-stop/1",
+                "state": if record.state() == ConnectionState::Revoked { "revoked" } else { "disabled" },
+                "generation": record.generation().get(),
+                "drainage": "not-checked",
+                "credential_deletion": "not-attempted"
+            })
+        );
+        Ok(())
+    }
+
+    async fn operator_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
+        let directory = state_dir.to_path_buf();
+        tokio::task::spawn_blocking(move || load_engine(&directory))
+            .await
+            .map_err(|_| "gateway.admin.load-failed")?
+    }
+
+    fn print_admin_response(response: AdminResponse) -> Result<(), Failure> {
+        println!(
+            "{}",
+            serde_json::to_string(&response).map_err(|_| "gateway.output")?
+        );
+        if response.ok {
+            Ok(())
+        } else {
+            Err(response.code.into())
+        }
+    }
+
     async fn rotate(
         state_dir: &Path,
         admin_socket: &AdminSocket,
         credential_stdin: bool,
         command: &str,
+        operator_process: bool,
     ) -> Result<(), Failure> {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.admin.credential-must-be-piped-to-stdin".into());
@@ -2590,6 +2699,22 @@ mod unix {
             || !bytes.iter().all(|byte| (0x21..=0x7e).contains(byte))
         {
             return Err("gateway.admin.invalid-credential".into());
+        }
+        if operator_process {
+            let engine = operator_engine(state_dir).await?;
+            let response = if command == "rotate-prepare" {
+                match engine.prepare_rotation(bytes).await {
+                    Ok(commitment) => AdminResponse {
+                        ok: true,
+                        commitment: Some(hex::encode(commitment)),
+                        ..AdminResponse::refused("gateway.admin.rotation-prepared")
+                    },
+                    Err(code) => AdminResponse::refused(code),
+                }
+            } else {
+                AdminResponse::of(engine.rotate_connection(bytes).await)
+            };
+            return print_admin_response(response);
         }
         admin_command(
             state_dir,
@@ -2701,7 +2826,7 @@ mod unix {
         Ok(())
     }
 
-    fn doctor(
+    async fn doctor(
         state_dir: &Path,
         admin_socket: &Path,
         app_socket: &Path,
@@ -2781,26 +2906,41 @@ mod unix {
         if !status.success() {
             return Err("gateway.doctor.isolation-not-established");
         }
-        let observer = if state_dir.join(OBSERVER_SEED).exists() {
-            "configured"
-        } else {
-            "not configured (signed outcomes unavailable)"
-        };
-        println!(
-            "gateway state and admin socket denied to app UID; app socket reachable. Independent token copies and egress policy not checked."
-        );
-        println!("provider credential store: {custody}");
-        println!("observer: {observer}");
+        let directory = state_dir.to_path_buf();
+        let engine = tokio::task::spawn_blocking(move || load_engine(&directory))
+            .await
+            .map_err(|_| "gateway.doctor.state-unavailable")?
+            .map_err(|failure| failure.code)?;
         let manifest = installation(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
-        let qualification = qualification_gate(state_dir, &manifest)
-            .map_err(|failure| failure.code)?
-            .status();
-        println!(
-            "qualification: policy={} state={} code={}",
-            qualification.policy.as_str(),
-            qualification.state.as_str(),
-            qualification.code.unwrap_or("none")
-        );
+        let qualification = engine.qualification().status();
+        let kind = CredentialStoreKind::parse(&custody)
+            .map_err(|_| "gateway.credential.adapter-unsupported")?;
+        let mut checks = engine.readiness_checks(kind).await;
+        checks.clock = if auths_gateway::DeploymentClock::trust(&SynchronizedHostClock)
+            == auths_gateway::ClockTrustState::Trusted
+        {
+            auths_gateway::PreconditionState::Ready
+        } else {
+            auths_gateway::PreconditionState::NotReady
+        };
+        checks.operator_plane_isolation = auths_gateway::PreconditionState::Ready;
+        // load_engine verified pins, authenticated operator, separation and
+        // observer custody. Development is never production-ready.
+        if manifest.deployment != Deployment::Production {
+            checks.trust = auths_gateway::PreconditionState::NotReady;
+        }
+        let observer = match load_observer(state_dir)? {
+            None => auths_gateway::ObserverCustodyState::NotConfigured,
+            Some(key) if key.custody() != ObserverCustody::Software => {
+                auths_gateway::ObserverCustodyState::Ready
+            }
+            Some(_) => auths_gateway::ObserverCustodyState::NotReady,
+        };
+        let readiness = auths_gateway::ProductionReadiness::new(checks, observer);
+        println!("{}", readiness.report(qualification.code));
+        if !readiness.is_ready() {
+            return Err("gateway.doctor.not-ready");
+        }
         Ok(())
     }
 
@@ -2987,7 +3127,11 @@ mod unix {
             Command::Disable {
                 state_dir,
                 admin_socket,
+                store_only,
             } => {
+                if store_only {
+                    return emergency_stop(&state_dir, false).await;
+                }
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 let command = serde_json::json!({"command": "disable"});
                 admin_command(&state_dir, &admin_socket, command, None).await
@@ -3003,7 +3147,11 @@ mod unix {
             Command::Revoke {
                 state_dir,
                 admin_socket,
+                store_only,
             } => {
+                if store_only {
+                    return emergency_stop(&state_dir, true).await;
+                }
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 let command = serde_json::json!({"command": "revoke"});
                 admin_command(&state_dir, &admin_socket, command, None).await
@@ -3061,14 +3209,23 @@ mod unix {
             Command::Rotate {
                 state_dir,
                 admin_socket,
+                operator_process,
                 credential_stdin,
             } => {
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
-                rotate(&state_dir, &admin_socket, credential_stdin, "rotate").await
+                rotate(
+                    &state_dir,
+                    &admin_socket,
+                    credential_stdin,
+                    "rotate",
+                    operator_process,
+                )
+                .await
             }
             Command::RotatePrepare {
                 state_dir,
                 admin_socket,
+                operator_process,
                 credential_stdin,
             } => {
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
@@ -3077,14 +3234,31 @@ mod unix {
                     &admin_socket,
                     credential_stdin,
                     "rotate-prepare",
+                    operator_process,
                 )
                 .await
             }
             Command::RotateCommit {
                 state_dir,
                 admin_socket,
+                operator_process,
                 commitment,
             } => {
+                if operator_process {
+                    let engine = operator_engine(&state_dir).await?;
+                    let mut fixed = [0_u8; 32];
+                    if commitment.len() != 64
+                        || !commitment
+                            .bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                    {
+                        return Err("gateway.admin.invalid-frame".into());
+                    }
+                    hex::decode_to_slice(&commitment, &mut fixed)
+                        .map_err(|_| "gateway.admin.invalid-frame")?;
+                    let response = AdminResponse::of(engine.commit_rotation(fixed).await);
+                    return print_admin_response(response);
+                }
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 admin_command(
                     &state_dir,
@@ -3133,7 +3307,8 @@ mod unix {
                     &app_socket,
                     app_uid,
                     app_gid,
-                )?)
+                )
+                .await?)
             }
             Command::Probe {
                 state_dir,

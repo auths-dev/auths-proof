@@ -1,0 +1,6 @@
+# Public configuration only. Web identity tokens are short-lived files, never env values.
+AUTHS_POSTGRES_URL=host=postgres.internal port=5432 dbname=auths user=auths sslmode=require
+AUTHS_POSTGRES_CA_PEM=/etc/auths/postgres-ca.pem
+AUTHS_POSTGRES_SERVER_NAME=postgres.internal
+AWS_ROLE_ARN=arn:aws:iam::ACCOUNT:role/auths-runtime
+AWS_WEB_IDENTITY_TOKEN_FILE=/run/auths-identity/runtime/token

@@ -1601,3 +1601,24 @@ submission-driver, persistent-store, credential-lease and counting-provider
 observations into replay and lost-response recovery stages.
 Hosted verification of these additions is pending; no live qualification or
 owner trust ceremony is claimed.
+
+
+## 21. Epic 4 implementation and remaining acceptance (2026-10-06)
+
+The operator-polish branch adds a bounded canary-scanned support bundle,
+typed production doctor report, store-only emergency disable/revoke, separate
+operator-process rotation under its own workload identity, graceful listener
+shutdown and a durable host generation floor. The floor rejects an older
+restored connection or changed bytes at an accepted generation before lease.
+The maintained systemd deployment reference is `deployment/gateway/`; the
+operations and independent trial protocol are in
+`docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md`. Hosted verification is pending.
+
+This is not Epic 4 acceptance yet. A live two-host reference exercise of
+workload identity, firewall, PostgreSQL point-in-time restore and the runbooks
+remains, as does the independently performed unfamiliar-operator trial and
+its defect rerun. The implementer has not simulated that participant. Epic 5
+also lacks the owner's offline root ceremony, protected signer secret,
+two protected provider environments and human release review. On 2026-10-06,
+GitHub environment/secret metadata confirmed no qualification signer secret
+and neither family live environment. No production recipe is qualified.

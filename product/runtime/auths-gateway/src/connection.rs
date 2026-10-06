@@ -25,6 +25,9 @@ const KEY_DOMAIN: &[u8] = b"auths.gateway-connection/1\0";
 /// Why the shared connection record could not be read or changed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
 pub enum SharedConnectionError {
+    /// The record is below the host's durable restore floor or has changed at an accepted generation.
+    #[error("the connection violates its durable generation floor")]
+    Rollback,
     /// A record already exists for this provider and alias.
     #[error("a connection record already exists")]
     Exists,
@@ -82,9 +85,49 @@ pub struct SharedConnection {
     provider: ProviderKind,
     alias: ConnectionAlias,
     key: GatewayAttemptKey,
+    floor: Option<Arc<crate::GenerationFloor>>,
 }
 
 impl SharedConnection {
+    /// Commits an emergency stop using only the lifecycle store. No recipe,
+    /// trust input, provider, or credential-store access participates.
+    /// Existing attempts are untouched. Repeated stops are idempotent and a
+    /// revoked connection can never become merely disabled.
+    ///
+    /// # Errors
+    /// Returns a stable admin code for missing, corrupt, unavailable, or
+    /// concurrently changing state. This does not claim in-flight drainage
+    /// or deletion of the provider credential.
+    pub async fn stop(&self, revoke: bool, now: u64) -> Result<ConnectionRecord, &'static str> {
+        for _ in 0..8 {
+            let current = self
+                .load()
+                .await
+                .map_err(|_| "gateway.admin.connection-unavailable")?
+                .ok_or("gateway.admin.connection-unavailable")?;
+            let target = if revoke {
+                ConnectionState::Revoked
+            } else {
+                ConnectionState::Disabled
+            };
+            if current.record().state() == target
+                || current.record().state() == ConnectionState::Revoked
+            {
+                return Ok(current.record().clone());
+            }
+            let next = current
+                .record()
+                .transition_state(target, now)
+                .map_err(|_| "gateway.admin.transition-unavailable")?;
+            match self.replace(&current, &next).await {
+                Ok(committed) => return Ok(committed.record().clone()),
+                Err(SharedConnectionError::Conflict) => {}
+                Err(_) => return Err("gateway.admin.transition-unavailable"),
+            }
+        }
+        Err("gateway.admin.generation-conflict")
+    }
+
     /// Names the record of `provider` and `alias` in `store`.
     #[must_use]
     pub fn new(
@@ -98,7 +141,31 @@ impl SharedConnection {
             provider,
             alias,
             key,
+            floor: None,
         }
+    }
+
+    /// Installs the host's durable generation floor. Emergency store-only
+    /// stops deliberately use a connection without a floor so that even
+    /// obsolete restored state can be stopped.
+    #[must_use]
+    pub fn with_generation_floor(mut self, floor: crate::GenerationFloor) -> Self {
+        self.floor = Some(Arc::new(floor));
+        self
+    }
+
+    async fn accept_floor(
+        &self,
+        loaded: LoadedConnection,
+    ) -> Result<LoadedConnection, SharedConnectionError> {
+        if let Some(floor) = self.floor.clone() {
+            let record = loaded.record().clone();
+            tokio::task::spawn_blocking(move || floor.accept(&record))
+                .await
+                .map_err(|_| SharedConnectionError::Rollback)?
+                .map_err(|_| SharedConnectionError::Rollback)?;
+        }
+        Ok(loaded)
     }
 
     /// The installed provider.
@@ -123,7 +190,10 @@ impl SharedConnection {
         let key = self.key;
         let bytes =
             blocking(move || store.load(crate::GatewayRecordKind::Connection, &key)).await?;
-        bytes.map(|bytes| self.decode(bytes)).transpose()
+        match bytes {
+            Some(bytes) => self.accept_floor(self.decode(bytes)?).await.map(Some),
+            None => Ok(None),
+        }
     }
 
     /// Inserts the first record; a record already present is never
@@ -170,7 +240,7 @@ impl SharedConnection {
             store.replace(crate::GatewayRecordKind::Connection, &key, &before, &after)
         })
         .await?;
-        Ok(loaded)
+        self.accept_floor(loaded).await
     }
 
     fn encode(&self, record: &ConnectionRecord) -> Result<LoadedConnection, SharedConnectionError> {

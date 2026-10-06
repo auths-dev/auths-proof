@@ -1,0 +1,6 @@
+# Operator reads and administers custody; runtime role only reads it.
+AUTHS_POSTGRES_URL=host=postgres.internal port=5432 dbname=auths user=auths sslmode=require
+AUTHS_POSTGRES_CA_PEM=/etc/auths/postgres-ca.pem
+AUTHS_POSTGRES_SERVER_NAME=postgres.internal
+AWS_ROLE_ARN=arn:aws:iam::ACCOUNT:role/auths-operator
+AWS_WEB_IDENTITY_TOKEN_FILE=/run/auths-identity/operator/token

@@ -17,6 +17,7 @@ mod echo_verify;
 mod engine;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
+mod generation_floor;
 #[cfg(unix)]
 pub mod listener;
 mod observer;
@@ -79,6 +80,7 @@ pub use engine::{
     GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
     SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
 };
+pub use generation_floor::GenerationFloor;
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,

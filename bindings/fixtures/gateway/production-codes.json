@@ -24,6 +24,14 @@
       }
     },
     {
+      "code": "gateway.connection.restore-rollback",
+      "owner": "connection",
+      "stage": "before-lease",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
       "code": "gateway.credential.adapter-unsupported",
       "owner": "credential-store",
       "stage": "install-and-serve",
@@ -156,7 +164,47 @@
       "code": "gateway.readiness.connection-disabled",
       "owner": "readiness",
       "stage": "doctor",
-      "status": "new",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.observer-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.recipe-drift",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.store-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.transport-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.readiness.trust-unavailable",
+      "owner": "readiness",
+      "stage": "doctor",
+      "status": "implemented",
       "epic": 4,
       "case": null
     },

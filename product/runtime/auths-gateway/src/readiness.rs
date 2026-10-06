@@ -123,6 +123,23 @@ pub enum ReadinessPrecondition {
 }
 
 impl ReadinessPrecondition {
+    /// Stable reason when this typed check failed or could not be made.
+    #[must_use]
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Trust => "gateway.readiness.trust-unavailable",
+            Self::Store => "gateway.readiness.store-unavailable",
+            Self::Recipe => "gateway.readiness.recipe-drift",
+            Self::Qualification => "gateway.qualification.unavailable",
+            Self::ProviderSecretCustody => "gateway.credential.unavailable",
+            Self::ConnectionGeneration => "gateway.readiness.connection-disabled",
+            Self::Clock => "gateway.qualification.clock-untrusted",
+            Self::TransportPolicy => "gateway.readiness.transport-unavailable",
+            Self::OperatorPlaneIsolation => "gateway.doctor.isolation-not-established",
+            Self::ObserverCustody => "gateway.readiness.observer-unavailable",
+        }
+    }
+
     /// The preconditions every production deployment requires, in the order
     /// they are reported.
     pub const REQUIRED: [Self; 9] = [
@@ -230,6 +247,30 @@ pub struct ProductionReadiness {
 }
 
 impl ProductionReadiness {
+    /// Secret-free machine-readable diagnostic projection. Every required
+    /// check is present, including failures; optional observer custody is
+    /// explicitly reported. A failed qualification retains its precise code.
+    #[must_use]
+    pub fn report(&self, qualification_code: Option<&'static str>) -> serde_json::Value {
+        let mut checks: Vec<_> = ReadinessPrecondition::REQUIRED.into_iter().map(|check| {
+            let ready = self.required.state(check) == Some(PreconditionState::Ready);
+            serde_json::json!({
+                "check": check.as_str(), "ready": ready,
+                "code": if ready { None } else if check == ReadinessPrecondition::Qualification {
+                    Some(qualification_code.unwrap_or(check.code()))
+                } else { Some(check.code()) }
+            })
+        }).collect();
+        checks.push(
+            serde_json::json!({"check": "observer-custody", "state": match self.observer {
+                ObserverCustodyState::NotConfigured => "not-configured",
+                ObserverCustodyState::Ready => "ready",
+                ObserverCustodyState::NotReady => "not-ready",
+            }}),
+        );
+        serde_json::json!({"schema": "auths.gateway-readiness/1", "ready": self.is_ready(), "checks": checks})
+    }
+
     /// Combines the outcome of every check.
     #[must_use]
     pub const fn new(required: RequiredPreconditions, observer: ObserverCustodyState) -> Self {
@@ -286,6 +327,27 @@ mod tests {
             clock: state(6),
             transport_policy: state(7),
             operator_plane_isolation: state(8),
+        }
+    }
+
+    #[test]
+    fn the_projection_names_every_check_and_retains_precise_qualification_failure() {
+        let readiness = ProductionReadiness::new(
+            required((1 << 3) | (1 << 5)),
+            ObserverCustodyState::NotConfigured,
+        );
+        let report = readiness.report(Some("gateway.qualification.revoked"));
+        assert_eq!(report["ready"], false);
+        let checks = report["checks"].as_array().expect("checks");
+        assert_eq!(checks.len(), 10);
+        assert_eq!(checks[3]["code"], "gateway.qualification.revoked");
+        assert_eq!(checks[5]["code"], "gateway.readiness.connection-disabled");
+        assert_eq!(checks[9]["state"], "not-configured");
+        for bit in 0..9 {
+            let report = ProductionReadiness::new(required(1 << bit), ObserverCustodyState::Ready)
+                .report(None);
+            assert_eq!(report["ready"], false);
+            assert!(report["checks"][bit]["code"].is_string());
         }
     }
 
