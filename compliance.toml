@@ -198,8 +198,8 @@ principal_families = []
 signature_families = []
 profiles = []
 transports = []
-configuration_inputs = ["deployment-namespace"]
-security_state = ["credential-generation", "credential-reference", "exact-secret-version"]
+configuration_inputs = ["deployment-namespace", "runtime-workload-identity", "operator-workload-identity"]
+security_state = ["credential-generation", "credential-reference", "exact-secret-version", "separate-runtime-reader-and-operator-writer"]
 
 [packages.auths-credentials-aws-secrets-manager.claims]
 independent-semantic-implementation = [
@@ -207,6 +207,7 @@ independent-semantic-implementation = [
   "product/integrations/auths-credentials-aws-secrets-manager/src/names.rs#frozen_version_references_are_classified",
   "product/integrations/auths-credentials-aws-secrets-manager/src/store.rs#hostile_answers_never_reach_the_caller",
   "product/integrations/auths-credentials-aws-secrets-manager/src/store.rs#rotation_keeps_the_old_generation_until_it_is_revoked",
+  "product/integrations/auths-credentials-aws-secrets-manager/src/api.rs#operator_administration_uses_separate_permissions_without_fallback",
   "product/integrations/auths-credentials-aws-secrets-manager/src/sigv4.rs#the_published_plain_get_vector_is_reproduced",
 ]
 

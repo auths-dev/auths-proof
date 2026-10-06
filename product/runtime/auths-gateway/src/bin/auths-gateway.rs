@@ -756,9 +756,32 @@ mod unix {
         deployment: Deployment,
         unavailable: &'static str,
     ) -> Result<Arc<dyn ConnectionCredentialStore>, &'static str> {
+        open_credentials_for(
+            state_dir,
+            settings,
+            deployment,
+            unavailable,
+            CredentialAccess::Runtime,
+        )
+    }
+
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    enum CredentialAccess {
+        Runtime,
+        Operator,
+    }
+
+    fn open_credentials_for(
+        state_dir: &Path,
+        settings: &CredentialStoreSettings,
+        deployment: Deployment,
+        unavailable: &'static str,
+        access: CredentialAccess,
+    ) -> Result<Arc<dyn ConnectionCredentialStore>, &'static str> {
         use auths_credentials_aws_secrets_manager::{
-            AwsSecretsManagerStore, ContainerEndpoint, DeploymentNamespace, HttpSecretsApi,
-            InstanceMetadata, Region, WebIdentity, WorkloadIdentity,
+            AdministrativeSecretsApi, AwsSecretsManagerStore, ContainerEndpoint,
+            DeploymentNamespace, HttpSecretsApi, InstanceMetadata, Region, WebIdentity,
+            WorkloadIdentity,
         };
         let kind =
             auths_gateway::credential_store_policy(&settings.kind, production_custody(deployment))?;
@@ -812,6 +835,32 @@ mod unix {
                     }
                     _ => return Err(unavailable),
                 };
+                if access == CredentialAccess::Operator {
+                    // The maintained operator reference is web identity. It
+                    // reads under the runtime role and writes under the
+                    // distinct operator role; neither role is broadened.
+                    if settings.identity.as_deref() != Some("web-identity") {
+                        return Err(unavailable);
+                    }
+                    let reader_role = variable("AUTHS_GATEWAY_RUNTIME_ROLE_ARN")?;
+                    if reader_role == variable("AWS_ROLE_ARN")? {
+                        return Err(unavailable);
+                    }
+                    let reader = WebIdentity::new(
+                        &region,
+                        reader_role,
+                        variable("AUTHS_GATEWAY_RUNTIME_TOKEN_FILE")?,
+                    )
+                    .map_err(|_| unavailable)?;
+                    let reader = HttpSecretsApi::new(region.clone(), None, reader)
+                        .map_err(|_| unavailable)?;
+                    let writer = HttpSecretsApi::new(region, settings.kms_key.clone(), identity)
+                        .map_err(|_| unavailable)?;
+                    return Ok(Arc::new(AwsSecretsManagerStore::new(
+                        AdministrativeSecretsApi::new(reader, writer),
+                        namespace,
+                    )));
+                }
                 let api = HttpSecretsApi::new(region, settings.kms_key.clone(), identity)
                     .map_err(|_| unavailable)?;
                 Ok(Arc::new(AwsSecretsManagerStore::new(api, namespace)))
@@ -1732,6 +1781,13 @@ mod unix {
     }
 
     fn load_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
+        load_engine_for(state_dir, CredentialAccess::Runtime)
+    }
+
+    fn load_engine_for(
+        state_dir: &Path,
+        access: CredentialAccess,
+    ) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         let manifest = installation(state_dir)?;
         let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
@@ -1791,11 +1847,12 @@ mod unix {
                 .map_err(|_| "gateway.serve.invalid-alias")?,
             "gateway".to_owned(),
             profile,
-            open_credentials(
+            open_credentials_for(
                 state_dir,
                 &manifest.credential_store,
                 manifest.deployment,
                 "gateway.serve.credential-store-unavailable",
+                access,
             )?,
             open_attempts(
                 manifest.deployment,
@@ -2690,7 +2747,7 @@ mod unix {
 
     async fn operator_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
         let directory = state_dir.to_path_buf();
-        tokio::task::spawn_blocking(move || load_engine(&directory))
+        tokio::task::spawn_blocking(move || load_engine_for(&directory, CredentialAccess::Operator))
             .await
             .map_err(|_| "gateway.admin.load-failed")?
     }

@@ -25,7 +25,7 @@ mod names;
 mod sigv4;
 mod store;
 
-pub use api::{FetchedSecret, SecretsApi, SecretsApiError};
+pub use api::{AdministrativeSecretsApi, FetchedSecret, SecretsApi, SecretsApiError};
 pub use http::{HttpSecretsApi, InvalidDeployment, Region};
 pub use identity::{
     ContainerEndpoint, InstanceMetadata, SessionCredentials, WebIdentity, WorkloadIdentity,

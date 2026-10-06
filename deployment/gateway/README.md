@@ -27,9 +27,12 @@ Keep operator credentials in `/run/auths-identity/operator` and runtime
 credentials in `/run/auths-identity/runtime`, each mode 0700. Provision
 short-lived, audience-bound web identity tokens through the deployment's
 identity issuer. The runtime role has GetSecretValue and the one encryption
-key's Decrypt; the operator role additionally has CreateSecret, DeleteSecret
-and GenerateDataKey. Neither role can list secrets or alter versions. The
+key's Decrypt; the operator role has CreateSecret, DeleteSecret
+and GenerateDataKey, with no secret-read permission. Neither role can list secrets or alter versions. The
 operator executes administration as UID 62001 with its separate token path.
+Its process uses the explicit runtime-role/token settings in `operator.conf.example`
+for read confirmation, and the operator identity for creates and deletes.
+Missing identities refuse the operation; neither falls back to the other.
 The application receives neither identity directory nor runtime environment.
 
 Copy `systemd/`, `run-with-postgres-url` and the reviewed public runtime configuration.
@@ -49,7 +52,9 @@ preproduction exercise before admitting traffic.
 Install the reviewed recipe, profile lock, trusted context, distinct operator
 attestation and production credential store using `auths-gateway install`.
 Pipe the disposable credential from the operator's secret source into stdin;
-never put it in argv or a shell literal. Copy the signed qualification inputs
+never put it in argv or a shell literal. The first install uses the write-only
+operator role. A second host's `install --join` confirms the existing secret
+under the read-only runtime role; it creates no secret. Copy the signed qualification inputs
 with `qualification-import`; run `doctor` as root, then use `enable` only
 after all other required checks pass. While disabled, the connection check
 correctly fails: keep app ingress isolated, enable, rerun doctor, and only

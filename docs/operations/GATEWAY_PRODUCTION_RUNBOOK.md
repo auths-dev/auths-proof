@@ -21,12 +21,20 @@ If provider, custody or qualification inputs are unavailable, use
 and the lifecycle store, so it also works with the gateway stopped. It is
 idempotent, retains attempts unchanged and claims no drainage. Use
 `revoke --state-dir ... --store-only` for permanent revocation. Later run the
-normal `revoke` with healthy operator custody to delete the exact credentials;
+`credential-collect` with healthy operator custody on every host that recorded
+credential generations to delete the exact credentials;
 a deletion error does not undo revocation. Never turn unknown into failure or
 submit the operation again. Database failure means no durable stop can be
 claimed; isolate app ingress at the host firewall and retain the incident.
 
 ## Provider-secret rotation
+
+For the web-identity reference, the operator configuration must explicitly
+provide `AUTHS_GATEWAY_RUNTIME_ROLE_ARN` and `AUTHS_GATEWAY_RUNTIME_TOKEN_FILE`
+for read confirmation. `AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE` name
+the write-only operator identity. The operator process reads with the former
+and creates/deletes with the latter; the serving process keeps only its
+read-only identity. Neither role needs broader permissions.
 
 Use the operator identity and `rotate-prepare --operator-process
 --credential-stdin --state-dir ...`, piping the new provider secret. It runs
