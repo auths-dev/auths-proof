@@ -428,3 +428,12 @@ production readiness evidence. The signing output retains those artifacts;
 current projection remains false. Hosted verification of this implementation
 is pending. Provider ADRs/corpora/harnesses, live qualification, signed release
 publication and the installed SDK pilot remain outstanding.
+
+The Epic 5 finalizer now re-evaluates launch readiness before binding the
+projection, and the manifest contract refuses a missing or duplicate reference.
+ADR 0014 (Stripe Connect refund) and ADR 0015 (Airtable field update) remain
+proposed; neither has an executable protected family corpus or a qualification.
+The documented first-attestation bootstrap cycle and reviewed dynamic resource
+binding must be resolved before live qualification. The production lease gate
+has not been relaxed. GitHub verification and Epic 4's current main CI are still
+pending; the passing Docker simulation does not close these live gates.

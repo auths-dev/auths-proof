@@ -82,9 +82,12 @@ reason its decision record fixes; nothing is omitted.
 | 11 secret and provider-data scans | `redaction` | |
 | 12 installed consumer journey | `installed-consumer` | |
 
-Within a row, the cases are tagged with one of 36 scenarios, and a record
+Within a row, the cases are tagged with one of 37 scenarios, and a record
 closes only when every scenario the wall always requires has a case;
-AP-SPEC-066 §20.3 reading 3 lists them. The release tooling runs the
+AP-SPEC-066 §20.3 reading 3 lists them. The additional `production-readiness`
+scenario is a protected live doctor probe required for stable launch, with zero
+leases and provider entries; intermediate records may omit it without becoming
+launch-ready. The release tooling runs the
 differential comparison, the redaction scan, and the freshness and
 signer-rotation stages itself. The executable corpus runner sequences the remaining operations through a reviewed family's harness and derives reports from measured observations. See `qualification/README.md` for the bounded subprocess contract.
 

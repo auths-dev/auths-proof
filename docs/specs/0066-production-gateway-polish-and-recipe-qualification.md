@@ -1428,7 +1428,7 @@ Each was taken unattended as the narrower or fail-closed reading.
    | 1 | `clean-source`, `recipe-digest-rederives` | conformance |
    | 2 | `recipe-vectors`, `closed-enumeration-hostile` | conformance |
    | 3 | `oracle-accepts`, `oracle-rejects` | differential |
-   | 4 | `application-cannot-read-secret` | hostile |
+   | 4 | `application-cannot-read-secret`, `production-readiness` (launch gate) | hostile |
    | 5 | `forged-proof`, `altered-action`, `proof-replay`, `fresh-challenge-replay`, `direct-provider-attempt`, `ambiguous-response` | hostile |
    | 5 | `two-instance-race` | multi-instance |
    | 5 | `restart`, `crash` | restart |
@@ -1440,7 +1440,13 @@ Each was taken unattended as the narrower or fail-closed reading.
    | 11 | `log-scan`, `trace-scan`, `metric-scan`, `support-bundle-scan`, `evidence-scan` | redaction |
    | 12 | `installed-journey`, `no-repository-import`, `no-provider-token` | installed-consumer |
 
-   Thirty-four are required of every record. `observer-rotation` and
+   The closed set has thirty-seven scenarios. Thirty-four are required of every
+   record. `production-readiness` is additionally required for the stable launch
+   projection: a protected live, read-only doctor probe on the exact PostgreSQL
+   and production-custody target, with all required typed rows ready and zero
+   leases or provider entries. Its evidence commits to the actual doctor report.
+   Intermediate records may omit it but cannot close the stable launch gate.
+   `observer-rotation` and
    `declared-capability` are required exactly when a capability they show is
    exercised. `freshness` is placed in row 7 because the signed time bounds
    are part of the trust transitions.
@@ -1647,3 +1653,23 @@ also lacks the owner's offline root ceremony, protected signer secret,
 two protected provider environments and human release review. On 2026-10-06,
 GitHub environment/secret metadata confirmed no qualification signer secret
 and neither family live environment. No production recipe is qualified.
+
+## 22. Epic 5 engineering and unresolved qualification inputs (2026-10-06)
+
+The release projection now verifies every signed index entry, exact candidate
+identity, production target, time/revocation, evidence closure and production
+readiness, requiring independent families, contracts and provider kinds.
+Finalization re-evaluates the result and the manifest binds exactly one
+projection. Signing publishes the canonical evidence needed to inspect closure.
+The current build pins no root and derives false; hosted verification is pending.
+
+[ADR 0014](../adr/0014-stripe-refund-recipe-qualification.md) and
+[ADR 0015](../adr/0015-airtable-record-update-recipe-qualification.md) are proposed
+provider decisions, not candidate or qualified families. Executable corpora and
+harnesses remain missing. The protected run also has a first-attestation cycle:
+production leases require qualification before the live effects needed to issue
+it. A reviewed authority design must resolve this without bypassing the shipped
+lease gate. Dynamically created provider identifiers need reviewed oracle/corpus
+binding before execution, not expected digests copied from candidate output.
+Docker rehearsal establishes neither prerequisite and supplies no protected key
+or live provider credential. No Epic 5 completion or release is claimed.
