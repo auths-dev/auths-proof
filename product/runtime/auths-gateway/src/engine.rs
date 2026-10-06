@@ -2224,7 +2224,12 @@ pub(crate) mod tests {
         async fn a_record_that_changed_since_the_prepare_is_not_committed() {
             let mut installation = installation(8).await;
             let host = &mut installation.first;
-            let journal = crate::CredentialJournal::new(host._state.path().to_path_buf());
+            let journal = crate::CredentialJournal::new(
+                host.credentials_directory
+                    .parent()
+                    .expect("private root")
+                    .to_path_buf(),
+            );
             journal
                 .initialize(&installation.connection_id)
                 .expect("journal");
