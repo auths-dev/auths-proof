@@ -213,14 +213,17 @@ class Operator:
         shutil.rmtree(store)
         shutil.copytree(current, store)
         private_tree(store, self.uid, self.gid)
-        self.start(first)
-        self.start(second)
+        # Development file custody is a process-local snapshot. Keep both hosts
+        # drained while separate operator processes update those files;
+        # production AWS readers resolve the published exact version instead.
         prepared = self.admin(first, "rotate-prepare", extra=["--operator-process", "--credential-stdin"],
                               stdin=self.rotated + b"\n")
         self.admin(first, "rotate-commit", extra=["--operator-process", "--commitment", prepared["commitment"]])
         # The development stores are host-local: the second host must adopt the same secret.
         self.admin(second, "rotate", extra=["--operator-process", "--credential-stdin"],
                    stdin=self.rotated + b"\n")
+        self.start(first)
+        self.start(second)
         one, two = self.status(first), self.status(second)
         require(one["credential_generation"] == two["credential_generation"]
                 and one["credential_held"] and two["credential_held"], "simulation.rotation-diverged")
@@ -277,6 +280,8 @@ def main():
                                 "production qualification import", "production PostgreSQL PITR",
                                 "upgrade to a distinct attested candidate"],
               "friction": [{"code": "operator.platform-linux-only", "resolution": "rehearse on Ubuntu CI"},
+                           {"code": "operator.development-custody-snapshot",
+                            "resolution": "drain development hosts before separate-process file rotation; restart both afterward"},
                            {"code": "operator.production-inputs-unprovisioned",
                             "resolution": "owner supplies offline public root and protected live inputs"}]}
     started, operator = time.monotonic(), None

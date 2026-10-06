@@ -392,3 +392,10 @@ disposable development installations, and records command timing and friction.
 Its hosted result is pending. Continue with Epic 5 engineering after this
 rehearsal; protected live inputs and release-signing keys remain explicit
 external prerequisites for signed qualification.
+
+The first local Docker rehearsal used the verified `f1f92c3f` archive without
+a source mount or network. It passed 31 steps, then found that separate-process
+rotation does not reload development file custody in running hosts. The
+rehearsal and runbook now keep those hosts drained during file rotation and
+restart both before checking the committed generation. The defect rerun is
+pending; no production AWS rotation result is inferred from this procedure.

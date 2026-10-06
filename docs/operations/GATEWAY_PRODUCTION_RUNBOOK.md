@@ -181,6 +181,13 @@ its report explicitly lists unexercised production/live operations. It is
 agent simulation evidence, not an independent person's result or a production
 qualification. Any failing command must be corrected and the rehearsal rerun.
 
+Development file custody is loaded into each serving process at startup. For
+this rehearsal, drain both hosts before rotating their host-local files with
+`--operator-process`, then restart both and require the same credential
+generation with `credential_held: true`. Updating a file beside a running
+process does not reload that process's custody snapshot. This development
+procedure does not demonstrate the production AWS reader's live rotation.
+
 Give a person unfamiliar with this implementation only the verified packaged
 binaries, packages, public configuration and this runbook. Record participant
 identity/role, artifact digests, dates, timings, attempted commands, redacted
