@@ -4,8 +4,8 @@
 
 use auths_gateway::{ClockTrustState, DeploymentClock as _};
 use auths_recipe_qualification::{
-    Artifact, GatewaySemanticClosure, GitCommit, LaunchCandidate, QualificationEvidence,
-    QualificationInputs, QualificationReleaseIndex, QualificationTarget, QualificationTrustRoot,
+    GatewaySemanticClosure, GitCommit, LaunchCandidate, QualificationEvidence, QualificationInputs,
+    QualificationReleaseIndex, QualificationTarget, QualificationTrustRoot,
     RecipeQualificationRecord, VerifiedQualifications, VerifierState,
 };
 use serde_json::{Value, json};
@@ -52,7 +52,7 @@ fn candidate(repository: &Path, commit: &str) -> Result<LaunchCandidate, String>
     )?;
     let closure = GatewaySemanticClosure::from_canonical_json(&bounded(
         &repository.join("product/runtime/auths-gateway/semantic-closure.json"),
-        GatewaySemanticClosure::MAX_BYTES,
+        auths_recipe_qualification::MAX_SEMANTIC_CLOSURE_BYTES,
     )?)
     .map_err(|_| "candidate closure invalid")?;
     if closure.digest().to_hex() != auths_gateway::GATEWAY_SEMANTIC_CLOSURE_SHA256 {
