@@ -129,10 +129,11 @@ AP-SPEC-066 §4. Executable evidence in this change:
 
 Fixtures: `bindings/fixtures/qualification/schema-vectors.json` and
 `verification-vectors.json`, and `bindings/fixtures/gateway/custody-hostile.json`
-and `production-codes.json`. The verification vectors, the adapter vectors,
-the rotation and crash scenarios, and the redaction canaries are pending: no
-release verifier, production adapter, or support bundle exists, and a test
-asserts that shortfall.
+and `production-codes.json`. The verification vectors are driven by the
+release verifier and by the gateway's qualification gate, and the adapter
+vectors by the Secrets Manager store. The redaction canaries of the support
+bundle are pending: no support bundle exists, and a test asserts that
+shortfall.
 
 No formal claim is added. The translated lease leaf in
 `auths-connections::kernel` is unchanged and still decides which stored

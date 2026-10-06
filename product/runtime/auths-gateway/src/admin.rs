@@ -35,6 +35,9 @@ pub enum AdminRequestCommand {
     },
     /// Report connection state.
     Status {},
+    /// Read the qualification inputs the operator placed on this host again
+    /// and report the resulting state.
+    QualificationReload {},
     /// Re-observe one logical operation, read-only.
     Reobserve {
         /// The logical operation ID.
@@ -79,7 +82,14 @@ mod tests {
                 commitment: "ab".to_owned()
             })
         );
+        assert_eq!(
+            parse("\"command\":\"qualification-reload\""),
+            Ok(AdminRequestCommand::QualificationReload {})
+        );
         for refused in [
+            "\"command\":\"qualification-reload\",\"state\":\"qualified\"",
+            "\"command\":\"qualification-reload\",\"policy\":\"optional\"",
+            "\"command\":\"qualification-import\"",
             "\"command\":\"rotate-commit\"",
             "\"command\":\"rotate-prepare\",\"commitment\":\"ab\"",
             "\"command\":\"rotate-prepare\",\"secret\":\"s\"",

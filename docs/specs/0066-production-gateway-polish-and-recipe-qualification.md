@@ -3,9 +3,11 @@
 - **Status:** Draft. Epic 1 (types, threats, and evidence contracts) is
   implemented; §18 records its status and readings. Epic 2 (production
   custody and rotation) is implemented and has passed live against the
-  secret store and against a provider's test mode; §19 records it. No
-  release verifier, runtime qualification gate, or qualified recipe exists,
-  and none is claimed by this document.
+  secret store and against a provider's test mode; §19 records it. Epic 3
+  (reusable recipe qualification) is implemented in code and tests: the
+  release verifier, issuance tooling, the evidence wall, and the runtime
+  gate exist; §20 records it. No protected run has been held, no trust root
+  or signer exists, and no recipe is qualified.
 - **Depends on:** [AP-SPEC-038](0038-production-runtime-custody-observability-and-assurance.md)
   (production trust, custody, stores, and operations),
   [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md) (the
@@ -1328,3 +1330,274 @@ assertion fired when the name derivation and then the two codes landed, as
     (`not-entered`, `gateway.credential.unavailable`) are the engine's
     existing behavior for a failed lease and are not re-driven per scenario.
 
+## 20. Epic 3 status and readings
+
+Epic 3 is implemented in code and tests. A gateway now refuses every lease
+for a recipe that signed release inputs do not qualify, and release tooling
+can assemble, sign, and verify a qualification. **Nothing has been
+qualified.** No trust root or release signer exists, no family directory
+exists, and the protected run has not been started; its first run belongs to
+Epic 5. What the tests show is the mechanism under keys made for the tests.
+
+### 20.1 What exists
+
+| Task | Artifact |
+| --- | --- |
+| 1 trust model, certificates, records, proposals, attestations, revocation, index, verifier | `auths-recipe-qualification`: `VerifiedQualifications` checks every signature once under a pinned root and derives a deployment's state, first refusal, and lease decision; all 57 frozen verification vectors are driven through it. `auths-recipe-qualification-issuance`: `RootSigner` (certificates, revocation lists), `ReleaseSigner` (attestations, the index), `QualificationProposal`, and the `auths-qualification` tool. |
+| 2 evidence assembly and semantic closure | `auths.qualification-evidence/1`, one artifact per member listing its passed cases; `verify_evidence_closure`; `QualificationProposal::assemble` and `from_parts`, both of which verify the closure; `auths.gateway-semantic-closure/1` and the gateway's `GATEWAY_SEMANTIC_CLOSURE_SHA256`. |
+| 3 stages | `execution::RunCorpus`, `RunCase::execute`, and `auths-qualification run-stage` execute the closed corpus through a reviewed family's operation harness. The runner sequences differential, hostile, replay, race, restart, crash, custody drift/rotation, loss/delayed-visibility recovery, live read-back, and installed-consumer steps; it compares measured observations and derives reports and live-effect counts itself. Redaction, freshness, and signer rotation remain release-tool stages. The executable contract is in `qualification/README.md`. |
+| 4 runtime matching and per-recipe readiness | `auths-gateway` `qualification`: `QualificationGate`, the deployment tuple, the policy, and the deployment clock; checked before the claim and again before every lease; `qualification-import`, `qualification-status`, and the operator command `qualification-reload`. |
+| Protected run | `.github/workflows/recipe-qualification.yml`, `qualification/run/offline.sh` and `assemble.sh`, and the family contract in `qualification/README.md`. |
+
+Done gate:
+
+- **Every §7.5 row has a bounded evidence member.** Each of the twelve rows
+  maps to scenarios, and each scenario to one of the ten members. A record
+  closes only when every scenario the wall always requires has a passed case
+  in its member. The test `every_required_scenario_is_needed_to_close_the_wall`
+  removes each in turn and requires the assembly to fail.
+- **Forged or drifted records fail before credential lease.** The gateway
+  tests drive the gate in front of the engine's lease: forged, unsigned,
+  another root's, revoked, expired, stale, clock-untrusted, digest-drifted,
+  and target-drifted inputs each refuse with the frozen code when an entry
+  is prepared, which is before the lease call, and a lease attempted after
+  the inputs went stale is refused. The tests instrument the credential store and
+  require zero lease calls for every refusal, including expiry between
+  preparation and lease. All 57 verification vectors decide the
+  gate as frozen.
+- **Pull requests cannot sign or import.** The workflow test
+  `a_pull_request_reaches_no_secret_and_no_signing_job` reads the workflow and
+  fails if any job but live evidence and signing reaches a secret or an
+  environment, or if anything after offline evidence can run from a pull
+  request. `qualification-import` refuses a record no signer indexed. The
+  signing environment requires a reviewer and admits only the default branch.
+- **The runtime cannot distinguish provider names or execute an oracle.** The
+  gate's deployment tuple carries the provider contract as a digest; the gate
+  module names no provider kind; and the gateway's build closure contains no
+  issuance crate (`a_gateway_build_contains_no_issuance_or_oracle`).
+
+The code inventory marks the eight `gateway.qualification.*` codes
+implemented. `gateway.readiness.connection-disabled` and the support bundle
+remain pending for Epic 4, and the pending assertion still guards them.
+
+### 20.2 What is not shown
+
+- **No protected run.** The workflow has been linted and its two scripts
+  exercised on a development host with a throwaway family. It has never run
+  with a real family, a live environment, or a signing key.
+- **No production family corpus.** The reusable hostile, recovery, live,
+  installed-consumer, differential, and process-transition runners now exist.
+  Their subprocess, observation, and script-pipeline tests use explicit test
+  doubles at the family port; they establish runner behavior, not a live
+  qualification. A production family's reviewed operations, oracle and
+  corpus arrive with its decision record in Epic 5.
+- **No production qualification.** A production gateway pins no trust root, so
+  it finds every recipe unqualified and leases nothing. Existing production
+  tests run in a build made for tests that relaxes this.
+- **The support-bundle scan has nothing real to scan yet.** The wall requires
+  a `support-bundle-scan` case, and the gateway has no support bundle until
+  Epic 4. The release runner requires scan evidence; the family must export the actual
+  candidate's bundle when that command exists. A record with that case
+  before Epic 4 would be claiming a scan of something that does not exist.
+- **The production clock adapter covers one synchronization service**
+  (reading 12).
+
+### 20.3 Readings (PROVISIONAL)
+
+Each was taken unattended as the narrower or fail-closed reading.
+
+1. **Packages.** Issuance is a second product crate,
+   `auths-recipe-qualification-issuance`, that reaches only the model and
+   `auths-connections`. A gateway does not depend on it. Its `testkit`
+   feature exposes a synthetic candidate under fixed keys for tests.
+2. **Evidence artifact.** `auths.qualification-evidence/1` is at most 64 KiB
+   and holds a member, the candidate's commit, the digest of the tuple
+   (`auths.qualification-tuple/1`), 1 to 256 cases sorted by identifier, and
+   live effects exactly for the live member. A case is an identifier, a
+   scenario, the capabilities it shows, and an unauthorized-entry count. A
+   failed case has no representation: a run with one produces no artifact.
+3. **Scenarios.** The closed set, by wall row and member:
+
+   | Row | Scenarios | Member |
+   | --- | --- | --- |
+   | 1 | `clean-source`, `recipe-digest-rederives` | conformance |
+   | 2 | `recipe-vectors`, `closed-enumeration-hostile` | conformance |
+   | 3 | `oracle-accepts`, `oracle-rejects` | differential |
+   | 4 | `application-cannot-read-secret` | hostile |
+   | 5 | `forged-proof`, `altered-action`, `proof-replay`, `fresh-challenge-replay`, `direct-provider-attempt`, `ambiguous-response` | hostile |
+   | 5 | `two-instance-race` | multi-instance |
+   | 5 | `restart`, `crash` | restart |
+   | 6 | `store-kind-drift`, `generation-drift`, `commitment-drift`, `external-version-drift` | rotation |
+   | 7 | `provider-secret-rotation`, `signer-rotation`, `freshness`, `observer-rotation` | rotation |
+   | 8 | `declared-capability` | live |
+   | 9 | `read-back-confirms-write` | live |
+   | 10 | `response-loss`, `delayed-visibility` | recovery |
+   | 11 | `log-scan`, `trace-scan`, `metric-scan`, `support-bundle-scan`, `evidence-scan` | redaction |
+   | 12 | `installed-journey`, `no-repository-import`, `no-provider-token` | installed-consumer |
+
+   Thirty-four are required of every record. `observer-rotation` and
+   `declared-capability` are required exactly when a capability they show is
+   exercised. `freshness` is placed in row 7 because the signed time bounds
+   are part of the trust transitions.
+4. **Closure.** A record closes over its evidence when the artifacts are one
+   per member in order; each digest, case count, and counter is the
+   artifact's; each artifact names the record's commit and tuple; every
+   always-required scenario has a case; each capability is `exercised`
+   exactly when a case shows it; and the live effects are the live member's.
+   The seven faults are `member-set`, `digest`, `counter`, `candidate`,
+   `scenario`, `capability`, and `live-effects`.
+5. **Proposals.** A proposal is a record with its ten evidence artifacts and
+   no signature. A signer accepts only a proposal, so nothing is signed whose
+   closure was not re-verified. A pull request cannot assemble one, because
+   the live member needs the protected environment; it produces offline
+   evidence only. This is narrower than the protected-run plan first said.
+6. **Trust stages.** Signer rotation and freshness must be in the rotation
+   member before the run's record exists, so they run for the run's tuple on
+   a placeholder candidate under a root made for the stage and discarded with
+   it. They show that this build's issuance and verification keep each trust
+   transition, and that inputs which qualify stop doing so under an untrusted
+   clock, behind a signed issue time, and past the list's next update. The
+   stage does not step past an attestation's or a certificate's end; the
+   verification vectors cover those.
+7. **Redaction.** A source fails when it contains a planted canary as raw
+   bytes, in either hexadecimal case, or in either base64 alphabet at any of
+   the three alignments. A canary shorter than 8 bytes, or a scan with no
+   canary or no source, is refused as evidence of nothing.
+8. **Semantic closure.** `auths.gateway-semantic-closure/1` lists, by path and
+   SHA-256, every file under `src` and the manifest of the gateway crate and
+   of each workspace crate it is built from, and the workspace manifest and
+   lockfile; at most 4,096 files and 1 MiB. The one excluded file holds the
+   digest constant. A gateway test recomputes the closure and fails when it
+   changed.
+9. **Deployment tuple.** The compiled recipe and profile-lock digests are
+   rederived from the installed files. The semantic closure, package,
+   version, operating system, and architecture are the build's. The build
+   digest is SHA-256 of the running executable. The store kind and schema
+   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/5`,
+   or `shared-file-v1` with `auths.gateway-attempt/3`). The recipe family and
+   the provider contract identifier are declared by the operator at install,
+   because a gateway cannot derive them; a wrong declaration matches no
+   attestation and refuses.
+10. **Policy.** `required` or `optional`. Production requires qualification
+    and refuses `optional`, an undeclared family or contract, and a
+    caller-supplied trust root, all as
+    `gateway.install.qualification-policy`. Development defaults to
+    `optional`, which reports the state and never refuses. A build feature
+    for tests, `testkit-production-unqualified`, lets a production
+    installation run unqualified; no shipped build has it. The policy is
+    decided again from the deployment at every start.
+11. **Pinned root.** The gateway build pins none yet. A development
+    installation may name its own root file at install, recorded by digest.
+12. **Clock.** The production adapter reports `trusted` exactly while the
+    marker `/run/systemd/timesync/synchronized` exists. A host synchronized
+    by another service must provide that marker. Reading the kernel's
+    synchronization flag would cover every Linux host and container, and it
+    needs a system call the workspace's ban on `unsafe` code does not permit;
+    that is an owner decision. An unreadable clock is evaluated as untrusted
+    at the latest representable time, so a revocation is still reported
+    first.
+13. **Where the gate is asked.** Before the claim, so a refusal is recorded
+    not-entered with its qualification code, and again inside the lease,
+    because time passes between the two.
+14. **Inputs.** `qualification-import` verifies a release directory under the
+    installation's root, records what the new inputs establish, and then
+    replaces the host's inputs by renaming the old directory away and the new
+    one in. A failure between those steps leaves no inputs or old inputs
+    below the recorded floor, and either way nothing qualifies. It refuses
+    when the certificate, index, or revocation list is unusable, the list is
+    older than one already accepted, or the index was issued before one
+    already accepted; authentic inputs are kept whatever state they derive.
+    When a serving gateway cannot read its inputs it drops the ones it held. A serving gateway rereads them through the
+    operator socket and verifies only when their digest changed.
+15. **Remembered revocations and floors.** A verifier keeps, besides the
+    revocation-list sequence of §18.3 reading 14, the latest issue time of a
+    release index it has accepted, and refuses an index issued earlier. That
+    is what stops a qualification a later index dropped, without revoking
+    it, from being restored by presenting the older index. All of it is kept
+    per host in the state directory, not in the shared store. A host that has not imported a newer list keeps serving
+    under its own list until that list's next update, which is the bound §8
+    sets. A missing record means nothing was accepted; a damaged one refuses.
+16. **One index per run.** A release signer signs one index listing exactly
+    the proposals given to it, so the protected run qualifies every family
+    directory together.
+17. **Run facts.** The qualification identifier is derived from the family,
+    the commit, and the run. The source-closure digest is the digest of the
+    commit's tree listing, and the generated-artifacts digest is the digest
+    of the candidate's two binaries.
+18. **Environments.** One live environment per family,
+    `recipe-qualification-live-<family>`, holding that family's disposable
+    credential as `QUALIFICATION_PROVIDER_CREDENTIAL`. One signing
+    environment, `recipe-qualification-signing`, created on 2026-10-05 with a
+    required reviewer and the default branch only; it holds no secret yet.
+19. **Manifest and readiness line.** The installation manifest is
+    `auths.gateway-installation/5`. The readiness line now states the
+    qualification policy, state, and code in place of "no provider-effect
+    qualification".
+
+20. **Several attestations for one family.** When more than one usable
+    attestation exists for the deployment's family and none qualifies it, the
+    refusal reported is that of the attestation nearest to qualifying: one
+    that differs only in target is reported before one that has expired.
+    §18.3 reading 13 orders the faults of a single attestation; this reading
+    covers the case it leaves open. No combination yields `qualified` unless
+    one attestation qualifies outright.
+21. **What the run trusts.** A family's harness is code on the default
+    branch and is trusted as reviewed code: it supplies measured observations of
+    provider-specific operations. The candidate gateway authors the tuple,
+    and the release runner authors case reports after comparing observations
+    with the reviewed corpus. The run does not trust what a harness leaves behind as a
+    program. Assembly, signing, and verification each build the release tool
+    from the commit; the signer's key is given only to that build; the trust
+    stages are rerun at assembly; the candidate's facts are taken from the
+    job that ran before any live harness; and a tuple naming another family
+    is refused. The redaction scan runs in the live job, the only place the
+    canaries exist, and the canaries are deleted before anything is uploaded.
+
+### 20.4 Decisions for the owner
+
+1. **Root ceremony.** Create the root offline with
+   `auths-qualification root-init`, commit the three public artifacts to
+   `qualification/trust/`, and pin the root in the gateway build. Until then
+   production qualifies nothing.
+2. **Release signer.** Create its key with `auths-qualification signer-init`,
+   certify it in the ceremony, and store the key file's contents as the
+   secret `QUALIFICATION_RELEASE_SIGNER_KEY` of the signing environment.
+3. **Clock adapter** (reading 12): accept the marker, or approve a reviewed
+   exception for the kernel call.
+4. **Revocation cadence** (§18.4) is still open.
+5. **Remembered revocations** (reading 15): per host, or in the shared store.
+6. **Live environments.** Each `recipe-qualification-live-<family>`
+   environment must be created with a required reviewer and the default
+   branch only before its credential is stored. The workflow's own guard is
+   in a file a pull request can change; the environment's rule is not.
+
+### 20.5 Epic 3 completion work (2026-10-06)
+
+The owner rejected the catalogue/report-format-only reading of task 3 and
+required executable stages on the Epic 3 branch. The reusable runner now
+executes bounded operation sequences, validates exact candidate observations,
+compares the pure oracle with the gateway, forbids repeated entry/lease,
+requires declared recovery and fresh read-back, and isolates installed
+consumers from provider credentials and repository import paths. Corpus
+validation requires executable coverage of every harness-owned mandatory
+scenario. Reports and live counters are runner-derived; a failed rerun removes
+old reports/proposals, including when its corpus is invalid. Assembly accepts
+only runner-owned phase reports and release-owned trust/scan outputs; arbitrary
+harness reports cannot replace missing execution. The workflow invokes these
+stages rather than asking a family to supply passing reports. Its live script
+always invokes idempotent resource cleanup, including after partial setup or
+failed execution, and refuses a failed cleanup.
+
+Evidence: `tests/execution.rs` covers execution, missing scenarios, candidate
+and counter drift, exposure, differential mismatch, recovery without a
+capability, invalid ordering, subprocess failures, timeout and consumer
+environment isolation. `tests/cli.rs` drives stages through evidence assembly,
+signing and verification; `tests/script_pipeline.rs` drives the actual
+redaction and assembly scripts, refuses a missing recovery execution even with
+an extra harness report, and tests teardown after successful and failed runs.
+Gateway qualification tests count calls to `ConnectionCredentialStore`;
+`qualification_stages_use_gateway_replay_and_recovery_witnesses` feeds actual
+submission-driver, persistent-store, credential-lease and counting-provider
+observations into replay and lost-response recovery stages.
+Hosted verification of these additions is pending; no live qualification or
+owner trust ceremony is claimed.

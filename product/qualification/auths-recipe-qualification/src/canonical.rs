@@ -73,6 +73,17 @@ impl<T: Artifact> Canonical<T> {
         })
     }
 
+    /// Encodes `body` canonically and decodes the result, so the value is
+    /// exactly what a reader of those bytes would hold.
+    ///
+    /// # Errors
+    ///
+    /// Returns what [`Canonical::from_canonical_json`] returns for the
+    /// body's canonical bytes.
+    pub fn from_body(body: &T) -> Result<Self, QualificationFormatError> {
+        Self::from_canonical_json(&canonical_bytes(body)?)
+    }
+
     /// The validated body.
     #[must_use]
     pub const fn body(&self) -> &T {

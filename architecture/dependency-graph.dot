@@ -94,6 +94,7 @@ digraph auths_architecture {
   "auths-raw-key-core" [group="core"];
   "auths-receipts" [group="product"];
   "auths-recipe-qualification" [group="product"];
+  "auths-recipe-qualification-issuance" [group="product"];
   "auths-records-api" [group="product"];
   "auths-records-demo" [group="demos"];
   "auths-registries" [group="core"];
@@ -259,6 +260,8 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-profile-mcp" [label="normal"];
   "auths-gateway" -> "auths-raw-key" [label="normal"];
   "auths-gateway" -> "auths-raw-key-core" [label="normal"];
+  "auths-gateway" -> "auths-recipe-qualification" [label="normal"];
+  "auths-gateway" -> "auths-recipe-qualification-issuance" [label="dev"];
   "auths-gateway" -> "auths-registries" [label="normal"];
   "auths-gateway" -> "auths-sdk" [label="dev"];
   "auths-gateway" -> "auths-signature" [label="normal"];
@@ -558,6 +561,9 @@ digraph auths_architecture {
   "auths-receipts" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-ports" [label="normal"];
   "auths-recipe-qualification" -> "auths-connections" [label="normal"];
+  "auths-recipe-qualification-issuance" -> "auths-connections" [label="normal"];
+  "auths-recipe-qualification-issuance" -> "auths-recipe-qualification" [label="normal"];
+  "auths-recipe-qualification-issuance" -> "auths-recipe-qualification-issuance" [label="dev"];
   "auths-records-api" -> "auths-bounded-policy" [label="normal"];
   "auths-records-api" -> "auths-lifecycle" [label="normal"];
   "auths-records-api" -> "auths-model" [label="normal"];

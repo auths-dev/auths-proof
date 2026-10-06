@@ -146,6 +146,15 @@ kind = "prefix"
 value = "examples/"
 phases = ["authoritative", "compliance", "secrets"]
 
+# What a protected qualification run reads: family directories, the public
+# trust artifacts, and the run's scripts. A workspace test reads the trust
+# directory and the workflow that calls the scripts.
+[[rules]]
+id = "recipe-qualification"
+kind = "prefix"
+value = "qualification/"
+phases = ["authoritative", "compliance", "secrets"]
+
 [[rules]]
 id = "interoperability-fixtures"
 kind = "prefix"

@@ -12,25 +12,21 @@
 //! verified list has ever named: revocation is permanent, so a later list
 //! that omits one does not restore it.
 //!
-//! No verifier exists yet. The test below asserts exactly that shortfall:
-//! the inputs decode under the frozen schemas, and this crate has no
-//! signature dependency outside its tests and no function that verifies. It
-//! is expected to fail when the verifier lands; the change that adds it
-//! replaces this assertion with the conformance test that drives every case.
+//! The release verifier is driven through every case: its verdict must equal
+//! the frozen state, reason, and lease decision.
 
 #![allow(clippy::too_many_lines, reason = "case tables read top to bottom")]
 
 use super::{
     DAY, HOUR, Keys, NOW, attestation, attestation_statement, certificate, certificate_statement,
-    crate_sources, digest_of, index, index_entry, index_statement, load, qualification_id, record,
+    digest_of, index, index_entry, index_statement, load, qualification_id, record,
     require_current, revocation, revocation_statement, signer_id, text, trust_root, tuple,
 };
 use crate::{
-    AttestationStatement, LifecycleStoreKind, QualificationArtifactKind, QualificationReleaseIndex,
-    QualificationRevocationList, QualificationRootId, QualificationSignerCertificate,
-    QualificationSignerId, QualificationTrustRoot, QualificationTuple,
-    RecipeQualificationAttestation, RecipeQualificationRecord, RecipeQualificationState,
-    RevocationListStatement, SignatureB64, SignerCertificateStatement, TargetArch, TargetOs,
+    AttestationStatement, LifecycleStoreKind, QualificationArtifactKind, QualificationInputs,
+    QualificationRootId, QualificationSignerId, QualificationTrustRoot, QualificationTuple,
+    RecipeQualificationState, RevocationListStatement, SignatureB64, SignerCertificateStatement,
+    TargetArch, TargetOs, VerifiedQualifications, VerifierState,
 };
 use auths_connections::CredentialStoreKind;
 use serde_json::{Value, json};
@@ -767,7 +763,7 @@ fn document() -> Value {
     .concat();
     json!({
         "schema": SCHEMA,
-        "status": "pending: no release verifier exists; the expectations are frozen, not yet driven",
+        "status": "driven: the release verifier decides every case as frozen",
         "precedence": PRECEDENCE
             .iter()
             .map(|(condition, code)| json!({"when": condition, "code": code}))
@@ -782,101 +778,158 @@ fn verification_vectors_are_current() {
     require_current(FILE, &document());
 }
 
-/// Requires every artifact among `inputs` to decode under its frozen schema.
-fn require_decodable(id: &str, inputs: &Value) {
-    let one = |member: &str, decode: fn(&[u8]) -> bool| {
-        if let Some(text) = inputs[member].as_str() {
-            assert!(decode(text.as_bytes()), "{id}: {member} does not decode");
-        }
-    };
-    one("trust_root", |bytes| {
-        QualificationTrustRoot::from_canonical_json(bytes).is_ok()
-    });
-    one("signer_certificate", |bytes| {
-        QualificationSignerCertificate::from_canonical_json(bytes).is_ok()
-    });
-    one("revocation_list", |bytes| {
-        QualificationRevocationList::from_canonical_json(bytes).is_ok()
-    });
-    one("release_index", |bytes| {
-        QualificationReleaseIndex::from_canonical_json(bytes).is_ok()
-    });
-    let many = |member: &str, decode: fn(&[u8]) -> bool| {
-        for text in inputs[member].as_array().into_iter().flatten() {
-            assert!(
-                decode(text.as_str().expect("text").as_bytes()),
-                "{id}: {member} does not decode"
-            );
-        }
-    };
-    many("records", |bytes| {
-        RecipeQualificationRecord::from_canonical_json(bytes).is_ok()
-    });
-    many("attestations", |bytes| {
-        RecipeQualificationAttestation::from_canonical_json(bytes).is_ok()
-    });
-    if let Some(deployment) = inputs.get("deployment") {
-        assert!(
-            serde_json::from_value::<QualificationTuple>(deployment.clone()).is_ok(),
-            "{id}: deployment does not decode"
-        );
-    }
+/// One input of a case: the replacement when the case names one, the
+/// base's otherwise.
+fn input<'corpus>(corpus: &'corpus Value, case: &'corpus Value, member: &str) -> &'corpus Value {
+    case["replace"]
+        .get(member)
+        .unwrap_or(&corpus["base"][member])
 }
 
-/// The vectors are ready and the verifier is not: every input decodes, every
-/// expectation is one of the frozen states and codes, every code and state
-/// is expected by some case, and this crate has no signature dependency
-/// outside its tests and no function that verifies.
+fn texts(value: &Value) -> Vec<&[u8]> {
+    value
+        .as_array()
+        .expect("texts")
+        .iter()
+        .map(|text| text.as_str().expect("text").as_bytes())
+        .collect()
+}
+
+/// Every frozen case, decided by the verifier exactly as frozen: the state,
+/// the first reason, and whether a credential may be leased.
 #[test]
-fn verification_vectors_await_the_release_verifier() {
+fn every_verification_case_is_decided_as_frozen() {
     let corpus = load(FILE);
-    require_decodable("base", &corpus["base"]);
+    let root = QualificationTrustRoot::from_canonical_json(
+        corpus["base"]["trust_root"]
+            .as_str()
+            .expect("root")
+            .as_bytes(),
+    )
+    .expect("trust root");
     let mut ids = BTreeSet::new();
     let mut codes = BTreeSet::new();
     let mut states = BTreeSet::new();
     for case in corpus["cases"].as_array().expect("cases") {
         let id = case["id"].as_str().expect("id");
         assert!(ids.insert(id), "duplicate case {id}");
-        require_decodable(id, &case["replace"]);
-        let state = case["expect"]["state"].as_str().expect("state");
-        let code = case["expect"]["code"].as_str();
-        assert_eq!(
-            case["expect"]["lease"],
-            json!(state == "qualified" && code.is_none()),
-            "case {id}"
+        let text = |member: &str| {
+            input(&corpus, case, member)
+                .as_str()
+                .expect("text")
+                .as_bytes()
+        };
+        let records = texts(input(&corpus, case, "records"));
+        let attestations = texts(input(&corpus, case, "attestations"));
+        let verified = VerifiedQualifications::verify(
+            &root,
+            &QualificationInputs {
+                signer_certificate: text("signer_certificate"),
+                revocation_list: text("revocation_list"),
+                release_index: text("release_index"),
+                records: &records,
+                attestations: &attestations,
+            },
         );
-        assert_eq!(state == "qualified", code.is_none(), "case {id}");
-        states.insert(state.to_owned());
-        codes.extend(code.map(str::to_owned));
+        let known = input(&corpus, case, "known_revocations");
+        let state = VerifierState {
+            accepted_revocation_sequence: input(&corpus, case, "accepted_revocation_sequence")
+                .as_u64()
+                .expect("sequence"),
+            revoked_signers: serde_json::from_value(known["signers"].clone()).expect("signers"),
+            revoked_qualifications: serde_json::from_value(known["qualifications"].clone())
+                .expect("qualifications"),
+            ..VerifierState::default()
+        };
+        let deployment: QualificationTuple =
+            serde_json::from_value(input(&corpus, case, "deployment").clone()).expect("tuple");
+        let verdict = verified.evaluate(
+            &deployment,
+            input(&corpus, case, "now").as_u64().expect("now"),
+            input(&corpus, case, "clock") == "trusted",
+            &state,
+        );
+        let code = verdict
+            .refusal
+            .map(|refusal| format!("gateway.qualification.{}", refusal.as_str()));
+        assert_eq!(
+            verdict.state.as_str(),
+            case["expect"]["state"],
+            "case {id}: state"
+        );
+        assert_eq!(json!(code), case["expect"]["code"], "case {id}: code");
+        assert_eq!(
+            json!(verdict.permits_lease()),
+            case["expect"]["lease"],
+            "case {id}: lease"
+        );
+        states.insert(verdict.state.as_str().to_owned());
+        codes.extend(code);
     }
     let every_state: BTreeSet<String> = RecipeQualificationState::ALL
         .iter()
         .map(|state| state.as_str().to_owned())
         .collect();
-    assert_eq!(states, every_state);
+    assert_eq!(states, every_state, "every state is reached by some case");
     let every_code: BTreeSet<String> = PRECEDENCE
         .iter()
         .map(|(_, code)| (*code).to_owned())
         .collect();
-    assert_eq!(codes, every_code);
-    // A verifier needs a signature dependency outside tests and a function
-    // that verifies. Neither exists yet.
-    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
-        .expect("manifest");
-    let dependencies = manifest
-        .split("[dependencies]")
-        .nth(1)
-        .and_then(|rest| rest.split("\n[").next())
-        .expect("dependencies table");
-    assert!(
-        !dependencies.contains("ed25519") && !dependencies.contains("signature"),
-        "the crate now depends on a signature crate: drive these vectors through the verifier"
+    assert_eq!(codes, every_code, "every reason is reached by some case");
+}
+
+/// Revocation outlives the list that carried it, and an older list is not
+/// accepted after a newer one.
+#[test]
+fn what_a_verified_list_revoked_is_remembered() {
+    let parts = Parts::new();
+    let keys = &parts.keys;
+    let root = QualificationTrustRoot::from_canonical_json(text(&trust_root(keys)).as_bytes())
+        .expect("trust root");
+    let certificate = parts.certificate(|_| {});
+    let index = parts.index_for(&parts.attestation_text);
+    let verify = |revocation_list: &str| {
+        VerifiedQualifications::verify(
+            &root,
+            &QualificationInputs {
+                signer_certificate: certificate.as_bytes(),
+                revocation_list: revocation_list.as_bytes(),
+                release_index: index.as_bytes(),
+                records: &[parts.record_text.as_bytes()],
+                attestations: &[parts.attestation_text.as_bytes()],
+            },
+        )
+    };
+    let mut state = VerifierState::default();
+    let naming = parts.revocation(|statement| {
+        statement.sequence = 8;
+        statement.revoked_qualifications = vec![qualification_id(1)];
+    });
+    verify(&naming).remember(&mut state);
+    assert_eq!(state.accepted_revocation_sequence, 8);
+    assert!(state.revoked_qualifications.contains(&qualification_id(1)));
+
+    // A later list that omits the qualification does not restore it.
+    let later = verify(&parts.revocation(|statement| statement.sequence = 9));
+    later.remember(&mut state);
+    let verdict = later.evaluate(&tuple(), NOW, true, &state);
+    assert_eq!(verdict.state, RecipeQualificationState::Revoked);
+    assert!(!verdict.permits_lease());
+
+    // The original list, presented again, is older than the accepted one.
+    let mut fresh = VerifierState {
+        accepted_revocation_sequence: 9,
+        ..VerifierState::default()
+    };
+    let replayed = verify(&parts.revocation(|_| {}));
+    let verdict = replayed.evaluate(&tuple(), NOW, true, &fresh);
+    assert_eq!(
+        verdict.refusal,
+        Some(crate::QualificationRefusal::Unavailable)
     );
-    for (path, text) in crate_sources() {
-        assert!(
-            !text.contains("fn verify") && !text.contains("gateway.qualification."),
-            "{} verifies or reports a qualification code: drive these vectors through it",
-            path.display()
-        );
-    }
+    replayed.remember(&mut fresh);
+    assert_eq!(
+        fresh.accepted_revocation_sequence, 9,
+        "an older list lowers nothing"
+    );
 }

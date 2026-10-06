@@ -1,14 +1,17 @@
 # Recipe qualification: protected-run plan
 
-- **Status:** plan. No release verifier, runner, workflow, trust root, signer,
-  or qualification exists. No recipe is qualified.
+- **Status:** the verifier, the issuance tooling, the evidence wall, the
+  runtime gate, and the workflow exist; AP-SPEC-066 §20 records them and
+  where they differ from this plan. No trust root, signer, family, or
+  qualification exists, and the run has never been started.
 - **Spec:** [AP-SPEC-066](../specs/0066-production-gateway-polish-and-recipe-qualification.md)
   §7 and §8, Epics 3 and 5. Abstraction case
   [0008](../research/domains/abstraction-cases/0008-provider-secret-custody-and-recipe-qualification.md).
-- **Frozen inputs:** `bindings/fixtures/qualification/schema-vectors.json`
-  (driven today) and `verification-vectors.json` (pending). The verifier is
-  done when it drives every verification case and the pending assertion in
-  `auths-recipe-qualification` has been replaced by that test.
+- **Frozen inputs:** `bindings/fixtures/qualification/schema-vectors.json` and
+  `verification-vectors.json`, both driven: the verifier and the gateway's
+  gate each decide all 57 verification cases as frozen.
+- **Where things are:** [`qualification/README.md`](../../qualification/README.md)
+  describes what a family provides and what the trust directory holds.
 
 ## 1. Keys and who holds them
 
@@ -41,9 +44,18 @@ Jobs run in this order, and a failure in any job ends the run with no record.
 | 5. sign | the release signer key, in the signing environment, after manual approval | Re-verifies the record's evidence closure, signs the attestation, adds the entry to the release index, and signs the index. Signs nothing else. |
 | 6. verify | none | Verifies the certificate, revocation list, index, attestation, and record with the pinned root exactly as a gateway would, and publishes them as release artifacts. |
 
-A pull request may run jobs 1, 2, and 4 to produce an unsigned proposal. It
-cannot reach the live or signing environments and cannot update the release
-index.
+A pull request runs jobs 1 and 2 only. It cannot reach the live or signing
+environments, so it cannot gather live evidence; without the live member no
+record closes, so it cannot assemble a proposal either, and it cannot update
+the release index. This is narrower than the first version of this plan,
+which let a pull request assemble.
+
+The index a signer issues lists exactly the records of one run, so one run
+qualifies every family together.
+
+The redaction scan runs inside job 3, where the canaries are, and they are
+deleted before the job uploads anything. Jobs 4, 5, and 6 each build the
+release tool from the commit and run no program another job produced.
 
 The qualification provider credential is scoped to the disposable resources of
 the run and is not a production connection credential. The runtime gateway
@@ -69,6 +81,12 @@ reason its decision record fixes; nothing is omitted.
 | 10 response loss and delayed visibility | `recovery` | `recovery` |
 | 11 secret and provider-data scans | `redaction` | |
 | 12 installed consumer journey | `installed-consumer` | |
+
+Within a row, the cases are tagged with one of 36 scenarios, and a record
+closes only when every scenario the wall always requires has a case;
+AP-SPEC-066 §20.3 reading 3 lists them. The release tooling runs the
+differential comparison, the redaction scan, and the freshness and
+signer-rotation stages itself. The executable corpus runner sequences the remaining operations through a reviewed family's harness and derives reports from measured observations. See `qualification/README.md` for the bounded subprocess contract.
 
 Each member carries the digest of its evidence artifact, its case count, and
 its unauthorized-provider-entry count, which must be zero. `live_effects`

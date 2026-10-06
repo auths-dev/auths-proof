@@ -35,11 +35,24 @@ mod unix {
         check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
+        DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
+        QUALIFICATION_POLICY_REFUSED, QualificationBundle, QualificationGate, QualificationPolicy,
+        SynchronizedHostClock, deployment_tuple, qualification_policy,
+    };
+    use auths_gateway::{
         GatewayAdminOutcome, GatewayAdminStatus, OperatorInstallation, OperatorStatement,
         SharedConnection, check_anchor_aliasing, install_connection, join_connection,
         verify_operator_attestation,
     };
     use auths_model::PrincipalId;
+    use auths_recipe_qualification::{
+        LifecycleStoreKind, MAX_ATTESTATION_BYTES, MAX_INDEX_ENTRIES, MAX_RECORD_BYTES,
+        MAX_RELEASE_INDEX_BYTES, MAX_REVOCATION_LIST_BYTES, MAX_SIGNER_CERTIFICATE_BYTES,
+        MAX_TRUST_ROOT_BYTES, QualificationId, QualificationSignerId, QualificationTrustRoot,
+        QualificationTuple, RELEASE_ATTESTATIONS_DIRECTORY, RELEASE_INDEX_FILE,
+        RELEASE_RECORDS_DIRECTORY, RELEASE_REVOCATION_LIST_FILE, RELEASE_SIGNER_CERTIFICATE_FILE,
+        RecipeFamilyId, VerifierState,
+    };
     use auths_stores::{PostgresLifecycleStore, PostgresStoreConfig};
     use base64ct::{Base64UrlUnpadded, Encoding as _};
     use clap::{Parser, Subcommand, ValueEnum};
@@ -64,7 +77,18 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/4";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/5";
+    /// The directory of the state directory that holds the signed
+    /// qualification inputs the operator imported.
+    const QUALIFICATION_DIRECTORY: &str = "qualification";
+    /// What every verified revocation list has named so far.
+    const QUALIFICATION_STATE_FILE: &str = "qualification-state.json";
+    /// A development installation's own trust root.
+    const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
+    /// The qualification trust root this build pins. It is `None` until a
+    /// reviewed release pins the root the offline ceremony created; until
+    /// then a production gateway finds every recipe unqualified.
+    const PINNED_QUALIFICATION_ROOT: Option<&[u8]> = None;
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     use auths_gateway::admin::{
@@ -132,6 +156,10 @@ mod unix {
     }
 
     #[derive(Subcommand)]
+    #[allow(
+        clippy::large_enum_variant,
+        reason = "one command is parsed per process"
+    )]
     enum Command {
         /// Operator-only install; credential bytes enter through stdin. The
         /// first host inserts the shared connection record; each further host
@@ -198,6 +226,8 @@ mod unix {
             /// directory's own store.
             #[arg(long)]
             attempt_store: Option<PathBuf>,
+            #[command(flatten)]
+            qualification: QualificationOptions,
             /// Development builds only: send the onboarding credential reads
             /// of a first install to a plain-HTTP provider double on
             /// 127.0.0.1:<port>.
@@ -299,6 +329,32 @@ mod unix {
             /// defaults to `<state-dir>/admin.sock`.
             #[arg(long)]
             admin_socket: Option<PathBuf>,
+        },
+        /// Operator-only: verify a signed release directory under the
+        /// installation's qualification trust root and make it this host's
+        /// qualification inputs. An unsigned proposal, a forged input, and a
+        /// revocation list older than one already accepted are refused and
+        /// change nothing. A running gateway is asked to read the new inputs.
+        QualificationImport {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// The release directory: the signer certificate, revocation
+            /// list, release index, records, and attestations.
+            #[arg(long)]
+            from: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+        },
+        /// Print this installation's qualification policy, state, and code,
+        /// derived now from the imported inputs. Contacts nothing.
+        QualificationStatus {
+            #[arg(long)]
+            state_dir: PathBuf,
+            /// Print the tuple this deployment must be qualified for instead.
+            #[arg(long, default_value_t = false)]
+            tuple: bool,
         },
         /// Ask the private operator socket for the connection state.
         Status {
@@ -484,6 +540,27 @@ mod unix {
         },
     }
 
+    /// What the operator declares about qualification at install.
+    #[derive(clap::Args)]
+    struct QualificationOptions {
+        /// `required` or `optional`. Production requires qualification and
+        /// refuses `optional`; development defaults to `optional`.
+        #[arg(long)]
+        qualification_policy: Option<String>,
+        /// The recipe family the installed recipe belongs to, as its
+        /// decision record names it.
+        #[arg(long)]
+        recipe_family: Option<String>,
+        /// The provider contract the recipe is deployed against, as 64
+        /// lowercase hexadecimal characters.
+        #[arg(long)]
+        provider_contract_id: Option<String>,
+        /// Development only: a qualification trust root for this
+        /// installation. Production uses the root its build pins.
+        #[arg(long)]
+        qualification_trust_root: Option<PathBuf>,
+    }
+
     #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
     #[serde(rename_all = "kebab-case")]
     enum Deployment {
@@ -519,6 +596,84 @@ mod unix {
         /// Where provider secrets are kept. It names no secret and no
         /// external location.
         credential_store: CredentialStoreSettings,
+        /// Whether the recipe must be qualified, and what it is deployed as.
+        qualification: QualificationSettings,
+    }
+
+    /// The installation's qualification policy and the two tuple members a
+    /// gateway cannot derive from its own build and installed files. Neither
+    /// is a claim of qualification: a wrong family or contract matches no
+    /// attestation and refuses.
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct QualificationSettings {
+        policy: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        recipe_family: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        provider_contract_id: Option<String>,
+        /// SHA-256 of a development installation's own trust root file.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trust_root_sha256: Option<String>,
+    }
+
+    /// Whether production qualification policy applies. It always does for
+    /// a production deployment in a shipped build; only a build made for
+    /// tests can relax it.
+    const fn production_qualification(deployment: Deployment) -> bool {
+        matches!(deployment, Deployment::Production)
+            && !cfg!(feature = "testkit-production-unqualified")
+    }
+
+    /// Checks the operator's qualification declaration before anything is
+    /// read or written, and returns the settings and a development trust
+    /// root's bytes.
+    fn qualification_settings(
+        options: QualificationOptions,
+        deployment: Deployment,
+    ) -> Result<(QualificationSettings, Option<Vec<u8>>), Failure> {
+        let policy = qualification_policy(
+            options.qualification_policy.as_deref(),
+            production_qualification(deployment),
+        )?;
+        let lowercase_digest = |text: &String| {
+            text.len() == 64
+                && text
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        };
+        let declared = options
+            .recipe_family
+            .as_ref()
+            .is_none_or(|family| RecipeFamilyId::parse(family.as_str()).is_ok())
+            && options
+                .provider_contract_id
+                .as_ref()
+                .is_none_or(lowercase_digest);
+        let complete = options.recipe_family.is_some() && options.provider_contract_id.is_some();
+        if !declared || (policy == QualificationPolicy::Required && !complete) {
+            return Err(QUALIFICATION_POLICY_REFUSED.into());
+        }
+        let root = match (options.qualification_trust_root, deployment) {
+            (None, _) => None,
+            (Some(path), Deployment::Development) => {
+                let bytes = read_bounded(&path, MAX_TRUST_ROOT_BYTES)
+                    .map_err(|_| Failure::at(QUALIFICATION_POLICY_REFUSED, &path, "unreadable"))?;
+                QualificationTrustRoot::from_canonical_json(&bytes)
+                    .map_err(|error| Failure::at(QUALIFICATION_POLICY_REFUSED, &path, error))?;
+                Some(bytes)
+            }
+            (Some(_), Deployment::Production) => return Err(QUALIFICATION_POLICY_REFUSED.into()),
+        };
+        Ok((
+            QualificationSettings {
+                policy: policy.as_str().to_owned(),
+                recipe_family: options.recipe_family,
+                provider_contract_id: options.provider_contract_id,
+                trust_root_sha256: root.as_deref().map(digest),
+            },
+            root,
+        ))
     }
 
     /// The operator's choice of credential store and, for the production
@@ -647,6 +802,29 @@ mod unix {
         /// stored secret without revealing it or where it is kept.
         #[serde(skip_serializing_if = "Option::is_none")]
         commitment: Option<String>,
+        /// The qualification state a reload derived.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        qualification: Option<QualificationReport>,
+    }
+
+    /// The gate's policy, state, and code. It names no provider and echoes
+    /// no input.
+    #[derive(Serialize)]
+    struct QualificationReport {
+        policy: &'static str,
+        state: &'static str,
+        code: Option<&'static str>,
+    }
+
+    impl QualificationReport {
+        fn of(gate: &QualificationGate) -> Self {
+            let status = gate.status();
+            Self {
+                policy: status.policy.as_str(),
+                state: status.state.as_str(),
+                code: status.code,
+            }
+        }
     }
 
     impl AdminResponse {
@@ -660,6 +838,7 @@ mod unix {
                 status: None,
                 result: None,
                 commitment: None,
+                qualification: None,
             }
         }
 
@@ -909,6 +1088,7 @@ mod unix {
         operator_attestation: Option<PathBuf>,
         attempt_store: Option<PathBuf>,
         credential_store: CredentialStoreSettings,
+        qualification: QualificationOptions,
         loopback_provider: Option<u16>,
     ) -> Result<(), Failure> {
         // The store choice is checked before anything is read or written.
@@ -916,6 +1096,8 @@ mod unix {
             &credential_store.kind,
             production_custody(deployment),
         )?;
+        let (qualification, qualification_root) =
+            qualification_settings(qualification, deployment)?;
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin".into());
         }
@@ -955,6 +1137,7 @@ mod unix {
             operator_attestation_sha256: None,
             attempt_store: store_path.as_ref().map(|path| path.display().to_string()),
             credential_store,
+            qualification,
         };
         let attestation = match (operator_attestation, deployment) {
             (Some(path), _) => {
@@ -1046,6 +1229,9 @@ mod unix {
         if let Some(bytes) = &attestation {
             private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
         }
+        if let Some(bytes) = &qualification_root {
+            private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
+        }
         let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
             .map_err(|_| "gateway.install.manifest-invalid")?;
         private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
@@ -1055,6 +1241,353 @@ mod unix {
             manifest.recipe_digest
         );
         Ok(())
+    }
+
+    /// The files of `directory` in name order, each at most `maximum` bytes
+    /// and at most [`MAX_INDEX_ENTRIES`] of them. A missing directory holds
+    /// none.
+    fn qualification_files(directory: &Path, maximum: usize) -> Result<Vec<Vec<u8>>, &'static str> {
+        const CODE: &str = "gateway.qualification.unavailable";
+        let entries = match fs::read_dir(directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(_) => return Err(CODE),
+        };
+        let mut paths = entries
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| CODE)?;
+        if paths.len() > MAX_INDEX_ENTRIES {
+            return Err(CODE);
+        }
+        paths.sort();
+        paths
+            .iter()
+            .map(|path| read_bounded(path, maximum).map_err(|_| CODE))
+            .collect()
+    }
+
+    /// Reads a release directory. An absent file is read as empty, which
+    /// verifies as an unusable input, never as a permissive one.
+    fn qualification_bundle(directory: &Path) -> Result<QualificationBundle, &'static str> {
+        let optional =
+            |name: &str, maximum: usize| match read_bounded(&directory.join(name), maximum) {
+                Ok(bytes) => Ok(bytes),
+                Err(_) if !directory.join(name).exists() => Ok(Vec::new()),
+                Err(_) => Err("gateway.qualification.unavailable"),
+            };
+        Ok(QualificationBundle {
+            signer_certificate: optional(
+                RELEASE_SIGNER_CERTIFICATE_FILE,
+                MAX_SIGNER_CERTIFICATE_BYTES,
+            )?,
+            revocation_list: optional(RELEASE_REVOCATION_LIST_FILE, MAX_REVOCATION_LIST_BYTES)?,
+            release_index: optional(RELEASE_INDEX_FILE, MAX_RELEASE_INDEX_BYTES)?,
+            records: qualification_files(
+                &directory.join(RELEASE_RECORDS_DIRECTORY),
+                MAX_RECORD_BYTES,
+            )?,
+            attestations: qualification_files(
+                &directory.join(RELEASE_ATTESTATIONS_DIRECTORY),
+                MAX_ATTESTATION_BYTES,
+            )?,
+        })
+    }
+
+    /// What every verified revocation list has named, as this host keeps it
+    /// across restarts.
+    #[derive(Default, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct StoredVerifierState {
+        accepted_revocation_sequence: u64,
+        accepted_index_issued_at: u64,
+        revoked_signers: Vec<QualificationSignerId>,
+        revoked_qualifications: Vec<QualificationId>,
+    }
+
+    /// Reads the remembered revocations. A missing file is a host that has
+    /// accepted nothing; an unreadable or malformed one is an error, so
+    /// damage cannot forget a revocation.
+    fn read_verifier_state(state_dir: &Path) -> Result<VerifierState, &'static str> {
+        let path = state_dir.join(QUALIFICATION_STATE_FILE);
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(VerifierState::default());
+            }
+            Err(_) => return Err("gateway.qualification.unavailable"),
+            Ok(_) => {}
+        }
+        let stored: StoredVerifierState = read_bounded(&path, 256 * 1024)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .ok_or("gateway.qualification.unavailable")?;
+        Ok(VerifierState {
+            accepted_revocation_sequence: stored.accepted_revocation_sequence,
+            accepted_index_issued_at: stored.accepted_index_issued_at,
+            revoked_signers: stored.revoked_signers.into_iter().collect(),
+            revoked_qualifications: stored.revoked_qualifications.into_iter().collect(),
+        })
+    }
+
+    fn write_verifier_state(state_dir: &Path, state: &VerifierState) -> Result<(), &'static str> {
+        let stored = StoredVerifierState {
+            accepted_revocation_sequence: state.accepted_revocation_sequence,
+            accepted_index_issued_at: state.accepted_index_issued_at,
+            revoked_signers: state.revoked_signers.iter().cloned().collect(),
+            revoked_qualifications: state.revoked_qualifications.iter().cloned().collect(),
+        };
+        let bytes = serde_json::to_vec(&stored).map_err(|_| "gateway.qualification.unavailable")?;
+        replace_private_file(&state_dir.join(QUALIFICATION_STATE_FILE), &bytes)
+            .map_err(|_| "gateway.qualification.unavailable")
+    }
+
+    /// The trust root of an installation: the root this build pins, or a
+    /// development installation's own file, which must be the one install
+    /// recorded.
+    fn qualification_root(
+        state_dir: &Path,
+        manifest: &Installation,
+    ) -> Result<Option<QualificationTrustRoot>, &'static str> {
+        const CODE: &str = "gateway.serve.installation-changed";
+        let bytes = match (
+            &manifest.qualification.trust_root_sha256,
+            manifest.deployment,
+        ) {
+            (Some(pinned), Deployment::Development) => {
+                let bytes = read_bounded(
+                    &state_dir.join(QUALIFICATION_ROOT_FILE),
+                    MAX_TRUST_ROOT_BYTES,
+                )
+                .map_err(|_| CODE)?;
+                if digest(&bytes) != *pinned {
+                    return Err(CODE);
+                }
+                Some(bytes)
+            }
+            (Some(_), Deployment::Production) => return Err("gateway.serve.invalid-installation"),
+            (None, _) => PINNED_QUALIFICATION_ROOT.map(<[u8]>::to_vec),
+        };
+        bytes
+            .map(|bytes| {
+                QualificationTrustRoot::from_canonical_json(&bytes)
+                    .map_err(|_| "gateway.serve.invalid-installation")
+            })
+            .transpose()
+    }
+
+    /// The tuple this installation must be qualified for, when the operator
+    /// declared a family and a contract and the running executable can be
+    /// read.
+    fn qualification_deployment(
+        state_dir: &Path,
+        manifest: &Installation,
+    ) -> Option<QualificationTuple> {
+        let fixed = |text: &str| {
+            let mut bytes = [0_u8; 32];
+            hex::decode_to_slice(text, &mut bytes).ok().map(|()| bytes)
+        };
+        let source = read_bounded(&state_dir.join("recipe.json"), 65_536).ok()?;
+        let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536).ok()?;
+        let recipe = CompiledRecipe::compile(&source, &lock).ok()?;
+        let executable = fs::read(std::env::current_exe().ok()?).ok()?;
+        let (store_kind, store_schema) = match manifest.deployment {
+            Deployment::Production => (LifecycleStoreKind::PostgresqlV1, POSTGRES_STORE_SCHEMA),
+            Deployment::Development => (LifecycleStoreKind::SharedFileV1, FILE_STORE_SCHEMA),
+        };
+        deployment_tuple(&DeploymentFacts {
+            recipe_family: manifest.qualification.recipe_family.as_deref()?,
+            provider_contract_id: manifest.qualification.provider_contract_id.as_deref()?,
+            compiled_recipe_sha256: *recipe.digest(),
+            profile_lock_sha256: fixed(&digest(&lock))?,
+            gateway_build_sha256: Sha256::digest(&executable).into(),
+            store_kind,
+            store_schema,
+            credential_store_kind: CredentialStoreKind::parse(&manifest.credential_store.kind)
+                .ok()?,
+        })
+    }
+
+    /// Builds the installation's gate and loads the inputs the operator
+    /// imported. The policy is decided again from the deployment, so an
+    /// edited manifest cannot relax production. Only a changed installation
+    /// is an error; unreadable inputs or remembered revocations give a gate
+    /// that qualifies nothing.
+    fn qualification_gate(
+        state_dir: &Path,
+        manifest: &Installation,
+    ) -> Result<QualificationGate, Failure> {
+        let policy = qualification_policy(
+            Some(&manifest.qualification.policy),
+            production_qualification(manifest.deployment),
+        )
+        .map_err(|_| "gateway.serve.invalid-installation")?;
+        let clock: Box<dyn auths_gateway::DeploymentClock> = match manifest.deployment {
+            Deployment::Production => Box::new(SynchronizedHostClock),
+            Deployment::Development => Box::new(DevelopmentClock),
+        };
+        // What this host remembers as revoked must be readable for anything
+        // to qualify. Damage disables the recipe, not the process: the gate
+        // is then built with no root, which nothing satisfies.
+        let remembered = read_verifier_state(state_dir);
+        let root = qualification_root(state_dir, manifest)?.filter(|_| remembered.is_ok());
+        let gate = QualificationGate::new(
+            policy,
+            root,
+            qualification_deployment(state_dir, manifest),
+            clock,
+            remembered.unwrap_or_default(),
+        );
+        // Inputs that cannot be read leave the gate holding nothing.
+        let _ = qualification_reload(state_dir, &gate);
+        Ok(gate)
+    }
+
+    /// Loads the installed engine for `serve` after checking that the
+    /// process may hold the descriptors it will need.
+    fn load_for_serve(state_dir: &Path, app_capacity: usize) -> Result<GatewayEngine, Failure> {
+        let deployment = installation(state_dir)?.deployment;
+        check_descriptor_limit(app_capacity, store_pool(deployment)?)?;
+        load_engine(state_dir)
+    }
+
+    /// Prints the readiness line. A recipe that is not qualified is
+    /// disabled, not the process: proof verification and the operator plane
+    /// keep working, and the line says which state was derived.
+    fn announce_ready(engine: &GatewayEngine, recipe_marker: &str) {
+        let qualification = engine.qualification().status();
+        println!(
+            "app socket ready; exact recipe {recipe_marker}, qualification policy={} state={} code={}",
+            qualification.policy.as_str(),
+            qualification.state.as_str(),
+            qualification.code.unwrap_or("none")
+        );
+    }
+
+    /// Reads this host's imported inputs into `gate` and keeps what they
+    /// revoke.
+    fn qualification_reload(
+        state_dir: &Path,
+        gate: &QualificationGate,
+    ) -> Result<(), &'static str> {
+        let bundle = qualification_bundle(&state_dir.join(QUALIFICATION_DIRECTORY))
+            .inspect_err(|_| gate.unload())?;
+        if gate.load(&bundle) {
+            write_verifier_state(state_dir, &gate.verifier_state())?;
+        }
+        Ok(())
+    }
+
+    /// Verifies a release directory under the installation's trust root and
+    /// makes it this host's qualification inputs. Inputs whose certificate,
+    /// index, or revocation list cannot be used are refused and nothing
+    /// changes; anything else is authentic and is kept, whatever state it
+    /// derives.
+    fn qualification_import(state_dir: &Path, from: &Path) -> Result<(), Failure> {
+        const CODE: &str = "gateway.qualification.unavailable";
+        private_root(state_dir)?;
+        let manifest = installation(state_dir)?;
+        let bundle =
+            qualification_bundle(from).map_err(|code| Failure::at(code, from, "unreadable"))?;
+        let candidate = QualificationGate::new(
+            QualificationPolicy::Required,
+            qualification_root(state_dir, &manifest)?,
+            qualification_deployment(state_dir, &manifest),
+            Box::new(DevelopmentClock),
+            read_verifier_state(state_dir)?,
+        );
+        candidate.load(&bundle);
+        let status = candidate.status();
+        if !candidate.inputs_usable() {
+            return Err(Failure::at(
+                CODE,
+                from,
+                "not a release this installation's root signed",
+            ));
+        }
+        // What the new inputs establish is recorded before they replace the
+        // old ones. If the replacement then fails, the old inputs meet a
+        // floor they are below and nothing qualifies.
+        write_verifier_state(state_dir, &candidate.verifier_state())?;
+        let staged = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.next"));
+        let retired = state_dir.join(format!("{QUALIFICATION_DIRECTORY}.previous"));
+        let current = state_dir.join(QUALIFICATION_DIRECTORY);
+        let failed = |error: std::io::Error| Failure::at(CODE, &current, error);
+        for stale in [&staged, &retired] {
+            if stale.exists() {
+                fs::remove_dir_all(stale).map_err(failed)?;
+            }
+        }
+        for directory in [
+            staged.clone(),
+            staged.join(RELEASE_RECORDS_DIRECTORY),
+            staged.join(RELEASE_ATTESTATIONS_DIRECTORY),
+        ] {
+            fs::create_dir(&directory).map_err(failed)?;
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).map_err(failed)?;
+        }
+        private_file(
+            &staged.join(RELEASE_SIGNER_CERTIFICATE_FILE),
+            &bundle.signer_certificate,
+        )?;
+        private_file(
+            &staged.join(RELEASE_REVOCATION_LIST_FILE),
+            &bundle.revocation_list,
+        )?;
+        private_file(&staged.join(RELEASE_INDEX_FILE), &bundle.release_index)?;
+        for (directory, members) in [
+            (RELEASE_RECORDS_DIRECTORY, &bundle.records),
+            (RELEASE_ATTESTATIONS_DIRECTORY, &bundle.attestations),
+        ] {
+            for (position, member) in members.iter().enumerate() {
+                private_file(
+                    &staged.join(directory).join(format!("{position:04}.json")),
+                    member,
+                )?;
+            }
+        }
+        if current.exists() {
+            fs::rename(&current, &retired).map_err(failed)?;
+        }
+        fs::rename(&staged, &current).map_err(failed)?;
+        if retired.exists() {
+            fs::remove_dir_all(&retired).map_err(failed)?;
+        }
+        println!(
+            "imported qualification inputs: state={} code={}",
+            status.state.as_str(),
+            status.code.unwrap_or("none")
+        );
+        Ok(())
+    }
+
+    /// Prints the installation's qualification state, or the tuple it must
+    /// be qualified for.
+    fn qualification_status(state_dir: &Path, tuple: bool) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        let manifest = installation(state_dir)?;
+        if tuple {
+            let deployment = qualification_deployment(state_dir, &manifest)
+                .ok_or("gateway.qualification.unavailable")?;
+            let bytes = serde_json_canonicalizer::to_vec(&deployment)
+                .map_err(|_| "gateway.qualification.unavailable")?;
+            println!("{}", String::from_utf8_lossy(&bytes));
+            return Ok(());
+        }
+        let status = qualification_gate(state_dir, &manifest)?.status();
+        println!(
+            "policy={} state={} code={}",
+            status.policy.as_str(),
+            status.state.as_str(),
+            status.code.unwrap_or("none")
+        );
+        if status.permits_lease() {
+            Ok(())
+        } else {
+            Err(status
+                .code
+                .unwrap_or("gateway.qualification.unavailable")
+                .into())
+        }
     }
 
     fn installation(state_dir: &Path) -> Result<Installation, &'static str> {
@@ -1199,6 +1732,7 @@ mod unix {
             Some(observer) => engine.with_observer(observer),
             None => engine,
         };
+        let engine = engine.with_qualification(Arc::new(qualification_gate(state_dir, &manifest)?));
         // Separation is checked against an authenticated operator. A
         // development installation without one keeps its observer key
         // outside the trust it installed, as `observer-init` creates it after
@@ -1286,6 +1820,7 @@ mod unix {
         RotateCommit([u8; 32]),
         Status,
         Reobserve(String),
+        QualificationReload,
     }
 
     /// Reads the command frame and, for a rotation, the secret frame, each
@@ -1303,6 +1838,7 @@ mod unix {
             AdminRequestCommand::Enable {} => Ok(AdminCommand::Enable),
             AdminRequestCommand::Revoke {} => Ok(AdminCommand::Revoke),
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
+            AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
             AdminRequestCommand::Reobserve { operation_id } => {
                 Ok(AdminCommand::Reobserve(operation_id))
             }
@@ -1351,7 +1887,11 @@ mod unix {
     /// check at accept alone authorizes every command, so custody
     /// unavailability can never block the kill switch. A change the engine
     /// has started is never cancelled by a deadline.
-    async fn admin_session(mut stream: UnixStream, engine: Arc<GatewayEngine>) {
+    async fn admin_session(
+        mut stream: UnixStream,
+        engine: Arc<GatewayEngine>,
+        state_dir: Arc<PathBuf>,
+    ) {
         let clock = SessionClock::start(ADMIN_SESSION_LIMITS);
         let command = read_admin_command(&clock, &mut stream).await;
         let change = async {
@@ -1383,6 +1923,23 @@ mod unix {
                     },
                     Err(code) => AdminResponse::refused(code),
                 },
+                Ok(AdminCommand::QualificationReload) => {
+                    let reloading = Arc::clone(&engine);
+                    let directory = Arc::clone(&state_dir);
+                    let reloaded = tokio::task::spawn_blocking(move || {
+                        qualification_reload(&directory, reloading.qualification())
+                    })
+                    .await;
+                    match reloaded {
+                        Ok(Ok(())) => AdminResponse {
+                            ok: true,
+                            qualification: Some(QualificationReport::of(engine.qualification())),
+                            ..AdminResponse::refused("gateway.admin.qualification-reloaded")
+                        },
+                        Ok(Err(code)) => AdminResponse::refused(code),
+                        Err(_) => AdminResponse::refused("gateway.qualification.unavailable"),
+                    }
+                }
                 Ok(AdminCommand::Reobserve(operation_id)) => {
                     match engine.reobserve(&operation_id).await {
                         Ok(result) => AdminResponse {
@@ -1509,13 +2066,9 @@ mod unix {
         loopback_provider: Option<u16>,
     ) -> Result<(), Failure> {
         let loading = state_dir.clone();
-        let engine = tokio::task::spawn_blocking(move || {
-            let deployment = installation(&loading)?.deployment;
-            check_descriptor_limit(app_capacity, store_pool(deployment)?)?;
-            load_engine(&loading)
-        })
-        .await
-        .map_err(|_| "gateway.serve.load-failed")??;
+        let engine = tokio::task::spawn_blocking(move || load_for_serve(&loading, app_capacity))
+            .await
+            .map_err(|_| "gateway.serve.load-failed")??;
         #[cfg(feature = "loopback-provider")]
         let engine = match loopback_provider {
             Some(port) => {
@@ -1558,11 +2111,10 @@ mod unix {
             Failure::at("gateway.serve.app-permissions-failed", &app_socket, error)
         })?;
         let recipe_marker = engine_recipe_marker(&state_dir)?;
+        let admin_state_dir = Arc::new(state_dir.clone());
         admin_bound.keep();
         app_bound.keep();
-        println!(
-            "app socket ready; exact recipe {recipe_marker}, no provider-effect qualification"
-        );
+        announce_ready(&engine, &recipe_marker);
         // Separate capacities: the application can fill its own listener but
         // never take an admin permit.
         let app_engine = Arc::clone(&engine);
@@ -1588,9 +2140,10 @@ mod unix {
             move |stream: &UnixStream| admin_peer_admitted(stream, owner),
             move |stream, permit| {
                 let engine = Arc::clone(&engine);
+                let state_dir = Arc::clone(&admin_state_dir);
                 async move {
                     let _permit = permit;
-                    admin_session(stream, engine).await;
+                    admin_session(stream, engine, state_dir).await;
                 }
             },
         );
@@ -2132,6 +2685,16 @@ mod unix {
         );
         println!("provider credential store: {custody}");
         println!("observer: {observer}");
+        let manifest = installation(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
+        let qualification = qualification_gate(state_dir, &manifest)
+            .map_err(|failure| failure.code)?
+            .status();
+        println!(
+            "qualification: policy={} state={} code={}",
+            qualification.policy.as_str(),
+            qualification.state.as_str(),
+            qualification.code.unwrap_or("none")
+        );
         Ok(())
     }
 
@@ -2173,6 +2736,7 @@ mod unix {
                 deployment,
                 operator_attestation,
                 attempt_store,
+                qualification,
                 credential_store,
                 credential_namespace,
                 aws_region,
@@ -2206,9 +2770,33 @@ mod unix {
                     operator_attestation,
                     attempt_store,
                     credential_store,
+                    qualification,
                     loopback_provider,
                 )
                 .await
+            }
+            Command::QualificationImport {
+                state_dir,
+                from,
+                admin_socket,
+            } => {
+                let importing = state_dir.clone();
+                tokio::task::spawn_blocking(move || qualification_import(&importing, &from))
+                    .await
+                    .map_err(|_| "gateway.qualification.unavailable")??;
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                // A gateway that is not serving reads the inputs when it
+                // starts; only a listening one is asked to read them now.
+                if UnixStream::connect(&admin_socket.path).await.is_err() {
+                    return Ok(());
+                }
+                let command = serde_json::json!({"command": "qualification-reload"});
+                admin_command(&state_dir, &admin_socket, command, None).await
+            }
+            Command::QualificationStatus { state_dir, tuple } => {
+                tokio::task::spawn_blocking(move || qualification_status(&state_dir, tuple))
+                    .await
+                    .map_err(|_| "gateway.qualification.unavailable")?
             }
             #[cfg(feature = "loopback-provider")]
             Command::Serve {

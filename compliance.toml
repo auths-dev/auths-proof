@@ -1160,8 +1160,8 @@ kind = "cargo"
 layer = "product"
 path = "product/qualification/auths-recipe-qualification"
 core_apis = []
-protocol_versions = ["auths.provider-contract/1", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-schema-vectors/1", "auths.qualification-verification-vectors/1"]
-wire_objects = ["ProviderContract", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
+protocol_versions = ["auths.provider-contract/1", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1", "auths.qualification-tuple/1", "auths.gateway-semantic-closure/1", "auths.qualification-schema-vectors/1", "auths.qualification-verification-vectors/1"]
+wire_objects = ["GatewaySemanticClosure", "ProviderContract", "QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
 fixture_suites = ["bindings/fixtures/qualification"]
 principal_families = []
 signature_families = ["ed25519-v1"]
@@ -1175,8 +1175,48 @@ independent-semantic-implementation = [
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#every_valid_artifact_decodes",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#every_structural_case_is_refused_with_its_reason",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#contract_drift_changes_the_contract_identifier",
-  "product/qualification/auths-recipe-qualification/src/vectors/verification.rs#verification_vectors_await_the_release_verifier",
+  "product/qualification/auths-recipe-qualification/src/vectors/verification.rs#every_verification_case_is_decided_as_frozen",
   "product/qualification/auths-recipe-qualification/src/model.rs#closed_derived_state_follows_only_its_transitions",
+  "product/qualification/auths-recipe-qualification/src/evidence.rs#the_scenario_catalogue_covers_every_wall_row_and_member",
+  "product/qualification/auths-recipe-qualification/src/evidence.rs#a_capability_is_shown_only_in_its_own_member",
+]
+
+[packages.auths-recipe-qualification-issuance]
+kind = "cargo"
+layer = "product"
+path = "product/qualification/auths-recipe-qualification-issuance"
+core_apis = []
+protocol_versions = ["auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1"]
+wire_objects = ["QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
+fixture_suites = []
+principal_families = []
+signature_families = ["ed25519-v1"]
+profiles = []
+transports = []
+configuration_inputs = ["record-draft", "stage-case-reports", "executable-qualification-corpus", "candidate-observations", "family-harness", "qualification-trust-root-key-file", "release-signer-key-file"]
+security_state = ["qualification-trust-root-key", "release-signer-key"]
+
+[packages.auths-recipe-qualification-issuance.claims]
+proof-author-or-assembler = [
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_record_is_assembled_from_its_evidence_and_closes_over_it",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_run_with_a_failed_case_produces_no_evidence",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#assembly_refuses_a_wall_that_is_not_whole",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_record_does_not_close_over_other_evidence",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_signed_release_qualifies_its_deployment_and_nothing_else",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#each_signing_role_refuses_what_is_not_its_own",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#the_freshness_and_rotation_stages_hold_on_a_valid_candidate",
+  "product/qualification/auths-recipe-qualification-issuance/tests/cli.rs#a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not",
+  "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#every_required_scenario_is_needed_to_close_the_wall",
+  "product/qualification/auths-recipe-qualification-issuance/tests/protected_run.rs#a_pull_request_reaches_no_secret_and_no_signing_job",
+  "product/qualification/auths-recipe-qualification-issuance/tests/protected_run.rs#the_repository_holds_no_qualification_key",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#every_stage_executes_its_operations_and_a_missing_runner_refuses",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#observed_faults_and_changed_candidates_produce_no_passing_case",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#differential_compares_the_actual_oracle_and_gateway_commitments",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#recovery_requires_read_back_and_without_the_capability_stays_unknown",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#a_reviewed_expectation_cannot_authorize_a_second_entry_or_a_hostile_lease",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#subprocess_failures_invalidate_reports_and_installed_consumers_get_no_credential",
+  "product/qualification/auths-recipe-qualification-issuance/tests/script_pipeline.rs#stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refuses",
+  "product/qualification/auths-recipe-qualification-issuance/tests/script_pipeline.rs#live_script_cleans_up_after_success_setup_failure_and_stage_failure",
 ]
 
 [packages.auths-bounded-policy]
@@ -1538,15 +1578,15 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/4", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/2", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/3", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-production-codes/1", "auths.gateway-custody-vectors/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
+protocol_versions = ["auths.gateway-installation/5", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.gateway-semantic-closure/1", "auths.qualification-verification-vectors/1", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/2", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/3", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-production-codes/1", "auths.gateway-custody-vectors/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
 wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ProviderResult", "AuditedPreEntry", "EchoVerification", "AdminRequestCommand", "ListedValues"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway", "bindings/fixtures/qualification"]
 principal_families = ["raw-key-v1", "did-key-v1", "did-keri-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
 transports = ["bounded-https", "postgresql-tls", "loopback-http-development"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins"]
-security_state = ["recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins", "qualification-policy", "recipe-family", "provider-contract-id", "qualification-release-inputs", "deployment-clock"]
+security_state = ["recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
@@ -1620,6 +1660,16 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/property_tests.rs#audit_conditions_agree_with_every_arrival_order",
 ]
 runtime-enforcement-boundary = [
+  "product/runtime/auths-gateway/src/qualification_tests.rs#an_engine_without_a_configured_gate_leases_nothing",
+  "product/runtime/auths-gateway/src/qualification_tests.rs#a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease",
+  "product/runtime/auths-gateway/src/qualification_tests.rs#a_drifted_deployment_is_stale_under_the_same_release",
+  "product/runtime/auths-gateway/src/qualification_tests.rs#every_frozen_verification_case_decides_the_gate",
+  "product/runtime/auths-gateway/src/qualification_tests.rs#production_never_accepts_the_optional_policy",
+  "product/runtime/auths-gateway/src/qualification_tests.rs#the_gate_is_told_no_provider_name_and_runs_no_oracle",
+  "product/runtime/auths-gateway/src/semantic_closure.rs#a_gateway_build_contains_no_issuance_or_oracle",
+  "product/runtime/auths-gateway/src/semantic_closure.rs#semantic_closure_is_current",
+  "product/runtime/auths-gateway/tests/qualification_gate.rs#a_host_qualifies_only_from_a_release_its_root_signed",
+  "product/runtime/auths-gateway/tests/qualification_gate.rs#install_refuses_a_policy_production_does_not_permit",
   "product/runtime/auths-gateway/src/readiness.rs#readiness_is_the_conjunction_of_every_required_precondition",
   "product/runtime/auths-gateway/src/readiness.rs#retirement_delay_outlives_entered_transport",
   "product/runtime/auths-gateway/src/pending_vectors/production.rs#submission_frames_cannot_select_custody",
@@ -1687,6 +1737,7 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe/tests.rs#response_and_observation_are_distinct_durable_stages",
   "product/runtime/auths-gateway/src/recipe/tests.rs#read_back_links_only_an_exact_token_with_the_verified_value",
   "product/runtime/auths-gateway/src/scenario_tests.rs#record_scenarios_drive_the_counting_provider",
+  "product/runtime/auths-gateway/src/scenario_tests.rs#qualification_stages_use_gateway_replay_and_recovery_witnesses",
   "product/runtime/auths-gateway/src/scenario_tests.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
   "product/runtime/auths-gateway/src/scenario_tests.rs#a_lost_claim_resends_the_same_idempotency_key",
   "product/runtime/auths-gateway/src/scenario_tests.rs#file_store_passes_attempt_store_conformance",
