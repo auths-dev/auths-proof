@@ -259,6 +259,22 @@ pub fn stage_fixture(work: &std::path::Path) -> std::path::PathBuf {
     let harness = work.join("harness");
     std::fs::write(&harness, r"#!/usr/bin/env python3
 import json, os, pathlib, sys, time
+if sys.argv[1] in ('prepare-live', 'cleanup'):
+    verb, work = sys.argv[1], pathlib.Path(sys.argv[2])
+    mode = (work / 'fault').read_text() if (work / 'fault').exists() else ''
+    resource = work / 'disposable-resource'
+    if verb == 'prepare-live':
+        resource.write_text('synthetic-provider-resource')
+        if mode == 'setup-failed':
+            print('synthetic-canary-must-not-leave-child', file=sys.stderr)
+            sys.exit(1)
+    else:
+        with (work / 'cleanup-calls').open('a') as log: log.write('cleanup\n')
+        if mode == 'cleanup-failed':
+            print('synthetic-canary-must-not-leave-child', file=sys.stderr)
+            sys.exit(1)
+        resource.unlink(missing_ok=True)
+    sys.exit(0)
 _, verb, case_id, index, operation, work, output = sys.argv
 assert verb == 'step'
 work = pathlib.Path(work)

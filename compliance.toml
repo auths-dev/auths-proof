@@ -1216,6 +1216,7 @@ proof-author-or-assembler = [
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#a_reviewed_expectation_cannot_authorize_a_second_entry_or_a_hostile_lease",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#subprocess_failures_invalidate_reports_and_installed_consumers_get_no_credential",
   "product/qualification/auths-recipe-qualification-issuance/tests/script_pipeline.rs#stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refuses",
+  "product/qualification/auths-recipe-qualification-issuance/tests/script_pipeline.rs#live_script_cleans_up_after_success_setup_failure_and_stage_failure",
 ]
 
 [packages.auths-bounded-policy]

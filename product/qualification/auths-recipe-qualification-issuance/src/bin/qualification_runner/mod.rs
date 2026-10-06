@@ -118,12 +118,8 @@ pub(super) fn run(
     if !(1..=120).contains(&timeout_seconds) {
         return Err(refused());
     }
-    let corpus: RunCorpus = json(corpus)?;
-    corpus.validate()?;
-    let tuple: QualificationTuple = json(tuple)?;
     fs::create_dir_all(work).map_err(|_| refused())?;
     let work = fs::canonicalize(work).map_err(|_| refused())?;
-    let harness = fs::canonicalize(harness).map_err(|_| refused())?;
     let phase_token = match phase {
         RunPhase::Offline => "offline",
         RunPhase::Live => "live",
@@ -147,6 +143,12 @@ pub(super) fn run(
             Err(_) => return Err(refused()),
         }
     }
+    // Invalid inputs and a missing executable invalidate an earlier phase's
+    // evidence just as a failed operation does.
+    let corpus: RunCorpus = json(corpus)?;
+    corpus.validate()?;
+    let tuple: QualificationTuple = json(tuple)?;
+    let harness = fs::canonicalize(harness).map_err(|_| refused())?;
     let mut reports: BTreeMap<String, Vec<CaseReport>> = BTreeMap::new();
     let mut live = LiveEffects {
         entered: 0,

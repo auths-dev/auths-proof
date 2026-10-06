@@ -219,4 +219,12 @@ fn subprocess_failures_invalidate_reports_and_installed_consumers_get_no_credent
             "no stale passing report after {fault}"
         );
     }
+    fs::remove_file(work.join("fault")).expect("remove fault");
+    assert!(run("offline").status.success());
+    fs::write(work.join("corpus.json"), "{}").expect("invalid corpus");
+    assert!(!run("offline").status.success());
+    assert!(
+        !work.join("cases/hostile.offline.json").exists(),
+        "invalid corpus input also clears stale passing evidence"
+    );
 }

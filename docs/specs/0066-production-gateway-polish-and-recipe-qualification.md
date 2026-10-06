@@ -1581,15 +1581,20 @@ requires declared recovery and fresh read-back, and isolates installed
 consumers from provider credentials and repository import paths. Corpus
 validation requires executable coverage of every harness-owned mandatory
 scenario. Reports and live counters are runner-derived; a failed rerun removes
-old reports/proposals. The workflow invokes these stages rather than asking a
-family to supply passing reports.
+old reports/proposals, including when its corpus is invalid. Assembly accepts
+only runner-owned phase reports and release-owned trust/scan outputs; arbitrary
+harness reports cannot replace missing execution. The workflow invokes these
+stages rather than asking a family to supply passing reports. Its live script
+always invokes idempotent resource cleanup, including after partial setup or
+failed execution, and refuses a failed cleanup.
 
 Evidence: `tests/execution.rs` covers execution, missing scenarios, candidate
 and counter drift, exposure, differential mismatch, recovery without a
 capability, invalid ordering, subprocess failures, timeout and consumer
 environment isolation. `tests/cli.rs` drives stages through evidence assembly,
 signing and verification; `tests/script_pipeline.rs` drives the actual
-redaction and assembly scripts and refuses a missing recovery execution.
+redaction and assembly scripts, refuses a missing recovery execution even with
+an extra harness report, and tests teardown after successful and failed runs.
 Gateway qualification tests count calls to `ConnectionCredentialStore`;
 `qualification_stages_use_gateway_replay_and_recovery_witnesses` feeds actual
 submission-driver, persistent-store, credential-lease and counting-provider

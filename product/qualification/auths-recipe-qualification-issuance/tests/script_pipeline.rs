@@ -126,7 +126,62 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
     );
     assert!(work.join("proposal/record.json").is_file());
     // A failed rerun cannot leave its old proposal usable by the signing job.
+    fs::copy(
+        work.join("cases/recovery.live.json"),
+        work.join("cases/recovery.harness.json"),
+    )
+    .expect("extra harness report");
     fs::remove_file(work.join("cases/recovery.live.json")).expect("remove execution");
     assert!(!assemble().status.success());
     assert!(!work.join("proposal/record.json").exists());
+}
+
+#[test]
+fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
+    let temporary = tempfile::tempdir().expect("directory");
+    let root = temporary.path().join("repository");
+    let family = root.join("qualification/families/example-refund-v1");
+    fs::create_dir_all(&family).expect("family");
+    succeed(Command::new("git").args(["init", "--quiet"]).arg(&root));
+    let work = temporary.path().join("work");
+    let harness = common::stage_fixture(&work);
+    fs::copy(harness, family.join("harness")).expect("harness");
+    fs::copy(
+        work.join("corpus.json"),
+        family.join("corpus-manifest.json"),
+    )
+    .expect("corpus");
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run/live.sh");
+    for mode in ["success", "setup-failed", "failed", "cleanup-failed"] {
+        fs::write(work.join("fault"), mode).expect("fault");
+        let output = Command::new("bash")
+            .arg(&script)
+            .arg("example-refund-v1")
+            .arg(&work)
+            .env(
+                "AUTHS_QUALIFICATION",
+                env!("CARGO_BIN_EXE_auths-qualification"),
+            )
+            .current_dir(&root)
+            .output()
+            .expect("live script");
+        assert_eq!(output.status.success(), mode == "success", "{mode}");
+        assert_eq!(
+            work.join("disposable-resource").exists(),
+            mode == "cleanup-failed",
+            "teardown runs even after partial setup or a refused stage"
+        );
+        assert!(
+            !String::from_utf8_lossy(&output.stderr)
+                .contains("synthetic-canary-must-not-leave-child"),
+            "setup and cleanup output must not expose a credential"
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(work.join("cleanup-calls"))
+            .expect("cleanup calls")
+            .lines()
+            .count(),
+        4
+    );
 }

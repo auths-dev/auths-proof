@@ -19,7 +19,7 @@ One directory per recipe family, named by its `RecipeFamilyId`.
 | `contract.json` | The canonical `auths.provider-contract/1` the run qualifies against. |
 | `corpus-manifest.json` | The corpus the differential, hostile, and live stages run. |
 | `record.json` | What the record states that no run decides: `provider_kind`, `validity_days` (at most 90), `not_applicable` (each capability the family lacks, with the reason the decision record fixes), `custody_descriptor`, `store_descriptor`, `residual_assumptions`, `excluded_claims`. |
-| `harness` | An executable the run calls as `harness offline <work-dir>` and `harness live <work-dir>`. |
+| `harness` | A reviewed executable implementing `prepare`, `prepare-live`, `step` and `cleanup`. |
 
 The harness owns the provider-specific operations and pure oracle. The release
 runner owns sequencing, assertions, counters, and the resulting case reports.
@@ -40,13 +40,16 @@ The runner calls the reviewed executable as:
 harness prepare <work-dir>
 harness prepare-live <work-dir>
 harness step <case-id> <step-index> <operation> <work-dir> <output-file>
+harness cleanup <work-dir>
 ```
 
 `prepare` installs the candidate in `<work-dir>/gateway-state`, installs the
 consumer packages, and writes `packages.json`. The candidate gateway itself
 prints `tuple.json`; the release tool checks the declared contract ID against
 `contract.json`. `prepare-live` acquires disposable resources, starts the live
-candidate, and arranges teardown. Both receive `AUTHS_GATEWAY` and
+candidate. `run/live.sh` always calls `cleanup`, including after setup or stage
+failure; cleanup must remove disposable resources idempotently, and its failure
+fails the run. Both setup commands receive `AUTHS_GATEWAY` and
 `AUTHS_QUALIFICATION`. Only the protected live environment supplies
 `AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL`.
 

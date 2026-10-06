@@ -38,9 +38,16 @@ commit="$(jq -r .commit "${work}/facts.json")"
 mkdir -p "${work}/evidence"
 for member in conformance differential hostile live recovery rotation restart multi-instance redaction installed-consumer; do
   reports=()
-  while IFS= read -r -d '' file; do
-    reports+=(--cases "${file}")
-  done < <(find "${work}/cases" -type f -name "${member}.*json" -print0 | sort -z)
+  # Only the current runner's phase reports and release-owned trust/scan
+  # outputs are inputs. Extra harness-authored or stale reports are ignored.
+  for phase in offline live; do
+    file="${work}/cases/${member}.${phase}.json"
+    [ ! -f "${file}" ] || reports+=(--cases "${file}")
+  done
+  case "${member}" in
+    rotation) reports+=(--cases "${work}/cases/rotation.trust.json") ;;
+    redaction) reports+=(--cases "${work}/cases/redaction.scan.json") ;;
+  esac
   [ "${#reports[@]}" -gt 0 ] || { echo "qualification.member-missing ${member}" >&2; exit 1; }
   live=()
   if [ "${member}" = live ]; then
