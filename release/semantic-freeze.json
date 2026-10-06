@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 369,
+  "freezeVersion": 370,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -94,7 +94,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 78,
+      "version": 79,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -102,7 +102,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "9f16afa44d9d1220fdc7d7d219ec114b444978b8bb9288242ddd62b376f2f6c4"
+      "sha256": "83fed3f0d16736b93df13412e43e500f91840effd660aa17fb07ad79974c3d8f"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 97,
+      "version": 98,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "32b4ba2c0a643b402d2109abc0b4dbe125827a20d4760911654e078dcfe02d29"
+      "sha256": "31b4053a1e61e4195ff2bcc0495f1014bd1b1a8970da970282dec29fe4aa500d"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 369,
+      "version": 370,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1101,9 +1101,10 @@
         "xtask/src/public_naming.rs",
         "xtask/src/release.rs",
         "xtask/src/release_control.rs",
+        "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "2ec62100d0f39cb3cd4c6786286d1de77c279aefbb34bdce730867e764708039"
+      "sha256": "6546b04c364ef8ba03022a369388bc15b90c2cd5afef4733216fa1fbd7561527"
     }
   ]
 }

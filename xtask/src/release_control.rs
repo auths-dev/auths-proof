@@ -110,6 +110,7 @@ fn finalize_preparation(
     if subjects.is_empty() {
         return Err("release-manifest input has no subjects".to_owned());
     }
+    release_launch::verify_projection(&root(), commit)?;
 
     let provenance_path = copy_evidence_file(
         provenance_source,
@@ -178,7 +179,7 @@ fn finalize_preparation(
             "conformance": [
                 digest_reference("target/release-evidence/platform.json")?,
                 digest_reference("target/compliance/report.json")?,
-                digest_reference("target/release-evidence/launch-readiness.json")?,
+                digest_reference(release_launch::REPORT_PATH)?,
             ],
             "benchmarks": [
                 digest_reference("demos/benchmarks/profiles/release.toml")?,

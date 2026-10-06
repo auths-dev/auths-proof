@@ -705,6 +705,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "xtask/src/public_naming.rs".to_owned(),
         "xtask/src/release.rs".to_owned(),
         "xtask/src/release_control.rs".to_owned(),
+        "xtask/src/release_launch.rs".to_owned(),
         "xtask/src/semantic_freeze.rs".to_owned(),
     ]);
     entries.push(freeze_entry(

@@ -12,6 +12,8 @@ use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use std::{fs, io::Read as _, path::Path, process::Command};
 
+pub(crate) const REPORT_PATH: &str = "target/release-evidence/launch-readiness.json";
+
 fn bounded(path: &Path, maximum: usize) -> Result<Vec<u8>, String> {
     let metadata = fs::symlink_metadata(path).map_err(|_| "qualification input unavailable")?;
     if !metadata.file_type().is_file() || metadata.len() > maximum as u64 {
@@ -192,4 +194,77 @@ pub(crate) fn projection(repository: &Path, commit: &str) -> Result<Value, Strin
         }
     }
     Ok(report)
+}
+
+/// Finalization must not upgrade an edited projection into a signed claim.
+/// Re-evaluate the technical verdict at finalization time; the recorded time
+/// remains the release-check evaluation time, while the verdict must still hold.
+pub(crate) fn verify_projection(repository: &Path, commit: &str) -> Result<(), String> {
+    let report: Value = serde_json::from_slice(&bounded(&repository.join(REPORT_PATH), 16 * 1024)?)
+        .map_err(|_| "launch projection invalid")?;
+    let current = projection(repository, commit)?;
+    compare_projection(&report, &current)
+}
+
+fn compare_projection(report: &Value, current: &Value) -> Result<(), String> {
+    for field in [
+        "schema",
+        "source_commit",
+        "gateway_semantic_closure_sha256",
+        "stable_launch_ready",
+        "reason",
+        "human_release_review",
+        "target",
+    ] {
+        if report[field] != current[field] {
+            return Err("launch projection differs from current candidate inputs".to_owned());
+        }
+    }
+    if let Some(now) = current["evaluated_at"].as_u64()
+        && report["evaluated_at"]
+            .as_u64()
+            .is_none_or(|evaluated| evaluated > now)
+    {
+        return Err("launch projection evaluation time invalid".to_owned());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finalization_refuses_a_manual_readiness_flag_or_another_candidate() {
+        // Explicit test observation of a candidate with unavailable inputs.
+        // This test remains valid when a production root is eventually pinned.
+        let report = json!({"schema": "auths.launch-readiness/1",
+            "source_commit": "a".repeat(40),
+            "gateway_semantic_closure_sha256": "d".repeat(64),
+            "stable_launch_ready": false, "reason": "pinned-root-unavailable",
+            "human_release_review": "separate-required-gate"});
+        compare_projection(&report, &report).expect("actual derived report");
+        for (field, value) in [
+            ("stable_launch_ready", json!(true)),
+            ("source_commit", json!("b".repeat(40))),
+            ("gateway_semantic_closure_sha256", json!("c".repeat(64))),
+        ] {
+            let mut changed = report.clone();
+            changed[field] = value;
+            assert!(compare_projection(&changed, &report).is_err());
+        }
+        assert!(compare_projection(&json!({}), &report).is_err());
+        let mut ready = report;
+        ready["stable_launch_ready"] = json!(true);
+        ready["evaluated_at"] = json!(100);
+        let mut future = ready.clone();
+        future["evaluated_at"] = json!(101);
+        assert!(compare_projection(&future, &ready).is_err());
+        let mut missing_time = ready.clone();
+        missing_time
+            .as_object_mut()
+            .expect("report")
+            .remove("evaluated_at");
+        assert!(compare_projection(&missing_time, &ready).is_err());
+    }
 }

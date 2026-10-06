@@ -763,6 +763,7 @@ digraph auths_architecture {
   "xtask" -> "auths-did-key" [label="normal"];
   "xtask" -> "auths-did-web" [label="normal"];
   "xtask" -> "auths-errors" [label="normal"];
+  "xtask" -> "auths-gateway" [label="normal"];
   "xtask" -> "auths-github" [label="normal"];
   "xtask" -> "auths-hsm-attested" [label="normal"];
   "xtask" -> "auths-kubernetes" [label="normal"];
@@ -777,6 +778,7 @@ digraph auths_architecture {
   "xtask" -> "auths-radicle" [label="normal"];
   "xtask" -> "auths-raw-key" [label="normal"];
   "xtask" -> "auths-receipts" [label="normal"];
+  "xtask" -> "auths-recipe-qualification" [label="normal"];
   "xtask" -> "auths-records-api" [label="normal"];
   "xtask" -> "auths-registries" [label="normal"];
   "xtask" -> "auths-signature" [label="normal"];
