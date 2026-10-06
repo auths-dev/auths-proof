@@ -6,8 +6,11 @@ The specification is
 §7 and §8; the run is described in
 [the protected-run plan](../docs/plans/RECIPE_QUALIFICATION_PROTECTED_RUN_PLAN.md).
 
-No family is qualified and none is present here yet. The two launch families
-arrive with their decision records.
+No family is qualified and none is present here yet. Proposed provider decisions
+are [ADR 0014](../docs/adr/0014-stripe-refund-recipe-qualification.md) and
+[ADR 0015](../docs/adr/0015-airtable-record-update-recipe-qualification.md).
+They explicitly remain proposed until their executable corpora and protected
+evidence exist.
 
 `cargo xtask release-check` generates `target/release-evidence/launch-readiness.json`.
 Its `stable_launch_ready` value comes from the gateway build's pinned public
@@ -25,6 +28,31 @@ verifies every referenced artifact and requires two distinct families,
 contracts and provider kinds on the same production candidate. Its clock
 must pass the maintained synchronization check. Human release review remains
 a separate requirement.
+
+Finalization re-evaluates the projection against current candidate inputs before
+binding it into the final manifest. An edited readiness value, another commit,
+drifted target or missing projection cannot become a signed launch claim. The
+manifest contract requires exactly one digest-bound projection.
+
+## First-run prerequisites still unresolved
+
+The current production gateway refuses every lease without a current exact-tuple
+attestation. The protected workflow gathers live effects before it can sign that
+attestation. Therefore its first qualification cannot bootstrap itself. A
+development installation or `testkit-production-unqualified` executable changes
+the target or shipped bytes and cannot establish the required production claim.
+An owner-reviewed authority design must resolve this cycle while preserving the
+production lease gate; no bypass has been implemented.
+
+The current executable corpus also fixes exact request/evidence digests before
+running, while disposable live resource identifiers may be created during setup.
+Family harnesses need a reviewed, bounded resource-binding and oracle expansion
+before executing their cases. Copying the candidate's observed digest into an
+expected result would invalidate the differential evidence.
+
+The offline trust-root ceremony, protected release signer and two provider
+credentials remain external prerequisites. Docker supports the labeled local
+operator simulation; it supplies none of these live qualification inputs.
 
 A `production-readiness` case is additionally required for each stable launch
 claim. It runs only in the protected live phase against PostgreSQL and
