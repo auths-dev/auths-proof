@@ -362,3 +362,12 @@ downloadable Python wheel assets; PyPI publication is not required. Download
 those published assets, verify their checksums and install them in clean
 environments for the simulated onboarding pilot. Local checkout installs do
 not demonstrate that release handoff.
+
+Epic 4's hosted Lean build, 322 compiled-claim audit and Aeneas qualification
+passed in [run 37414864276](https://github.com/auths-dev/auths-proof/actions/runs/37414864276).
+Its bounded updater committed the assurance-manifest digest refresh as
+`5aa0916b`; the subsequent preflight exposed the matching frozen-byte inventory
+as stale. That inventory is regenerated with freeze version 369, manifest-byte
+version 58 and release-metadata version 369. Protocol identities and proof
+statements are unchanged. Full hosted CI qualification and the live/human
+acceptance gates remain open.
