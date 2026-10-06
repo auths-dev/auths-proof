@@ -45,7 +45,7 @@ mod tests {
             let mut evidence = Vec::new();
             for (index, (family, provider, contract)) in claims.iter().enumerate() {
                 let mut deployment = tuple();
-                deployment.recipe_family = RecipeFamilyId::parse(family).expect("family");
+                deployment.recipe_family = RecipeFamilyId::parse(*family).expect("family");
                 let mut declared = crate::vectors::contract();
                 declared.api_release = bounded(contract);
                 deployment.provider_contract_id =
@@ -54,7 +54,7 @@ mod tests {
                     u8::try_from(index + 1).expect("bounded fixture"),
                     deployment,
                 );
-                body.provider_kind = ProviderKind::parse(provider).expect("provider");
+                body.provider_kind = ProviderKind::parse(*provider).expect("provider");
                 body.provenance.environment =
                     bounded(&format!("recipe-qualification-live-{family}"));
                 let artifacts = artifacts(&body, readiness);
