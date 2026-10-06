@@ -6,7 +6,7 @@
 mod common;
 
 use auths_recipe_qualification::EvidenceMemberKind;
-use common::{COMMIT, DAY, HOUR, NOW, cases, draft_json, live_effects, tuple_json};
+use common::{COMMIT, DAY, HOUR, NOW, draft_json, tuple_json};
 use std::{
     fs,
     path::Path,
@@ -57,6 +57,7 @@ fn member_token(member: EvidenceMemberKind) -> String {
 }
 
 #[test]
+#[cfg(unix)]
 fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
     let directory = tempfile::tempdir().expect("directory");
     let at = |name: &str| path(directory.path(), name);
@@ -110,44 +111,94 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
         "an existing key file is never replaced"
     );
 
-    // Evidence for each member, from reported cases.
-    fs::write(at("tuple.json"), tuple_json().to_string()).expect("tuple");
+    // Execute the stages through the real release tool. The provider-specific
+    // port is a subprocess double; reports are authored only by the runner.
     fs::write(at("draft.json"), draft_json().to_string()).expect("draft");
+    let work = directory.path().join("staged");
+    let harness = common::stage_fixture(&work);
+    let tuple_file = work.join("tuple.json").display().to_string();
+    let corpus_file = work.join("corpus.json").display().to_string();
+    let harness_file = harness.display().to_string();
+    let work_text = work.display().to_string();
+    for phase in ["offline", "live"] {
+        succeed(&[
+            "run-stage",
+            "--phase",
+            phase,
+            "--corpus",
+            &corpus_file,
+            "--harness",
+            &harness_file,
+            "--tuple",
+            &tuple_file,
+            "--work-dir",
+            &work_text,
+        ]);
+    }
+    let trust_cases = work.join("cases/rotation.trust.json").display().to_string();
+    succeed(&[
+        "stage-trust",
+        "--tuple",
+        &tuple_file,
+        "--now",
+        &now,
+        "--out",
+        &trust_cases,
+    ]);
+    let canaries = at("canaries");
+    let clean = at("clean-output");
+    fs::write(&canaries, b"synthetic-canary-not-a-credential\n").expect("canaries");
+    fs::write(&clean, b"closed states and digests only").expect("output");
+    let redaction_cases = work.join("cases/redaction.scan.json").display().to_string();
+    let mut redact = vec![
+        "stage-redaction".to_owned(),
+        "--canaries".to_owned(),
+        canaries,
+        "--out".to_owned(),
+        redaction_cases,
+    ];
+    for kind in ["log", "trace", "metric", "support-bundle", "evidence"] {
+        redact.extend(["--source".to_owned(), format!("{kind}={clean}")]);
+    }
+    succeed(&borrowed(&redact));
     for member in EvidenceMemberKind::ALL {
         let token = member_token(member);
-        let cases_file = at(&format!("{token}.cases.json"));
-        fs::write(
-            &cases_file,
-            serde_json::to_vec(&cases(member)).expect("cases"),
-        )
-        .expect("cases");
-        let out = at(&format!("evidence/{token}.json"));
         let mut arguments = vec![
-            "evidence",
-            "--member",
-            &token,
-            "--commit",
-            COMMIT,
-            "--tuple",
-            "",
-            "--cases",
-            &cases_file,
-            "--out",
-            &out,
+            "evidence".to_owned(),
+            "--member".to_owned(),
+            token.clone(),
+            "--commit".to_owned(),
+            COMMIT.to_owned(),
+            "--tuple".to_owned(),
+            tuple_file.clone(),
+            "--out".to_owned(),
+            at(&format!("evidence/{token}.json")),
         ];
-        let tuple_file = at("tuple.json");
-        arguments[6] = &tuple_file;
-        let effects = live_effects(member).map(|effects| {
-            (
-                effects.entered.to_string(),
-                effects.confirmed_by_read_back.to_string(),
-            )
-        });
-        if let Some((entered, confirmed)) = &effects {
-            arguments.extend(["--live-entered", entered, "--live-confirmed", confirmed]);
+        for entry in fs::read_dir(work.join("cases")).expect("cases") {
+            let file = entry.expect("file").path();
+            if file
+                .file_name()
+                .expect("name")
+                .to_string_lossy()
+                .starts_with(&format!("{token}."))
+            {
+                arguments.extend(["--cases".to_owned(), file.display().to_string()]);
+            }
         }
-        succeed(&arguments);
+        if member == EvidenceMemberKind::Live {
+            let live: serde_json::Value =
+                serde_json::from_slice(&fs::read(work.join("live-effects.json")).expect("effects"))
+                    .expect("JSON");
+            arguments.extend([
+                "--live-entered".to_owned(),
+                live["entered"].to_string(),
+                "--live-confirmed".to_owned(),
+                live["confirmed_by_read_back"].to_string(),
+            ]);
+        }
+        succeed(&borrowed(&arguments));
     }
+    fs::write(at("tuple.json"), tuple_json().to_string()).expect("tuple");
 
     // An unsigned proposal: what a pull request can produce.
     succeed(&[

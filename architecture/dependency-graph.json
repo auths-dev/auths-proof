@@ -3357,6 +3357,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-approval-quorum",
       "target_layer": "product",
       "scope": "internal",

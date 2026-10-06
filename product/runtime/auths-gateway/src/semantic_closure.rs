@@ -7,9 +7,10 @@
 //! and fails when any listed file changed, was added, or was removed; this
 //! file is the one source file outside the closure.
 
-/// The digest of `semantic-closure.json`, the closure of this build.
+/// SHA-256 of the schema, a NUL byte, and `semantic-closure.json`.
+/// Regenerate through `semantic_closure_is_current` with `AUTHS_UPDATE_FIXTURES=1`.
 pub const GATEWAY_SEMANTIC_CLOSURE_SHA256: &str =
-    "e0f7c91f21c2c835e9f122618e31387ac7104ea9ca9ae080b9937718eb11648d";
+    "92401d5852022a9b5540db598ac6dfb1a8fbb727ff563b66eca7f440176cc057";
 
 #[cfg(test)]
 mod tests {

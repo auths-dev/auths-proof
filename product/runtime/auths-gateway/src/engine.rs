@@ -1478,12 +1478,88 @@ pub(crate) mod tests {
         use super::*;
         use std::os::unix::fs::PermissionsExt as _;
 
+        struct CountedCredentials {
+            store: Arc<auths_connections::PersistentCredentialStore>,
+            leases: Arc<AtomicU64>,
+        }
+
+        #[async_trait::async_trait]
+        impl ConnectionCredentialStore for CountedCredentials {
+            async fn install(
+                &self,
+                connection_id: &auths_connections::ConnectionId,
+                generation: std::num::NonZeroU64,
+                secret: SecretBytes,
+            ) -> Result<
+                auths_connections::CredentialReferenceCommitment,
+                auths_connections::CredentialStoreError,
+            > {
+                self.store.install(connection_id, generation, secret).await
+            }
+            async fn lease_secret(
+                &self,
+                binding: &auths_connections::CredentialBinding,
+                deadline: Instant,
+            ) -> Result<StoredSecretLease, auths_connections::CredentialStoreError> {
+                self.leases.fetch_add(1, Ordering::SeqCst);
+                self.store.lease_secret(binding, deadline).await
+            }
+            async fn replace(
+                &self,
+                connection_id: &auths_connections::ConnectionId,
+                old_generation: std::num::NonZeroU64,
+                new_generation: std::num::NonZeroU64,
+                secret: SecretBytes,
+            ) -> Result<
+                auths_connections::CredentialReferenceCommitment,
+                auths_connections::CredentialStoreError,
+            > {
+                self.store
+                    .replace(connection_id, old_generation, new_generation, secret)
+                    .await
+            }
+            async fn revoke(
+                &self,
+                connection_id: &auths_connections::ConnectionId,
+                generation: std::num::NonZeroU64,
+            ) -> Result<(), auths_connections::CredentialStoreError> {
+                self.store.revoke(connection_id, generation).await
+            }
+            async fn holds(
+                &self,
+                binding: &auths_connections::CredentialBinding,
+            ) -> Result<(), auths_connections::CredentialStoreError> {
+                self.store.holds(binding).await
+            }
+            async fn confirm(
+                &self,
+                binding: &auths_connections::CredentialBinding,
+                secret: SecretBytes,
+            ) -> Result<(), auths_connections::CredentialStoreError> {
+                self.store.confirm(binding, secret).await
+            }
+            async fn retire_superseded(
+                &self,
+                binding: &auths_connections::CredentialBinding,
+            ) -> Result<(), auths_connections::CredentialStoreError> {
+                self.store.retire_superseded(binding).await
+            }
+            async fn delete_connection(
+                &self,
+                connection_id: &auths_connections::ConnectionId,
+                known: &[std::num::NonZeroU64],
+            ) -> Result<(), auths_connections::CredentialStoreError> {
+                self.store.delete_connection(connection_id, known).await
+            }
+        }
+
         /// One gateway process: its own credential store over the shared
         /// attempt store.
         pub(crate) struct Host {
             _state: tempfile::TempDir,
             credentials_directory: std::path::PathBuf,
             pub(crate) engine: GatewayEngine,
+            pub(crate) leases: Arc<AtomicU64>,
             /// The same store the engine holds, for assertions on what it
             /// stores.
             store: Arc<auths_connections::PersistentCredentialStore>,
@@ -1536,7 +1612,11 @@ pub(crate) mod tests {
                 )
                 .expect("credential store"),
             );
-            let credentials: Arc<dyn ConnectionCredentialStore> = store.clone();
+            let leases = Arc::new(AtomicU64::new(0));
+            let credentials: Arc<dyn ConnectionCredentialStore> = Arc::new(CountedCredentials {
+                store: Arc::clone(&store),
+                leases: Arc::clone(&leases),
+            });
             let root = crate::harness::Signer::new(0x11);
             let observer = crate::harness::Signer::new(0x33);
             let trust = auths_codec::encode_verifier_context(
@@ -1565,6 +1645,7 @@ pub(crate) mod tests {
                 _state: state,
                 credentials_directory,
                 engine,
+                leases,
                 store,
             }
         }

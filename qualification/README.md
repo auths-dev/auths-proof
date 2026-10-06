@@ -19,45 +19,75 @@ One directory per recipe family, named by its `RecipeFamilyId`.
 | `contract.json` | The canonical `auths.provider-contract/1` the run qualifies against. |
 | `corpus-manifest.json` | The corpus the differential, hostile, and live stages run. |
 | `record.json` | What the record states that no run decides: `provider_kind`, `validity_days` (at most 90), `not_applicable` (each capability the family lacks, with the reason the decision record fixes), `custody_descriptor`, `store_descriptor`, `residual_assumptions`, `excluded_claims`. |
-| `harness` | An executable the run calls as `harness offline <work-dir>` and `harness live <work-dir>`. |
+| `harness` | A reviewed executable implementing `prepare`, `prepare-live`, `step` and `cleanup`. |
 
-The harness owns everything that means something about the provider: the
-oracle, the corpus, the live cases, and how each scenario is attempted. It
-reports only cases. It is given `AUTHS_GATEWAY` and `AUTHS_QUALIFICATION`, the
-paths of the candidate's binaries.
+The harness owns the provider-specific operations and pure oracle. The release
+runner owns sequencing, assertions, counters, and the resulting case reports.
+No family harness writes `passed` reports or `live-effects.json`.
 
-`harness offline` writes:
+`corpus-manifest.json` is `auths.qualification-corpus/1`, decoded as
+`execution::RunCorpus` by `auths-qualification run-stage`. It contains at most
+256 unique cases. Each case has `id`, `scenario`, `capabilities`, `phase`
+(`offline` or `live`), and at most 32 ordered `steps`. Each step has a closed
+`operation` and an `expected` observation: exact verdict (outcome, stable code,
+request and evidence digests), credential leases, provider entries, and writes
+confirmed by fresh read-back. All required non-trust/non-redaction scenarios
+must have executable cases. Capabilities must belong to their scenarios.
 
-- `tuple.json`: the tuple of the candidate gateway it installed, as
-  `auths-gateway qualification-status --tuple` prints it;
-- `packages.json`: the installed packages it exercised, as
-  `[{"name", "version", "sha256"}]`;
-- `cases/<member>.<name>.json`: case reports for the members that need no
-  provider (`conformance`, `differential`, and the `hostile`, `restart`, and
-  `multi-instance` cases it runs against a provider double).
+The runner calls the reviewed executable as:
 
-`harness live` runs only in the protected live environment, with the family's
-disposable provider credential in `AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL`,
-and writes:
+```text
+harness prepare <work-dir>
+harness prepare-live <work-dir>
+harness step <case-id> <step-index> <operation> <work-dir> <output-file>
+harness cleanup <work-dir>
+```
 
-- `cases/<member>.<name>.json` for `live`, `recovery`, `rotation`,
-  `installed-consumer`, and any `hostile`, `restart`, or `multi-instance` case
-  that needs the provider;
-- `live-effects.json`: `{"entered", "confirmed_by_read_back"}`;
+`prepare` installs the candidate in `<work-dir>/gateway-state`, installs the
+consumer packages, and writes `packages.json`. The candidate gateway itself
+prints `tuple.json`; the release tool checks the declared contract ID against
+`contract.json`. `prepare-live` acquires disposable resources, starts the live
+candidate. `run/live.sh` always calls `cleanup`, including after setup or stage
+failure; cleanup must remove disposable resources idempotently, and its failure
+fails the run. Both setup commands receive `AUTHS_GATEWAY` and
+`AUTHS_QUALIFICATION`. Only the protected live environment supplies
+`AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL`.
+
+Each `step` executes the named corpus operation against that candidate and
+writes one `execution::RunObservation`: tuple digest, measured verdict and
+counters, unauthorized entries, secret exposure, repository imports, and
+provider-token receipt. Unknown fields, missing output, wrong tuples, failed
+processes, oversized observations, mismatches and timeouts produce no passing
+report. Output is limited to 16 KiB and each step to 60 seconds (bounded to
+1–120 seconds for a reviewed run). Child stdout and stderr are not published.
+Counters must come from the credential-store and provider witnesses, not from
+expected corpus values. The family harness is trusted reviewed release code;
+these observations are evidence, not cryptographic proof of provider behavior.
+
+The runner independently compares oracle and gateway verdicts and request/
+evidence commitments; accepted differential cases require a request digest.
+Replay, race, restart, crash, ambiguity and recovery cases may enter once only.
+Replay operations cannot lease or enter again. Forged/altered inputs cannot
+lease. Recovery runs loss/delay followed by read-back and must remain `unknown`
+when no recovery capability is declared. Live effects count only successful
+writes with fresh read-back. Installed-consumer steps run outside the source
+checkout with a cleared environment: no provider credential or repository
+import path is inherited. Their executable must use installed packages.
+
+`run-stage` writes `cases/<member>.offline.json` or `.live.json` only after
+all cases in that phase pass, and derives `live-effects.json` from measured
+live-member observations. The family additionally writes:
+
 - `resources.json`: sanitized identifiers of the disposable resources;
-- `canaries`: every secret and provider datum planted for the run, one per
-  line. The live job scans everything below for them with `run/redact.sh`
-  and deletes this file before it uploads anything;
-- `scan/log/`, `scan/trace/`, `scan/metric/`, `scan/support-bundle/`: every
-  output the run kept.
+- `canaries`: every secret and provider datum planted for the run, one per line;
+- `scan/log/`, `scan/trace/`, `scan/metric/`, `scan/support-bundle/`: actual
+  outputs from the candidate. Missing categories prevent closure; a family
+  must export the gateway's real support bundle once Epic 4 provides it.
 
-A case report is `{"id", "scenario", "capabilities", "passed",
-"unauthorized_provider_entries"}`. The scenarios are the closed set in
-`auths_recipe_qualification::Scenario`; a record closes only when every
-scenario that set always requires has a case, every capability is either shown
-by a case or listed in `not_applicable`, nothing failed, and no case observed
-an unauthorized provider entry. The signer-rotation, freshness, and redaction
-scenarios are run by the release tooling itself, not by the harness.
+`run/redact.sh` scans the outputs and evidence and removes canaries before
+upload. The release tool itself executes signer rotation and freshness; the
+family cannot replace those reports. Assembly re-verifies scenario, candidate,
+capability, counter and digest closure before signing can begin.
 
 ## `trust/`
 

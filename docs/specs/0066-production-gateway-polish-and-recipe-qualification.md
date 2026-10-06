@@ -1345,7 +1345,7 @@ Epic 5. What the tests show is the mechanism under keys made for the tests.
 | --- | --- |
 | 1 trust model, certificates, records, proposals, attestations, revocation, index, verifier | `auths-recipe-qualification`: `VerifiedQualifications` checks every signature once under a pinned root and derives a deployment's state, first refusal, and lease decision; all 57 frozen verification vectors are driven through it. `auths-recipe-qualification-issuance`: `RootSigner` (certificates, revocation lists), `ReleaseSigner` (attestations, the index), `QualificationProposal`, and the `auths-qualification` tool. |
 | 2 evidence assembly and semantic closure | `auths.qualification-evidence/1`, one artifact per member listing its passed cases; `verify_evidence_closure`; `QualificationProposal::assemble` and `from_parts`, both of which verify the closure; `auths.gateway-semantic-closure/1` and the gateway's `GATEWAY_SEMANTIC_CLOSURE_SHA256`. |
-| 3 stages | A closed catalogue of 36 scenarios (reading 3). The release tooling itself runs four stages: oracle differential (the family's oracle is an argument), redaction, freshness, and signer rotation. The scenarios of the hostile, recovery, live, and installed-consumer stages are required by the closure and reported by a family's harness. |
+| 3 stages | `execution::RunCorpus`, `RunCase::execute`, and `auths-qualification run-stage` execute the closed corpus through a reviewed family's operation harness. The runner sequences differential, hostile, replay, race, restart, crash, custody drift/rotation, loss/delayed-visibility recovery, live read-back, and installed-consumer steps; it compares measured observations and derives reports and live-effect counts itself. Redaction, freshness, and signer rotation remain release-tool stages. The executable contract is in `qualification/README.md`. |
 | 4 runtime matching and per-recipe readiness | `auths-gateway` `qualification`: `QualificationGate`, the deployment tuple, the policy, and the deployment clock; checked before the claim and again before every lease; `qualification-import`, `qualification-status`, and the operator command `qualification-reload`. |
 | Protected run | `.github/workflows/recipe-qualification.yml`, `qualification/run/offline.sh` and `assemble.sh`, and the family contract in `qualification/README.md`. |
 
@@ -1361,8 +1361,9 @@ Done gate:
   another root's, revoked, expired, stale, clock-untrusted, digest-drifted,
   and target-drifted inputs each refuse with the frozen code when an entry
   is prepared, which is before the lease call, and a lease attempted after
-  the inputs went stale is refused. The tests assert the refusal; they do not
-  instrument the credential store. All 57 verification vectors decide the
+  the inputs went stale is refused. The tests instrument the credential store and
+  require zero lease calls for every refusal, including expiry between
+  preparation and lease. All 57 verification vectors decide the
   gate as frozen.
 - **Pull requests cannot sign or import.** The workflow test
   `a_pull_request_reaches_no_secret_and_no_signing_job` reads the workflow and
@@ -1384,17 +1385,19 @@ remain pending for Epic 4, and the pending assertion still guards them.
 - **No protected run.** The workflow has been linted and its two scripts
   exercised on a development host with a throwaway family. It has never run
   with a real family, a live environment, or a signing key.
-- **No hostile, recovery, live, or installed-consumer runner.** Those stages
-  are a set of required scenarios and a report format. What attempts each
-  scenario against a provider is a family's harness, which arrives with the
-  family's decision record in Epic 5.
+- **No production family corpus.** The reusable hostile, recovery, live,
+  installed-consumer, differential, and process-transition runners now exist.
+  Their subprocess, observation, and script-pipeline tests use explicit test
+  doubles at the family port; they establish runner behavior, not a live
+  qualification. A production family's reviewed operations, oracle and
+  corpus arrive with its decision record in Epic 5.
 - **No production qualification.** A production gateway pins no trust root, so
   it finds every recipe unqualified and leases nothing. Existing production
   tests run in a build made for tests that relaxes this.
 - **The support-bundle scan has nothing real to scan yet.** The wall requires
   a `support-bundle-scan` case, and the gateway has no support bundle until
-  Epic 4. The scan checks whatever file a harness presents as one; nothing
-  yet checks that the file is a gateway's bundle. A record with that case
+  Epic 4. The release runner requires scan evidence; the family must export the actual
+  candidate's bundle when that command exists. A record with that case
   before Epic 4 would be claiming a scan of something that does not exist.
 - **The production clock adapter covers one synchronization service**
   (reading 12).
@@ -1539,8 +1542,10 @@ Each was taken unattended as the narrower or fail-closed reading.
     covers the case it leaves open. No combination yields `qualified` unless
     one attestation qualifies outright.
 21. **What the run trusts.** A family's harness is code on the default
-    branch and is trusted as reviewed code: it authors the tuple and the case
-    reports. The run does not trust what a harness leaves behind as a
+    branch and is trusted as reviewed code: it supplies measured observations of
+    provider-specific operations. The candidate gateway authors the tuple,
+    and the release runner authors case reports after comparing observations
+    with the reviewed corpus. The run does not trust what a harness leaves behind as a
     program. Assembly, signing, and verification each build the release tool
     from the commit; the signer's key is given only to that build; the trust
     stages are rerun at assembly; the candidate's facts are taken from the
@@ -1565,3 +1570,34 @@ Each was taken unattended as the narrower or fail-closed reading.
    environment must be created with a required reviewer and the default
    branch only before its credential is stored. The workflow's own guard is
    in a file a pull request can change; the environment's rule is not.
+
+### 20.5 Epic 3 completion work (2026-10-06)
+
+The owner rejected the catalogue/report-format-only reading of task 3 and
+required executable stages on the Epic 3 branch. The reusable runner now
+executes bounded operation sequences, validates exact candidate observations,
+compares the pure oracle with the gateway, forbids repeated entry/lease,
+requires declared recovery and fresh read-back, and isolates installed
+consumers from provider credentials and repository import paths. Corpus
+validation requires executable coverage of every harness-owned mandatory
+scenario. Reports and live counters are runner-derived; a failed rerun removes
+old reports/proposals, including when its corpus is invalid. Assembly accepts
+only runner-owned phase reports and release-owned trust/scan outputs; arbitrary
+harness reports cannot replace missing execution. The workflow invokes these
+stages rather than asking a family to supply passing reports. Its live script
+always invokes idempotent resource cleanup, including after partial setup or
+failed execution, and refuses a failed cleanup.
+
+Evidence: `tests/execution.rs` covers execution, missing scenarios, candidate
+and counter drift, exposure, differential mismatch, recovery without a
+capability, invalid ordering, subprocess failures, timeout and consumer
+environment isolation. `tests/cli.rs` drives stages through evidence assembly,
+signing and verification; `tests/script_pipeline.rs` drives the actual
+redaction and assembly scripts, refuses a missing recovery execution even with
+an extra harness report, and tests teardown after successful and failed runs.
+Gateway qualification tests count calls to `ConnectionCredentialStore`;
+`qualification_stages_use_gateway_replay_and_recovery_witnesses` feeds actual
+submission-driver, persistent-store, credential-lease and counting-provider
+observations into replay and lost-response recovery stages.
+Hosted verification of these additions is pending; no live qualification or
+owner trust ceremony is claimed.

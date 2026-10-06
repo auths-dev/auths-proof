@@ -117,8 +117,8 @@ jobs:
           set -euo pipefail
           chmod +x "${RUNNER_TEMP}/work/bin/"*
           export AUTHS_GATEWAY="${RUNNER_TEMP}/work/bin/auths-gateway"
-          export AUTHS_QUALIFICATION="${RUNNER_TEMP}/work/bin/auths-qualification"
-          "qualification/families/${FAMILY}/harness" live "${RUNNER_TEMP}/work"
+          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
+          qualification/run/live.sh "${FAMILY}" "${RUNNER_TEMP}/work"
       - name: Scan what the run kept, then remove the canaries
         # The scan runs here because the canaries exist only here. A failed
         # scan fails the job before anything is uploaded.

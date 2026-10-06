@@ -27,6 +27,8 @@ use std::{
 };
 use zeroize::Zeroizing;
 
+mod qualification_runner;
+
 /// The largest file this tool reads.
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const RECORD_FILE: &str = "record.json";
@@ -44,6 +46,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Execute the reviewed corpus against a candidate through the family's
+    /// step harness. Observations, not self-declared pass flags, decide cases.
+    RunStage {
+        #[arg(long)]
+        phase: String,
+        #[arg(long)]
+        corpus: PathBuf,
+        #[arg(long)]
+        harness: PathBuf,
+        #[arg(long)]
+        tuple: PathBuf,
+        #[arg(long)]
+        work_dir: PathBuf,
+        #[arg(long, default_value_t = 60)]
+        timeout_seconds: u64,
+    },
     /// Offline ceremony: create a trust root and its private key file.
     RootInit {
         #[arg(long)]
@@ -609,15 +627,16 @@ fn stage(command: Command) -> Result<(), Failure> {
                 .filter(|line| !line.is_empty())
                 .collect();
             let mut named = Vec::with_capacity(sources.len());
-            for source in &sources {
+            for (index, source) in sources.iter().enumerate() {
                 let (kind, path) = source
                     .split_once('=')
                     .and_then(|(kind, path)| Some((stages::SourceKind::parse(kind)?, path)))
                     .ok_or_else(|| Failure("qualification.invalid-source".to_owned()))?;
                 let path = Path::new(path);
-                let name = path
-                    .file_name()
-                    .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+                // File names can contain provider data and may collide
+                // across log/trace/metric directories. Publish only a
+                // bounded ordinal and the closed source kind.
+                let name = format!("{kind:?}-source-{index:04}");
                 named.push((kind, name, read(path)?));
             }
             let scanned: Vec<stages::ScanSource<'_>> = named
@@ -642,6 +661,21 @@ fn stage(command: Command) -> Result<(), Failure> {
 
 fn run(command: Command) -> Result<(), Failure> {
     match command {
+        Command::RunStage {
+            phase,
+            corpus,
+            harness,
+            tuple,
+            work_dir,
+            timeout_seconds,
+        } => qualification_runner::run(
+            &phase,
+            &corpus,
+            &harness,
+            &tuple,
+            &work_dir,
+            timeout_seconds,
+        ),
         Command::RootInit { .. }
         | Command::SignerInit { .. }
         | Command::Certify { .. }

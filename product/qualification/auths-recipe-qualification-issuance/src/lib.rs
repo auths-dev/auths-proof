@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+pub mod execution;
 mod proposal;
 mod sign;
 pub mod stages;
