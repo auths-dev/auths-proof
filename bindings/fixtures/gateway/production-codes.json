@@ -223,6 +223,30 @@
       "status": "existing",
       "epic": null,
       "case": null
+    },
+    {
+      "code": "gateway.support.attempts-unavailable",
+      "owner": "support",
+      "stage": "support-bundle",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.support.connection-unavailable",
+      "owner": "support",
+      "stage": "support-bundle",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.support.unavailable",
+      "owner": "support",
+      "stage": "support-bundle",
+      "status": "implemented",
+      "epic": 4,
+      "case": null
     }
   ]
 }

@@ -176,7 +176,7 @@ pub fn support_bundle(facts: &SupportFacts) -> Result<Vec<u8>, &'static str> {
         codes.push("gateway.support.attempts-unavailable");
     }
     if facts.connection.is_none() {
-        codes.push("gateway.support.gateway-not-serving");
+        codes.push("gateway.support.connection-unavailable");
     }
     let archive = Archive {
         schema: SUPPORT_BUNDLE_SCHEMA,
@@ -283,7 +283,7 @@ mod tests {
             serde_json::json!([
                 "gateway.qualification.revocation-stale",
                 "gateway.support.attempts-unavailable",
-                "gateway.support.gateway-not-serving"
+                "gateway.support.connection-unavailable"
             ])
         );
         let mut many = facts();

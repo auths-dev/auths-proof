@@ -13,6 +13,8 @@ use std::{
     os::unix::fs::PermissionsExt as _,
     path::Path,
     process::{Child, Command, Output, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 const BIN: &str = match option_env!("AUTHS_GATEWAY_OPERATOR_TEST_BINARY") {
@@ -62,6 +64,15 @@ fn run(command: &mut Command, stdin: &[u8]) -> Output {
         .expect("stdin")
         .write_all(stdin)
         .expect("stdin bytes");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while child.try_wait().expect("poll command").is_none() {
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("the support command exceeded its deadline");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
     child.wait_with_output().expect("output")
 }
 
@@ -152,8 +163,29 @@ fn a_support_bundle_holds_no_planted_canary() {
             .as_array()
             .expect("codes")
             .iter()
-            .any(|code| code == "gateway.support.gateway-not-serving")
+            .any(|code| code == "gateway.support.connection-unavailable")
     );
+
+    // A socket can exist and accept connections without ever returning a
+    // status. Collection must finish with partial, explicitly unavailable
+    // facts rather than hang or claim that the process is not serving.
+    let admin_path = state.join("admin.sock");
+    let unavailable_admin = std::os::unix::net::UnixListener::bind(&admin_path).expect("socket");
+    fs::set_permissions(&admin_path, fs::Permissions::from_mode(0o600)).expect("socket mode");
+    let started = Instant::now();
+    let unavailable = bundle(&state, &planted);
+    assert!(started.elapsed() < Duration::from_secs(25));
+    let report: serde_json::Value = serde_json::from_slice(&unavailable).expect("report");
+    assert!(report["connection"].is_null());
+    assert!(
+        report["codes"]
+            .as_array()
+            .expect("codes")
+            .iter()
+            .any(|code| code == "gateway.support.connection-unavailable")
+    );
+    drop(unavailable_admin);
+    fs::remove_file(&admin_path).expect("remove unavailable socket");
 
     let mut child = Command::new(BIN)
         .arg("serve")
@@ -190,6 +222,11 @@ fn a_support_bundle_holds_no_planted_canary() {
             kind: SourceKind::SupportBundle,
             name: "serving",
             bytes: &serving,
+        },
+        ScanSource {
+            kind: SourceKind::SupportBundle,
+            name: "unavailable-admin",
+            bytes: &unavailable,
         },
     ];
     let scanned = redaction(&secrets, &sources).expect("scan");

@@ -2641,11 +2641,14 @@ mod unix {
         admin_socket: &AdminSocket,
     ) -> Option<auths_gateway::SupportConnection> {
         use auths_gateway::SupportConnectionState as State;
-        UnixStream::connect(&admin_socket.path).await.ok()?;
         let command = serde_json::json!({"command": "status"});
-        let response = admin_exchange(state_dir, admin_socket, command, None)
-            .await
-            .ok()?;
+        let response = tokio::time::timeout(
+            Duration::from_secs(20),
+            admin_exchange(state_dir, admin_socket, command, None),
+        )
+        .await
+        .ok()?
+        .ok()?;
         let status = response.get("status")?;
         let number = |member: &str| status.get(member).and_then(serde_json::Value::as_u64);
         Some(auths_gateway::SupportConnection {

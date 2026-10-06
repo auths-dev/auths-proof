@@ -2007,6 +2007,30 @@ pub(crate) mod tests {
                 floor.accept(&disabled),
                 Err("gateway.connection.restore-rollback")
             );
+            for (generation, digest) in [
+                (0, "00".repeat(32)),
+                (1, "invalid-digest".to_owned()),
+                (1, "AA".repeat(32)),
+            ] {
+                let damaged = serde_json::to_vec(&serde_json::json!({
+                    "schema": "auths.gateway-generation-floor/1",
+                    "generation": generation,
+                    "record_sha256": digest,
+                }))
+                .expect("damaged floor");
+                let path = directory.path().join("connection-floor.json");
+                std::fs::write(&path, &damaged).expect("write damaged floor");
+                assert_eq!(
+                    floor.accept(&disabled),
+                    Err("gateway.connection.restore-rollback")
+                );
+                assert_eq!(std::fs::read(path).expect("retained floor"), damaged);
+                assert_eq!(
+                    restarted.entry_refusal().await.as_deref(),
+                    Some("gateway.connection.restore-rollback")
+                );
+                assert_eq!(restarted.leases.load(Ordering::SeqCst), before);
+            }
         }
 
         #[tokio::test]

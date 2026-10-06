@@ -2,6 +2,7 @@
 //! It records only a generation and the digest of the exact connection record.
 
 use auths_connections::ConnectionRecord;
+use auths_recipe_qualification::Sha256Digest;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 #[cfg(unix)]
@@ -9,6 +10,7 @@ use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read as _, Write as _},
+    num::NonZeroU64,
     path::PathBuf,
 };
 
@@ -23,8 +25,8 @@ pub struct GenerationFloor {
 #[serde(deny_unknown_fields)]
 struct Accepted {
     schema: String,
-    generation: u64,
-    record_sha256: String,
+    generation: NonZeroU64,
+    record_sha256: Sha256Digest,
 }
 
 impl GenerationFloor {
@@ -73,7 +75,9 @@ impl GenerationFloor {
             .map_err(|_| ())?;
         rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive).map_err(|_| ())?;
         let path = self.directory.join("connection-floor.json");
-        let digest = hex::encode(Sha256::digest(record.to_canonical_cbor().map_err(|_| ())?));
+        let digest = Sha256Digest::from_bytes(
+            Sha256::digest(record.to_canonical_cbor().map_err(|_| ())?).into(),
+        );
         match fs::symlink_metadata(&path) {
             Ok(metadata) => {
                 if !metadata.is_file()
@@ -98,11 +102,11 @@ impl GenerationFloor {
                 }
                 let old: Accepted = serde_json::from_slice(&bytes).map_err(|_| ())?;
                 if old.schema != "auths.gateway-generation-floor/1"
-                    || old.generation > record.generation().get()
+                    || old.generation > record.generation()
                 {
                     return Err(());
                 }
-                if old.generation == record.generation().get() {
+                if old.generation == record.generation() {
                     return if old.record_sha256 == digest {
                         Ok(())
                     } else {
@@ -115,7 +119,7 @@ impl GenerationFloor {
         }
         let bytes = serde_json::to_vec(&Accepted {
             schema: "auths.gateway-generation-floor/1".to_owned(),
-            generation: record.generation().get(),
+            generation: record.generation(),
             record_sha256: digest,
         })
         .map_err(|_| ())?;
