@@ -132,17 +132,35 @@ struct Archive {
 ///
 /// # Errors
 ///
-/// Returns `gateway.support.unavailable` when the archive cannot be encoded.
+/// Returns `gateway.support.unavailable` when the archive cannot be encoded
+/// or a supplied diagnostic code is outside the closed qualification set.
 pub fn support_bundle(facts: &SupportFacts) -> Result<Vec<u8>, &'static str> {
-    let attempts = facts.attempts.as_ref().map(|listed| {
-        let listed = &listed[..listed.len().min(MAX_SUPPORT_ATTEMPTS)];
+    use auths_recipe_qualification::QualificationRefusal;
+    if facts.qualification.code.is_some_and(|code| {
+        ![
+            QualificationRefusal::Unavailable,
+            QualificationRefusal::Revoked,
+            QualificationRefusal::ClockUntrusted,
+            QualificationRefusal::RevocationStale,
+            QualificationRefusal::Missing,
+            QualificationRefusal::Expired,
+            QualificationRefusal::DigestMismatch,
+            QualificationRefusal::TargetMismatch,
+        ]
+        .into_iter()
+        .any(|refusal| crate::qualification_code(refusal) == code)
+    }) {
+        return Err("gateway.support.unavailable");
+    }
+    let attempts = facts.attempts.as_ref().map(|available| {
+        let listed = &available[..available.len().min(MAX_SUPPORT_ATTEMPTS)];
         let mut by_stage = BTreeMap::new();
         for (_, stage) in listed {
             *by_stage.entry(stage_token(*stage)).or_insert(0_u64) += 1;
         }
         Attempts {
             listed: listed.len(),
-            truncated: facts.attempts_truncated,
+            truncated: facts.attempts_truncated || available.len() > MAX_SUPPORT_ATTEMPTS,
             by_stage,
             identifiers: listed
                 .iter()
@@ -270,7 +288,7 @@ mod tests {
         );
         let mut many = facts();
         many.attempts = Some(vec![([5; 32], GatewayAttemptStage::NotEntered); 400]);
-        many.attempts_truncated = true;
+        many.attempts_truncated = false;
         let bytes = support_bundle(&many).expect("archive");
         let archive: serde_json::Value = serde_json::from_slice(&bytes).expect("JSON");
         assert_eq!(archive["attempts"]["listed"], MAX_SUPPORT_ATTEMPTS);
@@ -278,18 +296,19 @@ mod tests {
         assert!(bytes.len() < 64 * 1024, "the archive is bounded");
     }
 
-    /// The facts an archive is built from have no member that holds text,
-    /// so nothing a request, provider, or operator wrote can enter one.
     #[test]
-    fn the_facts_have_no_free_text_member() {
-        let source = include_str!("support.rs");
-        let facts = source
-            .split("pub struct SupportFacts {")
-            .nth(1)
-            .and_then(|rest| rest.split("\n}\n").next())
-            .expect("the facts");
-        for forbidden in ["String", "&str", "Vec<u8>", "PathBuf", "Value"] {
-            assert!(!facts.contains(forbidden), "the facts hold a {forbidden}");
+    fn arbitrary_diagnostic_text_cannot_enter_the_archive() {
+        let mut contaminated = facts();
+        for code in [
+            "synthetic-canary-provider-response",
+            "gateway.qualification.revoked synthetic-canary-raw-header",
+            "gateway.qualification.unknown-code",
+        ] {
+            contaminated.qualification.code = Some(code);
+            assert_eq!(
+                support_bundle(&contaminated),
+                Err("gateway.support.unavailable")
+            );
         }
     }
 }

@@ -10,7 +10,7 @@
 /// SHA-256 of the schema, a NUL byte, and `semantic-closure.json`.
 /// Regenerate through `semantic_closure_is_current` with `AUTHS_UPDATE_FIXTURES=1`.
 pub const GATEWAY_SEMANTIC_CLOSURE_SHA256: &str =
-    "a6bc2c9f24395c8eaf1ae05ec77e37926297d8c06e59cbde9ce2694e7c7eb75c";
+    "09df4a87c61ecc639aeb860dcc35980afb737055412fa48aedf39d1d070cf59f";
 
 #[cfg(test)]
 mod tests {

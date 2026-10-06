@@ -56,6 +56,7 @@ for attempt in {1..60}; do
   if docker exec "$restore_name" psql -U auths -d auths_lifecycle -Atc 'SELECT NOT pg_is_in_recovery()' 2>/dev/null | grep -qx t; then break; fi
   sleep 1
 done
+docker exec "$restore_name" psql -U auths -d auths_lifecycle -v ON_ERROR_STOP=1 -Atc 'SELECT NOT pg_is_in_recovery()' | grep -qx t
 observed=$(docker exec "$restore_name" psql -U auths -d auths_lifecycle -v ON_ERROR_STOP=1 -Atc "SELECT string_agg(id::text, ', ' ORDER BY id) FROM auths_operator_restore_marker")
 [[ "$observed" == '1, 2' ]]
 printf '%s\n' '{"schema":"auths.gateway-restore-exercise/1","backup":"physical-with-wal","target":"named-restore-point","before_target_retained":true,"after_target_excluded":true,"replay_continuity_claim":false}'
