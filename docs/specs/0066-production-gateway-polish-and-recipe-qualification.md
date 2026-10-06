@@ -1681,6 +1681,12 @@ independent wire oracles and mutable doubles. The production pinned root stays
 unchanged and stable launch readiness stays false. The rehearsal is a maintained
 CI job and needs no external credentials.
 
+The local rehearsal passed 36 measured provider cases (18 per family), plus
+the disposable two-family signing/import ceremony. Each race entered one
+write; Airtable additionally used a read-only reconciliation lease. The
+candidate kit embeds its fixtures and is run in Docker without checkout,
+credentials or network. Hosted verification of that packaged run is pending.
+
 The protected production run still has a first-attestation cycle:
 production leases require qualification before the live effects needed to issue
 it. A reviewed authority design must resolve this without bypassing the shipped

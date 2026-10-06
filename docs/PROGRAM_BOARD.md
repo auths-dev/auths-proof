@@ -451,3 +451,6 @@ hostile input behavior. The Airtable ADR now correctly names its derived linked
 read-back recovery; Stripe cannot recover a response-provided locator that was
 lost. Signing fixtures explicitly exclude provider-run claims. Production trust
 and readiness remain unchanged; real users remain the owner's offline work.
+The local expanded rehearsal passed 36 provider cases and the two-family
+ceremony. Hosted kit verification is pending; the kit is designed to run in
+Docker with no checkout or network mounted.

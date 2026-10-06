@@ -164,7 +164,7 @@ async fn operator_bootstrap_qualification_simulation() {
         .collect();
     let index = signer.index(NOW, &listed).expect("signed index");
     let list = root
-        .revoke(1, NOW - HOUR, NOW + 12 * HOUR, Vec::new(), Vec::new())
+        .revoke(1, NOW - HOUR, NOW + 24 * HOUR, Vec::new(), Vec::new())
         .expect("list");
     let signed = QualificationBundle {
         signer_certificate: signer.certificate().canonical_bytes().to_vec(),
@@ -215,7 +215,10 @@ async fn operator_bootstrap_qualification_simulation() {
         }
         assert!(gate.load(&signed));
         clock.set(NOW + 13 * HOUR);
-        assert!(refusal(host).await.is_some());
+        assert_eq!(
+            refusal(host).await.as_deref(),
+            Some("gateway.qualification.expired")
+        );
         clock.set(NOW);
         let no_root = required(None, deployment.clone(), &clock);
         assert!(!no_root.load(&signed));
@@ -267,6 +270,7 @@ async fn operator_bootstrap_qualification_simulation() {
         std::fs::write(directory.join("simulation.json"), serde_json::to_vec_pretty(&json!({
             "schema": "auths.qualification-bootstrap-simulation/1", "simulation": true,
             "stable_launch_ready": false, "ephemeral_keys_destroyed_on_return": true,
+            "clock": {"kind": "fixed-test-clock", "unix_seconds": NOW},
             "evidence_kind": "explicit placeholder fixtures: no provider-run claim",
             "measurements": measurements, "production_root_changed": false,
             "excluded_claims": ["production qualification", "live provider acceptance", "human review"]

@@ -26,6 +26,19 @@ one after verified import. Unsigned, expired and missing-root inputs refuse.
 The placeholder records explicitly exclude every provider-run claim; they test
 the trust transition, while provider measurements are separate artifacts.
 
+CI also packages the compiled native harness with its SHA-256 and commit.
+It runs that kit in Docker with networking disabled and no source checkout
+mounted. Download the `qualification-simulation-kit-*` artifact, make the
+`qualification-harness` executable, and run with Python 3.12:
+
+```sh
+chmod +x /path/to/kit/qualification-harness
+python3 /path/to/kit/run.py --candidate-kit /path/to/kit --out /tmp/rehearsal
+```
+
+The kit must match the host OS and architecture. Its request and policy fixtures
+are compiled in. No Rust toolchain or repository import is needed for that run.
+
 These are simulation artifacts. They cannot enable the shipping gateway:
 its pinned root is unchanged, the tuples use development stores, and the
 bootstrap records name placeholder provenance. No file is installed under

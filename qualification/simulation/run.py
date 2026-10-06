@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import time
@@ -23,6 +24,8 @@ REPORTS = (
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cargo", default="cargo")
+    parser.add_argument("--candidate-kit", type=Path,
+                        help="run the downloaded native harness without a checkout or Rust")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     output = args.out.resolve()
@@ -36,12 +39,41 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
         parser.error("use a new empty simulation output directory")
-    source_commit = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=REPOSITORY, text=True
-    ).strip()
-    source_dirty = bool(subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=no"], cwd=REPOSITORY
-    ))
+    if args.candidate_kit:
+        kit = args.candidate_kit.resolve()
+        metadata_file = kit / "candidate.json"
+        if metadata_file.is_symlink() or metadata_file.stat().st_size > 4096:
+            parser.error("invalid candidate metadata")
+        metadata = json.loads(metadata_file.read_bytes())
+        source_commit = metadata.get("source_commit")
+        if (metadata.get("schema") != "auths.qualification-simulation-candidate/1"
+                or metadata.get("simulation") is not True
+                or metadata.get("production_gateway") is not False
+                or metadata.get("features") != ["loopback-provider"]
+                or not isinstance(source_commit, str)
+                or not re.fullmatch(r"[0-9a-f]{40}", source_commit)):
+            parser.error("invalid simulation candidate")
+        harness = kit / "qualification-harness"
+        if harness.is_symlink() or not harness.is_file() or harness.stat().st_size > 536_870_912:
+            parser.error("invalid native harness")
+        with harness.open("rb") as stream:
+            harness_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        if harness_sha256 != metadata.get("harness_sha256"):
+            parser.error("candidate harness digest mismatch")
+        source_dirty = False
+        command = [str(harness), "qualification_simulation", "--nocapture"]
+        working_directory = output
+    else:
+        source_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=REPOSITORY, text=True
+        ).strip()
+        source_dirty = bool(subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=REPOSITORY
+        ))
+        harness_sha256 = None
+        command = [args.cargo, "test", "--locked", "-p", "auths-gateway",
+            "--features", "loopback-provider", "--lib", "qualification_simulation", "--", "--nocapture"]
+        working_directory = REPOSITORY
     # Provider and signing credentials are not needed and do not reach tests.
     environment = {
         key: value for key, value in os.environ.items()
@@ -50,11 +82,7 @@ def main() -> None:
     environment["AUTHS_QUALIFICATION_SIMULATION_OUTPUT"] = str(output)
     started = time.monotonic()
     with tempfile.TemporaryFile() as log:
-        result = subprocess.run([
-            args.cargo, "test", "--locked", "-p", "auths-gateway",
-            "--features", "loopback-provider", "--lib", "qualification_simulation",
-            "--", "--nocapture",
-        ], cwd=REPOSITORY, env=environment, stdout=log, stderr=subprocess.STDOUT,
+        result = subprocess.run(command, cwd=working_directory, env=environment, stdout=log, stderr=subprocess.STDOUT,
             timeout=1800, check=False)
         if result.returncode:
             log.seek(0, os.SEEK_END)
@@ -85,6 +113,8 @@ def main() -> None:
         "schema": "auths.qualification-simulation-run/1",
         "simulation": True, "stable_launch_ready": False,
         "source_commit": source_commit, "source_dirty": source_dirty,
+        "harness_sha256": harness_sha256,
+        "source_free": bool(args.candidate_kit),
         "seconds": round(time.monotonic() - started, 3),
         "families": [summary.get("family") for summary in summaries[:2]],
         "provider_case_count": sum(len(summary["cases"]) for summary in summaries[:2]),
