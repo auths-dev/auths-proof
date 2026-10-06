@@ -88,7 +88,9 @@ class Operator:
                 "--profile-lock", self.inputs / "profile.lock.json",
                 "--trusted-context", self.inputs / "trusted.context.cbor",
                 "--approve-digest", self.digest, "--provider", "airtable",
-                "--alias", "simulation", "--credential-stdin"]
+                "--alias", "simulation", "--credential-stdin",
+                "--recipe-family", "operator-simulation-v1",
+                "--provider-contract-id", "3" * 64]
         args += ["--join"] if join else ["--account-label", self.account]
         if store:
             args += ["--attempt-store", store]

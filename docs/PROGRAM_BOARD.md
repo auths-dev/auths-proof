@@ -399,3 +399,7 @@ rotation does not reload development file custody in running hosts. The
 rehearsal and runbook now keep those hosts drained during file rotation and
 restart both before checking the committed generation. The defect rerun is
 pending; no production AWS rotation result is inferred from this procedure.
+The next run passed rotation on both restarted hosts, then refused tuple
+export because the development install omitted a family and contract. The
+rehearsal now declares an explicitly synthetic family/contract at install;
+those identifiers carry no production qualification claim.
