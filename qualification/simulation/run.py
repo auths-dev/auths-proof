@@ -13,7 +13,6 @@ import subprocess
 import tempfile
 import time
 
-REPOSITORY = Path(__file__).resolve().parents[2]
 REPORTS = (
     "stripe-refund-v1.json",
     "airtable-record-update-v1.json",
@@ -28,13 +27,14 @@ def main() -> None:
                         help="run the downloaded native harness without a checkout or Rust")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
+    repository = None if args.candidate_kit else Path(__file__).resolve().parents[2]
     output = args.out.resolve()
     # Public rehearsal outputs must never enter the production trust or family
     # directories that the protected signing workflow consumes.
-    if output == REPOSITORY or any(
-        output.is_relative_to(REPOSITORY / "qualification" / name)
+    if repository is not None and (output == repository or any(
+        output.is_relative_to(repository / "qualification" / name)
         for name in ("trust", "families")
-    ):
+    )):
         parser.error("simulation output overlaps production inputs")
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
@@ -68,15 +68,15 @@ def main() -> None:
         working_directory = output
     else:
         source_commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=REPOSITORY, text=True
+            ["git", "rev-parse", "HEAD"], cwd=repository, text=True
         ).strip()
         source_dirty = bool(subprocess.check_output(
-            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=REPOSITORY
+            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=repository
         ))
         harness_sha256 = None
         command = [args.cargo, "test", "--locked", "-p", "auths-gateway",
             "--features", "loopback-provider", "--lib", "qualification_simulation", "--", "--nocapture"]
-        working_directory = REPOSITORY
+        working_directory = repository
     # Provider and signing credentials are not needed and do not reach tests.
     environment = {
         key: value for key, value in os.environ.items()
