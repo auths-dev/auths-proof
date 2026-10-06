@@ -440,3 +440,14 @@ jobs plus the six package/isolation/PostgreSQL/recipe/SDK workflows and the
 47-step Docker rehearsal. PR #205 merged on 2026-10-06 as `4623d635` under the
 owner's labeled-simulation deliverable. Production live and human claims remain
 explicitly unexercised. Epic 5's current GitHub verification remains pending.
+
+The owner explicitly assigned first bootstrap and Stripe/Airtable qualification
+to the agent as simulations. `qualification/simulation/run.py` now executes the
+disposable ceremony and native provider harnesses without external credentials.
+The required gate measures zero leases for unsigned fixtures and permits an
+entry after verified import under disposable test trust. Separate provider
+reports measure exact requests, replay, restart, response loss, crash, race and
+hostile input behavior. The Airtable ADR now correctly names its derived linked
+read-back recovery; Stripe cannot recover a response-provided locator that was
+lost. Signing fixtures explicitly exclude provider-run claims. Production trust
+and readiness remain unchanged; real users remain the owner's offline work.

@@ -6,7 +6,9 @@ The specification is
 §7 and §8; the run is described in
 [the protected-run plan](../docs/plans/RECIPE_QUALIFICATION_PROTECTED_RUN_PLAN.md).
 
-No family is qualified and none is present here yet. Proposed provider decisions
+No production family is qualified. The owner-directed disposable bootstrap and
+Stripe/Airtable harnesses are in [simulation/](simulation/README.md); they run
+without external credentials and publish explicitly simulated evidence. Proposed provider decisions
 are [ADR 0014](../docs/adr/0014-stripe-refund-recipe-qualification.md) and
 [ADR 0015](../docs/adr/0015-airtable-record-update-recipe-qualification.md).
 They explicitly remain proposed until their executable corpora and protected
@@ -34,15 +36,23 @@ binding it into the final manifest. An edited readiness value, another commit,
 drifted target or missing projection cannot become a signed launch claim. The
 manifest contract requires exactly one digest-bound projection.
 
-## First-run prerequisites still unresolved
+## Bootstrap rehearsal and production evidence
+
+The owner assigned the agent an independent operator simulation, including the
+first signing ceremony and both provider harnesses. `simulation/run.py` performs
+that work with fresh in-memory signing keys, explicit placeholder trust-machine
+records and measured provider-driver reports. It imports signed fixtures under
+required test trust and measures real engine credential-store calls. No private
+keys or production trust inputs are written. This work does not wait for a human
+ceremony or real provider credentials.
 
 The current production gateway refuses every lease without a current exact-tuple
 attestation. The protected workflow gathers live effects before it can sign that
 attestation. Therefore its first qualification cannot bootstrap itself. A
 development installation or `testkit-production-unqualified` executable changes
 the target or shipped bytes and cannot establish the required production claim.
-An owner-reviewed authority design must resolve this cycle while preserving the
-production lease gate; no bypass has been implemented.
+That real-production authority question remains separate from the requested
+simulation; the shipping lease gate has no bypass.
 
 The current executable corpus also fixes exact request/evidence digests before
 running, while disposable live resource identifiers may be created during setup.
@@ -50,9 +60,10 @@ Family harnesses need a reviewed, bounded resource-binding and oracle expansion
 before executing their cases. Copying the candidate's observed digest into an
 expected result would invalidate the differential evidence.
 
-The offline trust-root ceremony, protected release signer and two provider
-credentials remain external prerequisites. Docker supports the labeled local
-operator simulation; it supplies none of these live qualification inputs.
+The rehearsal fixes synthetic resource IDs before execution, so its independent
+oracles do not copy digests observed from candidate output. The offline production
+root, protected signer and provider credentials remain prerequisites for real
+protected evidence, not for the simulation.
 
 A `production-readiness` case is additionally required for each stable launch
 claim. It runs only in the protected live phase against PostgreSQL and

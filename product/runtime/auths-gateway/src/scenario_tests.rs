@@ -46,6 +46,9 @@ const FRESH: [u8; 32] = [0x22; 32];
 const RECORD: &str = "recTEST0000000001";
 const FOREIGN: &str = "auths-e1-0000000000000000000000000000000000000000000000000000000000000000";
 
+#[path = "qualification_simulation.rs"]
+mod qualification_simulation;
+
 fn corpus(name: &str) -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway")

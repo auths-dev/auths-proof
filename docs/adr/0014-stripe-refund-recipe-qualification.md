@@ -66,7 +66,10 @@ retained the recipe's required response locator. `recovery` is not applicable
 because this recipe cannot locate an unrecorded refund response. Observer
 rotation is not applicable unless the qualified installation declares one.
 
-Before a candidate run, resolve the production qualification bootstrap described
+The owner-directed [simulation](../../qualification/simulation/README.md) runs
+this recipe through an independent wire oracle and mutable provider double,
+with fixed synthetic resources and disposable signing trust. Before a protected
+production candidate run, resolve the qualification bootstrap described
 in [`qualification/README.md`](../../qualification/README.md): no optional policy,
 test-feature executable or fabricated intermediate attestation can stand in for
 the exact shipped target. Resource bindings and expected digests must also be

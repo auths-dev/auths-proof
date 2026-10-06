@@ -37,7 +37,7 @@ It must not call the candidate to generate expected decisions or requests.
 | The write changes the intended field | Compare the exact PATCH body with the independent oracle; fresh GET must return the declared replacement and echo. |
 | Invalid actions enter nothing | Forge, alter, unknown-field, replacement-enum, path-injection and wrong-recipe cases show zero credential leases and provider entries. |
 | Persisted admission survives process changes | Replay, fresh challenge, race, crash and restart witnesses show no second authorized entry for the logical operation. |
-| Uncertain delivery stays uncertain | Lose the response after entry and delay visibility; absence of declared recovery cannot become observed success. |
+| Reconciliation needs fresh matching evidence | Lose the response after entry and delay visibility; the verified record locator permits read-back, but only matching value and echo can establish observed success. No retry sends another PATCH. |
 
 Airtable's token permissions depend on both scopes and selected resources
 ([personal access tokens](https://support.airtable.com/articles/9934989703-creating-personal-access-tokens)).
@@ -60,22 +60,25 @@ actual support/log/trace/metric scans and installed Python/TypeScript journeys.
 Create records with no personal data; cleanup removes only resources whose
 identifiers were recorded by this run and must also execute after partial setup.
 
-The recipe declares no provider idempotency or recovery capability. Both are
-not applicable because a field overwrite and echo are not a provider deduplication
-or lost-response reconciliation contract. Version pin, credential guard, account
+The recipe declares no provider idempotency. Its derived gateway recovery
+capability is linked read-back: the fixed record locator and declared echo permit
+read-only reconciliation after a lost response. The simulation exercises this
+through the native driver and persistent claims; it sends no second PATCH.
+This is not provider deduplication or compare-and-swap. Version pin, credential guard, account
 binding, denied reads, relative ceiling, sum budget, response locator and
 pre-entry read are also not applicable because they are absent from this recipe.
 Observer rotation is required only if the installed target declares one.
 
-The production qualification bootstrap and reviewed dynamic resource bindings
-in [`qualification/README.md`](../../qualification/README.md) must be resolved
-before a candidate can run. Do not qualify a development file-store tuple and
-rename it as the production target.
+The owner-directed [simulation](../../qualification/simulation/README.md) uses
+fixed synthetic resources and disposable signing trust. Production qualification
+still requires reviewed live resource bindings and real protected evidence.
+Do not rename a development tuple as the production target.
 
 Use a maximum 14-day attestation, reflecting the absence of a fixed API release
 header, and rerun before renewal or any tuple change. Revoke on unexpected
 provider entries, secret/evidence compromise, changed response behavior, token
 scope widening or invalid observation assumptions. Publish signed artifacts,
 bounded evidence and sanitized resource identifiers. Atomic compare-and-swap,
-isolation from another writer, provider idempotency, lost-response recovery and
+isolation from another writer, provider idempotency, recovery without a fresh
+matching value and echo, and
 generic account-binding guarantees are excluded. No live evidence is claimed.

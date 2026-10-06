@@ -1669,11 +1669,22 @@ The current build pins no root and derives false; hosted verification is pending
 
 [ADR 0014](../adr/0014-stripe-refund-recipe-qualification.md) and
 [ADR 0015](../adr/0015-airtable-record-update-recipe-qualification.md) are proposed
-provider decisions, not candidate or qualified families. Executable corpora and
-harnesses remain missing. The protected run also has a first-attestation cycle:
+provider decisions, not production-qualified families. The owner has directed
+the agent to simulate bootstrap and both provider harnesses independently.
+`qualification/simulation/run.py` now runs disposable in-memory root/signer
+creation, certification, signing, index/revocation publication and required-gate
+import. Unsigned and expired inputs cannot lease; verified test import can.
+The signed placeholder records explicitly claim no provider run. Separate
+Stripe and Airtable harness reports measure actual native driver leases, entries,
+fresh read-back, replay, reopen, response loss and response-record crash against
+independent wire oracles and mutable doubles. The production pinned root stays
+unchanged and stable launch readiness stays false. The rehearsal is a maintained
+CI job and needs no external credentials.
+
+The protected production run still has a first-attestation cycle:
 production leases require qualification before the live effects needed to issue
 it. A reviewed authority design must resolve this without bypassing the shipped
 lease gate. Dynamically created provider identifiers need reviewed oracle/corpus
 binding before execution, not expected digests copied from candidate output.
-Docker rehearsal establishes neither prerequisite and supplies no protected key
-or live provider credential. No Epic 5 completion or release is claimed.
+Those real-production prerequisites do not block the owner-directed simulation.
+No protected live evidence or production qualification is claimed.
