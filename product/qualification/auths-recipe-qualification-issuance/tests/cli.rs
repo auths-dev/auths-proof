@@ -290,6 +290,38 @@ fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
     );
 
     succeed(&borrowed(&sign("proposal", "signer.key")));
+    // A consumer must be able to verify the signed record's closure using
+    // only the published release, after the unsigned proposal is unavailable.
+    let record = auths_recipe_qualification::RecipeQualificationRecord::from_canonical_json(
+        &fs::read(at("proposal/record.json")).expect("proposal record"),
+    )
+    .expect("record");
+    let artifacts: Vec<auths_recipe_qualification::QualificationEvidence> = record
+        .body()
+        .evidence
+        .iter()
+        .map(|member| {
+            let artifact = auths_recipe_qualification::QualificationEvidence::from_canonical_json(
+                &fs::read(at(&format!(
+                    "release/evidence/{}.json",
+                    member.evidence_sha256.to_hex()
+                )))
+                .expect("published evidence"),
+            )
+            .expect("canonical evidence");
+            assert_eq!(artifact.digest(), member.evidence_sha256);
+            artifact
+        })
+        .collect();
+    auths_recipe_qualification::verify_evidence_closure(&record, &artifacts)
+        .expect("published evidence closes over the signed record");
+    assert_eq!(
+        fs::read_dir(at("release/evidence"))
+            .expect("published evidence directory")
+            .count(),
+        EvidenceMemberKind::ALL.len(),
+        "release includes exactly its evidence members"
+    );
     fs::copy(
         at("unsigned/revocation-list.json"),
         at("release/revocation-list.json"),
