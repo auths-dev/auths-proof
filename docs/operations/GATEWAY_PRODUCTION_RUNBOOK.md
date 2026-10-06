@@ -8,8 +8,11 @@ privilege-drop test. Application processes receive neither identity nor state.
 
 ## Diagnose and stop
 
-`doctor --state-dir ... --app-socket ... --app-uid ... --app-gid ...` prints all
-nine required typed checks and the optional observer state. It checks the
+For a loadable installation whose isolation probes complete,
+`doctor --state-dir ... --app-socket ... --app-uid ... --app-gid ...` prints
+all nine required typed checks and the optional observer state. If installation
+loading or isolation checks cannot complete, it refuses with a stable top-level
+code before emitting that report; retain the code for diagnosis. It checks the
 actual lifecycle record, recipe binding, current credential-store confirmation,
 qualification, clock and process isolation. Any failed or unmade check yields
 nonzero status. Keep the JSON report. A missing observer explicitly means

@@ -363,11 +363,20 @@ those published assets, verify their checksums and install them in clean
 environments for the simulated onboarding pilot. Local checkout installs do
 not demonstrate that release handoff.
 
-Epic 4's hosted Lean build, 322 compiled-claim audit and Aeneas qualification
-passed in [run 37414864276](https://github.com/auths-dev/auths-proof/actions/runs/37414864276).
-Its bounded updater committed the assurance-manifest digest refresh as
-`5aa0916b`; the subsequent preflight exposed the matching frozen-byte inventory
-as stale. That inventory is regenerated with freeze version 369, manifest-byte
-version 58 and release-metadata version 369. Protocol identities and proof
-statements are unchanged. Full hosted CI qualification and the live/human
-acceptance gates remain open.
+Epic 4 code at `f1f92c3f` passed every job in
+[main CI](https://github.com/auths-dev/auths-proof/actions/runs/37421643170),
+including authoritative tests, Lean, Kani, formal evidence and CI qualification.
+The six operator-package, isolation, PostgreSQL, recipe and SDK-package
+workflows also passed. The
+[operator package](https://github.com/auths-dev/auths-proof/actions/runs/37421643189)
+was downloaded and verified: archive SHA-256
+`70b585794b4883a9f85897446bf13ccc334d711570b0dee3148413788f577cd4`
+and all eleven payload digests match. Frozen evidence uses freeze version 369,
+manifest-byte version 58 and release-metadata version 369. Protocol identities
+and proof statements are unchanged. This is engineering evidence;
+[protected live custody](https://github.com/auths-dev/auths-proof/actions/runs/37421643146)
+still awaits environment approval, and live/human acceptance remains open.
+
+Owner clarification (2026-10-06): merge each epic PR when that epic is complete
+and CI is green. This authorizes those merges without another confirmation;
+it does not waive the spec's live or independent-human acceptance gates.

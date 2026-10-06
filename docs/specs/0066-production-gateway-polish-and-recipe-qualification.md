@@ -1612,7 +1612,13 @@ shutdown and a durable host generation floor. The floor rejects an older
 restored connection or changed bytes at an accepted generation before lease.
 The maintained systemd deployment reference is `deployment/gateway/`; the
 operations and independent trial protocol are in
-`docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md`. Hosted verification is pending.
+`docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md`. Code at `f1f92c3f` passed
+[all main CI jobs](https://github.com/auths-dev/auths-proof/actions/runs/37421643170)
+and the six operator-package, isolation, PostgreSQL, recipe and SDK-package
+workflows. The downloaded operator archive and all eleven payload digests
+were verified against that commit. Protected live custody is still awaiting
+environment approval; these automated checks do not close the live or human
+acceptance gates below.
 
 The production clock adapter now rejects a synchronization marker older than
 fifteen minutes, a future timestamp, a symlink/nonregular file or an unsafe
