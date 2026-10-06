@@ -10,6 +10,7 @@ root="$(git rev-parse --show-toplevel)"
 harness="${root}/qualification/families/${family}/harness"
 [ -x "${harness}" ] || { echo "qualification.family-unknown" >&2; exit 1; }
 tool="${AUTHS_QUALIFICATION:-${root}/target/release/auths-qualification}"
+rm -f "${work}/live-effects.json" "${work}/cases/"*.live.json
 
 cleanup() {
   status=$?
@@ -17,7 +18,10 @@ cleanup() {
   # which may contain credentials, to Actions logs.
   if ! "${harness}" cleanup "${work}" >/dev/null 2>&1; then
     echo "qualification.cleanup-failed" >&2
-    exit 1
+    status=1
+  fi
+  if [ "${status}" -ne 0 ]; then
+    rm -f "${work}/live-effects.json" "${work}/cases/"*.live.json
   fi
   exit "${status}"
 }

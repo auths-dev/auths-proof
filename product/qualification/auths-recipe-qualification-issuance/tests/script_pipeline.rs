@@ -167,6 +167,11 @@ fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
             .expect("live script");
         assert_eq!(output.status.success(), mode == "success", "{mode}");
         assert_eq!(
+            work.join("live-effects.json").exists(),
+            mode == "success",
+            "a failed setup, stage or cleanup leaves no passing live evidence"
+        );
+        assert_eq!(
             work.join("disposable-resource").exists(),
             mode == "cleanup-failed",
             "teardown runs even after partial setup or a refused stage"
