@@ -380,3 +380,15 @@ still awaits environment approval, and live/human acceptance remains open.
 Owner clarification (2026-10-06): merge each epic PR when that epic is complete
 and CI is green. This authorizes those merges without another confirmation;
 it does not waive the spec's live or independent-human acceptance gates.
+
+Owner correction (2026-10-06): the agent simulates being an operator, fixes
+the observed friction and reruns the packaged rehearsal; the owner handles
+real users offline. This supersedes the earlier requirement for the agent to
+wait for an independent participant before continuing engineering. The
+simulation is labeled as such and cannot qualify live providers or establish
+independent human adoption. A separate source-free Ubuntu job downloads the
+operator archive and simulation kit, runs the documented CLI against
+disposable development installations, and records command timing and friction.
+Its hosted result is pending. Continue with Epic 5 engineering after this
+rehearsal; protected live inputs and release-signing keys remain explicit
+external prerequisites for signed qualification.

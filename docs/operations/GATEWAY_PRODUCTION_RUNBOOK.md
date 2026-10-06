@@ -169,6 +169,18 @@ continuity. Keep expiry and revocation updates running during the upgrade.
 
 ## Independent operator trial
 
+The owner directed the agent on 2026-10-06 to simulate an operator and will
+handle real users offline. The `Gateway operator package` workflow therefore
+also runs a labeled rehearsal in a separate Ubuntu job with no source checkout,
+compiler invocation or repository imports. It downloads the archive and public
+simulation kit, checks the exact commit and all payload digests, and records
+actual command counts, timings, stable refusals and friction in
+`operator-simulation.json`. Shipped binaries retain their production guards.
+The rehearsal uses disposable development custody and a shared file store;
+its report explicitly lists unexercised production/live operations. It is
+agent simulation evidence, not an independent person's result or a production
+qualification. Any failing command must be corrected and the rehearsal rerun.
+
 Give a person unfamiliar with this implementation only the verified packaged
 binaries, packages, public configuration and this runbook. Record participant
 identity/role, artifact digests, dates, timings, attempted commands, redacted

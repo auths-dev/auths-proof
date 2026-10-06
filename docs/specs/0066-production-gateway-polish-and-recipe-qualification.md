@@ -887,7 +887,12 @@ Tasks:
 Done when a clean operator can deploy, diagnose, rotate, disable, restore and
 reconcile without source checkout or secret exposure; every diagnostic phrase
 corresponds to an actual typed check; and the trial's defects are fixed and
-rerun. The implementer MUST NOT simulate the unfamiliar-operator trial.
+rerun. The implementer MUST NOT represent a simulated trial as an independent
+human result. Owner clarification (2026-10-06): the agent's deliverable is a
+labeled operator simulation from packaged artifacts; the owner handles real
+users offline. The simulation must fix and rerun its defects and explicitly
+report which production/live operations its inputs do not exercise. Human
+adoption and production qualification claims still require their own evidence.
 
 ### Epic 5 — Qualify two recipes and close the launch gate
 
@@ -1629,8 +1634,10 @@ a claim that a compromised time source is trustworthy.
 
 This is not Epic 4 acceptance yet. A live two-host reference exercise of
 workload identity, firewall, PostgreSQL point-in-time restore and the runbooks
-remains, as does the independently performed unfamiliar-operator trial and
-its defect rerun. The implementer has not simulated that participant. Epic 5
+remains. The owner now assigns the agent a labeled operator simulation and
+handles real users offline; no independent human result is claimed. The
+source-free packaged simulation and its defect reruns are being implemented.
+Epic 5
 also lacks the owner's offline root ceremony, protected signer secret,
 two protected provider environments and human release review. On 2026-10-06,
 GitHub environment/secret metadata confirmed no qualification signer secret

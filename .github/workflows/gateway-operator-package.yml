@@ -65,6 +65,22 @@ jobs:
         run: |
           cargo test --locked -p auths-gateway --test operator_plane --test support_bundle
           cargo test --locked -p auths-gateway --test isolated_process -- --ignored
+      - name: Prepare public inputs for the operator simulation
+        run: |
+          mkdir -p target/operator-simulation-kit
+          cp deployment/gateway/tools/operator-simulation.py target/operator-simulation-kit/
+          cp bindings/fixtures/gateway/airtable/recipe.json target/operator-simulation-kit/
+          cp bindings/fixtures/gateway/airtable/profile.lock.json target/operator-simulation-kit/
+          cp core/fixtures/v1/denied/untrusted-root.context.cbor target/operator-simulation-kit/trusted.context.cbor
+          cp bindings/fixtures/gateway/custody-hostile.json target/operator-simulation-kit/
+          cd target/operator-simulation-kit
+          sha256sum operator-simulation.py recipe.json profile.lock.json trusted.context.cbor custody-hostile.json > SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gateway-operator-simulation-kit
+          path: target/operator-simulation-kit/
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: gateway-operator-package
@@ -72,4 +88,39 @@ jobs:
             target/gateway-operator-package.tgz
             target/gateway-operator-package.tgz.sha256
           if-no-files-found: error
+          retention-days: 30
+
+  operator-simulation:
+    name: source-free operator simulation
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No checkout, source build, repository import, or provider secret in this job.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: gateway-operator-package
+          path: package
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: gateway-operator-simulation-kit
+          path: kit
+      - name: Verify the simulation kit
+        working-directory: kit
+        run: sha256sum -c SHA256SUMS
+      - name: Rehearse the documented operator commands and measure friction
+        env:
+          AUTHS_SIMULATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          sudo python3 kit/operator-simulation.py \
+            --archive "$GITHUB_WORKSPACE/package/gateway-operator-package.tgz" \
+            --inputs "$GITHUB_WORKSPACE/kit" \
+            --expected-commit "$AUTHS_SIMULATION_COMMIT" \
+            --report "$GITHUB_WORKSPACE/reports/operator-simulation.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: gateway-operator-simulation-report
+          path: reports/operator-simulation.json
+          if-no-files-found: warn
           retention-days: 30
