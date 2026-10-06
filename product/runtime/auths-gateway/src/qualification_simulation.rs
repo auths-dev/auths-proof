@@ -53,6 +53,15 @@ impl Family {
         }
     }
 
+    fn read_back_url(self) -> &'static str {
+        match self {
+            Self::Stripe => "https://api.stripe.com/v1/refunds/re_TEST0000000001",
+            Self::Airtable => {
+                "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001"
+            }
+        }
+    }
+
     fn recipe(self) -> CompiledRecipe {
         match self {
             Self::Stripe => CompiledRecipe::compile(
@@ -122,6 +131,8 @@ struct OracleProvider<P> {
     inner: P,
     expected: Value,
     checked: AtomicUsize,
+    read_back_url: &'static str,
+    read_backs: AtomicUsize,
 }
 
 trait SimulationProvider: ProviderPort {
@@ -160,6 +171,14 @@ impl<P: ProviderPort> ProviderPort for OracleProvider<P> {
         headers: &[RequestHeader],
         maximum: usize,
     ) -> Option<ProviderResponse> {
+        if url == self.read_back_url {
+            self.read_backs.fetch_add(1, Ordering::SeqCst);
+        } else {
+            assert_eq!(
+                url, "https://api.stripe.com/v1/payment_intents/pi_TEST0000000001",
+                "only the independent ceiling read is admitted before the write"
+            );
+        }
         self.inner.action_read(url, headers, maximum).await
     }
 
@@ -332,31 +351,31 @@ async fn race<P: SimulationProvider>(family: Family, provider: &OracleProvider<P
         1,
         "two store handles: one write"
     );
-    let observed = [&left, &right]
+    let confirmations = [&left, &right]
         .into_iter()
         .filter(|result| matches!(result, GatewaySubmitResult::ObservedByProvider { .. }))
         .count();
     assert!(
-        (1..=2).contains(&observed),
+        (1..=2).contains(&confirmations),
         "the single write has fresh read-back"
     );
     let leases = first.leases() + second.leases();
-    // A concurrent Airtable contender may read the in-flight claim through
-    // its linked recovery capability. That is a read lease, never a PATCH.
-    let allowed_leases = match family {
-        Family::Stripe => 2..=2,
-        Family::Airtable => 2..=3,
-    };
-    assert!(
-        allowed_leases.contains(&leases),
-        "one write lease, only bounded read-back leases: {leases}"
+    // Either contender can reconcile once a locator is retained; Airtable
+    // can also recover its fixed locator while the first claim is in flight.
+    // Count actual read calls so an extra write lease cannot pass as recovery.
+    let reads = provider.read_backs.load(Ordering::SeqCst);
+    assert!((1..=2).contains(&reads), "bounded fresh read-back calls");
+    assert_eq!(
+        leases,
+        1 + reads,
+        "one write lease plus measured read leases"
     );
     Measurement {
         case: "two-instance-race".to_owned(),
         verdict: "one-authorized-entry".to_owned(),
         credential_leases: leases,
         provider_entries: provider.inner.entries(),
-        confirmed_by_read_back: usize::from(observed > 0),
+        confirmed_by_read_back: usize::from(confirmations > 0),
     }
 }
 
@@ -457,6 +476,8 @@ async fn stripe_qualification_simulation() {
             ),
             expected: family.oracle("qualification-1", &ORIGINAL),
             checked: AtomicUsize::new(0),
+            read_back_url: family.read_back_url(),
+            read_backs: AtomicUsize::new(0),
         };
         let mut measured =
             lifecycle(family, &provider, &recording, &mut store, mode != "respond").await;
@@ -470,6 +491,8 @@ async fn stripe_qualification_simulation() {
         inner: TableProvider::new(&recipe, &defaults, "respond"),
         expected: family.oracle("qualification-1", &ORIGINAL),
         checked: AtomicUsize::new(0),
+        read_back_url: family.read_back_url(),
+        read_backs: AtomicUsize::new(0),
     };
     cases.extend(hostile(family, &provider).await);
     cases.push(race(family, &provider).await);
@@ -495,6 +518,8 @@ async fn airtable_qualification_simulation() {
             inner: RecordProvider::new(delivery, Reading::Faithful),
             expected: family.oracle("qualification-1", &ORIGINAL),
             checked: AtomicUsize::new(0),
+            read_back_url: family.read_back_url(),
+            read_backs: AtomicUsize::new(0),
         };
         let mut measured = lifecycle(
             family,
@@ -514,6 +539,8 @@ async fn airtable_qualification_simulation() {
         inner: RecordProvider::new(Delivery::Respond, Reading::Faithful),
         expected: family.oracle("qualification-1", &ORIGINAL),
         checked: AtomicUsize::new(0),
+        read_back_url: family.read_back_url(),
+        read_backs: AtomicUsize::new(0),
     };
     cases.extend(hostile(family, &provider).await);
     cases.push(race(family, &provider).await);

@@ -166,7 +166,7 @@ async fn operator_bootstrap_qualification_simulation() {
     let list = root
         .revoke(1, NOW - HOUR, NOW + 24 * HOUR, Vec::new(), Vec::new())
         .expect("list");
-    let signed = QualificationBundle {
+    let attested_bundle = QualificationBundle {
         signer_certificate: signer.certificate().canonical_bytes().to_vec(),
         revocation_list: list.canonical_bytes().to_vec(),
         release_index: index.canonical_bytes().to_vec(),
@@ -190,7 +190,7 @@ async fn operator_bootstrap_qualification_simulation() {
             refusal(host).await.as_deref(),
             Some("gateway.qualification.unavailable")
         );
-        let mut unsigned = signed.clone();
+        let mut unsigned = attested_bundle.clone();
         unsigned.attestations.clear();
         assert!(gate.load(&unsigned));
         assert_eq!(
@@ -199,11 +199,11 @@ async fn operator_bootstrap_qualification_simulation() {
         );
         assert_eq!(host.leases.load(Ordering::SeqCst), 0);
         let before_signature_leases = host.leases.load(Ordering::SeqCst);
-        assert!(gate.load(&signed));
+        assert!(gate.load(&attested_bundle));
         assert_eq!(refusal(host).await, None);
         assert_eq!(host.leases.load(Ordering::SeqCst), 1);
         let after_verified_import_leases = host.leases.load(Ordering::SeqCst);
-        let mut forged = signed.clone();
+        let mut forged = attested_bundle.clone();
         let position = forged.attestations[0].len() / 2;
         forged.attestations[0][position] ^= 1;
         assert!(gate.load(&forged));
@@ -213,7 +213,7 @@ async fn operator_bootstrap_qualification_simulation() {
             assert!(refusal(host).await.is_some());
             assert_eq!(host.leases.load(Ordering::SeqCst), 1);
         }
-        assert!(gate.load(&signed));
+        assert!(gate.load(&attested_bundle));
         clock.set(NOW + 13 * HOUR);
         assert_eq!(
             refusal(host).await.as_deref(),
@@ -221,7 +221,7 @@ async fn operator_bootstrap_qualification_simulation() {
         );
         clock.set(NOW);
         let no_root = required(None, deployment.clone(), &clock);
-        assert!(!no_root.load(&signed));
+        assert!(!no_root.load(&attested_bundle));
         let (untrusted, ()) = host_with(&no_root).await;
         assert_eq!(
             refusal(&untrusted.first).await.as_deref(),
@@ -242,9 +242,12 @@ async fn operator_bootstrap_qualification_simulation() {
         )
         .expect("public root");
         for (name, bytes) in [
-            ("signer-certificate.json", &signed.signer_certificate),
-            ("revocation-list.json", &signed.revocation_list),
-            ("release-index.json", &signed.release_index),
+            (
+                "signer-certificate.json",
+                &attested_bundle.signer_certificate,
+            ),
+            ("revocation-list.json", &attested_bundle.revocation_list),
+            ("release-index.json", &attested_bundle.release_index),
         ] {
             std::fs::write(directory.join(name), bytes).expect("public artifact");
         }
@@ -256,7 +259,7 @@ async fn operator_bootstrap_qualification_simulation() {
             .expect("record");
             std::fs::write(
                 directory.join(format!("attestation-{position}.json")),
-                &signed.attestations[position],
+                &attested_bundle.attestations[position],
             )
             .expect("attestation");
             for (member, evidence) in closed.evidence().iter().enumerate() {

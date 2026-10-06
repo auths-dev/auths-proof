@@ -1683,7 +1683,8 @@ CI job and needs no external credentials.
 
 The local rehearsal passed 36 measured provider cases (18 per family), plus
 the disposable two-family signing/import ceremony. Each race entered one
-write; Airtable additionally used a read-only reconciliation lease. The
+write; a concurrent contender may additionally use a measured read-only
+reconciliation lease. The
 candidate kit embeds its fixtures and is run in Docker without checkout,
 credentials or network. Hosted verification of that packaged run is pending.
 

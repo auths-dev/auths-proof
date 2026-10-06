@@ -134,12 +134,9 @@ mod tests {
             let records: Vec<&[u8]> = records
                 .iter()
                 .take(if omit_record { 1 } else { records.len() })
-                .map(|record| record.as_bytes())
+                .map(String::as_bytes)
                 .collect();
-            let attestations: Vec<&[u8]> = attestations
-                .iter()
-                .map(|attestation| attestation.as_bytes())
-                .collect();
+            let attestations: Vec<&[u8]> = attestations.iter().map(String::as_bytes).collect();
             VerifiedQualifications::verify(
                 &root,
                 &QualificationInputs {
