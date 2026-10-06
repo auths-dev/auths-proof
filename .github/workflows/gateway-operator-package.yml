@@ -1,0 +1,63 @@
+name: Gateway operator package
+
+on:
+  pull_request:
+    paths:
+      - 'deployment/gateway/**'
+      - 'product/runtime/auths-gateway/**'
+      - 'product/qualification/**'
+      - 'docs/operations/GATEWAY_PRODUCTION_RUNBOOK.md'
+      - '.github/workflows/gateway-operator-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build shipped operator binaries without test features
+        run: cargo build --locked --release -p auths-gateway -p auths-recipe-qualification-issuance --bin auths-gateway --bin auths-qualification
+      - name: Make the source-free handoff
+        run: |
+          python3 deployment/gateway/tools/package.py \
+            --gateway target/release/auths-gateway \
+            --qualification target/release/auths-qualification \
+            --commit "$(git rev-parse HEAD)" \
+            --output target/gateway-operator-package.tgz
+      - name: Verify the packaged payload and command surfaces
+        run: |
+          mkdir -p "$RUNNER_TEMP/operator"
+          tar xzf target/gateway-operator-package.tgz -C "$RUNNER_TEMP/operator"
+          cd "$RUNNER_TEMP/operator/auths-gateway-operator"
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          manifest = json.loads(Path('manifest.json').read_text())
+          assert manifest['schema'] == 'auths.gateway-operator-package/1'
+          for item in manifest['files']:
+              assert hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() == item['sha256']
+          assert not list(Path('.').rglob('*.rs'))
+          PY
+          bin/auths-gateway disable --help | grep -- --store-only
+          bin/auths-gateway rotate-prepare --help | grep -- --operator-process
+          bin/auths-gateway doctor --help
+          bin/auths-qualification --help
+      - name: Verify systemd unit syntax
+        run: systemd-analyze verify deployment/gateway/systemd/*.service deployment/gateway/systemd/*.timer
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gateway-operator-package
+          path: |
+            target/gateway-operator-package.tgz
+            target/gateway-operator-package.tgz.sha256
+          if-no-files-found: error
+          retention-days: 30

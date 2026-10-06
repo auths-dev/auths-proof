@@ -589,3 +589,82 @@ fn postgres_production_processes_share_the_connection() {
     assert_eq!(revoked["code"], "gateway.admin.revoked", "{revoked}");
     assert_eq!(status(&second)["state"], "revoked");
 }
+
+#[test]
+fn an_emergency_stop_works_with_no_running_gateway_or_readable_custody() {
+    let (_directory, root) = private_root();
+    let state = root.join("emergency");
+    let installed = install(
+        &root,
+        &state,
+        &["--account-label", "fixture"],
+        b"synthetic-token\n",
+    );
+    assert!(installed.status.success(), "{}", stderr(&installed));
+    fs::remove_file(state.join("credentials.cbor")).expect("remove custody");
+    fs::write(
+        state.join("qualification-verifier-state.json"),
+        b"unavailable",
+    )
+    .expect("bad qualification");
+    for (command, expected) in [
+        ("disable", "disabled"),
+        ("disable", "disabled"),
+        ("revoke", "revoked"),
+        ("disable", "revoked"),
+    ] {
+        let stopped = run(
+            Command::new(BIN)
+                .arg(command)
+                .arg("--state-dir")
+                .arg(&state)
+                .arg("--store-only"),
+            b"",
+        );
+        assert!(stopped.status.success(), "{}", stderr(&stopped));
+        let report: serde_json::Value = serde_json::from_slice(&stopped.stdout).expect("report");
+        assert_eq!(report["state"], expected);
+        assert_eq!(report["drainage"], "not-checked");
+        assert_eq!(report["credential_deletion"], "not-attempted");
+    }
+}
+
+#[test]
+fn sigterm_drains_admitted_sessions_and_removes_both_socket_paths() {
+    let (_directory, root) = private_root();
+    let state = root.join("shutdown");
+    let installed = install(
+        &root,
+        &state,
+        &["--account-label", "fixture"],
+        b"synthetic-token\n",
+    );
+    assert!(installed.status.success(), "{}", stderr(&installed));
+    let app = root.join("shutdown.sock");
+    let mut gateway = serve(&state, &app);
+    let pending = std::os::unix::net::UnixStream::connect(&app).expect("admitted stream");
+    thread::sleep(Duration::from_millis(100));
+    let signal = Command::new("kill")
+        .arg("-TERM")
+        .arg(gateway.0.id().to_string())
+        .status()
+        .expect("signal");
+    assert!(signal.success());
+    thread::sleep(Duration::from_millis(100));
+    assert!(
+        gateway.0.try_wait().expect("wait").is_none(),
+        "an admitted session is still draining"
+    );
+    drop(pending);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Some(status) = gateway.0.try_wait().expect("wait") {
+            assert!(status.success());
+            break;
+        }
+        assert!(Instant::now() < deadline, "shutdown did not complete");
+        thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!app.exists());
+    assert!(!state.join("admin.sock").exists());
+}

@@ -1589,7 +1589,7 @@ configuration_inputs = ["operator-approved-recipe", "profile-lock", "independent
 security_state = ["host-generation-floor", "recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
 
 [packages.auths-gateway.claims]
-operator-production-readiness = [
+operational-diagnostics = [
   "product/runtime/auths-gateway/src/readiness.rs#the_projection_names_every_check_and_retains_precise_qualification_failure",
   "product/runtime/auths-gateway/src/engine.rs#readiness_and_emergency_stop_make_no_credential_lease",
   "product/runtime/auths-gateway/src/engine.rs#a_restored_store_below_the_host_floor_cannot_lease_after_restart",

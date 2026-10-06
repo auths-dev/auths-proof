@@ -9,6 +9,11 @@ checksums under `/opt/auths/bin`; neither source nor a compiler belongs on the
 hosts. Current production builds refuse writes until the qualification root
 ceremony and both live qualification gates have completed.
 
+The `Gateway operator package` workflow supplies a source-free archive with
+both binaries, these units, a bounded file-digest manifest and the runbook.
+Verify the artifact checksum and each payload digest before using it in the
+independent trial. A PR artifact is a trial input, not a signed release.
+
 ## Host setup
 
 Create group `auths-app-socket` (GID 62000), user `auths-gateway` (UID 62001),
@@ -27,10 +32,15 @@ and GenerateDataKey. Neither role can list secrets or alter versions. The
 operator executes administration as UID 62001 with its separate token path.
 The application receives neither identity directory nor runtime environment.
 
-Copy `systemd/` and the reviewed public runtime configuration. Never place a
+Copy `systemd/`, `run-with-postgres-url` and the reviewed public runtime configuration.
+The protected `/etc/auths/postgres-url` file holds the PostgreSQL connection
+string; systemd delivers it in its service credential directory. The wrapper
+passes it only to the gateway process, whose doctor probe clears its environment. Never place a
 provider token, static AWS access key or release signer in an environment file.
-Use certificate/peer authentication for PostgreSQL, or a protected passfile
-owned by the gateway; require the expected TLS server name and reviewed CA.
+Use a dedicated PostgreSQL password delivered through systemd LoadCredential,
+not an application environment or command argument. The maintained TLS client
+authenticates the server with the expected name and reviewed CA; it does not
+provide TLS client-certificate authentication.
 Enable `synchronous_commit`, durable WAL and continuous archive to independent
 storage. Let the shipped store apply its current schema; obsolete schemas are
 refused rather than translated. Take and restore a database snapshot in the
