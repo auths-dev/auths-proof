@@ -118,7 +118,11 @@ jobs:
           chmod +x "${RUNNER_TEMP}/work/bin/"*
           export AUTHS_GATEWAY="${RUNNER_TEMP}/work/bin/auths-gateway"
           export AUTHS_QUALIFICATION="${RUNNER_TEMP}/work/bin/auths-qualification"
-          "qualification/families/${FAMILY}/harness" live "${RUNNER_TEMP}/work"
+          "qualification/families/${FAMILY}/harness" prepare-live "${RUNNER_TEMP}/work"
+          "${GITHUB_WORKSPACE}/target/release/auths-qualification" run-stage --phase live \
+            --corpus "qualification/families/${FAMILY}/corpus-manifest.json" \
+            --harness "qualification/families/${FAMILY}/harness" \
+            --tuple "${RUNNER_TEMP}/work/tuple.json" --work-dir "${RUNNER_TEMP}/work"
       - name: Scan what the run kept, then remove the canaries
         # The scan runs here because the canaries exist only here. A failed
         # scan fails the job before anything is uploaded.

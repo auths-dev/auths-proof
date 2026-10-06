@@ -86,7 +86,7 @@ Within a row, the cases are tagged with one of 36 scenarios, and a record
 closes only when every scenario the wall always requires has a case;
 AP-SPEC-066 §20.3 reading 3 lists them. The release tooling runs the
 differential comparison, the redaction scan, and the freshness and
-signer-rotation stages itself. A family's harness reports the rest.
+signer-rotation stages itself. The executable corpus runner sequences the remaining operations through a reviewed family's harness and derives reports from measured observations. See `qualification/README.md` for the bounded subprocess contract.
 
 Each member carries the digest of its evidence artifact, its case count, and
 its unauthorized-provider-entry count, which must be zero. `live_effects`

@@ -16,7 +16,7 @@ use auths_recipe_qualification_issuance::{
     testkit::{self, TestRelease},
 };
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 
 const NOW: u64 = 1_790_000_000;
 const HOUR: u64 = 60 * 60;
@@ -92,7 +92,14 @@ async fn host_with(gate: &Arc<QualificationGate>) -> (Installation, ()) {
 }
 
 async fn refusal(host: &Host) -> Option<String> {
-    host.entry_refusal().await
+    let before = host.leases.load(Ordering::SeqCst);
+    let result = host.entry_refusal().await;
+    assert_eq!(
+        host.leases.load(Ordering::SeqCst) - before,
+        u64::from(result.is_none()),
+        "a qualified entry calls the store exactly once; a refusal calls it zero times"
+    );
+    result
 }
 
 #[tokio::test]
@@ -103,6 +110,7 @@ async fn an_engine_without_a_configured_gate_leases_nothing() {
         Some("gateway.qualification.unavailable")
     );
     assert!(installation.first.lease_refused_after(|| {}).await);
+    assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
@@ -145,11 +153,13 @@ async fn a_qualified_deployment_leases_and_each_fault_refuses_before_the_lease()
         Some("gateway.qualification.revocation-stale")
     );
     clock.set(NOW);
+    let leases_before_expiry = host.leases.load(Ordering::SeqCst);
     assert!(
         host.lease_refused_after(|| clock.set(NOW + 48 * HOUR))
             .await,
         "an entry prepared while qualified does not lease after the list went stale"
     );
+    assert_eq!(host.leases.load(Ordering::SeqCst), leases_before_expiry);
     clock.set(NOW);
     assert_eq!(refusal(host).await, None);
 

@@ -1193,7 +1193,7 @@ principal_families = []
 signature_families = ["ed25519-v1"]
 profiles = []
 transports = []
-configuration_inputs = ["record-draft", "stage-case-reports", "family-harness", "qualification-trust-root-key-file", "release-signer-key-file"]
+configuration_inputs = ["record-draft", "stage-case-reports", "executable-qualification-corpus", "candidate-observations", "family-harness", "qualification-trust-root-key-file", "release-signer-key-file"]
 security_state = ["qualification-trust-root-key", "release-signer-key"]
 
 [packages.auths-recipe-qualification-issuance.claims]
@@ -1209,6 +1209,13 @@ proof-author-or-assembler = [
   "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#every_required_scenario_is_needed_to_close_the_wall",
   "product/qualification/auths-recipe-qualification-issuance/tests/protected_run.rs#a_pull_request_reaches_no_secret_and_no_signing_job",
   "product/qualification/auths-recipe-qualification-issuance/tests/protected_run.rs#the_repository_holds_no_qualification_key",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#every_stage_executes_its_operations_and_a_missing_runner_refuses",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#observed_faults_and_changed_candidates_produce_no_passing_case",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#differential_compares_the_actual_oracle_and_gateway_commitments",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#recovery_requires_read_back_and_without_the_capability_stays_unknown",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#a_reviewed_expectation_cannot_authorize_a_second_entry_or_a_hostile_lease",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#subprocess_failures_invalidate_reports_and_installed_consumers_get_no_credential",
+  "product/qualification/auths-recipe-qualification-issuance/tests/script_pipeline.rs#stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refuses",
 ]
 
 [packages.auths-bounded-policy]

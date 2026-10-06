@@ -28,10 +28,21 @@ cargo build --locked --release -p auths-recipe-qualification-issuance --bin auth
 export AUTHS_GATEWAY="${root}/target/release/auths-gateway"
 export AUTHS_QUALIFICATION="${root}/target/release/auths-qualification"
 
-"${directory}/harness" offline "${work}"
+"${directory}/harness" prepare "${work}"
+# The tuple is obtained from the actual installed candidate, not authored
+# by the harness. Installation and package acquisition remain family-owned.
+"${AUTHS_GATEWAY}" qualification-status --state-dir "${work}/gateway-state" --tuple \
+  > "${work}/tuple.json"
 for required in tuple.json packages.json; do
   [ -s "${work}/${required}" ] || { echo "qualification.harness-incomplete ${required}" >&2; exit 1; }
 done
+
+[ "$(jq -r .provider_contract_id "${work}/tuple.json")" = \
+  "$("${AUTHS_QUALIFICATION}" contract-id --contract "${directory}/contract.json")" ] \
+  || { echo "qualification.contract-changed" >&2; exit 1; }
+"${AUTHS_QUALIFICATION}" run-stage --phase offline \
+  --corpus "${directory}/corpus-manifest.json" --harness "${directory}/harness" \
+  --tuple "${work}/tuple.json" --work-dir "${work}"
 
 "${AUTHS_QUALIFICATION}" stage-trust --tuple "${work}/tuple.json" \
   --out "${work}/cases/rotation.trust.json"

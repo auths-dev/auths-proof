@@ -109,3 +109,182 @@ pub fn all_evidence() -> Vec<QualificationEvidence> {
         .map(member_evidence)
         .collect()
 }
+
+/// An executable test corpus. These fixtures test stage orchestration and
+/// make no live-provider or production-qualification claim.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the closed test corpus keeps each scenario beside its operation sequence"
+)]
+pub fn executable_corpus() -> auths_recipe_qualification_issuance::execution::RunCorpus {
+    use auths_recipe_qualification::{CapabilityKind, Scenario};
+    use auths_recipe_qualification_issuance::execution::{
+        CORPUS_SCHEMA, ExpectedObservation, Operation as Op, RunCase, RunCorpus,
+        RunOutcome as Outcome, RunPhase, RunStep, RunVerdict, harness_scenario,
+    };
+    let step = |operation, outcome, entries, confirmed| RunStep {
+        operation,
+        expected: ExpectedObservation {
+            verdict: RunVerdict {
+                outcome,
+                code: auths_recipe_qualification::BoundedText::parse("test.verdict").expect("code"),
+                request_sha256: None,
+                evidence_sha256: None,
+            },
+            credential_leases: u32::from(entries > 0),
+            provider_entries: entries,
+            confirmed_by_read_back: confirmed,
+        },
+    };
+    let mut cases = Vec::new();
+    for scenario in Scenario::ALL
+        .into_iter()
+        .filter(|scenario| harness_scenario(*scenario))
+    {
+        if scenario == Scenario::ObserverRotation {
+            continue;
+        }
+        let mut steps = match scenario {
+            Scenario::OracleAccepts => vec![
+                step(Op::Oracle, Outcome::ResponseRecorded, 0, 0),
+                step(Op::Submit, Outcome::ResponseRecorded, 1, 0),
+            ],
+            Scenario::OracleRejects => vec![
+                step(Op::Oracle, Outcome::Refused, 0, 0),
+                step(Op::Submit, Outcome::Refused, 0, 0),
+            ],
+            Scenario::ProofReplay | Scenario::FreshChallengeReplay => vec![
+                step(Op::Submit, Outcome::ResponseRecorded, 1, 0),
+                step(Op::Replay, Outcome::Refused, 0, 0),
+            ],
+            Scenario::TwoInstanceRace => vec![step(Op::Race, Outcome::ResponseRecorded, 1, 0)],
+            Scenario::Restart => vec![
+                step(Op::Submit, Outcome::Unknown, 1, 0),
+                step(Op::Restart, Outcome::Complete, 0, 0),
+                step(Op::Replay, Outcome::Refused, 0, 0),
+            ],
+            Scenario::Crash => vec![
+                step(Op::Submit, Outcome::Unknown, 1, 0),
+                step(Op::Crash, Outcome::Complete, 0, 0),
+                step(Op::Replay, Outcome::Refused, 0, 0),
+            ],
+            Scenario::AmbiguousResponse => vec![
+                step(Op::DropResponse, Outcome::Unknown, 1, 0),
+                step(Op::Replay, Outcome::Refused, 0, 0),
+            ],
+            Scenario::ResponseLoss => vec![
+                step(Op::DropResponse, Outcome::Unknown, 1, 0),
+                step(Op::ReadBack, Outcome::Observed, 0, 1),
+            ],
+            Scenario::DelayedVisibility => vec![
+                step(Op::DelayVisibility, Outcome::Unknown, 1, 0),
+                step(Op::ReadBack, Outcome::Observed, 0, 1),
+            ],
+            Scenario::ProviderSecretRotation => vec![
+                step(Op::Rotate, Outcome::Complete, 0, 0),
+                step(Op::Submit, Outcome::ResponseRecorded, 1, 0),
+            ],
+            Scenario::ReadBackConfirmsWrite | Scenario::DeclaredCapability => vec![
+                step(Op::Submit, Outcome::ResponseRecorded, 1, 0),
+                step(Op::ReadBack, Outcome::Observed, 0, 1),
+            ],
+            Scenario::InstalledJourney
+            | Scenario::NoRepositoryImport
+            | Scenario::NoProviderToken => {
+                vec![step(Op::InstalledConsumer, Outcome::Observed, 1, 1)]
+            }
+            _ => vec![step(Op::Probe, Outcome::Refused, 0, 0)],
+        };
+        if scenario == Scenario::OracleAccepts {
+            for step in &mut steps {
+                step.expected.verdict.request_sha256 = Some(tuple().compiled_recipe_sha256);
+            }
+        }
+        let phase = if matches!(
+            scenario.member(),
+            EvidenceMemberKind::Live
+                | EvidenceMemberKind::Recovery
+                | EvidenceMemberKind::InstalledConsumer
+        ) {
+            RunPhase::Live
+        } else {
+            RunPhase::Offline
+        };
+        let capabilities = match scenario {
+            Scenario::ResponseLoss | Scenario::DelayedVisibility => vec![CapabilityKind::Recovery],
+            Scenario::DeclaredCapability => CapabilityKind::ALL
+                .into_iter()
+                .filter(|capability| {
+                    scenario.may_show(*capability)
+                        && !auths_recipe_qualification_issuance::testkit::ABSENT
+                            .contains(capability)
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        cases.push(RunCase {
+            id: auths_recipe_qualification::BoundedText::parse(format!("case-{scenario:?}"))
+                .expect("id"),
+            scenario,
+            capabilities,
+            phase,
+            steps,
+        });
+    }
+    RunCorpus {
+        schema: CORPUS_SCHEMA.to_owned(),
+        cases,
+    }
+}
+
+/// A subprocess double at the provider-specific harness port. It tests the
+/// real runner/CLI/script boundary; its observations claim no actual provider
+/// effect. Live families must replace this with measured candidate facts.
+#[cfg(unix)]
+pub fn stage_fixture(work: &std::path::Path) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::create_dir_all(work).expect("work");
+    let corpus = executable_corpus();
+    std::fs::write(
+        work.join("corpus.json"),
+        serde_json::to_vec(&corpus).expect("corpus"),
+    )
+    .expect("corpus");
+    std::fs::write(work.join("tuple.json"), tuple_json().to_string()).expect("tuple");
+    std::fs::write(
+        work.join("tuple-digest"),
+        tuple().digest().expect("digest").to_hex(),
+    )
+    .expect("digest");
+    let harness = work.join("harness");
+    std::fs::write(&harness, r#"#!/usr/bin/env python3
+import json, os, pathlib, sys, time
+_, verb, case_id, index, operation, work, output = sys.argv
+assert verb == 'step'
+work = pathlib.Path(work)
+case = next(c for c in json.loads((work / 'corpus.json').read_text())['cases'] if c['id'] == case_id)
+step = case['steps'][int(index)]
+assert step['operation'] == operation
+with (work / 'executed').open('a') as log:
+    log.write(case_id + ':' + index + ':' + operation + '\n')
+mode = (work / 'fault').read_text() if (work / 'fault').exists() else ''
+if mode == 'timeout': time.sleep(3)
+if mode == 'missing': sys.exit(0)
+if mode == 'failed':
+    print('synthetic-canary-must-not-leave-child', file=sys.stderr)
+    sys.exit(1)
+actual = {'tuple_sha256': (work / 'tuple-digest').read_text(), 'observed': step['expected'],
+          'unauthorized_provider_entries': 0, 'secret_exposed': False,
+          'repository_imported': False, 'provider_token_received': False}
+if operation == 'installed-consumer':
+    assert pathlib.Path.cwd() == work
+    actual['provider_token_received'] = 'AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL' in os.environ
+    actual['repository_imported'] = 'PYTHONPATH' in os.environ
+if mode == 'unauthorized': actual['unauthorized_provider_entries'] = 1
+if mode == 'malformed': pathlib.Path(output).write_text('{')
+elif mode == 'oversized': pathlib.Path(output).write_text(' ' * 16385)
+else: pathlib.Path(output).write_text(json.dumps(actual))
+"#).expect("harness");
+    std::fs::set_permissions(&harness, std::fs::Permissions::from_mode(0o700)).expect("executable");
+    harness
+}

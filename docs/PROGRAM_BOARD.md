@@ -332,3 +332,13 @@ a table of every PR opened with its CI state.
 | 2026-10-05 | AP-SPEC-066 Epic 3 trust root and signer | The qualification trust root and the release signer's key must be created by the owner: the root offline in a ceremony, the signer's key into the signing environment. The agent handles no key. | Built the ceremony tool (`auths-qualification root-init`, `certify`, `revoke`, `signer-init`), the signing job, and the protected environment without a secret. The gateway pins no root, so production qualifies nothing until a release pins one (0066 §20.4). |
 | 2026-10-05 | AP-SPEC-066 Epic 3 clock adapter | The kernel's time-synchronization flag is the signal that covers every Linux host and container, and reading it needs a system call the workspace's ban on `unsafe` code does not permit. | The production adapter trusts the marker one synchronization service writes; a host synchronized otherwise must provide it. Recorded as 0066 §20.3 reading 12. |
 | 2026-10-05 | AP-SPEC-066 Epic 3 remembered revocations | Whether what a gateway remembers as revoked lives per host or in the shared store. | Kept per host in the state directory; a host with an older list is bounded by that list's next update (0066 §20.3 reading 15). |
+
+## AP-SPEC-066 Epic 3 completion — 2026-10-06
+
+Owner direction: finish Epic 3 on `recipe-qualification-verifier` / PR #204;
+the absent hostile, recovery, live and installed-consumer runners are Epic 3
+implementation work, not deferred wholesale to Epic 5. The branch now has an
+executable corpus runner and measured-observation contract, workflow wiring,
+CLI/script-pipeline tests, and direct credential-lease counters. Hosted
+verification is pending. Production family corpora, the owner's root ceremony,
+live qualifications, operator trial and launch acceptance remain unclaimed.

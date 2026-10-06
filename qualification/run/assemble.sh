@@ -18,6 +18,9 @@ root="$(git rev-parse --show-toplevel)"
 directory="${root}/qualification/families/${family}"
 tool="${AUTHS_QUALIFICATION:-${root}/target/release/auths-qualification}"
 
+# A failed rerun must not leave an earlier proposal available to a signer.
+rm -rf "${work}/proposal" "${work}/evidence"
+
 for required in tuple.json packages.json facts.json live-effects.json resources.json cases/redaction.scan.json; do
   [ -s "${work}/${required}" ] || { echo "qualification.evidence-incomplete ${required}" >&2; exit 1; }
 done
@@ -80,7 +83,6 @@ jq -n \
     excluded_claims: ($record[0].excluded_claims | sort)}' \
   > "${work}/draft.json"
 
-rm -rf "${work}/proposal"
 "${tool}" assemble --draft "${work}/draft.json" --evidence-dir "${work}/evidence" \
   --out-dir "${work}/proposal"
 cp "${work}/tuple.json" "${work}/proposal/tuple.json"
