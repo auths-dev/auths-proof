@@ -124,7 +124,7 @@ impl SynchronizedHostClock {
 
 impl sealed::Sealed for SynchronizedHostClock {}
 
-const MAX_SYNCHRONIZATION_AGE: Duration = Duration::from_secs(15 * 60);
+const MAX_SYNCHRONIZATION_AGE: Duration = Duration::from_mins(15);
 
 fn synchronization_marker_trust(path: &std::path::Path, now: SystemTime) -> ClockTrustState {
     let Ok(marker) = std::fs::symlink_metadata(path) else {

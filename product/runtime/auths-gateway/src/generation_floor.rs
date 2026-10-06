@@ -44,7 +44,7 @@ impl GenerationFloor {
     /// Returns the restore-rollback code if the floor cannot be persisted.
     pub fn initialize(&self, record: &ConnectionRecord) -> Result<(), &'static str> {
         self.persist(record, true)
-            .map_err(|_| "gateway.connection.restore-rollback")
+            .map_err(|()| "gateway.connection.restore-rollback")
     }
 
     /// Accepts an equal or newer exact record, durably recording a newer one
@@ -55,7 +55,7 @@ impl GenerationFloor {
     /// Returns `gateway.connection.restore-rollback`; no secret is leased.
     pub fn accept(&self, record: &ConnectionRecord) -> Result<(), &'static str> {
         self.persist(record, false)
-            .map_err(|_| "gateway.connection.restore-rollback")
+            .map_err(|()| "gateway.connection.restore-rollback")
     }
 
     #[cfg(unix)]

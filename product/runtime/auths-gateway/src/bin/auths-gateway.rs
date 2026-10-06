@@ -2286,17 +2286,7 @@ mod unix {
                 }
             },
         );
-        let sweeper = async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_secs(
-                auths_gateway::SLOT_SWEEP_INTERVAL_SECONDS,
-            ));
-            loop {
-                tick.tick().await;
-                if let Err(code) = sweep_engine.sweep_expired_slots().await {
-                    eprintln!("{code}");
-                }
-            }
-        };
+        let sweeper = sweep_periodically(sweep_engine.as_ref());
         let mut terminate =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                 .map_err(|_| "gateway.serve.signal-unavailable")?;
@@ -2310,6 +2300,29 @@ mod unix {
         // The listeners have been dropped: no new session can be admitted.
         // Waiting for permits includes pre-entry and admin sessions, not
         // just transports already counted by the engine.
+        let drained = drain_sessions(&app_permits, &admin_permits, app_capacity).await;
+        let _ = fs::remove_file(&app_socket);
+        let _ = fs::remove_file(admin_path);
+        drained
+    }
+
+    async fn sweep_periodically(engine: &GatewayEngine) -> ! {
+        let mut tick = tokio::time::interval(Duration::from_secs(
+            auths_gateway::SLOT_SWEEP_INTERVAL_SECONDS,
+        ));
+        loop {
+            tick.tick().await;
+            if let Err(code) = engine.sweep_expired_slots().await {
+                eprintln!("{code}");
+            }
+        }
+    }
+
+    async fn drain_sessions(
+        app_permits: &Semaphore,
+        admin_permits: &Semaphore,
+        app_capacity: usize,
+    ) -> Result<(), Failure> {
         let drained = tokio::time::timeout(Duration::from_secs(25), async {
             let _app = app_permits
                 .acquire_many(u32::try_from(app_capacity).map_err(|_| "gateway.serve.capacity")?)
@@ -2322,8 +2335,6 @@ mod unix {
             Ok::<_, &'static str>(())
         })
         .await;
-        let _ = fs::remove_file(&app_socket);
-        let _ = fs::remove_file(admin_path);
         match drained {
             Ok(result) => Ok(result?),
             Err(_) => Err("gateway.serve.shutdown-incomplete".into()),
@@ -2755,10 +2766,10 @@ mod unix {
             .map_err(|_| "gateway.admin.load-failed")?
     }
 
-    fn print_admin_response(response: AdminResponse) -> Result<(), Failure> {
+    fn print_admin_response(response: &AdminResponse) -> Result<(), Failure> {
         println!(
             "{}",
-            serde_json::to_string(&response).map_err(|_| "gateway.output")?
+            serde_json::to_string(response).map_err(|_| "gateway.output")?
         );
         if response.ok {
             Ok(())
@@ -2807,7 +2818,7 @@ mod unix {
             } else {
                 AdminResponse::of(engine.rotate_connection(bytes).await)
             };
-            return print_admin_response(response);
+            return print_admin_response(&response);
         }
         admin_command(
             state_dir,
@@ -3087,10 +3098,26 @@ mod unix {
         }
         // Runtime checks run as the actual gateway owner, so root does not
         // accidentally bypass file ownership checks or mutate its custody.
+        let mut checked = runtime_doctor_as_owner(state_dir, state.uid(), state.gid()).await?;
+        checked.required.operator_plane_isolation = auths_gateway::PreconditionState::Ready;
+        let readiness = auths_gateway::ProductionReadiness::new(checked.required, checked.observer);
+        println!(
+            "{}",
+            readiness.report(checked.qualification_code.map(|code| code.0))
+        );
+        if !readiness.is_ready() {
+            return Err("gateway.doctor.not-ready");
+        }
+        Ok(())
+    }
+
+    async fn runtime_doctor_as_owner(
+        state_dir: &Path,
+        uid: u32,
+        gid: u32,
+    ) -> Result<DoctorRuntime, &'static str> {
         let binary = std::env::current_exe().map_err(|_| "gateway.doctor.binary-unavailable")?;
         let directory = state_dir.to_path_buf();
-        let uid = state.uid();
-        let gid = state.gid();
         let output = tokio::task::spawn_blocking(move || {
             std::process::Command::new(binary)
                 .arg("readiness-probe")
@@ -3106,18 +3133,7 @@ mod unix {
         if !output.status.success() || output.stdout.len() > 64 * 1024 {
             return Err("gateway.doctor.runtime-check-unavailable");
         }
-        let mut checked: DoctorRuntime = serde_json::from_slice(&output.stdout)
-            .map_err(|_| "gateway.doctor.invalid-runtime-report")?;
-        checked.required.operator_plane_isolation = auths_gateway::PreconditionState::Ready;
-        let readiness = auths_gateway::ProductionReadiness::new(checked.required, checked.observer);
-        println!(
-            "{}",
-            readiness.report(checked.qualification_code.map(|code| code.0))
-        );
-        if !readiness.is_ready() {
-            return Err("gateway.doctor.not-ready");
-        }
-        Ok(())
+        serde_json::from_slice(&output.stdout).map_err(|_| "gateway.doctor.invalid-runtime-report")
     }
 
     fn probe(state_dir: &Path, admin_socket: &Path, app_socket: &Path) -> Result<(), &'static str> {
@@ -3442,7 +3458,7 @@ mod unix {
                     hex::decode_to_slice(&commitment, &mut fixed)
                         .map_err(|_| "gateway.admin.invalid-frame")?;
                     let response = AdminResponse::of(engine.commit_rotation(fixed).await);
-                    return print_admin_response(response);
+                    return print_admin_response(&response);
                 }
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 admin_command(
