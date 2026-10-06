@@ -246,6 +246,7 @@ impl RunCase {
             || self.steps.is_empty()
             || self.steps.len() > MAX_CASE_STEPS
             || (live_only && self.phase != RunPhase::Live)
+            || (has(Op::Oracle) && self.phase != RunPhase::Offline)
             || self
                 .capabilities
                 .iter()
@@ -293,6 +294,13 @@ impl RunCase {
                 || actual.secret_exposed
                 || actual.repository_imported
                 || actual.provider_token_received
+                || (actual.observed.confirmed_by_read_back > 0
+                    && (actual.observed.verdict.outcome != RunOutcome::Observed
+                        || actual.observed.verdict.evidence_sha256.is_none()))
+                || (step.operation == Operation::Oracle
+                    && (actual.observed.credential_leases != 0
+                        || actual.observed.provider_entries != 0
+                        || actual.observed.confirmed_by_read_back != 0))
             {
                 return Err(IssuanceError::CaseFailed);
             }

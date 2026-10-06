@@ -129,7 +129,7 @@ pub fn executable_corpus() -> auths_recipe_qualification_issuance::execution::Ru
                 outcome,
                 code: auths_recipe_qualification::BoundedText::parse("test.verdict").expect("code"),
                 request_sha256: None,
-                evidence_sha256: None,
+                evidence_sha256: (confirmed > 0).then_some(tuple().profile_lock_sha256),
             },
             credential_leases: u32::from(entries > 0),
             provider_entries: entries,
@@ -257,7 +257,7 @@ pub fn stage_fixture(work: &std::path::Path) -> std::path::PathBuf {
     )
     .expect("digest");
     let harness = work.join("harness");
-    std::fs::write(&harness, r#"#!/usr/bin/env python3
+    std::fs::write(&harness, r"#!/usr/bin/env python3
 import json, os, pathlib, sys, time
 _, verb, case_id, index, operation, work, output = sys.argv
 assert verb == 'step'
@@ -284,7 +284,7 @@ if mode == 'unauthorized': actual['unauthorized_provider_entries'] = 1
 if mode == 'malformed': pathlib.Path(output).write_text('{')
 elif mode == 'oversized': pathlib.Path(output).write_text(' ' * 16385)
 else: pathlib.Path(output).write_text(json.dumps(actual))
-"#).expect("harness");
+").expect("harness");
     std::fs::set_permissions(&harness, std::fs::Permissions::from_mode(0o700)).expect("executable");
     harness
 }

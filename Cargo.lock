@@ -608,6 +608,7 @@ dependencies = [
 name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-approval-quorum",
  "auths-author",
  "auths-bounded-policy",

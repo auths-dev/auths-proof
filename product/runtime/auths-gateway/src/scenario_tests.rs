@@ -1374,6 +1374,174 @@ async fn attempt_scenarios_v3_drive_the_counting_provider() {
     attempt_scenarios(Backend::File).await;
 }
 
+/// Stage assertions consume actual submission-driver, store and provider
+/// witnesses, rather than observations copied from a corpus's expectations.
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the measured stage sequence reads top to bottom"
+)]
+async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
+    use auths_recipe_qualification::{
+        BoundedText, CapabilityKind, QualificationTuple, Scenario, Sha256Digest,
+    };
+    use auths_recipe_qualification_issuance::execution::{
+        ExpectedObservation, Operation, RunCase, RunObservation, RunOutcome, RunPhase, RunStep,
+        RunVerdict,
+    };
+    for scenario in [
+        Scenario::ProofReplay,
+        Scenario::FreshChallengeReplay,
+        Scenario::ResponseLoss,
+    ] {
+        let mut record = Record::open("airtable", Backend::File);
+        let recovering = scenario == Scenario::ResponseLoss;
+        let delivery = if recovering {
+            Delivery::TimeoutAfterApplying
+        } else {
+            Delivery::Respond
+        };
+        let provider = RecordProvider::new(delivery, Reading::Faithful);
+        let original = record.airtable(ORIGINAL, "Approved");
+        let tuple: QualificationTuple = serde_json::from_value(json!({
+            "recipe_family": "reference-record-update-v1",
+            "compiled_recipe_sha256": hex::encode(record.recipe.digest()),
+            "profile_lock_sha256": "22".repeat(32), "provider_contract_id": "33".repeat(32),
+            "gateway_semantic_closure_sha256": crate::GATEWAY_SEMANTIC_CLOSURE_SHA256,
+            "target": {"os": "linux", "arch": "x86_64", "gateway_package": "auths-gateway",
+                "gateway_version": "1.0.0-rc.1", "gateway_build_sha256": "55".repeat(32),
+                "store_kind": "shared-file-v1", "store_schema": "auths.gateway-attempt/3",
+                "credential_store_kind": "local-file-v1"}
+        }))
+        .expect("tuple");
+        let expected_read_back = serde_json::to_vec(&json!({"id": RECORD,
+            "fields": {"DemoStatus": "Approved", "auths_echo": original_token()}}))
+        .expect("read-back");
+        let evidence = Sha256Digest::from_bytes(Sha256::digest(expected_read_back).into());
+        let expected = |outcome, code, leases, entries, confirmed| ExpectedObservation {
+            verdict: RunVerdict {
+                outcome,
+                code: BoundedText::parse(code).expect("code"),
+                request_sha256: None,
+                evidence_sha256: (confirmed > 0).then_some(evidence),
+            },
+            credential_leases: leases,
+            provider_entries: entries,
+            confirmed_by_read_back: confirmed,
+        };
+        let steps = if recovering {
+            vec![
+                RunStep {
+                    operation: Operation::DropResponse,
+                    expected: expected(RunOutcome::Unknown, "unknown", 1, 1, 0),
+                },
+                RunStep {
+                    operation: Operation::ReadBack,
+                    expected: expected(RunOutcome::Observed, "observed-by-provider", 1, 0, 1),
+                },
+            ]
+        } else {
+            vec![
+                RunStep {
+                    operation: Operation::Submit,
+                    expected: expected(RunOutcome::Observed, "observed-by-provider", 2, 1, 1),
+                },
+                RunStep {
+                    operation: Operation::Replay,
+                    expected: expected(RunOutcome::Refused, "gateway.attempt.replay", 0, 0, 0),
+                },
+            ]
+        };
+        let mut observations = Vec::new();
+        for index in 0..2 {
+            if recovering && index == 1 {
+                record.store.restart();
+            }
+            let command = if index == 0 || scenario == Scenario::ProofReplay {
+                original.clone()
+            } else {
+                record.airtable(FRESH, "Approved")
+            };
+            let io = TestIo::new(&provider, command);
+            let writes_before = provider.writes();
+            let result = run(
+                record.store.attempts(),
+                &record.recipe,
+                &record.observer,
+                &io,
+            )
+            .await;
+            let (outcome, code, evidence_sha256, confirmed) = match result {
+                GatewaySubmitResult::ObservedByProvider { evidence, .. } => (
+                    RunOutcome::Observed,
+                    "observed-by-provider".to_owned(),
+                    Some(Sha256Digest::try_from(evidence.evidence_digest).expect("evidence")),
+                    1,
+                ),
+                GatewaySubmitResult::Unknown => {
+                    (RunOutcome::Unknown, "unknown".to_owned(), None, 0)
+                }
+                GatewaySubmitResult::NotEntered { code } => (RunOutcome::Refused, code, None, 0),
+                other => panic!("unexpected result: {other:?}"),
+            };
+            observations.push(RunObservation {
+                tuple_sha256: tuple.digest().expect("tuple digest"),
+                observed: ExpectedObservation {
+                    verdict: RunVerdict {
+                        outcome,
+                        code: BoundedText::parse(code).expect("code"),
+                        request_sha256: None,
+                        evidence_sha256,
+                    },
+                    credential_leases: u32::try_from(io.leases()).expect("leases"),
+                    provider_entries: u32::try_from(provider.writes() - writes_before)
+                        .expect("entries"),
+                    confirmed_by_read_back: confirmed,
+                },
+                unauthorized_provider_entries: 0,
+                secret_exposed: false,
+                repository_imported: false,
+                provider_token_received: false,
+            });
+        }
+        let case = RunCase {
+            id: BoundedText::parse("measured-gateway-case").expect("id"),
+            scenario,
+            phase: if recovering {
+                RunPhase::Live
+            } else {
+                RunPhase::Offline
+            },
+            capabilities: if recovering {
+                vec![CapabilityKind::Recovery]
+            } else {
+                Vec::new()
+            },
+            steps,
+        };
+        assert_eq!(
+            observations
+                .iter()
+                .map(|actual| &actual.observed)
+                .collect::<Vec<_>>(),
+            case.steps
+                .iter()
+                .map(|step| &step.expected)
+                .collect::<Vec<_>>(),
+            "{scenario:?}: independently measured counters and verdicts"
+        );
+        let (_, effects) = case
+            .execute(&tuple, |index, _| Ok(observations[index].clone()))
+            .expect("measured stage");
+        assert_eq!((effects.entered, effects.confirmed_by_read_back), (1, 1));
+        observations[1].observed.provider_entries += 1;
+        assert!(
+            case.execute(&tuple, |index, _| Ok(observations[index].clone()))
+                .is_err()
+        );
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs the TLS PostgreSQL fixture"]
 async fn postgres_attempt_scenarios_v3_drive_the_counting_provider() {

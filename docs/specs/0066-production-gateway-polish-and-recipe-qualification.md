@@ -1590,6 +1590,9 @@ capability, invalid ordering, subprocess failures, timeout and consumer
 environment isolation. `tests/cli.rs` drives stages through evidence assembly,
 signing and verification; `tests/script_pipeline.rs` drives the actual
 redaction and assembly scripts and refuses a missing recovery execution.
-Gateway qualification tests count calls to `ConnectionCredentialStore`.
+Gateway qualification tests count calls to `ConnectionCredentialStore`;
+`qualification_stages_use_gateway_replay_and_recovery_witnesses` feeds actual
+submission-driver, persistent-store, credential-lease and counting-provider
+observations into replay and lost-response recovery stages.
 Hosted verification of these additions is pending; no live qualification or
 owner trust ceremony is claimed.

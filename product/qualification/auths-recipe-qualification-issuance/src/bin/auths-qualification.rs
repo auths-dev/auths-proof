@@ -627,15 +627,16 @@ fn stage(command: Command) -> Result<(), Failure> {
                 .filter(|line| !line.is_empty())
                 .collect();
             let mut named = Vec::with_capacity(sources.len());
-            for source in &sources {
+            for (index, source) in sources.iter().enumerate() {
                 let (kind, path) = source
                     .split_once('=')
                     .and_then(|(kind, path)| Some((stages::SourceKind::parse(kind)?, path)))
                     .ok_or_else(|| Failure("qualification.invalid-source".to_owned()))?;
                 let path = Path::new(path);
-                let name = path
-                    .file_name()
-                    .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+                // File names can contain provider data and may collide
+                // across log/trace/metric directories. Publish only a
+                // bounded ordinal and the closed source kind.
+                let name = format!("{kind:?}-source-{index:04}");
                 named.push((kind, name, read(path)?));
             }
             let scanned: Vec<stages::ScanSource<'_>> = named

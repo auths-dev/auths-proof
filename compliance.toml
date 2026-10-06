@@ -1736,6 +1736,7 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe/tests.rs#response_and_observation_are_distinct_durable_stages",
   "product/runtime/auths-gateway/src/recipe/tests.rs#read_back_links_only_an_exact_token_with_the_verified_value",
   "product/runtime/auths-gateway/src/scenario_tests.rs#record_scenarios_drive_the_counting_provider",
+  "product/runtime/auths-gateway/src/scenario_tests.rs#qualification_stages_use_gateway_replay_and_recovery_witnesses",
   "product/runtime/auths-gateway/src/scenario_tests.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
   "product/runtime/auths-gateway/src/scenario_tests.rs#a_lost_claim_resends_the_same_idempotency_key",
   "product/runtime/auths-gateway/src/scenario_tests.rs#file_store_passes_attempt_store_conformance",
