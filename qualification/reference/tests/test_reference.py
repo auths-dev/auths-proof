@@ -16,6 +16,8 @@ import airtable_record as airtable
 import stripe_platform as stripe
 from common import Refusal, echo, idempotency
 from common import canonical, sha256
+import measure
+import fresh_evidence as fresh
 import expand as expansion
 from expand import decode, unique_object
 
@@ -46,6 +48,56 @@ class References(unittest.TestCase):
         return {'operator_namespace': 'airtable-demo', 'operation_id': 'qualified-1',
                 'recipe_digest': DIGEST, 'record_id': 'recTEST0000000001',
                 'replacement': 'Approved'}
+
+    def test_native_measurements_refuse_restart_wrap_and_duplicate_hosts(self):
+        before = {'schema': 'auths.gateway-execution-witness/1', 'scope': '1' * 32,
+                  'credential_lease_calls': 0, 'write_transport_entries': 0,
+                  'read_transport_entries': 0}
+        after = dict(before, credential_lease_calls=1, write_transport_entries=1,
+                     read_transport_entries=2)
+        self.assertEqual(measure.delta(before, after)['write_transport_entries'], 1)
+        for bad in [dict(after, scope='2' * 32),
+                    dict(after, credential_lease_calls=(1 << 64) - 1),
+                    dict(after, credential_lease_calls=True), dict(after, reset=False)]:
+            with self.assertRaises(Refusal): measure.delta(before, bad)
+        with self.assertRaises(Refusal): measure.delta(after, before)
+        with self.assertRaises(Refusal): measure.aggregate([(before, after), (before, after)])
+        other = dict(before, scope='2' * 32)
+        self.assertEqual(measure.aggregate([(before, after), (other, other)])['credential_lease_calls'], 1)
+
+    def test_fresh_stripe_evidence_checks_state_echo_and_raw_bytes(self):
+        resources, arguments = self.stripe_resources(), self.stripe_arguments()
+        value = {'id': 're_TEST123', 'object': 'refund', 'livemode': False,
+                 'payment_intent': arguments['payment_intent'], 'amount': arguments['amount'],
+                 'currency': 'usd', 'status': 'succeeded',
+                 'metadata': {'auths_echo': echo(stripe.SERVICE, arguments['operation_id'], COMMITMENT)}}
+        response = canonical(value)
+        witness = fresh.witness(stripe.FAMILY, arguments, resources, COMMITMENT, DIGEST, response)
+        self.assertEqual(witness['response_sha256'], sha256(response))
+        self.assertEqual(witness['subject_sha256'], fresh.subject(stripe.FAMILY, arguments, resources, COMMITMENT, DIGEST))
+        for field, bad in [('amount', True), ('amount', 999), ('livemode', True),
+                           ('payment_intent', 'pi_OTHER'), ('status', 'pending'),
+                           ('metadata', {'auths_echo': 'forged'})]:
+            changed = dict(value, **{field: bad})
+            with self.assertRaises(Refusal):
+                fresh.witness(stripe.FAMILY, arguments, resources, COMMITMENT, DIGEST, canonical(changed))
+        # Equal semantic JSON with different bytes still has a different witness.
+        spaced = json.dumps(value).encode()
+        self.assertNotEqual(fresh.witness(stripe.FAMILY, arguments, resources, COMMITMENT, DIGEST, spaced)['response_sha256'], witness['response_sha256'])
+
+    def test_fresh_airtable_evidence_requires_exact_known_record_and_value(self):
+        resources, arguments = self.airtable_resources(), self.airtable_arguments()
+        value = {'id': arguments['record_id'], 'fields': {
+            'DemoStatus': arguments['replacement'],
+            'auths_echo': echo('airtable-demo', arguments['operation_id'], COMMITMENT)}}
+        witness = fresh.witness(airtable.FAMILY, arguments, resources, COMMITMENT, DIGEST, canonical(value))
+        self.assertEqual(witness['response_sha256'], sha256(canonical(value)))
+        for changed in [dict(value, id='recOTHER000000001'), dict(value, fields={}),
+                        dict(value, fields=dict(value['fields'], DemoStatus='Pending'))]:
+            with self.assertRaises(Refusal):
+                fresh.witness(airtable.FAMILY, arguments, resources, COMMITMENT, DIGEST, canonical(changed))
+        for raw in [b'{"id":"one","id":"two"}', b'{"id":NaN}', b' ' * 65537]:
+            with self.assertRaises(Refusal): fresh.decode(raw)
 
     def test_stripe_boundary_and_exact_form_have_no_connect_header(self):
         resources = stripe.resources(self.stripe_resources(), RUN)

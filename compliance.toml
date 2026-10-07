@@ -1228,6 +1228,8 @@ proof-author-or-assembler = [
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#every_stage_executes_its_operations_and_a_missing_runner_refuses",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#production_readiness_requires_a_read_only_live_probe_on_a_production_target",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#commissioning_client_refusal_cannot_replace_an_ordinary_installed_effect",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#fresh_evidence_is_closed_to_the_reviewed_subject_and_exact_candidate_digest",
+  "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#a_dynamic_doctor_witness_must_match_the_actual_production_tuple",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#replay_can_complete_an_unresolved_read_back_but_never_write_or_reacquire_after_observation",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#observed_faults_and_changed_candidates_produce_no_passing_case",
   "product/qualification/auths-recipe-qualification-issuance/tests/execution.rs#differential_compares_the_actual_oracle_and_gateway_commitments",

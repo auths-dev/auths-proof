@@ -124,6 +124,8 @@ pub fn executable_corpus() -> auths_recipe_qualification_issuance::execution::Ru
     };
     let step = |operation, outcome, entries, confirmed| RunStep {
         operation,
+        evidence_comparison:
+            auths_recipe_qualification_issuance::execution::EvidenceComparison::Static {},
         expected: ExpectedObservation {
             verdict: RunVerdict {
                 outcome,
@@ -295,7 +297,7 @@ if mode == 'failed':
     print('synthetic-canary-must-not-leave-child', file=sys.stderr)
     sys.exit(1)
 actual = {'tuple_sha256': (work / 'tuple-digest').read_text(), 'observed': step['expected'],
-          'unauthorized_provider_entries': 0, 'secret_exposed': False,
+          'fresh_evidence': None, 'unauthorized_provider_entries': 0, 'secret_exposed': False,
           'repository_imported': False, 'provider_token_received': False}
 if operation == 'installed-consumer':
     assert pathlib.Path.cwd() == work

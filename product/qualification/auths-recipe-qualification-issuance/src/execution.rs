@@ -17,7 +17,7 @@ pub const MAX_RUN_CASES: usize = 256;
 /// Largest sequence of operations within one case.
 pub const MAX_CASE_STEPS: usize = 32;
 /// Schema of the reviewed executable corpus.
-pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/2";
+pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/3";
 
 /// Where an operation may execute. Live cases never execute on a pull request.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -106,6 +106,44 @@ pub struct ExpectedObservation {
     pub confirmed_by_read_back: u32,
 }
 
+/// Source-owned evidence comparison. Every non-evidence fact stays exact.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum EvidenceComparison {
+    /// Compare the complete verdict, including a precomputed evidence digest.
+    Static {},
+    /// Compare an observed candidate response digest with a separately obtained
+    /// fresh provider response over this exact reviewed resource/action subject.
+    IndependentReadBack {
+        /// Domain-bound resource/action/expected-state commitment from the oracle.
+        subject_sha256: Sha256Digest,
+    },
+    /// Compare the digest of a checked production doctor report for this tuple.
+    ProductionDoctor {},
+}
+
+/// Fresh evidence retained by the release harness separately from the candidate
+/// verdict. The harness must execute the reviewed oracle/read independently;
+/// copying the candidate's digest is not an independent witness.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum FreshEvidenceWitness {
+    /// Exact bytes from a new bounded read of the reviewed provider resource.
+    IndependentReadBack {
+        /// The same source-owned subject the corpus commits to.
+        subject_sha256: Sha256Digest,
+        /// SHA-256 of the independently read response bytes.
+        response_sha256: Sha256Digest,
+    },
+    /// A source-reviewed production doctor check, including tuple equality.
+    ProductionDoctor {
+        /// The actual candidate tuple checked in the report.
+        tuple_sha256: Sha256Digest,
+        /// SHA-256 of the independently validated raw doctor report.
+        report_sha256: Sha256Digest,
+    },
+}
+
 /// One actual observation. There is deliberately no `passed` member.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -114,6 +152,8 @@ pub struct RunObservation {
     pub tuple_sha256: Sha256Digest,
     /// Facts compared with the corpus, including independently measured counters.
     pub observed: ExpectedObservation,
+    /// An independently obtained fresh witness, only for the declared comparison.
+    pub fresh_evidence: Option<FreshEvidenceWitness>,
     /// Provider entries not authorized by the exact action.
     pub unauthorized_provider_entries: u32,
     /// Whether the application or exported outputs exposed a secret.
@@ -130,6 +170,8 @@ pub struct RunObservation {
 pub struct RunStep {
     /// Operation executed by the family harness on the candidate.
     pub operation: Operation,
+    /// Explicit evidence source; never an optional wildcard digest.
+    pub evidence_comparison: EvidenceComparison,
     /// Assertions made by the release runner, not the family harness.
     pub expected: ExpectedObservation,
 }
@@ -240,7 +282,9 @@ impl RunCase {
                             && step.expected.verdict.outcome == RunOutcome::Complete
                             && step.expected.verdict.code.as_str() == "production-readiness-passed"
                             && step.expected.verdict.request_sha256.is_none()
-                            && step.expected.verdict.evidence_sha256.is_some()
+                            && (step.expected.verdict.evidence_sha256.is_some()
+                                || step.evidence_comparison
+                                    == EvidenceComparison::ProductionDoctor {})
                             && step.expected.credential_leases == 0
                             && step.expected.provider_entries == 0
                             && step.expected.confirmed_by_read_back == 0
@@ -260,6 +304,7 @@ impl RunCase {
                 | S::ProductionReadiness
         );
         if !harness_scenario(self.scenario)
+            || self.steps.iter().any(|step| !step.valid_comparison(self))
             || !required
             || self.steps.is_empty()
             || self.steps.len() > MAX_CASE_STEPS
@@ -314,7 +359,7 @@ impl RunCase {
         for (index, step) in self.steps.iter().enumerate() {
             let actual = observe(index, step)?;
             if actual.tuple_sha256 != tuple_digest
-                || actual.observed != step.expected
+                || !step.matches(&actual, tuple_digest)
                 || actual.unauthorized_provider_entries != 0
                 || actual.secret_exposed
                 || actual.repository_imported
@@ -482,5 +527,59 @@ impl RunCase {
             }
         }
         Ok(())
+    }
+}
+
+impl RunStep {
+    fn valid_comparison(&self, case: &RunCase) -> bool {
+        use EvidenceComparison as Comparison;
+        match self.evidence_comparison {
+            Comparison::Static {} => true,
+            Comparison::IndependentReadBack { .. } => {
+                case.phase != RunPhase::Offline
+                    && self.expected.verdict.evidence_sha256.is_none()
+                    && self.expected.verdict.outcome == RunOutcome::Observed
+                    && matches!(
+                        self.operation,
+                        Operation::Submit
+                            | Operation::Replay
+                            | Operation::Race
+                            | Operation::ReadBack
+                            | Operation::InstalledConsumer
+                    )
+            }
+            Comparison::ProductionDoctor {} => {
+                case.phase == RunPhase::Live
+                    && case.scenario == Scenario::ProductionReadiness
+                    && self.operation == Operation::Probe
+                    && self.expected.verdict.evidence_sha256.is_none()
+            }
+        }
+    }
+
+    fn matches(&self, actual: &RunObservation, tuple: Sha256Digest) -> bool {
+        use EvidenceComparison as Comparison;
+        use FreshEvidenceWitness as Witness;
+        let expected_evidence = match (&self.evidence_comparison, &actual.fresh_evidence) {
+            (Comparison::Static {}, None) => return actual.observed == self.expected,
+            (
+                Comparison::IndependentReadBack { subject_sha256 },
+                Some(Witness::IndependentReadBack {
+                    subject_sha256: witnessed,
+                    response_sha256,
+                }),
+            ) if subject_sha256 == witnessed => Some(*response_sha256),
+            (
+                Comparison::ProductionDoctor {},
+                Some(Witness::ProductionDoctor {
+                    tuple_sha256,
+                    report_sha256,
+                }),
+            ) if tuple_sha256 == &tuple => Some(*report_sha256),
+            _ => return false,
+        };
+        let mut expected = self.expected.clone();
+        expected.verdict.evidence_sha256 = expected_evidence;
+        actual.observed == expected
     }
 }

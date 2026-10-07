@@ -98,7 +98,7 @@ The harness owns the provider-specific operations and pure oracle. The release
 runner owns sequencing, assertions, counters, and the resulting case reports.
 No family harness writes `passed` reports or `live-effects.json`.
 
-`corpus-manifest.json` is `auths.qualification-corpus/2`, decoded as
+`corpus-manifest.json` is `auths.qualification-corpus/3`, decoded as
 `execution::RunCorpus` by `auths-qualification run-stage`. It contains at most
 256 unique cases. Each case has `id`, `scenario`, `capabilities`, `phase`
 (`offline`, `commissioning` or `live`), and at most 32 ordered `steps`. Each step has a closed
@@ -247,3 +247,25 @@ a write entry is the HTTP client's execution boundary, including ambiguity.
 Neither is a claim that a provider received or performed a mutation. Reads,
 including credential probes, are counted separately. First qualification must
 still independently read back the reviewed disposable resource.
+
+### Fresh evidence comparisons
+
+Every corpus step declares `evidence_comparison`: `static`,
+`independent-read-back` with a reviewed `subject_sha256`, or
+`production-doctor`. Static comparisons require the complete precomputed
+verdict and forbid a fresh witness. Dynamic comparisons require an absent
+precomputed evidence digest; every other expected field remains exact.
+
+An independent read-back is allowed only for an observed protected operation.
+The separate fresh witness must name the exact reviewed resource/action/state
+subject, and its raw response digest must equal the candidate's evidence
+digest. Different bytes fail the run, even if both responses appear successful.
+The reference validates fresh provider state and echo before creating this
+witness; it never accepts the candidate's locator or digest as the oracle.
+A doctor witness is confined to a read-only production-readiness probe in the
+ordinary live phase and must name the actual tuple. Unknown sources, omitted
+witnesses, mismatched subjects/digests and extra fields fail closed.
+
+The runner retains closed actual observations under `scan/trace`, separately
+from the pass reports. They contain no provider body or secret and undergo the
+existing protected redaction scan before export.

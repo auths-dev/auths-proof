@@ -46,3 +46,17 @@ prevent output. Filenames never select code. Private author keys are absent.
 
 The protected family setup, complete corpus and live workflow still need to
 use these references. No family is qualified by landing this code.
+
+`measure.py` validates and subtracts native execution snapshots: matching fresh
+scope, no saturation/decrease, no duplicate host in an aggregate. Restarted
+engines must be measured separately. Budget consumption is never substituted
+for actual custody calls.
+
+`fresh_evidence.py` is the separate response oracle for the reviewed Stripe
+refund and Airtable update. It validates the approved resource, exact intended
+value, test-mode success (Stripe) and the action-derived echo, then hashes the
+raw independently fetched response. It accepts no candidate response digest
+or locator. Its subject binds the full reviewed request, resource ledger,
+action and expected state. The corpus runner compares this fresh witness with
+the candidate's own digest. Synthetic unit responses test refusals and exact
+bytes; they are not qualification evidence.

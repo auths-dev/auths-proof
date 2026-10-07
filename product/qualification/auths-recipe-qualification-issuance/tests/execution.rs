@@ -18,6 +18,7 @@ fn run(
         let mut actual = RunObservation {
             tuple_sha256: tuple().digest().expect("digest"),
             observed: step.expected.clone(),
+            fresh_evidence: None,
             unauthorized_provider_entries: 0,
             secret_exposed: false,
             repository_imported: false,
@@ -179,6 +180,7 @@ fn every_stage_executes_its_operations_and_a_missing_runner_refuses() {
             Ok(RunObservation {
                 tuple_sha256: tuple().digest().expect("digest"),
                 observed: step.expected.clone(),
+                fresh_evidence: None,
                 unauthorized_provider_entries: 0,
                 secret_exposed: false,
                 repository_imported: false,
@@ -327,7 +329,28 @@ fn subprocess_failures_invalidate_reports_and_installed_consumers_get_no_credent
         );
     }
     let executed = fs::read_to_string(work.join("executed")).expect("operations");
-    for case in executable_corpus().cases {
+    for (case_index, case) in executable_corpus().cases.into_iter().enumerate() {
+        let phase = serde_json::to_value(case.phase).expect("phase");
+        let trace: serde_json::Value = serde_json::from_slice(
+            &fs::read(work.join(format!(
+                "scan/trace/{}-{case_index:03}.json",
+                phase.as_str().expect("token"),
+            )))
+            .expect("closed trace"),
+        )
+        .expect("trace JSON");
+        assert_eq!(
+            trace["tuple_sha256"],
+            tuple().digest().expect("tuple").to_hex()
+        );
+        assert_eq!(trace["case"], case.id.as_str());
+        assert_eq!(
+            trace["observations"]
+                .as_array()
+                .expect("observations")
+                .len(),
+            case.steps.len()
+        );
         for (index, step) in case.steps.iter().enumerate() {
             let operation = serde_json::to_value(step.operation).expect("operation");
             assert!(executed.lines().any(|line| line
@@ -366,4 +389,121 @@ fn subprocess_failures_invalidate_reports_and_installed_consumers_get_no_credent
         !work.join("cases/hostile.offline.json").exists(),
         "invalid corpus input also clears stale passing evidence"
     );
+}
+
+#[test]
+fn fresh_evidence_is_closed_to_the_reviewed_subject_and_exact_candidate_digest() {
+    use auths_recipe_qualification_issuance::execution::{
+        EvidenceComparison, FreshEvidenceWitness,
+    };
+    let mut case = executable_corpus()
+        .cases
+        .into_iter()
+        .find(|case| case.scenario == Scenario::InstalledJourney)
+        .expect("live journey");
+    let subject = tuple().compiled_recipe_sha256;
+    let response = tuple().profile_lock_sha256;
+    case.steps[0].evidence_comparison = EvidenceComparison::IndependentReadBack {
+        subject_sha256: subject,
+    };
+    case.steps[0].expected.verdict.evidence_sha256 = None;
+    let set_witness = |actual: &mut RunObservation| {
+        actual.observed.verdict.evidence_sha256 = Some(response);
+        actual.fresh_evidence = Some(FreshEvidenceWitness::IndependentReadBack {
+            subject_sha256: subject,
+            response_sha256: response,
+        });
+    };
+    assert!(run(&case, |_, actual| set_witness(actual)).is_ok());
+    for index in 0..6 {
+        assert_eq!(
+            run(&case, |_, actual| {
+                set_witness(actual);
+                match index {
+                    0 => actual.fresh_evidence = None,
+                    1 => actual.observed.verdict.evidence_sha256 = None,
+                    2 => actual.observed.verdict.evidence_sha256 = Some(subject),
+                    3 => {
+                        actual.fresh_evidence = Some(FreshEvidenceWitness::IndependentReadBack {
+                            subject_sha256: response,
+                            response_sha256: response,
+                        })
+                    }
+                    4 => {
+                        actual.fresh_evidence = Some(FreshEvidenceWitness::ProductionDoctor {
+                            tuple_sha256: tuple().digest().expect("tuple"),
+                            report_sha256: response,
+                        })
+                    }
+                    _ => actual.observed.provider_entries += 1,
+                }
+            }),
+            Err(IssuanceError::CaseFailed)
+        );
+    }
+    let mut offline = case.clone();
+    offline.phase = auths_recipe_qualification_issuance::execution::RunPhase::Offline;
+    assert!(run(&offline, |_, actual| set_witness(actual)).is_err());
+    let mut static_case = case.clone();
+    static_case.steps[0].evidence_comparison = EvidenceComparison::Static {};
+    assert!(run(&static_case, |_, actual| set_witness(actual)).is_err());
+    case.steps[0].expected.verdict.evidence_sha256 = Some(response);
+    assert!(
+        run(&case, |_, actual| set_witness(actual)).is_err(),
+        "two evidence sources are ambiguous"
+    );
+}
+
+#[test]
+fn a_dynamic_doctor_witness_must_match_the_actual_production_tuple() {
+    use auths_recipe_qualification::{BoundedText, LifecycleStoreKind};
+    use auths_recipe_qualification_issuance::execution::{
+        EvidenceComparison, FreshEvidenceWitness, Operation, RunPhase,
+    };
+    let mut case = executable_corpus()
+        .cases
+        .into_iter()
+        .find(|case| case.scenario == Scenario::ApplicationCannotReadSecret)
+        .expect("probe");
+    case.scenario = Scenario::ProductionReadiness;
+    case.phase = RunPhase::Live;
+    case.steps.truncate(1);
+    case.steps[0].operation = Operation::Probe;
+    case.steps[0].evidence_comparison = EvidenceComparison::ProductionDoctor {};
+    let expected = &mut case.steps[0].expected;
+    expected.verdict.outcome = RunOutcome::Complete;
+    expected.verdict.code = BoundedText::parse("production-readiness-passed").expect("code");
+    expected.verdict.evidence_sha256 = None;
+    let report = tuple().profile_lock_sha256;
+    let set = |actual: &mut RunObservation| {
+        actual.observed.verdict.evidence_sha256 = Some(report);
+        actual.fresh_evidence = Some(FreshEvidenceWitness::ProductionDoctor {
+            tuple_sha256: tuple().digest().expect("tuple"),
+            report_sha256: report,
+        });
+    };
+    assert!(run(&case, |_, actual| set(actual)).is_ok());
+    assert!(
+        run(&case, |_, actual| {
+            set(actual);
+            actual.fresh_evidence = Some(FreshEvidenceWitness::ProductionDoctor {
+                tuple_sha256: report,
+                report_sha256: report,
+            });
+        })
+        .is_err()
+    );
+    let mut development = tuple();
+    development.target.store_kind = LifecycleStoreKind::SharedFileV1;
+    let mut invoked = false;
+    assert!(
+        case.execute(&development, |_, _| {
+            invoked = true;
+            Err(IssuanceError::CaseFailed)
+        })
+        .is_err()
+    );
+    assert!(!invoked);
+    case.phase = RunPhase::Commissioning;
+    assert!(run(&case, |_, actual| set(actual)).is_err());
 }

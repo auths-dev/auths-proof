@@ -1807,7 +1807,7 @@ qualification still remain; these changes issue no qualification or readiness.
 
 The closed release-only corpus now distinguishes offline verification, private
 commissioning and ordinary qualified live execution (schema
-`auths.qualification-corpus/2`). An installed client in commissioning must
+`auths.qualification-corpus/3`). An installed client in commissioning must
 measure a missing-qualification refusal with zero lease and entry; the same
 scenario in ordinary live execution must measure a fresh confirmed effect.
 Commissioning cases require the production tuple and cannot satisfy production
