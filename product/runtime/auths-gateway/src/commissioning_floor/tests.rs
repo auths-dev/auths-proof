@@ -5,7 +5,7 @@ use std::sync::{Arc, Barrier};
 
 fn fixture() -> VerifiedCommissioningPermit {
     let document: serde_json::Value = serde_json::from_slice(include_bytes!(
-        "../../../../../bindings/fixtures/qualification/commissioning-v1.json"
+        "../../../../../bindings/fixtures/qualification/commissioning-v2.json"
     ))
     .expect("public synthetic fixture");
     let text = |name: &str| document[name].as_str().expect("artifact").as_bytes();
@@ -26,7 +26,7 @@ fn request(binding: &CommissioningBinding) -> CommissioningRequest<'_> {
         tuple: &binding.tuple,
         protected_run: &binding.protected_run,
         principal_sha256: binding.principal_sha256,
-        trusted_context_sha256: binding.trusted_context_sha256,
+        trusted_context_sha256: binding.trusted_contexts_sha256[0],
         resources_sha256: binding.resources_sha256,
         canonical_action_sha256: binding.allowed_actions[0],
     }

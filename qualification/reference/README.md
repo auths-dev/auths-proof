@@ -50,6 +50,15 @@ prevent output. Filenames never select code. Private author keys are absent.
 The protected family setup, complete corpus and live workflow still need to
 use these references. No family is qualified by landing this code.
 
+The native commissioning permit is now schema 2. Its closed
+`trusted_contexts_sha256` list contains 1–4 sorted unique exact canonical context
+hashes. Every installation still authenticates its actual context separately;
+all listed contexts share one immutable run/family lease budget. An unlisted
+context, duplicate or reordered list, changed set, or schema 1 permit refuses.
+The current public packet author supplies one context to this list. Fresh-challenge
+authoring and its protected corpus cases still need integration; native support
+for the bounded list is not replay qualification evidence.
+
 `measure.py` validates and subtracts native execution snapshots: matching fresh
 scope, no saturation/decrease, no duplicate host in an aggregate. Restarted
 engines must be measured separately. Budget consumption is never substituted

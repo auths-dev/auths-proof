@@ -23,7 +23,7 @@ struct Fixture {
 impl Fixture {
     fn load() -> Self {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../bindings/fixtures/qualification/commissioning-v1.json");
+            .join("../../../bindings/fixtures/qualification/commissioning-v2.json");
         let document: serde_json::Value =
             serde_json::from_slice(&std::fs::read(path).expect("fixture")).expect("JSON");
         let text = |name: &str| document[name].as_str().expect("artifact").as_bytes();
@@ -67,7 +67,7 @@ impl Fixture {
             tuple: &binding.tuple,
             protected_run: &binding.protected_run,
             principal_sha256: binding.principal_sha256,
-            trusted_context_sha256: binding.trusted_context_sha256,
+            trusted_context_sha256: binding.trusted_contexts_sha256[0],
             resources_sha256: binding.resources_sha256,
             canonical_action_sha256: binding.allowed_actions[0],
         }
@@ -155,7 +155,7 @@ fn final_unit_race(backend: Backend) {
     }
     let barrier = Arc::new(Barrier::new(2));
     let handles: Vec<_> = (0..2)
-        .map(|_| {
+        .map(|context_index| {
             // Distinct file handles or PostgreSQL pools model independent hosts.
             let budget = CommissioningBudget::new(store.raw(), fixture.binding().clone())
                 .expect("second host");
@@ -170,7 +170,7 @@ fn final_unit_race(backend: Backend) {
                     tuple: &binding.tuple,
                     protected_run: &binding.protected_run,
                     principal_sha256: binding.principal_sha256,
-                    trusted_context_sha256: binding.trusted_context_sha256,
+                    trusted_context_sha256: binding.trusted_contexts_sha256[context_index],
                     resources_sha256: binding.resources_sha256,
                     canonical_action_sha256: binding.allowed_actions[0],
                 };
@@ -255,6 +255,23 @@ fn renewal_binding_and_rollback(backend: Backend) {
     assert_eq!(
         changed.load(),
         Err(CommissioningBudgetRefusal::BindingMismatch)
+    );
+    let mut changed_contexts = fixture.binding().clone();
+    changed_contexts
+        .trusted_contexts_sha256
+        .push(Sha256Digest::from_bytes([0x70; 32]));
+    let changed_contexts = CommissioningBudget::new(store.raw(), changed_contexts)
+        .expect("bounded changed context set");
+    assert_eq!(
+        changed_contexts.initialize(),
+        Err(CommissioningBudgetRefusal::BindingMismatch)
+    );
+    assert_eq!(
+        budget
+            .load()
+            .expect("original budget")
+            .consumed_credential_leases(),
+        2
     );
     // Inject a restored older database record while retaining the host's
     // separately persisted accepted snapshot. Opening never repairs it.

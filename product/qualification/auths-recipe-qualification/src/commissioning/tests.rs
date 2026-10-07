@@ -4,7 +4,7 @@ use super::*;
 
 fn fixture() -> serde_json::Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../bindings/fixtures/qualification/commissioning-v1.json");
+        .join("../../../bindings/fixtures/qualification/commissioning-v2.json");
     serde_json::from_slice(&std::fs::read(path).expect("fixture")).expect("fixture JSON")
 }
 
@@ -38,15 +38,24 @@ fn frozen_commissioning_bytes_authenticate_only_their_exact_binding() {
         tuple: &binding.tuple,
         protected_run: &binding.protected_run,
         principal_sha256: binding.principal_sha256,
-        trusted_context_sha256: binding.trusted_context_sha256,
+        trusted_context_sha256: binding.trusted_contexts_sha256[0],
         resources_sha256: binding.resources_sha256,
         canonical_action_sha256: binding.allowed_actions[0],
     };
     let now = permit.body().statement.not_before;
+    for context in &binding.trusted_contexts_sha256 {
+        request.trusted_context_sha256 = *context;
+        assert_eq!(
+            verified.evaluate(&request, now, true, &VerifierState::default()),
+            Ok(())
+        );
+    }
+    request.trusted_context_sha256 = Sha256Digest::from_bytes([0xfe; 32]);
     assert_eq!(
         verified.evaluate(&request, now, true, &VerifierState::default()),
-        Ok(())
+        Err(CommissioningRefusal::BindingMismatch)
     );
+    request.trusted_context_sha256 = binding.trusted_contexts_sha256[0];
     request.principal_sha256 = Sha256Digest::from_bytes([0xff; 32]);
     assert_eq!(
         verified.evaluate(&request, now, true, &VerifierState::default()),
@@ -117,9 +126,24 @@ fn unsigned_shape_never_accepts_extra_duplicate_or_unknown_members() {
         Err(QualificationFormatError::Malformed)
     );
     let mut body = permit.body().clone();
-    body.statement.schema = "auths.qualification-commissioning-permit/0".to_owned();
+    body.statement.schema = "auths.qualification-commissioning-permit/1".to_owned();
     assert_eq!(
         QualificationCommissioningPermit::from_body(&body).map(|_| ()),
         Err(QualificationFormatError::UnknownSchema)
     );
+    for contexts in [
+        vec![],
+        vec![Sha256Digest::from_bytes([0x61; 32]); 2],
+        vec![
+            Sha256Digest::from_bytes([0x65; 32]),
+            Sha256Digest::from_bytes([0x61; 32]),
+        ],
+        (0..=MAX_COMMISSIONING_CONTEXTS)
+            .map(|index| Sha256Digest::from_bytes([u8::try_from(index).expect("bound"); 32]))
+            .collect(),
+    ] {
+        let mut body = permit.body().clone();
+        body.statement.binding.trusted_contexts_sha256 = contexts;
+        assert!(QualificationCommissioningPermit::from_body(&body).is_err());
+    }
 }

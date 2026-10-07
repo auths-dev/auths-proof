@@ -132,11 +132,18 @@ jobs:
         run: |
           set -euo pipefail
           sudo -n mkdir -m 0700 "${RUNNER_TEMP}/socket-report"
-          sudo -n "${RUNNER_TEMP}/packet-consumer/bin/python" \
-            "${RUNNER_TEMP}/packet-kit/qualification/reference/check_socket.py" \
+          # The runner's temp ancestors may be private to its login UID.
+          # Copy only the credential-free kit and installed wheel environment
+          # into public-readable /opt inputs; keep author output private in /tmp.
+          sudo -n mkdir -m 0755 /opt/auths-packet-kit /opt/auths-packet-consumer
+          sudo -n cp -R "${RUNNER_TEMP}/packet-kit/." /opt/auths-packet-kit/
+          sudo -n cp -R "${RUNNER_TEMP}/packet-consumer/." /opt/auths-packet-consumer/
+          sudo -n chmod -R a+rX /opt/auths-packet-kit /opt/auths-packet-consumer
+          sudo -n /opt/auths-packet-consumer/bin/python \
+            /opt/auths-packet-kit/qualification/reference/check_socket.py \
             --gateway "${RUNNER_TEMP}/packet-candidate/bin/auths-gateway" \
-            --python "${RUNNER_TEMP}/packet-consumer/bin/python" \
-            --work "${RUNNER_TEMP}/socket-operator" \
+            --python /opt/auths-packet-consumer/bin/python \
+            --work "/tmp/auths-socket-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --report "${RUNNER_TEMP}/socket-report/report.json"
           sudo -n cp "${RUNNER_TEMP}/socket-report/report.json" "${RUNNER_TEMP}/packet-operator/socket-report.json"
           sudo -n chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/packet-operator/socket-report.json"

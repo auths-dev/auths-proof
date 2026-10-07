@@ -194,7 +194,7 @@ class References(unittest.TestCase):
                 'trusted_context': 'context.cbor', 'packets': [{'label': 'normal',
                     'proof': 'proof.cbor', 'action': 'action.cbor',
                     'arguments': self.stripe_arguments()}]}))
-            artifacts = json.loads((root / 'bindings/fixtures/qualification/commissioning-v1.json').read_bytes())
+            artifacts = json.loads((root / 'bindings/fixtures/qualification/commissioning-v2.json').read_bytes())
             tuple_value = json.loads(artifacts['permit'])['statement']['binding']['tuple']
             tuple_value['recipe_family'] = stripe.FAMILY
             tuple_value['compiled_recipe_sha256'] = DIGEST
@@ -229,7 +229,7 @@ class References(unittest.TestCase):
                 self.assertEqual(binding['maximum_credential_leases'], 64)
                 self.assertEqual(binding['principal_sha256'], sha256(b'raw:synthetic-test-only-actor'))
                 self.assertEqual(binding['resources_sha256'], sha256((work / 'resources.json').read_bytes()))
-                self.assertEqual(binding['trusted_context_sha256'], sha256(b'synthetic test-only context'))
+                self.assertEqual(binding['trusted_contexts_sha256'], [sha256(b'synthetic test-only context')])
                 self.assertFalse(json.loads((args.out_dir / 'oracle-commitments.json').read_bytes())['qualification_issued'])
                 args.out_dir = work / 'changed'
                 recipe = json.loads((work / 'recipe.json').read_bytes())
