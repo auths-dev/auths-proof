@@ -20,6 +20,56 @@ use std::{os::unix::fs::PermissionsExt as _, sync::atomic::Ordering};
 
 const NOW: u64 = 1_790_000_000;
 
+#[tokio::test]
+async fn offline_review_verifies_exact_actors_and_requests_without_custody() {
+    let setup = Setup::new().await;
+    let engine = setup.engine();
+    let before = setup.leases();
+    let reviewed = crate::review_submission(
+        &engine.recipe,
+        &engine.trusted_context,
+        NOW,
+        &setup.proof,
+        &setup.action,
+    )
+    .expect("reviewed native proof");
+    assert_eq!(reviewed.schema, "auths.gateway-submission-review/1");
+    assert_eq!(reviewed.actors.len(), 1);
+    assert_eq!(
+        Sha256Digest::from_bytes(Sha256::digest(reviewed.actors[0].as_bytes()).into()),
+        setup.permit.body().statement.binding.principal_sha256
+    );
+    assert_eq!(
+        reviewed.action_commitment,
+        setup.permit.body().statement.binding.allowed_actions[0].to_hex()
+    );
+    let serialized = serde_json::to_value(&reviewed).expect("public projection");
+    assert_eq!(serialized["request"]["method"], "POST");
+    assert!(
+        serialized["request"]["headers"]
+            .as_array()
+            .expect("headers")
+            .iter()
+            .all(|header| header[0] != "Authorization")
+    );
+    let mut changed_action = setup.action.clone();
+    changed_action.push(0);
+    let mut changed_proof = setup.proof.clone();
+    let last = changed_proof.last_mut().expect("proof");
+    *last ^= 1;
+    for (proof, action) in [
+        (changed_proof.as_slice(), setup.action.as_slice()),
+        (setup.proof.as_slice(), changed_action.as_slice()),
+        (&[][..], setup.action.as_slice()),
+    ] {
+        assert!(
+            crate::review_submission(&engine.recipe, &engine.trusted_context, NOW, proof, action)
+                .is_err()
+        );
+    }
+    assert_eq!(setup.leases(), before);
+}
+
 struct Setup {
     installation: Installation,
     directory: tempfile::TempDir,

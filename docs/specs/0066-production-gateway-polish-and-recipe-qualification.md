@@ -1778,3 +1778,27 @@ are implemented. The first offline root and separate purpose certificates are
 pinned, with no qualification issued. The protected family reference/workflow
 and rejection/live evidence still must land before the bootstrap can be
 claimed resolved. Epic 5's done conditions remain unchanged.
+
+### 22.4 Reviewed commissioning expansion (2026-10-07)
+
+The default candidate now derives its planned production tuple without installing
+custody through `qualification-candidate`. This is offline candidate identity,
+not a deployment or a qualified state. The protected live installation must
+print the same tuple before permit import or submission.
+
+`review-submission` verifies a proof and derives its actors, native action
+commitment and credential-free closed request without custody, state or provider
+I/O. Its optional evaluation time is an offline input and cannot alter the
+production lease clock. `qualification/reference/` independently derives the
+Stripe/Airtable requests, fixes resource membership and reconstructs the entire
+reviewed recipe and exact lock. Expansion invokes a reviewer built by the
+signing job from its checkout; downloaded candidate bytes are hashed but never
+executed with a signing key. The original candidate digest remains signed.
+One actor, finite exact actions, immutable resources and a source-owned ceiling
+of 64 custody acquisitions are required. The native issuer additionally checks
+offline evidence closure before issuing a two-hour permit.
+
+Both purpose-separated signer keys now exist in the existing reviewer-protected,
+default-branch-only signing environment. The offline root remains outside CI.
+Complete family setup/corpora, protected commissioning/live runs and final signed
+qualification still remain; these changes issue no qualification or readiness.

@@ -60,7 +60,7 @@ simulation; the shipping lease gate has no bypass. The implemented commissioning
 [ADR 0016](../docs/adr/0016-bounded-qualification-commissioning-authority.md):
 a finite signed permit for an authenticated private qualification-run session,
 with exact action commitments, durable lease accounting and a fixed expiry.
-Its verifier, durable budget and private operator commands are implemented. It cannot qualify a family or enable an ordinary application lease; the protected reference and workflow still need to produce its exact bindings.
+Its verifier, durable budget and private operator commands are implemented. It cannot qualify a family or enable an ordinary application lease. The [reviewed references](reference/README.md) independently derive exact resource/action bindings; the protected family setup and workflow still need to execute them.
 
 The current executable corpus also fixes exact request/evidence digests before
 running, while disposable live resource identifiers may be created during setup.
@@ -116,11 +116,13 @@ harness step <case-id> <step-index> <operation> <work-dir> <output-file>
 harness cleanup <work-dir>
 ```
 
-`prepare` installs the candidate in `<work-dir>/gateway-state`, installs the
+`prepare` writes the reviewed recipe and lock into `<work-dir>`, installs the
 consumer packages, and writes `packages.json`. The candidate gateway itself
-prints `tuple.json`; the release tool checks the declared contract ID against
-`contract.json`. `prepare-live` acquires disposable resources, starts the live
-candidate. `run/live.sh` always calls `cleanup`, including after setup or stage
+prints its planned production `tuple.json` through `qualification-candidate`,
+without custody or provider access; the release tool checks the declared contract ID against
+`contract.json`. `prepare-live` installs production custody for the disposable resources and
+compares `qualification-status --tuple` with that planned tuple before any
+permit import or submission. A changed installation fails closed. `run/live.sh` always calls `cleanup`, including after setup or stage
 failure; cleanup must remove disposable resources idempotently, and its failure
 fails the run. Both setup commands receive `AUTHS_GATEWAY` and
 `AUTHS_QUALIFICATION`. Only the protected live environment supplies
@@ -179,7 +181,7 @@ The first qualification uses the separate finite authority in
 [ADR 0016](../docs/adr/0016-bounded-qualification-commissioning-authority.md).
 `auths-qualification certify-commissioner` certifies a separate key with only
 the commissioning-permit purpose; normal `certify` grants only release purposes.
-The root key remains offline and never enters either provider runner.
+The root key remains offline and never enters either provider runner. Both purpose-separated signer keys were provisioned on 7 October 2026 into the reviewer-protected, main-only `recipe-qualification-signing` environment. No private root material was uploaded.
 
 After the protected reference expands disposable resources and exact actions,
 `auths-qualification commissioning-sign` takes `--binding`, `--conformance`,

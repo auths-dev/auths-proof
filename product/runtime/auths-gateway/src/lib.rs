@@ -17,7 +17,8 @@ pub mod commissioning_budget;
 pub mod commissioning_floor;
 #[cfg(unix)]
 pub use engine::{
-    CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
+    CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
+    GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
 };
 mod connection;
 mod credential_journal;

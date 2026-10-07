@@ -29,9 +29,13 @@ export AUTHS_GATEWAY="${root}/target/release/auths-gateway"
 export AUTHS_QUALIFICATION="${root}/target/release/auths-qualification"
 
 "${directory}/harness" prepare "${work}"
-# The tuple is obtained from the actual installed candidate, not authored
-# by the harness. Installation and package acquisition remain family-owned.
-"${AUTHS_GATEWAY}" qualification-status --state-dir "${work}/gateway-state" --tuple \
+# Derive the planned production identity without custody or provider access.
+# The protected live runner must compare its actual installation byte-for-byte
+# before importing a permit. This command grants no execution authority.
+"${AUTHS_GATEWAY}" qualification-candidate \
+  --recipe "${work}/recipe.json" --profile-lock "${work}/profile.lock.json" \
+  --recipe-family "${family}" \
+  --provider-contract-id "$("${AUTHS_QUALIFICATION}" contract-id --contract "${directory}/contract.json")" \
   > "${work}/tuple.json"
 for required in tuple.json packages.json; do
   [ -s "${work}/${required}" ] || { echo "qualification.harness-incomplete ${required}" >&2; exit 1; }

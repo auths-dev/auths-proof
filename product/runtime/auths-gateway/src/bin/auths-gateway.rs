@@ -273,6 +273,23 @@ mod unix {
             #[arg(long)]
             profile_lock: PathBuf,
         },
+        /// Offline native proof review: derive the exact credential-free
+        /// request and actors without installation, custody or provider I/O.
+        ReviewSubmission {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            trusted_context: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            /// Offline evaluation time; no lease or production clock override.
+            #[arg(long, value_parser = clap::value_parser!(u64).range(..=253_402_300_799))]
+            evaluated_at: Option<u64>,
+        },
         /// Print the grant extension committing to a ceiling on one verified
         /// integer argument and a count per fixed, epoch-aligned window, and
         /// optionally a sum limit per listed partition value and a scope, as
@@ -355,6 +372,19 @@ mod unix {
             /// Print the tuple this deployment must be qualified for instead.
             #[arg(long, default_value_t = false)]
             tuple: bool,
+        },
+        /// Print the planned production tuple from this executable and the
+        /// reviewed recipe, without installing custody or contacting a provider.
+        /// This is candidate identity, never qualification or readiness.
+        QualificationCandidate {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            recipe_family: String,
+            #[arg(long)]
+            provider_contract_id: String,
         },
         /// Authenticated operator-only fresh commissioning registration.
         /// Registers finite capacity once; never resets existing consumption.
@@ -1598,6 +1628,32 @@ mod unix {
         })
     }
 
+    fn qualification_candidate(
+        recipe_path: &Path,
+        lock_path: &Path,
+        family: &str,
+        contract: &str,
+    ) -> Result<QualificationTuple, Failure> {
+        let source = read_bounded(recipe_path, 65_536)?;
+        let lock = read_bounded(lock_path, 65_536)?;
+        let recipe = installable_recipe(&source, &lock)?;
+        let executable = std::env::current_exe()
+            .and_then(fs::read)
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        deployment_tuple(&DeploymentFacts {
+            recipe_family: family,
+            provider_contract_id: contract,
+            compiled_recipe_sha256: *recipe.digest(),
+            profile_lock_sha256: Sha256::digest(&lock).into(),
+            gateway_build_sha256: Sha256::digest(&executable).into(),
+            store_kind: LifecycleStoreKind::PostgresqlV1,
+            store_schema: POSTGRES_STORE_SCHEMA,
+            credential_store_kind: CredentialStoreKind::parse("aws-secrets-manager-v1")
+                .map_err(|_| "gateway.qualification.unavailable")?,
+        })
+        .ok_or_else(|| "gateway.qualification.unavailable".into())
+    }
+
     /// Builds the installation's gate and loads the inputs the operator
     /// imported. The policy is decided again from the deployment, so an
     /// edited manifest cannot relax production. Only a changed installation
@@ -2430,6 +2486,42 @@ mod unix {
             "{}",
             serde_json::to_string_pretty(&output).map_err(|_| "gateway.output")?
         );
+        Ok(())
+    }
+
+    fn review_submission_files(
+        recipe_path: &Path,
+        lock_path: &Path,
+        context_path: &Path,
+        proof_path: &Path,
+        action_path: &Path,
+        evaluated_at: Option<u64>,
+    ) -> Result<(), Failure> {
+        let recipe = installable_recipe(
+            &read_bounded(recipe_path, 65_536)?,
+            &read_bounded(lock_path, 65_536)?,
+        )?;
+        let trust = read_bounded(context_path, 4 * 1024 * 1024)?;
+        let context = auths_codec::decode_verifier_context(&trust)
+            .map_err(|_| "gateway.verify.invalid-trust")?;
+        let proof = read_bounded(proof_path, 4 * 1024 * 1024)?;
+        let action = read_bounded(action_path, 64 * 1024)?;
+        let result = auths_gateway::review_submission(
+            &recipe,
+            &context,
+            match evaluated_at {
+                Some(timestamp) => timestamp,
+                None => now()?,
+            },
+            &proof,
+            &action,
+        );
+        let encoded = match result {
+            Ok(reviewed) => serde_json::to_string(&reviewed),
+            Err(refusal) => serde_json::to_string(&refusal),
+        }
+        .map_err(|_| "gateway.output")?;
+        println!("{encoded}");
         Ok(())
     }
 
@@ -3392,6 +3484,29 @@ mod unix {
                     .await
                     .map_err(|_| "gateway.qualification.unavailable")?
             }
+            Command::QualificationCandidate {
+                recipe,
+                profile_lock,
+                recipe_family,
+                provider_contract_id,
+            } => {
+                let candidate = tokio::task::spawn_blocking(move || {
+                    qualification_candidate(
+                        &recipe,
+                        &profile_lock,
+                        &recipe_family,
+                        &provider_contract_id,
+                    )
+                })
+                .await
+                .map_err(|_| "gateway.qualification.unavailable")??;
+                println!(
+                    "{}",
+                    serde_json_canonicalizer::to_string(&candidate)
+                        .map_err(|_| "gateway.qualification.unavailable")?
+                );
+                Ok(())
+            }
             Command::CommissioningInit { session } => commissioning(&session, None).await,
             Command::CommissioningSubmit {
                 session,
@@ -3437,6 +3552,25 @@ mod unix {
                 recipe,
                 profile_lock,
             } => Ok(review(&recipe, &profile_lock)?),
+            Command::ReviewSubmission {
+                recipe,
+                profile_lock,
+                trusted_context,
+                proof,
+                action,
+                evaluated_at,
+            } => tokio::task::spawn_blocking(move || {
+                review_submission_files(
+                    &recipe,
+                    &profile_lock,
+                    &trusted_context,
+                    &proof,
+                    &action,
+                    evaluated_at,
+                )
+            })
+            .await
+            .map_err(|_| "gateway.verify.invalid-input")?,
             Command::BoundExtension(options) => Ok(bound_extension(&options)?),
             Command::Audit {
                 bundle,
@@ -3675,6 +3809,58 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn candidate_identity_needs_no_installation_and_binds_the_running_bytes() {
+            let directory = tempfile::tempdir().expect("candidate input");
+            let recipe = directory.path().join("recipe.json");
+            let lock = directory.path().join("profile.lock.json");
+            fs::write(
+                &recipe,
+                include_bytes!(
+                    "../../../../../qualification/simulation/live/stripe-platform/recipe.json"
+                ),
+            )
+            .expect("recipe");
+            fs::write(
+                &lock,
+                include_bytes!(
+                    "../../../../../qualification/simulation/live/stripe-platform/profile.lock.json"
+                ),
+            )
+            .expect("lock");
+            let contract = "1".repeat(64);
+            let tuple =
+                qualification_candidate(&recipe, &lock, "stripe-platform-refund-v1", &contract)
+                    .expect("candidate");
+            assert_eq!(tuple.target.store_kind, LifecycleStoreKind::PostgresqlV1);
+            assert_eq!(tuple.target.store_schema.as_str(), POSTGRES_STORE_SCHEMA);
+            assert!(tuple.target.credential_store_kind.is_production());
+            assert_eq!(
+                tuple.target.gateway_build_sha256.to_hex(),
+                digest(&fs::read(std::env::current_exe().expect("executable")).expect("bytes"))
+            );
+            assert_eq!(fs::read_dir(directory.path()).expect("inputs").count(), 2);
+            for (family, contract) in [
+                ("../another-family", contract.as_str()),
+                ("stripe-platform-refund-v1", "wrong"),
+            ] {
+                assert!(qualification_candidate(&recipe, &lock, family, contract).is_err());
+            }
+            let mut changed: serde_json::Value =
+                serde_json::from_slice(&fs::read(&recipe).expect("source")).expect("recipe");
+            changed["tool"] = serde_json::json!("another_tool");
+            fs::write(&recipe, serde_json::to_vec(&changed).expect("changed")).expect("source");
+            assert!(
+                qualification_candidate(
+                    &recipe,
+                    &lock,
+                    "stripe-platform-refund-v1",
+                    &"1".repeat(64)
+                )
+                .is_err()
+            );
+        }
         use auths_gateway::listener::APP_CAPACITY;
 
         #[test]

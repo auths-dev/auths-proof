@@ -114,6 +114,87 @@ pub struct GatewayEvidenceSummary {
     pub observed_at: u64,
 }
 
+/// A verified submission's bounded, credential-free request projection for
+/// offline operator review and differential qualification. It grants no
+/// execution authority and records no claim, lease, provider entry or receipt.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GatewaySubmissionReview {
+    /// Exactly `auths.gateway-submission-review/1`.
+    pub schema: &'static str,
+    /// Every exact actor whose action branch the native verifier authorized.
+    pub actors: Vec<String>,
+    /// Native commitment to the verified canonical action bytes.
+    pub action_commitment: String,
+    /// Typed profile arguments decoded from the verified action.
+    pub arguments: Map<String, Value>,
+    /// The closed outbound request, before any credential is attached.
+    pub request: GatewayRequestReview,
+}
+
+/// Public request facts used to compare an independently reviewed oracle.
+/// No authorization header or provider response is included.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GatewayRequestReview {
+    /// Closed HTTP method.
+    pub method: String,
+    /// Recipe-derived HTTPS URL.
+    pub url: String,
+    /// Recipe-derived body media type.
+    pub content_type: String,
+    /// Exact bounded UTF-8 JSON or form body.
+    pub body: String,
+    /// Ordered recipe-derived headers, without credential material.
+    pub headers: Vec<(String, String)>,
+    /// Declared derived idempotency key, if any.
+    pub idempotency_key: Option<String>,
+}
+
+/// Reviews proof and action through the same native verification and closed
+/// request construction as submission, without opening custody or a store.
+/// `now` is an offline evaluation input; this function grants no lease and
+/// cannot replace the production deployment clock.
+///
+/// # Errors
+/// Returns the exact native/profile refusal for invalid or unauthorized input.
+/// A successful review establishes only offline eligibility; lifecycle,
+/// qualification, custody, guard, evidence and capacity checks still apply
+/// when the operator submits through an installed gateway.
+#[cfg(unix)]
+pub fn review_submission(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof: &[u8],
+    action: &[u8],
+) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
+    let command = verify_detailed(recipe, context, now, proof, action)?;
+    let request = &command.request;
+    Ok(GatewaySubmissionReview {
+        schema: "auths.gateway-submission-review/1",
+        actors: command
+            .actors
+            .iter()
+            .map(|actor| actor.as_str().to_owned())
+            .collect(),
+        action_commitment: hex::encode(request.action_commitment()),
+        arguments: command.arguments,
+        request: GatewayRequestReview {
+            method: request.method().as_str().to_owned(),
+            url: request.url().to_owned(),
+            content_type: request.content_type().to_owned(),
+            body: std::str::from_utf8(request.body())
+                .map_err(|_| not_entered("gateway.action.projection"))?
+                .to_owned(),
+            headers: request
+                .headers()
+                .iter()
+                .map(|header| (header.name().to_owned(), header.value().to_owned()))
+                .collect(),
+            idempotency_key: request.idempotency_key().map(str::to_owned),
+        },
+    })
+}
+
 impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
     fn from(evidence: &GatewayProviderEvidence) -> Self {
         Self {
