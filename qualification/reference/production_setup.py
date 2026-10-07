@@ -125,6 +125,7 @@ class Deployment:
         require(len(str(self.state(0) / 'admin.sock').encode()) <= 107,
                 'qualification.production.socket-bound')
         self.processes = {}
+        self.installations = []
         self.handoff_generation = 0
         self.permit = None
 
@@ -201,6 +202,7 @@ class Deployment:
                 require(output == expected.encode(), 'qualification.production.install-output')
                 actual = self.command(['qualification-status', '--state-dir', state, '--tuple'])
                 require(actual == self.tuple, 'qualification.production.installed-tuple')
+                self.installations.append((host, context))
 
     def start(self, host, context=0):
         key = (host, context)

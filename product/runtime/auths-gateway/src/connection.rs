@@ -186,12 +186,33 @@ impl SharedConnection {
     /// # Errors
     /// Unreadable, obsolete, or foreign state is an error, never absence.
     pub async fn load(&self) -> Result<Option<LoadedConnection>, SharedConnectionError> {
+        match self.read_record().await? {
+            Some(loaded) => self.accept_floor(loaded).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Cleanup may inspect an irreversibly revoked record without accepting
+    /// it for execution. Active and disabled records still require the host
+    /// floor. This permits retirement after an interrupted fresh install;
+    /// it never initializes, replaces or lowers an execution witness.
+    pub(crate) async fn load_for_credential_collection(
+        &self,
+    ) -> Result<Option<LoadedConnection>, SharedConnectionError> {
+        match self.read_record().await? {
+            Some(loaded) if loaded.record().state() == ConnectionState::Revoked => Ok(Some(loaded)),
+            Some(loaded) => self.accept_floor(loaded).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    async fn read_record(&self) -> Result<Option<LoadedConnection>, SharedConnectionError> {
         let store = Arc::clone(&self.store);
         let key = self.key;
         let bytes =
             blocking(move || store.load(crate::GatewayRecordKind::Connection, &key)).await?;
         match bytes {
-            Some(bytes) => self.accept_floor(self.decode(bytes)?).await.map(Some),
+            Some(bytes) => self.decode(bytes).map(Some),
             None => Ok(None),
         }
     }

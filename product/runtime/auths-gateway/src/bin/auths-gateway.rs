@@ -1324,6 +1324,21 @@ mod unix {
             "gateway.install.credential-store-unavailable",
             CredentialAccess::Operator,
         )?;
+        // Retain authenticated cleanup inputs before any custody write. A
+        // pending install has no generation floor and cannot admit a lease.
+        // Explicit store-only revocation can still make its journal collectible.
+        private_file(&state_dir.join("recipe.json"), &source)?;
+        private_file(&state_dir.join("profile.lock.json"), &lock)?;
+        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
+        if let Some(bytes) = &attestation {
+            private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
+        }
+        if let Some(bytes) = &qualification_root {
+            private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
+        }
+        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
+            .map_err(|_| "gateway.install.manifest-invalid")?;
+        private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
         if join {
             join_connection(&shared, &*credentials, &recipe, &candidate).await?;
@@ -1406,18 +1421,6 @@ mod unix {
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
-        private_file(&state_dir.join("recipe.json"), &source)?;
-        private_file(&state_dir.join("profile.lock.json"), &lock)?;
-        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
-        if let Some(bytes) = &attestation {
-            private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
-        }
-        if let Some(bytes) = &qualification_root {
-            private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
-        }
-        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
-            .map_err(|_| "gateway.install.manifest-invalid")?;
-        private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         println!(
             "{} recipe {} with separate gateway credential custody",
             if join { "joined" } else { "installed" },

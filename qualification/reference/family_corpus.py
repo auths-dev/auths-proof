@@ -169,11 +169,10 @@ def compile_plan(family, resources, reviewed, recipe_digest):
                 [step('probe', 'refused', 'gateway.verify.invalid-input')])
         for kind, scenario in [('kind', 'store-kind-drift'), ('generation', 'generation-drift'),
                                ('commitment', 'commitment-drift'), ('version', 'external-version-drift')]:
-            # Before-entry connection binding probes and actual post-claim
-            # custody-version failures are distinct measured boundaries.
-            leases = 1 if kind in ['commitment', 'version'] else 0
+            # The real AWS adapter authenticates the exact immutable version
+            # and bytes during holds(), before admission or a counted lease.
             add(phase, 'custody-' + kind, scenario,
-                [step('probe', 'complete', 'custody-' + kind + '-refused', leases=leases)])
+                [step('probe', 'complete', 'custody-' + kind + '-refused')])
         if reference is stripe_platform:
             for kind, code in [('ceiling', 'gateway.relative-ceiling.above'),
                                ('currency', 'gateway.relative-ceiling.binding-mismatch')]:

@@ -468,6 +468,9 @@ impl GatewayEngine {
     /// requires it unchanged, and never deletes its active credential or a
     /// future prepared generation. Run under operator workload identity.
     /// Existing attempts and provider state are never changed.
+    /// An explicitly revoked record is cleanup authority even when an
+    /// interrupted install left no usable execution floor; all other states
+    /// still require that floor. Collection never repairs an execution floor.
     ///
     /// # Errors
     /// A damaged journal, changed connection or failed deletion refuses and
@@ -477,7 +480,7 @@ impl GatewayEngine {
             .credential_journal
             .clone()
             .ok_or("gateway.admin.credential-journal-unavailable")?;
-        let current = self.load_for_admin().await?;
+        let current = self.load_for_collection().await?;
         let record = current.record().clone();
         let id = record.connection_id().clone();
         let reading = journal.clone();
@@ -485,7 +488,7 @@ impl GatewayEngine {
             .await
             .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
         tokio::time::sleep(self.retirement_delay).await;
-        let latest = self.load_for_admin().await?;
+        let latest = self.load_for_collection().await?;
         if !latest.unchanged(&current) {
             return Err("gateway.admin.generation-conflict");
         }
@@ -511,6 +514,14 @@ impl GatewayEngine {
             deleted += 1;
         }
         Ok(deleted)
+    }
+
+    async fn load_for_collection(&self) -> Result<LoadedConnection, &'static str> {
+        self.connection
+            .load_for_credential_collection()
+            .await
+            .map_err(|_| "gateway.admin.connection-unavailable")?
+            .ok_or("gateway.admin.connection-unavailable")
     }
 
     /// Installs the qualification gate the operator plane built for this
@@ -2336,6 +2347,57 @@ pub(crate) mod tests {
                     .expect("notes")
                     .is_empty()
             );
+        }
+
+        #[tokio::test]
+        async fn interrupted_install_cleanup_requires_revocation_and_never_repairs_the_floor() {
+            let mut installation = installation(8).await;
+            let host = &mut installation.first;
+            let record = host.record().await;
+            let directory = tempfile::tempdir().expect("private cleanup root");
+            private_directory(directory.path());
+            let journal = crate::CredentialJournal::new(directory.path().to_path_buf());
+            journal.initialize(record.connection_id()).expect("journal");
+            journal
+                .register(record.connection_id(), record.credential_generation())
+                .expect("note");
+            host.engine.credential_journal = Some(journal);
+            host.engine.connection = host
+                .engine
+                .connection
+                .clone()
+                .with_generation_floor(crate::GenerationFloor::new(directory.path().to_path_buf()));
+            let path = directory.path().join("connection-floor.json");
+            let leases = host.leases.load(Ordering::SeqCst);
+            for damaged in [None, Some(b"corrupt".to_vec())] {
+                if let Some(bytes) = damaged {
+                    std::fs::write(&path, bytes).expect("damaged floor");
+                }
+                assert!(matches!(
+                    host.engine.prepare_entry().await,
+                    Err("gateway.connection.restore-rollback")
+                ));
+                assert_eq!(
+                    host.engine.collect_credentials().await,
+                    Err("gateway.admin.connection-unavailable")
+                );
+                assert_eq!(host.stored(&installation.connection_id), [1]);
+            }
+            SharedConnection::new(host.engine.attempts.store(), provider(), alias())
+                .stop(true, wall_clock_seconds().expect("clock"))
+                .await
+                .expect("explicit store-only revoke");
+            assert_eq!(host.engine.collect_credentials().await, Ok(1));
+            assert!(host.stored(&installation.connection_id).is_empty());
+            assert_eq!(
+                std::fs::read(&path).expect("retained floor").as_slice(),
+                b"corrupt"
+            );
+            assert!(matches!(
+                host.engine.prepare_entry().await,
+                Err("gateway.connection.restore-rollback")
+            ));
+            assert_eq!(host.leases.load(Ordering::SeqCst), leases);
         }
 
         #[tokio::test]
