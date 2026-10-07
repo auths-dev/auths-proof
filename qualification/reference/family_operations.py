@@ -13,6 +13,7 @@ import time
 
 import airtable_record
 import stripe_platform
+from custody_fault import Faults
 from common import canonical, closed, Refusal, require, sha256
 from expand import child, decode, read
 from native_observation import Effects, result as native_result
@@ -54,6 +55,7 @@ class Operations:
         self.consumer_node = None
         self.consumer_script = None
         self.budget_refusals = set()
+        self.custody_faults = None
 
     def configure_consumers(self, python, kit):
         self.consumer_python, self.consumer_kit = Path(python).absolute(), Path(kit).absolute()
@@ -377,6 +379,41 @@ class Operations:
         self.current_credential = successor
         return self.completed_probe('provider-secret-rotated', before, self.deployment.witness(0))
 
+    def custody(self, phase, kind):
+        require(kind in ['kind', 'generation', 'commitment', 'version'] and self.rotation_keys is not None,
+                'qualification.operations.custody-input')
+        if self.custody_faults is None:
+            self.custody_faults = Faults(self.deployment)
+        before = self.deployment.witness(0)
+        if kind == 'kind':
+            self.custody_faults.kind()
+            after = self.deployment.witness(0)
+        else:
+            successor = next(key for key in self.rotation_keys if key != self.current_credential)
+            handoff, packet = self.packet(phase + '-custody-' + kind)
+            with self.custody_faults.drift(kind, self.current_credential, successor):
+                if phase == 'commissioning':
+                    execution = self.deployment.commissioning_submit(handoff, packet)
+                    result, before, after = execution['result'], execution['before'], execution['after']
+                else:
+                    result = self.deployment.application_submit(handoff, packet)
+                    after = self.deployment.witness(0)
+                require(native_result(result) == ('refused', 'gateway.connection.credential-generation-missing', None),
+                        'qualification.operations.custody-not-refused')
+        counted = measure.delta(before, after)
+        require(counted['credential_lease_calls'] == counted['write_transport_entries'] == 0,
+                'qualification.operations.custody-entered')
+        report = {'schema': 'auths.qualification-custody-probe/1', 'family': self.family,
+            'protected_run': self.resources['protected_run'], 'phase': phase, 'kind': kind,
+            'native_code': 'gateway.credential.production-plaintext-refused' if kind == 'kind'
+                           else 'gateway.connection.credential-generation-missing',
+            'credential_leases': counted['credential_lease_calls'], 'provider_entries': counted['write_transport_entries'],
+            'fixture_edits_to_connection_or_host_floors': 0}
+        directory = self.deployment.work / 'custody-probes'
+        directory.mkdir(mode=0o700, exist_ok=True)
+        resource_io.write(directory / (phase + '-' + kind + '.json'), report, new=True)
+        return self.completed_probe('custody-' + kind + '-refused', before, after)
+
     def hostile(self, phase, identifier):
         label = phase + '-13'
         handoff, packet = self.packet(label)
@@ -603,6 +640,9 @@ class Operations:
             require(self.reference is stripe_platform and index == 0 and operation == 'probe',
                     'qualification.operations.step')
             result = self.guard(phase, identifier)
+        elif identifier in ['custody-kind', 'custody-generation', 'custody-commitment', 'custody-version']:
+            require(index == 0 and operation == 'probe', 'qualification.operations.step')
+            result = self.custody(phase, identifier.removeprefix('custody-'))
         elif identifier in ['forged', 'altered']:
             require(index == 0 and operation == 'probe', 'qualification.operations.step')
             result = self.hostile(phase, identifier)

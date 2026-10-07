@@ -132,6 +132,13 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
             "{name}: the signing command"
         );
     }
+    assert!(!text.contains("pull_request_target"));
+}
+
+#[test]
+fn signing_builds_are_independent_and_operator_exports_follow_scanning() {
+    let text = std::fs::read_to_string(repository().join(WORKFLOW)).expect("workflow");
+    let jobs = jobs(&text);
     let sign = &jobs["sign"];
     assert!(
         sign.iter()

@@ -259,7 +259,7 @@ verification remain separate. Retained copies are independently rescanned
 before the runner can upload them. Failed setup invalidates proposals, keeps
 scan canaries, and attempts all owned cleanup with native credential collection
 before retiring the renewing workload identity. These entry points still need
-the remaining custody-drift case handlers and successful protected execution;
+successful protected execution and partial-install cleanup recovery;
 they do not establish a passing protected qualification.
 
 `author_operator.py` runs in the same credential-free installed environment as
@@ -365,3 +365,20 @@ the native assembler then re-verifies the evidence closure and must reconstruct
 identical record bytes. All families pass before the release key is read.
 The signing process executes its own native builds only and separately scans
 the exact retained release with its real key canary before publication.
+
+`custody_fault.py` exercises only the current credential derived from the
+native installation journal under the retained operator workload identity.
+Generation drift prepares a real unpublished successor, removes the current
+generation, and proves there is no fallback. Commitment drift recreates the
+owned secret with wrong bytes under its original immutable version. Version
+drift stores the original bytes under a different real immutable version.
+Each failure must be the actual native before-admission refusal with zero
+counted leases and provider entries. The exact original credential/version is
+restored and checked through native status even when submission fails. A
+durable private restoration obligation precedes deletion and remains on failure.
+No shared connection, attempt, qualification state or host floor is edited.
+The plaintext-kind probe invokes the shipping install command with empty stdin
+and requires its exact production-policy refusal before a state directory exists.
+These are disposable AWS fixture mutations, never application credential inputs
+or a provider test response substituted for AWS. They establish the precise
+before-admission boundary, not a fabricated post-claim lease failure.
