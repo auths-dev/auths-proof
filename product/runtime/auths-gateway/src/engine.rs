@@ -2355,7 +2355,8 @@ pub(crate) mod tests {
             let host = &mut installation.first;
             let record = host.record().await;
             let directory = tempfile::tempdir().expect("private cleanup root");
-            private_directory(directory.path());
+            std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))
+                .expect("private cleanup mode");
             let journal = crate::CredentialJournal::new(directory.path().to_path_buf());
             journal.initialize(record.connection_id()).expect("journal");
             journal
