@@ -95,6 +95,7 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
             "packet-author",
             "sign",
             "simulation",
+            "typescript-consumer",
             "verify"
         ]
     );
