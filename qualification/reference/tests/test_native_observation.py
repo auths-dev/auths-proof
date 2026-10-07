@@ -118,6 +118,28 @@ class Observations(unittest.TestCase):
                 Effects().project_interrupted(self.tuple, self.review, self.resources, '6' * 64,
                     value, self.before, after)
 
+    def test_an_unobservable_admin_refusal_cannot_invent_a_recovered_effect(self):
+        support = self.support()
+        response = {'schema': 'auths.gateway-admin-response/1', 'ok': False,
+                    'code': 'gateway.reobserve.not-observable'}
+        ledger = Effects()
+        ledger.project(self.tuple, self.review, self.resources, {'outcome': 'unknown'}, self.before, self.after)
+        unknown, fresh = ledger.project_stored_unknown(self.tuple, self.review, self.resources, '6' * 64,
+                                                       support, self.after, self.after)
+        self.assertEqual((unknown['verdict']['outcome'], unknown['provider_entries']), ('unknown', 0))
+        self.assertIsNone(fresh)
+        with self.assertRaisesRegex(Refusal, 'unmeasured-unknown'):
+            Effects().project_stored_unknown(self.tuple, self.review, self.resources, '6' * 64,
+                                             support, self.after, self.after)
+        refused, fresh = ledger.project_admin_refusal(self.tuple, self.review, self.resources,
+                                                      response, self.after, self.after)
+        self.assertEqual(refused['verdict'], {'outcome': 'refused', 'code': 'gateway.reobserve.not-observable',
+                                           'request_sha256': None, 'evidence_sha256': None})
+        self.assertIsNone(fresh)
+        with self.assertRaises(Refusal):
+            ledger.project_admin_refusal(self.tuple, self.review, self.resources,
+                dict(response, code='gateway.admin.socket-unavailable'), self.after, self.after)
+
     def test_race_aggregates_distinct_actual_native_scopes_without_counting_a_second_confirmation(self):
         second = dict(self.before, scope='2' * 32)
         recovered = dict(second, credential_lease_calls=1, read_transport_entries=1)

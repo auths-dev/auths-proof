@@ -125,12 +125,12 @@ def compile_plan(family, resources, reviewed, recipe_digest):
             [observed('race', label(2), leases=2)])
         for index, operation in [(3, 'restart'), (4, 'crash')]:
             ending = observed('replay', label(index), 1, 0, 1) if reference is airtable_record \
-                else unknown('replay', label(index))
+                else replay()
             add(phase, operation, operation, [unknown('submit', label(index), 1, 1),
                 complete(operation, 'gateway-' + operation + '-completed'), ending])
         add(phase, 'ambiguous', 'ambiguous-response', [unknown('drop-response', label(5), 1, 1),
             observed('replay', label(5), 1, 0, 1) if reference is airtable_record
-            else unknown('replay', label(5))])
+            else replay()])
         for index, identifier, operation, scenario in [
             (6, 'response-loss', 'drop-response', 'response-loss'),
             (7, 'visibility', 'delay-visibility', 'delayed-visibility')]:
@@ -141,7 +141,7 @@ def compile_plan(family, resources, reviewed, recipe_digest):
         add(phase, 'secret-rotation', 'provider-secret-rotation',
             [complete('rotate', 'provider-secret-rotated'), observed('submit', label(8))])
         add(phase, 'read-back', 'read-back-confirms-write', [observed('submit', label(9)),
-            observed('read-back', label(9), 1, 0, 0)])
+            step('read-back', 'refused', 'gateway.reobserve.not-observable')])
         capabilities = ['echo', 'observation']
         if reference is stripe_platform:
             capabilities = ['credential-guard', 'version-pin', 'account-binding', 'denied-reads',

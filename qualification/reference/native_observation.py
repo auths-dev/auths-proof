@@ -162,6 +162,24 @@ class Effects:
                 'qualification.observation.interrupted-entry')
         return self._project(tuple_value, reviewed, resources, ('unknown', 'unknown', None), counted, None)
 
+    def project_stored_unknown(self, tuple_value, reviewed, resources, trusted_context_sha256, support, before, after):
+        interrupted_state(tuple_value, reviewed, trusted_context_sha256, support)
+        counted = measure.delta(before, after)
+        key = (tuple_value['recipe_family'], resources['protected_run'],
+               reviewed['arguments']['operator_namespace'], reviewed['arguments']['operation_id'])
+        require(counted['credential_lease_calls'] == counted['write_transport_entries'] == 0
+                and key in self.entries and not self.entries[key]['confirmed'],
+                'qualification.observation.unmeasured-unknown')
+        return self._project(tuple_value, reviewed, resources, ('unknown', 'unknown', None), counted, None)
+
+    def project_admin_refusal(self, tuple_value, reviewed, resources, response, before, after):
+        closed(response, ['schema', 'ok', 'code'])
+        require(response == {'schema': 'auths.gateway-admin-response/1', 'ok': False,
+                             'code': 'gateway.reobserve.not-observable'},
+                'qualification.observation.admin-refusal')
+        return self._project(tuple_value, reviewed, resources, ('refused', response['code'], None),
+                             measure.delta(before, after), None)
+
     def _project(self, tuple_value, reviewed, resources, decoded_result, counted, response, status=None):
         tuple_sha256 = sha256(b'auths.qualification-tuple/1\0' + canonical(tuple_value))
         require(self.tuple_sha256 in [None, tuple_sha256], 'qualification.observation.changed-tuple')
