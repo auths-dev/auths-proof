@@ -127,6 +127,13 @@ written atomically and retained after partial failure for cleanup. Existing
 outputs cannot be replaced. TLS requests refuse redirects and ambient proxies;
 provider error bodies never enter diagnostics.
 
+`resource_summary.py` reconstructs the native record's sorted resource names
+from the complete closed ledger. Stripe names the test platform and each test
+payment; Airtable names the approved base, table and each owned record. The
+projection checks run ownership, duplicate IDs, test mode and the native
+96-byte name limit. Assembly uses this projection instead of accepting an
+arbitrary string list or sorting the ledger object.
+
 Unit cases use synthetic providers, including lost responses, changed ownership,
 foreign resources, duplicate records and unsafe files. Actual setup/cleanup
 rehearsals are recorded separately and confer no protected qualification.
