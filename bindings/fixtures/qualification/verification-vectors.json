@@ -1048,7 +1048,7 @@
             "gateway_version": "1.0.0-rc.1",
             "gateway_build_sha256": "42194bc83fbd821aaede008519091b4516baf914f8c2e27f3f2ac7a25f7485c3",
             "store_kind": "postgresql-v1",
-            "store_schema": "auths.lifecycle.postgresql/6",
+            "store_schema": "auths.lifecycle.postgresql/0",
             "credential_store_kind": "aws-secrets-manager-v1"
           }
         }

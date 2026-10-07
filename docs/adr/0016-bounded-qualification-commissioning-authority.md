@@ -171,7 +171,10 @@ installation and its signed operator attestation. The directory passed with
 `--from` contains `commissioning-permit.json`, `signer-certificate.json` and
 `revocation-list.json`. `--protected-run` identifies the exact workflow run and
 attempt; `--resource-binding` supplies the exact public resource file reviewed
-before issuance. A submit additionally names only `--proof` and `--action`.
+before issuance. A submit additionally names `--proof` and `--action`; optional
+`--witness-file` records bounded secret-free counters in a new owner-private
+file. Recording never grants authority or pauses execution; any recording
+failure is reported after the native attempt completes.
 The root, production tuple, installed context and synchronized clock come from
 the installation, with no command-line root or policy override.
 

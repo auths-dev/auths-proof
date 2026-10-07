@@ -122,9 +122,11 @@ prints its planned production `tuple.json` through `qualification-candidate`,
 without custody or provider access; the release tool checks the declared contract ID against
 `contract.json`. `prepare-live` installs production custody for the disposable resources and
 compares `qualification-status --tuple` with that planned tuple before any
-permit import or submission. A changed installation fails closed. `run/live.sh` always calls `cleanup`, including after setup or stage
-failure; cleanup must remove disposable resources idempotently, and its failure
-fails the run. Both setup commands receive `AUTHS_GATEWAY` and
+permit import or submission. A changed installation fails closed. The whole
+`run/resource-session.sh` journey calls `cleanup`, including after setup or
+stage failure; individual phase runners retain resources for the next phase.
+Cleanup must remove disposable resources idempotently, and its failure fails
+the run. Both setup commands receive `AUTHS_GATEWAY` and
 `AUTHS_QUALIFICATION`. Only the protected live environment supplies
 `AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL`.
 
@@ -247,6 +249,14 @@ a write entry is the HTTP client's execution boundary, including ambiguity.
 Neither is a claim that a provider received or performed a mutation. Reads,
 including credential probes, are counted separately. First qualification must
 still independently read back the reviewed disposable resource.
+
+The optional private `commissioning-submit --witness-file` names a new file in
+an existing owner-private directory. During submission it appends only changed
+typed counter snapshots, at most 256 frames of 1 KiB each; it never contains
+proofs, actions, credentials or provider responses. Ten-millisecond sampling
+is diagnostic and may skip intermediate states. A recording failure is
+reported only after the native attempt completes, so it cannot cancel an
+entered write. This stream adds no pause, fault injection or execution authority.
 
 ### Fresh evidence comparisons
 

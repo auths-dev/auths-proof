@@ -44,7 +44,7 @@ async fn offline_review_verifies_exact_actors_and_requests_without_custody() {
         setup.permit.body().statement.binding.allowed_actions[0].to_hex()
     );
     let serialized = serde_json::to_value(&reviewed).expect("public projection");
-    assert_eq!(serialized["request"]["method"], "POST");
+    assert_eq!(serialized["request"]["method"], "PATCH");
     assert!(
         serialized["request"]["headers"]
             .as_array()

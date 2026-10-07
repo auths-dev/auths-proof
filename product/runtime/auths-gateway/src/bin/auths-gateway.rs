@@ -401,6 +401,10 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+            /// Optional new owner-private file of bounded, secret-free counter
+            /// snapshots. Read-only diagnostics; never a remote effect claim.
+            #[arg(long)]
+            witness_file: Option<PathBuf>,
         },
         /// Write a redacted archive for a support request: versions,
         /// digests, closed states, stable codes, and the digest and stage of
@@ -2667,10 +2671,91 @@ mod unix {
             .map_err(|error| Failure::at(code, socket, error))
     }
 
+    /// A bounded diagnostic stream. Opening refuses an existing file or a
+    /// shared directory before submission; a subsequent recording failure
+    /// must never cancel a submission that may have entered a provider write.
+    struct CommissioningWitnessFile {
+        file: File,
+        last: Option<auths_gateway::GatewayExecutionWitness>,
+        frames: usize,
+    }
+
+    impl CommissioningWitnessFile {
+        fn open(path: &Path) -> Result<Self, &'static str> {
+            let parent = path
+                .parent()
+                .filter(|_| path.is_absolute() && path.file_name().is_some())
+                .ok_or("gateway.commissioning.unsafe-witness-file")?;
+            check_private_directory(parent)
+                .map_err(|_| "gateway.commissioning.unsafe-witness-file")?;
+            if path
+                .components()
+                .any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
+            {
+                return Err("gateway.commissioning.unsafe-witness-file");
+            }
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .custom_flags(i32::from_ne_bytes(
+                    rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+                ))
+                .open(path)
+                .map_err(|_| "gateway.commissioning.unsafe-witness-file")?;
+            let metadata = file
+                .metadata()
+                .map_err(|_| "gateway.commissioning.unsafe-witness-file")?;
+            if !metadata.is_file()
+                || metadata.uid() != rustix::process::geteuid().as_raw()
+                || metadata.nlink() != 1
+                || metadata.permissions().mode() & 0o077 != 0
+            {
+                return Err("gateway.commissioning.unsafe-witness-file");
+            }
+            Ok(Self {
+                file,
+                last: None,
+                frames: 0,
+            })
+        }
+
+        fn record(
+            &mut self,
+            snapshot: auths_gateway::GatewayExecutionWitness,
+        ) -> Result<(), &'static str> {
+            if self.last.as_ref() == Some(&snapshot) {
+                return Ok(());
+            }
+            if self.frames >= 256 {
+                return Err("gateway.commissioning.witness-limit");
+            }
+            let mut bytes = serde_json::to_vec(&snapshot)
+                .map_err(|_| "gateway.commissioning.witness-unavailable")?;
+            if bytes.len() >= 1024 {
+                return Err("gateway.commissioning.witness-limit");
+            }
+            bytes.push(b'\n');
+            self.file
+                .write_all(&bytes)
+                .map_err(|_| "gateway.commissioning.witness-unavailable")?;
+            self.frames += 1;
+            self.last = Some(snapshot);
+            Ok(())
+        }
+
+        fn finish(&self) -> Result<(), &'static str> {
+            self.file
+                .sync_all()
+                .map_err(|_| "gateway.commissioning.witness-unavailable")
+        }
+    }
+
     /// Direct operator process; ordinary application handlers never call this.
     async fn commissioning(
         options: &CommissioningOptions,
         command: Option<(&Path, &Path)>,
+        witness_file: Option<&Path>,
     ) -> Result<(), Failure> {
         use auths_recipe_qualification::{
             BoundedText, COMMISSIONING_PERMIT_FILE, CommissioningInputs,
@@ -2726,7 +2811,34 @@ mod unix {
                 let proof = read_bounded(proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(action, 64 * 1024)?;
                 let before = engine.execution_witness();
-                let result = session.submit(&proof, &action).await;
+                let mut witness = witness_file
+                    .map(CommissioningWitnessFile::open)
+                    .transpose()?;
+                if let Some(witness) = &mut witness {
+                    witness.record(before.clone())?;
+                }
+                let submission = session.submit(&proof, &action);
+                tokio::pin!(submission);
+                let mut interval = tokio::time::interval(Duration::from_millis(10));
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                let mut diagnostic_failure = None;
+                let result = loop {
+                    tokio::select! {
+                        result = &mut submission => break result,
+                        _ = interval.tick(), if witness.is_some() && diagnostic_failure.is_none() => {
+                            if let Some(witness) = &mut witness {
+                                diagnostic_failure = witness.record(engine.execution_witness()).err();
+                            }
+                        }
+                    }
+                };
+                if let Some(witness) = &mut witness {
+                    // Even a full or broken stream cannot interrupt an entered
+                    // attempt. Report diagnostic failure only after it finishes.
+                    let final_record = witness.record(engine.execution_witness());
+                    diagnostic_failure = diagnostic_failure.or(final_record.err());
+                    diagnostic_failure = diagnostic_failure.or(witness.finish().err());
+                }
                 let measured = serde_json::json!({
                     "schema": "auths.gateway-commissioning-execution/1",
                     "result": result,
@@ -2738,6 +2850,9 @@ mod unix {
                     serde_json::to_string(&measured)
                         .map_err(|_| "gateway.submit.invalid-response")?
                 );
+                if let Some(code) = diagnostic_failure {
+                    return Err(code.into());
+                }
             }
         }
         Ok(())
@@ -3531,12 +3646,13 @@ mod unix {
                 );
                 Ok(())
             }
-            Command::CommissioningInit { session } => commissioning(&session, None).await,
+            Command::CommissioningInit { session } => commissioning(&session, None, None).await,
             Command::CommissioningSubmit {
                 session,
                 proof,
                 action,
-            } => commissioning(&session, Some((&proof, &action))).await,
+                witness_file,
+            } => commissioning(&session, Some((&proof, &action)), witness_file.as_deref()).await,
             #[cfg(feature = "loopback-provider")]
             Command::Serve {
                 state_dir,
@@ -3841,6 +3957,72 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn commissioning_witness_refuses_shared_existing_and_linked_outputs() {
+            let directory = tempfile::tempdir().expect("private output");
+            let parent = fs::canonicalize(directory.path()).expect("canonical output");
+            let path = parent.join("counters.jsonl");
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o755)).expect("shared");
+            assert!(CommissioningWitnessFile::open(&path).is_err());
+            assert!(!path.exists());
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).expect("private");
+            fs::write(&path, b"retain existing output").expect("existing");
+            assert!(CommissioningWitnessFile::open(&path).is_err());
+            assert_eq!(
+                fs::read(&path).expect("retained"),
+                b"retain existing output"
+            );
+            let link = parent.join("linked.jsonl");
+            std::os::unix::fs::symlink(&path, &link).expect("symbolic link");
+            assert!(CommissioningWitnessFile::open(&link).is_err());
+            assert!(CommissioningWitnessFile::open(Path::new("relative.jsonl")).is_err());
+        }
+
+        #[test]
+        fn commissioning_witness_bounds_changed_counter_frames_without_secret_fields() {
+            let directory = tempfile::tempdir().expect("private output");
+            let parent = fs::canonicalize(directory.path()).expect("canonical output");
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).expect("private");
+            let path = parent.join("counters.jsonl");
+            let mut stream = CommissioningWitnessFile::open(&path).expect("new output");
+            let mut snapshot = auths_gateway::GatewayExecutionWitness {
+                schema: "auths.gateway-execution-witness/1".to_owned(),
+                scope: "00112233445566778899aabbccddeeff".to_owned(),
+                credential_lease_calls: 0,
+                write_transport_entries: 0,
+                read_transport_entries: 0,
+            };
+            for reads in 0..256 {
+                snapshot.read_transport_entries = reads;
+                stream.record(snapshot.clone()).expect("changed snapshot");
+                stream.record(snapshot.clone()).expect("duplicate omitted");
+            }
+            snapshot.read_transport_entries = 256;
+            assert_eq!(
+                stream.record(snapshot),
+                Err("gateway.commissioning.witness-limit")
+            );
+            stream.finish().expect("finished output");
+            let bytes = fs::read(&path).expect("counter frames");
+            assert!(bytes.len() <= 256 * 1024);
+            let lines = bytes
+                .split(|byte| *byte == b'\n')
+                .filter(|line| !line.is_empty());
+            let snapshots: Vec<auths_gateway::GatewayExecutionWitness> = lines
+                .map(|line| serde_json::from_slice(line).expect("closed typed snapshot"))
+                .collect();
+            assert_eq!(snapshots.len(), 256);
+            assert!(snapshots.iter().enumerate().all(|(index, snapshot)| {
+                snapshot.read_transport_entries == index as u64
+                    && snapshot.credential_lease_calls == 0
+                    && snapshot.write_transport_entries == 0
+            }));
+            assert_eq!(
+                fs::metadata(path).expect("mode").permissions().mode() & 0o777,
+                0o600
+            );
+        }
 
         #[test]
         fn candidate_identity_needs_no_installation_and_binds_the_running_bytes() {
