@@ -20,8 +20,9 @@ were mounted; no checkout or provider credential reached the application.
 The authority setup uses the existing native SDK authoring helper, a fresh
 in-memory key and explicit disposable trust. It writes only public proof,
 action and context bytes. It grants no production trust or execution capability.
-The current CI job's historical “ten recipes” display name is stale; coverage is
-determined by `bindings/recipes/manifest.json`, not that label.
+The CI job's historical “ten recipes” display name overstated the current
+manifest. It now says “installed-artifact recipes”; coverage is determined by
+`bindings/recipes/manifest.json` and the observed results.
 
 ## Provider operator journeys
 
