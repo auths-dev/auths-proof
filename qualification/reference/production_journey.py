@@ -40,6 +40,9 @@ import scan_publication
 
 ENVIRONMENT = 'gateway-custody-live'
 PHASES = ['prepare', 'commission', 'import-first', 'live', 'cleanup', 'final-proposal']
+# Draining covers the bounded native commands and both four-attempt AWS
+# replacements/restorations. It does not extend a native case's 120-second gate.
+CONTROLLER_DRAIN_SECONDS = 900
 GITHUB_INPUTS = ['GITHUB_REPOSITORY', 'GITHUB_EVENT_NAME', 'GITHUB_REF', 'GITHUB_RUN_ID',
                  'GITHUB_RUN_ATTEMPT', 'GITHUB_SHA', 'GITHUB_ACTIONS', 'RUNNER_ENVIRONMENT']
 
@@ -132,7 +135,7 @@ class Journey:
             except BaseException:
                 self.worker_failed = True
                 self.ready.set()
-        self.worker = threading.Thread(target=run, name='auths-family-operations', daemon=True)
+        self.worker = threading.Thread(target=run, name='auths-family-operations')
         self.worker.start()
         require(self.ready.wait(10) and not self.worker_failed and self.worker.is_alive(),
                 'qualification.journey.controller-not-ready')
@@ -279,9 +282,11 @@ class Journey:
                 failures.append(True)
         self.stopping.set()
         if self.worker is not None:
-            self.worker.join(timeout=130)
-            if self.worker.is_alive():
-                failures.append(True)
+            self.worker.join(timeout=CONTROLLER_DRAIN_SECONDS)
+            # A worker may still be restoring the exact AWS credential after
+            # a native case timed out. Retiring its identity, database or
+            # provider resources here could race that restoration or a write.
+            require(not self.worker.is_alive(), 'qualification.journey.controller-not-drained')
         if self.deployment is not None:
             attempt(self.deployment.close)
             # Collect while the actual web identity is still renewing. A
