@@ -172,7 +172,7 @@ def main() -> None:
         metadata = archive.read(metadata_names[0]).decode("utf-8")
         required = (
             "Name: auths\n",
-            "Version: 1.0.0rc1\n",
+            "Version: 0.0.1rc1\n",
             "Requires-Python: >=3.9\n",
             "Classifier: Operating System :: Microsoft :: Windows\n",
             "Classifier: Operating System :: MacOS\n",
