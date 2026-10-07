@@ -60,8 +60,14 @@ pool, including both phase operations and both fresh-challenge replays. Missing,
 additional, reordered or rebound packets cannot receive a permit. A one-packet
 refresh is a private execution handoff, never a new signing input.
 
-The protected family setup, complete corpus and live workflow still need to
-use these references. No family is qualified by landing this code.
+The two family directories now contain reviewed source plans, provider
+contracts and record metadata. `family_corpus.py` expands their fixed 16-resource
+public pool into complete native case sequences. `family_harness.py` executes
+the six offline scenarios with the actual installed SDK and shipping reviewer;
+the native runner validates the full plan before selecting that phase. The
+workflow retains real canonical conformance and differential evidence.
+Protected operations still refuse without the production journey implementation.
+No family is qualified by landing this code.
 
 The native commissioning permit is now schema 2. Its closed
 `trusted_contexts_sha256` list contains 1–4 sorted unique exact canonical context

@@ -90,7 +90,7 @@ One directory per recipe family, named by its `RecipeFamilyId`.
 | --- | --- |
 | `decision-record.md` | The family's decision record. Its digest goes into the record. |
 | `contract.json` | The canonical `auths.provider-contract/1` the run qualifies against. |
-| `corpus-manifest.json` | The corpus the differential, hostile, and live stages run. |
+| `corpus-manifest.json` | The reviewed source plan and exact compiler/oracle file hashes, expanded into the concrete native corpus. |
 | `record.json` | What the record states that no run decides: `provider_kind`, `validity_days` (at most 90), `not_applicable` (each capability the family lacks, with the reason the decision record fixes), `custody_descriptor`, `store_descriptor`, `residual_assumptions`, `excluded_claims`. |
 | `harness` | A reviewed executable implementing `prepare`, `prepare-live`, `step` and `cleanup`. |
 
@@ -98,7 +98,16 @@ The harness owns the provider-specific operations and pure oracle. The release
 runner owns sequencing, assertions, counters, and the resulting case reports.
 No family harness writes `passed` reports or `live-effects.json`.
 
-`corpus-manifest.json` is `auths.qualification-corpus/3`, decoded as
+The checked-in manifest is `auths.qualification-reviewed-plan/1`. It binds the
+exact source compiler, provider references, packet author, recipe, lock and ADR.
+`python3 -B qualification/reference/generate_families.py` regenerates the closed
+plans, contracts, record metadata and family entry points; `--check` refuses
+source or artifact drift. The permit signer performs that check before deriving
+the source-owned contract identity.
+
+The compiler independently derives each request and fresh-evidence subject from
+the complete authenticated public pool. Its concrete `corpus.json` is
+`auths.qualification-corpus/3`, decoded as
 `execution::RunCorpus` by `auths-qualification run-stage`. It contains at most
 256 unique cases. Each case has `id`, `scenario`, `capabilities`, `phase`
 (`offline`, `commissioning` or `live`), and at most 32 ordered `steps`. Each step has a closed

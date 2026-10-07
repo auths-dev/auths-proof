@@ -18,5 +18,5 @@ tool="${AUTHS_QUALIFICATION:-${root}/target/release/auths-qualification}"
 rm -f "${work}/${stage}-effects.json" "${work}/cases/"*."${stage}".json
 
 "${tool}" run-stage --phase "${stage}" \
-  --corpus "${root}/qualification/families/${family}/corpus-manifest.json" \
+  --corpus "${work}/corpus.json" \
   --harness "${harness}" --tuple "${work}/tuple.json" --work-dir "${work}"

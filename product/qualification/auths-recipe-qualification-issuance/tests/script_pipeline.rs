@@ -249,6 +249,7 @@ fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
     )
     .expect("corpus");
     let scripts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run");
+    fs::create_dir_all(work.join("cases")).expect("earlier phase report directory");
     for mode in ["success", "setup-failed", "failed", "cleanup-failed"] {
         fs::write(work.join("fault"), mode).expect("fault");
         // A prior phase's outputs must also become unusable if the overall

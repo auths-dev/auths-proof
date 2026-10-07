@@ -38,6 +38,8 @@ def call(arguments):
 
 def source_contract(family, inputs, issuer):
     require(family in expand.REFERENCES, 'qualification.commission.family')
+    from generate_families import generate
+    generate(check=True)
     contract = ROOT / 'qualification/families' / family / 'contract.json'
     # Hash the reviewed source contract through the native format, never use
     # an artifact-supplied contract ID as its own expected value.
