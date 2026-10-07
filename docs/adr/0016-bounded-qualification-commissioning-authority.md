@@ -1,7 +1,10 @@
 # ADR 0016: Bound the first qualification run with explicit commissioning authority
 
-**Status:** Proposed. No commissioning authority is implemented or accepted by
-any current gateway. Ordinary production leases still require qualification.
+**Status:** Implementing. The closed permit, commissioning-only signer purpose,
+offline evidence closure and pure signature/binding verifier are implemented.
+No current gateway accepts commissioning authority. Private operator sessions,
+durable shared accounting and the protected live workflow remain required.
+Ordinary production leases still require qualification.
 
 **Date:** 7 October 2026
 
@@ -99,6 +102,25 @@ use a permit, and failure before credentials. The first actual protected run
 must show no ordinary lease before qualification, measured finite commissioned
 leases, and ordinary qualified operation after import. CI and the signed evidence
 must name the exact shipped candidate. Simulations cannot establish this claim.
+
+The initial artifact implementation keeps its run/family budget key independent
+of signature, signer and validity window. Its immutable budget binding commits
+to every candidate, principal, context, resource, environment, offline-evidence,
+action and ceiling member. A durable registration must refuse a changed binding
+at the same key; renewal must consume the original counter. Windows are
+half-open, and both the issue-to-expiry and start-to-expiry durations are capped
+at two hours. Release certificates carry no commissioning permission;
+commissioning certificates carry no attestation or index permission. A
+mixed-purpose certificate is refused by the commissioning verifier.
+
+The public synthetic vector is
+`bindings/fixtures/qualification/commissioning-v1.json`. Native tests consume
+these frozen bytes without issuance code. They cover strict decoding and every
+single-bit signature mutation; issuance tests additionally cover purpose/root/
+domain separation, exact runtime bindings, time/revocation boundaries, finite
+action/lease bounds, evidence omissions and stable renewal identities. These
+tests establish the pure artifact boundary only, not durable consumption or a
+completed production bootstrap.
 
 ## Consequences
 

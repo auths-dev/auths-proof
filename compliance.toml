@@ -1161,18 +1161,21 @@ kind = "cargo"
 layer = "product"
 path = "product/qualification/auths-recipe-qualification"
 core_apis = []
-protocol_versions = ["auths.provider-contract/1", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1", "auths.qualification-tuple/1", "auths.gateway-semantic-closure/1", "auths.qualification-schema-vectors/1", "auths.qualification-verification-vectors/1"]
-wire_objects = ["GatewaySemanticClosure", "ProviderContract", "QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
+protocol_versions = ["auths.provider-contract/1", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-commissioning-permit/1", "auths.qualification-commissioning-budget-key/1", "auths.qualification-commissioning-budget-binding/1", "auths.qualification-commissioning-vectors/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1", "auths.qualification-tuple/1", "auths.gateway-semantic-closure/1", "auths.qualification-schema-vectors/1", "auths.qualification-verification-vectors/1"]
+wire_objects = ["QualificationCommissioningPermit", "GatewaySemanticClosure", "ProviderContract", "QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
 fixture_suites = ["bindings/fixtures/qualification"]
 principal_families = []
 signature_families = ["ed25519-v1"]
 profiles = []
 transports = []
-configuration_inputs = ["qualification-trust-root", "qualification-signer-certificate", "qualification-revocation-list", "qualification-release-index"]
+configuration_inputs = ["commissioning-permit", "qualification-trust-root", "qualification-signer-certificate", "qualification-revocation-list", "qualification-release-index"]
 security_state = []
 
 [packages.auths-recipe-qualification.claims]
 independent-semantic-implementation = [
+  "product/qualification/auths-recipe-qualification/src/commissioning/tests.rs#frozen_commissioning_bytes_authenticate_only_their_exact_binding",
+  "product/qualification/auths-recipe-qualification/src/commissioning/tests.rs#every_single_bit_signature_mutation_is_refused",
+  "product/qualification/auths-recipe-qualification/src/commissioning/tests.rs#unsigned_shape_never_accepts_extra_duplicate_or_unknown_members",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#every_valid_artifact_decodes",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#every_structural_case_is_refused_with_its_reason",
   "product/qualification/auths-recipe-qualification/src/vectors/schemas.rs#contract_drift_changes_the_contract_identifier",
@@ -1187,18 +1190,29 @@ kind = "cargo"
 layer = "product"
 path = "product/qualification/auths-recipe-qualification-issuance"
 core_apis = []
-protocol_versions = ["auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1"]
-wire_objects = ["QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
+protocol_versions = ["auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-commissioning-permit/1", "auths.qualification-commissioning-budget-key/1", "auths.qualification-commissioning-budget-binding/1", "auths.qualification-commissioning-vectors/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.qualification-evidence/1"]
+wire_objects = ["QualificationCommissioningPermit", "QualificationEvidence", "QualificationReleaseIndex", "QualificationRevocationList", "QualificationSignerCertificate", "QualificationTrustRoot", "RecipeQualificationAttestation", "RecipeQualificationRecord"]
 fixture_suites = []
 principal_families = []
 signature_families = ["ed25519-v1"]
 profiles = []
 transports = []
-configuration_inputs = ["record-draft", "stage-case-reports", "executable-qualification-corpus", "candidate-observations", "family-harness", "qualification-trust-root-key-file", "release-signer-key-file"]
-security_state = ["qualification-trust-root-key", "release-signer-key"]
+configuration_inputs = ["record-draft", "stage-case-reports", "executable-qualification-corpus", "candidate-observations", "family-harness", "qualification-trust-root-key-file", "release-signer-key-file", "commissioning-proposal", "commissioning-signer-key-file"]
+security_state = ["qualification-trust-root-key", "release-signer-key", "commissioning-signer-key"]
 
 [packages.auths-recipe-qualification-issuance.claims]
 proof-author-or-assembler = [
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#a_commissioning_permit_never_qualifies_ordinary_production",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#commissioning_and_release_signers_have_separate_purposes",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#each_signature_root_and_domain_is_required",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#every_runtime_binding_must_equal_the_reviewed_session",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#commissioning_windows_are_half_open_and_require_trusted_time",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#revocations_are_permanent_and_an_older_list_cannot_restore_authority",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#proposal_rechecks_exact_offline_artifacts_and_all_required_scenarios",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#action_and_lease_bounds_are_exact_and_never_silently_repaired",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#renewal_cannot_change_the_durable_budget_identity_or_binding",
+  "product/qualification/auths-recipe-qualification-issuance/tests/commissioning.rs#commissioning_artifact_fixture_is_current",
+
   "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_record_is_assembled_from_its_evidence_and_closes_over_it",
   "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#a_run_with_a_failed_case_produces_no_evidence",
   "product/qualification/auths-recipe-qualification-issuance/tests/issuance.rs#assembly_refuses_a_wall_that_is_not_whole",

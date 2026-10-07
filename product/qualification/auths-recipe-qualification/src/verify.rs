@@ -127,7 +127,7 @@ pub struct QualificationInputs<'input> {
     pub attestations: &'input [&'input [u8]],
 }
 
-fn verifies(key: &[u8; 32], preimage: &[u8], signature: &[u8; 64]) -> bool {
+pub(crate) fn verifies(key: &[u8; 32], preimage: &[u8], signature: &[u8; 64]) -> bool {
     VerifyingKey::from_bytes(key).is_ok_and(|key| {
         key.verify_strict(preimage, &Signature::from_bytes(signature))
             .is_ok()
