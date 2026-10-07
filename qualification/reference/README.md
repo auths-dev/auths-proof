@@ -37,8 +37,11 @@ python qualification/reference/expand.py \
   --out-dir <new-output-directory>
 ```
 
-The public packet carrier is `auths.qualification-public-packets/1`, with
-`protected_run`, `trusted_context` (one adjacent filename), and 1–64 `packets`.
+The public packet carrier is `auths.qualification-public-packets/2`, with
+`protected_run`, `evaluated_at`, `not_after`, `trusted_context` (one adjacent
+filename), and 1–64 `packets`. Packet validity is at most five minutes; the
+signing expansion reviews native proofs at their recorded offline evaluation
+time, within the last two hours. This grants no production clock override.
 Each packet contains `label`, `proof`, `action` (adjacent filenames), and its
 expected `arguments`. Unknown fields, path traversal, changed source, wrong
 production targets, resource widening, actor changes or an oracle mismatch
@@ -99,3 +102,36 @@ Stripe's [Refund object](https://docs.stripe.com/api/refunds/object) has no
 and the exact freshly checked PaymentIntent and Charge; the refund must bind
 that same payment. An unexpected explicit live-mode marker is refused. Unit
 responses follow the provider's actual Refund shape.
+
+### Installed author and delayed signing
+
+`packet_plan.py` derives public arguments for separate commissioning/live
+operations on each closed resource. It preserves the exact reviewed lock and
+the approved recipe substitutions, obtains the native verifier pin and Stripe
+bounded extension, and scopes the Stripe grant to these payment identifiers.
+No provider credential or caller-supplied argument enters the installed author.
+
+`author_packets.py` must run outside the checkout from an installed wheel, with
+only `PATH`, `PYTHONNOUSERSITE` and optional locale variables. It refuses any
+additional environment variable before importing the SDK. A fresh native key
+authors the single actor, grant, challenge and trust; no private key is exported.
+The grant/session lasts at most two hours. Every action keeps the ordinary SDK
+maximum of 300 seconds; a protected signing wait must not extend that limit.
+
+With `--serve`, the same isolated process holds its key in memory and accepts
+bounded newline-delimited commands on private stdin. A refresh names only an
+existing label and the next integer generation (1–1024); it cannot supply new
+arguments, authority, actor, challenge or a destination path. It writes into a
+new private `refresh-NNNN` directory. The refreshed proof uses current time,
+while the canonical action, action commitment, exact grant, request and
+installation context remain unchanged. Native context normalization preserves
+the installation's request evaluation input; the gateway always rebinds its
+own trusted current time. EOF, `close`, expiry, rollback or malformed commands
+terminate the process. Keys and tokens are never transferred through artifacts.
+
+`check_packets.py` exercises the real installed author and shipping gateway with
+explicitly synthetic resource carriers and no network/provider credential. It
+checks both independent request mappings, original five-minute expiry, and an
+actual refreshed native proof with the same actor/action/request/trust. CI
+retains only its closed report. This is operator/release-tool evidence, not
+protected live qualification.

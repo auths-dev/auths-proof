@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -67,14 +68,21 @@ def read(path):
 
 
 def write(path, value, *, new=False):
+    payload = canonical(value)
+    require(len(payload) <= 65536, 'qualification.resources.ledger-bound')
+    write_bytes(path, payload, new=new)
+
+
+def write_bytes(path, payload, *, new=False):
+    """Durably write bounded public protocol bytes in an owner-private parent."""
+    require(type(payload) is bytes and 0 < len(payload) <= 4 * 1024 * 1024,
+            'qualification.resources.ledger-bound')
     path = Path(path)
     parent = path.parent
     info = os.lstat(parent)
     require(stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode)
             and info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700,
             'qualification.resources.private-output')
-    payload = canonical(value)
-    require(len(payload) <= 65536, 'qualification.resources.ledger-bound')
     if new:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'wb') as stream:
@@ -112,6 +120,7 @@ def finish(command):
             code = 'qualification.resources.refused'
         print(code, file=sys.stderr)
         raise SystemExit(1) from None
-    except (ValueError, OSError):
+    except (ValueError, OSError, KeyError, TypeError, ImportError, OverflowError,
+            RecursionError, subprocess.SubprocessError):
         print('qualification.resources.refused', file=sys.stderr)
         raise SystemExit(1) from None

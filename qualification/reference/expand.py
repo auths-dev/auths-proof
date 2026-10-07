@@ -14,6 +14,7 @@ from pathlib import Path
 import stat
 import subprocess
 import sys
+import time
 
 import airtable_record
 import stripe_platform
@@ -115,9 +116,13 @@ def expand(args):
             and read(args.profile_lock, 65536) == read(source / 'profile.lock.json', 65536),
             'qualification.reference.reviewed-source')
     plan = decode(read(args.packets, 65536))
-    closed(plan, ['schema', 'protected_run', 'trusted_context', 'packets'])
-    require(plan['schema'] == 'auths.qualification-public-packets/1'
+    closed(plan, ['schema', 'protected_run', 'evaluated_at', 'not_after', 'trusted_context', 'packets'])
+    require(plan['schema'] == 'auths.qualification-public-packets/2'
             and plan['protected_run'] == protected_run
+            and type(plan['evaluated_at']) is int and 60 <= plan['evaluated_at'] <= 253402300499
+            and type(plan['not_after']) is int
+            and plan['evaluated_at'] < plan['not_after'] <= plan['evaluated_at'] + 300
+            and int(time.time()) - 7200 <= plan['evaluated_at'] <= int(time.time()) + 60
             and type(plan['packets']) is list and 1 <= len(plan['packets']) <= 64,
             'qualification.reference.packet-bound')
     work = args.packets.parent
@@ -134,7 +139,8 @@ def expand(args):
         read(action, 65536)
         reviewed = child(args.reviewer, ['review-submission', '--recipe', args.recipe,
                                          '--profile-lock', args.profile_lock, '--trusted-context', context,
-                                         '--proof', proof, '--action', action])
+                                         '--proof', proof, '--action', action,
+                                         '--evaluated-at', str(plan['evaluated_at'])])
         require(reviewed.get('schema') == 'auths.gateway-submission-review/1'
                 and len(reviewed['actors']) == 1 and reviewed['arguments'] == packet['arguments'],
                 'qualification.reference.proof-binding')
