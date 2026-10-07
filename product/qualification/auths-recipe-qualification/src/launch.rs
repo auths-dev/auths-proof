@@ -55,8 +55,7 @@ mod tests {
                     deployment,
                 );
                 body.provider_kind = ProviderKind::parse(*provider).expect("provider");
-                body.provenance.environment =
-                    bounded(&format!("recipe-qualification-live-{family}"));
+                body.provenance.environment = bounded("gateway-custody-live");
                 let artifacts = artifacts(&body, readiness);
                 body.evidence = artifacts
                     .iter()
@@ -275,6 +274,19 @@ mod tests {
             )
             .ready()
         );
+    }
+
+    #[test]
+    fn a_signed_record_from_another_environment_cannot_close_launch() {
+        for environment in [
+            "recipe-qualification-live-refund-v1",
+            "recipe-qualification-signing",
+            "unprotected",
+        ] {
+            let mut fixture = Fixture::two();
+            fixture.records[0].provenance.environment = bounded(environment);
+            assert!(!fixture.ready());
+        }
     }
 
     #[test]

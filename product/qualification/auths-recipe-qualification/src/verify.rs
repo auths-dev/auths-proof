@@ -265,11 +265,7 @@ impl VerifiedQualifications {
             })
             && record.provenance.repository.as_str() == "github.com/auths-dev/auths-proof"
             && record.provenance.workflow.as_str() == ".github/workflows/recipe-qualification.yml"
-            && record.provenance.environment.as_str()
-                == format!(
-                    "recipe-qualification-live-{}",
-                    record.tuple.recipe_family.as_str()
-                )
+            && record.provenance.environment.as_str() == "gateway-custody-live"
     }
 
     /// Checks every signature under the pinned `root`. An input that does
