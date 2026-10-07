@@ -23,14 +23,14 @@ class AuthorSocket(unittest.TestCase):
                 sender.sendall(raw)
                 sender.shutdown(socket.SHUT_WR)
                 if raw.endswith(b'\n'):
-                    self.assertEqual(author_socket.receive(receiver, time.time() + 2), raw)
+                    self.assertEqual(author_socket.receive(receiver, time.monotonic() + 2), raw)
                 else:
-                    with self.assertRaises(Refusal): author_socket.receive(receiver, time.time() + 2)
+                    with self.assertRaises(Refusal): author_socket.receive(receiver, time.monotonic() + 2)
         for raw in [b'x' * 513, b'one\ntwo\n', b'one\nunfinished']:
             sender, receiver = socket.socketpair()
             with sender, receiver:
                 sender.sendall(raw)
-                with self.assertRaises(Refusal): author_socket.receive(receiver, time.time() + 2)
+                with self.assertRaises(Refusal): author_socket.receive(receiver, time.monotonic() + 2)
 
     @unittest.skipUnless(hasattr(socket, 'SO_PEERCRED'), 'Linux peer credentials required')
     def test_peer_credentials_come_from_the_kernel(self):

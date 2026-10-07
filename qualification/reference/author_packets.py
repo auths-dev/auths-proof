@@ -139,12 +139,17 @@ def author(plan_path, work, serve=False):
         return
     print('{"schema":"auths.qualification-author-session/1","state":"ready"}', flush=True)
     generation = 0
+    deadline = time.monotonic() + max(0, end - time.time())
+    last_clock = time.time()
     # Bounded pipe reads use os.read rather than buffered readline: select
     # must not miss an already-buffered second command. Partial frames have
     # the same finite grant deadline and cannot extend the process lifetime.
     pending = b''
     while True:
-        remaining = end - time.time()
+        now = time.time()
+        require(now >= last_clock, 'qualification.packets.session-expired')
+        last_clock = now
+        remaining = min(end - now, deadline - time.monotonic())
         require(remaining > 0, 'qualification.packets.session-expired')
         ready, _, _ = select.select([sys.stdin.fileno()], [], [], remaining)
         require(bool(ready), 'qualification.packets.session-expired')

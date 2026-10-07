@@ -38,7 +38,7 @@ def peer_uid(connection):
 def receive(connection, deadline):
     pending = b''
     while b'\n' not in pending:
-        remaining = min(30, deadline - time.time())
+        remaining = min(30, deadline - time.monotonic())
         require(remaining > 0, 'qualification.packets.session-expired')
         connection.settimeout(remaining)
         chunk = connection.recv(513 - len(pending))
@@ -69,9 +69,14 @@ def serve(plan, work):
             server.listen(1)
             emit, end = create_session(plan)
             emit(work)
+            deadline = time.monotonic() + max(0, end - time.time())
+            last_clock = time.time()
             generation = 0
             while True:
-                remaining = end - time.time()
+                now = time.time()
+                require(now >= last_clock, 'qualification.packets.session-expired')
+                last_clock = now
+                remaining = min(end - now, deadline - time.monotonic())
                 require(remaining > 0, 'qualification.packets.session-expired')
                 server.settimeout(remaining)
                 connection, _ = server.accept()
@@ -79,7 +84,7 @@ def serve(plan, work):
                     require(peer_uid(connection) == 0, 'qualification.packets.socket-peer')
                     connection.settimeout(min(30, remaining))
                     send(connection, {'schema': SCHEMA, 'state': 'ready', 'generation': generation})
-                    raw = receive(connection, end)
+                    raw = receive(connection, deadline)
                     if decode(raw) == {'command': 'inspect'}:
                         send(connection, {'schema': SCHEMA, 'state': 'ready', 'generation': generation})
                         continue
@@ -111,7 +116,7 @@ def exchange(work, action, label=None):
         connection.settimeout(30)
         connection.connect(str(endpoint))
         require(peer_uid(connection) == info.st_uid, 'qualification.packets.socket-peer')
-        ready = decode(receive(connection, time.time() + 30))
+        ready = decode(receive(connection, time.monotonic() + 30))
         closed(ready, ['schema', 'state', 'generation'])
         require(ready['schema'] == SCHEMA and ready['state'] == 'ready'
                 and type(ready['generation']) is int and 0 <= ready['generation'] <= 1024,
@@ -122,7 +127,7 @@ def exchange(work, action, label=None):
         else:
             require(action in ['inspect', 'close'], 'qualification.packets.command-bound')
         send(connection, value)
-        result = decode(receive(connection, time.time() + 30))
+        result = decode(receive(connection, time.monotonic() + 30))
         expected = dict(ready) if action == 'inspect' else {'schema': SCHEMA, 'state': 'closed'}
         if action == 'refresh':
             expected = {'schema': SCHEMA, 'state': 'refreshed',
