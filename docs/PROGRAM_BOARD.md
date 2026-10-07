@@ -481,3 +481,10 @@ passed. Evidence is retained under
 `qualification/simulation/evidence/stripe-platform-live-2026-10-07/`.
 Connect scope is excluded; both real provider rehearsals remain development
 evidence and do not change production qualification or stable readiness.
+
+The next bootstrap design is recorded in proposed ADR 0016. It separates
+finite, signed operator commissioning authority from normal application
+qualification, with exact candidate/action/run bindings and durable lease
+bounds. No gateway accepts such a permit yet; the ordinary production gate
+and stable-readiness result remain unchanged. The existing protected AWS
+custody workflow provides a reusable infrastructure starting point.

@@ -1761,3 +1761,19 @@ The exact signed simulation report and support bundle are retained under
 Both live provider journeys now have measured development evidence. They still
 exclude protected production qualification and the full production evidence
 wall; the normal production lease gate remains unchanged.
+
+### 22.3 First-run commissioning design (2026-10-07)
+
+[ADR 0016](../adr/0016-bounded-qualification-commissioning-authority.md) proposes
+a separate, finite signed authority for an authenticated operator qualification
+run against the exact production candidate. It binds reviewed resource/action
+commitments, the production tuple, trusted context, one protected run and actor,
+durable shared lease bounds, time and revocation. Normal application leases
+remain subject to the current qualification gate. A permit is neither a
+qualification nor evidence of provider behavior or production readiness.
+
+This is a design prerequisite, not implementation completion or a change to
+the current gateway's accepted authority. The full signed schema, issuance,
+sealed runtime path, PostgreSQL accounting, authenticated operator interface,
+protected workflow and rejection/live evidence must land together before the
+bootstrap can be claimed resolved. Epic 5's done conditions remain unchanged.
