@@ -17,7 +17,7 @@ import time
 
 from common import Refusal, canonical, closed, integer, require, sha256
 from expand import decode, read
-from packet_plan import REFERENCES, validate
+from packet_plan import REFERENCES, grant_for, validate
 from resource_io import finish, write, write_bytes
 
 
@@ -53,12 +53,14 @@ def create_session(plan_path):
     key = native.DevelopmentEd25519Key.generate()
     actor = native.Principal(key.principal)
     extension = plan['extension']
-    extensions = [] if extension is None else [(extension['extension_id'], bytes.fromhex(extension['extension_body_hex']))]
-    request = native.GrantRequest(actor, 'auths.mcp', 2, [('tools/call', resource)],
-        current - 60, end, [audience], None, None, 0, None, 'raw-key-baseline', extensions)
-    unsigned = native.root_grant(actor, request)
-    signing = native.prepare_signing(unsigned, key.principal_method, key.verification_method, key.suite)
-    grant = signing.complete(key.sign(signing.signing_preimage))
+    grants = {}
+    for name, body in ({'default': None} if extension is None else extension).items():
+        extensions = [] if body is None else [(body['extension_id'], bytes.fromhex(body['extension_body_hex']))]
+        request = native.GrantRequest(actor, 'auths.mcp', 2, [('tools/call', resource)],
+            current - 60, end, [audience], None, None, 0, None, 'raw-key-baseline', extensions)
+        unsigned = native.root_grant(actor, request)
+        signing = native.prepare_signing(unsigned, key.principal_method, key.verification_method, key.suite)
+        grants[name] = signing.complete(key.sign(signing.signing_preimage))
     challenges = {name: native.generate_challenge_v1() for name in ['initial', 'fresh']}
     require(challenges['initial'] != challenges['fresh'], 'qualification.packets.challenge-binding')
     anchor = native.TrustAnchor(actor.value, actor, [key.principal_method], [('auths.mcp', 2)],
@@ -70,7 +72,7 @@ def create_session(plan_path):
         ('actor', 'every', 'offline-verifiable', None)])
     template = native.compile_trusted_context(bytes.fromhex(plan['configuration']), None, 1, 1, 1,
         [anchor], assurance, None, None, 'none-v1', [key.evidence_type],
-        [] if extension is None else [extension['extension_id']])
+        [] if extension is None else [extension['default']['extension_id']])
     contexts = {name: template.bind_request(audience, challenge, current)
                 for name, challenge in challenges.items()}
     evidence = (key.evidence_type, key.media_type, key.evidence)
@@ -88,6 +90,7 @@ def create_session(plan_path):
         packets, emitted_contexts = [], set()
         for packet in selected:
             label, arguments = packet['label'], packet['arguments']
+            grant = grants[grant_for(label)]
             context_name = packet['context']
             challenge, context = challenges[context_name], contexts[context_name]
             context_file = 'context-' + str(['initial', 'fresh'].index(context_name)) + '.cbor'
@@ -113,10 +116,10 @@ def create_session(plan_path):
                 emitted_contexts.add(context_file)
             packets.append({'label': label, 'proof': label + '.proof', 'action': label + '.action',
                             'trusted_context': context_file, 'arguments': arguments})
-        write(work / 'public-packets.json', {'schema': 'auths.qualification-public-packets/3',
+        write(work / 'public-packets.json', {'schema': 'auths.qualification-public-packets/4',
             'protected_run': plan['protected_run'], 'evaluated_at': current, 'not_after': current + validity,
             'trusted_contexts': sorted(emitted_contexts), 'packets': packets}, new=True)
-        write(work / 'author-report.json', {'schema': 'auths.qualification-packet-author/2',
+        write(work / 'author-report.json', {'schema': 'auths.qualification-packet-author/3',
             'family': plan['family'], 'protected_run': plan['protected_run'], 'sdk_version': version,
             'packet_count': len(packets), 'trusted_contexts_sha256': {
                 name: sha256(read(work / name, 4 * 1024 * 1024)) for name in sorted(emitted_contexts)},

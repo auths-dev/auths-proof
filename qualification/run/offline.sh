@@ -45,11 +45,20 @@ done
   "$("${AUTHS_QUALIFICATION}" contract-id --contract "${directory}/contract.json")" ] \
   || { echo "qualification.contract-changed" >&2; exit 1; }
 "${AUTHS_QUALIFICATION}" run-stage --phase offline \
-  --corpus "${directory}/corpus-manifest.json" --harness "${directory}/harness" \
+  --corpus "${work}/corpus.json" --harness "${directory}/harness" \
   --tuple "${work}/tuple.json" --work-dir "${work}"
 
 "${AUTHS_QUALIFICATION}" stage-trust --tuple "${work}/tuple.json" \
   --out "${work}/cases/rotation.trust.json"
+
+# The finite permit consumes actual canonical offline evidence, not a case
+# list or an arbitrary report's passing flag.
+mkdir -p "${work}/offline"
+for member in conformance differential; do
+  "${AUTHS_QUALIFICATION}" evidence --member "${member}" \
+    --tuple "${work}/tuple.json" --commit "$(git -C "${root}" rev-parse HEAD)" \
+    --cases "${work}/cases/${member}.offline.json" --out "${work}/offline/${member}.json"
+done
 
 digest() { shasum -a 256 "$1" | cut -d' ' -f1; }
 jq -n \
@@ -57,7 +66,7 @@ jq -n \
   --arg source_closure "$(git -C "${root}" ls-tree -r HEAD | shasum -a 256 | cut -d' ' -f1)" \
   --arg generated "$(cat "${AUTHS_GATEWAY}" "${AUTHS_QUALIFICATION}" | shasum -a 256 | cut -d' ' -f1)" \
   --arg decision "$(digest "${directory}/decision-record.md")" \
-  --arg corpus "$(digest "${directory}/corpus-manifest.json")" \
+  --arg corpus "$(digest "${work}/corpus.json")" \
   '{commit: $commit, source_closure_sha256: $source_closure,
     generated_artifacts_sha256: $generated,
     recipe_decision_record_sha256: $decision, corpus_manifest_sha256: $corpus}' \

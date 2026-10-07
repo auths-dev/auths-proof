@@ -1828,3 +1828,26 @@ mapping is `complete`, without an HTTP response or effect claim. `review` is
 refused as a protected operation or a replacement for an application submission.
 First commissioning therefore depends on offline native verification, without
 requiring pre-existing qualification to collect that verification.
+
+#### 22.7 Reviewed family plans and executable offline collection
+
+Both family directories now bind the exact source compiler, provider references,
+packet author, maintained recipe/lock and ADR in a canonical reviewed-plan
+manifest. The native provider contract hashes that manifest; a record separately
+hashes the concrete native corpus expanded from its authenticated public pool.
+The source generator refuses drift before permit contract derivation. Candidate
+outcomes never supply expected verdicts or request/evidence commitments.
+
+The full plan fixes 16 resources per family and includes both protected phases,
+ordinary Python/TypeScript journeys, isolation, drift, rotation, replay, race,
+restart, crash, loss/delayed visibility and production doctor. Stripe additionally
+has fixed count/sum capacity experiments and exact relative-ceiling probes.
+The installed author keeps one actor and reviewed grants; the distinct native
+budget windows isolate those capacity experiments without resetting state.
+
+The six offline scenarios have an executable family harness and hosted jobs
+using the actual installed wheel and shipping gateway. The native runner derives
+their conformance/differential reports, and the issuer constructs canonical
+offline evidence. Verification of this new collection is pending. Protected
+operations currently refuse without their production journey implementation;
+the source plan is not evidence that those operations ran. Epic 5 remains open.

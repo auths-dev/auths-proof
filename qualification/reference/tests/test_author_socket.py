@@ -60,7 +60,7 @@ class AuthorSocket(unittest.TestCase):
                           'trusted_context': 'context-0.cbor',
                           'action': 'live-00.action', 'arguments': {'closed': 'source'}}
                 now = int(time.time())
-                original = {'schema': 'auths.qualification-public-packets/3',
+                original = {'schema': 'auths.qualification-public-packets/4',
                     'protected_run': 'recipe-qualification/123/1', 'evaluated_at': now,
                     'not_after': now + 300, 'trusted_contexts': ['context-0.cbor'], 'packets': [packet]}
                 write(work / 'public-packets.json', original, new=True)
