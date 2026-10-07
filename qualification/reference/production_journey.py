@@ -21,6 +21,7 @@ from expand import child, decode, read
 from family_corpus import authenticate, compile_plan, RESOURCES
 from family_harness import ROOT
 from family_operations import Operations
+from custody_fault import Faults
 from generate_families import generate
 from network_fault import Isolation
 from packet_plan import prepare as prepare_packets
@@ -285,10 +286,17 @@ class Journey:
             attempt(self.deployment.close)
             # Collect while the actual web identity is still renewing. A
             # partial native installation cannot invent a collector result.
-            if (self.deployment.state(0) / 'installation.json').is_file():
+            if len(self.deployment.installations) == 4:
                 attempt(self.deployment.retire_credentials)
             else:
-                failures.append(True)
+                def retire_partial():
+                    require(not self.deployment.processes, 'qualification.journey.gateway-still-running')
+                    self.infrastructure.stop_database()
+                    require(self.infrastructure.container is None, 'qualification.journey.database-still-running')
+                    existing = self.operations.custody_faults if self.operations is not None else None
+                    faults = existing if existing is not None else Faults(self.deployment)
+                    faults.retire_partial(self.infrastructure)
+                attempt(retire_partial)
         if self.resources is not None and hasattr(self, 'journal') and self.journal.exists():
             attempt(lambda: self.resources.cleanup(self.journal))
         if self.author is not None:

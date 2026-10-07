@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import custody_fault as custody
-from common import Refusal
+from common import Refusal, canonical
 from expand import decode
 
 CONNECTION = 'conn_AAAAAAAAAAAAAAAAAAAAAA'
@@ -85,6 +85,35 @@ class Restoration(unittest.TestCase):
         for response in [None, {'Name': 'another-fixture-name'}]:
             with patch.object(value, 'api', return_value=response):
                 with self.assertRaises(Refusal): value.delete('owned-fixture-name')
+
+    def test_partial_retirement_requires_stopped_processes_and_database_and_one_exact_connection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            value = self.fixture(root)
+            value.deployment.processes, value.deployment.installations = {}, []
+            value.deployment.state = lambda host, context: root / (str(host) + str(context))
+            for host, context in [(0, 0), (1, 0)]:
+                state = value.deployment.state(host, context)
+                state.mkdir()
+                (state / 'credential-journal.json').write_bytes(canonical({
+                    'schema': 'auths.gateway-credential-journal/1', 'connection_id': CONNECTION,
+                    'generations': [1, 2]}))
+            infrastructure = SimpleNamespace(container='owned-fixture-container')
+            with patch.object(value, 'delete') as deleted:
+                with self.assertRaises(Refusal): value.retire_partial(infrastructure)
+                deleted.assert_not_called()
+            infrastructure.container = None
+            with patch.object(custody, 'private_file', side_effect=lambda path, owner: path), \
+                 patch.object(value, 'delete') as deleted:
+                value.retire_partial(infrastructure)
+                self.assertEqual(deleted.call_count, 2, 'duplicate host journals are not remote enumeration')
+                expected = {custody.coordinates('test-namespace', CONNECTION, generation)[0] for generation in [1, 2]}
+                self.assertEqual({call.args[0] for call in deleted.call_args_list}, expected)
+                value.deployment.processes = {(0, 0): object()}
+                with self.assertRaises(Refusal): value.retire_partial(infrastructure)
+                value.deployment.processes = {}
+                value.deployment.installations = [(0, 0), (1, 0), (0, 1), (1, 1)]
+                with self.assertRaises(Refusal): value.retire_partial(infrastructure)
 
 
 if __name__ == '__main__':

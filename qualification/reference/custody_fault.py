@@ -19,18 +19,23 @@ from production_setup import GATEWAY_UID, KMS_KEY, REGION, private_file, native_
 from resource_io import write, write_bytes
 
 
-def reference(namespace, connection, generation, secret):
+def coordinates(namespace, connection, generation):
     require(type(namespace) is str and re.fullmatch(r'[a-z][a-z0-9-]{0,63}', namespace)
             and type(connection) is str and re.fullmatch(r'conn_[A-Za-z0-9_-]{22}', connection)
-            and type(generation) is int and 1 <= generation < 1 << 64
-            and type(secret) is bytes and 0 < len(secret) <= 65536, 'qualification.custody.reference')
+            and type(generation) is int and 1 <= generation < 1 << 64, 'qualification.custody.reference')
     decoded = base64.urlsafe_b64decode(connection[5:] + '==')
     require(len(decoded) == 16 and base64.urlsafe_b64encode(decoded).rstrip(b'=').decode() == connection[5:],
             'qualification.custody.reference')
     number = generation.to_bytes(8, 'big')
-    commitment = sha256(b'auths.connection-credential-store/1\0' + connection.encode() + number + secret)
     name = 'auths-gateway/' + sha256(b'auths.gateway-secret-name/1\0' + namespace.encode()
                                   + b'\0' + connection.encode() + b'\0' + number)
+    return name, number
+
+
+def reference(namespace, connection, generation, secret):
+    require(type(secret) is bytes and 0 < len(secret) <= 65536, 'qualification.custody.reference')
+    name, number = coordinates(namespace, connection, generation)
+    commitment = sha256(b'auths.connection-credential-store/1\0' + connection.encode() + number + secret)
     version = sha256(b'auths.gateway-secret-version/1\0' + connection.encode() + b'\0'
                      + number + bytes.fromhex(commitment))
     return name, version, commitment
@@ -188,3 +193,38 @@ class Faults:
         require(result.returncode == 1 and result.stdout == b''
                 and result.stderr == b'gateway.credential.production-plaintext-refused\n'
                 and not state.exists(), 'qualification.custody.kind-not-refused')
+
+    def retire_partial(self, infrastructure):
+        # This source reference owns the entire disposable database. Removing
+        # it first makes an ambiguously committed incomplete install unusable.
+        # A complete cohort must use native revocation and collection instead.
+        require(not self.deployment.processes and len(self.deployment.installations) < 4
+                and infrastructure.container is None, 'qualification.custody.partial-not-stopped')
+        names, connections = set(), set()
+        for context in [0, 1]:
+            for host in [0, 1]:
+                path = self.deployment.state(host, context) / 'credential-journal.json'
+                if not path.exists() and not path.is_symlink():
+                    # Native source registers this journal before any create.
+                    continue
+                notes = decode(read(private_file(path, GATEWAY_UID), 4096))
+                closed(notes, ['schema', 'connection_id', 'generations'])
+                require(notes['schema'] == 'auths.gateway-credential-journal/1'
+                        and type(notes['connection_id']) is str
+                        and type(notes['generations']) is list and len(notes['generations']) <= 16
+                        and all(type(generation) is int and 1 <= generation < 1 << 64
+                                for generation in notes['generations'])
+                        and notes['generations'] == sorted(set(notes['generations'])),
+                        'qualification.custody.journal')
+                connections.add(notes['connection_id'])
+                coordinates(self.deployment.namespace, notes['connection_id'], 1)
+                for generation in notes['generations']:
+                    names.add(coordinates(self.deployment.namespace, notes['connection_id'], generation)[0])
+        require(len(connections) <= 1 and len(names) <= 16, 'qualification.custody.partial-bound')
+        failures = []
+        for name in sorted(names):
+            try:
+                self.delete(name)
+            except (Refusal, OSError, subprocess.SubprocessError):
+                failures.append(True)
+        require(not failures, 'qualification.custody.partial-cleanup-incomplete')

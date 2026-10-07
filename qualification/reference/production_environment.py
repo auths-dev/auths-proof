@@ -220,6 +220,16 @@ class Infrastructure:
             time.sleep(0.25)
         require(False, 'qualification.infrastructure.database-unavailable')
 
+    def stop_database(self):
+        if self.container is not None:
+            # The exact-name filter never lists unrelated user containers.
+            found = command(['docker', 'container', 'ls', '--all', '--filter',
+                'name=^/' + self.container + '$', '--format', '{{.Names}}']).strip()
+            require(found in [b'', self.container.encode()], 'qualification.infrastructure.cleanup-binding')
+            if found:
+                command(['docker', 'rm', '--force', '--volumes', self.container])
+            self.container = None
+
     def close(self):
         # The caller must first collect its native credential journal. Keep
         # attempting local cleanup even when one owned resource cannot retire.
@@ -234,17 +244,7 @@ class Infrastructure:
             self.refresher.join(timeout=30)
             if self.refresher.is_alive():
                 failures.append(True)
-        if self.container is not None:
-            def remove_container():
-                # Docker's exact-name filter distinguishes a failed start
-                # from a daemon error without listing unrelated containers.
-                found = command(['docker', 'container', 'ls', '--all', '--filter',
-                    'name=^/' + self.container + '$', '--format', '{{.Names}}']).strip()
-                require(found in [b'', self.container.encode()], 'qualification.infrastructure.cleanup-binding')
-                if found:
-                    command(['docker', 'rm', '--force', '--volumes', self.container])
-                self.container = None
-            attempt(remove_container)
+        attempt(self.stop_database)
         if hasattr(self, 'clock_configuration'):
             attempt(lambda: self.clock_configuration.unlink(missing_ok=True))
         for name in ['operator.jwt', 'runtime.jwt']:

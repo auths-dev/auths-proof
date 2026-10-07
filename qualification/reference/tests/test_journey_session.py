@@ -73,6 +73,7 @@ class Session(unittest.TestCase):
             value.stopping, value.worker = threading.Event(), None
             calls = []
             class Deployment:
+                installations = [(0, 0), (1, 0), (0, 1), (1, 1)]
                 def state(self, host): return Path(directory)
                 def close(self): calls.append('stop-gateways')
                 def retire_credentials(self):
@@ -99,6 +100,34 @@ class Session(unittest.TestCase):
                 'close-author', 'abort-own-author', 'remove-own-rules', 'retire-identity-and-database'])
             self.assertFalse(value.retired)
             with self.assertRaisesRegex(Refusal, 'cleanup-required'): value.final_proposal()
+
+    def test_partial_install_removes_its_database_before_exact_journal_retirement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value = self.journey(Path(directory))
+            value.stopping, value.worker = threading.Event(), None
+            value.operations = value.resources = value.author = value.isolation = None
+            calls = []
+            class Deployment:
+                installations, processes = [], {}
+                def close(self): calls.append('stop-own-gateways')
+                def retire_credentials(self): raise AssertionError('partial state cannot claim native collection')
+            class Infrastructure:
+                container = 'owned-fixture-container'
+                def stop_database(self):
+                    calls.append('remove-owned-database')
+                    self.container = None
+                def close(self): calls.append('retire-identity')
+            class Faults:
+                def __init__(self, deployment): self.deployment = deployment
+                def retire_partial(self, infrastructure):
+                    if infrastructure.container is not None or self.deployment.processes:
+                        raise Refusal('qualification.custody.partial-not-stopped')
+                    calls.append('delete-exact-journal-names')
+            value.deployment, value.infrastructure = Deployment(), Infrastructure()
+            with patch.object(production, 'Faults', Faults): value.cleanup()
+            self.assertEqual(calls, ['stop-own-gateways', 'remove-owned-database',
+                                    'delete-exact-journal-names', 'retire-identity'])
+            self.assertTrue(value.retired)
 
 
 if __name__ == '__main__':

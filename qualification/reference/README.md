@@ -259,7 +259,7 @@ verification remain separate. Retained copies are independently rescanned
 before the runner can upload them. Failed setup invalidates proposals, keeps
 scan canaries, and attempts all owned cleanup with native credential collection
 before retiring the renewing workload identity. These entry points still need
-successful protected execution and partial-install cleanup recovery;
+successful protected execution;
 they do not establish a passing protected qualification.
 
 `author_operator.py` runs in the same credential-free installed environment as
@@ -382,3 +382,13 @@ and requires its exact production-policy refusal before a state directory exists
 These are disposable AWS fixture mutations, never application credential inputs
 or a provider test response substituted for AWS. They establish the precise
 before-admission boundary, not a fabricated post-claim lease failure.
+
+Interrupted setup is cleaned separately from a completed cohort. Successful
+native install results track the four completed installations; a manifest alone
+does not establish completion. A partial cohort first stops all its owned
+gateway processes and removes its exclusively owned disposable database, then
+deletes only the bounded names derived from its actual native credential
+journals, while its operator identity is still available. It never enumerates
+AWS resources, deletes another connection, or reports native collection for a
+partial setup. Completed cohorts require native store-only revocation and
+collection. Failed phases remain invalid and cannot publish a qualification.
