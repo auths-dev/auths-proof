@@ -153,12 +153,12 @@ pub fn executable_corpus() -> auths_recipe_qualification_issuance::execution::Ru
         }
         let mut steps = match scenario {
             Scenario::OracleAccepts => vec![
-                step(Op::Oracle, Outcome::ResponseRecorded, 0, 0),
-                step(Op::Submit, Outcome::ResponseRecorded, 1, 0),
+                step(Op::Oracle, Outcome::Complete, 0, 0),
+                step(Op::Review, Outcome::Complete, 0, 0),
             ],
             Scenario::OracleRejects => vec![
                 step(Op::Oracle, Outcome::Refused, 0, 0),
-                step(Op::Submit, Outcome::Refused, 0, 0),
+                step(Op::Review, Outcome::Refused, 0, 0),
             ],
             Scenario::ProofReplay | Scenario::FreshChallengeReplay => vec![
                 step(Op::Submit, Outcome::ResponseRecorded, 1, 0),

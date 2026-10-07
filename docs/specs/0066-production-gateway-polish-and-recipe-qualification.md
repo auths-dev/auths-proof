@@ -1817,3 +1817,14 @@ the subsequent phase can establish. Both scopes belong to the same reviewed
 manifest and exact tuple. This closes the second dependency cycle without
 opening ordinary application leases under a commissioning permit. The protected
 workflow and family corpora still must execute this sequence.
+
+#### 22.6 Credential-free differential review
+
+Offline `oracle-accepts` / `oracle-rejects` cases execute the reviewed pure
+oracle followed by `review`, the candidate's native `review-submission` command.
+They compare exact proof/action verdict and closed request commitments with
+zero custody leases, provider entries and read-back confirmations. A permitted
+mapping is `complete`, without an HTTP response or effect claim. `review` is
+refused as a protected operation or a replacement for an application submission.
+First commissioning therefore depends on offline native verification, without
+requiring pre-existing qualification to collect that verification.

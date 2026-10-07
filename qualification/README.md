@@ -276,3 +276,12 @@ family corpus is admitted. Its manifest binds exact file hashes, source commit
 and workflow run. Native read-only recipe review exercises both maintained
 recipes; no installation, custody lease or qualification is claimed. This
 artifact is a candidate for operator inspection, not a GitHub release.
+
+Offline differential cases use the closed `review` operation after the pure
+`oracle`. The candidate's `review-submission` checks native proof, actor, action
+and exact request without installing or consulting qualification/custody. A
+successful mapping is `complete`, never an HTTP response or effect. Both
+operations must show zero leases, writes and read-back confirmations, and their
+exact verdict/request commitments must agree. `review` cannot replace a submit
+in a protected case. This avoids requiring first qualification merely to
+collect the offline evidence needed to issue its finite commissioning permit.

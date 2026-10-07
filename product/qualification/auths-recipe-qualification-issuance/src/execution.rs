@@ -38,6 +38,8 @@ pub enum RunPhase {
 pub enum Operation {
     /// Evaluate the family's pure request/evidence oracle.
     Oracle,
+    /// Credential-free native proof/request review, only in offline differential cases.
+    Review,
     /// Submit through the candidate gateway's application socket.
     Submit,
     /// Replay the same logical operation, possibly with a fresh challenge.
@@ -260,7 +262,7 @@ impl RunCase {
             _ => false,
         };
         let required = match self.scenario {
-            S::OracleAccepts | S::OracleRejects => before(Op::Oracle, Op::Submit),
+            S::OracleAccepts | S::OracleRejects => before(Op::Oracle, Op::Review),
             S::ProofReplay | S::FreshChallengeReplay => before(Op::Submit, Op::Replay),
             S::TwoInstanceRace => has(Op::Race),
             S::Restart => before(Op::Submit, Op::Restart) && before(Op::Restart, Op::Replay),
@@ -305,11 +307,24 @@ impl RunCase {
         );
         if !harness_scenario(self.scenario)
             || self.steps.iter().any(|step| !step.valid_comparison(self))
+            || self.steps.iter().any(|step| {
+                matches!(step.operation, Op::Oracle | Op::Review)
+                    && (step.expected.credential_leases != 0
+                        || step.expected.provider_entries != 0
+                        || step.expected.confirmed_by_read_back != 0
+                        || !matches!(
+                            step.expected.verdict.outcome,
+                            RunOutcome::Complete | RunOutcome::Refused
+                        ))
+            })
             || !required
             || self.steps.is_empty()
             || self.steps.len() > MAX_CASE_STEPS
             || (live_only && self.phase == RunPhase::Offline)
             || (has(Op::Oracle) && self.phase != RunPhase::Offline)
+            || (has(Op::Review)
+                && (self.phase != RunPhase::Offline
+                    || !matches!(self.scenario, S::OracleAccepts | S::OracleRejects)))
             || self
                 .capabilities
                 .iter()
@@ -367,14 +382,14 @@ impl RunCase {
                 || (actual.observed.confirmed_by_read_back > 0
                     && (actual.observed.verdict.outcome != RunOutcome::Observed
                         || actual.observed.verdict.evidence_sha256.is_none()))
-                || (step.operation == Operation::Oracle
+                || (matches!(step.operation, Operation::Oracle | Operation::Review)
                     && (actual.observed.credential_leases != 0
                         || actual.observed.provider_entries != 0
                         || actual.observed.confirmed_by_read_back != 0))
             {
                 return Err(IssuanceError::CaseFailed);
             }
-            if step.operation != Operation::Oracle {
+            if !matches!(step.operation, Operation::Oracle | Operation::Review) {
                 effects.entered = effects
                     .entered
                     .checked_add(actual.observed.provider_entries)
@@ -501,7 +516,7 @@ impl RunCase {
                     .map(|(_, actual)| &actual.verdict)
             };
             let oracle = verdict(Operation::Oracle).ok_or(IssuanceError::CaseFailed)?;
-            if Some(oracle) != verdict(Operation::Submit)
+            if Some(oracle) != verdict(Operation::Review)
                 || (oracle.outcome == RunOutcome::Refused) != (self.scenario == S::OracleRejects)
                 || (self.scenario == S::OracleAccepts && oracle.request_sha256.is_none())
             {

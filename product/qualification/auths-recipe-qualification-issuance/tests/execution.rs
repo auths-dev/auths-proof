@@ -507,3 +507,61 @@ fn a_dynamic_doctor_witness_must_match_the_actual_production_tuple() {
     case.phase = RunPhase::Commissioning;
     assert!(run(&case, |_, actual| set(actual)).is_err());
 }
+
+#[test]
+fn offline_differential_requires_native_review_without_custody_or_provider_entry() {
+    use auths_recipe_qualification_issuance::execution::{Operation, RunPhase};
+    for scenario in [Scenario::OracleAccepts, Scenario::OracleRejects] {
+        let case = executable_corpus()
+            .cases
+            .into_iter()
+            .find(|case| case.scenario == scenario)
+            .expect("differential case");
+        assert_eq!(case.steps[1].operation, Operation::Review);
+        assert_eq!(
+            run(&case, |_, _| {}).expect("read-only comparison").entered,
+            0
+        );
+        let mut impossible = case.clone();
+        impossible.steps[1].expected.credential_leases = 1;
+        let mut invoked = false;
+        assert!(
+            impossible
+                .execute(&tuple(), |_, _| {
+                    invoked = true;
+                    Err(IssuanceError::CaseFailed)
+                })
+                .is_err()
+        );
+        assert!(!invoked, "invalid corpus must not start the harness");
+        let mut old_submission = case.clone();
+        old_submission.steps[1].operation = Operation::Submit;
+        assert!(run(&old_submission, |_, _| {}).is_err());
+        for index in 0..3 {
+            assert!(
+                run(&case, |step, actual| {
+                    if step == 1 {
+                        match index {
+                            0 => actual.observed.credential_leases = 1,
+                            1 => actual.observed.provider_entries = 1,
+                            _ => actual.observed.confirmed_by_read_back = 1,
+                        }
+                    }
+                })
+                .is_err()
+            );
+        }
+        let mut protected = case.clone();
+        protected.phase = RunPhase::Commissioning;
+        let mut invoked = false;
+        assert!(
+            protected
+                .execute(&tuple(), |_, _| {
+                    invoked = true;
+                    Err(IssuanceError::CaseFailed)
+                })
+                .is_err()
+        );
+        assert!(!invoked);
+    }
+}
