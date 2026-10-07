@@ -1774,6 +1774,7 @@ qualification nor evidence of provider behavior or production readiness.
 
 The signed schema, pure issuance/verifier, sealed private runtime path,
 PostgreSQL accounting, retained host floor and authenticated operator commands
-are implemented. Production root pinning, protected family reference/workflow
+are implemented. The first offline root and separate purpose certificates are
+pinned, with no qualification issued. The protected family reference/workflow
 and rejection/live evidence still must land before the bootstrap can be
 claimed resolved. Epic 5's done conditions remain unchanged.

@@ -3,8 +3,9 @@
 **Status:** Implementing. The closed permit, commissioning-only signer purpose,
 offline evidence closure, pure signature/binding verifier, atomic permanent
 budget, retained host floors and authenticated private operator commands are
-implemented. Protected family references/workflows, production root pinning
-and actual live evidence remain required before the bootstrap is resolved.
+implemented. The first offline root ceremony and separate public signer
+certificates are pinned. Protected family references/workflows and actual live
+evidence remain required before the bootstrap is resolved.
 Ordinary production leases still require qualification.
 
 **Date:** 7 October 2026
@@ -192,7 +193,10 @@ is selected by the authenticated operator process, never by a proof or frame.
 Focused tests use public synthetic authority, frozen native quorum proofs and
 counted custody to exercise these boundaries. They establish runtime refusal
 and accounting behavior, not protected provider evidence or a completed first
-qualification. Production trust remains unavailable until its root is pinned.
+qualification. The first pinned root and public certificates are recorded in
+`qualification/trust/ceremony.json`, explicitly as a repository-owner-delegated
+technical assessment. Its private root key stays outside the checkout and CI.
+No qualification record or release index was issued by this ceremony.
 
 This adds explicit operator commissioning authority and its associated trust
 obligation. It does not make the first qualification appear to preexist its own

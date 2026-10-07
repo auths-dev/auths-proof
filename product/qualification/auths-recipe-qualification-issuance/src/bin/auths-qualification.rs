@@ -5,16 +5,16 @@
 //! written to a private file and is never an argument or printed.
 
 use auths_recipe_qualification::{
-    EvidenceMemberKind, GitCommit, LiveEffects, MAX_INDEX_ENTRIES, ProviderContract,
-    QualificationId, QualificationInputs, QualificationRootId, QualificationSignerCertificate,
-    QualificationSignerId, QualificationTrustRoot, QualificationTuple,
-    RELEASE_ATTESTATIONS_DIRECTORY, RELEASE_INDEX_FILE, RELEASE_RECORDS_DIRECTORY,
-    RELEASE_REVOCATION_LIST_FILE, RELEASE_SIGNER_CERTIFICATE_FILE, VerifiedQualifications,
-    VerifierState,
+    CommissioningBinding, EvidenceMemberKind, GitCommit, LiveEffects, MAX_INDEX_ENTRIES,
+    ProviderContract, QualificationEvidence, QualificationId, QualificationInputs,
+    QualificationRootId, QualificationSignerCertificate, QualificationSignerId,
+    QualificationTrustRoot, QualificationTuple, RELEASE_ATTESTATIONS_DIRECTORY, RELEASE_INDEX_FILE,
+    RELEASE_RECORDS_DIRECTORY, RELEASE_REVOCATION_LIST_FILE, RELEASE_SIGNER_CERTIFICATE_FILE,
+    VerifiedQualifications, VerifierState,
 };
 use auths_recipe_qualification_issuance::{
-    CaseReport, CertificateRequest, IssuanceError, QualificationProposal, RecordDraft,
-    ReleaseSigner, RootSigner, SigningSeed, evidence, stages,
+    CaseReport, CertificateRequest, CommissioningProposal, CommissioningSigner, IssuanceError,
+    QualificationProposal, RecordDraft, ReleaseSigner, RootSigner, SigningSeed, evidence, stages,
 };
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use clap::{Parser, Subcommand};
@@ -77,24 +77,13 @@ enum Command {
         key_out: PathBuf,
     },
     /// Offline ceremony: certify a release signer.
-    Certify {
-        #[arg(long)]
-        root_key: PathBuf,
-        #[arg(long)]
-        root: PathBuf,
-        #[arg(long)]
-        signer_id: String,
-        #[arg(long)]
-        public_key: String,
-        #[arg(long)]
-        issued_at: Option<u64>,
-        #[arg(long)]
-        not_before: u64,
-        #[arg(long)]
-        not_after: u64,
-        #[arg(long)]
-        out: PathBuf,
-    },
+    Certify(CertificateOptions),
+    /// Offline ceremony: certify a commissioning-only signer. This key may
+    /// issue bounded run permits, never qualification attestations or indexes.
+    CertifyCommissioner(CertificateOptions),
+    /// Protected signer: recheck both offline evidence artifacts and sign one
+    /// finite reviewed commissioning binding. Grants no qualification state.
+    CommissioningSign(CommissioningSignOptions),
     /// Offline ceremony: issue the next revocation list.
     Revoke {
         #[arg(long)]
@@ -205,6 +194,48 @@ enum Command {
         #[arg(long)]
         contract: PathBuf,
     },
+}
+
+#[derive(clap::Args)]
+struct CertificateOptions {
+    #[arg(long)]
+    root_key: PathBuf,
+    #[arg(long)]
+    root: PathBuf,
+    #[arg(long)]
+    signer_id: String,
+    #[arg(long)]
+    public_key: String,
+    #[arg(long)]
+    issued_at: Option<u64>,
+    #[arg(long)]
+    not_before: u64,
+    #[arg(long)]
+    not_after: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(clap::Args)]
+struct CommissioningSignOptions {
+    #[arg(long)]
+    binding: PathBuf,
+    #[arg(long)]
+    conformance: PathBuf,
+    #[arg(long)]
+    differential: PathBuf,
+    #[arg(long)]
+    signer_key: PathBuf,
+    #[arg(long)]
+    certificate: PathBuf,
+    #[arg(long)]
+    issued_at: Option<u64>,
+    #[arg(long)]
+    not_before: u64,
+    #[arg(long)]
+    not_after: u64,
+    #[arg(long)]
+    out: PathBuf,
 }
 
 /// A failure: its stable token and what it concerns. Never a key.
@@ -461,6 +492,26 @@ fn sign(
     Ok(())
 }
 
+fn certify(options: &CertificateOptions, commissioning: bool) -> Result<(), Failure> {
+    let root = RootSigner::open(&read_key(&options.root_key)?, trust_root(&options.root)?)?;
+    let request = CertificateRequest {
+        signer_id: parsed(
+            QualificationSignerId::parse(&options.signer_id),
+            "signer-id",
+        )?,
+        public_key_b64: parsed(options.public_key.clone().try_into(), "public-key")?,
+        issued_at: now(options.issued_at)?,
+        not_before: options.not_before,
+        not_after: options.not_after,
+    };
+    let certificate = if commissioning {
+        root.certify_commissioner(request)?
+    } else {
+        root.certify(request)?
+    };
+    write(&options.out, certificate.canonical_bytes())
+}
+
 fn ceremony(command: Command) -> Result<(), Failure> {
     match command {
         Command::RootInit {
@@ -484,26 +535,8 @@ fn ceremony(command: Command) -> Result<(), Failure> {
             println!("public_key={}", seed.public_key().as_str());
             Ok(())
         }
-        Command::Certify {
-            root_key,
-            root,
-            signer_id,
-            public_key,
-            issued_at,
-            not_before,
-            not_after,
-            out,
-        } => {
-            let root = RootSigner::open(&read_key(&root_key)?, trust_root(&root)?)?;
-            let certificate = root.certify(CertificateRequest {
-                signer_id: parsed(QualificationSignerId::parse(signer_id), "signer-id")?,
-                public_key_b64: parsed(public_key.try_into(), "public-key")?,
-                issued_at: now(issued_at)?,
-                not_before,
-                not_after,
-            })?;
-            write(&out, certificate.canonical_bytes())
-        }
+        Command::Certify(options) => certify(&options, false),
+        Command::CertifyCommissioner(options) => certify(&options, true),
         Command::Revoke {
             root_key,
             root,
@@ -672,6 +705,32 @@ fn stage(command: Command) -> Result<(), Failure> {
     }
 }
 
+fn commissioning_sign(options: &CommissioningSignOptions) -> Result<(), Failure> {
+    let binding: CommissioningBinding = json(&options.binding)?;
+    let offline = |path: &Path| {
+        QualificationEvidence::from_canonical_json(&read(path)?)
+            .map_err(|_| failure("invalid-evidence", path))
+    };
+    let proposal = CommissioningProposal::assemble(
+        binding,
+        offline(&options.conformance)?,
+        offline(&options.differential)?,
+    )?;
+    let certificate =
+        QualificationSignerCertificate::from_canonical_json(&read(&options.certificate)?)
+            .map_err(|_| failure("invalid-certificate", &options.certificate))?;
+    let signer = CommissioningSigner::open(&read_key(&options.signer_key)?, certificate)?;
+    let permit = signer.permit(
+        &proposal,
+        now(options.issued_at)?,
+        options.not_before,
+        options.not_after,
+    )?;
+    write(&options.out, permit.canonical_bytes())?;
+    println!("commissioning_permit={}", permit.digest().to_hex());
+    Ok(())
+}
+
 fn run(command: Command) -> Result<(), Failure> {
     match command {
         Command::RunStage {
@@ -691,13 +750,15 @@ fn run(command: Command) -> Result<(), Failure> {
         ),
         Command::RootInit { .. }
         | Command::SignerInit { .. }
-        | Command::Certify { .. }
+        | Command::Certify(_)
+        | Command::CertifyCommissioner(_)
         | Command::Revoke { .. } => ceremony(command),
         Command::Evidence { .. } | Command::Assemble { .. } => build(command),
         Command::StageTrust { .. }
         | Command::StageFreshness { .. }
         | Command::StageRedaction { .. }
         | Command::ContractId { .. } => stage(command),
+        Command::CommissioningSign(options) => commissioning_sign(&options),
         Command::Sign {
             proposal_dirs,
             signer_key,

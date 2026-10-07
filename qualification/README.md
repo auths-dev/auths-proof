@@ -19,7 +19,7 @@ disposable records and development custody; it does not qualify a production tup
 `cargo xtask release-check` generates `target/release-evidence/launch-readiness.json`.
 Its `stable_launch_ready` value comes from the gateway build's pinned public
 root, current signed inputs and their actual evidence; no checked-in flag can
-set it. The current build pins no root and therefore derives false. Missing
+set it. The current build pins the public ceremony root but has no signed qualification inputs, so it derives false. Missing
 qualification permits a prerelease while preventing a stable launch claim.
 
 The release builder reads public signed inputs from
@@ -56,12 +56,11 @@ attestation. Therefore its first qualification cannot bootstrap itself. A
 development installation or `testkit-production-unqualified` executable changes
 the target or shipped bytes and cannot establish the required production claim.
 That real-production authority question remains separate from the requested
-simulation; the shipping lease gate has no bypass. A proposed solution is
+simulation; the shipping lease gate has no bypass. The implemented commissioning authority is
 [ADR 0016](../docs/adr/0016-bounded-qualification-commissioning-authority.md):
 a finite signed permit for an authenticated private qualification-run session,
 with exact action commitments, durable lease accounting and a fixed expiry.
-It is not implemented, cannot qualify a family, and cannot enable an ordinary
-application lease.
+Its verifier, durable budget and private operator commands are implemented. It cannot qualify a family or enable an ordinary application lease; the protected reference and workflow still need to produce its exact bindings.
 
 The current executable corpus also fixes exact request/evidence digests before
 running, while disposable live resource identifiers may be created during setup.
@@ -171,8 +170,31 @@ Public artifacts of the offline root ceremony, committed by the owner:
 - `signer-certificate.json`: the current release signer's certificate;
 - `revocation-list.json`: the current revocation list.
 
-No private key is ever in this repository. The directory is empty until the
-first ceremony, and until then the signing job refuses to run.
+No private key is ever in this repository. `ceremony.json` records the first
+offline ceremony and the exact public-artifact hashes. It is an explicitly
+delegated technical assessment, not a human release review or provider
+qualification. No qualification record or release index has been issued.
+
+The first qualification uses the separate finite authority in
+[ADR 0016](../docs/adr/0016-bounded-qualification-commissioning-authority.md).
+`auths-qualification certify-commissioner` certifies a separate key with only
+the commissioning-permit purpose; normal `certify` grants only release purposes.
+The root key remains offline and never enters either provider runner.
+
+After the protected reference expands disposable resources and exact actions,
+`auths-qualification commissioning-sign` takes `--binding`, `--conformance`,
+`--differential`, `--signer-key`, `--certificate`, `--not-before`, `--not-after`
+and `--out`. It rechecks both canonical offline members, candidate/tuple/digest
+closure and all mandatory scenarios before signing. The permit lasts at most
+two hours and is never a qualification record or release-index member. The
+reviewed protected reference must independently derive resources/actions;
+successful issuance by itself does not establish that reference's correctness.
+
+The operator receives `commissioning-permit.json`, `signer-certificate.json`
+and the current `revocation-list.json` in one artifact directory. Only the
+gateway's private `commissioning-init` and `commissioning-submit` commands use
+them, with `--from`, `--state-dir`, `--protected-run` and `--resource-binding`.
+Ordinary application requests require current qualification throughout.
 
 ## `run/`
 

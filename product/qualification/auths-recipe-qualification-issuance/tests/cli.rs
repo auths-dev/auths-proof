@@ -58,6 +58,161 @@ fn member_token(member: EvidenceMemberKind) -> String {
 
 #[test]
 #[cfg(unix)]
+fn commissioning_cli_requires_its_own_purpose_and_rechecks_offline_evidence() {
+    use auths_recipe_qualification::{
+        BoundedText, CommissioningBinding, CommissioningInputs, CommissioningOfflineEvidence,
+        ProviderEnvironmentClass, QualificationArtifactKind, QualificationCommissioningPermit,
+        QualificationSignerCertificate, QualificationTrustRoot, Sha256Digest,
+        VerifiedCommissioningPermit,
+    };
+    let directory = tempfile::tempdir().expect("private ceremony");
+    let at = |name: &str| path(directory.path(), name);
+    succeed(&[
+        "root-init",
+        "--root-id",
+        "synthetic-cli-root",
+        "--key-out",
+        &at("root.key"),
+        "--root-out",
+        &at("root.json"),
+    ]);
+    let public_key = succeed(&["signer-init", "--key-out", &at("commissioner.key")])
+        .trim()
+        .strip_prefix("public_key=")
+        .expect("public key")
+        .to_owned();
+    let mut certificates = Vec::new();
+    for (command, filename) in [
+        ("certify-commissioner", "commissioner.json"),
+        ("certify", "release.json"),
+    ] {
+        succeed(&[
+            command,
+            "--root-key",
+            &at("root.key"),
+            "--root",
+            &at("root.json"),
+            "--signer-id",
+            "synthetic-cli-signer",
+            "--public-key",
+            &public_key,
+            "--issued-at",
+            &(NOW - DAY).to_string(),
+            "--not-before",
+            &(NOW - DAY).to_string(),
+            "--not-after",
+            &(NOW + DAY).to_string(),
+            "--out",
+            &at(filename),
+        ]);
+        certificates.push(
+            QualificationSignerCertificate::from_canonical_json(
+                &fs::read(at(filename)).expect("certificate"),
+            )
+            .expect("closed certificate"),
+        );
+    }
+    assert_eq!(
+        certificates[0].body().statement.permitted_artifact_kinds,
+        vec![QualificationArtifactKind::QualificationCommissioningPermit]
+    );
+    assert!(
+        !certificates[1]
+            .body()
+            .statement
+            .permitted_artifact_kinds
+            .contains(&QualificationArtifactKind::QualificationCommissioningPermit)
+    );
+    succeed(&[
+        "revoke",
+        "--root-key",
+        &at("root.key"),
+        "--root",
+        &at("root.json"),
+        "--sequence",
+        "1",
+        "--issued-at",
+        &(NOW - HOUR).to_string(),
+        "--next-update",
+        &(NOW + DAY).to_string(),
+        "--out",
+        &at("revocations.json"),
+    ]);
+    let conformance = common::member_evidence(EvidenceMemberKind::Conformance);
+    let differential = common::member_evidence(EvidenceMemberKind::Differential);
+    let binding = CommissioningBinding {
+        protected_run: BoundedText::parse("synthetic-run/attempt/1").expect("run"),
+        source_commit: common::commit(),
+        tuple: common::tuple(),
+        principal_sha256: Sha256Digest::from_bytes([0x61; 32]),
+        trusted_context_sha256: Sha256Digest::from_bytes([0x62; 32]),
+        resources_sha256: Sha256Digest::from_bytes([0x63; 32]),
+        provider_environment_class: ProviderEnvironmentClass::ProviderTestMode,
+        offline_evidence: CommissioningOfflineEvidence {
+            conformance_sha256: conformance.digest(),
+            differential_sha256: differential.digest(),
+        },
+        allowed_actions: vec![Sha256Digest::from_bytes([0x64; 32])],
+        maximum_credential_leases: 2,
+    };
+    fs::write(
+        at("binding.json"),
+        serde_json::to_vec(&binding).expect("binding"),
+    )
+    .expect("write");
+    fs::write(at("conformance.json"), conformance.canonical_bytes()).expect("write");
+    fs::write(at("differential.json"), differential.canonical_bytes()).expect("write");
+    let arguments = |certificate: &str| {
+        vec![
+            "commissioning-sign".to_owned(),
+            "--binding".to_owned(),
+            at("binding.json"),
+            "--conformance".to_owned(),
+            at("conformance.json"),
+            "--differential".to_owned(),
+            at("differential.json"),
+            "--signer-key".to_owned(),
+            at("commissioner.key"),
+            "--certificate".to_owned(),
+            at(certificate),
+            "--issued-at".to_owned(),
+            NOW.to_string(),
+            "--not-before".to_owned(),
+            NOW.to_string(),
+            "--not-after".to_owned(),
+            (NOW + HOUR).to_string(),
+            "--out".to_owned(),
+            at("permit.json"),
+        ]
+    };
+    assert!(refuse(&borrowed(&arguments("release.json"))).starts_with("qualification."));
+    assert!(!Path::new(&at("permit.json")).exists());
+    succeed(&borrowed(&arguments("commissioner.json")));
+    let permit_bytes = fs::read(at("permit.json")).expect("permit");
+    let permit = QualificationCommissioningPermit::from_canonical_json(&permit_bytes)
+        .expect("closed permit");
+    assert_eq!(&permit.body().statement.binding, &binding);
+    VerifiedCommissioningPermit::verify(
+        &QualificationTrustRoot::from_canonical_json(&fs::read(at("root.json")).expect("root"))
+            .expect("closed root"),
+        &CommissioningInputs {
+            signer_certificate: certificates[0].canonical_bytes(),
+            revocation_list: &fs::read(at("revocations.json")).expect("list"),
+            permit: &permit_bytes,
+        },
+    )
+    .expect("native artifact verification");
+    // A mislabeled or changed offline member cannot replace the signed output.
+    fs::write(at("conformance.json"), differential.canonical_bytes()).expect("mutate member");
+    assert!(refuse(&borrowed(&arguments("commissioner.json"))).starts_with("qualification."));
+    assert_eq!(
+        fs::read(at("permit.json")).expect("retained permit"),
+        permit_bytes
+    );
+}
+
+#[test]
+#[cfg(unix)]
 fn a_release_is_built_signed_and_verified_and_a_proposal_alone_is_not() {
     let directory = tempfile::tempdir().expect("directory");
     let at = |name: &str| path(directory.path(), name);

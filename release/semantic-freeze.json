@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 372,
+  "freezeVersion": 373,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 125,
+      "version": 126,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "aef90d74b6777b88544d01183cfe9ac8ae3270ec7200917d0c05319cd0638c8d"
+      "sha256": "8efe6e1e8c5da54d4bd433b51e8b9a9e93c6ceadd15f611a6f6f34f09ea00091"
     },
     {
       "id": "auths.modular-components",
@@ -871,7 +871,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 122,
+      "version": 123,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -889,7 +889,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "3fbc6618d7e844178373509f26ea29becd37115f90950d371abf001a05326050"
+      "sha256": "cf4df124a49cee9bd90eb486636998cef5af8525f0524389c23d0d9dea9979e1"
     },
     {
       "id": "auths.product.receipts",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 372,
+      "version": 373,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1104,7 +1104,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "3dc8eeaf46f43840d02b35e00203096fb13b93a7594e34e616db382ee9dd60d9"
+      "sha256": "8f6bcbe2b1ec2f1699a93cd8e012be697711f5ee841fe089eaf7e9532d3971ad"
     }
   ]
 }
