@@ -6,12 +6,18 @@ corpus never enter an operation or an observation.
 """
 
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+import time
 
 import airtable_record
 import stripe_platform
-from common import canonical, closed, require, sha256
+from common import canonical, closed, Refusal, require, sha256
 from expand import child, decode, read
 from native_observation import Effects
+from network_fault import NativeWitness, ResponseFault
+from production_setup import GATEWAY_UID
+from tls_fault import Witness
+import measure
 from packet_plan import public_pool
 from resource_io import write_bytes
 
@@ -40,6 +46,7 @@ class Operations:
         self.rotation_keys = None
         self.consumer_python = None
         self.consumer_kit = None
+        self.interrupted = set()
 
     def configure_consumers(self, python, kit):
         self.consumer_python, self.consumer_kit = Path(python).absolute(), Path(kit).absolute()
@@ -116,6 +123,124 @@ class Operations:
         after = self.deployment.witness(0)
         return self.project(label, result, before, after)
 
+    def wait_for_effect(self, label):
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            try:
+                return self.oracle.fresh(self.reviewed[label], self.tuple['compiled_recipe_sha256'])
+            except Refusal:
+                # No mismatch can become a confirmation. A bounded retry
+                # lets the independent read observe a just-entered write.
+                time.sleep(0.5)
+        require(False, 'qualification.operations.effect-not-independently-observed')
+
+    def lose_response(self, phase, label, *, crash=False):
+        handoff, packet = self.packet(label)
+        child = self.deployment.commissioning_child(handoff, packet) if phase == 'commissioning' else None
+        witness = Witness(child.witness, GATEWAY_UID) if child is not None else NativeWitness(self.deployment, 0, 0)
+        try:
+            with ResponseFault(self.family, witness) as fault, ThreadPoolExecutor(max_workers=1) as pool:
+                if child is not None:
+                    child.start()
+                    pending = None
+                else:
+                    pending = pool.submit(self.deployment.application_submit, handoff, packet)
+                fault.held()
+                self.wait_for_effect(label)
+                if crash:
+                    if child is not None:
+                        child.crash()
+                    else:
+                        self.deployment.stop(0, crash=True)
+                    # Preserve the killed owner's last actual scope. Its
+                    # durable record is read by a separate native command.
+                    before, after = witness.before, witness.last
+                    support = self.deployment.support()
+                    observed, fresh = self.effects.project_interrupted(self.tuple, self.reviewed[label],
+                        self.resources, sha256(read(self.deployment.work / packet['trusted_context'], 4 * 1024 * 1024)),
+                        support, before, after)
+                    self.interrupted.add((phase, label))
+                    fault.decide('drop')
+                    if pending is not None:
+                        try:
+                            pending.result(timeout=10)
+                        except (Refusal, OSError):
+                            pass  # The stored native diagnostic, not this failure, is the evidence.
+                    return self.observation(observed, fresh)
+                fault.decide('drop')
+                if child is not None:
+                    execution = child.finish()
+                    require(witness.entered() and execution['before'] == witness.before
+                            and execution['after'] == witness.last,
+                            'qualification.operations.witness-binding')
+                    return self.project(label, execution['result'], execution['before'], execution['after'])
+                result = pending.result(timeout=90)
+                return self.project(label, result, witness.before, self.deployment.witness(0))
+        finally:
+            if child is not None:
+                child.abort()
+
+    def race(self, phase, label):
+        handoff, packet = self.packet(label)
+        children = [self.deployment.commissioning_child(handoff, packet, host=host)
+                    for host in [0, 1]] if phase == 'commissioning' else []
+        witness = Witness(children[0].witness, GATEWAY_UID) if children else NativeWitness(self.deployment, 0, 0)
+        try:
+            with ResponseFault(self.family, witness) as fault, ThreadPoolExecutor(max_workers=2) as pool:
+                if children:
+                    children[0].start()
+                    owner = None
+                else:
+                    owner = pool.submit(self.deployment.application_submit, handoff, packet, 0)
+                fault.held()
+                self.wait_for_effect(label)
+                # The follower finishes while the entered owner's response
+                # remains held. Its actual result and scope cannot be confused
+                # with the eventual owner's response or a process-local stub.
+                if children:
+                    children[1].start()
+                    follower = children[1].finish()
+                else:
+                    follower_before = self.deployment.witness(1)
+                    follower_result = self.deployment.application_submit(handoff, packet, 1)
+                    follower = {'result': follower_result, 'before': follower_before,
+                                'after': self.deployment.witness(1)}
+                fault.decide('release')
+                if children:
+                    first = children[0].finish()
+                    require(witness.entered() and first['before'] == witness.before
+                            and first['after'] == witness.last, 'qualification.operations.witness-binding')
+                else:
+                    first = {'result': owner.result(timeout=90), 'before': witness.before,
+                             'after': self.deployment.witness(0)}
+                observed, fresh = self.effects.project_race(self.tuple, self.reviewed[label], self.resources,
+                    [first['result'], follower['result']],
+                    [(first['before'], first['after']), (follower['before'], follower['after'])],
+                    self.oracle.fresh(self.reviewed[label], self.tuple['compiled_recipe_sha256']))
+                return self.observation(observed, fresh)
+        finally:
+            for child in children:
+                child.abort()
+
+    def resume_host(self, phase, label, *, crash):
+        if crash:
+            require((phase, label) in self.interrupted, 'qualification.operations.owner-not-interrupted')
+            if phase == 'live':
+                self.deployment.start(0)
+            else:
+                # The commissioning child was the actual owner. The running
+                # application process is deliberately still subject to its
+                # required production gate; reload its durable shared state.
+                self.deployment.stop(0)
+                self.deployment.start(0)
+        else:
+            before = self.deployment.witness(0)
+            self.deployment.stop(0)
+            self.deployment.start(0)
+            require(self.deployment.witness(0)['scope'] != before['scope'],
+                    'qualification.operations.restart-scope')
+        return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed')
+
     def completed_probe(self, code):
         # Completion is constructed only after that source operation returned
         # actual native/provider facts; a corpus's expected code is never read.
@@ -182,6 +307,31 @@ class Operations:
             if index == 1:
                 require((case, 0) in self.completed, 'qualification.operations.order')
             result = self.submit(phase, label) if index == 0 else self.read_back(label)
+        elif identifier == 'two-host-race':
+            require(index == 0 and operation == 'race', 'qualification.operations.step')
+            result = self.race(phase, phase + '-02')
+        elif identifier in ['restart', 'crash']:
+            require(index in [0, 1, 2] and operation == ['submit', identifier, 'replay'][index],
+                    'qualification.operations.step')
+            label = phase + '-' + str(POSITIVES[identifier]).zfill(2)
+            if index:
+                require((case, index - 1) in self.completed, 'qualification.operations.order')
+            if index == 0:
+                result = self.lose_response(phase, label, crash=identifier == 'crash')
+            elif index == 1:
+                result = self.resume_host(phase, label, crash=identifier == 'crash')
+            else:
+                result = self.submit(phase, label)
+        elif identifier in ['ambiguous', 'response-loss']:
+            ending = 'replay' if identifier == 'ambiguous' else 'read-back'
+            require(index in [0, 1] and operation == ['drop-response', ending][index],
+                    'qualification.operations.step')
+            label = phase + '-' + str(POSITIVES[identifier]).zfill(2)
+            if index == 0:
+                result = self.lose_response(phase, label)
+            else:
+                require((case, 0) in self.completed, 'qualification.operations.order')
+                result = self.submit(phase, label) if ending == 'replay' else self.read_back(label)
         elif identifier in ['guard-ceiling', 'guard-currency']:
             require(self.reference is stripe_platform and index == 0 and operation == 'probe',
                     'qualification.operations.step')

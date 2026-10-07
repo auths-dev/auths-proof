@@ -191,7 +191,10 @@ async def relay(reader, writer, fault, approved):
             nonlocal held
             while True:
                 kind, _payload, raw = await record(reader)
-                if not held and hello.client_boundary(kind) and fault.witness.entered():
+                if not held and not fault.armed and hello.client_boundary(kind) and fault.witness.entered():
+                    # Exactly one connection owns this held write. A second
+                    # gateway must retain its independent read-only recovery
+                    # route while racing that durable claim.
                     # Arm before forwarding Finished/the request so a fast
                     # upstream response cannot overtake this boundary.
                     held = True
