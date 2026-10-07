@@ -44,8 +44,11 @@ def consumer_python():
 
 
 def source_commit():
-    revision = command(['/usr/bin/git', 'rev-parse', 'HEAD'])
-    status = command(['/usr/bin/git', 'status', '--porcelain'])
+    # A protected root controller reads the runner-owned checkout. Trust only
+    # this exact source directory for these read-only Git invocations.
+    git = ['/usr/bin/git', '-c', 'safe.directory=' + str(ROOT)]
+    revision = command([*git, 'rev-parse', 'HEAD'])
+    status = command([*git, 'status', '--porcelain'])
     require(revision.returncode == status.returncode == 0 and not status.stdout.strip(),
             'qualification.harness.source-not-clean')
     commit = revision.stdout.decode('ascii').strip()
