@@ -151,3 +151,16 @@ Keep the author's directory outside the publication tree; sockets and private
 inputs are never artifacts. `check_socket.py` exercises the actual installed SDK
 and shipping gateway under separate Linux UIDs, using synthetic resources and
 no provider access. Its report explicitly confers no protected qualification.
+
+`run/artifact_wait.py` is the public mailbox reader for the protected sequence.
+It accepts only this repository's main-branch manual qualification workflow,
+exact source SHA, run and attempt, and five source-owned artifact roles. It
+checks the authenticated run metadata and GitHub archive SHA-256, refuses
+duplicates, expired artifacts, another attempt/repository, links, executable
+files, traversal and oversized archives, and extracts only bounded public
+protocol files with private permissions. Partial extraction is removed.
+Missing artifacts are checked every ten minutes within a fixed two-hour
+deadline. Only the GitHub Actions token enters the GitHub client; provider and
+signer keys are absent from that child's environment. The native issuer/gateway
+must still verify every permit/record: a transported artifact grants no authority.
+The protected workflow has not yet connected this mailbox to admitted corpora.
