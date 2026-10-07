@@ -7,7 +7,6 @@ use super::*;
 use serde::Serialize;
 
 const STRIPE_VERSION: &str = "2025-03-31.basil";
-const STRIPE_ACCOUNT: &str = "acct_TESTACCOUNT01";
 const STRIPE_PAYMENT: &str = "pi_TEST0000000001";
 
 fn stripe_setup() -> Value {
@@ -15,7 +14,13 @@ fn stripe_setup() -> Value {
         "../../../../bindings/fixtures/gateway/attempt-scenarios-v3.json"
     ))
     .expect("embedded Stripe fixture");
-    corpus["defaults"]["stripe"].clone()
+    let mut setup = corpus["defaults"]["stripe"].clone();
+    // The platform-only profile has no connected-account argument or grant scope.
+    setup["grant_policy"]
+        .as_object_mut()
+        .expect("grant policy")
+        .remove("scope");
+    setup
 }
 
 #[derive(Clone, Copy)]
@@ -48,7 +53,7 @@ impl Family {
     }
     fn name(self) -> &'static str {
         match self {
-            Self::Stripe => "stripe-refund-v1",
+            Self::Stripe => "stripe-platform-refund-v1",
             Self::Airtable => "airtable-record-update-v1",
         }
     }
@@ -65,8 +70,12 @@ impl Family {
     fn recipe(self) -> CompiledRecipe {
         match self {
             Self::Stripe => CompiledRecipe::compile(
-                include_bytes!("../../../../examples/stripe-refund-approval/recipe.json"),
-                include_bytes!("../../../../examples/stripe-refund-approval/profile.lock.json"),
+                include_bytes!(
+                    "../../../../qualification/simulation/live/stripe-platform/recipe.json"
+                ),
+                include_bytes!(
+                    "../../../../qualification/simulation/live/stripe-platform/profile.lock.json"
+                ),
             )
             .expect("Stripe recipe"),
             Self::Airtable => fixture_recipe("airtable"),
@@ -76,7 +85,7 @@ impl Family {
     fn arguments(self, operation: &str) -> Map<String, Value> {
         match self {
             Self::Stripe => json!({"operation_id": operation, "payment_intent": STRIPE_PAYMENT,
-                "amount": 500, "currency": "usd", "connect_account": STRIPE_ACCOUNT}),
+                "amount": 500, "currency": "usd"}),
             Self::Airtable => json!({"operation_id": operation, "record_id": RECORD,
                 "replacement": "Approved"}),
         }
@@ -90,7 +99,7 @@ impl Family {
     /// by this independent vertical, never projected from candidate bytes.
     fn oracle(self, operation: &str, commitment: &[u8; 32]) -> Value {
         let namespace = crate::OperatorNamespace::parse(match self {
-            Self::Stripe => "stripe-refunds",
+            Self::Stripe => "stripe-platform-refunds",
             Self::Airtable => "airtable-demo",
         })
         .expect("namespace");
@@ -104,7 +113,7 @@ impl Family {
                 form.append_pair("payment_intent", STRIPE_PAYMENT);
                 json!({"method": "POST", "url": "https://api.stripe.com/v1/refunds",
                     "content_type": "application/x-www-form-urlencoded", "body": form.finish(),
-                    "headers": [["Stripe-Version", STRIPE_VERSION], ["Stripe-Account", STRIPE_ACCOUNT],
+                    "headers": [["Stripe-Version", STRIPE_VERSION],
                         ["Idempotency-Key", crate::idempotency_key(&namespace, &operation)]],
                     "idempotency_key": crate::idempotency_key(&namespace, &operation)})
             }

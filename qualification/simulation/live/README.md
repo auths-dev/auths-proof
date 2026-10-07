@@ -18,7 +18,7 @@ signature. This signer has no protected release authority. Live provider state
 is evidence; the report makes no production qualification, PostgreSQL/AWS,
 complete-corpus, token-scope or independently measured lease/entry-counter claim.
 
-Run inside the maintained Docker image after installing the candidate wheel
+Run inside the maintained Docker image (`Dockerfile` in this directory) after installing the candidate wheel
 with `/opt/consumer/bin/pip install --no-deps /wheel/<candidate>.whl`. Mount only
 the extracted package, public Airtable recipe/profile lock, this script and an
 empty report directory. Supply the operator credential through Docker stdin.
@@ -41,10 +41,29 @@ must fail to read the staged credential and both gateway state directories.
 Child output is bounded and secret-scanned before publication;
 provider error response bodies never reach public logs.
 
-Stripe's distinct-account rehearsal additionally requires Connect enabled on
-the test platform. A 400 refusal creating a connected account is a failed setup,
-not evidence of account-scope qualification. Do not substitute the platform
-account and declare that requirement satisfied.
+The owner authorized platform-account Stripe test refunds on 7 October 2026.
+`stripe.py` uses the separately generated `stripe-platform/` profile and recipe,
+which have no connected-account field or scope header. It checks the restricted
+test key, platform identity, denied reads, grant/relative ceilings, currency,
+refund value/echo read-back, proof replay, altered action, restart, secret
+isolation, support redaction and exact report signature. Setup creates only a
+test PaymentIntent; teardown fully refunds its remaining test balance and
+independently reads the charge to confirm cleanup. Stripe retains test payment
+and refund records. No Connect/account-scope behavior is claimed. The current
+platform test profile is different from the existing scoped Connect example.
+For Stripe, use the same mounts and installed wheel, with the public
+`stripe-platform/` directory at `/inputs`:
+
+```text
+/opt/consumer/bin/python /harness/stripe.py \
+  --package /candidate/auths-gateway-operator \
+  --inputs /inputs --wheel /wheel/<candidate>.whl --credential-stdin \
+  --commit <exact-package-source-commit> --out /reports/run
+```
+
+Stripe stdin holds `STRIPE_TEST_API_KEY` and `STRIPE_TEST_RESTRICTED_KEY` in
+dotenv format. Setup/cleanup use the full test key; gateway installation
+receives only the restricted test key. Both keys must be test-mode keys.
 
 The first successful live rehearsal is preserved in
 [`../evidence/airtable-live-2026-10-07/`](../evidence/airtable-live-2026-10-07/).
@@ -54,3 +73,15 @@ The two-process submission returned one provider-observed outcome and one
 restart were refused. Altered action bytes were denied as `malformed-proof`.
 An independent fresh GET matched both the approved replacement and the gateway
 result's echo. The created record was deleted before the report was signed.
+
+The matching platform-only Stripe report, signature and real support bundle
+are preserved in
+[`../evidence/stripe-platform-live-2026-10-07/`](../evidence/stripe-platform-live-2026-10-07/).
+It used the same downloaded gateway and installed `0.0.1rc1` wheel as Airtable.
+A newly created 2,000-cent test payment had exactly one 500-cent gateway refund
+before teardown, with fresh matching echo/value read-back. Grant ceiling,
+relative ceiling and currency partition violations were refused, as were
+original-proof replay, altered action and replay after restart. Teardown
+refunded the remaining test balance and read the charge to confirm full refund.
+The refund object has no `livemode` member; the test-mode evidence is the
+credential/balance guard and the PaymentIntent/Charge observations.

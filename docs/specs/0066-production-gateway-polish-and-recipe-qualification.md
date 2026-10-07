@@ -567,11 +567,15 @@ is never silently skipped. Infrastructure failure produces no candidate.
 The machinery is not accepted using mocks alone. Its release gate requires two
 recipe families against two live providers:
 
-- the Stripe refund journey, including a genuinely distinct connected account
-  when account-scope support is part of the qualified tuple; and
+- the platform-account Stripe refund journey in test mode, with no Connect
+  account-scope capability in this launch tuple (owner decision, 7 October 2026); and
 - one independently authored simple write recipe from the field-lab journey
   (Airtable or Todoist), proving that qualification does not depend on a
   first-party provider module.
+
+A future tuple that declares Connect account-scope support must exercise a
+genuinely distinct connected account; the platform-only evidence cannot qualify
+that capability.
 
 Each requires its own ADR and protected evidence. The two recipes share the
 qualification mechanism, not provider semantics. Until both attestations
@@ -1730,3 +1734,30 @@ The Airtable token reaches the existing base; its restriction to one base has
 not been established. These reports exclude protected production qualification,
 production PostgreSQL/AWS custody, complete-corpus coverage and independently
 witnessed lease/provider-entry counts. Stable readiness remains false.
+
+### 22.2 Owner-approved Stripe scope change (2026-10-07)
+
+The owner has excluded paid Connect onboarding and authorized adapting the
+qualification case to a platform-account refund. The launch Stripe family is
+now `stripe-platform-refund-v1`: its separately generated profile and reviewed
+recipe are under `qualification/simulation/live/stripe-platform/`. Neither the
+profile nor the recipe declares a connected-account argument or account-scope
+header. The restricted test credential guard, platform-identity commitment,
+version pin, denied reads, relative ceiling, count/sum budgets, idempotency,
+response locator and fresh echo observation remain required. Connected-account
+selection is explicitly outside this tuple and these reports.
+
+The revised platform-only live Stripe run passed through the downloaded
+`20837b56` gateway and installed `0.0.1rc1` Linux wheel. The restricted key
+passed its test-mode/platform/denied-read guards. Grant ceiling, relative
+ceiling and currency partition violations were refused. One 500-cent refund
+against a freshly created 2,000-cent test payment was confirmed by an
+independent fresh refund listing with matching amount and echo; original proof,
+altered action and replay after restart were refused. The application could
+read neither the staged credential nor gateway state. Teardown refunded the
+remaining balance and freshly confirmed the charge was fully refunded.
+The exact signed simulation report and support bundle are retained under
+`qualification/simulation/evidence/stripe-platform-live-2026-10-07/`.
+Both live provider journeys now have measured development evidence. They still
+exclude protected production qualification and the full production evidence
+wall; the normal production lease gate remains unchanged.

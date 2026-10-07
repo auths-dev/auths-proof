@@ -468,3 +468,16 @@ it privately inside the container. The Stripe keys work, but creating a
 distinct test connected account is refused because Connect is not enabled.
 These are development live observations, not protected production
 qualifications; no production trust or stable-readiness claim has changed.
+
+The owner then excluded paid Connect onboarding and authorized adapting the
+Stripe test to platform-account refunds. The agent generated a separate
+`stripe-platform-refund-v1` profile/recipe with no connected-account argument
+or scope header, updated AP-SPEC-066 §7.6 and ADR 0014, and passed the real
+Stripe journey using the same downloaded gateway and installed `0.0.1rc1` wheel.
+Restricted-key guards, ceilings/partition refusals, fresh refund value/echo
+read-back, proof/altered-action/restart refusals, secret isolation, support
+scanning, full test-payment cleanup and the published report signature all
+passed. Evidence is retained under
+`qualification/simulation/evidence/stripe-platform-live-2026-10-07/`.
+Connect scope is excluded; both real provider rehearsals remain development
+evidence and do not change production qualification or stable readiness.

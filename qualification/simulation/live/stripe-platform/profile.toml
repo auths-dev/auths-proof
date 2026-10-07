@@ -1,0 +1,38 @@
+[profile]
+name = "stripe-platform-refund"
+version = 1
+service = "stripe-platform-refunds"
+tool = "create_refund"
+command = "CreateRefund"
+
+[arguments]
+type = "object"
+
+[arguments.fields.operator_namespace]
+type = "enum"
+variants = ["stripe-platform-refunds"]
+
+[arguments.fields.operation_id]
+type = "string"
+min_bytes = 1
+max_bytes = 128
+
+[arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.payment_intent]
+type = "string"
+min_bytes = 3
+max_bytes = 255
+
+[arguments.fields.amount]
+type = "integer"
+minimum = 1
+maximum = 99999999
+
+[arguments.fields.currency]
+type = "string"
+min_bytes = 3
+max_bytes = 3

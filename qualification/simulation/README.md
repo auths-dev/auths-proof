@@ -10,7 +10,7 @@ Use a fresh output directory. No provider credential, signing key file or
 production environment is needed. The same run is a required job in recipe
 qualification CI, and uploads its public reports and signing artifacts.
 
-The Stripe refund and Airtable record update harnesses compile the maintained
+The platform-account Stripe refund and Airtable record update harnesses compile the maintained
 recipes and drive the native submission driver over durable file claims and
 mutable counting providers. Independent vertical wire oracles check the actual
 method, URL, headers, body and idempotency commitment before each write. Reports
@@ -50,3 +50,11 @@ bootstrap records name placeholder provenance. No file is installed under
 `qualification/trust` or `qualification/families`, and readiness remains false.
 Native proof/socket and installed-package journeys remain separate SDK workflow
 checks. This rehearsal does not claim the full protected production corpus.
+
+The owner approved platform-only Stripe test refunds to avoid paid Connect
+onboarding. Both maintained live harnesses passed using the downloaded gateway
+and installed Python 0.0.1rc1 wheel in Docker. Their signed reports are retained
+in `evidence/stripe-platform-live-2026-10-07/` and
+`evidence/airtable-live-2026-10-07/`; see [live instructions](live/README.md).
+Those actual provider runs use development custody and exclude protected
+production qualification and full mandatory-corpus coverage.
