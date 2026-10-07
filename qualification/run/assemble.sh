@@ -45,7 +45,7 @@ commit="$(jq -r .commit "${work}/facts.json")"
 
 # The ledger is a closed family/run-bound object, not a caller-selected array
 # of record strings. Reconstruct the native record summary from its exact IDs.
-env -i PATH="${PATH}" PYTHONNOUSERSITE=1 python3 \
+env -i PATH="${PATH}" PYTHONNOUSERSITE=1 python3 -B \
   "${root}/qualification/reference/resource_summary.py" \
   --family "${family}" --resources "${work}/resources.json" \
   --out "${work}/provider-resources.json"

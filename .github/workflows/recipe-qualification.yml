@@ -313,7 +313,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod 0700 "${RUNNER_TEMP}/work"
-          python3 qualification/run/close_proposal.py \
+          python3 -B qualification/run/close_proposal.py \
             --family "${FAMILY}" --work "${RUNNER_TEMP}/work" \
             --environment "recipe-qualification-live-${FAMILY}" --run "${RUN}" \
             --tool "${GITHUB_WORKSPACE}/target/release/auths-qualification"
