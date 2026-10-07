@@ -302,70 +302,34 @@ jobs:
           export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
           bash qualification/run/resource-session.sh "${FAMILY}" "${RUNNER_TEMP}/work" \
             bash qualification/run/live.sh "${FAMILY}" "${RUNNER_TEMP}/work"
-      - name: Scan what the run kept, then remove the canaries
-        # The scan runs here because the canaries exist only here. A failed
-        # scan fails the job before anything is uploaded.
-        shell: bash
-        run: |
-          set -euo pipefail
-          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
-          qualification/run/redact.sh "${RUNNER_TEMP}/work"
-          test ! -e "${RUNNER_TEMP}/work/canaries"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: live-${{ matrix.family }}
-          path: ${{ runner.temp }}/work
-          if-no-files-found: error
-          retention-days: 30
-
-  assemble:
-    name: assemble the record (${{ matrix.family }})
-    needs: [families, live]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: true
-      matrix:
-        family: ${{ fromJSON(needs.families.outputs.list) }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-rust-cache
-        with:
-          toolchain: 1.97.1
-      - name: Build the release tool from this commit
-        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: live-${{ matrix.family }}
-          path: ${{ runner.temp }}/work
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: offline-${{ matrix.family }}
-          path: ${{ runner.temp }}/offline
-      - name: Build the evidence and assemble
+      - name: Close and scan the final proposal after successful cleanup
+        # The resource session has exited successfully, including its cleanup.
+        # Keep the real canaries while rebuilding the complete redaction
+        # evidence, then scan the actual final proposal before any upload.
         shell: bash
         env:
           FAMILY: ${{ matrix.family }}
           RUN: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
-          # The candidate's facts are the ones recorded before any live
-          # harness ran.
-          cp "${RUNNER_TEMP}/offline/facts.json" "${RUNNER_TEMP}/work/facts.json"
-          qualification/run/assemble.sh "${FAMILY}" "${RUNNER_TEMP}/work" \
-            "recipe-qualification-live-${FAMILY}" "${RUN}"
-          mkdir -p "${RUNNER_TEMP}/proposal"
-          cp -R "${RUNNER_TEMP}/work/proposal/." "${RUNNER_TEMP}/proposal/"
+          chmod 0700 "${RUNNER_TEMP}/work"
+          python3 qualification/run/close_proposal.py \
+            --family "${FAMILY}" --work "${RUNNER_TEMP}/work" \
+            --environment "recipe-qualification-live-${FAMILY}" --run "${RUN}" \
+            --tool "${GITHUB_WORKSPACE}/target/release/auths-qualification"
+          test ! -e "${RUNNER_TEMP}/work/canaries"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: proposal-${{ matrix.family }}
-          path: ${{ runner.temp }}/proposal
+          path: ${{ runner.temp }}/work/proposal
           if-no-files-found: error
           retention-days: 90
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-operator-report-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/work
+          if-no-files-found: error
+          retention-days: 30
 
   sign:
     # The only job that holds the release signer's key. It waits for a
@@ -373,7 +337,7 @@ jobs:
     # evidence closure, attests each record, and signs one index listing
     # exactly this run's records. It signs nothing else.
     name: sign the release
-    needs: assemble
+    needs: live
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15

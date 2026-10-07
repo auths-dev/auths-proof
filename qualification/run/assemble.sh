@@ -36,6 +36,8 @@ for required in tuple.json packages.json facts.json "${stage}-effects.json" reso
 done
 commit="$(jq -r .commit "${work}/facts.json")"
 [ "${commit}" = "$(git -C "${root}" rev-parse HEAD)" ] || { echo "qualification.commit-changed" >&2; exit 1; }
+[ -z "$(git -C "${root}" status --porcelain)" ] \
+  || { echo "qualification.source-not-clean" >&2; exit 1; }
 
 # The tuple names this family and nothing else's.
 [ "$(jq -r .recipe_family "${work}/tuple.json")" = "${family}" ] \
