@@ -248,3 +248,12 @@ deadline. Only the GitHub Actions token enters the GitHub client; provider and
 signer keys are absent from that child's environment. The native issuer/gateway
 must still verify every permit/record: a transported artifact grants no authority.
 The protected workflow has not yet connected this mailbox to admitted corpora.
+
+`author_operator.py` runs in the same credential-free installed environment as
+packet authoring, in a separate process with a fresh operator key. It rechecks
+the native recipe digest, lock and both exact contexts, reconstructs each
+operator-request preimage, signs it with the SDK, and verifies the signature
+with the native SDK verifier. The offline family job produces these actual
+installation statements and checks that their operator differs from every
+packet actor. This proves technical separation by key; production install
+verification and human review are not claimed by its report.

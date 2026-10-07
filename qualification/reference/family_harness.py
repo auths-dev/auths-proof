@@ -95,7 +95,14 @@ def prepare(family, work):
                       '--work', work], cwd=work)
     require(result.returncode == 0, 'qualification.harness.installed-author')
     tuple_value = candidate(family, work)
+    write(work / 'tuple.json', tuple_value, new=True)
+    operator = command([python, '-B', kit / 'author_operator.py',
+                        '--gateway', gateway(), '--work', work], cwd=work)
+    require(operator.returncode == 0, 'qualification.harness.installed-operator')
     resources, reviewed = authenticate(family, work, gateway(), tuple_value)
+    operator_report = decode(read(work / 'operator-report.json', 65536))
+    require(all(operator_report['operator_principal'] not in value['actors']
+                for value in reviewed.values()), 'qualification.harness.operator-separation')
     corpus = compile_plan(family, resources, reviewed, tuple_value['compiled_recipe_sha256'])
     write_bytes(work / 'corpus.json', canonical(corpus), new=True)
     author = decode(read(work / 'author-report.json', 65536))
