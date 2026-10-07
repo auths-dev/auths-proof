@@ -414,7 +414,7 @@ jobs:
         shell: bash
         env:
           STRIPE_QUALIFICATION_SETUP_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_QUALIFICATION_SETUP_KEY || '' }}
-          STRIPE_QUALIFICATION_RUNTIME_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_QUALIFICATION_RUNTIME_KEY || '' }}
+          STRIPE_QUALIFICATION_RUNTIME_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_TEST_KEY || '' }}
           STRIPE_QUALIFICATION_NEXT_RUNTIME_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_QUALIFICATION_NEXT_RUNTIME_KEY || '' }}
           AIRTABLE_QUALIFICATION_TOKEN: ${{ matrix.family == 'airtable-record-update-v1' && secrets.AIRTABLE_QUALIFICATION_TOKEN || '' }}
           AIRTABLE_QUALIFICATION_NEXT_TOKEN: ${{ matrix.family == 'airtable-record-update-v1' && secrets.AIRTABLE_QUALIFICATION_NEXT_TOKEN || '' }}
@@ -495,7 +495,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 135
-    environment: recipe-qualification-commissioning
+    environment: recipe-qualification-signing
     permissions:
       contents: read
       actions: read
