@@ -61,15 +61,27 @@ class Deployment:
                 'qualification.production.controller-identity')
         self.binary, self.work, self.private = Path(binary).absolute(), Path(work).absolute(), Path(private).absolute()
         self.tuple = decode(read(self.work / 'tuple.json', 65536))
-        require(sha256(read(self.binary, 256 * 1024 * 1024)) == self.tuple['target']['gateway_build_sha256'],
+        executable = read(self.binary, 256 * 1024 * 1024)
+        require(sha256(executable) == self.tuple['target']['gateway_build_sha256'],
                 'qualification.production.candidate-bytes')
         require(not self.private.exists() and not self.private.is_relative_to(self.work),
                 'qualification.production.private-directory')
         self.private.mkdir(mode=0o711)
+        os.chmod(self.private, 0o711)
+        # Runner temp ancestors may exclude the gateway/application UIDs.
+        # Copy these exact checked executable bytes into a traversable parent.
+        self.binary = self.private / 'auths-gateway'
+        fd = os.open(self.binary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o755)
+        os.fchmod(fd, 0o755)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(executable)
+            stream.flush()
+            os.fsync(stream.fileno())
         self.gateway = self.private / 'gateway'
         self.gateway.mkdir(mode=0o700)
         self.sockets = self.private / 'sockets'
         self.sockets.mkdir(mode=0o750)
+        os.chmod(self.sockets, 0o750)
         os.chown(self.sockets, GATEWAY_UID, GATEWAY_UID)
         self.canaries = list(canaries)
         require(self.canaries and all(type(value) is bytes and len(value) >= 8 for value in self.canaries),
@@ -101,13 +113,41 @@ class Deployment:
         require(family in ['stripe-platform-refund-v1', 'airtable-record-update-v1'],
                 'qualification.production.family')
         self.provider = 'stripe' if family == 'stripe-platform-refund-v1' else 'airtable'
-        for name in ['recipe.json', 'profile.lock.json', *carrier['trusted_contexts'],
+        for name in ['recipe.json', 'profile.lock.json', 'resources.json', *carrier['trusted_contexts'],
                      *[context + '.operator.json' for context in carrier['trusted_contexts']]]:
             path = self.gateway / name
             write_bytes(path, read(self.work / name, 4 * 1024 * 1024), new=True)
             os.chown(path, GATEWAY_UID, GATEWAY_UID)
         os.chown(self.gateway, GATEWAY_UID, GATEWAY_UID)
         self.processes = {}
+        self.handoff_generation = 0
+        self.permit = None
+
+    def owned_inputs(self, name, values, owner):
+        require(re.fullmatch(r'[a-z][a-z0-9-]{0,63}', name) is not None
+                and owner in [GATEWAY_UID, APPLICATION_UID], 'qualification.production.private-directory')
+        directory = self.private / name
+        directory.mkdir(mode=0o700)
+        for filename, payload in values.items():
+            require(re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}', filename) is not None,
+                    'qualification.production.private-input')
+            path = directory / filename
+            write_bytes(path, payload, new=True)
+            os.chown(path, owner, GATEWAY_UID)
+        os.chown(directory, owner, GATEWAY_UID)
+        return directory
+
+    def packet_inputs(self, handoff, packet, owner):
+        closed(packet, ['label', 'proof', 'action', 'trusted_context', 'arguments'])
+        require(re.fullmatch(r'[a-z][a-z0-9-]{0,63}', packet['label']) is not None
+                and packet['proof'] == packet['label'] + '.proof'
+                and packet['action'] == packet['label'] + '.action'
+                and packet['trusted_context'] in ['context-0.cbor', 'context-1.cbor'],
+                'qualification.production.packet-binding')
+        self.handoff_generation += 1
+        values = {name: read(Path(handoff) / name, bound) for name, bound in [
+            (packet['proof'], 4 * 1024 * 1024), (packet['action'], 65536)]}
+        return self.owned_inputs('packet-' + str(self.handoff_generation), values, owner)
 
     def environment(self, administrative=False):
         return {'PATH': '/usr/bin:/bin', **self.database,
@@ -194,6 +234,117 @@ class Deployment:
         require(result['ok'] is True, 'qualification.production.witness-unavailable')
         return snapshot(result['execution_witness'])
 
+    def application_submit(self, handoff, packet, host=0, context=0):
+        inputs = self.packet_inputs(handoff, packet, APPLICATION_UID)
+        result = subprocess.run([str(self.binary), 'submit', '--app-socket', str(self.app_socket(host, context)),
+            '--proof', str(inputs / packet['proof']), '--action', str(inputs / packet['action'])],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=90, cwd=inputs,
+            user=APPLICATION_UID, group=GATEWAY_UID, extra_groups=[], env={'PATH': '/usr/bin:/bin'})
+        return native_output(result, self.canaries)
+
+    def installed_python_submit(self, python, kit, handoff, packet, host=0, context=0):
+        inputs = self.packet_inputs(handoff, packet, APPLICATION_UID)
+        result = subprocess.run([str(python), '-B', str(Path(kit) / 'installed_submit.py'),
+            '--endpoint', str(self.app_socket(host, context)), '--proof', str(inputs / packet['proof']),
+            '--action', str(inputs / packet['action'])], stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=90, cwd=inputs, user=APPLICATION_UID,
+            group=GATEWAY_UID, extra_groups=[], env={'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'})
+        return native_output(result, self.canaries)
+
+    def register_commissioning(self, source):
+        require(self.permit is None, 'qualification.production.permit-already-registered')
+        names = ['commissioning-permit.json', 'signer-certificate.json', 'revocation-list.json']
+        permit = self.owned_inputs('permit', {name: read(Path(source) / name, 2 * 1024 * 1024)
+                                            for name in names}, GATEWAY_UID)
+        result = self.command(self.commission_arguments('commissioning-init', permit, 0, 0))
+        require(result == {'outcome': 'commissioning-registered', 'qualification': 'required'},
+                'qualification.production.permit-not-registered')
+        self.permit = permit
+
+    def commission_arguments(self, operation, permit, host, context):
+        require(operation in ['commissioning-init', 'commissioning-submit'],
+                'qualification.production.operation')
+        resources = decode(read(self.work / 'resources.json', 65536))
+        return [operation, '--state-dir', self.state(host, context), '--from', permit,
+                '--protected-run', resources['protected_run'], '--resource-binding', self.gateway / 'resources.json']
+
+    def commissioning_submit(self, handoff, packet, host=0, context=0, witness=None):
+        require(self.permit is not None, 'qualification.production.permit-not-registered')
+        inputs = self.packet_inputs(handoff, packet, GATEWAY_UID)
+        arguments = [*self.commission_arguments('commissioning-submit', self.permit, host, context),
+            '--proof', inputs / packet['proof'], '--action', inputs / packet['action']]
+        if witness is not None:
+            require(Path(witness).parent == self.state(host, context) and not Path(witness).exists(),
+                    'qualification.production.private-input')
+            arguments += ['--witness-file', witness]
+        execution = self.command(arguments)
+        closed(execution, ['schema', 'result', 'before', 'after'])
+        require(execution['schema'] == 'auths.gateway-commissioning-execution/1',
+                'qualification.production.execution')
+        return execution
+
+    def reobserve(self, operation, host=0, context=0):
+        require(re.fullmatch(r'qlf-[0-9a-f]{48}', operation) is not None,
+                'qualification.production.operation')
+        result = self.command(['reobserve', '--state-dir', self.state(host, context), '--operation-id', operation])
+        closed(result, ['schema', 'ok', 'code', 'result'])
+        require(result['ok'] is True, 'qualification.production.reobserve')
+        return result['result']
+
+    def rotate(self, credential):
+        require(type(credential) is bytes and credential in self.canaries,
+                'qualification.production.credential-input')
+        result = self.command(['rotate', '--state-dir', self.state(0), '--credential-stdin', '--operator-process'],
+                              administrative=True, secret=credential + b'\n')
+        require(result.get('ok') is True and result.get('code') == 'gateway.admin.rotated',
+                'qualification.production.rotation')
+        return result
+
+    def import_release(self, source):
+        # Artifact transport already bounds the archive. Here only native
+        # release members are copied; no script or binary can enter custody.
+        names = ['signer-certificate.json', 'revocation-list.json', 'release-index.json']
+        release = self.owned_inputs('first-release', {name: read(Path(source) / name, 2 * 1024 * 1024)
+                                                      for name in names}, GATEWAY_UID)
+        for group in ['records', 'attestations']:
+            # Temporarily root-own the new directory while using owner-only I/O.
+            directory = release / group
+            directory.mkdir(mode=0o700)
+            entries = sorted((Path(source) / group).iterdir())
+            require(1 <= len(entries) <= 64 and all(path.suffix == '.json' for path in entries),
+                    'qualification.production.release-bound')
+            for index, path in enumerate(entries):
+                destination = directory / (str(index).zfill(4) + '.json')
+                write_bytes(destination, read(path, 2 * 1024 * 1024), new=True)
+                os.chown(destination, GATEWAY_UID, GATEWAY_UID)
+            os.chown(directory, GATEWAY_UID, GATEWAY_UID)
+        for context in [0, 1]:
+            for host in [0, 1]:
+                # Import verifies the certificate, revocations, index and
+                # record closure under this shipping build's pinned root.
+                self.command(['qualification-import', '--state-dir', self.state(host, context),
+                              '--from', release], json_output=False)
+
+    def support(self, host=0, context=0):
+        return self.command(['support-bundle', '--state-dir', self.state(host, context)])
+
+    def doctor(self, host=0, context=0):
+        return self.command(['doctor', '--state-dir', self.state(host, context),
+            '--app-socket', self.app_socket(host, context), '--app-uid', APPLICATION_UID, '--app-gid', GATEWAY_UID])
+
     def close(self):
         for host, context in list(self.processes):
             self.stop(host, context)
+
+    def retire_credentials(self):
+        require(not self.processes, 'qualification.production.host-running')
+        result = self.command(['revoke', '--state-dir', self.state(0), '--store-only'])
+        require(result.get('state') == 'revoked' and result.get('credential_deletion') == 'not-attempted',
+                'qualification.production.revoke')
+        for context in [0, 1]:
+            for host in [0, 1]:
+                result = self.command(['credential-collect', '--state-dir', self.state(host, context)], administrative=True)
+                closed(result, ['schema', 'deleted'])
+                require(result['schema'] == 'auths.gateway-credential-collection/1'
+                        and type(result['deleted']) is int and result['deleted'] >= 0,
+                        'qualification.production.credential-collection')

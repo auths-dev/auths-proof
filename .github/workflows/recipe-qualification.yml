@@ -147,6 +147,11 @@ jobs:
             --report "${RUNNER_TEMP}/socket-report/report.json"
           sudo -n cp "${RUNNER_TEMP}/socket-report/report.json" "${RUNNER_TEMP}/packet-operator/socket-report.json"
           sudo -n chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/packet-operator/socket-report.json"
+      - name: Exercise the private root controller transport without credentials
+        shell: bash
+        run: |
+          sudo -n /opt/auths-packet-consumer/bin/python -B -m unittest discover \
+            -s /opt/auths-packet-kit/qualification/reference/tests -p test_controller_socket.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: qualification-packet-author-${{ github.run_id }}-${{ github.run_attempt }}

@@ -16,9 +16,10 @@ from resource_io import finish
 
 ROOT = Path(__file__).resolve().parents[2]
 REFERENCE = ROOT / 'qualification/reference'
-SOURCES_TO_PIN = ['family_corpus.py', 'family_harness.py', 'packet_plan.py',
-    'author_packets.py', 'author_socket.py', 'author_operator.py', 'production_setup.py', 'common.py', 'fresh_evidence.py',
-    'native_observation.py', 'measure.py', 'resource_io.py', 'resource_summary.py',
+SOURCES_TO_PIN = ['family_corpus.py', 'family_harness.py', 'family_operations.py', 'packet_plan.py',
+    'author_packets.py', 'author_socket.py', 'author_operator.py', 'production_setup.py',
+    'controller_socket.py', 'installed_submit.py', 'common.py', 'fresh_evidence.py',
+    'native_observation.py', 'measure.py', 'provider_readback.py', 'resource_io.py', 'resource_summary.py',
     'expand.py', 'stripe_platform.py', 'airtable_record.py', 'stripe_resources.py', 'airtable_resources.py']
 
 

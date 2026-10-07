@@ -267,3 +267,21 @@ runtime role. Private state, token paths and database credentials stay outside
 publication; native counters come from the running process's admin socket.
 The complete protected journey still needs to connect this controller to
 resource preparation, mailbox exchanges and the family operations.
+
+`family_operations.py` retains measured effects across stage-runner processes.
+Implemented handlers refresh only original packet labels, reauthenticate exact
+action/context/request bindings, execute private commissioning or ordinary
+application submissions, collect native counters, and require independent raw
+provider read-back for linked outcomes. Replay, read-back, relative guards,
+malformed proof/action, genuine credential rotation and the installed Python
+client have handlers. Unimplemented cases refuse, so this partial operation
+implementation cannot close either complete protected corpus.
+
+`controller_socket.py` connects those operations to the family harness using a
+root-owned private socket with kernel peer checks. Requests carry only closed
+family/case/index/operation coordinates. Credentials, command lines, expected
+outcomes, packets and publication paths cannot be supplied over this interface.
+The credential-free installed-author job exercises the real root peer transport.
+`provider_readback.py` independently discovers Stripe refunds by the verified
+action's echo within its owned payment, or reads the exact owned Airtable record;
+it retains the provider's raw response bytes for digest comparison.

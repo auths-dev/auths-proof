@@ -221,8 +221,13 @@ def main(family, arguments):
             return
         if len(arguments) == 6 and arguments[0] == 'step':
             _, case, index, operation, directory, output = arguments
-            require(case.startswith('offline-'), 'qualification.harness.protected-journey-not-configured')
-            value = offline(family, case.removeprefix('offline-'), int(index), operation, Path(directory).absolute())
+            if case.startswith('offline-'):
+                value = offline(family, case.removeprefix('offline-'), int(index), operation, Path(directory).absolute())
+            else:
+                controller = os.environ.get('AUTHS_QUALIFICATION_CONTROLLER')
+                require(controller is not None, 'qualification.harness.protected-journey-not-configured')
+                from controller_socket import call
+                value = call(controller, family, case, int(index), operation)
             return write(Path(output).absolute(), value, new=True)
         # No helper can silently complete an unimplemented protected step,
         # provision development custody, or manufacture a live observation.
