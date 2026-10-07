@@ -184,14 +184,15 @@ class References(unittest.TestCase):
             for name in ['recipe.json', 'profile.lock.json']:
                 (work / name).write_bytes((source / name).read_bytes())
             (work / 'candidate').write_bytes(b'synthetic test-only candidate, not an executable')
-            (work / 'context.cbor').write_bytes(b'synthetic test-only context')
+            (work / 'context-0.cbor').write_bytes(b'synthetic test-only context')
             (work / 'proof.cbor').write_bytes(b'synthetic test-only proof')
             (work / 'action.cbor').write_bytes(b'synthetic test-only action')
             (work / 'resources.json').write_bytes(canonical(self.stripe_resources()))
             (work / 'packets.json').write_bytes(canonical({
-                'schema': 'auths.qualification-public-packets/2', 'protected_run': RUN,
+                'schema': 'auths.qualification-public-packets/3', 'protected_run': RUN,
                 'evaluated_at': 1000, 'not_after': 1300,
-                'trusted_context': 'context.cbor', 'packets': [{'label': 'normal',
+                'trusted_contexts': ['context-0.cbor'], 'packets': [{'label': 'normal',
+                    'trusted_context': 'context-0.cbor',
                     'proof': 'proof.cbor', 'action': 'action.cbor',
                     'arguments': self.stripe_arguments()}]}))
             artifacts = json.loads((root / 'bindings/fixtures/qualification/commissioning-v2.json').read_bytes())
@@ -231,6 +232,20 @@ class References(unittest.TestCase):
                 self.assertEqual(binding['resources_sha256'], sha256((work / 'resources.json').read_bytes()))
                 self.assertEqual(binding['trusted_contexts_sha256'], [sha256(b'synthetic test-only context')])
                 self.assertFalse(json.loads((args.out_dir / 'oracle-commitments.json').read_bytes())['qualification_issued'])
+                original_packets = json.loads(args.packets.read_bytes())
+                (work / 'context-1.cbor').write_bytes(b'synthetic second test-only context')
+                for problem in ['unused', 'duplicate', 'unknown', 'empty', 'obsolete']:
+                    changed = copy.deepcopy(original_packets)
+                    if problem == 'unused': changed['trusted_contexts'].append('context-1.cbor')
+                    if problem == 'duplicate': changed['trusted_contexts'].append('context-0.cbor')
+                    if problem == 'unknown': changed['packets'][0]['trusted_context'] = 'context-2.cbor'
+                    if problem == 'empty': changed['trusted_contexts'] = []
+                    if problem == 'obsolete': changed['schema'] = 'auths.qualification-public-packets/2'
+                    args.packets.write_bytes(canonical(changed))
+                    args.out_dir = work / ('refused-context-' + problem)
+                    with self.assertRaises(Refusal): expansion.expand(args)
+                    self.assertFalse(args.out_dir.exists())
+                args.packets.write_bytes(canonical(original_packets))
                 args.out_dir = work / 'changed'
                 recipe = json.loads((work / 'recipe.json').read_bytes())
                 del recipe['credential']['guard']

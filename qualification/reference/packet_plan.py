@@ -44,14 +44,19 @@ def arguments(family, resources, recipe_digest):
             # This checks the full resource/action request contract before the
             # author can turn these inputs into signed action bytes.
             reference.request(value, resources, '0' * 64, recipe_digest)
-            packets.append({'label': label, 'arguments': value})
+            packets.append({'label': label, 'context': 'initial', 'arguments': value})
+            if index == 0:
+                # Same logical operation and exact arguments, under the other
+                # predeclared challenge. It is replay evidence, never a second
+                # planned write or caller-selected authoring authority.
+                packets.append({'label': label + '-fresh', 'context': 'fresh', 'arguments': dict(value)})
     return packets
 
 
 def validate(plan):
     closed(plan, ['schema', 'family', 'protected_run', 'evaluated_at', 'not_after',
                   'configuration', 'extension', 'resources', 'packets'])
-    require(plan['schema'] == 'auths.qualification-packet-plan/1'
+    require(plan['schema'] == 'auths.qualification-packet-plan/2'
             and type(plan['family']) is str and plan['family'] in REFERENCES,
             'qualification.packets.schema')
     run_id(plan['protected_run'])
@@ -61,25 +66,29 @@ def validate(plan):
             'qualification.packets.time-bound')
     digest(plan['configuration'])
     packets = plan['packets']
-    require(type(packets) is list and 2 <= len(packets) <= 64,
+    require(type(packets) is list and 4 <= len(packets) <= 64,
             'qualification.packets.packet-bound')
     labels, operations = set(), set()
     for packet in packets:
-        closed(packet, ['label', 'arguments'])
+        closed(packet, ['label', 'context', 'arguments'])
         require(type(packet['label']) is str and packet['label'] not in labels
-                and packet['label'] in {phase + '-' + str(index).zfill(2)
-                                       for phase in ['commissioning', 'live'] for index in range(32)},
+                and packet['label'] in {phase + '-' + str(index).zfill(2) + suffix
+                                       for phase in ['commissioning', 'live'] for index in range(32)
+                                       for suffix in (['', '-fresh'] if index == 0 else [''])}
+                and packet['context'] == ('fresh' if packet['label'].endswith('-fresh') else 'initial'),
                 'qualification.packets.packet-bound')
         labels.add(packet['label'])
         value = packet['arguments']
         fields = ['operator_namespace', 'operation_id', 'recipe_digest']
         fields += ['payment_intent', 'amount', 'currency'] if plan['family'] == stripe_platform.FAMILY else ['record_id', 'replacement']
         closed(value, fields)
-        operation = 'qlf-' + sha256(canonical([plan['family'], plan['protected_run'], packet['label']]))[:48]
-        require(value['operation_id'] == operation and operation not in operations,
+        operation = 'qlf-' + sha256(canonical([plan['family'], plan['protected_run'],
+                                             packet['label'].removesuffix('-fresh')]))[:48]
+        require(value['operation_id'] == operation
+                and (operation, packet['context']) not in operations,
                 'qualification.packets.operation-binding')
         digest(value['recipe_digest'])
-        operations.add(operation)
+        operations.add((operation, packet['context']))
     require(len({packet['arguments']['recipe_digest'] for packet in packets}) == 1,
             'qualification.packets.recipe-binding')
     require(packets == arguments(plan['family'], plan['resources'], packets[0]['arguments']['recipe_digest'])
@@ -121,7 +130,7 @@ def prepare(args):
             '--scope', 'payment_intent=' + ','.join(payment['id'] for payment in resources['payments'])])
         extension = {name: derived[name] for name in ['extension_id', 'extension_body_hex']}
     evaluated_at = int(time.time())
-    plan = validate({'schema': 'auths.qualification-packet-plan/1', 'family': args.family,
+    plan = validate({'schema': 'auths.qualification-packet-plan/2', 'family': args.family,
         'protected_run': resources['protected_run'], 'evaluated_at': evaluated_at,
         'not_after': evaluated_at + PACKET_VALIDITY, 'configuration': review['verifier_configuration'],
         'extension': extension, 'resources': resources,

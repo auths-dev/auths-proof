@@ -57,14 +57,15 @@ class AuthorSocket(unittest.TestCase):
                 work = Path(temporary)
                 work.chmod(0o700)
                 packet = {'label': 'live-00', 'proof': 'live-00.proof',
+                          'trusted_context': 'context-0.cbor',
                           'action': 'live-00.action', 'arguments': {'closed': 'source'}}
                 now = int(time.time())
-                original = {'schema': 'auths.qualification-public-packets/2',
+                original = {'schema': 'auths.qualification-public-packets/3',
                     'protected_run': 'recipe-qualification/123/1', 'evaluated_at': now,
-                    'not_after': now + 300, 'trusted_context': 'context.cbor', 'packets': [packet]}
+                    'not_after': now + 300, 'trusted_contexts': ['context-0.cbor'], 'packets': [packet]}
                 write(work / 'public-packets.json', original, new=True)
                 write_bytes(work / 'live-00.action', b'source-action', new=True)
-                write_bytes(work / 'context.cbor', b'source-context', new=True)
+                write_bytes(work / 'context-0.cbor', b'source-context', new=True)
                 fresh = work / 'refresh-0001'
                 fresh.mkdir(mode=0o700)
                 value = dict(original)
@@ -73,7 +74,7 @@ class AuthorSocket(unittest.TestCase):
                 if change == 'extra-field': value['credential'] = 'synthetic-forbidden-input'
                 write(fresh / 'public-packets.json', value, new=True)
                 write_bytes(fresh / 'live-00.action', b'changed' if change == 'action' else b'source-action', new=True)
-                write_bytes(fresh / 'context.cbor', b'changed' if change == 'context' else b'source-context', new=True)
+                write_bytes(fresh / 'context-0.cbor', b'changed' if change == 'context' else b'source-context', new=True)
                 write_bytes(fresh / 'live-00.proof', b'public-proof', new=True)
                 with patch('author_socket.exchange', return_value={'generation': 1}):
                     with self.assertRaises(Refusal): author_socket.refresh(work, 'live-00', work / 'output')
