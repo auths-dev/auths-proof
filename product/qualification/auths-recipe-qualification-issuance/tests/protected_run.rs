@@ -226,6 +226,13 @@ fn custody_environment_protection_is_checked_before_provider_credentials() {
 }
 
 #[test]
+fn only_credential_free_pull_request_runs_can_be_superseded() {
+    let text = std::fs::read_to_string(repository().join(WORKFLOW)).expect("workflow");
+    assert!(text.contains("cancel-in-progress: ${{ github.event_name == 'pull_request' }}"));
+    assert!(!text.contains("cancel-in-progress: true"));
+}
+
+#[test]
 fn other_workflows_cannot_reach_qualification_signing() {
     // No other workflow names the signer's key, and nothing in the
     // repository runs on a trigger that gives a pull request's code secrets.
