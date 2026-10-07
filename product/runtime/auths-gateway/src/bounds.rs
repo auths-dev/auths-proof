@@ -927,6 +927,9 @@ pub(crate) fn authorized_chains(
 
 /// What admission needs of the authorized branches.
 pub(crate) struct BranchFacts {
+    /// Distinct actors of the exact action IDs sealed by native verification.
+    #[cfg(unix)]
+    pub(crate) actors: Vec<PrincipalId>,
     /// Every observation requirement of every grant of every branch.
     pub(crate) requirements: Vec<auths_model::ObservationRequirement>,
     /// The longest action validity window of any branch.
@@ -956,6 +959,13 @@ pub(crate) fn authorized_branches(
         }
     }
     Ok(BranchFacts {
+        #[cfg(unix)]
+        actors: branches
+            .iter()
+            .map(|branch| branch.actor.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect(),
         approvers: counted_approvers(proof_cbor, verified)?,
         requirements,
         validity_seconds: branches

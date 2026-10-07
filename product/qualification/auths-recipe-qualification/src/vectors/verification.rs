@@ -687,7 +687,7 @@ fn target_cases() -> Vec<Value> {
             deployed.target.store_kind = LifecycleStoreKind::SharedFileV1;
         }),
         drifted("wrong-store-schema", "wrong-store", |deployed| {
-            deployed.target.store_schema = super::bounded("auths.lifecycle.postgresql/6");
+            deployed.target.store_schema = super::bounded("auths.lifecycle.postgresql/0");
         }),
         drifted(
             "wrong-credential-store",

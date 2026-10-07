@@ -7,7 +7,14 @@ from pathlib import Path
 from auths.verify import VerificationInput, verify
 
 
-root = Path(os.environ["AUTHS_RECIPE_FIXTURE"])
+fixture = os.environ.get("AUTHS_RECIPE_FIXTURE")
+if not fixture:
+    raise SystemExit(
+        "Set AUTHS_RECIPE_FIXTURE to the directory containing workflow.proof.cbor, "
+        "workflow.action.cbor and workflow.context.cbor; "
+        "see docs/product/recipes/02_VERIFY_AUTHORITY.md for a disposable example."
+    )
+root = Path(fixture)
 proof = (root / "workflow.proof.cbor").read_bytes()
 action = (root / "workflow.action.cbor").read_bytes()
 context = (root / "workflow.context.cbor").read_bytes()

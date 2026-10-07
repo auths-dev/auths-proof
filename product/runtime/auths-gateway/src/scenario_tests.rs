@@ -46,6 +46,9 @@ const FRESH: [u8; 32] = [0x22; 32];
 const RECORD: &str = "recTEST0000000001";
 const FOREIGN: &str = "auths-e1-0000000000000000000000000000000000000000000000000000000000000000";
 
+#[path = "qualification_simulation.rs"]
+mod qualification_simulation;
+
 fn corpus(name: &str) -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../bindings/fixtures/gateway")
@@ -325,6 +328,8 @@ pub(crate) fn admitted(
         .closed_request_from_arguments(&arguments, commitment)
         .map_err(|error| crate::engine::not_entered(error.code()))?;
     Ok(VerifiedCommand {
+        #[cfg(unix)]
+        actors: Vec::new(),
         request,
         bound,
         approvers: Vec::new(),
@@ -1390,8 +1395,8 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
         BoundedText, CapabilityKind, QualificationTuple, Scenario, Sha256Digest,
     };
     use auths_recipe_qualification_issuance::execution::{
-        ExpectedObservation, Operation, RunCase, RunObservation, RunOutcome, RunPhase, RunStep,
-        RunVerdict,
+        EvidenceComparison, ExpectedObservation, Operation, RunCase, RunObservation, RunOutcome,
+        RunPhase, RunStep, RunVerdict,
     };
     for scenario in [
         Scenario::ProofReplay,
@@ -1437,10 +1442,12 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             vec![
                 RunStep {
                     operation: Operation::DropResponse,
+                    evidence_comparison: EvidenceComparison::Static {},
                     expected: expected(RunOutcome::Unknown, "unknown", 1, 1, 0),
                 },
                 RunStep {
                     operation: Operation::ReadBack,
+                    evidence_comparison: EvidenceComparison::Static {},
                     expected: expected(RunOutcome::Observed, "observed-by-provider", 1, 0, 1),
                 },
             ]
@@ -1448,10 +1455,12 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
             vec![
                 RunStep {
                     operation: Operation::Submit,
+                    evidence_comparison: EvidenceComparison::Static {},
                     expected: expected(RunOutcome::Observed, "observed-by-provider", 2, 1, 1),
                 },
                 RunStep {
                     operation: Operation::Replay,
+                    evidence_comparison: EvidenceComparison::Static {},
                     expected: expected(RunOutcome::Refused, "gateway.attempt.replay", 0, 0, 0),
                 },
             ]
@@ -1489,6 +1498,7 @@ async fn qualification_stages_use_gateway_replay_and_recovery_witnesses() {
                 other => panic!("unexpected result: {other:?}"),
             };
             observations.push(RunObservation {
+                fresh_evidence: None,
                 tuple_sha256: tuple.digest().expect("tuple digest"),
                 observed: ExpectedObservation {
                     verdict: RunVerdict {

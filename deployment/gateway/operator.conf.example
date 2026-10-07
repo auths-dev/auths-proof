@@ -4,6 +4,7 @@ AUTHS_POSTGRES_CA_PEM=/etc/auths/postgres-ca.pem
 AUTHS_POSTGRES_SERVER_NAME=postgres.internal
 AWS_ROLE_ARN=arn:aws:iam::ACCOUNT:role/auths-operator
 AWS_WEB_IDENTITY_TOKEN_FILE=/run/auths-identity/operator/token
-# Read confirmation during rotation uses the separately provisioned runtime identity.
+# Installation, join and rotation read confirmation use the separately
+# provisioned runtime identity; the operator role needs no secret-read grant.
 AUTHS_GATEWAY_RUNTIME_ROLE_ARN=arn:aws:iam::ACCOUNT:role/auths-runtime
 AUTHS_GATEWAY_RUNTIME_TOKEN_FILE=/run/auths-identity/runtime/token

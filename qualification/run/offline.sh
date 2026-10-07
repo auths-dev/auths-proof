@@ -3,8 +3,8 @@
 #
 #   offline.sh <family> <work-dir>
 #
-# Builds the release candidate from a clean tree, runs the family's offline
-# harness, and runs the trust stages for the tuple the harness reported.
+# Uses the credential-free job's exact candidate from a clean source revision,
+# runs the family harness and runs the trust stages for its reported tuple.
 # Writes into <work-dir>: tuple.json, packages.json, cases/*.json, facts.json.
 set -euo pipefail
 
@@ -23,15 +23,19 @@ if [ -n "$(git -C "${root}" status --porcelain)" ]; then
 fi
 
 mkdir -p "${work}/cases"
-cargo build --locked --release -p auths-gateway --bin auths-gateway
-cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
-export AUTHS_GATEWAY="${root}/target/release/auths-gateway"
-export AUTHS_QUALIFICATION="${root}/target/release/auths-qualification"
+export AUTHS_GATEWAY="${AUTHS_GATEWAY:?qualification.candidate-not-supplied}"
+export AUTHS_QUALIFICATION="${AUTHS_QUALIFICATION:?qualification.issuer-not-supplied}"
+# Candidate bytes are built once by the credential-free job and kept outside
+# the public evidence directory; the tuple binds that exact executable.
 
 "${directory}/harness" prepare "${work}"
-# The tuple is obtained from the actual installed candidate, not authored
-# by the harness. Installation and package acquisition remain family-owned.
-"${AUTHS_GATEWAY}" qualification-status --state-dir "${work}/gateway-state" --tuple \
+# Derive the planned production identity without custody or provider access.
+# The protected live runner must compare its actual installation byte-for-byte
+# before importing a permit. This command grants no execution authority.
+"${AUTHS_GATEWAY}" qualification-candidate \
+  --recipe "${work}/recipe.json" --profile-lock "${work}/profile.lock.json" \
+  --recipe-family "${family}" \
+  --provider-contract-id "$("${AUTHS_QUALIFICATION}" contract-id --contract "${directory}/contract.json")" \
   > "${work}/tuple.json"
 for required in tuple.json packages.json; do
   [ -s "${work}/${required}" ] || { echo "qualification.harness-incomplete ${required}" >&2; exit 1; }
@@ -41,11 +45,20 @@ done
   "$("${AUTHS_QUALIFICATION}" contract-id --contract "${directory}/contract.json")" ] \
   || { echo "qualification.contract-changed" >&2; exit 1; }
 "${AUTHS_QUALIFICATION}" run-stage --phase offline \
-  --corpus "${directory}/corpus-manifest.json" --harness "${directory}/harness" \
+  --corpus "${work}/corpus.json" --harness "${directory}/harness" \
   --tuple "${work}/tuple.json" --work-dir "${work}"
 
 "${AUTHS_QUALIFICATION}" stage-trust --tuple "${work}/tuple.json" \
   --out "${work}/cases/rotation.trust.json"
+
+# The finite permit consumes actual canonical offline evidence, not a case
+# list or an arbitrary report's passing flag.
+mkdir -p "${work}/offline"
+for member in conformance differential; do
+  "${AUTHS_QUALIFICATION}" evidence --member "${member}" \
+    --tuple "${work}/tuple.json" --commit "$(git -C "${root}" rev-parse HEAD)" \
+    --cases "${work}/cases/${member}.offline.json" --out "${work}/offline/${member}.json"
+done
 
 digest() { shasum -a 256 "$1" | cut -d' ' -f1; }
 jq -n \
@@ -53,7 +66,7 @@ jq -n \
   --arg source_closure "$(git -C "${root}" ls-tree -r HEAD | shasum -a 256 | cut -d' ' -f1)" \
   --arg generated "$(cat "${AUTHS_GATEWAY}" "${AUTHS_QUALIFICATION}" | shasum -a 256 | cut -d' ' -f1)" \
   --arg decision "$(digest "${directory}/decision-record.md")" \
-  --arg corpus "$(digest "${directory}/corpus-manifest.json")" \
+  --arg corpus "$(digest "${work}/corpus.json")" \
   '{commit: $commit, source_closure_sha256: $source_closure,
     generated_artifacts_sha256: $generated,
     recipe_decision_record_sha256: $decision, corpus_manifest_sha256: $corpus}' \

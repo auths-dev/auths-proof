@@ -211,7 +211,7 @@ kind = "cargo"
 current = "unpublished workspace components"
 target = "auths-identity, auths-identity-raw-key, auths-signature-ed25519, auths-identity-authority, auths-byte-channel, auths-byte-channel-memory, auths-iroh"
 state = "publish-neutral-ports-and-reference-adapters"
-compatibility = "The 1.0.0-rc.1 coordinates expose identity and transport independently. Reference adapters and the authority bridge remain optional; all packages are versioned in the release order and semantic freeze."
+compatibility = "The Rust and TypeScript 1.0.0-rc.1 and Python 0.0.1rc1 coordinates expose identity and transport independently. Reference adapters and the authority bridge remain optional; all packages are versioned in the release order and semantic freeze."
 owner_pr = "ISSUE-98-SPEC-11"
 
 [[surfaces]]

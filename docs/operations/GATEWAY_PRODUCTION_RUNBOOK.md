@@ -30,6 +30,18 @@ a deletion error does not undo revocation. Never turn unknown into failure or
 submit the operation again. Database failure means no durable stop can be
 claimed; isolate app ingress at the host firewall and retain the incident.
 
+Install retains the authenticated recipe, trust, operator statement and custody
+configuration before creating a credential. Their presence is cleanup input,
+not proof that install completed: a missing or damaged host floor still refuses
+every execution lease. If an interrupted install committed its connection,
+explicitly revoke it through the store-only command, then collect its journal.
+Collection can read that irreversibly revoked record without accepting a
+damaged or missing execution floor; it still requires the exact journal,
+fixed retirement delay and unchanged shared record, and never repairs the floor.
+Active or disabled connections keep the normal floor requirement. If no
+connection committed, retain the journal as an orphan cleanup obligation;
+never infer deletion from a failed install command.
+
 ## Provider-secret rotation
 
 For the web-identity reference, the operator configuration must explicitly

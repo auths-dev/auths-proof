@@ -14,6 +14,11 @@ on:
   pull_request:
     paths:
       - "qualification/**"
+      - "product/runtime/auths-gateway/**"
+      - "product/qualification/**"
+      - "examples/stripe-refund-approval/recipe.json"
+      - "examples/stripe-refund-approval/profile.lock.json"
+      - "bindings/fixtures/gateway/**"
       - ".github/workflows/recipe-qualification.yml"
 
 permissions:
@@ -21,9 +26,255 @@ permissions:
 
 concurrency:
   group: recipe-qualification-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  candidate:
+    name: shipping gateway candidate without credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the shipping binaries without simulation features
+        run: |
+          cargo build --locked --release -p auths-gateway --bin auths-gateway
+          cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
+          mkdir -p target/qualification-shipping-candidate/bin
+          cp target/release/auths-gateway target/release/auths-qualification target/qualification-shipping-candidate/bin/
+      - name: Review maintained recipes without installing or leasing custody
+        run: |
+          target/release/auths-gateway review \
+            --recipe qualification/simulation/live/stripe-platform/recipe.json \
+            --profile-lock qualification/simulation/live/stripe-platform/profile.lock.json \
+            > target/qualification-shipping-candidate/stripe-review.json
+          target/release/auths-gateway review \
+            --recipe bindings/fixtures/gateway/airtable/recipe.json \
+            --profile-lock bindings/fixtures/gateway/airtable/profile.lock.json \
+            > target/qualification-shipping-candidate/airtable-review.json
+      - name: Bind the retained bytes to this source and run
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_RUN: ${{ github.run_id }}
+          SOURCE_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path('target/qualification-shipping-candidate')
+          files = {}
+          for path in sorted(root.rglob('*')):
+              if path.is_file():
+                  files[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
+          (root / 'candidate.json').write_text(json.dumps({
+              'schema': 'auths.qualification-shipping-candidate/1',
+              'source_commit': os.environ['SOURCE_COMMIT'],
+              'run_id': os.environ['SOURCE_RUN'], 'run_attempt': os.environ['SOURCE_ATTEMPT'],
+              'features': [], 'platform': 'linux-x86_64',
+              'qualification_issued': False, 'stable_launch_ready': False,
+              'files': files,
+          }, sort_keys=True, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/qualification-shipping-candidate
+          if-no-files-found: error
+          retention-days: 30
+
+  packet-author:
+    name: installed packet author and shipping native review
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Build the installed SDK artifact
+        run: |
+          python -m pip install maturin==1.9.6
+          maturin build --profile python-extension --locked \
+            --manifest-path bindings/python/Cargo.toml --out target/qualification-wheels
+          python -m venv "${RUNNER_TEMP}/packet-consumer"
+          "${RUNNER_TEMP}/packet-consumer/bin/python" -m pip install target/qualification-wheels/*.whl
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/packet-candidate
+      - name: Run the author without a checkout or provider credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          kit="${RUNNER_TEMP}/packet-kit"
+          mkdir -p "${kit}/qualification/simulation/live" "${kit}/bindings/fixtures/gateway"
+          cp -R qualification/reference "${kit}/qualification/"
+          cp -R qualification/simulation/live/stripe-platform "${kit}/qualification/simulation/live/"
+          cp -R bindings/fixtures/gateway/airtable "${kit}/bindings/fixtures/gateway/"
+          chmod +x "${RUNNER_TEMP}/packet-candidate/bin/auths-gateway"
+          cd "${RUNNER_TEMP}"
+          python "${kit}/qualification/reference/check_packets.py" \
+            --gateway "${RUNNER_TEMP}/packet-candidate/bin/auths-gateway" \
+            --python "${RUNNER_TEMP}/packet-consumer/bin/python" \
+            --work "${RUNNER_TEMP}/packet-operator"
+      - name: Reconnect to the installed author under a separate UID
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n mkdir -m 0700 "${RUNNER_TEMP}/socket-report"
+          # The runner's temp ancestors may be private to its login UID.
+          # Copy only the credential-free kit and installed wheel environment
+          # into public-readable /opt inputs; keep author output private in /tmp.
+          sudo -n mkdir -m 0755 /opt/auths-packet-kit /opt/auths-packet-consumer
+          sudo -n cp -R "${RUNNER_TEMP}/packet-kit/." /opt/auths-packet-kit/
+          sudo -n cp -R "${RUNNER_TEMP}/packet-consumer/." /opt/auths-packet-consumer/
+          sudo -n chmod -R a+rX /opt/auths-packet-kit /opt/auths-packet-consumer
+          sudo -n /opt/auths-packet-consumer/bin/python \
+            /opt/auths-packet-kit/qualification/reference/check_socket.py \
+            --gateway "${RUNNER_TEMP}/packet-candidate/bin/auths-gateway" \
+            --python /opt/auths-packet-consumer/bin/python \
+            --work "/tmp/auths-socket-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --report "${RUNNER_TEMP}/socket-report/report.json"
+          sudo -n cp "${RUNNER_TEMP}/socket-report/report.json" "${RUNNER_TEMP}/packet-operator/socket-report.json"
+          sudo -n chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/packet-operator/socket-report.json"
+      - name: Exercise the private root controller transport without credentials
+        shell: bash
+        run: |
+          sudo -n /opt/auths-packet-consumer/bin/python -B -m unittest discover \
+            -s /opt/auths-packet-kit/qualification/reference/tests -p test_controller_socket.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-packet-author-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/packet-operator/report.json
+            ${{ runner.temp }}/packet-operator/socket-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/qualification-wheels/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  typescript-consumer:
+    name: installed TypeScript qualification consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: bindings/typescript/package-lock.json
+      - run: npm ci
+        working-directory: bindings/typescript
+      - run: cargo install wasm-pack --version 0.15.0 --locked
+      - run: npm run build:wasm
+        working-directory: bindings/typescript
+      - run: npm run build
+        working-directory: bindings/typescript
+      - run: mkdir -p target/qualification-typescript
+      - run: npm pack --pack-destination ../../target/qualification-typescript
+        working-directory: bindings/typescript
+      - name: Inspect the actually installed tarball without checkout imports or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/qualification-typescript-consumer"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "${consumer}" \
+            "${GITHUB_WORKSPACE}"/target/qualification-typescript/auths-dev-sdk-*.tgz
+          cp qualification/reference/installed_submit.mjs "${consumer}/installed_submit.mjs"
+          cd "${consumer}"
+          env -i PATH="${PATH}" node installed_submit.mjs inspect \
+            > "${GITHUB_WORKSPACE}/target/qualification-typescript/consumer-report.json"
+      - name: Bind the exact tarball and consumer to this source
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path('target/qualification-typescript')
+          packages = list(root.glob('*.tgz'))
+          assert len(packages) == 1
+          report = json.loads((root / 'consumer-report.json').read_bytes())
+          assert report['repository_imported'] is False and report['provider_token_received'] is False
+          (root / 'package.json').write_text(json.dumps({
+              'schema': 'auths.qualification-installed-package/1', 'source_commit': os.environ['SOURCE_COMMIT'],
+              'name': report['package_name'], 'version': report['version'], 'file': packages[0].name,
+              'sha256': hashlib.sha256(packages[0].read_bytes()).hexdigest(),
+              'qualification_issued': False,
+          }, sort_keys=True) + '\n')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/qualification-typescript
+          if-no-files-found: error
+          retention-days: 30
+
+  simulation:
+    name: disposable bootstrap and two provider simulations
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Check the independent resource and request references
+        run: python -m unittest discover -s qualification/reference/tests
+      - name: Build the portable simulation harness
+        run: |
+          mkdir -p target
+          cargo test --locked -p auths-gateway --features loopback-provider --lib --no-run --message-format=json > target/qualification-harness-build.jsonl
+          python qualification/simulation/pack.py --build-report target/qualification-harness-build.jsonl --out target/qualification-candidate-kit
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-simulation-kit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/qualification-candidate-kit
+          if-no-files-found: error
+          retention-days: 30
+      - name: Run with no checkout, credentials or network
+        run: |
+          docker build -t auths-qualification-simulation qualification/simulation
+          mkdir -p target/qualification-simulation-reports
+          docker run --rm --network none \
+            --mount type=bind,src="$PWD/target/qualification-candidate-kit",dst=/candidate,readonly \
+            --mount type=bind,src="$PWD/target/qualification-simulation-reports",dst=/reports \
+            auths-qualification-simulation \
+            python3 /candidate/run.py --candidate-kit /candidate --out /reports/run
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-simulation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/qualification-simulation-reports/run
+          if-no-files-found: error
+          retention-days: 30
+
   families:
     name: list the families
     runs-on: ubuntu-latest
@@ -45,7 +296,7 @@ jobs:
 
   offline:
     name: candidate and offline evidence (${{ matrix.family }})
-    needs: families
+    needs: [families, candidate]
     if: needs.families.outputs.list != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -60,17 +311,39 @@ jobs:
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
-      - name: Build the candidate and run the offline stages
-        shell: bash
-        env:
-          FAMILY: ${{ matrix.family }}
-        run: qualification/run/offline.sh "${FAMILY}" "${RUNNER_TEMP}/work"
-      - name: Keep the candidate's binaries with its evidence
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Install the exact SDK wheel outside the checkout
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/work/bin"
-          cp target/release/auths-gateway target/release/auths-qualification "${RUNNER_TEMP}/work/bin/"
+          python -m pip install maturin==1.9.6
+          maturin build --profile python-extension --locked \
+            --manifest-path bindings/python/Cargo.toml --out target/qualification-offline-wheels
+          python -m venv "${RUNNER_TEMP}/offline-consumer"
+          "${RUNNER_TEMP}/offline-consumer/bin/python" -m pip install target/qualification-offline-wheels/*.whl
+          mkdir -p "${RUNNER_TEMP}/offline-author-kit"
+          cp qualification/reference/*.py "${RUNNER_TEMP}/offline-author-kit/"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - name: Run offline stages on the exact shipping candidate
+        shell: bash
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          set -euo pipefail
+          chmod +x "${RUNNER_TEMP}/candidate/bin/"*
+          export AUTHS_GATEWAY="${RUNNER_TEMP}/candidate/bin/auths-gateway"
+          export AUTHS_QUALIFICATION="${RUNNER_TEMP}/candidate/bin/auths-qualification"
+          export AUTHS_QUALIFICATION_CONSUMER_PYTHON="${RUNNER_TEMP}/offline-consumer/bin/python"
+          export AUTHS_QUALIFICATION_AUTHOR_KIT="${RUNNER_TEMP}/offline-author-kit"
+          wheels=("${GITHUB_WORKSPACE}"/target/qualification-offline-wheels/*.whl)
+          test "${#wheels[@]}" -eq 1
+          export AUTHS_QUALIFICATION_WHEEL="${wheels[0]}"
+          qualification/run/offline.sh "${FAMILY}" "${RUNNER_TEMP}/work"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: offline-${{ matrix.family }}
@@ -79,22 +352,175 @@ jobs:
           retention-days: 30
 
   live:
-    # Disposable provider resources, through the candidate gateway. Each
-    # family has its own protected environment holding only that family's
-    # qualification credential, which is not a production credential.
-    name: live evidence (${{ matrix.family }})
-    needs: [families, offline]
+    name: retained production operator (${{ matrix.family }})
+    needs: [families, candidate, offline, packet-author, typescript-consumer, simulation]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    environment: recipe-qualification-live-${{ matrix.family }}
+    timeout-minutes: 135
+    environment: gateway-custody-live
     permissions:
       contents: read
+      actions: read
+      deployments: read
       id-token: write
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         family: ${{ fromJSON(needs.families.outputs.list) }}
+    env:
+      FAMILY: ${{ matrix.family }}
+    steps:
+      - name: Require reviewer protection and exact main-only custody policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/auths-dev/auths-proof/environments/gateway-custody-live \
+            > "${RUNNER_TEMP}/custody-environment.json"
+          jq -e '[.protection_rules[] | select(.type == "required_reviewers" and (.reviewers | length) > 0)] | length == 1' \
+            "${RUNNER_TEMP}/custody-environment.json" > /dev/null
+          jq -e '.deployment_branch_policy.custom_branch_policies == true and .deployment_branch_policy.protected_branches == false' \
+            "${RUNNER_TEMP}/custody-environment.json" > /dev/null
+          gh api 'repos/auths-dev/auths-proof/environments/gateway-custody-live/deployment-branch-policies?per_page=100' \
+            > "${RUNNER_TEMP}/custody-branches.json"
+          jq -e '.total_count == 1 and (.branch_policies | length) == 1 and .branch_policies[0].name == "main" and .branch_policies[0].type == "branch"' \
+            "${RUNNER_TEMP}/custody-branches.json" > /dev/null
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/python-package
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/typescript-package
+      - name: Install the exact credential-free consumer packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          wheels=("${RUNNER_TEMP}"/python-package/*.whl)
+          test "${#wheels[@]}" -eq 1
+          python -m venv "${RUNNER_TEMP}/consumer"
+          "${RUNNER_TEMP}/consumer/bin/python" -m pip install --no-index "${wheels[0]}"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "${RUNNER_TEMP}/typescript-consumer" \
+            "${RUNNER_TEMP}"/typescript-package/auths-dev-sdk-*.tgz
+          sudo -n mkdir -m 0755 /opt/auths-qualification
+          sudo -n cp -R "${RUNNER_TEMP}/consumer" /opt/auths-qualification/python
+          sudo -n cp -R "${RUNNER_TEMP}/typescript-consumer" /opt/auths-qualification/typescript
+          sudo -n cp qualification/reference/installed_submit.mjs /opt/auths-qualification/typescript/
+          sudo -n cp -R qualification/reference /opt/auths-qualification/kit
+          sudo -n cp "$(command -v node)" /opt/auths-qualification/node
+          sudo -n chmod -R a+rX /opt/auths-qualification
+          chmod +x "${RUNNER_TEMP}/candidate/bin/"*
+      - name: Prepare the retained operator and scan public commissioning inputs
+        id: operator
+        shell: bash
+        env:
+          STRIPE_QUALIFICATION_SETUP_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_QUALIFICATION_SETUP_KEY || '' }}
+          STRIPE_QUALIFICATION_RUNTIME_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_TEST_KEY || '' }}
+          STRIPE_QUALIFICATION_NEXT_RUNTIME_KEY: ${{ matrix.family == 'stripe-platform-refund-v1' && secrets.STRIPE_QUALIFICATION_NEXT_RUNTIME_KEY || '' }}
+          AIRTABLE_QUALIFICATION_TOKEN: ${{ matrix.family == 'airtable-record-update-v1' && secrets.AIRTABLE_QUALIFICATION_TOKEN || '' }}
+          AIRTABLE_QUALIFICATION_NEXT_TOKEN: ${{ matrix.family == 'airtable-record-update-v1' && secrets.AIRTABLE_QUALIFICATION_NEXT_TOKEN || '' }}
+        run: |
+          set -euo pipefail
+          wheels=("${RUNNER_TEMP}"/python-package/*.whl)
+          test "${#wheels[@]}" -eq 1
+          keep=GITHUB_REPOSITORY,GITHUB_EVENT_NAME,GITHUB_REF,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_TRACKING_ID,ACTIONS_ID_TOKEN_REQUEST_URL,ACTIONS_ID_TOKEN_REQUEST_TOKEN
+          keep+=,STRIPE_QUALIFICATION_SETUP_KEY,STRIPE_QUALIFICATION_RUNTIME_KEY,STRIPE_QUALIFICATION_NEXT_RUNTIME_KEY,AIRTABLE_QUALIFICATION_TOKEN,AIRTABLE_QUALIFICATION_NEXT_TOKEN
+          sudo -n --preserve-env="${keep}" python3 -B qualification/reference/journey_session.py start \
+            --family "${FAMILY}" --root "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --binary "${RUNNER_TEMP}/candidate/bin/auths-gateway" \
+            --issuer "${RUNNER_TEMP}/candidate/bin/auths-qualification" \
+            --python /opt/auths-qualification/python/bin/python --kit /opt/auths-qualification/kit \
+            --wheel "${wheels[0]}" --node /opt/auths-qualification/node \
+            --script /opt/auths-qualification/typescript/installed_submit.mjs \
+            --package "${RUNNER_TEMP}/typescript-package" --exports "${RUNNER_TEMP}/operator-exports" \
+            --runner-uid "$(id -u)" --runner-gid "$(id -g)"
+          sudo -n python3 -B qualification/reference/journey_session.py advance \
+            --family "${FAMILY}" --root "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --phase prepare
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-commissioning-inputs-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/operator-exports/commissioning-inputs
+          if-no-files-found: error
+          retention-days: 30
+      - name: Receive the independent permit and close the measured first proposal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          keep=GH_TOKEN,GITHUB_REPOSITORY,GITHUB_EVENT_NAME,GITHUB_REF,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA
+          sudo -n --preserve-env="${keep}" python3 -B qualification/reference/journey_session.py receive \
+            --family "${FAMILY}" --root "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --kind commissioning-permit
+          sudo -n python3 -B qualification/reference/journey_session.py advance \
+            --family "${FAMILY}" --root "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --phase commission
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-first-proposal-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/operator-exports/first-proposal
+          if-no-files-found: error
+          retention-days: 30
+      - name: Import first qualification, exercise ordinary production and retire owned resources
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          keep=GH_TOKEN,GITHUB_REPOSITORY,GITHUB_EVENT_NAME,GITHUB_REF,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA
+          sudo -n --preserve-env="${keep}" python3 -B qualification/reference/journey_session.py receive \
+            --family "${FAMILY}" --root "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --kind first-release
+          for phase in import-first live cleanup final-proposal; do
+            sudo -n python3 -B qualification/reference/journey_session.py advance \
+              --family "${FAMILY}" --root "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --phase "${phase}"
+          done
+          sudo -n test ! -e "/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/publication/canaries"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-final-proposal-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/operator-exports/final-proposal
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retire this operator after failure or cancellation
+        if: always() && steps.operator.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="/tmp/aq-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if sudo -n test -S "${root}/control/session.sock"; then
+            sudo -n python3 -B qualification/reference/journey_session.py advance \
+              --family "${FAMILY}" --root "${root}" --phase abort
+          fi
+
+  commissioner:
+    name: independently review finite commissioning (${{ matrix.family }})
+    needs: [families, candidate, offline, packet-author, typescript-consumer, simulation]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 135
+    environment: recipe-qualification-signing
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        family: ${{ fromJSON(needs.families.outputs.list) }}
+    env:
+      FAMILY: ${{ matrix.family }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -102,49 +528,53 @@ jobs:
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
-      - name: Build the release tool from this commit
-        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
+      - name: Build the issuer and reviewer from this protected checkout
+        run: cargo build --locked --release -p auths-gateway --bin auths-gateway -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: offline-${{ matrix.family }}
-          path: ${{ runner.temp }}/work
-      - name: Run the family's live harness
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - name: Receive only this run's bounded public inputs
         shell: bash
         env:
-          FAMILY: ${{ matrix.family }}
-          AUTHS_QUALIFICATION_PROVIDER_CREDENTIAL: ${{ secrets.QUALIFICATION_PROVIDER_CREDENTIAL }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          chmod +x "${RUNNER_TEMP}/work/bin/"*
-          export AUTHS_GATEWAY="${RUNNER_TEMP}/work/bin/auths-gateway"
-          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
-          qualification/run/live.sh "${FAMILY}" "${RUNNER_TEMP}/work"
-      - name: Scan what the run kept, then remove the canaries
-        # The scan runs here because the canaries exist only here. A failed
-        # scan fails the job before anything is uploaded.
+          umask 077
+          mkdir -m 0700 "${RUNNER_TEMP}/inputs"
+          python3 -B qualification/run/artifact_wait.py --kind commissioning-inputs --family "${FAMILY}" \
+            --not-after "$(( $(date -u +%s) + 7200 ))" --out "${RUNNER_TEMP}/inputs/${FAMILY}"
+      - name: Review the full source pool before reading the commissioning key
         shell: bash
+        env:
+          QUALIFICATION_COMMISSIONING_SIGNER_KEY: ${{ secrets.QUALIFICATION_COMMISSIONING_SIGNER_KEY }}
         run: |
-          set -euo pipefail
-          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
-          qualification/run/redact.sh "${RUNNER_TEMP}/work"
-          test ! -e "${RUNNER_TEMP}/work/canaries"
+          python3 -B qualification/run/commission.py --family "${FAMILY}" \
+            --inputs "${RUNNER_TEMP}/inputs/${FAMILY}" --candidate "${RUNNER_TEMP}/candidate/bin/auths-gateway" \
+            --out "${RUNNER_TEMP}/permit"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: live-${{ matrix.family }}
-          path: ${{ runner.temp }}/work
+          name: qualification-commissioning-permit-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/permit
           if-no-files-found: error
           retention-days: 30
 
-  assemble:
-    name: assemble the record (${{ matrix.family }})
-    needs: [families, live]
+  first-sign:
+    name: independently sign first qualification (${{ matrix.family }})
+    needs: [families, candidate, offline, packet-author, typescript-consumer, simulation]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 135
+    environment: recipe-qualification-signing
+    permissions:
+      contents: read
+      actions: read
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         family: ${{ fromJSON(needs.families.outputs.list) }}
+    env:
+      FAMILY: ${{ matrix.family }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -152,91 +582,119 @@ jobs:
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
-      - name: Build the release tool from this commit
-        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
+      - name: Build the issuer and reviewer from this protected checkout
+        run: cargo build --locked --release -p auths-gateway --bin auths-gateway -p auths-recipe-qualification-issuance --bin auths-qualification
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: live-${{ matrix.family }}
-          path: ${{ runner.temp }}/work
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: offline-${{ matrix.family }}
-          path: ${{ runner.temp }}/offline
-      - name: Build the evidence and assemble
+          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/python-package
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/typescript-package
+      - name: Receive only this run's original public pool and first proposal
         shell: bash
         env:
-          FAMILY: ${{ matrix.family }}
-          RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          export AUTHS_QUALIFICATION="${GITHUB_WORKSPACE}/target/release/auths-qualification"
-          # The candidate's facts are the ones recorded before any live
-          # harness ran.
-          cp "${RUNNER_TEMP}/offline/facts.json" "${RUNNER_TEMP}/work/facts.json"
-          qualification/run/assemble.sh "${FAMILY}" "${RUNNER_TEMP}/work" \
-            "recipe-qualification-live-${FAMILY}" "${RUN}"
-          mkdir -p "${RUNNER_TEMP}/proposal"
-          cp -R "${RUNNER_TEMP}/work/proposal/." "${RUNNER_TEMP}/proposal/"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: proposal-${{ matrix.family }}
-          path: ${{ runner.temp }}/proposal
-          if-no-files-found: error
-          retention-days: 90
-
-  sign:
-    # The only job that holds the release signer's key. It waits for a
-    # required reviewer of its environment, re-verifies every record's
-    # evidence closure, attests each record, and signs one index listing
-    # exactly this run's records. It signs nothing else.
-    name: sign the release
-    needs: assemble
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: recipe-qualification-signing
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-rust-cache
-        with:
-          toolchain: 1.97.1
-      - name: Build the release tool from this commit
-        run: cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          pattern: proposal-*
-          path: ${{ runner.temp }}/proposals
-      - name: Sign every proposal into one release
+          umask 077
+          mkdir -m 0700 "${RUNNER_TEMP}/inputs"
+          python3 -B qualification/run/artifact_wait.py --kind commissioning-inputs --family "${FAMILY}" \
+            --not-after "$(( $(date -u +%s) + 7200 ))" --out "${RUNNER_TEMP}/inputs/${FAMILY}"
+          mkdir -m 0700 "${RUNNER_TEMP}/proposals"
+          python3 -B qualification/run/artifact_wait.py --kind first-proposal --family "${FAMILY}" \
+            --not-after "$(( $(date -u +%s) + 7200 ))" --out "${RUNNER_TEMP}/proposals/${FAMILY}"
+      - name: Reconstruct and sign the first qualification without executing downloaded programs
         shell: bash
         env:
           QUALIFICATION_RELEASE_SIGNER_KEY: ${{ secrets.QUALIFICATION_RELEASE_SIGNER_KEY }}
         run: |
           set -euo pipefail
+          wheels=("${RUNNER_TEMP}"/python-package/*.whl)
+          test "${#wheels[@]}" -eq 1
+          python3 -B qualification/run/sign_release.py --family "${FAMILY}" --stage commissioning \
+            --inputs "${RUNNER_TEMP}/inputs" --proposal "${RUNNER_TEMP}/proposals" \
+            --candidate "${RUNNER_TEMP}/candidate" --wheel "${wheels[0]}" \
+            --typescript "${RUNNER_TEMP}/typescript-package" --out "${RUNNER_TEMP}/release"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-first-release-${{ matrix.family }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+          retention-days: 30
+
+  sign:
+    name: sign the complete cleaned qualification release
+    needs: [live, families, commissioner, first-sign]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: recipe-qualification-signing
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - name: Build the issuer and reviewer from this protected checkout
+        run: cargo build --locked --release -p auths-gateway --bin auths-gateway -p auths-recipe-qualification-issuance --bin auths-qualification
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-shipping-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-python-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/python-package
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/typescript-package
+      - name: Receive exact-run public inputs and cleanup-closed proposals
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAMILIES: ${{ needs.families.outputs.list }}
+        run: |
+          set -euo pipefail
           umask 077
-          for required in qualification-trust-root.json signer-certificate.json revocation-list.json; do
-            test -s "qualification/trust/${required}" \
-              || { echo "qualification.trust-not-published ${required}" >&2; exit 1; }
-          done
-          key="${RUNNER_TEMP}/release-signer.key"
-          trap 'rm -f "${key}"' EXIT
-          printf '%s' "${QUALIFICATION_RELEASE_SIGNER_KEY}" > "${key}"
-          # The key is given only to the tool this job built from the
-          # reviewed commit, never to a binary another job produced.
-          tool="${GITHUB_WORKSPACE}/target/release/auths-qualification"
+          mkdir -m 0700 "${RUNNER_TEMP}/inputs" "${RUNNER_TEMP}/proposals"
+          while IFS= read -r family; do
+            python3 -B qualification/run/artifact_wait.py --kind commissioning-inputs --family "${family}" \
+              --not-after "$(( $(date -u +%s) + 7200 ))" --out "${RUNNER_TEMP}/inputs/${family}"
+            python3 -B qualification/run/artifact_wait.py --kind final-proposal --family "${family}" \
+              --not-after "$(( $(date -u +%s) + 7200 ))" --out "${RUNNER_TEMP}/proposals/${family}"
+          done < <(jq -r '.[]' <<< "${FAMILIES}")
+      - name: Reconstruct every family before reading the release signer
+        shell: bash
+        env:
+          FAMILIES: ${{ needs.families.outputs.list }}
+          QUALIFICATION_RELEASE_SIGNER_KEY: ${{ secrets.QUALIFICATION_RELEASE_SIGNER_KEY }}
+        run: |
+          set -euo pipefail
+          wheels=("${RUNNER_TEMP}"/python-package/*.whl)
+          test "${#wheels[@]}" -eq 1
           arguments=()
-          for proposal in "${RUNNER_TEMP}"/proposals/proposal-*; do
-            arguments+=(--proposal-dir "${proposal}")
-          done
-          "${tool}" sign "${arguments[@]}" --signer-key "${key}" \
-            --certificate qualification/trust/signer-certificate.json \
-            --out-dir "${RUNNER_TEMP}/release"
-          cp qualification/trust/revocation-list.json "${RUNNER_TEMP}/release/revocation-list.json"
-          mkdir -p "${RUNNER_TEMP}/release-inputs"
-          for proposal in "${RUNNER_TEMP}"/proposals/proposal-*; do
-            cp "${proposal}/tuple.json" "${RUNNER_TEMP}/release-inputs/$(basename "${proposal}").tuple.json"
-          done
+          while IFS= read -r family; do
+            arguments+=(--family "${family}")
+          done < <(jq -r 'sort | .[]' <<< "${FAMILIES}")
+          python3 -B qualification/run/sign_release.py "${arguments[@]}" --stage live \
+            --inputs "${RUNNER_TEMP}/inputs" --proposal "${RUNNER_TEMP}/proposals" \
+            --candidate "${RUNNER_TEMP}/candidate" --wheel "${wheels[0]}" \
+            --typescript "${RUNNER_TEMP}/typescript-package" --out "${RUNNER_TEMP}/release"
+          mkdir -m 0700 "${RUNNER_TEMP}/release-inputs"
+          while IFS= read -r family; do
+            cp "${RUNNER_TEMP}/inputs/${family}/tuple.json" "${RUNNER_TEMP}/release-inputs/${family}.tuple.json"
+          done < <(jq -r 'sort | .[]' <<< "${FAMILIES}")
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: signed-release

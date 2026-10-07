@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   installed-artifacts:
-    name: ten installed-artifact recipes
+    name: installed-artifact recipes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -76,6 +76,8 @@ jobs:
       - run: npm exec tsc -- -p tsconfig.json
         working-directory: bindings/recipes/typescript
       - run: .recipe-venv/bin/python -m pip install target/recipe-artifacts/auths-*.whl
+      - name: Run public Python instructions with no checkout imports or fixture environment
+        run: .recipe-venv/bin/python bindings/recipes/tools/run-docs.py --out target/recipe-artifacts/public-python-recipes.json
       - name: Run paired recipes and cross-language receipt verification
         env:
           AUTHS_RECIPE_PYTHON: ${{ github.workspace }}/.recipe-venv/bin/python
@@ -88,7 +90,9 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: sdk-recipe-timings-${{ github.run_id }}-${{ github.run_attempt }}
-          path: target/recipe-artifacts/timings.json
+          path: |
+            target/recipe-artifacts/timings.json
+            target/recipe-artifacts/public-python-recipes.json
           if-no-files-found: error
           retention-days: 30
 

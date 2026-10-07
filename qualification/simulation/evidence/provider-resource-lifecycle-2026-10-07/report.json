@@ -1,0 +1,29 @@
+{
+  "deployment": "local-docker",
+  "production_gateway_exercised": false,
+  "protected_qualification": false,
+  "public_ledger_digests": {
+    "airtable/journal.json": "2914cc695d8d91b9dc9ca8d9e8564dfbeaf75c3aa47639f7441e89ca273ae98e",
+    "airtable/resources.json": "8cce10dc03cd6e2f4cf0113b6a834b4729e891ef3e0506f8d58ec27cb0c5917a",
+    "stripe/journal.json": "643efc1d141ebb761dde62d1dbca3d7e1ddd0ea373510ec200e6102bebf61db5",
+    "stripe/resources.json": "893a0159b8bd9c618d0991194a51df4b26e00641d734382166dfe178d4cacd0e"
+  },
+  "results": [
+    {
+      "family": "stripe",
+      "prepared": 1,
+      "protected_qualification": false,
+      "retired": true
+    },
+    {
+      "family": "airtable",
+      "prepared": 1,
+      "protected_qualification": false,
+      "retired": true
+    }
+  ],
+  "schema": "auths.provider-resource-lifecycle-rehearsal/1",
+  "scope": "operator-resource-rehearsal/1791346245/1",
+  "source_commit": "632e2791504bd92d33832a7e6b582f57d7c2f5b6",
+  "stable_launch_ready": false
+}

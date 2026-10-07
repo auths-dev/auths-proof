@@ -90,7 +90,7 @@ held which key, is operator evidence and is not produced by this code.
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
-  `auths.lifecycle.postgresql/5`; it installs only into an empty database.
+  `auths.lifecycle.postgresql/6`; it installs only into an empty database.
   A database created at schema 4 or earlier is disposable prelaunch state:
   recreate it. Gateway claims are stored as attempt record
   `auths.gateway-attempt/3`; a store holding `/2` records is refused as

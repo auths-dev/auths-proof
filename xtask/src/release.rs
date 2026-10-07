@@ -297,7 +297,13 @@ pub(crate) fn release_evidence() -> Result<(), String> {
     let platform_path = evidence.join("platform.json");
     platform_artifact(&platform_path)?;
     let mut evidence_checksums = BTreeMap::new();
+    let launch_path = evidence.join("launch-readiness.json");
+    let launch = release_launch::projection(&root(), &commit)?;
+    fs::write(&launch_path, pretty_json(&launch, "launch readiness")?)
+        .map_err(|error| format!("could not write launch projection: {error}"))?;
+    println!("stable_launch_ready: {}", launch["stable_launch_ready"]);
     for relative in [
+        "target/release-evidence/launch-readiness.json",
         "target/release-evidence/platform.json",
         "target/release-evidence/platform.sha256",
         "target/compliance/inventory.json",
@@ -1527,6 +1533,16 @@ pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), St
             validate_digest_reference(reference)?;
         }
     }
+    if evidence["conformance"]
+        .as_array()
+        .ok_or("release manifest evidence has no conformance array")?
+        .iter()
+        .filter(|reference| reference["path"] == release_launch::REPORT_PATH)
+        .count()
+        != 1
+    {
+        return Err("release manifest must bind exactly one launch projection".to_owned());
+    }
     validate_digest_reference(&evidence["formalManifest"])?;
     validate_digest_reference(&evidence["releaseNotes"])
 }
@@ -1660,7 +1676,10 @@ mod tests {
                 "spdx": [digest_reference("evidence/sbom.spdx.json")],
                 "provenance": [digest_reference("evidence/provenance.sigstore.json")],
                 "formalManifest": digest_reference("formal/assurance-manifest-v1.toml"),
-                "conformance": [digest_reference("evidence/conformance.json")],
+                "conformance": [
+                    digest_reference("evidence/conformance.json"),
+                    digest_reference(release_launch::REPORT_PATH),
+                ],
                 "benchmarks": [digest_reference("evidence/benchmarks.json")],
                 "releaseNotes": digest_reference("evidence/RELEASE_CANDIDATE_NOTES.md"),
             },
@@ -1734,6 +1753,22 @@ mod tests {
     fn final_release_manifest_contract_accepts_exact_candidate() {
         validate_release_manifest_value(&valid_manifest())
             .expect("complete exact release manifest should pass");
+    }
+
+    #[test]
+    fn final_release_manifest_requires_one_launch_projection() {
+        for duplicate in [false, true] {
+            let mut manifest = valid_manifest();
+            let references = manifest["evidence"]["conformance"]
+                .as_array_mut()
+                .expect("references");
+            if duplicate {
+                references.push(digest_reference(release_launch::REPORT_PATH));
+            } else {
+                references.retain(|reference| reference["path"] != release_launch::REPORT_PATH);
+            }
+            assert!(validate_release_manifest_value(&manifest).is_err());
+        }
     }
 
     #[test]

@@ -7,7 +7,7 @@ name = "auths-sqlite"
 version = "1.0.0rc1"
 description = "SQLite runtime-store adapter for Auths Python"
 requires-python = ">=3.9"
-dependencies = ["auths==1.0.0rc1"]
+dependencies = ["auths==0.0.1rc1"]
 license = "MIT OR Apache-2.0"
 classifiers = [
   "Programming Language :: Python :: 3",

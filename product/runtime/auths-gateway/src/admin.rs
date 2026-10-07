@@ -35,6 +35,8 @@ pub enum AdminRequestCommand {
     },
     /// Report connection state.
     Status {},
+    /// Read process-local custody and transport measurements; grants no authority.
+    ExecutionWitness {},
     /// Read the qualification inputs the operator placed on this host again
     /// and report the resulting state.
     QualificationReload {},
@@ -86,7 +88,12 @@ mod tests {
             parse("\"command\":\"qualification-reload\""),
             Ok(AdminRequestCommand::QualificationReload {})
         );
+        assert_eq!(
+            parse("\"command\":\"execution-witness\""),
+            Ok(AdminRequestCommand::ExecutionWitness {})
+        );
         for refused in [
+            "\"command\":\"execution-witness\",\"reset\":true",
             "\"command\":\"qualification-reload\",\"state\":\"qualified\"",
             "\"command\":\"qualification-reload\",\"policy\":\"optional\"",
             "\"command\":\"qualification-import\"",

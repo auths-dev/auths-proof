@@ -85,10 +85,6 @@ mod unix {
     const QUALIFICATION_STATE_FILE: &str = "qualification-state.json";
     /// A development installation's own trust root.
     const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
-    /// The qualification trust root this build pins. It is `None` until a
-    /// reviewed release pins the root the offline ceremony created; until
-    /// then a production gateway finds every recipe unqualified.
-    const PINNED_QUALIFICATION_ROOT: Option<&[u8]> = None;
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     use auths_gateway::admin::{
@@ -277,6 +273,23 @@ mod unix {
             #[arg(long)]
             profile_lock: PathBuf,
         },
+        /// Offline native proof review: derive the exact credential-free
+        /// request and actors without installation, custody or provider I/O.
+        ReviewSubmission {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            trusted_context: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            /// Offline evaluation time; no lease or production clock override.
+            #[arg(long, value_parser = clap::value_parser!(u64).range(..=253_402_300_799))]
+            evaluated_at: Option<u64>,
+        },
         /// Print the grant extension committing to a ceiling on one verified
         /// integer argument and a count per fixed, epoch-aligned window, and
         /// optionally a sum limit per listed partition value and a scope, as
@@ -360,6 +373,39 @@ mod unix {
             #[arg(long, default_value_t = false)]
             tuple: bool,
         },
+        /// Print the planned production tuple from this executable and the
+        /// reviewed recipe, without installing custody or contacting a provider.
+        /// This is candidate identity, never qualification or readiness.
+        QualificationCandidate {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            recipe_family: String,
+            #[arg(long)]
+            provider_contract_id: String,
+        },
+        /// Authenticated operator-only fresh commissioning registration.
+        /// Registers finite capacity once; never resets existing consumption.
+        CommissioningInit {
+            #[command(flatten)]
+            session: CommissioningOptions,
+        },
+        /// Operator-only exact proof submission under finite commissioning
+        /// authority. Does not open or change the ordinary application socket.
+        CommissioningSubmit {
+            #[command(flatten)]
+            session: CommissioningOptions,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+            /// Optional new owner-private file of bounded, secret-free counter
+            /// snapshots. Read-only diagnostics; never a remote effect claim.
+            #[arg(long)]
+            witness_file: Option<PathBuf>,
+        },
         /// Write a redacted archive for a support request: versions,
         /// digests, closed states, stable codes, and the digest and stage of
         /// each stored attempt. It holds no proof, action, body, credential,
@@ -381,6 +427,13 @@ mod unix {
             state_dir: PathBuf,
             /// The admin socket `serve` was given with `--admin-socket`;
             /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+        },
+        /// Read actual custody/HTTP boundary counts through the private socket.
+        ExecutionWitness {
+            #[arg(long)]
+            state_dir: PathBuf,
             #[arg(long)]
             admin_socket: Option<PathBuf>,
         },
@@ -608,6 +661,23 @@ mod unix {
         qualification_trust_root: Option<PathBuf>,
     }
 
+    #[derive(clap::Args)]
+    struct CommissioningOptions {
+        /// Existing production installation owned by this operator UID.
+        #[arg(long)]
+        state_dir: PathBuf,
+        /// Protected directory containing the permit, signer certificate and
+        /// root-signed revocation list. Production uses its compiled trust root.
+        #[arg(long)]
+        from: PathBuf,
+        /// Exact run identity, including workflow run attempt.
+        #[arg(long)]
+        protected_run: String,
+        /// Reviewed resource file expanded before permit issuance.
+        #[arg(long)]
+        resource_binding: PathBuf,
+    }
+
     #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
     #[serde(rename_all = "kebab-case")]
     enum Deployment {
@@ -747,24 +817,6 @@ mod unix {
             && !cfg!(feature = "testkit-production-plaintext")
     }
 
-    /// Opens the credential store the settings select, under the
-    /// deployment's policy. `unavailable` is the caller's code for a store
-    /// that is selected and permitted but cannot be opened.
-    fn open_credentials(
-        state_dir: &Path,
-        settings: &CredentialStoreSettings,
-        deployment: Deployment,
-        unavailable: &'static str,
-    ) -> Result<Arc<dyn ConnectionCredentialStore>, &'static str> {
-        open_credentials_for(
-            state_dir,
-            settings,
-            deployment,
-            unavailable,
-            CredentialAccess::Runtime,
-        )
-    }
-
     #[derive(Clone, Copy, Eq, PartialEq)]
     enum CredentialAccess {
         Runtime,
@@ -893,6 +945,8 @@ mod unix {
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<GatewayAdminStatus>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        execution_witness: Option<auths_gateway::GatewayExecutionWitness>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<GatewaySubmitResult>,
         /// The reference commitment of a prepared successor. It names the
         /// stored secret without revealing it or where it is kept.
@@ -932,6 +986,7 @@ mod unix {
                 drained: None,
                 in_flight: None,
                 status: None,
+                execution_witness: None,
                 result: None,
                 commitment: None,
                 qualification: None,
@@ -1259,12 +1314,31 @@ mod unix {
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
         };
-        let credentials = open_credentials(
+        // Installation writes custody and a join reads the stored commitment.
+        // Use the same separated writer/reader identities as administration;
+        // the operator role must not acquire GetSecretValue permission.
+        let credentials = open_credentials_for(
             &state_dir,
             &manifest.credential_store,
             deployment,
             "gateway.install.credential-store-unavailable",
+            CredentialAccess::Operator,
         )?;
+        // Retain authenticated cleanup inputs before any custody write. A
+        // pending install has no generation floor and cannot admit a lease.
+        // Explicit store-only revocation can still make its journal collectible.
+        private_file(&state_dir.join("recipe.json"), &source)?;
+        private_file(&state_dir.join("profile.lock.json"), &lock)?;
+        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
+        if let Some(bytes) = &attestation {
+            private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
+        }
+        if let Some(bytes) = &qualification_root {
+            private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
+        }
+        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
+            .map_err(|_| "gateway.install.manifest-invalid")?;
+        private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
         if join {
             join_connection(&shared, &*credentials, &recipe, &candidate).await?;
@@ -1347,18 +1421,6 @@ mod unix {
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
-        private_file(&state_dir.join("recipe.json"), &source)?;
-        private_file(&state_dir.join("profile.lock.json"), &lock)?;
-        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
-        if let Some(bytes) = &attestation {
-            private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
-        }
-        if let Some(bytes) = &qualification_root {
-            private_file(&state_dir.join(QUALIFICATION_ROOT_FILE), bytes)?;
-        }
-        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
-            .map_err(|_| "gateway.install.manifest-invalid")?;
-        private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         println!(
             "{} recipe {} with separate gateway credential custody",
             if join { "joined" } else { "installed" },
@@ -1454,11 +1516,49 @@ mod unix {
     }
 
     fn write_verifier_state(state_dir: &Path, state: &VerifierState) -> Result<(), &'static str> {
+        // Concurrent imports must never erase a revocation remembered by an
+        // earlier authenticated operator command in this same installation.
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
+            .open(state_dir.join("qualification-state.lock"))
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        let metadata = lock
+            .metadata()
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        if !metadata.is_file()
+            || metadata.permissions().mode() & 0o077 != 0
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+        {
+            return Err("gateway.qualification.unavailable");
+        }
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        let mut merged = read_verifier_state(state_dir)?;
+        merged.accepted_revocation_sequence = merged
+            .accepted_revocation_sequence
+            .max(state.accepted_revocation_sequence);
+        merged.accepted_index_issued_at = merged
+            .accepted_index_issued_at
+            .max(state.accepted_index_issued_at);
+        merged
+            .revoked_signers
+            .extend(state.revoked_signers.iter().cloned());
+        merged
+            .revoked_qualifications
+            .extend(state.revoked_qualifications.iter().cloned());
         let stored = StoredVerifierState {
-            accepted_revocation_sequence: state.accepted_revocation_sequence,
-            accepted_index_issued_at: state.accepted_index_issued_at,
-            revoked_signers: state.revoked_signers.iter().cloned().collect(),
-            revoked_qualifications: state.revoked_qualifications.iter().cloned().collect(),
+            accepted_revocation_sequence: merged.accepted_revocation_sequence,
+            accepted_index_issued_at: merged.accepted_index_issued_at,
+            revoked_signers: merged.revoked_signers.into_iter().collect(),
+            revoked_qualifications: merged.revoked_qualifications.into_iter().collect(),
         };
         let bytes = serde_json::to_vec(&stored).map_err(|_| "gateway.qualification.unavailable")?;
         replace_private_file(&state_dir.join(QUALIFICATION_STATE_FILE), &bytes)
@@ -1489,7 +1589,7 @@ mod unix {
                 Some(bytes)
             }
             (Some(_), Deployment::Production) => return Err("gateway.serve.invalid-installation"),
-            (None, _) => PINNED_QUALIFICATION_ROOT.map(<[u8]>::to_vec),
+            (None, _) => auths_gateway::PINNED_QUALIFICATION_ROOT.map(<[u8]>::to_vec),
         };
         bytes
             .map(|bytes| {
@@ -1529,6 +1629,32 @@ mod unix {
             credential_store_kind: CredentialStoreKind::parse(&manifest.credential_store.kind)
                 .ok()?,
         })
+    }
+
+    fn qualification_candidate(
+        recipe_path: &Path,
+        lock_path: &Path,
+        family: &str,
+        contract: &str,
+    ) -> Result<QualificationTuple, Failure> {
+        let source = read_bounded(recipe_path, 65_536)?;
+        let lock = read_bounded(lock_path, 65_536)?;
+        let recipe = installable_recipe(&source, &lock)?;
+        let executable = std::env::current_exe()
+            .and_then(fs::read)
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        deployment_tuple(&DeploymentFacts {
+            recipe_family: family,
+            provider_contract_id: contract,
+            compiled_recipe_sha256: *recipe.digest(),
+            profile_lock_sha256: Sha256::digest(&lock).into(),
+            gateway_build_sha256: Sha256::digest(&executable).into(),
+            store_kind: LifecycleStoreKind::PostgresqlV1,
+            store_schema: POSTGRES_STORE_SCHEMA,
+            credential_store_kind: CredentialStoreKind::parse("aws-secrets-manager-v1")
+                .map_err(|_| "gateway.qualification.unavailable")?,
+        })
+        .ok_or_else(|| "gateway.qualification.unavailable".into())
     }
 
     /// Builds the installation's gate and loads the inputs the operator
@@ -1956,6 +2082,7 @@ mod unix {
         RotatePrepare(Zeroizing<Vec<u8>>),
         RotateCommit([u8; 32]),
         Status,
+        ExecutionWitness,
         Reobserve(String),
         QualificationReload,
     }
@@ -1975,6 +2102,7 @@ mod unix {
             AdminRequestCommand::Enable {} => Ok(AdminCommand::Enable),
             AdminRequestCommand::Revoke {} => Ok(AdminCommand::Revoke),
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
+            AdminRequestCommand::ExecutionWitness {} => Ok(AdminCommand::ExecutionWitness),
             AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
             AdminRequestCommand::Reobserve { operation_id } => {
                 Ok(AdminCommand::Reobserve(operation_id))
@@ -2059,6 +2187,11 @@ mod unix {
                         ..AdminResponse::refused("gateway.admin.status")
                     },
                     Err(code) => AdminResponse::refused(code),
+                },
+                Ok(AdminCommand::ExecutionWitness) => AdminResponse {
+                    ok: true,
+                    execution_witness: Some(engine.execution_witness()),
+                    ..AdminResponse::refused("gateway.admin.execution-witness")
                 },
                 Ok(AdminCommand::QualificationReload) => {
                     let reloading = Arc::clone(&engine);
@@ -2366,6 +2499,42 @@ mod unix {
         Ok(())
     }
 
+    fn review_submission_files(
+        recipe_path: &Path,
+        lock_path: &Path,
+        context_path: &Path,
+        proof_path: &Path,
+        action_path: &Path,
+        evaluated_at: Option<u64>,
+    ) -> Result<(), Failure> {
+        let recipe = installable_recipe(
+            &read_bounded(recipe_path, 65_536)?,
+            &read_bounded(lock_path, 65_536)?,
+        )?;
+        let trust = read_bounded(context_path, 4 * 1024 * 1024)?;
+        let context = auths_codec::decode_verifier_context(&trust)
+            .map_err(|_| "gateway.verify.invalid-trust")?;
+        let proof = read_bounded(proof_path, 4 * 1024 * 1024)?;
+        let action = read_bounded(action_path, 64 * 1024)?;
+        let result = auths_gateway::review_submission(
+            &recipe,
+            &context,
+            match evaluated_at {
+                Some(timestamp) => timestamp,
+                None => now()?,
+            },
+            &proof,
+            &action,
+        );
+        let encoded = match result {
+            Ok(reviewed) => serde_json::to_string(&reviewed),
+            Err(refusal) => serde_json::to_string(&refusal),
+        }
+        .map_err(|_| "gateway.output")?;
+        println!("{encoded}");
+        Ok(())
+    }
+
     /// Parses `<argument>=<value>,<value>...`.
     fn listed_values(text: &str) -> Result<ListedValues, &'static str> {
         let invalid = "gateway.policy.invalid-policy";
@@ -2489,6 +2658,208 @@ mod unix {
         UnixStream::connect(socket)
             .await
             .map_err(|error| Failure::at(code, socket, error))
+    }
+
+    /// A bounded diagnostic stream. Opening refuses an existing file or a
+    /// shared directory before submission; a subsequent recording failure
+    /// must never cancel a submission that may have entered a provider write.
+    struct CommissioningWitnessFile {
+        file: File,
+        last: Option<auths_gateway::GatewayExecutionWitness>,
+        frames: usize,
+    }
+
+    impl CommissioningWitnessFile {
+        fn open(path: &Path) -> Result<Self, &'static str> {
+            let parent = path
+                .parent()
+                .filter(|_| path.is_absolute() && path.file_name().is_some())
+                .ok_or("gateway.commissioning.unsafe-witness-file")?;
+            check_private_directory(parent)
+                .map_err(|_| "gateway.commissioning.unsafe-witness-file")?;
+            if path
+                .components()
+                .any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
+            {
+                return Err("gateway.commissioning.unsafe-witness-file");
+            }
+            let file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .custom_flags(i32::from_ne_bytes(
+                    rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+                ))
+                .open(path)
+                .map_err(|_| "gateway.commissioning.unsafe-witness-file")?;
+            let metadata = file
+                .metadata()
+                .map_err(|_| "gateway.commissioning.unsafe-witness-file")?;
+            if !metadata.is_file()
+                || metadata.uid() != rustix::process::geteuid().as_raw()
+                || metadata.nlink() != 1
+                || metadata.permissions().mode() & 0o077 != 0
+            {
+                return Err("gateway.commissioning.unsafe-witness-file");
+            }
+            Ok(Self {
+                file,
+                last: None,
+                frames: 0,
+            })
+        }
+
+        fn record(
+            &mut self,
+            snapshot: auths_gateway::GatewayExecutionWitness,
+        ) -> Result<(), &'static str> {
+            if self.last.as_ref() == Some(&snapshot) {
+                return Ok(());
+            }
+            if self.frames >= 256 {
+                return Err("gateway.commissioning.witness-limit");
+            }
+            let mut bytes = serde_json::to_vec(&snapshot)
+                .map_err(|_| "gateway.commissioning.witness-unavailable")?;
+            if bytes.len() >= 1024 {
+                return Err("gateway.commissioning.witness-limit");
+            }
+            bytes.push(b'\n');
+            self.file
+                .write_all(&bytes)
+                .map_err(|_| "gateway.commissioning.witness-unavailable")?;
+            self.frames += 1;
+            self.last = Some(snapshot);
+            Ok(())
+        }
+
+        fn finish(&self) -> Result<(), &'static str> {
+            self.file
+                .sync_all()
+                .map_err(|_| "gateway.commissioning.witness-unavailable")
+        }
+    }
+
+    async fn commissioned_submission(
+        session: &auths_gateway::CommissioningSession<'_>,
+        engine: &GatewayEngine,
+        proof: &[u8],
+        action: &[u8],
+        witness_file: Option<&Path>,
+        before: &auths_gateway::GatewayExecutionWitness,
+    ) -> Result<(GatewaySubmitResult, Option<&'static str>), Failure> {
+        let Some(path) = witness_file else {
+            return Ok((session.submit(proof, action).await, None));
+        };
+        let mut witness = CommissioningWitnessFile::open(path)?;
+        witness.record(before.clone())?;
+        let submission = session.submit(proof, action);
+        tokio::pin!(submission);
+        let mut interval = tokio::time::interval(Duration::from_millis(10));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut diagnostic_failure = None;
+        let result = loop {
+            tokio::select! {
+                result = &mut submission => break result,
+                _ = interval.tick(), if diagnostic_failure.is_none() => {
+                    diagnostic_failure = witness.record(engine.execution_witness()).err();
+                }
+            }
+        };
+        // A full or broken stream cannot interrupt an entered attempt.
+        // Report diagnostic failure only after that native attempt finishes.
+        let final_record = witness.record(engine.execution_witness());
+        diagnostic_failure = diagnostic_failure.or(final_record.err());
+        diagnostic_failure = diagnostic_failure.or(witness.finish().err());
+        Ok((result, diagnostic_failure))
+    }
+
+    /// Direct operator process; ordinary application handlers never call this.
+    async fn commissioning(
+        options: &CommissioningOptions,
+        command: Option<(&Path, &Path)>,
+        witness_file: Option<&Path>,
+    ) -> Result<(), Failure> {
+        use auths_recipe_qualification::{
+            BoundedText, COMMISSIONING_PERMIT_FILE, CommissioningInputs,
+            MAX_COMMISSIONING_PERMIT_BYTES,
+        };
+        private_root(&options.state_dir)?;
+        if installation(&options.state_dir)?.deployment != Deployment::Production {
+            return Err("gateway.commissioning.binding-mismatch".into());
+        }
+        let directory = options.state_dir.clone();
+        let engine = tokio::task::spawn_blocking(move || load_engine(&directory))
+            .await
+            .map_err(|_| "gateway.commissioning.unavailable")??;
+        let permit = read_bounded(
+            &options.from.join(COMMISSIONING_PERMIT_FILE),
+            MAX_COMMISSIONING_PERMIT_BYTES,
+        )?;
+        let certificate = read_bounded(
+            &options.from.join(RELEASE_SIGNER_CERTIFICATE_FILE),
+            MAX_SIGNER_CERTIFICATE_BYTES,
+        )?;
+        let revocations = read_bounded(
+            &options.from.join(RELEASE_REVOCATION_LIST_FILE),
+            MAX_REVOCATION_LIST_BYTES,
+        )?;
+        let resources = read_bounded(&options.resource_binding, 64 * 1024)?;
+        let attestation = read_attestation(&options.state_dir.join(OPERATOR_ATTESTATION_FILE))?;
+        let protected_run = BoundedText::parse(&options.protected_run)
+            .map_err(|_| "gateway.commissioning.binding-mismatch")?;
+        let opened = engine.commissioning_session(&auths_gateway::CommissioningSessionInputs {
+            artifacts: CommissioningInputs {
+                signer_certificate: &certificate,
+                revocation_list: &revocations,
+                permit: &permit,
+            },
+            operator_attestation: &attestation,
+            protected_run: &protected_run,
+            resources: &resources,
+            floor_directory: &options.state_dir,
+        });
+        // Authenticated lists remain remembered even when they deny opening.
+        // Persist before acknowledging an import or reaching any custody lease.
+        write_verifier_state(&options.state_dir, &engine.qualification().verifier_state())?;
+        let session = opened?;
+        match command {
+            None => {
+                session.initialize_budget().await?;
+                println!(
+                    "{{\"outcome\":\"commissioning-registered\",\"qualification\":\"required\"}}"
+                );
+            }
+            Some((proof, action)) => {
+                let proof = read_bounded(proof, 4 * 1024 * 1024)?;
+                let action = read_bounded(action, 64 * 1024)?;
+                let before = engine.execution_witness();
+                let (result, diagnostic_failure) = commissioned_submission(
+                    &session,
+                    &engine,
+                    &proof,
+                    &action,
+                    witness_file,
+                    &before,
+                )
+                .await?;
+                let measured = serde_json::json!({
+                    "schema": "auths.gateway-commissioning-execution/1",
+                    "result": result,
+                    "before": before,
+                    "after": engine.execution_witness(),
+                });
+                println!(
+                    "{}",
+                    serde_json::to_string(&measured)
+                        .map_err(|_| "gateway.submit.invalid-response")?
+                );
+                if let Some(code) = diagnostic_failure {
+                    return Err(code.into());
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn submit(socket: PathBuf, proof: PathBuf, action: PathBuf) -> Result<(), Failure> {
@@ -3256,6 +3627,36 @@ mod unix {
                     .await
                     .map_err(|_| "gateway.qualification.unavailable")?
             }
+            Command::QualificationCandidate {
+                recipe,
+                profile_lock,
+                recipe_family,
+                provider_contract_id,
+            } => {
+                let candidate = tokio::task::spawn_blocking(move || {
+                    qualification_candidate(
+                        &recipe,
+                        &profile_lock,
+                        &recipe_family,
+                        &provider_contract_id,
+                    )
+                })
+                .await
+                .map_err(|_| "gateway.qualification.unavailable")??;
+                println!(
+                    "{}",
+                    serde_json_canonicalizer::to_string(&candidate)
+                        .map_err(|_| "gateway.qualification.unavailable")?
+                );
+                Ok(())
+            }
+            Command::CommissioningInit { session } => commissioning(&session, None, None).await,
+            Command::CommissioningSubmit {
+                session,
+                proof,
+                action,
+                witness_file,
+            } => commissioning(&session, Some((&proof, &action)), witness_file.as_deref()).await,
             #[cfg(feature = "loopback-provider")]
             Command::Serve {
                 state_dir,
@@ -3295,6 +3696,25 @@ mod unix {
                 recipe,
                 profile_lock,
             } => Ok(review(&recipe, &profile_lock)?),
+            Command::ReviewSubmission {
+                recipe,
+                profile_lock,
+                trusted_context,
+                proof,
+                action,
+                evaluated_at,
+            } => tokio::task::spawn_blocking(move || {
+                review_submission_files(
+                    &recipe,
+                    &profile_lock,
+                    &trusted_context,
+                    &proof,
+                    &action,
+                    evaluated_at,
+                )
+            })
+            .await
+            .map_err(|_| "gateway.verify.invalid-input")?,
             Command::BoundExtension(options) => Ok(bound_extension(&options)?),
             Command::Audit {
                 bundle,
@@ -3346,6 +3766,14 @@ mod unix {
                 }
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 let command = serde_json::json!({"command": "revoke"});
+                admin_command(&state_dir, &admin_socket, command, None).await
+            }
+            Command::ExecutionWitness {
+                state_dir,
+                admin_socket,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "execution-witness"});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
             Command::Status {
@@ -3533,7 +3961,182 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn commissioning_witness_refuses_shared_existing_and_linked_outputs() {
+            let directory = tempfile::tempdir().expect("private output");
+            let parent = fs::canonicalize(directory.path()).expect("canonical output");
+            let path = parent.join("counters.jsonl");
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o755)).expect("shared");
+            assert!(CommissioningWitnessFile::open(&path).is_err());
+            assert!(!path.exists());
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).expect("private");
+            fs::write(&path, b"retain existing output").expect("existing");
+            assert!(CommissioningWitnessFile::open(&path).is_err());
+            assert_eq!(
+                fs::read(&path).expect("retained"),
+                b"retain existing output"
+            );
+            let link = parent.join("linked.jsonl");
+            std::os::unix::fs::symlink(&path, &link).expect("symbolic link");
+            assert!(CommissioningWitnessFile::open(&link).is_err());
+            assert!(CommissioningWitnessFile::open(Path::new("relative.jsonl")).is_err());
+        }
+
+        #[test]
+        fn commissioning_witness_bounds_changed_counter_frames_without_secret_fields() {
+            let directory = tempfile::tempdir().expect("private output");
+            let parent = fs::canonicalize(directory.path()).expect("canonical output");
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).expect("private");
+            let path = parent.join("counters.jsonl");
+            let mut stream = CommissioningWitnessFile::open(&path).expect("new output");
+            let mut snapshot = auths_gateway::GatewayExecutionWitness {
+                schema: "auths.gateway-execution-witness/1".to_owned(),
+                scope: "00112233445566778899aabbccddeeff".to_owned(),
+                credential_lease_calls: 0,
+                write_transport_entries: 0,
+                read_transport_entries: 0,
+            };
+            for reads in 0..256 {
+                snapshot.read_transport_entries = reads;
+                stream.record(snapshot.clone()).expect("changed snapshot");
+                stream.record(snapshot.clone()).expect("duplicate omitted");
+            }
+            snapshot.read_transport_entries = 256;
+            assert_eq!(
+                stream.record(snapshot),
+                Err("gateway.commissioning.witness-limit")
+            );
+            stream.finish().expect("finished output");
+            let bytes = fs::read(&path).expect("counter frames");
+            assert!(bytes.len() <= 256 * 1024);
+            let lines = bytes
+                .split(|byte| *byte == b'\n')
+                .filter(|line| !line.is_empty());
+            let snapshots: Vec<auths_gateway::GatewayExecutionWitness> = lines
+                .map(|line| serde_json::from_slice(line).expect("closed typed snapshot"))
+                .collect();
+            assert_eq!(snapshots.len(), 256);
+            assert!(snapshots.iter().enumerate().all(|(index, snapshot)| {
+                snapshot.read_transport_entries == index as u64
+                    && snapshot.credential_lease_calls == 0
+                    && snapshot.write_transport_entries == 0
+            }));
+            assert_eq!(
+                fs::metadata(path).expect("mode").permissions().mode() & 0o777,
+                0o600
+            );
+        }
+
+        #[test]
+        fn candidate_identity_needs_no_installation_and_binds_the_running_bytes() {
+            let directory = tempfile::tempdir().expect("candidate input");
+            let recipe = directory.path().join("recipe.json");
+            let lock = directory.path().join("profile.lock.json");
+            fs::write(
+                &recipe,
+                include_bytes!(
+                    "../../../../../qualification/simulation/live/stripe-platform/recipe.json"
+                ),
+            )
+            .expect("recipe");
+            fs::write(
+                &lock,
+                include_bytes!(
+                    "../../../../../qualification/simulation/live/stripe-platform/profile.lock.json"
+                ),
+            )
+            .expect("lock");
+            let contract = "1".repeat(64);
+            let tuple =
+                qualification_candidate(&recipe, &lock, "stripe-platform-refund-v1", &contract)
+                    .expect("candidate");
+            assert_eq!(tuple.target.store_kind, LifecycleStoreKind::PostgresqlV1);
+            assert_eq!(tuple.target.store_schema.as_str(), POSTGRES_STORE_SCHEMA);
+            assert!(tuple.target.credential_store_kind.is_production());
+            assert_eq!(
+                tuple.target.gateway_build_sha256.to_hex(),
+                digest(&fs::read(std::env::current_exe().expect("executable")).expect("bytes"))
+            );
+            assert_eq!(fs::read_dir(directory.path()).expect("inputs").count(), 2);
+            for (family, contract) in [
+                ("../another-family", contract.as_str()),
+                ("stripe-platform-refund-v1", "wrong"),
+            ] {
+                assert!(qualification_candidate(&recipe, &lock, family, contract).is_err());
+            }
+            let mut changed: serde_json::Value =
+                serde_json::from_slice(&fs::read(&recipe).expect("source")).expect("recipe");
+            changed["tool"] = serde_json::json!("another_tool");
+            fs::write(&recipe, serde_json::to_vec(&changed).expect("changed")).expect("source");
+            assert!(
+                qualification_candidate(
+                    &recipe,
+                    &lock,
+                    "stripe-platform-refund-v1",
+                    &"1".repeat(64)
+                )
+                .is_err()
+            );
+        }
         use auths_gateway::listener::APP_CAPACITY;
+
+        #[test]
+        fn concurrent_operator_imports_keep_every_authenticated_revocation() {
+            let directory = tempfile::tempdir().expect("installation");
+            let start = Arc::new(std::sync::Barrier::new(9));
+            let workers: Vec<_> = (1..=8)
+                .map(|index| {
+                    let directory = directory.path().to_owned();
+                    let start = start.clone();
+                    std::thread::spawn(move || {
+                        let mut state = VerifierState {
+                            accepted_revocation_sequence: index,
+                            accepted_index_issued_at: index * 10,
+                            ..VerifierState::default()
+                        };
+                        state.revoked_signers.insert(
+                            QualificationSignerId::parse(format!("synthetic-signer-{index}"))
+                                .expect("signer"),
+                        );
+                        start.wait();
+                        write_verifier_state(&directory, &state)
+                    })
+                })
+                .collect();
+            start.wait();
+            for worker in workers {
+                worker.join().expect("worker").expect("persisted");
+            }
+            write_verifier_state(directory.path(), &VerifierState::default())
+                .expect("stale writer");
+            let stored = read_verifier_state(directory.path()).expect("remembered");
+            assert_eq!(stored.accepted_revocation_sequence, 8);
+            assert_eq!(stored.accepted_index_issued_at, 80);
+            assert_eq!(stored.revoked_signers.len(), 8);
+        }
+
+        #[test]
+        fn application_and_admin_frames_cannot_select_a_commissioning_session() {
+            for field in ["commissioning", "permit", "authority", "operator_session"] {
+                let mut frame = serde_json::json!({"schema": APP_REQUEST_SCHEMA,
+                    "proof_b64": "AA", "action_b64": "AA"});
+                frame[field] = serde_json::json!("synthetic-untrusted-authority");
+                assert!(
+                    serde_json::from_value::<AppSubmission>(frame).is_err(),
+                    "{field}"
+                );
+            }
+            assert!(
+                parse_admin_request(
+                    &serde_json::to_vec(&serde_json::json!({
+                        "schema": ADMIN_REQUEST_SCHEMA, "command": "commissioning-submit"
+                    }))
+                    .expect("frame")
+                )
+                .is_err()
+            );
+        }
 
         fn serve_capacity(arguments: &[&str]) -> Result<usize, clap::Error> {
             let mut command = vec![
