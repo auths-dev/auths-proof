@@ -36,7 +36,9 @@ def generate(check=False):
             'phases': ['offline', 'commissioning', 'live'], 'maximum_credential_leases': 64,
             'source_files': {**{name: sha256(read(REFERENCE / name, 2 * 1024 * 1024))
                                 for name in SOURCES_TO_PIN},
-                             'tls_fault.py': sha256(read(ROOT / 'qualification/run/tls_fault.py', 2 * 1024 * 1024))},
+                             **{name: sha256(read(ROOT / 'qualification/run' / name, 2 * 1024 * 1024))
+                                for name in ['tls_fault.py', 'artifact_wait.py', 'commission.py',
+                                             'sign_release.py', 'close_proposal.py']}},
             'source_recipe_sha256': sha256(read(SOURCES[reference.FAMILY] / 'recipe.json', 65536)),
             'profile_lock_sha256': sha256(read(SOURCES[reference.FAMILY] / 'profile.lock.json', 65536)),
             'decision_record_sha256': sha256(read(ROOT / 'docs/adr' / adr, 65536))}

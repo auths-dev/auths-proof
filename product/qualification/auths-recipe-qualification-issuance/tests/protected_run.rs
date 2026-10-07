@@ -89,7 +89,9 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
         names,
         [
             "candidate",
+            "commissioner",
             "families",
+            "first-sign",
             "live",
             "offline",
             "packet-author",
@@ -104,23 +106,29 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
         let privileged = has("secrets.") || has("environment:") || has("id-token");
         assert_eq!(
             privileged,
-            matches!(name.as_str(), "live" | "sign"),
-            "{name}: only the live and signing jobs reach a secret or an environment"
+            matches!(
+                name.as_str(),
+                "commissioner" | "first-sign" | "live" | "sign"
+            ),
+            "{name}: only the operator, commissioner and release signers reach protected inputs"
         );
         let protected = lines.iter().any(|line| line == PROTECTED);
         assert_eq!(
             protected,
-            matches!(name.as_str(), "live" | "sign" | "verify"),
+            matches!(
+                name.as_str(),
+                "commissioner" | "first-sign" | "live" | "sign" | "verify"
+            ),
             "{name}: live evidence and signing run only by hand on the default branch"
         );
         assert_eq!(
             has("QUALIFICATION_RELEASE_SIGNER_KEY"),
-            name == "sign",
-            "{name}: the signer's key"
+            matches!(name.as_str(), "first-sign" | "sign"),
+            "{name}: the release signer's key"
         );
         assert_eq!(
-            has("\" sign ") || has("${tool}\" sign"),
-            name == "sign",
+            has("qualification/run/sign_release.py"),
+            matches!(name.as_str(), "first-sign" | "sign"),
             "{name}: the signing command"
         );
     }
@@ -129,13 +137,15 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
         sign.iter()
             .any(|line| line == "environment: recipe-qualification-signing")
     );
-    assert!(
-        sign.iter().any(|line| line.contains("rm -f \"${key}\"")),
-        "the key file is removed when the job ends"
-    );
+    let signer_source =
+        std::fs::read_to_string(repository().join("qualification/run/sign_release.py"))
+            .expect("source-owned signer");
+    assert!(signer_source.contains("with tempfile.TemporaryDirectory("));
+    assert!(signer_source.contains("verify_proposal("));
+    assert!(signer_source.contains("commission.signing_seed(os.environ.get("));
     // The key is used only by a tool the signing job built itself, and no
-    // privileged or signing-path job runs a binary another job produced.
-    for name in ["sign", "verify"] {
+    // signing-path job runs a binary another job produced.
+    for name in ["commissioner", "first-sign", "sign", "verify"] {
         let lines = &jobs[name];
         assert!(
             lines
@@ -152,8 +162,8 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
     let live = &jobs["live"];
     let scan = live
         .iter()
-        .position(|line| line.contains("close_proposal.py"))
-        .expect("the live job closes and scans its final proposal");
+        .position(|line| line.contains("--phase prepare"))
+        .expect("the retained operator prepares and scans before export");
     let upload = live
         .iter()
         .position(|line| line.contains("upload-artifact"))
@@ -162,6 +172,23 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
     assert!(
         live.iter()
             .any(|line| line.contains("test ! -e") && line.contains("canaries"))
+    );
+    assert!(
+        live.iter()
+            .any(|line| line == "environment: gateway-custody-live")
+    );
+    for phase in [
+        "commissioning-permit",
+        "first-release",
+        "import-first live cleanup final-proposal",
+    ] {
+        assert!(live.iter().any(|line| line.contains(phase)), "{phase}");
+    }
+    assert!(!live.iter().any(|line| line.contains("resource-session.sh")));
+    assert!(
+        jobs["commissioner"]
+            .iter()
+            .any(|line| line.contains("commission.py"))
     );
     assert!(!text.contains("pull_request_target"));
 }
