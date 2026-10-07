@@ -83,7 +83,10 @@ class Deployment:
         self.sockets.mkdir(mode=0o750)
         os.chmod(self.sockets, 0o750)
         os.chown(self.sockets, GATEWAY_UID, GATEWAY_UID)
-        self.canaries = list(canaries)
+        # The root session adds actual renewed OIDC tokens to this same private
+        # list. Copying it would omit later credentials from output scanning.
+        require(type(canaries) is list, 'qualification.production.canaries')
+        self.canaries = canaries
         require(self.canaries and all(type(value) is bytes and len(value) >= 8 for value in self.canaries),
                 'qualification.production.canaries')
         self.database = {}
@@ -246,11 +249,27 @@ class Deployment:
 
     def installed_python_submit(self, python, kit, handoff, packet, host=0, context=0):
         inputs = self.packet_inputs(handoff, packet, APPLICATION_UID)
-        result = subprocess.run([str(python), '-B', str(Path(kit) / 'installed_submit.py'),
+        result = subprocess.run([str(python), '-B', str(Path(kit) / 'installed_submit.py'), 'submit',
             '--endpoint', str(self.app_socket(host, context)), '--proof', str(inputs / packet['proof']),
             '--action', str(inputs / packet['action'])], stdin=subprocess.DEVNULL,
             capture_output=True, timeout=90, cwd=inputs, user=APPLICATION_UID,
             group=GATEWAY_UID, extra_groups=[], env={'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'})
+        return native_output(result, self.canaries)
+
+    def installed_typescript_submit(self, node, script, handoff, packet, host=0, context=0):
+        inputs = self.packet_inputs(handoff, packet, APPLICATION_UID)
+        result = subprocess.run([str(node), str(script), 'submit', str(self.app_socket(host, context)),
+            str(inputs / packet['proof']), str(inputs / packet['action'])], stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=90, cwd=inputs, user=APPLICATION_UID,
+            group=GATEWAY_UID, extra_groups=[], env={'PATH': '/usr/bin:/bin'})
+        return native_output(result, self.canaries)
+
+    def inspect_consumer(self, executable, script, language):
+        require(language in ['python', 'typescript'], 'qualification.production.consumer')
+        result = subprocess.run([str(executable), *(['-B'] if language == 'python' else []), str(script), 'inspect'],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30, cwd='/',
+            user=APPLICATION_UID, group=GATEWAY_UID, extra_groups=[],
+            env={'PATH': '/usr/bin:/bin', **({'PYTHONNOUSERSITE': '1'} if language == 'python' else {})})
         return native_output(result, self.canaries)
 
     def register_commissioning(self, source):

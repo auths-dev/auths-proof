@@ -161,6 +161,70 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  typescript-consumer:
+    name: installed TypeScript qualification consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: bindings/typescript/package-lock.json
+      - run: npm ci
+        working-directory: bindings/typescript
+      - run: cargo install wasm-pack --version 0.15.0 --locked
+      - run: npm run build:wasm
+        working-directory: bindings/typescript
+      - run: npm run build
+        working-directory: bindings/typescript
+      - run: mkdir -p target/qualification-typescript
+      - run: npm pack --pack-destination ../../target/qualification-typescript
+        working-directory: bindings/typescript
+      - name: Inspect the actually installed tarball without checkout imports or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/qualification-typescript-consumer"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "${consumer}" \
+            "${GITHUB_WORKSPACE}"/target/qualification-typescript/auths-dev-sdk-*.tgz
+          cp qualification/reference/installed_submit.mjs "${consumer}/installed_submit.mjs"
+          cd "${consumer}"
+          env -i PATH="${PATH}" node installed_submit.mjs inspect \
+            > "${GITHUB_WORKSPACE}/target/qualification-typescript/consumer-report.json"
+      - name: Bind the exact tarball and consumer to this source
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path('target/qualification-typescript')
+          packages = list(root.glob('*.tgz'))
+          assert len(packages) == 1
+          report = json.loads((root / 'consumer-report.json').read_bytes())
+          assert report['repository_imported'] is False and report['provider_token_received'] is False
+          (root / 'package.json').write_text(json.dumps({
+              'schema': 'auths.qualification-installed-package/1', 'source_commit': os.environ['SOURCE_COMMIT'],
+              'name': report['package_name'], 'version': report['version'], 'file': packages[0].name,
+              'sha256': hashlib.sha256(packages[0].read_bytes()).hexdigest(),
+              'qualification_issued': False,
+          }, sort_keys=True) + '\n')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qualification-typescript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/qualification-typescript
+          if-no-files-found: error
+          retention-days: 30
+
   simulation:
     name: disposable bootstrap and two provider simulations
     runs-on: ubuntu-latest

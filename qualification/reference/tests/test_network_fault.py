@@ -54,6 +54,19 @@ class Network(unittest.TestCase):
             deployment.current = changed
             with self.assertRaises(Refusal): witness.entered()
 
+    def test_visibility_fault_waits_for_the_observation_lease(self):
+        before = {'schema': 'auths.gateway-execution-witness/1', 'scope': '1' * 32,
+            'credential_lease_calls': 0, 'write_transport_entries': 0, 'read_transport_entries': 0}
+        class Deployment:
+            current = before
+            def witness(self, host, context): return self.current
+        deployment = Deployment()
+        witness = network.NativeWitness(deployment, 0, 0, observation=True)
+        deployment.current = dict(before, credential_lease_calls=1, write_transport_entries=1)
+        self.assertFalse(witness.entered(), 'losing the write response is a different scenario')
+        deployment.current = dict(deployment.current, credential_lease_calls=2, read_transport_entries=1)
+        self.assertTrue(witness.entered())
+
 
 if __name__ == '__main__':
     unittest.main()

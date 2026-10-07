@@ -102,8 +102,9 @@ async def record(reader):
 class Witness:
     """Pin one private, append-only native counter stream and its initial scope."""
 
-    def __init__(self, path, owner):
+    def __init__(self, path, owner, *, observation=False):
         self.path, self.owner = Path(path), owner
+        self.observation = observation
         self.inode, self.previous_size, self.before, self.last = None, 0, None, None
         self.prefix_sha256 = None
 
@@ -135,9 +136,10 @@ class Witness:
         self.inode, self.previous_size = inode, len(raw)
         self.prefix_sha256 = hashlib.sha256(raw).digest()
         self.before, self.last = values[0], values[-1]
-        count = measure.delta(self.before, self.last)['write_transport_entries']
+        counted = measure.delta(self.before, self.last)
+        count = counted['write_transport_entries']
         require(count <= 1, 'qualification.fault.multiple-writes')
-        return count == 1
+        return count == 1 and (not self.observation or counted['credential_lease_calls'] >= 2)
 
 
 class Fault:

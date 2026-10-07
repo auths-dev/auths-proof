@@ -95,6 +95,15 @@ class Parsing(unittest.TestCase):
                 path.chmod(0o644)
             with self.assertRaises((ValueError, OSError)): witness.entered()
 
+    def test_visibility_stream_does_not_arm_on_the_write_lease(self):
+        path = self.work()
+        witness = fault.Witness(path, os.getuid(), observation=True)
+        with path.open('a') as out: out.write(json.dumps(snapshot(1)) + '\n')
+        self.assertFalse(witness.entered())
+        with path.open('a') as out:
+            out.write(json.dumps(dict(snapshot(1), credential_lease_calls=2, read_transport_entries=1)) + '\n')
+        self.assertTrue(witness.entered())
+
     def test_control_cannot_invent_entry_or_choose_an_endpoint(self):
         state = fault.Fault(None)
         for command in [{'command': 'drop'}, {'command': 'drop', 'provider_url': 'unreviewed'},

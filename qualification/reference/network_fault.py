@@ -70,8 +70,9 @@ class Isolation(Rules):
 
 class NativeWitness:
     """Read a live gateway's actual diagnostic; never synthesize a counter scope."""
-    def __init__(self, deployment, host, context):
+    def __init__(self, deployment, host, context, *, observation=False):
         self.deployment, self.host, self.context = deployment, host, context
+        self.observation = observation
         self.before = self.last = deployment.witness(host, context)
 
     def entered(self):
@@ -80,7 +81,8 @@ class NativeWitness:
         counted = measure.delta(self.before, current)
         require(counted['write_transport_entries'] <= 1, 'qualification.fault.multiple-writes')
         self.last = current
-        return counted['write_transport_entries'] == 1
+        return counted['write_transport_entries'] == 1 and (not self.observation
+            or counted['credential_lease_calls'] >= 2)
 
 
 class ResponseFault(Rules):

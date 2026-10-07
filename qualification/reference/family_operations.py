@@ -47,9 +47,14 @@ class Operations:
         self.consumer_python = None
         self.consumer_kit = None
         self.interrupted = set()
+        self.consumer_node = None
+        self.consumer_script = None
 
     def configure_consumers(self, python, kit):
         self.consumer_python, self.consumer_kit = Path(python).absolute(), Path(kit).absolute()
+
+    def configure_typescript(self, node, script):
+        self.consumer_node, self.consumer_script = Path(node).absolute(), Path(script).absolute()
 
     def configure_rotation(self, first, second):
         require(type(first) is bytes and type(second) is bytes and first != second
@@ -144,10 +149,11 @@ class Operations:
                 time.sleep(0.5)
         require(False, 'qualification.operations.effect-not-independently-observed')
 
-    def lose_response(self, phase, label, *, crash=False):
+    def lose_response(self, phase, label, *, crash=False, observation=False):
         handoff, packet = self.packet(label)
         child = self.deployment.commissioning_child(handoff, packet) if phase == 'commissioning' else None
-        witness = Witness(child.witness, GATEWAY_UID) if child is not None else NativeWitness(self.deployment, 0, 0)
+        witness = Witness(child.witness, GATEWAY_UID, observation=observation) if child is not None \
+            else NativeWitness(self.deployment, 0, 0, observation=observation)
         try:
             with ResponseFault(self.family, witness) as fault, ThreadPoolExecutor(max_workers=1) as pool:
                 if child is not None:
@@ -249,7 +255,10 @@ class Operations:
             self.deployment.start(0)
             require(self.deployment.witness(0)['scope'] != before['scope'],
                     'qualification.operations.restart-scope')
-        return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed')
+        resumed = self.deployment.witness(0)
+        self.deployment.support()
+        return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed',
+                                    resumed, self.deployment.witness(0))
 
     def doctor(self):
         require(self.phase == 'live', 'qualification.operations.phase')
@@ -278,21 +287,24 @@ class Operations:
                 'report_sha256': sha256(raw)})
         return observation
 
-    def completed_probe(self, code):
+    def completed_probe(self, code, before, after):
         # Completion is constructed only after that source operation returned
         # actual native/provider facts; a corpus's expected code is never read.
+        counted = measure.delta(before, after)
         return self.observation({'verdict': {'outcome': 'complete', 'code': code,
-            'request_sha256': None, 'evidence_sha256': None}, 'credential_leases': 0,
-            'provider_entries': 0, 'confirmed_by_read_back': 0})
+            'request_sha256': None, 'evidence_sha256': None},
+            'credential_leases': counted['credential_lease_calls'],
+            'provider_entries': counted['write_transport_entries'], 'confirmed_by_read_back': 0})
 
     def rotate(self):
         require(self.rotation_keys is not None, 'qualification.operations.genuine-rotation-required')
         successor = next(key for key in self.rotation_keys if key != self.current_credential)
+        before = self.deployment.witness(0)
         result = self.deployment.rotate(successor)
         require(result.get('ok') is True and result.get('code') == 'gateway.admin.rotated',
                 'qualification.operations.rotation-refused')
         self.current_credential = successor
-        return self.completed_probe('provider-secret-rotated')
+        return self.completed_probe('provider-secret-rotated', before, self.deployment.witness(0))
 
     def hostile(self, phase, identifier):
         label = phase + '-13'
@@ -319,6 +331,48 @@ class Operations:
         before = self.deployment.witness(0)
         result = self.deployment.installed_python_submit(self.consumer_python, self.consumer_kit, handoff, packet)
         return self.project(label, result, before, self.deployment.witness(0))
+
+    def typescript_consumer(self, phase):
+        require(self.consumer_node is not None and self.consumer_script is not None,
+                'qualification.operations.installed-typescript-not-configured')
+        label = phase + '-12'
+        handoff, packet = self.packet(label)
+        before = self.deployment.witness(0)
+        result = self.deployment.installed_typescript_submit(self.consumer_node, self.consumer_script, handoff, packet)
+        return self.project(label, result, before, self.deployment.witness(0))
+
+    def inspect_consumer(self, language, probe):
+        require(probe in ['no-source', 'no-token'], 'qualification.operations.step')
+        if language == 'python':
+            require(self.consumer_python is not None and self.consumer_kit is not None,
+                    'qualification.operations.installed-python-not-configured')
+            executable, script = self.consumer_python, self.consumer_kit / 'installed_submit.py'
+        else:
+            require(language == 'typescript' and self.consumer_node is not None and self.consumer_script is not None,
+                    'qualification.operations.installed-typescript-not-configured')
+            executable, script = self.consumer_node, self.consumer_script
+        before = self.deployment.witness(0)
+        value = self.deployment.inspect_consumer(executable, script, language)
+        closed(value, ['schema', 'language', 'package_name', 'version', 'installation', 'module_sha256',
+                       'repository_imported', 'provider_token_received'])
+        require(value['schema'] == 'auths.qualification-consumer-provenance/1'
+                and value['language'] == language
+                and value['package_name'] == ('auths' if language == 'python' else '@auths-dev/sdk')
+                and value['installation'] == ('site-packages' if language == 'python' else 'node_modules')
+                and value['repository_imported'] is False and value['provider_token_received'] is False,
+                'qualification.operations.consumer-provenance')
+        packages = decode(read(self.deployment.work / 'packages.json', 65536))
+        require(type(packages) is list and len([package for package in packages
+                if package['name'] == value['package_name'] and package['version'] == value['version']]) == 1,
+                'qualification.operations.consumer-version')
+        from common import digest
+        digest(value['module_sha256'])
+        counts = measure.delta(before, self.deployment.witness(0))
+        return self.observation({'verdict': {'outcome': 'complete',
+            'code': 'installed-package-provenance-confirmed' if probe == 'no-source' else 'provider-token-absent',
+            'request_sha256': None, 'evidence_sha256': None},
+            'credential_leases': counts['credential_lease_calls'], 'provider_entries': counts['write_transport_entries'],
+            'confirmed_by_read_back': 0})
 
     def step(self, case, index, operation):
         require(type(case) is str and type(index) is int and type(operation) is str,
@@ -359,13 +413,17 @@ class Operations:
                 result = self.resume_host(phase, label, crash=identifier == 'crash')
             else:
                 result = self.submit(phase, label)
-        elif identifier in ['ambiguous', 'response-loss']:
+        elif identifier in ['ambiguous', 'response-loss', 'visibility']:
             ending = 'replay' if identifier == 'ambiguous' else 'read-back'
-            require(index in [0, 1] and operation == ['drop-response', ending][index],
+            first = 'delay-visibility' if identifier == 'visibility' else 'drop-response'
+            require(index in [0, 1] and operation == [first, ending][index],
                     'qualification.operations.step')
             label = phase + '-' + str(POSITIVES[identifier]).zfill(2)
             if index == 0:
-                result = self.lose_response(phase, label)
+                # Visibility withholds the actual observation response after
+                # the second native credential lease. The write response and
+                # its verified locator have already reached durable state.
+                result = self.lose_response(phase, label, observation=identifier == 'visibility')
             else:
                 require((case, 0) in self.completed, 'qualification.operations.order')
                 result = self.submit(phase, label) if ending == 'replay' else self.read_back(label)
@@ -385,6 +443,13 @@ class Operations:
         elif identifier == 'doctor':
             require(phase == 'live' and index == 0 and operation == 'probe', 'qualification.operations.step')
             result = self.doctor()
+        elif identifier == 'installed-typescript':
+            require(index == 0 and operation == 'installed-consumer', 'qualification.operations.step')
+            result = self.typescript_consumer(phase)
+        elif identifier in ['python-no-source', 'python-no-token', 'typescript-no-source', 'typescript-no-token']:
+            require(index == 0 and operation == 'installed-consumer', 'qualification.operations.step')
+            language, _, probe = identifier.partition('-')
+            result = self.inspect_consumer(language, probe)
         elif identifier == 'installed-python':
             require(index == 0 and operation == 'installed-consumer', 'qualification.operations.step')
             result = self.python_consumer(phase)

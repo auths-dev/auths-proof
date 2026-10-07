@@ -314,3 +314,12 @@ previously measured unconfirmed entry before it can project Unknown. No refused
 admin response becomes linked effect evidence. The production doctor is run as
 root so its native application privilege-drop probe actually executes; its raw
 validated report digest and exact installed tuple enter the native runner.
+
+The credential-free workflow also packs and installs the full TypeScript SDK,
+including its maintained WASM assets, outside the checkout. Its source-owned
+consumer resolves the gateway module from `node_modules` and rejects ambient
+environment inputs. Both installed consumers expose a closed provenance probe;
+protected steps recheck actual package versions against the retained package
+manifest and measure the serving gateway's unchanged counters. The TypeScript
+journey submits public packets from the separate author through the actual
+installed GatewayClient; it performs no provider request construction.

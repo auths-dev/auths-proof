@@ -134,9 +134,13 @@ def compile_plan(family, resources, reviewed, recipe_digest):
         for index, identifier, operation, scenario in [
             (6, 'response-loss', 'drop-response', 'response-loss'),
             (7, 'visibility', 'delay-visibility', 'delayed-visibility')]:
-            ending = observed('read-back', label(index), 1, 0, 1) if reference is airtable_record \
+            ending = observed('read-back', label(index), 1, 0, 1) if reference is airtable_record or index == 7 \
                 else unknown('read-back', label(index))
-            add(phase, identifier, scenario, [unknown(operation, label(index), 1, 1), ending],
+            # Delaying the observation response exercises a second actual
+            # lease, after the write response has durably supplied its locator.
+            # Stripe can reconcile that locator; losing the write response
+            # still cannot borrow the independent oracle's discovered locator.
+            add(phase, identifier, scenario, [unknown(operation, label(index), 2 if index == 7 else 1, 1), ending],
                 ('recovery',) if reference is airtable_record else ())
         add(phase, 'secret-rotation', 'provider-secret-rotation',
             [complete('rotate', 'provider-secret-rotated'), observed('submit', label(8))])
