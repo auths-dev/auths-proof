@@ -580,6 +580,8 @@ class Operations:
                 'qualification.operations.phase')
         require((case, index) not in self.started, 'qualification.operations.repeated-step')
         self.started.add((case, index))
+        if self.reference is airtable_record:
+            resource_io.pace_airtable()
         # Source-owned sequences, independent of candidate/corpus outcomes.
         if identifier in ['fresh-replay', 'proof-replay']:
             require(index in [0, 1] and operation == ['submit', 'replay'][index],

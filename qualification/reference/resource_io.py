@@ -7,11 +7,29 @@ import re
 import stat
 import subprocess
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 
 from common import Refusal, canonical, closed, require
 from fresh_evidence import decode
+
+# Source-owned fixture/read traffic shares Airtable's base limit with the
+# unmodified gateway. Leave a whole window between source calls/case starts;
+# never retry a provider write or change a gateway result after a 429.
+AIRTABLE_INTERVAL = 1.1
+_airtable_lock = threading.Lock()
+_airtable_next = 0.0
+
+
+def pace_airtable():
+    global _airtable_next
+    with _airtable_lock:
+        delay = _airtable_next - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+        _airtable_next = time.monotonic() + AIRTABLE_INTERVAL
 
 
 def run_id(value):
@@ -44,6 +62,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def exchange(origin, method, path, key, body=None, headers=None):
     require(path.startswith('/') and not path.startswith('//') and '\r' not in path and '\n' not in path,
             'qualification.resources.path-bound')
+    if origin == 'https://api.airtable.com':
+        pace_airtable()
     values = {'Authorization': 'Bearer ' + key, 'Accept': 'application/json'}
     values.update(headers or {})
     outbound = urllib.request.Request(origin + path, method=method, data=body, headers=values)
