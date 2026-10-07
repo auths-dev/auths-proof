@@ -134,9 +134,11 @@ def unpack(path, artifact, destination):
     info = os.lstat(path)
     require(stat.S_ISREG(info.st_mode) and 0 < info.st_size <= MAX_ARCHIVE,
             'qualification.artifact.archive-bound')
+    digest = hashlib.sha256()
     with path.open('rb') as stream:
-        actual = hashlib.file_digest(stream, 'sha256').hexdigest()
-    require(artifact['digest'] == 'sha256:' + actual, 'qualification.artifact.archive-digest')
+        for chunk in iter(lambda: stream.read(256 * 1024), b''):
+            digest.update(chunk)
+    require(artifact['digest'] == 'sha256:' + digest.hexdigest(), 'qualification.artifact.archive-digest')
     require(not destination.exists(), 'qualification.artifact.output-exists')
     parent = os.lstat(destination.parent)
     require(stat.S_ISDIR(parent.st_mode) and stat.S_IMODE(parent.st_mode) == 0o700
