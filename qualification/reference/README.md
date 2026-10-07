@@ -60,3 +60,36 @@ or locator. Its subject binds the full reviewed request, resource ledger,
 action and expected state. The corpus runner compares this fresh witness with
 the candidate's own digest. Synthetic unit responses test refusals and exact
 bytes; they are not qualification evidence.
+
+### Disposable provider resource lifecycle
+
+`stripe_resources.py` prepares platform-account test payments with `pm_card_visa`
+and the run marker `metadata.auths_qualification`. It requires separate test
+setup and restricted runtime keys, supplied as closed JSON on private stdin
+(`setup`, `runtime`). Each planned intent is journaled before POST and has a
+run/index-specific idempotency key. A lost response can be recovered for one
+hour with that same key. Cleanup verifies platform, test mode, exact payment,
+run marker and charge, refunds only the remaining test balance and confirms
+full retirement with a fresh read. Recovering a pending setup during cleanup
+may create and immediately retire its one pre-journaled test fixture. It never
+uses Connect or a `Stripe-Account` header.
+
+`airtable_resources.py` accepts a personal access token on private stdin
+(`token`) and uses only the reviewed dedicated base/table. Before any creation,
+it journals the complete run/index-specific `Name` predicate. Exact filtered
+fresh reads recover lost creation responses and determine the public ledger;
+duplicate names cannot produce a qualification input. Cleanup discovers all
+records under that predicate, rechecks ownership immediately before each
+delete and confirms their absence. Other records, the table and the base remain.
+
+Both commands take `prepare --protected-run <scope/run/attempt> --count <1..32>
+--journal <path> --out <path>` or `cleanup --journal <path>`. The output parent
+must already be owner-private mode 0700. Public ledgers never contain tokens,
+provider response bodies or payment client secrets. Journals are bounded,
+written atomically and retained after partial failure for cleanup. Existing
+outputs cannot be replaced. TLS requests refuse redirects and ambient proxies;
+provider error bodies never enter diagnostics.
+
+Unit cases use synthetic providers, including lost responses, changed ownership,
+foreign resources, duplicate records and unsafe files. Actual setup/cleanup
+rehearsals are recorded separately and confer no protected qualification.
