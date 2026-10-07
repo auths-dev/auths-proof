@@ -35,7 +35,7 @@ def response(process):
 
 def review(binary, work, packet, evaluated_at):
     return child(binary, ['review-submission', '--recipe', work / 'recipe.json',
-        '--profile-lock', work / 'profile.lock.json', '--trusted-context', work / 'context.cbor',
+        '--profile-lock', work / 'profile.lock.json', '--trusted-context', work / packet['trusted_context'],
         '--proof', work / packet['proof'], '--action', work / packet['action'],
         '--evaluated-at', str(evaluated_at)])
 
@@ -77,6 +77,18 @@ def check(args):
                         and value['arguments'] == packet['arguments'] and value['request'] == expected,
                         'qualification.packets.oracle-mismatch')
                 reviewed.append(value)
+            require(plan['trusted_contexts'] == ['context-0.cbor', 'context-1.cbor']
+                    and read(work / 'context-0.cbor', 4 * 1024 * 1024)
+                        != read(work / 'context-1.cbor', 4 * 1024 * 1024),
+                    'qualification.packets.challenge-binding')
+            by_label = {packet['label']: (packet, actual) for packet, actual in zip(plan['packets'], reviewed)}
+            for phase in ['commissioning', 'live']:
+                original_packet, original_review = by_label[phase + '-00']
+                fresh_packet, fresh_review = by_label[phase + '-00-fresh']
+                require(original_packet['arguments'] == fresh_packet['arguments']
+                        and original_packet['trusted_context'] != fresh_packet['trusted_context']
+                        and original_review['actors'] == fresh_review['actors'],
+                        'qualification.packets.challenge-binding')
             # The old proof must really expire at the ordinary five-minute
             # bound. This is offline review, never a production clock override.
             expired = review(args.gateway, work, plan['packets'][0], plan['not_after'] + 1)
@@ -94,7 +106,8 @@ def check(args):
             fresh_plan = decode(read(fresh / 'public-packets.json', 65536))
             actual = review(args.gateway, fresh, fresh_plan['packets'][0], fresh_plan['evaluated_at'])
             require(actual == reviewed[0]
-                    and read(fresh / 'context.cbor', 4 * 1024 * 1024) == read(work / 'context.cbor', 4 * 1024 * 1024)
+                    and read(fresh / plan['packets'][0]['trusted_context'], 4 * 1024 * 1024)
+                        == read(work / plan['packets'][0]['trusted_context'], 4 * 1024 * 1024)
                     and read(fresh / plan['packets'][0]['action'], 65536) == read(work / plan['packets'][0]['action'], 65536)
                     and read(fresh / plan['packets'][0]['proof'], 4 * 1024 * 1024) != read(work / plan['packets'][0]['proof'], 4 * 1024 * 1024),
                     'qualification.packets.refresh-binding')
@@ -104,6 +117,7 @@ def check(args):
             require(process.returncode == 0 and not stderr, 'qualification.packets.author-refused')
             reports.append({'family': reference.FAMILY, 'packet_count': len(reviewed),
                 'same_actor_action_request_and_trust_after_refresh': True,
+                'fresh_challenges_keep_exact_actor_and_logical_operation': True,
                 'original_five_minute_expiry_enforced': True,
                 'author': decode(read(work / 'author-report.json', 65536))})
         finally:

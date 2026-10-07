@@ -20,7 +20,7 @@ class Packets(unittest.TestCase):
             'protected_run': 'recipe-qualification/123/1', 'base': airtable_record.BASE,
             'table': airtable_record.TABLE, 'records': [
                 {'id': 'recTEST0000000001', 'run_metadata': 'recipe-qualification/123/1'}]}
-        return {'schema': 'auths.qualification-packet-plan/1', 'family': airtable_record.FAMILY,
+        return {'schema': 'auths.qualification-packet-plan/2', 'family': airtable_record.FAMILY,
             'protected_run': resources['protected_run'], 'evaluated_at': 1000, 'not_after': 8200,
             'configuration': '1' * 64, 'extension': None, 'resources': resources,
             'packets': packet_plan.arguments(airtable_record.FAMILY, resources, '2' * 64)}
@@ -35,6 +35,8 @@ class Packets(unittest.TestCase):
             lambda p: p['resources'].update(base='appOTHER'),
             lambda p: p.update(not_after=9000), lambda p: p.update(evaluated_at=True),
             lambda p: p.update(credential='synthetic-forbidden-input'),
+            lambda p: p['packets'][0].update(context='fresh'),
+            lambda p: p['packets'][1]['arguments'].update(operation_id='new-operation'),
             lambda p: p['packets'].reverse(), lambda p: p['packets'].pop()]
         for change in changes:
             changed = copy.deepcopy(plan)

@@ -37,12 +37,12 @@ python qualification/reference/expand.py \
   --out-dir <new-output-directory>
 ```
 
-The public packet carrier is `auths.qualification-public-packets/2`, with
-`protected_run`, `evaluated_at`, `not_after`, `trusted_context` (one adjacent
-filename), and 1–64 `packets`. Packet validity is at most five minutes; the
+The public packet carrier is `auths.qualification-public-packets/3`, with
+`protected_run`, `evaluated_at`, `not_after`, `trusted_contexts` (1–4 sorted
+unique adjacent filenames), and 1–64 `packets`. Packet validity is at most five minutes; the
 signing expansion reviews native proofs at their recorded offline evaluation
 time, within the last two hours. This grants no production clock override.
-Each packet contains `label`, `proof`, `action` (adjacent filenames), and its
+Each packet contains `label`, `proof`, `action`, `trusted_context` (adjacent filenames), and its
 expected `arguments`. Unknown fields, path traversal, changed source, wrong
 production targets, resource widening, actor changes or an oracle mismatch
 prevent output. Filenames never select code. Private author keys are absent.
@@ -55,9 +55,12 @@ The native commissioning permit is now schema 2. Its closed
 hashes. Every installation still authenticates its actual context separately;
 all listed contexts share one immutable run/family lease budget. An unlisted
 context, duplicate or reordered list, changed set, or schema 1 permit refuses.
-The current public packet author supplies one context to this list. Fresh-challenge
-authoring and its protected corpus cases still need integration; native support
-for the bounded list is not replay qualification evidence.
+The public packet author supplies two native challenges under one exact actor
+and grant. Each phase's first resource has a `-fresh` replay packet with the same
+logical operation and arguments, under the second context. Refresh never changes
+that packet's assigned challenge, action or context. At most 31 resources fit
+the finite 64-packet ceiling including both replay packets. The source-owned
+protected corpus and native durable replay evidence still need integration.
 
 `measure.py` validates and subtracts native execution snapshots: matching fresh
 scope, no saturation/decrease, no duplicate host in an aggregate. Restarted

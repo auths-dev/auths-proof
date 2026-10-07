@@ -145,7 +145,8 @@ def refresh(work, label, destination):
     require(len(matches) == 1, 'qualification.packets.unknown-label')
     packet = matches[0]
     require(packet['proof'] == label + '.proof' and packet['action'] == label + '.action'
-            and original['trusted_context'] == 'context.cbor', 'qualification.packets.socket-response')
+            and packet['trusted_context'] in ['context-0.cbor', 'context-1.cbor']
+            and packet['trusted_context'] in original['trusted_contexts'], 'qualification.packets.socket-response')
     require(not destination.exists(), 'qualification.packets.output-exists')
     result = exchange(work, 'refresh', label)
     source = work / ('refresh-' + str(result['generation']).zfill(4))
@@ -153,16 +154,16 @@ def refresh(work, label, destination):
     now = int(time.time())
     require(set(fresh) == set(original) and fresh['schema'] == original['schema']
             and fresh['protected_run'] == original['protected_run']
-            and fresh['trusted_context'] == 'context.cbor' and fresh['packets'] == [packet]
+            and fresh['trusted_contexts'] == [packet['trusted_context']] and fresh['packets'] == [packet]
             and type(fresh['evaluated_at']) is int and type(fresh['not_after']) is int
             and now - 30 <= fresh['evaluated_at'] <= now
             and now + 60 <= fresh['not_after'] <= fresh['evaluated_at'] + 300,
             'qualification.packets.refresh-binding')
     payloads = {name: read(source / name, bound) for name, bound in [
         (packet['proof'], 4 * 1024 * 1024), (packet['action'], 65536),
-        ('context.cbor', 4 * 1024 * 1024), ('public-packets.json', 65536)]}
+        (packet['trusted_context'], 4 * 1024 * 1024), ('public-packets.json', 65536)]}
     require(payloads[packet['action']] == read(work / packet['action'], 65536)
-            and payloads['context.cbor'] == read(work / 'context.cbor', 4 * 1024 * 1024),
+            and payloads[packet['trusted_context']] == read(work / packet['trusted_context'], 4 * 1024 * 1024),
             'qualification.packets.refresh-binding')
     destination.mkdir(mode=0o700)
     for name, payload in payloads.items():

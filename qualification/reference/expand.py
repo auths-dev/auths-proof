@@ -116,8 +116,8 @@ def expand(args):
             and read(args.profile_lock, 65536) == read(source / 'profile.lock.json', 65536),
             'qualification.reference.reviewed-source')
     plan = decode(read(args.packets, 65536))
-    closed(plan, ['schema', 'protected_run', 'evaluated_at', 'not_after', 'trusted_context', 'packets'])
-    require(plan['schema'] == 'auths.qualification-public-packets/2'
+    closed(plan, ['schema', 'protected_run', 'evaluated_at', 'not_after', 'trusted_contexts', 'packets'])
+    require(plan['schema'] == 'auths.qualification-public-packets/3'
             and plan['protected_run'] == protected_run
             and type(plan['evaluated_at']) is int and 60 <= plan['evaluated_at'] <= 253402300499
             and type(plan['not_after']) is int
@@ -126,17 +126,25 @@ def expand(args):
             and type(plan['packets']) is list and 1 <= len(plan['packets']) <= 64,
             'qualification.reference.packet-bound')
     work = args.packets.parent
-    context = relative(work, plan['trusted_context'])
-    context_bytes = read(context, 4 * 1024 * 1024)
-    actors, commitments, labels, oracle = set(), set(), set(), []
+    context_names = plan['trusted_contexts']
+    require(type(context_names) is list and 1 <= len(context_names) <= 4
+            and all(type(name) is str and name in ['context-' + str(index) + '.cbor' for index in range(4)]
+                    for name in context_names)
+            and context_names == sorted(set(context_names)), 'qualification.reference.context-bound')
+    context_hashes = {name: sha256(read(relative(work, name), 4 * 1024 * 1024)) for name in context_names}
+    require(len(set(context_hashes.values())) == len(context_names), 'qualification.reference.context-bound')
+    actors, commitments, labels, used_contexts, oracle = set(), set(), set(), set(), []
     for packet in plan['packets']:
-        closed(packet, ['label', 'proof', 'action', 'arguments'])
+        closed(packet, ['label', 'proof', 'action', 'trusted_context', 'arguments'])
         label = identifier(packet['label'], r'[a-z][a-z0-9-]{0,63}')
         require(label not in labels, 'qualification.reference.packet-bound')
         labels.add(label)
         proof, action = relative(work, packet['proof']), relative(work, packet['action'])
         read(proof, 4 * 1024 * 1024)
         read(action, 65536)
+        require(packet['trusted_context'] in context_names, 'qualification.reference.context-bound')
+        context = relative(work, packet['trusted_context'])
+        used_contexts.add(packet['trusted_context'])
         reviewed = child(args.reviewer, ['review-submission', '--recipe', args.recipe,
                                          '--profile-lock', args.profile_lock, '--trusted-context', context,
                                          '--proof', proof, '--action', action,
@@ -151,13 +159,14 @@ def expand(args):
         actors.add(reviewed['actors'][0])
         commitments.add(commitment)
         oracle.append({'label': label, 'request_sha256': sha256(canonical(expected)),
-                       'action_commitment': commitment})
+                       'action_commitment': commitment, 'trusted_context_sha256': context_hashes[packet['trusted_context']]})
     require(len(actors) == 1, 'qualification.reference.principal-binding')
+    require(used_contexts == set(context_names), 'qualification.reference.context-bound')
     tuple_digest = sha256(b'auths.qualification-tuple/1\0' + canonical(tuple_value))
     binding = {
         'protected_run': protected_run, 'source_commit': commit, 'tuple': tuple_value,
         'principal_sha256': sha256(next(iter(actors)).encode()),
-        'trusted_contexts_sha256': [sha256(context_bytes)], 'resources_sha256': sha256(resources_raw),
+        'trusted_contexts_sha256': sorted(context_hashes.values()), 'resources_sha256': sha256(resources_raw),
         'provider_environment_class': reference.ENVIRONMENT,
         'offline_evidence': {
             'conformance_sha256': member(args.conformance, 'conformance', commit, tuple_digest),

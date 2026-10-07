@@ -59,7 +59,8 @@ def create_session(plan_path):
     unsigned = native.root_grant(actor, request)
     signing = native.prepare_signing(unsigned, key.principal_method, key.verification_method, key.suite)
     grant = signing.complete(key.sign(signing.signing_preimage))
-    challenge = native.generate_challenge_v1()
+    challenges = {name: native.generate_challenge_v1() for name in ['initial', 'fresh']}
+    require(challenges['initial'] != challenges['fresh'], 'qualification.packets.challenge-binding')
     anchor = native.TrustAnchor(actor.value, actor, [key.principal_method], [('auths.mcp', 2)],
         [('tools/call', resource)], [audience], [audience], current - 60, end,
         None, 1, 'raw-key-baseline', None)
@@ -70,22 +71,26 @@ def create_session(plan_path):
     template = native.compile_trusted_context(bytes.fromhex(plan['configuration']), None, 1, 1, 1,
         [anchor], assurance, None, None, 'none-v1', [key.evidence_type],
         [] if extension is None else [extension['extension_id']])
-    context = template.bind_request(audience, challenge, current)
+    contexts = {name: template.bind_request(audience, challenge, current)
+                for name, challenge in challenges.items()}
     evidence = (key.evidence_type, key.media_type, key.evidence)
     # The closure alone retains this native key. A refresh accepts a known
     # label, never caller-supplied arguments, a new grant, actor or challenge.
-    retained_context, last_time = None, current
+    retained_contexts, last_time = {}, current
     def emit(work, label=None):
-        nonlocal retained_context, last_time
+        nonlocal last_time
         current = int(time.time())
         require(last_time <= current < end, 'qualification.packets.session-expired')
         last_time = current
         validity = min(300, end - current)
         selected = [packet for packet in plan['packets'] if label is None or packet['label'] == label]
         require(bool(selected), 'qualification.packets.unknown-label')
-        packets = []
+        packets, emitted_contexts = [], set()
         for packet in selected:
             label, arguments = packet['label'], packet['arguments']
+            context_name = packet['context']
+            challenge, context = challenges[context_name], contexts[context_name]
+            context_file = 'context-' + str(['initial', 'fresh'].index(context_name)) + '.cbor'
             call = native.mcp_call(reference.SERVICE, reference.TOOL, canonical(arguments))
             prepared = native.prepare_mcp_call_action(call, actor, grant, challenge, current, validity)
             signing = native.prepare_signing(prepared.unsigned, key.principal_method, key.verification_method, key.suite)
@@ -93,25 +98,28 @@ def create_session(plan_path):
             proof, action, trust = native.assemble_mcp_proof(prepared, signed_action, [grant],
                                                           [[evidence]], [evidence], context)
             # Assembly binds its returned context to the fresh envelope time.
-            # Keep one exact installation context: native normalization changes
+            # Keep each declared installation context exact: native normalization changes
             # only the request evaluation input. The gateway always supplies
             # its own synchronized current time when verifying this proof.
             trust = bytes(native.inspect_trusted_context(native.parse_trusted_context(trust)
                 .bind_request(audience, challenge, plan['evaluated_at'])))
-            require(retained_context is None or retained_context == trust,
+            require(context_name not in retained_contexts or retained_contexts[context_name] == trust,
                     'qualification.packets.context-binding')
-            retained_context = bytes(trust)
+            retained_contexts[context_name] = bytes(trust)
             write_bytes(work / (label + '.proof'), bytes(proof), new=True)
             write_bytes(work / (label + '.action'), bytes(action), new=True)
+            if context_file not in emitted_contexts:
+                write_bytes(work / context_file, retained_contexts[context_name], new=True)
+                emitted_contexts.add(context_file)
             packets.append({'label': label, 'proof': label + '.proof', 'action': label + '.action',
-                            'arguments': arguments})
-        write_bytes(work / 'context.cbor', retained_context, new=True)
-        write(work / 'public-packets.json', {'schema': 'auths.qualification-public-packets/2',
+                            'trusted_context': context_file, 'arguments': arguments})
+        write(work / 'public-packets.json', {'schema': 'auths.qualification-public-packets/3',
             'protected_run': plan['protected_run'], 'evaluated_at': current, 'not_after': current + validity,
-            'trusted_context': 'context.cbor', 'packets': packets}, new=True)
-        write(work / 'author-report.json', {'schema': 'auths.qualification-packet-author/1',
+            'trusted_contexts': sorted(emitted_contexts), 'packets': packets}, new=True)
+        write(work / 'author-report.json', {'schema': 'auths.qualification-packet-author/2',
             'family': plan['family'], 'protected_run': plan['protected_run'], 'sdk_version': version,
-            'packet_count': len(packets), 'trusted_context_sha256': sha256(retained_context),
+            'packet_count': len(packets), 'trusted_contexts_sha256': {
+                name: sha256(read(work / name, 4 * 1024 * 1024)) for name in sorted(emitted_contexts)},
             'private_key_exported': False, 'provider_token_received': False,
             'repository_imported': False, 'qualification_issued': False}, new=True)
     return emit, end
