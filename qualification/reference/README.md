@@ -247,7 +247,7 @@ Missing artifacts are checked every ten minutes within a fixed two-hour
 deadline. Only the GitHub Actions token enters the GitHub client; provider and
 signer keys are absent from that child's environment. The native issuer/gateway
 must still verify every permit/record: a transported artifact grants no authority.
-The protected workflow has not yet connected this mailbox to admitted corpora.
+The protected workflow connects these mailboxes to the retained operator, commissioner and release signer jobs.
 
 `production_journey.py` and `journey_session.py` now retain one hosted root
 operator across fixed phases: prepare, commission, import the first release,
@@ -259,7 +259,7 @@ verification remain separate. Retained copies are independently rescanned
 before the runner can upload them. Failed setup invalidates proposals, keeps
 scan canaries, and attempts all owned cleanup with native credential collection
 before retiring the renewing workload identity. These entry points still need
-the protected workflow's complete job sequence and the remaining case handlers;
+the remaining custody-drift case handlers and successful protected execution;
 they do not establish a passing protected qualification.
 
 `author_operator.py` runs in the same credential-free installed environment as
@@ -355,3 +355,13 @@ protected steps recheck actual package versions against the retained package
 manifest and measure the serving gateway's unchanged counters. The TypeScript
 journey submits public packets from the separate author through the actual
 installed GatewayClient; it performs no provider request construction.
+
+`../run/sign_release.py` independently reconstructs the complete original public
+pool and source corpus before either first-run or final release signing. The
+proposal must match the reviewed contract, exact run, source closure, candidate
+and SDK artifact bytes, resource summary, residual assumptions and exclusions.
+Every source case must appear once with its reviewed scenario and capabilities;
+the native assembler then re-verifies the evidence closure and must reconstruct
+identical record bytes. All families pass before the release key is read.
+The signing process executes its own native builds only and separately scans
+the exact retained release with its real key canary before publication.
