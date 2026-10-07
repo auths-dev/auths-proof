@@ -9,11 +9,11 @@ mod common;
 use auths_recipe_qualification::{
     BoundedText, ClosureFault, CommissioningBinding, CommissioningInputs,
     CommissioningOfflineEvidence, CommissioningRefusal, CommissioningRequest, EvidenceMemberKind,
-    GitCommit, MAX_COMMISSIONING_ACTIONS, MAX_COMMISSIONING_LEASES, MAX_COMMISSIONING_PERMIT_BYTES,
-    MAX_COMMISSIONING_SECONDS, ProviderEnvironmentClass, QualificationArtifactKind,
-    QualificationCommissioningPermit, QualificationEvidence, QualificationFormatError,
-    QualificationInputs, QualificationRevocationList, QualificationRootId,
-    QualificationSignerCertificate, QualificationSignerId, QualificationTuple,
+    GitCommit, MAX_COMMISSIONING_ACTIONS, MAX_COMMISSIONING_CONTEXTS, MAX_COMMISSIONING_LEASES,
+    MAX_COMMISSIONING_PERMIT_BYTES, MAX_COMMISSIONING_SECONDS, ProviderEnvironmentClass,
+    QualificationArtifactKind, QualificationCommissioningPermit, QualificationEvidence,
+    QualificationFormatError, QualificationInputs, QualificationRevocationList,
+    QualificationRootId, QualificationSignerCertificate, QualificationSignerId, QualificationTuple,
     RecipeQualificationState, Scenario, Sha256Digest, SignatureB64, VerifiedCommissioningPermit,
     VerifiedQualifications, VerifierState,
 };
@@ -70,7 +70,7 @@ fn binding() -> CommissioningBinding {
         source_commit: commit(),
         tuple: tuple(),
         principal_sha256: digest(0x60),
-        trusted_context_sha256: digest(0x61),
+        trusted_contexts_sha256: vec![digest(0x61), digest(0x65)],
         resources_sha256: digest(0x62),
         provider_environment_class: ProviderEnvironmentClass::ProviderTestMode,
         offline_evidence: CommissioningOfflineEvidence {
@@ -124,7 +124,7 @@ fn request(binding: &CommissioningBinding) -> CommissioningRequest<'_> {
         tuple: &binding.tuple,
         protected_run: &binding.protected_run,
         principal_sha256: binding.principal_sha256,
-        trusted_context_sha256: binding.trusted_context_sha256,
+        trusted_context_sha256: binding.trusted_contexts_sha256[0],
         resources_sha256: binding.resources_sha256,
         canonical_action_sha256: binding.allowed_actions[0],
     }
@@ -690,7 +690,7 @@ fn renewal_cannot_change_the_durable_budget_identity_or_binding() {
             ..original.clone()
         },
         CommissioningBinding {
-            trusted_context_sha256: digest(0x70),
+            trusted_contexts_sha256: vec![digest(0x70)],
             ..original.clone()
         },
     ] {
@@ -713,7 +713,7 @@ fn commissioning_artifact_fixture_is_current() {
     let permit = permit(&signer);
     let list = revocations(&root, 1);
     let document = json!({
-        "schema": "auths.qualification-commissioning-vectors/1",
+        "schema": "auths.qualification-commissioning-vectors/2",
         "synthetic": true,
         "trust_root": std::str::from_utf8(root.trust_root().canonical_bytes()).expect("UTF-8"),
         "signer_certificate": std::str::from_utf8(signer.certificate().canonical_bytes()).expect("UTF-8"),
@@ -722,12 +722,12 @@ fn commissioning_artifact_fixture_is_current() {
         "permit_digest": permit.digest(),
         "budget_scope_sha256": permit.body().statement.binding.budget_key().expect("key"),
         "budget_binding_sha256": permit.body().statement.binding.budget_binding().expect("binding"),
-        "limits": { "actions": MAX_COMMISSIONING_ACTIONS,
+        "limits": { "actions": MAX_COMMISSIONING_ACTIONS, "contexts": MAX_COMMISSIONING_CONTEXTS,
             "leases": MAX_COMMISSIONING_LEASES, "seconds": MAX_COMMISSIONING_SECONDS,
             "bytes": MAX_COMMISSIONING_PERMIT_BYTES },
     });
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../bindings/fixtures/qualification/commissioning-v1.json");
+        .join("../../../bindings/fixtures/qualification/commissioning-v2.json");
     let mut encoded = serde_json::to_vec_pretty(&document).expect("fixture");
     encoded.push(b'\n');
     if std::env::var_os("AUTHS_UPDATE_FIXTURES").is_some() {

@@ -157,7 +157,7 @@ def expand(args):
     binding = {
         'protected_run': protected_run, 'source_commit': commit, 'tuple': tuple_value,
         'principal_sha256': sha256(next(iter(actors)).encode()),
-        'trusted_context_sha256': sha256(context_bytes), 'resources_sha256': sha256(resources_raw),
+        'trusted_contexts_sha256': [sha256(context_bytes)], 'resources_sha256': sha256(resources_raw),
         'provider_environment_class': reference.ENVIRONMENT,
         'offline_evidence': {
             'conformance_sha256': member(args.conformance, 'conformance', commit, tuple_digest),

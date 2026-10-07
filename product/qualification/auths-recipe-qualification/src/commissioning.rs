@@ -20,18 +20,22 @@ use serde::{Deserialize, Serialize};
 mod tests;
 
 /// The separate signature domain of a commissioning permit.
-pub const COMMISSIONING_PERMIT_SCHEMA: &str = "auths.qualification-commissioning-permit/1";
+pub const COMMISSIONING_PERMIT_SCHEMA: &str = "auths.qualification-commissioning-permit/2";
 /// Public file within a protected commissioning artifact directory.
 pub const COMMISSIONING_PERMIT_FILE: &str = "commissioning-permit.json";
 /// The domain of the stable run/family budget key.
 pub const COMMISSIONING_BUDGET_KEY_DOMAIN: &str = "auths.qualification-commissioning-budget-key/1";
 /// The domain of the immutable budget binding, including its ceiling.
 pub const COMMISSIONING_BUDGET_BINDING_DOMAIN: &str =
-    "auths.qualification-commissioning-budget-binding/1";
+    "auths.qualification-commissioning-budget-binding/2";
 /// The largest commissioning permit accepted before parsing.
 pub const MAX_COMMISSIONING_PERMIT_BYTES: usize = 32 * 1024;
 /// The maximum distinct exact actions one permit may authorize.
 pub const MAX_COMMISSIONING_ACTIONS: usize = 256;
+/// The maximum distinct operator-approved contexts in one immutable permit.
+/// Fresh-challenge replay may change the request challenge, but cannot admit
+/// an unlisted context or register a new lifetime budget.
+pub const MAX_COMMISSIONING_CONTEXTS: usize = 4;
 /// The maximum custody acquisitions one permit may authorize.
 pub const MAX_COMMISSIONING_LEASES: u64 = 1024;
 /// A commissioning permit lasts at most two hours.
@@ -63,8 +67,9 @@ pub struct CommissioningBinding {
     pub tuple: QualificationTuple,
     /// Commitment to the ephemeral proof-authoring principal's canonical bytes.
     pub principal_sha256: Sha256Digest,
-    /// Commitment to the operator-approved canonical trusted context.
-    pub trusted_context_sha256: Sha256Digest,
+    /// Exact canonical operator-approved context commitments, sorted and unique.
+    /// The complete finite set is part of the immutable shared budget binding.
+    pub trusted_contexts_sha256: Vec<Sha256Digest>,
     /// Commitment to the reviewed disposable provider resource bindings.
     pub resources_sha256: Sha256Digest,
     /// What kind of disposable provider environment is actually exercised.
@@ -128,10 +133,13 @@ impl CommissioningBinding {
         }
         if self.allowed_actions.is_empty()
             || self.allowed_actions.len() > MAX_COMMISSIONING_ACTIONS
+            || self.trusted_contexts_sha256.is_empty()
+            || self.trusted_contexts_sha256.len() > MAX_COMMISSIONING_CONTEXTS
             || !(1..=MAX_COMMISSIONING_LEASES).contains(&self.maximum_credential_leases)
         {
             return Err(QualificationFormatError::ListBound);
         }
+        canonical::strictly_ascending(&self.trusted_contexts_sha256)?;
         canonical::strictly_ascending(&self.allowed_actions)
     }
 }
@@ -418,7 +426,10 @@ impl VerifiedCommissioningPermit {
             || binding.tuple != *request.tuple
             || binding.protected_run != *request.protected_run
             || binding.principal_sha256 != request.principal_sha256
-            || binding.trusted_context_sha256 != request.trusted_context_sha256
+            || binding
+                .trusted_contexts_sha256
+                .binary_search(&request.trusted_context_sha256)
+                .is_err()
             || binding.resources_sha256 != request.resources_sha256
             || binding
                 .allowed_actions

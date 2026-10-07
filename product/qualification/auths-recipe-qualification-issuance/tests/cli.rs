@@ -145,7 +145,7 @@ fn commissioning_cli_requires_its_own_purpose_and_rechecks_offline_evidence() {
         source_commit: common::commit(),
         tuple: common::tuple(),
         principal_sha256: Sha256Digest::from_bytes([0x61; 32]),
-        trusted_context_sha256: Sha256Digest::from_bytes([0x62; 32]),
+        trusted_contexts_sha256: vec![Sha256Digest::from_bytes([0x62; 32])],
         resources_sha256: Sha256Digest::from_bytes([0x63; 32]),
         provider_environment_class: ProviderEnvironmentClass::ProviderTestMode,
         offline_evidence: CommissioningOfflineEvidence {

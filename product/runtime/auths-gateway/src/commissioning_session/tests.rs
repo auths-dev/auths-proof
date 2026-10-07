@@ -113,7 +113,7 @@ impl Setup {
         .expect("native fixture authorization");
         assert_eq!(verified.actors.len(), 1);
         let artifacts: Value = serde_json::from_slice(include_bytes!(
-            "../../../../../bindings/fixtures/qualification/commissioning-v1.json"
+            "../../../../../bindings/fixtures/qualification/commissioning-v2.json"
         ))
         .expect("authority fixture");
         let text = |name: &str| artifacts[name].as_str().expect("artifact").as_bytes();
@@ -125,7 +125,7 @@ impl Setup {
             Sha256Digest::from_bytes(*engine.recipe.digest());
         body.statement.binding.tuple.target.store_schema =
             BoundedText::parse(crate::POSTGRES_STORE_SCHEMA).expect("schema");
-        body.statement.binding.trusted_context_sha256 = engine.trusted_context_sha256;
+        body.statement.binding.trusted_contexts_sha256 = vec![engine.trusted_context_sha256];
         body.statement.binding.principal_sha256 =
             commissioning_principal_sha256(&verified.actors[0]);
         body.statement.binding.resources_sha256 =
@@ -375,7 +375,8 @@ async fn changed_resources_run_operator_or_context_cannot_open_a_session() {
     for change in ["resources", "run", "operator", "context"] {
         let mut inputs = setup.inputs();
         let mut changed = setup.permit.body().clone();
-        changed.statement.binding.trusted_context_sha256 = Sha256Digest::from_bytes([0x61; 32]);
+        changed.statement.binding.trusted_contexts_sha256 =
+            vec![Sha256Digest::from_bytes([0x61; 32])];
         let different_context = signed(changed);
         match change {
             "resources" => inputs.resources = b"different resources",

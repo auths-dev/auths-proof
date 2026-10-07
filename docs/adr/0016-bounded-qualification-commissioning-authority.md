@@ -42,7 +42,8 @@ Every permit must bind:
 
 - the exact candidate commit, executable digest, semantic closure and production
   tuple, including PostgreSQL schema and custody kind;
-- the reviewed provider contract, recipe, lock and trusted-context digests;
+- the reviewed provider contract, recipe, lock and finite exact trusted-context
+  digests;
 - one protected workflow run and one ephemeral proof-authoring principal;
 - reviewed disposable resource bindings and a precomputed finite set of exact
   canonical action commitments;
@@ -64,6 +65,18 @@ is claimed durably before custody access. Expiry, revocation, exhaustion,
 rollback, unavailable shared state or any mismatch refuses before a lease.
 Unknown provider outcomes retain ordinary uncertainty and cannot gain a second
 write through permit renewal. A denied input is terminal for those inputs.
+
+Permit schema 2 fixes a fresh-challenge coverage problem in schema 1: pinning
+only one installed challenge prevented a valid new-challenge replay from reaching
+the durable claim. The signer now binds a sorted unique set of at most four exact
+canonical context hashes. Each installation still needs its own authenticated
+operator attestation for its actual context, and every proof still verifies
+against that installed challenge. The complete set is immutable at the one
+run/family budget key; another context, set change, renewal or host cannot reset
+capacity. There is no wildcard context, context-template normalization or old
+permit reader. Reviewed author/reference support must create and independently
+review the exact contexts before signing; adding the schema alone does not
+establish protected replay evidence.
 
 ## Evidence and bootstrap sequence
 
@@ -116,7 +129,7 @@ commissioning certificates carry no attestation or index permission. A
 mixed-purpose certificate is refused by the commissioning verifier.
 
 The public synthetic vector is
-`bindings/fixtures/qualification/commissioning-v1.json`. Native tests consume
+`bindings/fixtures/qualification/commissioning-v2.json`. Native tests consume
 these frozen bytes without issuance code. They cover strict decoding and every
 single-bit signature mutation; issuance tests additionally cover purpose/root/
 domain separation, exact runtime bindings, time/revocation boundaries, finite
