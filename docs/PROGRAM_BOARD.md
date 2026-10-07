@@ -474,7 +474,7 @@ Stripe test to platform-account refunds. The agent generated a separate
 `stripe-platform-refund-v1` profile/recipe with no connected-account argument
 or scope header, updated AP-SPEC-066 §7.6 and ADR 0014, and passed the real
 Stripe journey using the same downloaded gateway and installed `0.0.1rc1` wheel.
-Restricted-key guards, ceilings/partition refusals, fresh refund value/echo
+Credential guards, limit refusals, fresh refund value/echo
 read-back, proof/altered-action/restart refusals, secret isolation, support
 scanning, full test-payment cleanup and the published report signature all
 passed. Evidence is retained under

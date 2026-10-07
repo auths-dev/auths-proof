@@ -72,3 +72,13 @@ af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtu
 # generator now names the key "commit" and writes digests as "sha256:<hex>".
 d92064d919b7c2498ce62588ff48a82284f0bcd7:formal/proof-coverage-v1.json:generic-api-key:9
 d92064d919b7c2498ce62588ff48a82284f0bcd7:formal/proof-coverage-v1.json:generic-api-key:84
+
+# Public metadata in signed development-rehearsal evidence (7 October 2026).
+# key_sha256 is hex::encode(AttemptKey), the SHA-256 of public attempt identity;
+# support.rs never exports provider credentials. Preserve the exact signed-run
+# support bytes; these exceptions cover only the named historical fingerprints.
+8b6f96e7e43dacf5b7f237cfc015f84a513a2bd1:qualification/simulation/evidence/airtable-live-2026-10-07/support-bundle.json:generic-api-key:1
+3e9704b5d4d12bc654fc48de9b03ab6adb9fcb41:qualification/simulation/evidence/stripe-platform-live-2026-10-07/support-bundle.json:generic-api-key:1
+# Ordinary progress prose triggered the generic key rule. The current prose
+# avoids the ambiguous wording; no credential occurred in the historical line.
+3e9704b5d4d12bc654fc48de9b03ab6adb9fcb41:docs/PROGRAM_BOARD.md:generic-api-key:477
