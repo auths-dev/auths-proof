@@ -3,8 +3,8 @@
 #
 #   offline.sh <family> <work-dir>
 #
-# Builds the release candidate from a clean tree, runs the family's offline
-# harness, and runs the trust stages for the tuple the harness reported.
+# Uses the credential-free job's exact candidate from a clean source revision,
+# runs the family harness and runs the trust stages for its reported tuple.
 # Writes into <work-dir>: tuple.json, packages.json, cases/*.json, facts.json.
 set -euo pipefail
 
@@ -23,10 +23,10 @@ if [ -n "$(git -C "${root}" status --porcelain)" ]; then
 fi
 
 mkdir -p "${work}/cases"
-cargo build --locked --release -p auths-gateway --bin auths-gateway
-cargo build --locked --release -p auths-recipe-qualification-issuance --bin auths-qualification
-export AUTHS_GATEWAY="${root}/target/release/auths-gateway"
-export AUTHS_QUALIFICATION="${root}/target/release/auths-qualification"
+export AUTHS_GATEWAY="${AUTHS_GATEWAY:?qualification.candidate-not-supplied}"
+export AUTHS_QUALIFICATION="${AUTHS_QUALIFICATION:?qualification.issuer-not-supplied}"
+# Candidate bytes are built once by the credential-free job and kept outside
+# the public evidence directory; the tuple binds that exact executable.
 
 "${directory}/harness" prepare "${work}"
 # Derive the planned production identity without custody or provider access.
