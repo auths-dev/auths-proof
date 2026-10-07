@@ -1,0 +1,124 @@
+{
+  "schema": "auths.recipe-qualification-simulation/1",
+  "simulation": true,
+  "stable_launch_ready": false,
+  "family": "airtable-record-update-v1",
+  "provider": "live Airtable Web API v0",
+  "verification_boundary": "installed SDK and native application socket",
+  "source_commit": "20837b56a61945d79dedf48a1ff237411dd01185",
+  "gateway_sha256": "85d6fd1c8b44fa5a7a34d4a012a39d3edf00dc867710c149b7d3da2bc6d2230e",
+  "compiled_recipe_sha256": "2b95034013998915950fd0f6ec0141bfcc7ca2e731f8e117fd8a5fd7670d5ea5",
+  "sdk_location": "/opt/consumer/lib/python3.12/site-packages/auths/__init__.py",
+  "sdk_version": "0.0.1rc1",
+  "wheel_sha256": "6d079aa4960256a754315d911b55d80bc02848b1ad14225420ea8eae4905656f",
+  "store": "shared-file-v1",
+  "custody": "local-file-v1",
+  "clock": "development-host-clock",
+  "resources": {
+    "base": "appQD3Qf0YFBCW9bV",
+    "table": "tblBx2jwe0IsPYRKT",
+    "record": "recgLJ1LFbmBY2iZP"
+  },
+  "results": {
+    "race": [
+      {
+        "evidence": {
+          "channel": "read-back",
+          "echo": "auths-e1-5bc7f10da8a385afc4330f72c3a448459e75f96cf791631aa6a354000a7f94d6",
+          "evidence_digest": "487a67efdee7633443cf483375befbc11fe985461d899cd46e9947de57645769",
+          "observed_at": 1791334499
+        },
+        "outcome": "observed-by-provider",
+        "status": 200
+      },
+      {
+        "code": "gateway.attempt.replay",
+        "outcome": "not-entered"
+      }
+    ],
+    "proof_replay": {
+      "code": "gateway.attempt.replay",
+      "outcome": "not-entered"
+    },
+    "altered_action": {
+      "code": "malformed-proof",
+      "outcome": "denied"
+    },
+    "restart_replay": {
+      "code": "gateway.attempt.replay",
+      "outcome": "not-entered"
+    },
+    "fresh_read_back": {
+      "replacement_matches": true,
+      "echo_matches": true
+    }
+  },
+  "cases": [
+    {
+      "case": "review",
+      "seconds": 0.156,
+      "exit_code": 0
+    },
+    {
+      "case": "installed-consumer-author",
+      "seconds": 0.431,
+      "exit_code": 0
+    },
+    {
+      "case": "install",
+      "seconds": 0.225,
+      "exit_code": 0
+    },
+    {
+      "case": "join",
+      "seconds": 0.204,
+      "exit_code": 0
+    },
+    {
+      "case": "application-secret-isolation",
+      "seconds": 0.343,
+      "exit_code": 0
+    },
+    {
+      "case": "two-instance-submit-1",
+      "seconds": 1.892,
+      "exit_code": 0
+    },
+    {
+      "case": "two-instance-submit-0",
+      "seconds": 4.446,
+      "exit_code": 0
+    },
+    {
+      "case": "proof-replay",
+      "seconds": 0.369,
+      "exit_code": 0
+    },
+    {
+      "case": "altered-action",
+      "seconds": 0.351,
+      "exit_code": 0
+    },
+    {
+      "case": "support-bundle",
+      "seconds": 0.249,
+      "exit_code": 0
+    },
+    {
+      "case": "restart-replay",
+      "seconds": 0.445,
+      "exit_code": 0
+    }
+  ],
+  "excluded_claims": [
+    "protected production qualification",
+    "production PostgreSQL/AWS custody",
+    "complete qualification corpus",
+    "independent provider-entry and lease counters",
+    "token restriction to one base"
+  ],
+  "cleanup": {
+    "created_record_deleted": true,
+    "table_retained_for_future_rehearsals": true
+  }
+}

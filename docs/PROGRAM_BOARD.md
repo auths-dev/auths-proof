@@ -454,3 +454,17 @@ and readiness remain unchanged; real users remain the owner's offline work.
 The local expanded rehearsal passed 36 provider cases and the two-family
 ceremony. Hosted kit verification is pending; the kit is designed to run in
 Docker with no checkout or network mounted.
+
+On 2026-10-07 the agent used the existing `.env` credentials and completed a
+real Airtable operator rehearsal through downloaded gateway commit `20837b56`
+and the installed Linux Python SDK `0.0.1rc1`. It passed fresh value/echo
+read-back, two-process submission, replay/altered-action/restart refusals,
+application credential isolation, support-bundle scanning, record cleanup and
+verification of the exact report's detached simulation signature. Evidence is
+retained in `qualification/simulation/evidence/airtable-live-2026-10-07/`.
+Docker Desktop host sharing initially defeated the file-owner access check;
+the runner now receives the credential through operator-only stdin and stages
+it privately inside the container. The Stripe keys work, but creating a
+distinct test connected account is refused because Connect is not enabled.
+These are development live observations, not protected production
+qualifications; no production trust or stable-readiness claim has changed.

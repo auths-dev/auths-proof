@@ -1699,3 +1699,34 @@ lease gate. Dynamically created provider identifiers need reviewed oracle/corpus
 binding before execution, not expected digests copied from candidate output.
 Those real-production prerequisites do not block the owner-directed simulation.
 No protected live evidence or production qualification is claimed.
+
+### 22.1 Live independent-operator rehearsal (2026-10-07)
+
+The agent located and used the existing sandbox credentials without publishing
+them. `qualification/simulation/live/airtable.py` passed against real Airtable
+with the downloaded gateway package at `20837b56` and the installed Linux
+Python SDK `0.0.1rc1`. It fixed a dedicated table in the recipe before review,
+created a disposable record, used two independent gateway processes with a
+shared durable file store, and obtained one provider-observed submission and
+one replay refusal. Fresh independent read-back matched value and echo.
+Original-proof replay, altered action and replay after process restart were
+refused. The application UID could read neither the provider credential nor
+gateway state; the actual support bundle passed secret scanning. Cleanup
+deleted the created record. The exact published report has a verified detached
+simulation signature and is retained with the support bundle under
+`qualification/simulation/evidence/airtable-live-2026-10-07/`.
+
+The first isolation check caught Docker Desktop host sharing presenting the
+credential file as owned by the application caller. The corrected runner
+receives dotenv input only through operator stdin, stages it in a root-owned
+private directory on the container filesystem and repeats the access check.
+It mounts no provider credential or source checkout. Failed journeys also
+delete their disposable records.
+
+The Stripe test keys authenticate, but the platform lists no connected
+accounts and refuses creating one with HTTP 400 because Connect is not enabled.
+This is a real failed setup, not distinct-account qualification evidence.
+The Airtable token reaches the existing base; its restriction to one base has
+not been established. These reports exclude protected production qualification,
+production PostgreSQL/AWS custody, complete-corpus coverage and independently
+witnessed lease/provider-entry counts. Stable readiness remains false.
