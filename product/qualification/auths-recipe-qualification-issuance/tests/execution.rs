@@ -116,7 +116,7 @@ fn commissioning_client_refusal_cannot_replace_an_ordinary_installed_effect() {
             1 => changed.steps[0].expected.provider_entries = 1,
             2 => {
                 changed.steps[0].expected.verdict.code =
-                    BoundedText::parse("gateway.qualification.expired").expect("code")
+                    BoundedText::parse("gateway.qualification.expired").expect("code");
             }
             _ => changed.steps[0].expected.verdict.outcome = RunOutcome::Complete,
         }
@@ -427,13 +427,13 @@ fn fresh_evidence_is_closed_to_the_reviewed_subject_and_exact_candidate_digest()
                         actual.fresh_evidence = Some(FreshEvidenceWitness::IndependentReadBack {
                             subject_sha256: response,
                             response_sha256: response,
-                        })
+                        });
                     }
                     4 => {
                         actual.fresh_evidence = Some(FreshEvidenceWitness::ProductionDoctor {
                             tuple_sha256: tuple().digest().expect("tuple"),
                             report_sha256: response,
-                        })
+                        });
                     }
                     _ => actual.observed.provider_entries += 1,
                 }
