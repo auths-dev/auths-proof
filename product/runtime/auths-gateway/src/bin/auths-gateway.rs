@@ -2751,6 +2751,40 @@ mod unix {
         }
     }
 
+    async fn commissioned_submission(
+        session: &auths_gateway::CommissioningSession<'_>,
+        engine: &GatewayEngine,
+        proof: &[u8],
+        action: &[u8],
+        witness_file: Option<&Path>,
+        before: &auths_gateway::GatewayExecutionWitness,
+    ) -> Result<(GatewaySubmitResult, Option<&'static str>), Failure> {
+        let Some(path) = witness_file else {
+            return Ok((session.submit(proof, action).await, None));
+        };
+        let mut witness = CommissioningWitnessFile::open(path)?;
+        witness.record(before.clone())?;
+        let submission = session.submit(proof, action);
+        tokio::pin!(submission);
+        let mut interval = tokio::time::interval(Duration::from_millis(10));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut diagnostic_failure = None;
+        let result = loop {
+            tokio::select! {
+                result = &mut submission => break result,
+                _ = interval.tick(), if diagnostic_failure.is_none() => {
+                    diagnostic_failure = witness.record(engine.execution_witness()).err();
+                }
+            }
+        };
+        // A full or broken stream cannot interrupt an entered attempt.
+        // Report diagnostic failure only after that native attempt finishes.
+        let final_record = witness.record(engine.execution_witness());
+        diagnostic_failure = diagnostic_failure.or(final_record.err());
+        diagnostic_failure = diagnostic_failure.or(witness.finish().err());
+        Ok((result, diagnostic_failure))
+    }
+
     /// Direct operator process; ordinary application handlers never call this.
     async fn commissioning(
         options: &CommissioningOptions,
@@ -2811,34 +2845,15 @@ mod unix {
                 let proof = read_bounded(proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(action, 64 * 1024)?;
                 let before = engine.execution_witness();
-                let mut witness = witness_file
-                    .map(CommissioningWitnessFile::open)
-                    .transpose()?;
-                if let Some(witness) = &mut witness {
-                    witness.record(before.clone())?;
-                }
-                let submission = session.submit(&proof, &action);
-                tokio::pin!(submission);
-                let mut interval = tokio::time::interval(Duration::from_millis(10));
-                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-                let mut diagnostic_failure = None;
-                let result = loop {
-                    tokio::select! {
-                        result = &mut submission => break result,
-                        _ = interval.tick(), if witness.is_some() && diagnostic_failure.is_none() => {
-                            if let Some(witness) = &mut witness {
-                                diagnostic_failure = witness.record(engine.execution_witness()).err();
-                            }
-                        }
-                    }
-                };
-                if let Some(witness) = &mut witness {
-                    // Even a full or broken stream cannot interrupt an entered
-                    // attempt. Report diagnostic failure only after it finishes.
-                    let final_record = witness.record(engine.execution_witness());
-                    diagnostic_failure = diagnostic_failure.or(final_record.err());
-                    diagnostic_failure = diagnostic_failure.or(witness.finish().err());
-                }
+                let (result, diagnostic_failure) = commissioned_submission(
+                    &session,
+                    &engine,
+                    &proof,
+                    &action,
+                    witness_file,
+                    &before,
+                )
+                .await?;
                 let measured = serde_json::json!({
                     "schema": "auths.gateway-commissioning-execution/1",
                     "result": result,

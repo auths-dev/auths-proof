@@ -602,6 +602,10 @@ fn action_and_lease_bounds_are_exact_and_never_silently_repaired() {
             QualificationCommissioningPermit::from_body(&body).map(|_| ()),
             if (1..=MAX_COMMISSIONING_LEASES).contains(&leases) {
                 Ok(())
+            } else if leases == u64::MAX {
+                // RFC 8785 serialization cannot round-trip this number as
+                // the typed u64. It refuses before the closed lease bound.
+                Err(QualificationFormatError::Malformed)
             } else {
                 Err(QualificationFormatError::ListBound)
             },

@@ -39,13 +39,14 @@ def request(arguments, bound_resources, action_commitment, recipe_digest):
             'qualification.reference.recipe-binding')
     operation = text(arguments['operation_id'], maximum=128)
     amount = integer(arguments['amount'], 1, 99999999)
-    require(arguments['currency'] == 'usd', 'qualification.reference.currency-binding')
+    require(arguments['currency'] in ['usd', 'eur'], 'qualification.reference.currency-binding')
     payment = next((item for item in bound_resources['payments']
                     if item['id'] == arguments['payment_intent']), None)
     require(payment is not None, 'qualification.reference.resource-binding')
-    # Only bounded actions that the reviewed live run may actually execute
-    # enter a permit. Rejected boundary vectors stay in the offline corpus.
-    require(amount <= 10000 and amount * 10000 <= payment['amount_received'] * 5000,
+    # Request mapping also covers the two source-owned provider-read refusal
+    # probes. The native guard, not this encoder or the permit, must refuse
+    # them after custody and before write entry. No caller chooses their values.
+    require(amount <= 10000,
             'qualification.reference.ceiling')
     token = echo(SERVICE, operation, action_commitment)
     key = idempotency(SERVICE, operation)
@@ -59,6 +60,18 @@ def request(arguments, bound_resources, action_commitment, recipe_digest):
         'headers': [['Stripe-Version', '2025-03-31.basil'], ['Idempotency-Key', key]],
         'idempotency_key': key,
     }
+
+
+def entry_policy(arguments, bound_resources):
+    """Independent expected decision over the reviewed fresh payment facts."""
+    request(arguments, bound_resources, '0' * 64, arguments['recipe_digest'])
+    payment = next(item for item in bound_resources['payments']
+                   if item['id'] == arguments['payment_intent'])
+    if arguments['currency'] != payment['currency']:
+        return 'gateway.relative-ceiling.binding-mismatch'
+    if arguments['amount'] * 10000 > payment['amount_received'] * 5000:
+        return 'gateway.relative-ceiling.above'
+    return None
 
 
 def recipe(template, bound_resources):

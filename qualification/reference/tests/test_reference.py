@@ -19,6 +19,7 @@ from common import canonical, sha256
 import measure
 import fresh_evidence as fresh
 import expand as expansion
+import packet_plan
 from expand import decode, unique_object
 
 
@@ -112,9 +113,14 @@ class References(unittest.TestCase):
         self.assertEqual(request['headers'], [
             ['Stripe-Version', '2025-03-31.basil'],
             ['Idempotency-Key', idempotency(stripe.SERVICE, 'qualified-1')]])
-        for amount in [0, -1, 1001, True, 10000, 99999999]:
+        for amount in [0, -1, True, 10001, 99999999]:
             with self.subTest(amount=amount), self.assertRaises(Refusal):
                 stripe.request({**arguments, 'amount': amount}, resources, COMMITMENT, DIGEST)
+        self.assertIsNone(stripe.entry_policy(arguments, resources))
+        self.assertEqual(stripe.entry_policy({**arguments, 'amount': 1001}, resources),
+                         'gateway.relative-ceiling.above')
+        self.assertEqual(stripe.entry_policy({**arguments, 'currency': 'eur'}, resources),
+                         'gateway.relative-ceiling.binding-mismatch')
 
     def test_stripe_resources_are_test_only_unique_and_bound_to_the_run(self):
         mutations = [
@@ -185,16 +191,21 @@ class References(unittest.TestCase):
                 (work / name).write_bytes((source / name).read_bytes())
             (work / 'candidate').write_bytes(b'synthetic test-only candidate, not an executable')
             (work / 'context-0.cbor').write_bytes(b'synthetic test-only context')
-            (work / 'proof.cbor').write_bytes(b'synthetic test-only proof')
-            (work / 'action.cbor').write_bytes(b'synthetic test-only action')
+            (work / 'context-1.cbor').write_bytes(b'synthetic fresh test-only context')
+            planned = packet_plan.arguments(stripe.FAMILY, self.stripe_resources(), DIGEST)
+            packets = []
+            for packet in planned:
+                label = packet['label']
+                (work / (label + '.proof')).write_bytes(b'synthetic test-only proof')
+                (work / (label + '.action')).write_bytes(b'synthetic test-only action')
+                packets.append({'label': label, 'trusted_context':
+                    'context-' + str(['initial', 'fresh'].index(packet['context'])) + '.cbor',
+                    'proof': label + '.proof', 'action': label + '.action', 'arguments': packet['arguments']})
             (work / 'resources.json').write_bytes(canonical(self.stripe_resources()))
             (work / 'packets.json').write_bytes(canonical({
                 'schema': 'auths.qualification-public-packets/3', 'protected_run': RUN,
                 'evaluated_at': 1000, 'not_after': 1300,
-                'trusted_contexts': ['context-0.cbor'], 'packets': [{'label': 'normal',
-                    'trusted_context': 'context-0.cbor',
-                    'proof': 'proof.cbor', 'action': 'action.cbor',
-                    'arguments': self.stripe_arguments()}]}))
+                'trusted_contexts': ['context-0.cbor', 'context-1.cbor'], 'packets': packets}))
             artifacts = json.loads((root / 'bindings/fixtures/qualification/commissioning-v2.json').read_bytes())
             tuple_value = json.loads(artifacts['permit'])['statement']['binding']['tuple']
             tuple_value['recipe_family'] = stripe.FAMILY
@@ -217,26 +228,29 @@ class References(unittest.TestCase):
             def review(_binary, arguments):
                 if arguments[0] == 'qualification-candidate':
                     return copy.deepcopy(tuple_value)
+                label = Path(arguments[arguments.index('--proof') + 1]).stem
+                value = next(packet['arguments'] for packet in packets if packet['label'] == label)
+                commitment = sha256(canonical(value))
                 return {'schema': 'auths.gateway-submission-review/1',
-                        'actors': ['raw:synthetic-test-only-actor'], 'action_commitment': COMMITMENT,
-                        'arguments': self.stripe_arguments(),
-                        'request': stripe.request(self.stripe_arguments(), self.stripe_resources(), COMMITMENT, DIGEST)}
+                        'actors': ['raw:synthetic-test-only-actor'], 'action_commitment': commitment,
+                        'arguments': value,
+                        'request': stripe.request(value, self.stripe_resources(), commitment, DIGEST)}
             with patch.dict(os.environ, {'GITHUB_SHA': '1' * 40, 'GITHUB_RUN_ID': '123',
                                          'GITHUB_RUN_ATTEMPT': '1'}), patch('expand.child', side_effect=review), \
                     patch('expand.time.time', return_value=1000):
                 expansion.expand(args)
                 binding = json.loads((args.out_dir / 'binding.json').read_bytes())
-                self.assertEqual(binding['allowed_actions'], [COMMITMENT])
+                self.assertEqual(binding['allowed_actions'], sorted({sha256(canonical(packet['arguments'])) for packet in packets}))
                 self.assertEqual(binding['maximum_credential_leases'], 64)
                 self.assertEqual(binding['principal_sha256'], sha256(b'raw:synthetic-test-only-actor'))
                 self.assertEqual(binding['resources_sha256'], sha256((work / 'resources.json').read_bytes()))
-                self.assertEqual(binding['trusted_contexts_sha256'], [sha256(b'synthetic test-only context')])
+                self.assertEqual(binding['trusted_contexts_sha256'], sorted([
+                    sha256(b'synthetic test-only context'), sha256(b'synthetic fresh test-only context')]))
                 self.assertFalse(json.loads((args.out_dir / 'oracle-commitments.json').read_bytes())['qualification_issued'])
                 original_packets = json.loads(args.packets.read_bytes())
-                (work / 'context-1.cbor').write_bytes(b'synthetic second test-only context')
                 for problem in ['unused', 'duplicate', 'unknown', 'empty', 'obsolete']:
                     changed = copy.deepcopy(original_packets)
-                    if problem == 'unused': changed['trusted_contexts'].append('context-1.cbor')
+                    if problem == 'unused': changed['trusted_contexts'].append('context-2.cbor')
                     if problem == 'duplicate': changed['trusted_contexts'].append('context-0.cbor')
                     if problem == 'unknown': changed['packets'][0]['trusted_context'] = 'context-2.cbor'
                     if problem == 'empty': changed['trusted_contexts'] = []
