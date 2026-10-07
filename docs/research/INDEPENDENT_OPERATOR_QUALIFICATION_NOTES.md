@@ -32,3 +32,11 @@ Both signer keys are provisioned in the existing reviewer-protected main-only
 signing environment; the root key remains outside CI and every Git checkout.
 No production family has yet been qualified by this work. Development live
 reports remain explicitly separate from protected production evidence.
+# Publication closure correction
+
+The protected workflow previously removed its real canaries before a separate
+job assembled the final proposal. The source-owned closure now assembles and
+scans in the operator job after confirmed resource cleanup. It rebuilds with
+the complete redaction report and rescans the actual final bytes; output growth
+or any assembly/scan failure invalidates the proposal. This closes a publication
+gap and does not establish missing protected provider evidence.

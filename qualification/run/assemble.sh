@@ -21,18 +21,34 @@ root="$(git rev-parse --show-toplevel)"
 directory="${root}/qualification/families/${family}"
 tool="${AUTHS_QUALIFICATION:-${root}/target/release/auths-qualification}"
 
+# Downloaded artifacts do not retain directory modes. Only this job's owned,
+# real work directory may receive the reconstructed public proposal inputs.
+[ -d "${work}" ] && [ ! -L "${work}" ] && [ -O "${work}" ] \
+  || { echo "qualification.unsafe-work-directory" >&2; exit 1; }
+chmod 0700 "${work}"
+
 # A failed rerun must not leave an earlier proposal available to a signer.
 rm -rf "${work}/proposal" "${work}/evidence"
+rm -f "${work}/provider-resources.json"
 
 for required in tuple.json packages.json facts.json "${stage}-effects.json" resources.json cases/redaction.scan.json; do
   [ -s "${work}/${required}" ] || { echo "qualification.evidence-incomplete ${required}" >&2; exit 1; }
 done
 commit="$(jq -r .commit "${work}/facts.json")"
 [ "${commit}" = "$(git -C "${root}" rev-parse HEAD)" ] || { echo "qualification.commit-changed" >&2; exit 1; }
+[ -z "$(git -C "${root}" status --porcelain)" ] \
+  || { echo "qualification.source-not-clean" >&2; exit 1; }
 
 # The tuple names this family and nothing else's.
 [ "$(jq -r .recipe_family "${work}/tuple.json")" = "${family}" ] \
   || { echo "qualification.tuple-names-another-family" >&2; exit 1; }
+
+# The ledger is a closed family/run-bound object, not a caller-selected array
+# of record strings. Reconstruct the native record summary from its exact IDs.
+env -i PATH="${PATH}" PYTHONNOUSERSITE=1 python3 \
+  "${root}/qualification/reference/resource_summary.py" \
+  --family "${family}" --resources "${work}/resources.json" \
+  --out "${work}/provider-resources.json"
 
 # The trust stages are run here, by the tool this job built, whatever the
 # harness left under that name.
@@ -73,7 +89,7 @@ jq -n \
   --slurpfile tuple "${work}/tuple.json" \
   --slurpfile packages "${work}/packages.json" \
   --slurpfile facts "${work}/facts.json" \
-  --slurpfile resources "${work}/resources.json" \
+  --slurpfile resources "${work}/provider-resources.json" \
   '{qualification_id: $identifier,
     provider_kind: $record[0].provider_kind,
     tuple: $tuple[0],

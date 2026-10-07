@@ -161,8 +161,16 @@ live-member observations. The family additionally writes:
   outputs from the candidate. Missing categories prevent closure; a family
   must export the gateway's real support bundle once Epic 4 provides it.
 
-`run/redact.sh` scans the outputs and evidence and removes canaries before
-upload. The release tool itself executes signer rotation and freshness; the
+`run/close_proposal.py` retains the real canaries through assembly, rescans the
+new proposal and evidence, and rebuilds with that complete scan report. It
+scans the actual final bytes again and requires the report to remain unchanged
+before removing the live phase's canaries. Any failure removes the proposal
+and evidence. The live workflow runs this only after the complete resource
+session has returned successfully, including confirmed cleanup. It uploads
+the closed proposal from that same job; assembly no longer happens after the
+canaries have been discarded. Commissioning closure retains canaries for the
+subsequent ordinary live phase.
+The release tool itself executes signer rotation and freshness; the
 family cannot replace those reports. Assembly re-verifies scenario, candidate,
 capability, counter and digest closure before signing can begin.
 
