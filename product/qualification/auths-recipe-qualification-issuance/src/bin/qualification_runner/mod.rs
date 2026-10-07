@@ -53,6 +53,9 @@ fn execute_step(
                 "WINDIR",
                 "AUTHS_GATEWAY",
                 "AUTHS_QUALIFICATION",
+                // A private root coordinator accepts case coordinates only.
+                // The actual SDK child still receives an empty environment.
+                "AUTHS_QUALIFICATION_CONTROLLER",
                 "VIRTUAL_ENV",
             ] {
                 if let Some(value) = std::env::var_os(name) {

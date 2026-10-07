@@ -220,7 +220,7 @@ class Deployment:
         require(False, 'qualification.production.gateway-not-ready')
 
     def stop(self, host, context=0, *, crash=False):
-        process = self.processes.pop((host, context), None)
+        process = self.processes.get((host, context))
         require(process is not None and process.poll() is None, 'qualification.production.gateway-not-running')
         process.send_signal(signal.SIGKILL if crash else signal.SIGTERM)
         try:
@@ -228,7 +228,9 @@ class Deployment:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+            self.processes.pop((host, context))
             require(False, 'qualification.production.gateway-stop-timeout')
+        self.processes.pop((host, context))
         require(process.returncode == (-signal.SIGKILL if crash else 0),
                 'qualification.production.gateway-stop-result')
 
@@ -387,21 +389,38 @@ class Deployment:
         return decode(raw), raw
 
     def close(self):
+        failures = []
         for host, context in list(self.processes):
-            self.stop(host, context)
+            if self.processes[(host, context)].poll() is not None:
+                self.processes.pop((host, context))
+                failures.append(True)
+                continue
+            try:
+                self.stop(host, context)
+            except (Refusal, OSError, subprocess.SubprocessError):
+                failures.append(True)
+        require(not failures, 'qualification.production.gateway-cleanup-incomplete')
 
     def retire_credentials(self):
         require(not self.processes, 'qualification.production.host-running')
-        result = self.command(['revoke', '--state-dir', self.state(0), '--store-only'])
-        require(result.get('state') == 'revoked' and result.get('credential_deletion') == 'not-attempted',
-                'qualification.production.revoke')
+        failures = []
+        try:
+            result = self.command(['revoke', '--state-dir', self.state(0), '--store-only'])
+            require(result.get('state') == 'revoked' and result.get('credential_deletion') == 'not-attempted',
+                    'qualification.production.revoke')
+        except (Refusal, OSError, subprocess.SubprocessError):
+            failures.append(True)
         for context in [0, 1]:
             for host in [0, 1]:
-                result = self.command(['credential-collect', '--state-dir', self.state(host, context)], administrative=True)
-                closed(result, ['schema', 'deleted'])
-                require(result['schema'] == 'auths.gateway-credential-collection/1'
-                        and type(result['deleted']) is int and result['deleted'] >= 0,
-                        'qualification.production.credential-collection')
+                try:
+                    result = self.command(['credential-collect', '--state-dir', self.state(host, context)], administrative=True)
+                    closed(result, ['schema', 'deleted'])
+                    require(result['schema'] == 'auths.gateway-credential-collection/1'
+                            and type(result['deleted']) is int and result['deleted'] >= 0,
+                            'qualification.production.credential-collection')
+                except (Refusal, OSError, subprocess.SubprocessError):
+                    failures.append(True)
+        require(not failures, 'qualification.production.credential-cleanup-incomplete')
 
 
 class CommissioningChild:

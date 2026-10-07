@@ -41,7 +41,9 @@ def assemble(family, work, environment, run, stage, tool):
         ['bash', str(script), family, str(work), environment, run, stage],
         capture_output=True, timeout=120,
         env={'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
-             'AUTHS_QUALIFICATION': str(tool)}, cwd=script.parents[2])
+             'AUTHS_QUALIFICATION': str(tool), 'GIT_CONFIG_COUNT': '1',
+             'GIT_CONFIG_KEY_0': 'safe.directory', 'GIT_CONFIG_VALUE_0': str(script.parents[2])},
+        cwd=script.parents[2])
     publication.require(result.returncode == 0
                         and len(result.stdout) <= publication.MAX_BYTES
                         and len(result.stderr) <= publication.MAX_BYTES)

@@ -249,6 +249,19 @@ signer keys are absent from that child's environment. The native issuer/gateway
 must still verify every permit/record: a transported artifact grants no authority.
 The protected workflow has not yet connected this mailbox to admitted corpora.
 
+`production_journey.py` and `journey_session.py` now retain one hosted root
+operator across fixed phases: prepare, commission, import the first release,
+ordinary live execution, cleanup, and final proposal closure. The author plan's
+bounded session survives short proof expiry; every submission still refreshes
+and reauthenticates an original source label. The root peer protocol accepts
+only a phase or status command. Public mailbox extraction and native authority
+verification remain separate. Retained copies are independently rescanned
+before the runner can upload them. Failed setup invalidates proposals, keeps
+scan canaries, and attempts all owned cleanup with native credential collection
+before retiring the renewing workload identity. These entry points still need
+the protected workflow's complete job sequence and the remaining case handlers;
+they do not establish a passing protected qualification.
+
 `author_operator.py` runs in the same credential-free installed environment as
 packet authoring, in a separate process with a fresh operator key. It rechecks
 the native recipe digest, lock and both exact contexts, reconstructs each
