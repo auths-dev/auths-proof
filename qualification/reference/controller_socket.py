@@ -11,6 +11,7 @@ import re
 import socket
 import stat
 import struct
+import subprocess
 import time
 
 from common import canonical, closed, Refusal, require
@@ -88,7 +89,7 @@ def call(path, family, case, index, operation):
     return reply['observation']
 
 
-def serve(path, operations, deadline, stopping):
+def serve(path, operations, deadline, stopping, ready=None):
     path = endpoint(path, existing=False)
     require(type(deadline) in [int, float] and time.monotonic() < deadline <= time.monotonic() + 7200,
             'qualification.controller.deadline')
@@ -98,6 +99,8 @@ def serve(path, operations, deadline, stopping):
         inode = os.lstat(path).st_ino
         server.listen(1)
         server.settimeout(0.25)
+        if ready is not None:
+            ready.set()
         try:
             while not stopping.is_set() and time.monotonic() < deadline:
                 try:
@@ -111,7 +114,7 @@ def serve(path, operations, deadline, stopping):
                         value = checked_request(receive(connection, 4096), operations.family)
                         observation = operations.step(value['case'], value['index'], value['operation'])
                         reply = {'schema': REPLY, 'observation': observation}
-                    except (Refusal, OSError, ValueError, KeyError, TypeError, TimeoutError) as error:
+                    except (Refusal, OSError, ValueError, KeyError, TypeError, TimeoutError, subprocess.SubprocessError) as error:
                         code = str(error) if isinstance(error, Refusal) else 'qualification.controller.operation-refused'
                         if re.fullmatch(r'qualification\.[a-z0-9.-]{1,128}', code) is None:
                             code = 'qualification.controller.operation-refused'

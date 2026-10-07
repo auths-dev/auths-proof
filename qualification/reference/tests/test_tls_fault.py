@@ -151,6 +151,20 @@ class Transport(unittest.IsolatedAsyncioTestCase):
                         pending = asyncio.create_task(reader.read(len(response)))
                         await asyncio.sleep(0.05)
                         self.assertFalse(pending.done(), 'response must be held after upstream receipt')
+                        # A racing gateway's recovery connection must retain
+                        # its independent route while the owner stays held.
+                        follower, follower_writer = await asyncio.wait_for(asyncio.open_connection(
+                            *endpoint, ssl=client_context, server_hostname='localhost'), 5)
+                        follower_writer.write(request)
+                        await follower_writer.drain()
+                        self.assertEqual(await asyncio.wait_for(follower.readexactly(len(response)), 5), response)
+                        self.assertFalse(pending.done())
+                        self.assertEqual(state.held_connections, 1)
+                        follower_writer.close()
+                        try:
+                            await follower_writer.wait_closed()
+                        except OSError:
+                            pass
                         state.decide({'command': command})
                         returned = await asyncio.wait_for(pending, 5)
                         self.assertEqual(returned, response if command == 'release' else b'')

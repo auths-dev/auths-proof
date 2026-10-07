@@ -15,7 +15,7 @@ import subprocess
 import time
 
 from author_operator import ALIAS
-from common import closed, require, sha256
+from common import closed, Refusal, require, sha256
 from expand import decode, read
 from resource_io import write_bytes
 
@@ -268,7 +268,7 @@ class Deployment:
         return [operation, '--state-dir', self.state(host, context), '--from', permit,
                 '--protected-run', resources['protected_run'], '--resource-binding', self.gateway / 'resources.json']
 
-    def commissioning_submit(self, handoff, packet, host=0, context=0, witness=None):
+    def commissioning_arguments_for_packet(self, handoff, packet, host, context, witness=None):
         require(self.permit is not None, 'qualification.production.permit-not-registered')
         inputs = self.packet_inputs(handoff, packet, GATEWAY_UID)
         arguments = [*self.commission_arguments('commissioning-submit', self.permit, host, context),
@@ -277,11 +277,26 @@ class Deployment:
             require(Path(witness).parent == self.state(host, context) and not Path(witness).exists(),
                     'qualification.production.private-input')
             arguments += ['--witness-file', witness]
-        execution = self.command(arguments)
+        return arguments
+
+    @staticmethod
+    def commissioning_execution(execution):
         closed(execution, ['schema', 'result', 'before', 'after'])
         require(execution['schema'] == 'auths.gateway-commissioning-execution/1',
                 'qualification.production.execution')
         return execution
+
+    def commissioning_submit(self, handoff, packet, host=0, context=0, witness=None):
+        arguments = self.commissioning_arguments_for_packet(handoff, packet, host, context, witness)
+        return self.commissioning_execution(self.command(arguments))
+
+    def commissioning_child(self, handoff, packet, host=0, context=0):
+        # This private native process owns the entered operation during the
+        # commissioning phase. Killing an unrelated serving process would not
+        # exercise loss of the actual owner.
+        witness = self.state(host, context) / ('witness-' + str(self.handoff_generation + 1) + '.jsonl')
+        arguments = self.commissioning_arguments_for_packet(handoff, packet, host, context, witness)
+        return CommissioningChild(self, arguments, witness)
 
     def reobserve(self, operation, host=0, context=0):
         require(re.fullmatch(r'qlf-[0-9a-f]{48}', operation) is not None,
@@ -348,3 +363,49 @@ class Deployment:
                 require(result['schema'] == 'auths.gateway-credential-collection/1'
                         and type(result['deleted']) is int and result['deleted'] >= 0,
                         'qualification.production.credential-collection')
+
+
+class CommissioningChild:
+    def __init__(self, deployment, arguments, witness):
+        self.deployment, self.arguments, self.witness = deployment, arguments, witness
+        self.canaries, self.process = deployment.canaries, None
+        self.consumed = False
+
+    def start(self):
+        require(self.process is None and not self.consumed, 'qualification.production.child-consumed')
+        self.deadline = time.monotonic() + 90
+        self.process = subprocess.Popen([str(self.deployment.binary), *map(str, self.arguments)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cwd=self.deployment.gateway, user=GATEWAY_UID, group=GATEWAY_UID, extra_groups=[],
+            env=self.deployment.environment())
+
+    def finish(self):
+        require(self.process is not None and not self.consumed, 'qualification.production.child-consumed')
+        try:
+            stdout, stderr = self.process.communicate(timeout=max(0.01, self.deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            self.abort()
+            raise Refusal('qualification.production.child-timeout') from None
+        self.consumed = True
+        result = subprocess.CompletedProcess([], self.process.returncode, stdout, stderr)
+        return Deployment.commissioning_execution(native_output(result, self.canaries))
+
+    def crash(self):
+        require(self.process is not None and not self.consumed and self.process.poll() is None,
+                'qualification.production.child-not-running')
+        self.process.kill()
+        stdout, stderr = self.process.communicate(timeout=10)
+        self.consumed = True
+        require(self.process.returncode == -signal.SIGKILL, 'qualification.production.child-crash')
+        require(len(stdout) <= 65536 and len(stderr) <= 65536
+                and all(value not in stdout + stderr for value in self.canaries),
+                'qualification.production.secret-exposed')
+
+    def abort(self):
+        if self.process is None:
+            return
+        if self.process.poll() is None:
+            self.process.kill()
+        if not self.consumed:
+            self.process.communicate(timeout=10)
+            self.consumed = True

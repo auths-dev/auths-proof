@@ -78,6 +78,65 @@ class Observations(unittest.TestCase):
                                 response=self.response)
         self.assertEqual(again['confirmed_by_read_back'], 0)
 
+    def support(self):
+        self.tuple.update(profile_lock_sha256='3' * 64, gateway_semantic_closure_sha256='4' * 64,
+            target={'gateway_package': 'auths-gateway', 'gateway_version': 'synthetic-only',
+                'gateway_build_sha256': '5' * 64, 'store_kind': 'postgresql-v1',
+                'store_schema': 'auths.lifecycle.postgresql/6', 'credential_store_kind': 'aws-secrets-manager-v1'})
+        key = sha256(b'auths.gateway-logical-operation/1\0' + self.arguments['operator_namespace'].encode()
+                     + b'\0' + self.arguments['operation_id'].encode())
+        return {'schema': 'auths.gateway-support-bundle/1', 'gateway_package': 'auths-gateway',
+            'gateway_version': 'synthetic-only', 'semantic_closure_sha256': '4' * 64,
+            'build_sha256': '5' * 64, 'recipe_sha256': '1' * 64, 'profile_lock_sha256': '3' * 64,
+            'trusted_context_sha256': '6' * 64, 'deployment': 'production',
+            'credential_store_kind': 'aws-secrets-manager-v1',
+            'qualification': {'policy': 'required', 'state': 'unqualified', 'code': 'gateway.qualification.missing'},
+            'connection': None, 'attempts': {'listed': 1, 'truncated': False, 'by_stage': {'unknown': 1},
+                'identifiers': [{'key_sha256': key, 'stage': 'unknown'}]},
+            'codes': ['gateway.qualification.missing', 'gateway.support.connection-unavailable']}
+
+    def test_killed_client_is_not_evidence_without_exact_durable_native_unknown_and_entry(self):
+        support = self.support()
+        ledger = Effects()
+        facts, fresh = ledger.project_interrupted(self.tuple, self.review, self.resources, '6' * 64,
+            support, self.before, self.after)
+        self.assertEqual((facts['verdict']['outcome'], facts['provider_entries'], facts['confirmed_by_read_back']),
+                         ('unknown', 1, 0))
+        self.assertIsNone(fresh)
+        for problem in ['wrong-build', 'wrong-context', 'different-operation', 'not-unknown', 'truncated',
+                        'unavailable', 'no-entry', 'false-count']:
+            value, after = copy.deepcopy(support), self.after
+            if problem == 'wrong-build': value['build_sha256'] = '7' * 64
+            if problem == 'wrong-context': value['trusted_context_sha256'] = '7' * 64
+            if problem == 'different-operation': value['attempts']['identifiers'][0]['key_sha256'] = '7' * 64
+            if problem == 'not-unknown': value['attempts']['identifiers'][0]['stage'] = 'response-recorded'
+            if problem == 'truncated': value['attempts']['truncated'] = True
+            if problem == 'unavailable': value['attempts'] = None
+            if problem == 'no-entry': after = self.before
+            if problem == 'false-count': value['attempts']['by_stage']['unknown'] = True
+            with self.subTest(problem=problem), self.assertRaises(Refusal):
+                Effects().project_interrupted(self.tuple, self.review, self.resources, '6' * 64,
+                    value, self.before, after)
+
+    def test_race_aggregates_distinct_actual_native_scopes_without_counting_a_second_confirmation(self):
+        second = dict(self.before, scope='2' * 32)
+        recovered = dict(second, credential_lease_calls=1, read_transport_entries=1)
+        ledger = Effects()
+        facts, fresh = ledger.project_race(self.tuple, self.review, self.resources,
+            [{'outcome': 'unknown'}, dict(self.observed, status=None)],
+            [(self.before, self.after), (second, recovered)], self.response)
+        self.assertEqual((facts['credential_leases'], facts['provider_entries'], facts['confirmed_by_read_back']), (2, 1, 1))
+        self.assertEqual(fresh['response_sha256'], sha256(self.response))
+        for other in [{'outcome': 'denied', 'code': 'action-outside-validity'},
+                      {'outcome': 'not-entered', 'code': 'gateway.attempt.persistence'}]:
+            with self.assertRaises(Refusal):
+                Effects().project_race(self.tuple, self.review, self.resources,
+                    [self.observed, other], [(self.before, self.after), (second, recovered)], self.response)
+        with self.assertRaisesRegex(Refusal, 'duplicate-host'):
+            Effects().project_race(self.tuple, self.review, self.resources,
+                [self.observed, {'outcome': 'unknown'}],
+                [(self.before, self.after), (self.before, self.after)], self.response)
+
     def test_wrong_response_echo_request_scope_and_ambiguous_claims_refuse(self):
         for problem in ['raw-bytes', 'echo', 'request', 'scope', 'extra-field', 'refused-entry']:
             ledger, value, review = Effects(), copy.deepcopy(self.observed), copy.deepcopy(self.review)

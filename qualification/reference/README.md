@@ -285,3 +285,23 @@ The credential-free installed-author job exercises the real root peer transport.
 `provider_readback.py` independently discovers Stripe refunds by the verified
 action's echo within its owned payment, or reads the exact owned Airtable record;
 it retains the provider's raw response bytes for digest comparison.
+
+The production controller's retained-author adapter now uses the same dedicated
+installed-SDK process exercised by the credential-free socket job. Its private
+signing session and refresh handoffs stay outside publication. The transparent
+response-fault controller adds and removes individual UID-scoped rules; it
+retains end-to-end TLS and requires actual native counters before arming.
+Application and author UIDs can be denied both IPv4 and IPv6 egress. These
+mechanisms do not establish protected case completion until the full journey
+executes them and the native runner verifies its measured observations.
+
+Interrupted-write handlers now lose a response only after the independent
+provider reference observes the exact value and echo. Crash handlers kill the
+actual commissioning owner or live gateway and require a native support bundle
+with the exact tuple, context and durable Unknown operation key, alongside the
+killed owner's native counter stream. The two-host race holds the owner's
+response until the second host returns; actual distinct counter scopes are
+aggregated without creating a synthetic witness. For Airtable, the follower's
+committed read-only recovery makes the owner's response CAS lose, so the
+reviewed race expects two leases in total. Protected execution still must
+verify these expectations before any qualification can be issued.

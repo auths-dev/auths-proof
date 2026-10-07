@@ -118,9 +118,11 @@ def compile_plan(family, resources, reviewed, recipe_digest):
         add(phase, 'proof-replay', 'proof-replay', [observed('submit', label(1)), replay()])
         # The held owner response keeps an entered operation unresolved while
         # the second actual process races its claim. Airtable can take one
-        # read-only recovery lease; Stripe has no unrecorded response locator.
+        # read-only recovery lease; its committed observation makes the
+        # owner response CAS lose, so that owner takes no observation lease.
+        # Stripe has no unrecorded response locator; its owner confirms later.
         add(phase, 'two-host-race', 'two-instance-race',
-            [observed('race', label(2), leases=3 if reference is airtable_record else 2)])
+            [observed('race', label(2), leases=2)])
         for index, operation in [(3, 'restart'), (4, 'crash')]:
             ending = observed('replay', label(index), 1, 0, 1) if reference is airtable_record \
                 else unknown('replay', label(index))
