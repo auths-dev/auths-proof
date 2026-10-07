@@ -34,6 +34,15 @@ def gateway():
     return Path(os.environ['AUTHS_GATEWAY']).resolve(strict=True)
 
 
+def consumer_python():
+    # Resolving a venv launcher symlink selects the base interpreter and loses
+    # its installed wheel. Keep the absolute launcher path when executing it.
+    python = Path(os.environ['AUTHS_QUALIFICATION_CONSUMER_PYTHON']).absolute()
+    require(python.is_file() and os.access(python, os.X_OK),
+            'qualification.harness.consumer-python')
+    return python
+
+
 def source_commit():
     revision = command(['/usr/bin/git', 'rev-parse', 'HEAD'])
     status = command(['/usr/bin/git', 'status', '--porcelain'])
@@ -80,13 +89,20 @@ def prepare(family, work):
                                      'gateway': gateway(), 'work': work})())
     # The wheel and public author kit are installed/copied by the credential-
     # free workflow. The SDK process never receives this checkout or its env.
-    python = Path(os.environ['AUTHS_QUALIFICATION_CONSUMER_PYTHON']).resolve(strict=True)
+    python = consumer_python()
     kit = Path(os.environ['AUTHS_QUALIFICATION_AUTHOR_KIT']).resolve(strict=True)
     result = command([python, '-B', kit / 'author_packets.py', '--plan', work / 'packet-plan.json',
                       '--work', work], cwd=work)
     require(result.returncode == 0, 'qualification.harness.installed-author')
     tuple_value = candidate(family, work)
+    write(work / 'tuple.json', tuple_value, new=True)
+    operator = command([python, '-B', kit / 'author_operator.py',
+                        '--gateway', gateway(), '--work', work], cwd=work)
+    require(operator.returncode == 0, 'qualification.harness.installed-operator')
     resources, reviewed = authenticate(family, work, gateway(), tuple_value)
+    operator_report = decode(read(work / 'operator-report.json', 65536))
+    require(all(operator_report['operator_principal'] not in value['actors']
+                for value in reviewed.values()), 'qualification.harness.operator-separation')
     corpus = compile_plan(family, resources, reviewed, tuple_value['compiled_recipe_sha256'])
     write_bytes(work / 'corpus.json', canonical(corpus), new=True)
     author = decode(read(work / 'author-report.json', 65536))
@@ -205,8 +221,13 @@ def main(family, arguments):
             return
         if len(arguments) == 6 and arguments[0] == 'step':
             _, case, index, operation, directory, output = arguments
-            require(case.startswith('offline-'), 'qualification.harness.protected-journey-not-configured')
-            value = offline(family, case.removeprefix('offline-'), int(index), operation, Path(directory).absolute())
+            if case.startswith('offline-'):
+                value = offline(family, case.removeprefix('offline-'), int(index), operation, Path(directory).absolute())
+            else:
+                controller = os.environ.get('AUTHS_QUALIFICATION_CONTROLLER')
+                require(controller is not None, 'qualification.harness.protected-journey-not-configured')
+                from controller_socket import call
+                value = call(controller, family, case, int(index), operation)
             return write(Path(output).absolute(), value, new=True)
         # No helper can silently complete an unimplemented protected step,
         # provision development custody, or manufacture a live observation.

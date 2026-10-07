@@ -47,6 +47,24 @@ fn jobs(text: &str) -> BTreeMap<String, Vec<String>> {
 }
 
 #[test]
+fn shared_custody_jobs_cannot_run_pull_request_source_with_live_identity() {
+    let text =
+        std::fs::read_to_string(repository().join(".github/workflows/gateway-custody-live.yml"))
+            .expect("custody workflow");
+    let jobs = jobs(&text);
+    assert_eq!(
+        jobs.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["gateway-journey", "provider-journey", "store-contract"]
+    );
+    for (name, lines) in jobs {
+        assert!(
+            lines.iter().any(|line| line == PROTECTED),
+            "{name} obtains a live identity only from reviewed main source"
+        );
+    }
+}
+
+#[test]
 fn a_pull_request_reaches_no_secret_and_no_signing_job() {
     let text = std::fs::read_to_string(repository().join(WORKFLOW)).expect("workflow");
 

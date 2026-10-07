@@ -817,24 +817,6 @@ mod unix {
             && !cfg!(feature = "testkit-production-plaintext")
     }
 
-    /// Opens the credential store the settings select, under the
-    /// deployment's policy. `unavailable` is the caller's code for a store
-    /// that is selected and permitted but cannot be opened.
-    fn open_credentials(
-        state_dir: &Path,
-        settings: &CredentialStoreSettings,
-        deployment: Deployment,
-        unavailable: &'static str,
-    ) -> Result<Arc<dyn ConnectionCredentialStore>, &'static str> {
-        open_credentials_for(
-            state_dir,
-            settings,
-            deployment,
-            unavailable,
-            CredentialAccess::Runtime,
-        )
-    }
-
     #[derive(Clone, Copy, Eq, PartialEq)]
     enum CredentialAccess {
         Runtime,
@@ -1332,11 +1314,15 @@ mod unix {
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
                 .map_err(|_| "gateway.install.attempt-store-unavailable")?
         };
-        let credentials = open_credentials(
+        // Installation writes custody and a join reads the stored commitment.
+        // Use the same separated writer/reader identities as administration;
+        // the operator role must not acquire GetSecretValue permission.
+        let credentials = open_credentials_for(
             &state_dir,
             &manifest.credential_store,
             deployment,
             "gateway.install.credential-store-unavailable",
+            CredentialAccess::Operator,
         )?;
         let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
         if join {

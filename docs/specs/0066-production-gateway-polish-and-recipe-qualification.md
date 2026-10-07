@@ -1851,3 +1851,22 @@ their conformance/differential reports, and the issuer constructs canonical
 offline evidence. Verification of this new collection is pending. Protected
 operations currently refuse without their production journey implementation;
 the source plan is not evidence that those operations ran. Epic 5 remains open.
+
+#### 22.8 Production operator installation boundary
+
+The installed SDK now authors both exact-context operator statements using a
+separate process and key, reconstructs the native signing preimage, verifies
+the signatures and checks key separation from all packet actors. These are
+technical operator statements; they assert no human review or qualification.
+
+Native installation now selects administrative AWS custody just as rotation
+does: the restricted operator identity writes, while the distinct runtime
+identity reads the stored commitment for a join. Neither IAM role is broadened.
+The existing custody workflow supplies the reader identity and admits live
+identity only for manual runs on main. The semantic closure is regenerated
+with the native fixture generator after this source change.
+
+The private production controller binds the shipping executable, prepares two
+hosts for each trusted context, requires PostgreSQL/TLS and AWS custody, and
+compares all four installed tuples with the planned tuple. Complete protected
+provider orchestration and hosted verification are still pending.

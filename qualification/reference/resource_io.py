@@ -41,7 +41,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise Refusal('qualification.resources.redirect-refused')
 
 
-def request(origin, method, path, key, body=None, headers=None):
+def exchange(origin, method, path, key, body=None, headers=None):
     require(path.startswith('/') and not path.startswith('//') and '\r' not in path and '\n' not in path,
             'qualification.resources.path-bound')
     values = {'Authorization': 'Bearer ' + key, 'Accept': 'application/json'}
@@ -49,13 +49,26 @@ def request(origin, method, path, key, body=None, headers=None):
     outbound = urllib.request.Request(origin + path, method=method, data=body, headers=values)
     try:
         with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(outbound, timeout=25) as response:
-            require(200 <= response.status <= 299, 'qualification.resources.http-refused')
             raw = response.read(65537)
-            return decode(raw)
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError):
+            require(0 < len(raw) <= 65536, 'qualification.resources.response-bound')
+            return response.status, raw
+    except urllib.error.HTTPError as response:
+        # Error bytes are private inputs too. No exception/provider detail is
+        # printed; a reviewed denied-read probe may inspect only its status.
+        with response:
+            raw = response.read(65537)
+            require(len(raw) <= 65536, 'qualification.resources.response-bound')
+            return response.code, raw
+    except (urllib.error.URLError, TimeoutError, OSError):
         # Provider errors can contain submitted credentials or resource data.
         # They never become stdout, exception text or a saved report.
         raise Refusal('qualification.resources.provider-unavailable') from None
+
+
+def request(origin, method, path, key, body=None, headers=None):
+    status, raw = exchange(origin, method, path, key, body, headers)
+    require(200 <= status <= 299, 'qualification.resources.http-refused')
+    return decode(raw)
 
 
 def read(path):

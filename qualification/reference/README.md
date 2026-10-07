@@ -248,3 +248,40 @@ deadline. Only the GitHub Actions token enters the GitHub client; provider and
 signer keys are absent from that child's environment. The native issuer/gateway
 must still verify every permit/record: a transported artifact grants no authority.
 The protected workflow has not yet connected this mailbox to admitted corpora.
+
+`author_operator.py` runs in the same credential-free installed environment as
+packet authoring, in a separate process with a fresh operator key. It rechecks
+the native recipe digest, lock and both exact contexts, reconstructs each
+operator-request preimage, signs it with the SDK, and verifies the signature
+with the native SDK verifier. The offline family job produces these actual
+installation statements and checks that their operator differs from every
+packet actor. This proves technical separation by key; production install
+verification and human review are not claimed by its report.
+
+`production_setup.py` is the private controller for four real installations
+(two process hosts and two exact challenge contexts). It binds the executable
+bytes before install, requires the production PostgreSQL/TLS and AWS settings,
+uses the operator writer and distinct runtime reader for install/join, and
+checks each installed tuple byte-for-byte. Serving processes receive only the
+runtime role. Private state, token paths and database credentials stay outside
+publication; native counters come from the running process's admin socket.
+The complete protected journey still needs to connect this controller to
+resource preparation, mailbox exchanges and the family operations.
+
+`family_operations.py` retains measured effects across stage-runner processes.
+Implemented handlers refresh only original packet labels, reauthenticate exact
+action/context/request bindings, execute private commissioning or ordinary
+application submissions, collect native counters, and require independent raw
+provider read-back for linked outcomes. Replay, read-back, relative guards,
+malformed proof/action, genuine credential rotation and the installed Python
+client have handlers. Unimplemented cases refuse, so this partial operation
+implementation cannot close either complete protected corpus.
+
+`controller_socket.py` connects those operations to the family harness using a
+root-owned private socket with kernel peer checks. Requests carry only closed
+family/case/index/operation coordinates. Credentials, command lines, expected
+outcomes, packets and publication paths cannot be supplied over this interface.
+The credential-free installed-author job exercises the real root peer transport.
+`provider_readback.py` independently discovers Stripe refunds by the verified
+action's echo within its owned payment, or reads the exact owned Airtable record;
+it retains the provider's raw response bytes for digest comparison.
