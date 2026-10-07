@@ -151,7 +151,7 @@ class Journey:
 
     def prepare(self):
         self.check_source()
-        for name in ['author_socket.py', 'author_packets.py', 'author_operator.py', 'installed_submit.py']:
+        for name in ['author_socket.py', 'author_packets.py', 'author_operator.py', 'installed_submit.py', 'application_probe.py']:
             require(read(self.kit / name, 2 * 1024 * 1024) == read(ROOT / 'qualification/reference' / name, 2 * 1024 * 1024),
                     'qualification.journey.consumer-source')
         require(read(self.script, 2 * 1024 * 1024) == read(ROOT / 'qualification/reference/installed_submit.mjs', 2 * 1024 * 1024),

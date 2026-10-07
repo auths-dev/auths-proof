@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import airtable_record as airtable
+import stripe_platform as stripe
 from common import Refusal, canonical, echo, sha256
 from native_observation import Effects, result
 
@@ -158,6 +159,46 @@ class Observations(unittest.TestCase):
             Effects().project_race(self.tuple, self.review, self.resources,
                 [self.observed, {'outcome': 'unknown'}],
                 [(self.before, self.after), (self.before, self.after)], self.response)
+
+    def test_budget_competitor_must_refuse_without_leasing_or_entering_in_a_distinct_scope(self):
+        second = dict(self.before, scope='2' * 32)
+        code = 'gateway.policy.sum-exhausted'
+        refused = {'outcome': 'not-entered', 'code': code}
+        facts, _ = Effects().project_budget_race(self.tuple, self.review, self.resources,
+            self.observed, refused, [(self.before, self.after), (second, second)], self.response, code)
+        self.assertEqual((facts['provider_entries'], facts['confirmed_by_read_back']), (1, 1))
+        for other, after in [({'outcome': 'unknown'}, second),
+                             ({'outcome': 'not-entered', 'code': 'gateway.attempt.replay'}, second),
+                             (refused, dict(second, credential_lease_calls=1)),
+                             (refused, dict(second, write_transport_entries=1))]:
+            with self.assertRaises(Refusal):
+                Effects().project_budget_race(self.tuple, self.review, self.resources,
+                    self.observed, other, [(self.before, self.after), (second, after)], self.response, code)
+        with self.assertRaisesRegex(Refusal, 'duplicate-host'):
+            Effects().project_budget_race(self.tuple, self.review, self.resources,
+                self.observed, refused, [(self.before, self.after), (self.before, self.before)], self.response, code)
+
+    def test_only_a_reauthenticated_declared_guard_refusal_retains_its_request_digest(self):
+        resources = {'schema': 'auths.stripe-platform-qualification-resources/1',
+            'protected_run': self.run, 'platform': 'acct_SYNTHETIC', 'payments': [
+                {'id': 'pi_SYNTHETIC', 'amount_received': 2000, 'currency': 'usd',
+                 'livemode': False, 'run_metadata': self.run}]}
+        tuple_value = dict(self.tuple, recipe_family=stripe.FAMILY)
+        arguments = {'operator_namespace': stripe.SERVICE, 'operation_id': 'synthetic-only',
+            'recipe_digest': '1' * 64, 'payment_intent': 'pi_SYNTHETIC', 'amount': 1001, 'currency': 'usd'}
+        reviewed = dict(self.review, arguments=arguments,
+            request=stripe.request(arguments, resources, self.review['action_commitment'], '1' * 64))
+        native = {'outcome': 'not-entered', 'code': 'gateway.relative-ceiling.above'}
+        after = dict(self.before, credential_lease_calls=1, read_transport_entries=5)
+        facts, fresh = Effects().project_guard_refusal(tuple_value, reviewed, resources, native, self.before, after)
+        self.assertEqual(facts['verdict']['request_sha256'], sha256(canonical(reviewed['request'])))
+        self.assertEqual(facts['provider_entries'], 0)
+        self.assertIsNone(fresh)
+        for changed, counters in [(dict(native, code='gateway.verify.invalid-input'), after),
+                                  (native, dict(after, credential_lease_calls=0)),
+                                  (native, dict(after, write_transport_entries=1))]:
+            with self.assertRaises(Refusal):
+                Effects().project_guard_refusal(tuple_value, reviewed, resources, changed, self.before, counters)
 
     def test_wrong_response_echo_request_scope_and_ambiguous_claims_refuse(self):
         for problem in ['raw-bytes', 'echo', 'request', 'scope', 'extra-field', 'refused-entry']:

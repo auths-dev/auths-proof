@@ -308,6 +308,25 @@ Application and author UIDs can be denied both IPv4 and IPv6 egress. These
 mechanisms do not establish protected case completion until the full journey
 executes them and the native runner verifies its measured observations.
 
+The application isolation handlers now attempt actual file opens and bounded
+connections from the installed consumer's application UID. Missing files,
+timeouts, unexpected socket errors, or an accessible secret cannot become a
+passing isolation report. Count/sum races hold the actual owner's encrypted
+response while a different reviewed operation competes for the last capacity,
+then verify its persisted refusal after completion. Guard refusals retain a
+request digest only after original-action reauthentication, the independent
+Stripe policy decision, and the exact actual post-lease native refusal.
+
+Declared capability checks require a previously confirmed native effect and
+independent fresh read-back. Stripe also checks actual account/test-mode and
+denied-read scope. Its authorized fixture reference retries exactly that
+already observed run-owned refund with the same runtime key/body/idempotency
+key, and requires the same refund plus a unique fresh matching echo afterward.
+The separate fixture API entry is retained explicitly in the public probe
+report; it is outside the native gateway counter scope and never masquerades
+as a native entry or a newly applied effect. Airtable confirms its exact field
+replacement and echo without a duplicate write.
+
 Interrupted-write handlers now lose a response only after the independent
 provider reference observes the exact value and echo. Crash handlers kill the
 actual commissioning owner or live gateway and require a native support bundle

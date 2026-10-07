@@ -274,6 +274,22 @@ class Deployment:
             env={'PATH': '/usr/bin:/bin', **({'PYTHONNOUSERSITE': '1'} if language == 'python' else {})})
         return native_output(result, self.canaries)
 
+    def application_probe(self, python, kit, kind, values):
+        require(kind in ['files', 'egress'] and type(values) is list and 1 <= len(values) <= 8,
+                'qualification.production.application-probe')
+        result = subprocess.run([str(python), '-B', str(Path(kit) / 'application_probe.py'), kind, *map(str, values)],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30, cwd='/',
+            user=APPLICATION_UID, group=GATEWAY_UID, extra_groups=[],
+            env={'PATH': '/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'})
+        value = native_output(result, self.canaries)
+        closed(value, ['schema', 'kind', 'attempted', 'refused', 'provider_requests'])
+        require(value['schema'] == 'auths.qualification-application-probe/1' and value['kind'] == kind
+                and type(value['attempted']) is int and type(value['refused']) is int
+                and type(value['provider_requests']) is int
+                and value['attempted'] == value['refused'] == len(values) and value['provider_requests'] == 0,
+                'qualification.production.application-probe')
+        return value
+
     def register_commissioning(self, source):
         require(self.permit is None, 'qualification.production.permit-already-registered')
         names = ['commissioning-permit.json', 'signer-certificate.json', 'revocation-list.json']
