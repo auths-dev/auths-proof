@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "auths"
-version = "1.0.0rc1"
+version = "0.0.1rc1"
 description = "Prove exact authority, execute protected actions, and leave signed receipts"
 readme = "README.md"
 requires-python = ">=3.9"

@@ -31,7 +31,7 @@ def doctor(
     abi = _native.native_abi_version()
     compatible = abi == 2
     return DoctorReport(
-        sdk_version="1.0.0rc1",
+        sdk_version="0.0.1rc1",
         runtime=(
             f"CPython {sys.version_info.major}.{sys.version_info.minor} / "
             f"{_bounded(platform.system())} {_bounded(platform.machine())}"

@@ -9,7 +9,8 @@ The candidate includes:
 - the `auths` and `auths-sdk` Rust roots and their frozen publishable
   dependency closure;
 - the `@auths-dev/sdk` TypeScript package;
-- the `auths` Python distribution;
+- the `auths` Python distribution at `0.0.1rc1` (`0.0.1-rc1`), supplied as a
+  GitHub prerelease wheel for installation without a local compiler;
 - the bounded WebAssembly module contained by the TypeScript package;
 - deterministic source and assurance archives; and
 - digest-bound SPDX, provenance, formal, conformance, compatibility, and
