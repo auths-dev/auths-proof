@@ -225,9 +225,12 @@ job.
 
 ## Environments
 
-Each family's live environment, `recipe-qualification-live-<family>`, must be
-created with a required reviewer and the default branch only **before** its
-credential is stored in it. The signing environment already has both rules.
+The live matrix uses the existing `gateway-custody-live` environment. Its first
+step checks an actual required reviewer and exactly one deployment branch policy,
+`main`, before reaching a credential-bearing step. Missing protection refuses;
+the workflow never creates an environment or changes its policy. Both family
+records name that exact environment, which the launch verifier requires.
+The signing environment already has reviewer and default-branch rules.
 The harness of a family is trusted as reviewed code on the default branch;
 the run does not execute anything a harness leaves behind as a program in
 the jobs that assemble, sign, or verify.

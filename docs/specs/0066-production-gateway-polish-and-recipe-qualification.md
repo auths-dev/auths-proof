@@ -1870,3 +1870,24 @@ The private production controller binds the shipping executable, prepares two
 hosts for each trusted context, requires PostgreSQL/TLS and AWS custody, and
 compares all four installed tuples with the planned tuple. Complete protected
 provider orchestration and hosted verification are still pending.
+
+#### 22.9 Retained workflow and exact environment cutover
+
+The production reference now connects preparation, finite commissioning,
+independent first-release signing, ordinary required-gate execution, cleanup
+and independently reconstructed final signing. Its records name the existing
+`gateway-custody-live` environment, which the launch projection requires
+exactly. This supersedes §20.3 reading 18 and §20.4 item 6's proposed per-family
+environment names; no alternate environment name is accepted. Before reaching
+provider credentials, the live job checks actual required-reviewer protection
+and exactly one deployment policy for the `main` branch. Missing protection
+refuses. The workflow does not change shared environment policy or upload keys.
+
+Both purpose-separated signer jobs use `recipe-qualification-signing`; each
+step receives only its own key. All family reconstruction completes before the
+release key is read. Interrupted native installs retain approved cleanup inputs
+without an execution floor; revocation is required before native collection can
+retire them. Source cleanup drains any active restoration before deleting state.
+Airtable rehearsal traffic is paced without serializing a race or retrying a
+write. Hosted verification and both full protected runs remain pending. These
+engineering changes issue no qualification or stable launch claim.

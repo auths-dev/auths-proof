@@ -201,6 +201,31 @@ fn signing_builds_are_independent_and_operator_exports_follow_scanning() {
 }
 
 #[test]
+fn custody_environment_protection_is_checked_before_provider_credentials() {
+    let text = std::fs::read_to_string(repository().join(WORKFLOW)).expect("workflow");
+    let jobs = jobs(&text);
+    let live = &jobs["live"];
+    let policy = live
+        .iter()
+        .position(|line| line.contains("custody-branches.json"))
+        .expect("actual environment branch policy check");
+    let credential = live
+        .iter()
+        .position(|line| line.contains("secrets.STRIPE_QUALIFICATION_SETUP_KEY"))
+        .expect("provider credential step");
+    assert!(policy < credential);
+    for required in [
+        "required_reviewers",
+        ".total_count == 1",
+        ".branch_policies[0].name == \"main\"",
+        ".branch_policies[0].type == \"branch\"",
+    ] {
+        assert!(live.iter().any(|line| line.contains(required)));
+    }
+    assert!(!live.iter().any(|line| line.contains("--method")));
+}
+
+#[test]
 fn other_workflows_cannot_reach_qualification_signing() {
     // No other workflow names the signer's key, and nothing in the
     // repository runs on a trigger that gives a pull request's code secrets.
