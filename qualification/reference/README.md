@@ -135,3 +135,19 @@ checks both independent request mappings, original five-minute expiry, and an
 actual refreshed native proof with the same actor/action/request/trust. CI
 retains only its closed report. This is operator/release-tool evidence, not
 protected live qualification.
+
+`author_socket.py serve` is the Linux runner connection for that same installed
+author. It runs under a dedicated non-root UID, in an owner-private directory,
+with the same empty-environment requirement. Its fixed `author.sock` has mode
+0600, authenticates kernel peer credentials and accepts only the root operator
+controller. `inspect`, `refresh` and `close` reconnect across runner steps;
+generation state and the native key stay in the one process. A duplicate launch
+cannot replace an existing socket. Refresh accepts only an original label and
+copies public proof/action/context bytes into a new private controller directory,
+after checking exact original arguments, action bytes, trust and normal validity.
+An expired session, changed handoff or malformed command cannot export a packet.
+
+Keep the author's directory outside the publication tree; sockets and private
+inputs are never artifacts. `check_socket.py` exercises the actual installed SDK
+and shipping gateway under separate Linux UIDs, using synthetic resources and
+no provider access. Its report explicitly confers no protected qualification.

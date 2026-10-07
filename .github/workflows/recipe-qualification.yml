@@ -127,10 +127,25 @@ jobs:
             --gateway "${RUNNER_TEMP}/packet-candidate/bin/auths-gateway" \
             --python "${RUNNER_TEMP}/packet-consumer/bin/python" \
             --work "${RUNNER_TEMP}/packet-operator"
+      - name: Reconnect to the installed author under a separate UID
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n mkdir -m 0700 "${RUNNER_TEMP}/socket-report"
+          sudo -n "${RUNNER_TEMP}/packet-consumer/bin/python" \
+            "${RUNNER_TEMP}/packet-kit/qualification/reference/check_socket.py" \
+            --gateway "${RUNNER_TEMP}/packet-candidate/bin/auths-gateway" \
+            --python "${RUNNER_TEMP}/packet-consumer/bin/python" \
+            --work "${RUNNER_TEMP}/socket-operator" \
+            --report "${RUNNER_TEMP}/socket-report/report.json"
+          sudo -n cp "${RUNNER_TEMP}/socket-report/report.json" "${RUNNER_TEMP}/packet-operator/socket-report.json"
+          sudo -n chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/packet-operator/socket-report.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: qualification-packet-author-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/packet-operator/report.json
+          path: |
+            ${{ runner.temp }}/packet-operator/report.json
+            ${{ runner.temp }}/packet-operator/socket-report.json
           if-no-files-found: error
           retention-days: 30
 
