@@ -6,7 +6,7 @@
 
 mod common;
 
-use std::{fs, path::Path, process::Command};
+use std::{fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
 
 fn succeed(command: &mut Command) {
     let output = command.output().expect("command");
@@ -93,12 +93,43 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
     });
     fs::write(work.join("facts.json"), facts.to_string()).expect("facts");
     fs::write(work.join("canaries"), "synthetic-canary-not-a-credential\n").expect("canaries");
+    fs::set_permissions(work.join("canaries"), fs::Permissions::from_mode(0o600))
+        .expect("private canaries");
     for kind in ["log", "trace", "metric", "support-bundle"] {
         let directory = work.join("scan").join(kind);
         fs::create_dir_all(&directory).expect("scan directory");
         fs::write(directory.join("test-output"), "closed test states only").expect("output");
     }
     let scripts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run");
+    for name in [
+        "commissioning-effects.json",
+        "facts.json",
+        "unexpected-public-output",
+    ] {
+        let path = work.join(name);
+        let original = fs::read(&path).ok();
+        fs::write(&path, "synthetic-canary-not-a-credential").expect("planted leak");
+        let refused = Command::new("bash")
+            .arg(scripts.join("redact.sh"))
+            .arg(&work)
+            .env("AUTHS_QUALIFICATION", tool)
+            .current_dir(&root)
+            .output()
+            .expect("redaction refusal");
+        assert!(!refused.status.success(), "unlisted output must be scanned");
+        assert!(
+            work.join("canaries").exists(),
+            "retain private scan inputs on failure"
+        );
+        assert!(!work.join("cases/redaction.scan.json").exists());
+        assert!(
+            !String::from_utf8_lossy(&refused.stderr).contains("synthetic-canary-not-a-credential")
+        );
+        match original {
+            Some(bytes) => fs::write(path, bytes).expect("restore public fact"),
+            None => fs::remove_file(path).expect("remove leak"),
+        }
+    }
     succeed(
         Command::new("bash")
             .arg(scripts.join("redact.sh"))
