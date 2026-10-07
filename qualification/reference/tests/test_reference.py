@@ -189,7 +189,8 @@ class References(unittest.TestCase):
             (work / 'action.cbor').write_bytes(b'synthetic test-only action')
             (work / 'resources.json').write_bytes(canonical(self.stripe_resources()))
             (work / 'packets.json').write_bytes(canonical({
-                'schema': 'auths.qualification-public-packets/1', 'protected_run': RUN,
+                'schema': 'auths.qualification-public-packets/2', 'protected_run': RUN,
+                'evaluated_at': 1000, 'not_after': 1300,
                 'trusted_context': 'context.cbor', 'packets': [{'label': 'normal',
                     'proof': 'proof.cbor', 'action': 'action.cbor',
                     'arguments': self.stripe_arguments()}]}))
@@ -220,7 +221,8 @@ class References(unittest.TestCase):
                         'arguments': self.stripe_arguments(),
                         'request': stripe.request(self.stripe_arguments(), self.stripe_resources(), COMMITMENT, DIGEST)}
             with patch.dict(os.environ, {'GITHUB_SHA': '1' * 40, 'GITHUB_RUN_ID': '123',
-                                         'GITHUB_RUN_ATTEMPT': '1'}), patch('expand.child', side_effect=review):
+                                         'GITHUB_RUN_ATTEMPT': '1'}), patch('expand.child', side_effect=review), \
+                    patch('expand.time.time', return_value=1000):
                 expansion.expand(args)
                 binding = json.loads((args.out_dir / 'binding.json').read_bytes())
                 self.assertEqual(binding['allowed_actions'], [COMMITMENT])
