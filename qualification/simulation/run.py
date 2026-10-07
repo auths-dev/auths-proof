@@ -14,7 +14,7 @@ import tempfile
 import time
 
 REPORTS = (
-    "stripe-refund-v1.json",
+    "stripe-platform-refund-v1.json",
     "airtable-record-update-v1.json",
     "bootstrap/simulation.json",
     "provider-signature-verification.json",
@@ -114,7 +114,7 @@ def main() -> None:
     # The second native stage re-reads and cryptographically verifies these
     # exact files after both family runs complete. They are detached simulation
     # signatures, with no production root or protected-run authority.
-    for family in ("stripe-refund-v1", "airtable-record-update-v1"):
+    for family in ("stripe-platform-refund-v1", "airtable-record-update-v1"):
         signature = output / f"{family}.attestation.json"
         if signature.is_symlink() or signature.stat().st_size > 4096:
             raise SystemExit("invalid simulation signature")

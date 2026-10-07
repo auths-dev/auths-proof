@@ -454,3 +454,30 @@ and readiness remain unchanged; real users remain the owner's offline work.
 The local expanded rehearsal passed 36 provider cases and the two-family
 ceremony. Hosted kit verification is pending; the kit is designed to run in
 Docker with no checkout or network mounted.
+
+On 2026-10-07 the agent used the existing `.env` credentials and completed a
+real Airtable operator rehearsal through downloaded gateway commit `20837b56`
+and the installed Linux Python SDK `0.0.1rc1`. It passed fresh value/echo
+read-back, two-process submission, replay/altered-action/restart refusals,
+application credential isolation, support-bundle scanning, record cleanup and
+verification of the exact report's detached simulation signature. Evidence is
+retained in `qualification/simulation/evidence/airtable-live-2026-10-07/`.
+Docker Desktop host sharing initially defeated the file-owner access check;
+the runner now receives the credential through operator-only stdin and stages
+it privately inside the container. The Stripe keys work, but creating a
+distinct test connected account is refused because Connect is not enabled.
+These are development live observations, not protected production
+qualifications; no production trust or stable-readiness claim has changed.
+
+The owner then excluded paid Connect onboarding and authorized adapting the
+Stripe test to platform-account refunds. The agent generated a separate
+`stripe-platform-refund-v1` profile/recipe with no connected-account argument
+or scope header, updated AP-SPEC-066 §7.6 and ADR 0014, and passed the real
+Stripe journey using the same downloaded gateway and installed `0.0.1rc1` wheel.
+Restricted-key guards, ceilings/partition refusals, fresh refund value/echo
+read-back, proof/altered-action/restart refusals, secret isolation, support
+scanning, full test-payment cleanup and the published report signature all
+passed. Evidence is retained under
+`qualification/simulation/evidence/stripe-platform-live-2026-10-07/`.
+Connect scope is excluded; both real provider rehearsals remain development
+evidence and do not change production qualification or stable readiness.

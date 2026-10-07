@@ -118,3 +118,31 @@ fn altered_reports_and_scope_are_refused() {
         &serde_json::to_vec(&envelope).expect("altered signature")
     ));
 }
+
+#[test]
+fn installed_python_live_report_verifies_under_the_native_signature_contract() {
+    let report = include_bytes!(
+        "../../../../qualification/simulation/evidence/airtable-live-2026-10-07/report.json"
+    );
+    let attestation = include_bytes!(
+        "../../../../qualification/simulation/evidence/airtable-live-2026-10-07/attestation.json"
+    );
+    assert!(verify(report, attestation));
+    let mut altered = report.to_vec();
+    altered.push(b' ');
+    assert!(!verify(&altered, attestation));
+}
+
+#[test]
+fn installed_python_platform_refund_report_verifies_under_the_native_signature_contract() {
+    let report = include_bytes!(
+        "../../../../qualification/simulation/evidence/stripe-platform-live-2026-10-07/report.json"
+    );
+    let attestation = include_bytes!(
+        "../../../../qualification/simulation/evidence/stripe-platform-live-2026-10-07/attestation.json"
+    );
+    assert!(verify(report, attestation));
+    let mut altered = report.to_vec();
+    altered.push(b' ');
+    assert!(!verify(&altered, attestation));
+}

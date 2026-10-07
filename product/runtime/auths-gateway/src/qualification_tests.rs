@@ -143,7 +143,7 @@ fn verify_simulation_reports() {
         bytes
     };
     let mut verified = Vec::new();
-    for family in ["stripe-refund-v1", "airtable-record-update-v1"] {
+    for family in ["stripe-platform-refund-v1", "airtable-record-update-v1"] {
         let report = bounded(&directory.join(format!("{family}.json")), 1_048_576);
         let signature = bounded(&directory.join(format!("{family}.attestation.json")), 4096);
         assert!(crate::simulation_attestation::verify(&report, &signature));
@@ -193,7 +193,7 @@ async fn operator_bootstrap_qualification_simulation() {
         .expect("certificate");
     let signer = ReleaseSigner::open(&signer_seed, certificate).expect("signer");
     let proposals = [
-        proposal(1, &tuple_for("simulation-stripe-refund-v1")),
+        proposal(1, &tuple_for("simulation-stripe-platform-refund-v1")),
         proposal(2, &tuple_for("simulation-airtable-update-v1")),
     ];
     let attestations: Vec<_> = proposals

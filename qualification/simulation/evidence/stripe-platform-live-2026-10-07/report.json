@@ -1,0 +1,128 @@
+{
+  "schema": "auths.recipe-qualification-simulation/1",
+  "simulation": true,
+  "stable_launch_ready": false,
+  "family": "stripe-platform-refund-v1",
+  "provider": "live Stripe test mode; platform account",
+  "source_commit": "20837b56a61945d79dedf48a1ff237411dd01185",
+  "compiled_recipe_sha256": "b258393c49779150ed521cba3a62a4cd546d349b91d4b2ac69da4a9a643858fb",
+  "gateway_sha256": "85d6fd1c8b44fa5a7a34d4a012a39d3edf00dc867710c149b7d3da2bc6d2230e",
+  "wheel_sha256": "6d079aa4960256a754315d911b55d80bc02848b1ad14225420ea8eae4905656f",
+  "sdk_version": "0.0.1rc1",
+  "sdk_location": "/opt/consumer/lib/python3.12/site-packages/auths/__init__.py",
+  "resources": {
+    "platform_account": "acct_1QekbYID70YvJ7mY",
+    "payment_intent": "pi_3UNjEgID70YvJ7mY0doGkVOE",
+    "refund": "re_3UNjEgID70YvJ7mY0MCV4aKv"
+  },
+  "store": "shared-file-v1",
+  "custody": "local-file-v1",
+  "clock": "development-host-clock",
+  "verification_boundary": "installed SDK and native application socket",
+  "cases": [
+    {
+      "case": "review",
+      "seconds": 0.164
+    },
+    {
+      "case": "bound-extension",
+      "seconds": 0.124
+    },
+    {
+      "case": "installed-consumer-author",
+      "seconds": 0.419
+    },
+    {
+      "case": "install",
+      "seconds": 2.014
+    },
+    {
+      "case": "application-secret-isolation",
+      "seconds": 0.344
+    },
+    {
+      "case": "above-grant",
+      "seconds": 0.383
+    },
+    {
+      "case": "above-ratio",
+      "seconds": 2.176
+    },
+    {
+      "case": "wrong-currency",
+      "seconds": 0.35
+    },
+    {
+      "case": "normal",
+      "seconds": 4.777
+    },
+    {
+      "case": "proof-replay",
+      "seconds": 0.364
+    },
+    {
+      "case": "altered-action",
+      "seconds": 0.342
+    },
+    {
+      "case": "support-bundle",
+      "seconds": 0.259
+    },
+    {
+      "case": "restart-replay",
+      "seconds": 0.548
+    }
+  ],
+  "results": {
+    "above-grant": {
+      "code": "gateway.policy.above-ceiling",
+      "outcome": "not-entered"
+    },
+    "above-ratio": {
+      "code": "gateway.relative-ceiling.above",
+      "outcome": "not-entered"
+    },
+    "wrong-currency": {
+      "code": "gateway.policy.partition-denied",
+      "outcome": "not-entered"
+    },
+    "normal": {
+      "evidence": {
+        "channel": "read-back",
+        "echo": "auths-e1-cd352f4d542ed7350a7effd035471407b1e87fc64aa66eeec525562d1b4b27ec",
+        "evidence_digest": "eb77bd43524e2bca9d585a2b0d1ea2fb4c5289ed7c546d5693ab4c9475898f03",
+        "observed_at": 1791334905
+      },
+      "outcome": "observed-by-provider",
+      "status": 200
+    },
+    "proof-replay": {
+      "code": "gateway.attempt.replay",
+      "outcome": "not-entered"
+    },
+    "altered-action": {
+      "code": "malformed-proof",
+      "outcome": "denied"
+    },
+    "restart-replay": {
+      "code": "gateway.attempt.replay",
+      "outcome": "not-entered"
+    }
+  },
+  "fresh_read_back": {
+    "refund_count_before_cleanup": 1,
+    "amount_matches": true,
+    "echo_matches": true
+  },
+  "excluded_claims": [
+    "Connect/connected-account scope",
+    "protected production qualification",
+    "production PostgreSQL/AWS custody",
+    "complete qualification corpus",
+    "independent lease/provider-entry counters"
+  ],
+  "cleanup": {
+    "test_payment_fully_refunded": true,
+    "stripe_retains_test_payment_and_refund_records": true
+  }
+}

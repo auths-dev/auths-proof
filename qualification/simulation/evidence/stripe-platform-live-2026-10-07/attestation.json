@@ -1,0 +1,12 @@
+{
+  "statement": {
+    "schema": "auths.provider-simulation-attestation/1",
+    "simulation": true,
+    "stable_launch_ready": false,
+    "signer_kind": "disposable-self-signed-simulation-key",
+    "family": "stripe-platform-refund-v1",
+    "report_sha256": "3eaea0009cc3ab5c6ddc34e710d12f44397edc3f36d78ebb35928d46804a0571",
+    "public_key_b64": "UNsQ2mNZ8JQCFVx/zTHAqDH2+znv3gY6WIHC7X5cpH4"
+  },
+  "signature_b64": "NBDD/ZkPEwoX/hyxMLW3jIFSuVFLPtxg1Y94KEdHXS0zx2vpAZZLkLgFDyyAtJ1QGRHPURJSJ/r7wcj8W7TiAQ"
+}

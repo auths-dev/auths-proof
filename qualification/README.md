@@ -12,7 +12,9 @@ without external credentials and publish explicitly simulated evidence. Proposed
 are [ADR 0014](../docs/adr/0014-stripe-refund-recipe-qualification.md) and
 [ADR 0015](../docs/adr/0015-airtable-record-update-recipe-qualification.md).
 They explicitly remain proposed until their executable corpora and protected
-evidence exist.
+evidence exist. A separate [live operator rehearsal](simulation/live/README.md)
+has now passed against Airtable using downloaded gateway/SDK artifacts,
+disposable records and development custody; it does not qualify a production tuple.
 
 `cargo xtask release-check` generates `target/release-evidence/launch-readiness.json`.
 Its `stable_launch_ready` value comes from the gateway build's pinned public
