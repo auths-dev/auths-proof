@@ -269,3 +269,10 @@ witnesses, mismatched subjects/digests and extra fields fail closed.
 The runner retains closed actual observations under `scan/trace`, separately
 from the pass reports. They contain no provider body or secret and undergo the
 existing protected redaction scan before export.
+
+The credential-free `candidate` job builds and retains the actual shipping
+Linux gateway and issuer without simulation features, even before a protected
+family corpus is admitted. Its manifest binds exact file hashes, source commit
+and workflow run. Native read-only recipe review exercises both maintained
+recipes; no installation, custody lease or qualification is claimed. This
+artifact is a candidate for operator inspection, not a GitHub release.

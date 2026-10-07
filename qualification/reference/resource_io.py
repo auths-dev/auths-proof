@@ -106,6 +106,12 @@ def write(path, value, *, new=False):
 def finish(command):
     try:
         command()
-    except (Refusal, ValueError, OSError):
+    except Refusal as error:
+        code = str(error)
+        if not re.fullmatch(r'qualification\.[a-z0-9.-]{1,128}', code):
+            code = 'qualification.resources.refused'
+        print(code, file=sys.stderr)
+        raise SystemExit(1) from None
+    except (ValueError, OSError):
         print('qualification.resources.refused', file=sys.stderr)
         raise SystemExit(1) from None

@@ -1,6 +1,8 @@
 """Disposable setup recovery and ownership boundaries; synthetic providers only."""
 
 import copy
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -167,6 +169,19 @@ class Resources(unittest.TestCase):
         self.assertFalse((work / 'another-output.json').exists())
         resources.cleanup(work / 'journal.json')
         self.assertEqual(set(provider.records), {'recUNRELATED00001'})
+
+    def test_cli_reports_closed_domain_codes_without_external_exception_text(self):
+        for error, expected in [(Refusal('qualification.resources.payment-binding'),
+                                 'qualification.resources.payment-binding'),
+                                (ValueError('synthetic-sensitive-external-detail'),
+                                 'qualification.resources.refused'),
+                                (Refusal('synthetic-sensitive-external-detail'),
+                                 'qualification.resources.refused')]:
+            def fail(): raise error
+            output = io.StringIO()
+            with contextlib.redirect_stderr(output), self.assertRaises(SystemExit):
+                resource_io.finish(fail)
+            self.assertEqual(output.getvalue().strip(), expected)
 
     def test_ledger_outputs_refuse_symlinks_public_directories_and_overwrite(self):
         work = self.workspace()
