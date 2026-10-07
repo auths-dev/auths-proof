@@ -1,9 +1,10 @@
 # ADR 0016: Bound the first qualification run with explicit commissioning authority
 
 **Status:** Implementing. The closed permit, commissioning-only signer purpose,
-offline evidence closure and pure signature/binding verifier are implemented.
-No current gateway accepts commissioning authority. Private operator sessions,
-durable shared accounting and the protected live workflow remain required.
+offline evidence closure, pure signature/binding verifier and atomic permanent
+budget mechanism are implemented. No current gateway accepts commissioning
+authority. Private operator sessions, retained host floors before custody and
+the protected live workflow remain required.
 Ordinary production leases still require qualification.
 
 **Date:** 7 October 2026
@@ -121,6 +122,32 @@ domain separation, exact runtime bindings, time/revocation boundaries, finite
 action/lease bounds, evidence omissions and stable renewal identities. These
 tests establish the pure artifact boundary only, not durable consumption or a
 completed production bootstrap.
+
+The accounting component reuses the existing bounded opaque record store's
+insert-once and compare-and-swap operations. `commissioning-budget` is a fifth,
+non-expiring record kind in PostgreSQL schema 6. Schema 5 is rejected; disposable
+prelaunch databases must be recreated, with no migration or compatibility
+reader. The existing lifecycle transition contract remains version 4 because
+its transition and receipt semantics are unchanged.
+
+Runtime loading cannot initialize a missing counter. Authenticated fresh setup
+registers zero consumption once; a subsequent initialization returns existing
+consumption and refuses changed bindings. Every successful claim increments
+before custody and is never refunded. The record additionally remembers signer
+revocations, the largest accepted revocation sequence and the latest successful
+trusted verifier time. A renewed permit cannot reset any of them.
+
+The private session must persist the returned validated snapshot as an
+independently retained host floor before custody, including trust updates from
+denied attempts. The mechanism refuses database state below that floor. This
+does not detect a coordinated rollback of the database and every retained
+witness; retaining witnesses outside the restore set is an explicit operator
+obligation, as for the existing connection generation floor. Source tests run
+the same final-unit race, crash/reopen, renewal, sweep, revocation and restore
+cases on file and TLS PostgreSQL stores; the PostgreSQL cases require the
+existing protected CI fixture. A property test additionally bounds consumption
+over arbitrary accepted/refused input sequences. These tests exercise storage
+accounting only and grant no production credential authority.
 
 ## Consequences
 

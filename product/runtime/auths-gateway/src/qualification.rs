@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub const QUALIFICATION_POLICY_REFUSED: &str = "gateway.install.qualification-policy";
 
 /// The schema identifier of the production lifecycle store.
-pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/5";
+pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/6";
 /// The schema identifier of the development file store.
 pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/3";
 

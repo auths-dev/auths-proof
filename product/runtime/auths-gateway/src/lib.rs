@@ -12,6 +12,7 @@ pub mod app;
 mod audit;
 mod binding;
 mod bounds;
+pub mod commissioning_budget;
 mod connection;
 mod credential_journal;
 mod echo_verify;

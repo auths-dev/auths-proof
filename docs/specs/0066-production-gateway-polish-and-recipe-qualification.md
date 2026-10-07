@@ -1488,7 +1488,7 @@ Each was taken unattended as the narrower or fail-closed reading.
    rederived from the installed files. The semantic closure, package,
    version, operating system, and architecture are the build's. The build
    digest is SHA-256 of the running executable. The store kind and schema
-   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/5`,
+   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/6`,
    or `shared-file-v1` with `auths.gateway-attempt/3`). The recipe family and
    the provider contract identifier are declared by the operator at install,
    because a gateway cannot derive them; a wrong declaration matches no

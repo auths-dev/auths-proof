@@ -1593,15 +1593,15 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-credential-journal/1", "auths.gateway-credential-collection/1", "auths.gateway-readiness/1", "auths.gateway-support-bundle/1", "auths.gateway-generation-floor/1", "auths.gateway-emergency-stop/1", "auths.gateway-installation/5", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.gateway-semantic-closure/1", "auths.qualification-verification-vectors/1", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/2", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/3", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-production-codes/1", "auths.gateway-custody-vectors/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ProviderResult", "AuditedPreEntry", "EchoVerification", "AdminRequestCommand", "ListedValues"]
+protocol_versions = ["auths.gateway-commissioning-budget/1", "auths.qualification-commissioning-permit/1", "auths.qualification-commissioning-budget-key/1", "auths.qualification-commissioning-budget-binding/1", "auths.gateway-credential-journal/1", "auths.gateway-credential-collection/1", "auths.gateway-readiness/1", "auths.gateway-support-bundle/1", "auths.gateway-generation-floor/1", "auths.gateway-emergency-stop/1", "auths.gateway-installation/5", "auths.recipe-qualification/1", "auths.recipe-qualification-attestation/1", "auths.qualification-trust-root/1", "auths.qualification-signer-certificate/1", "auths.qualification-revocation-list/1", "auths.qualification-release-index/1", "auths.gateway-semantic-closure/1", "auths.qualification-verification-vectors/1", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/6", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/2", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/3", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-production-codes/1", "auths.gateway-custody-vectors/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
+wire_objects = ["CommissioningBudgetSnapshot", "CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ProviderResult", "AuditedPreEntry", "EchoVerification", "AdminRequestCommand", "ListedValues"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway", "bindings/fixtures/qualification"]
 principal_families = ["raw-key-v1", "did-key-v1", "did-keri-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
 transports = ["bounded-https", "postgresql-tls", "loopback-http-development"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins", "qualification-policy", "recipe-family", "provider-contract-id", "qualification-release-inputs", "deployment-clock"]
-security_state = ["durable-credential-cleanup-notes", "host-generation-floor", "recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
+configuration_inputs = ["commissioning-binding", "commissioning-permit", "retained-commissioning-budget-floor", "operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins", "qualification-policy", "recipe-family", "provider-contract-id", "qualification-release-inputs", "deployment-clock"]
+security_state = ["permanent-commissioning-consumption", "commissioning-revocation-and-time-floor", "durable-credential-cleanup-notes", "host-generation-floor", "recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots", "verified-qualification-index", "remembered-revocations", "accepted-revocation-sequence", "gateway-semantic-closure"]
 
 [packages.auths-gateway.claims]
 operational-diagnostics = [
@@ -1758,6 +1758,17 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/onboarding.rs#the_loopback_build_runs_the_same_onboarding_checks",
 ]
 stateful-replay-budget-component = [
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#capacity_survives_crash_restart_and_sweep_file",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#capacity_survives_crash_restart_and_sweep_postgres",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#exactly_one_host_claims_the_final_unit_file",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#exactly_one_host_claims_the_final_unit_postgres",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#renewal_keeps_consumption_and_a_retained_floor_detects_restore_file",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#renewal_keeps_consumption_and_a_retained_floor_detects_restore_postgres",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#hostile_inputs_consume_nothing_and_revocation_survives_omission_file",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#hostile_inputs_consume_nothing_and_revocation_survives_omission_postgres",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#snapshots_reject_noncanonical_unknown_oversized_and_impossible_state",
+  "product/runtime/auths-gateway/src/commissioning_budget/tests.rs#consumption_never_exceeds_the_ceiling_or_charges_a_refused_action",
+
   "product/runtime/auths-gateway/src/recipe/tests.rs#durable_claim_is_one_use_across_races_and_restart",
   "product/runtime/auths-gateway/src/recipe/tests.rs#response_and_observation_are_distinct_durable_stages",
   "product/runtime/auths-gateway/src/recipe/tests.rs#read_back_links_only_an_exact_token_with_the_verified_value",
@@ -1899,7 +1910,7 @@ kind = "cargo"
 layer = "product"
 path = "product/stores/auths-stores"
 core_apis = ["auths-model"]
-protocol_versions = ["auths-proof/v1", "auths.lifecycle.postgresql/5"]
+protocol_versions = ["auths-proof/v1", "auths.lifecycle.postgresql/6"]
 wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "LifecycleRecordV1", "GatewayRecordEntry"]
 fixture_suites = ["product/fixtures/v1/lifecycle"]
 principal_families = []
@@ -1907,7 +1918,7 @@ signature_families = []
 profiles = []
 transports = ["filesystem", "memory", "postgresql-tls"]
 configuration_inputs = ["budget-algebra", "capacity", "lifecycle-capacity-rule", "receipt-policy"]
-security_state = ["budget-ledger", "gateway-attempt-records", "lifecycle-records", "receipt-spool"]
+security_state = ["budget-ledger", "gateway-attempt-records", "permanent-commissioning-budget-records", "lifecycle-records", "receipt-spool"]
 
 [packages.auths-stores.claims]
 receipt-producer-consumer = ["product/stores/auths-stores/src/lib.rs#local_spool_policy_persists_attested_receipt_on_primary_failure"]
