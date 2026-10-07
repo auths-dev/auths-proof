@@ -257,3 +257,13 @@ with the native SDK verifier. The offline family job produces these actual
 installation statements and checks that their operator differs from every
 packet actor. This proves technical separation by key; production install
 verification and human review are not claimed by its report.
+
+`production_setup.py` is the private controller for four real installations
+(two process hosts and two exact challenge contexts). It binds the executable
+bytes before install, requires the production PostgreSQL/TLS and AWS settings,
+uses the operator writer and distinct runtime reader for install/join, and
+checks each installed tuple byte-for-byte. Serving processes receive only the
+runtime role. Private state, token paths and database credentials stay outside
+publication; native counters come from the running process's admin socket.
+The complete protected journey still needs to connect this controller to
+resource preparation, mailbox exchanges and the family operations.
