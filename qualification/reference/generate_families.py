@@ -17,7 +17,8 @@ from resource_io import finish
 ROOT = Path(__file__).resolve().parents[2]
 REFERENCE = ROOT / 'qualification/reference'
 SOURCES_TO_PIN = ['family_corpus.py', 'family_harness.py', 'family_operations.py', 'packet_plan.py',
-    'author_packets.py', 'author_socket.py', 'author_operator.py', 'production_setup.py',
+    'author_packets.py', 'author_socket.py', 'retained_author.py', 'author_operator.py', 'production_setup.py',
+    'network_fault.py',
     'controller_socket.py', 'installed_submit.py', 'common.py', 'fresh_evidence.py',
     'native_observation.py', 'measure.py', 'provider_readback.py', 'resource_io.py', 'resource_summary.py',
     'expand.py', 'stripe_platform.py', 'airtable_record.py', 'stripe_resources.py', 'airtable_resources.py']
@@ -33,8 +34,9 @@ def generate(check=False):
             'packet_plan_schema': 'auths.qualification-packet-plan/4',
             'public_packet_schema': 'auths.qualification-public-packets/4',
             'phases': ['offline', 'commissioning', 'live'], 'maximum_credential_leases': 64,
-            'source_files': {name: sha256(read(REFERENCE / name, 2 * 1024 * 1024))
-                             for name in SOURCES_TO_PIN},
+            'source_files': {**{name: sha256(read(REFERENCE / name, 2 * 1024 * 1024))
+                                for name in SOURCES_TO_PIN},
+                             'tls_fault.py': sha256(read(ROOT / 'qualification/run/tls_fault.py', 2 * 1024 * 1024))},
             'source_recipe_sha256': sha256(read(SOURCES[reference.FAMILY] / 'recipe.json', 65536)),
             'profile_lock_sha256': sha256(read(SOURCES[reference.FAMILY] / 'profile.lock.json', 65536)),
             'decision_record_sha256': sha256(read(ROOT / 'docs/adr' / adr, 65536))}

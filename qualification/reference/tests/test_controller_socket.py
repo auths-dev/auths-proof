@@ -54,17 +54,15 @@ class Controller(unittest.TestCase):
             directory = Path(temporary).resolve()
             directory.chmod(0o700)
             endpoint = directory / 'controller.sock'
-            stopping = threading.Event()
+            stopping, ready = threading.Event(), threading.Event()
             failures = []
             def run():
-                try: controller.serve(endpoint, Operations(), time.monotonic() + 30, stopping)
+                try: controller.serve(endpoint, Operations(), time.monotonic() + 30, stopping, ready)
                 except BaseException as error: failures.append(error)
             thread = threading.Thread(target=run)
             thread.start()
             try:
-                deadline = time.monotonic() + 5
-                while not endpoint.exists() and not failures and time.monotonic() < deadline:
-                    time.sleep(0.01)
+                self.assertTrue(ready.wait(5))
                 with self.assertRaisesRegex(Refusal, 'operations.not-implemented'):
                     controller.call(endpoint, FAMILY, 'commissioning-proof-replay', 0, 'submit')
             finally:

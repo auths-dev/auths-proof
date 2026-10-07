@@ -285,3 +285,12 @@ The credential-free installed-author job exercises the real root peer transport.
 `provider_readback.py` independently discovers Stripe refunds by the verified
 action's echo within its owned payment, or reads the exact owned Airtable record;
 it retains the provider's raw response bytes for digest comparison.
+
+The production controller's retained-author adapter now uses the same dedicated
+installed-SDK process exercised by the credential-free socket job. Its private
+signing session and refresh handoffs stay outside publication. The transparent
+response-fault controller adds and removes individual UID-scoped rules; it
+retains end-to-end TLS and requires actual native counters before arming.
+Application and author UIDs can be denied both IPv4 and IPv6 egress. These
+mechanisms do not establish protected case completion until the full journey
+executes them and the native runner verifies its measured observations.
