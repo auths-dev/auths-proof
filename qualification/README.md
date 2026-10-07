@@ -98,10 +98,10 @@ The harness owns the provider-specific operations and pure oracle. The release
 runner owns sequencing, assertions, counters, and the resulting case reports.
 No family harness writes `passed` reports or `live-effects.json`.
 
-`corpus-manifest.json` is `auths.qualification-corpus/1`, decoded as
+`corpus-manifest.json` is `auths.qualification-corpus/2`, decoded as
 `execution::RunCorpus` by `auths-qualification run-stage`. It contains at most
 256 unique cases. Each case has `id`, `scenario`, `capabilities`, `phase`
-(`offline` or `live`), and at most 32 ordered `steps`. Each step has a closed
+(`offline`, `commissioning` or `live`), and at most 32 ordered `steps`. Each step has a closed
 `operation` and an `expected` observation: exact verdict (outcome, stable code,
 request and evidence digests), credential leases, provider entries, and writes
 confirmed by fresh read-back. All required non-trust/non-redaction scenarios
@@ -142,7 +142,7 @@ these observations are evidence, not cryptographic proof of provider behavior.
 The runner independently compares oracle and gateway verdicts and request/
 evidence commitments; accepted differential cases require a request digest.
 Replay, race, restart, crash, ambiguity and recovery cases may enter once only.
-Replay operations cannot lease or enter again. Forged/altered inputs cannot
+Replay never enters write transport again. An unresolved entered attempt may take one read-only lease to complete its declared observation; an already observed attempt takes none. Forged/altered inputs cannot
 lease. Recovery runs loss/delay followed by read-back and must remain `unknown`
 when no recovery capability is declared. Live effects count only successful
 writes with fresh read-back. Installed-consumer steps run outside the source
@@ -212,3 +212,21 @@ credential is stored in it. The signing environment already has both rules.
 The harness of a family is trusted as reviewed code on the default branch;
 the run does not execute anything a harness leaves behind as a program in
 the jobs that assemble, sign, or verify.
+
+## First qualification and ordinary validation
+
+One reviewed corpus contains three closed phases. `offline` establishes native
+proof, recipe and oracle agreement without custody. `commissioning` exercises
+the exact production candidate through finite private operator authority; its
+installed-client journey must show an ordinary qualification refusal with zero
+leases/entries. It cannot include a production-readiness case.
+
+Assembly selects offline reports and exactly one protected phase, never mixes
+stale commissioning and ordinary live reports. Commissioning records last at
+most two hours and explicitly exclude ordinary installed-client success and
+production readiness. They permit the existing qualification chain to unlock
+the subsequent `live` phase on the same candidate/contract/recipe tuple.
+That phase must show a confirmed effect from the installed ordinary client; a
+refusal cannot satisfy it. Only that phase can contribute production doctor
+evidence to a stable launch projection. A permit or an initial record alone
+never establishes stable readiness.

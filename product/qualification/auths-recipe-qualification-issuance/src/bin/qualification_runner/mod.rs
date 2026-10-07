@@ -112,6 +112,7 @@ pub(super) fn run(
 ) -> Result<(), Failure> {
     let phase = match phase {
         "offline" => RunPhase::Offline,
+        "commissioning" => RunPhase::Commissioning,
         "live" => RunPhase::Live,
         _ => return Err(refused()),
     };
@@ -122,6 +123,7 @@ pub(super) fn run(
     let work = fs::canonicalize(work).map_err(|_| refused())?;
     let phase_token = match phase {
         RunPhase::Offline => "offline",
+        RunPhase::Commissioning => "commissioning",
         RunPhase::Live => "live",
     };
     for member in EvidenceMemberKind::ALL {
@@ -136,8 +138,8 @@ pub(super) fn run(
             Err(_) => return Err(refused()),
         }
     }
-    if phase == RunPhase::Live {
-        match fs::remove_file(work.join("live-effects.json")) {
+    if phase != RunPhase::Offline {
+        match fs::remove_file(work.join(format!("{phase_token}-effects.json"))) {
             Ok(()) => (),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(_) => return Err(refused()),
@@ -186,7 +188,7 @@ pub(super) fn run(
         }
     }
     if reports.is_empty()
-        || (phase == RunPhase::Live
+        || (phase != RunPhase::Offline
             && (live.entered == 0 || live.entered != live.confirmed_by_read_back))
     {
         return Err(refused());
@@ -197,9 +199,9 @@ pub(super) fn run(
             &cases,
         )?;
     }
-    if phase == RunPhase::Live {
+    if phase != RunPhase::Offline {
         let bytes = serde_json::to_vec(&live).map_err(|_| refused())?;
-        write(&work.join("live-effects.json"), &bytes)?;
+        write(&work.join(format!("{phase_token}-effects.json")), &bytes)?;
     }
     Ok(())
 }

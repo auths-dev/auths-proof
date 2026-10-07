@@ -203,3 +203,25 @@ obligation. It does not make the first qualification appear to preexist its own
 evidence. Commissioning state remains distinct from `qualified`; readiness
 never derives true from a permit. The normal production application gate stays
 closed until the existing qualification chain verifies.
+
+## Three-phase corpus and finite first qualification
+
+The installed-client journey exposed a second first-run cycle: an ordinary
+client must remain refused until qualification exists. The closed release-only
+corpus is therefore version 2, with `offline`, `commissioning` and `live` phases.
+The commissioning phase requires PostgreSQL and production custody and cannot
+claim production readiness. Its installed-client case must witness a missing
+qualification refusal with no lease or provider entry. Private operator effects
+still need the complete mandatory wall and fresh read-back.
+
+The resulting first record has a maximum two-hour validity and explicitly
+excludes ordinary client success and production readiness. It authorizes the
+subsequent ordinary live phase for the same exact tuple. That phase requires
+a confirmed installed-client effect and the actual production doctor; a denied
+client, a development target or a commissioning doctor cannot substitute.
+Assembly reads offline reports and only the selected protected phase. The
+contract binds one unchanged manifest containing both phase scopes, so the
+first qualification does not require a different recipe, binary or contract.
+
+This sequencing must still be executed by protected jobs and retained as
+measured evidence before the first qualification can be claimed complete.

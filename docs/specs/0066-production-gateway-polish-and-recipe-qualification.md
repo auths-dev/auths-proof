@@ -1802,3 +1802,18 @@ Both purpose-separated signer keys now exist in the existing reviewer-protected,
 default-branch-only signing environment. The offline root remains outside CI.
 Complete family setup/corpora, protected commissioning/live runs and final signed
 qualification still remain; these changes issue no qualification or readiness.
+
+### 22.5 Ordinary-client bootstrap closure (2026-10-07)
+
+The closed release-only corpus now distinguishes offline verification, private
+commissioning and ordinary qualified live execution (schema
+`auths.qualification-corpus/2`). An installed client in commissioning must
+measure a missing-qualification refusal with zero lease and entry; the same
+scenario in ordinary live execution must measure a fresh confirmed effect.
+Commissioning cases require the production tuple and cannot satisfy production
+readiness. Assembly selects one protected phase, limits the first record to two
+hours and explicitly excludes the ordinary-client/readiness claims that only
+the subsequent phase can establish. Both scopes belong to the same reviewed
+manifest and exact tuple. This closes the second dependency cycle without
+opening ordinary application leases under a commissioning permit. The protected
+workflow and family corpora still must execute this sequence.

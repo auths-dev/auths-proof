@@ -17,7 +17,7 @@ pub const MAX_RUN_CASES: usize = 256;
 /// Largest sequence of operations within one case.
 pub const MAX_CASE_STEPS: usize = 32;
 /// Schema of the reviewed executable corpus.
-pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/1";
+pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/2";
 
 /// Where an operation may execute. Live cases never execute on a pull request.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -25,6 +25,9 @@ pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/1";
 pub enum RunPhase {
     /// No provider credential; an offline provider double is permitted.
     Offline,
+    /// First-run production evidence through finite private operator authority.
+    /// Ordinary installed clients must still demonstrate qualification refusal.
+    Commissioning,
     /// Disposable provider resources in a protected environment.
     Live,
 }
@@ -230,7 +233,8 @@ impl RunCase {
             }
             S::DeclaredCapability => has(Op::Submit) || has(Op::Probe),
             S::ProductionReadiness => {
-                has(Op::Probe)
+                self.phase == RunPhase::Live
+                    && has(Op::Probe)
                     && self.steps.iter().all(|step| {
                         step.operation == Op::Probe
                             && step.expected.verdict.outcome == RunOutcome::Complete
@@ -259,7 +263,7 @@ impl RunCase {
             || !required
             || self.steps.is_empty()
             || self.steps.len() > MAX_CASE_STEPS
-            || (live_only && self.phase != RunPhase::Live)
+            || (live_only && self.phase == RunPhase::Offline)
             || (has(Op::Oracle) && self.phase != RunPhase::Offline)
             || self
                 .capabilities
@@ -294,7 +298,7 @@ impl RunCase {
         mut observe: impl FnMut(usize, &RunStep) -> Result<RunObservation, IssuanceError>,
     ) -> Result<(CaseReport, LiveEffects), IssuanceError> {
         self.validate()?;
-        if self.scenario == Scenario::ProductionReadiness
+        if (self.scenario == Scenario::ProductionReadiness || self.phase == RunPhase::Commissioning)
             && (tuple.target.store_kind
                 != auths_recipe_qualification::LifecycleStoreKind::PostgresqlV1
                 || !tuple.target.credential_store_kind.is_production())
@@ -353,6 +357,31 @@ impl RunCase {
         effects: LiveEffects,
     ) -> Result<(), IssuanceError> {
         use Scenario as S;
+        if self.scenario == S::InstalledJourney {
+            let ordinary_effect = self.phase == RunPhase::Live
+                && effects.entered > 0
+                && effects.entered == effects.confirmed_by_read_back
+                && self.steps.iter().zip(observations).any(|(step, actual)| {
+                    step.operation == Operation::InstalledConsumer
+                        && actual.verdict.outcome == RunOutcome::Observed
+                        && actual.provider_entries > 0
+                        && actual.provider_entries == actual.confirmed_by_read_back
+                });
+            let first_run_refusal = self.phase == RunPhase::Commissioning
+                && observations.iter().all(|actual| {
+                    actual.verdict.outcome == RunOutcome::Refused
+                        && matches!(
+                            actual.verdict.code.as_str(),
+                            "gateway.qualification.unavailable" | "gateway.qualification.missing"
+                        )
+                        && actual.credential_leases == 0
+                        && actual.provider_entries == 0
+                        && actual.confirmed_by_read_back == 0
+                });
+            if !ordinary_effect && !first_run_refusal {
+                return Err(IssuanceError::CaseFailed);
+            }
+        }
         let no_entry = matches!(
             self.scenario,
             S::ApplicationCannotReadSecret
@@ -378,11 +407,31 @@ impl RunCase {
         {
             return Err(IssuanceError::CaseFailed);
         }
-        if self.steps.iter().zip(observations).any(|(step, actual)| {
-            step.operation == Operation::Replay
-                && (actual.provider_entries != 0 || actual.credential_leases != 0)
-        }) {
-            return Err(IssuanceError::CaseFailed);
+        let mut unresolved = false;
+        for (step, actual) in self.steps.iter().zip(observations) {
+            if step.operation == Operation::Replay {
+                let read_only_completion = unresolved
+                    && actual.credential_leases <= 1
+                    && matches!(
+                        actual.verdict.outcome,
+                        RunOutcome::Unknown | RunOutcome::ResponseRecorded | RunOutcome::Observed
+                    );
+                if actual.provider_entries != 0
+                    || (actual.credential_leases != 0 && !read_only_completion)
+                {
+                    return Err(IssuanceError::CaseFailed);
+                }
+            }
+            if step.operation != Operation::Oracle {
+                if actual.provider_entries > 0 {
+                    unresolved = matches!(
+                        actual.verdict.outcome,
+                        RunOutcome::Unknown | RunOutcome::ResponseRecorded
+                    );
+                } else if actual.verdict.outcome == RunOutcome::Observed {
+                    unresolved = false;
+                }
+            }
         }
         if matches!(
             self.scenario,
