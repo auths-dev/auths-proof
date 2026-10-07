@@ -10,6 +10,7 @@ import re
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -104,6 +105,27 @@ class Airtable:
 
 
 class Resources(unittest.TestCase):
+    def test_airtable_pacing_preserves_spacing_after_oversleep_and_idle(self):
+        clock, waits = [100.0], []
+
+        def sleep(delay):
+            waits.append(delay)
+            clock[0] += delay + 0.25
+
+        with patch.object(resource_io, '_airtable_next', 0.0), \
+             patch.object(resource_io.time, 'monotonic', lambda: clock[0]), \
+             patch.object(resource_io.time, 'sleep', sleep):
+            resource_io.pace_airtable()
+            self.assertFalse(waits)
+            resource_io.pace_airtable()
+            self.assertAlmostEqual(waits[0], resource_io.AIRTABLE_INTERVAL)
+            second_start = clock[0]
+            resource_io.pace_airtable()
+            self.assertGreaterEqual(clock[0] - second_start, resource_io.AIRTABLE_INTERVAL)
+            clock[0] += 10
+            resource_io.pace_airtable()
+            self.assertEqual(len(waits), 2, 'idle source traffic consumes no catch-up burst')
+
     def workspace(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

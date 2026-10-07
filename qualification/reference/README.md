@@ -392,3 +392,10 @@ journals, while its operator identity is still available. It never enumerates
 AWS resources, deletes another connection, or reports native collection for a
 partial setup. Completed cohorts require native store-only revocation and
 collection. Failed phases remain invalid and cannot publish a qualification.
+
+Airtable fixture requests, independent reads and case starts share a source-only
+1.1-second spacing window. This leaves room for the unmodified gateway under
+the provider's [five requests per second per base limit](https://support.airtable.com/articles/7735693959-managing-api-call-limits-in-airtable).
+The two-host race remains concurrent inside its case. This is rehearsal pacing,
+not a production rate limiter or a trusted-clock input; a provider refusal remains
+the actual failure, and no write is retried to manufacture a passing result.
