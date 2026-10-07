@@ -121,7 +121,7 @@ def expand(args):
     from packet_plan import public_pool
     public_pool(reference.FAMILY, bound_resources, tuple_value['compiled_recipe_sha256'], plan)
     closed(plan, ['schema', 'protected_run', 'evaluated_at', 'not_after', 'trusted_contexts', 'packets'])
-    require(plan['schema'] == 'auths.qualification-public-packets/3'
+    require(plan['schema'] == 'auths.qualification-public-packets/4'
             and plan['protected_run'] == protected_run
             and type(plan['evaluated_at']) is int and 60 <= plan['evaluated_at'] <= 253402300499
             and type(plan['not_after']) is int

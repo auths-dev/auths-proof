@@ -46,7 +46,7 @@ python qualification/reference/expand.py \
   --out-dir <new-output-directory>
 ```
 
-The public packet carrier is `auths.qualification-public-packets/3`, with
+The public packet carrier is `auths.qualification-public-packets/4`, with
 `protected_run`, `evaluated_at`, `not_after`, `trusted_contexts` (1–4 sorted
 unique adjacent filenames), and 1–64 `packets`. Packet validity is at most five minutes; the
 signing expansion reviews native proofs at their recorded offline evaluation
@@ -69,18 +69,32 @@ hashes. Every installation still authenticates its actual context separately;
 all listed contexts share one immutable run/family lease budget. An unlisted
 context, duplicate or reordered list, changed set, or schema 1 permit refuses.
 The public packet author supplies two native challenges under one exact actor
-and grant. Each phase's first resource has a `-fresh` replay packet with the same
+and reviewed grants. Each phase's first resource has a `-fresh` replay packet with the same
 logical operation and arguments, under the second context. Refresh never changes
-that packet's assigned challenge, action or context. At most 31 Airtable or 29
-Stripe resources fit the finite 64-packet ceiling. Stripe also has two exact
+that packet's assigned challenge, action or context. The full qualification plan
+uses exactly 16 resources. Its closed pool has 42 Airtable or 54 Stripe packets,
+including four distinct custody-drift operations per phase. Smaller synthetic
+operator checks do not establish complete-corpus coverage. Stripe also has two exact
 guard probes per phase: 1001 cents against a 2000-cent payment, and EUR against
 that USD payment. Their native proofs authorize request construction; the real
 relative-ceiling read must refuse them after one custody lease and before any
 write. A permit never replaces that guard. The grant has bounded USD/EUR sum
 partitions so the currency probe can reach the provider-read guard; every
-payment remains scoped to the exact reviewed test ledger. Source plan schema 3
+payment remains scoped to the exact reviewed test ledger. Source plan schema 4
 refuses obsolete plans. The source-owned
 protected corpus and native durable replay evidence still need integration.
+
+Stripe's count and sum boundary experiments use separate source-owned grants
+under that same actor and trust. Count has capacity one and sum capacity 2000;
+sum has count capacity two and sum capacity 1000. Each admits one 1000-cent
+action at the exact 50% provider ceiling, followed by a distinct 500-cent
+overflow operation. The count and sum positives use different test payments.
+Their fixed windows are 2/3 days for commissioning and 5/7 days for ordinary
+execution. Native counters already distinguish the exact subject, namespace
+and window; no persisted counter is edited or reset. The default 64-count grant
+cannot consume these experiment counters. The author expires before the next
+real boundary of any of those windows. The live harness must measure the actual
+capacity refusal and concurrent host behavior before any capability is claimed.
 
 `measure.py` validates and subtracts native execution snapshots: matching fresh
 scope, no saturation/decrease, no duplicate host in an aggregate. Restarted
@@ -178,7 +192,7 @@ No provider credential or caller-supplied argument enters the installed author.
 `author_packets.py` must run outside the checkout from an installed wheel, with
 only `PATH`, `PYTHONNOUSERSITE` and optional locale variables. It refuses any
 additional environment variable before importing the SDK. A fresh native key
-authors the single actor, grant, challenge and trust; no private key is exported.
+authors one actor, the fixed reviewed grants, challenges and trust; no private key is exported.
 The grant/session lasts at most two hours. Every action keeps the ordinary SDK
 maximum of 300 seconds; a protected signing wait must not extend that limit.
 

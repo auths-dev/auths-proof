@@ -51,6 +51,8 @@ def check(args):
         resources = {'schema': 'auths.stripe-platform-qualification-resources/1',
             'protected_run': run, 'platform': 'acct_SYNTHETIC', 'payments': [
                 {'id': 'pi_SYNTHETIC', 'amount_received': 2000, 'currency': 'usd',
+                 'livemode': False, 'run_metadata': run},
+                {'id': 'pi_SYNTHETIC2', 'amount_received': 2000, 'currency': 'usd',
                  'livemode': False, 'run_metadata': run}]} if reference is stripe_platform else {
             'schema': 'auths.airtable-record-qualification-resources/1', 'protected_run': run,
             'base': airtable_record.BASE, 'table': airtable_record.TABLE, 'records': [

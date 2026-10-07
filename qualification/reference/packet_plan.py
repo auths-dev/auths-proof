@@ -17,6 +17,19 @@ from resource_io import finish, run_id, write, write_bytes
 
 REFERENCES = {reference.FAMILY: reference for reference in [stripe_platform, airtable_record]}
 PACKET_VALIDITY = 7200
+# Distinct source-owned windows isolate the four boundary experiments from
+# the ordinary grant and each other. Native counters retain their existing
+# subject/namespace/window keys; nothing resets or edits their persisted state.
+BUDGET_WINDOWS = {'commissioning-count': 2 * 86400, 'commissioning-sum': 3 * 86400,
+                  'live-count': 5 * 86400, 'live-sum': 7 * 86400}
+
+
+def grant_for(label):
+    for phase in ['commissioning', 'live']:
+        for kind in ['count', 'sum']:
+            if label in [phase + '-budget-' + kind, phase + '-budget-' + kind + '-over']:
+                return phase + '-' + kind
+    return 'default'
 
 
 def arguments(family, resources, recipe_digest):
@@ -62,6 +75,33 @@ def arguments(family, resources, recipe_digest):
                 require(reference.entry_policy(probe, resources) is not None,
                         'qualification.packets.probe-binding')
                 packets.append({'label': label, 'context': 'initial', 'arguments': probe})
+            if len(values) == 16:
+                for kind in ['kind', 'generation', 'commitment', 'version']:
+                    label = phase + '-custody-' + kind
+                    probe = dict(value, payment_intent=values[13]['id'], amount=500, currency='usd')
+                    probe['operation_id'] = 'qlf-' + sha256(canonical([family, resources['protected_run'], label]))[:48]
+                    reference.request(probe, resources, '0' * 64, recipe_digest)
+                    packets.append({'label': label, 'context': 'initial', 'arguments': probe})
+            if len(values) >= 2:
+                for kind in ['count', 'sum']:
+                    for overflow in [False, True]:
+                        label = phase + '-budget-' + kind + ('-over' if overflow else '')
+                        selected = -2 if kind == 'count' else -1
+                        if overflow: selected = -1 if kind == 'count' else -2
+                        probe = dict(value, payment_intent=values[selected]['id'],
+                                     amount=500 if overflow else 1000, currency='usd')
+                        probe['operation_id'] = 'qlf-' + sha256(canonical([family, resources['protected_run'], label]))[:48]
+                        reference.request(probe, resources, '0' * 64, recipe_digest)
+                        require(reference.entry_policy(probe, resources) is None,
+                                'qualification.packets.budget-binding')
+                        packets.append({'label': label, 'context': 'initial', 'arguments': probe})
+        elif len(values) == 16:
+            for kind in ['kind', 'generation', 'commitment', 'version']:
+                label = phase + '-custody-' + kind
+                probe = dict(value, record_id=values[13]['id'])
+                probe['operation_id'] = 'qlf-' + sha256(canonical([family, resources['protected_run'], label]))[:48]
+                reference.request(probe, resources, '0' * 64, recipe_digest)
+                packets.append({'label': label, 'context': 'initial', 'arguments': probe})
     return packets
 
 
@@ -73,7 +113,7 @@ def public_pool(family, resources, recipe_digest, carrier):
     """
     closed(carrier, ['schema', 'protected_run', 'evaluated_at', 'not_after',
                      'trusted_contexts', 'packets'])
-    require(carrier['schema'] == 'auths.qualification-public-packets/3'
+    require(carrier['schema'] == 'auths.qualification-public-packets/4'
             and carrier['protected_run'] == resources['protected_run']
             and carrier['trusted_contexts'] == ['context-0.cbor', 'context-1.cbor'],
             'qualification.packets.pool-binding')
@@ -90,13 +130,16 @@ def public_pool(family, resources, recipe_digest, carrier):
 def validate(plan):
     closed(plan, ['schema', 'family', 'protected_run', 'evaluated_at', 'not_after',
                   'configuration', 'extension', 'resources', 'packets'])
-    require(plan['schema'] == 'auths.qualification-packet-plan/3'
+    require(plan['schema'] == 'auths.qualification-packet-plan/4'
             and type(plan['family']) is str and plan['family'] in REFERENCES,
             'qualification.packets.schema')
     run_id(plan['protected_run'])
     require(type(plan['evaluated_at']) is int and 60 <= plan['evaluated_at'] <= 253402293599
             and type(plan['not_after']) is int
-            and plan['not_after'] == plan['evaluated_at'] + PACKET_VALIDITY,
+            and plan['not_after'] == (min(plan['evaluated_at'] + PACKET_VALIDITY,
+                *[(plan['evaluated_at'] // window + 1) * window
+                  for window in [86400, *BUDGET_WINDOWS.values()]])
+                if plan['family'] == stripe_platform.FAMILY else plan['evaluated_at'] + PACKET_VALIDITY),
             'qualification.packets.time-bound')
     digest(plan['configuration'])
     packets = plan['packets']
@@ -110,7 +153,12 @@ def validate(plan):
                                        for phase in ['commissioning', 'live'] for index in range(32)
                                        for suffix in (['', '-fresh'] if index == 0 else [''])}
                     | ({phase + '-guard-' + kind for phase in ['commissioning', 'live']
-                        for kind in ['ceiling', 'currency']} if plan['family'] == stripe_platform.FAMILY else set()))
+                        for kind in ['ceiling', 'currency']} if plan['family'] == stripe_platform.FAMILY else set())
+                    | ({phase + '-budget-' + kind + suffix for phase in ['commissioning', 'live']
+                        for kind in ['count', 'sum'] for suffix in ['', '-over']}
+                       if plan['family'] == stripe_platform.FAMILY else set())
+                    | ({phase + '-custody-' + kind for phase in ['commissioning', 'live']
+                        for kind in ['kind', 'generation', 'commitment', 'version']}))
                 and packet['context'] == ('fresh' if packet['label'].endswith('-fresh') else 'initial'),
                 'qualification.packets.packet-bound')
         labels.add(packet['label'])
@@ -132,13 +180,15 @@ def validate(plan):
             'qualification.packets.resource-binding')
     extension = plan['extension']
     if plan['family'] == stripe_platform.FAMILY:
-        closed(extension, ['extension_id', 'extension_body_hex'])
-        require(extension['extension_id'] == 'bounded-policy-commitment-v1'
-                and type(extension['extension_body_hex']) is str
-                and 0 < len(extension['extension_body_hex']) <= 8192
-                and len(extension['extension_body_hex']) % 2 == 0
-                and all(character in '0123456789abcdef' for character in extension['extension_body_hex']),
-                'qualification.packets.extension-bound')
+        closed(extension, ['default', *BUDGET_WINDOWS])
+        for value in extension.values():
+            closed(value, ['extension_id', 'extension_body_hex'])
+            require(value['extension_id'] == 'bounded-policy-commitment-v1'
+                    and type(value['extension_body_hex']) is str
+                    and 0 < len(value['extension_body_hex']) <= 8192
+                    and len(value['extension_body_hex']) % 2 == 0
+                    and all(character in '0123456789abcdef' for character in value['extension_body_hex']),
+                    'qualification.packets.extension-bound')
     else:
         require(extension is None, 'qualification.packets.extension-bound')
     return plan
@@ -161,14 +211,23 @@ def prepare(args):
     require(review.get('schema') == 'auths.gateway-recipe-review/2', 'qualification.packets.native-review')
     extension = None
     if reference is stripe_platform:
-        derived = child(args.gateway, ['bound-extension', '--argument', 'amount', '--ceiling', '10000',
-            '--window-seconds', '86400', '--max-count', '64', '--sum-limit', '32000', '--partition', 'currency=usd,eur',
-            '--scope', 'payment_intent=' + ','.join(payment['id'] for payment in resources['payments'])])
-        extension = {name: derived[name] for name in ['extension_id', 'extension_body_hex']}
+        extension = {}
+        for name in ['default', *BUDGET_WINDOWS]:
+            count = 64 if name == 'default' else (1 if name.endswith('-count') else 2)
+            total = 32000 if name == 'default' else (2000 if name.endswith('-count') else 1000)
+            derived = child(args.gateway, ['bound-extension', '--argument', 'amount', '--ceiling', '10000',
+                '--window-seconds', str(BUDGET_WINDOWS.get(name, 86400)), '--max-count', str(count),
+                '--sum-limit', str(total), '--partition', 'currency=usd,eur',
+                '--scope', 'payment_intent=' + ','.join(payment['id'] for payment in resources['payments'])])
+            extension[name] = {field: derived[field] for field in ['extension_id', 'extension_body_hex']}
     evaluated_at = int(time.time())
-    plan = validate({'schema': 'auths.qualification-packet-plan/3', 'family': args.family,
+    # Crossing a declared window would change the capacity experiment. Limit
+    # the ordinary author lifetime to the real next boundary, never a fake clock.
+    ends = [(evaluated_at // window + 1) * window for window in [86400, *BUDGET_WINDOWS.values()]]
+    end = min(evaluated_at + PACKET_VALIDITY, *ends) if reference is stripe_platform else evaluated_at + PACKET_VALIDITY
+    plan = validate({'schema': 'auths.qualification-packet-plan/4', 'family': args.family,
         'protected_run': resources['protected_run'], 'evaluated_at': evaluated_at,
-        'not_after': evaluated_at + PACKET_VALIDITY, 'configuration': review['verifier_configuration'],
+        'not_after': end, 'configuration': review['verifier_configuration'],
         'extension': extension, 'resources': resources,
         'packets': arguments(args.family, resources, review['recipe_digest'])})
     write(args.work / 'packet-plan.json', plan, new=True)

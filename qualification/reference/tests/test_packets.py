@@ -21,7 +21,7 @@ class Packets(unittest.TestCase):
             'protected_run': 'recipe-qualification/123/1', 'base': airtable_record.BASE,
             'table': airtable_record.TABLE, 'records': [
                 {'id': 'recTEST0000000001', 'run_metadata': 'recipe-qualification/123/1'}]}
-        return {'schema': 'auths.qualification-packet-plan/3', 'family': airtable_record.FAMILY,
+        return {'schema': 'auths.qualification-packet-plan/4', 'family': airtable_record.FAMILY,
             'protected_run': resources['protected_run'], 'evaluated_at': 1000, 'not_after': 8200,
             'configuration': '1' * 64, 'extension': None, 'resources': resources,
             'packets': packet_plan.arguments(airtable_record.FAMILY, resources, '2' * 64)}
@@ -37,6 +37,7 @@ class Packets(unittest.TestCase):
             lambda p: p.update(not_after=9000), lambda p: p.update(evaluated_at=True),
             lambda p: p.update(credential='synthetic-forbidden-input'),
             lambda p: p.update(schema='auths.qualification-packet-plan/2'),
+            lambda p: p.update(schema='auths.qualification-packet-plan/3'),
             lambda p: p['packets'][0].update(context='fresh'),
             lambda p: p['packets'][1]['arguments'].update(operation_id='new-operation'),
             lambda p: p['packets'].reverse(), lambda p: p['packets'].pop()]
@@ -62,7 +63,7 @@ class Packets(unittest.TestCase):
                     'action': item['label'] + '.action',
                     'trusted_context': 'context-' + str(['initial', 'fresh'].index(item['context'])) + '.cbor',
                     'arguments': item['arguments']} for item in plan['packets']]
-        carrier = {'schema': 'auths.qualification-public-packets/3',
+        carrier = {'schema': 'auths.qualification-public-packets/4',
                    'protected_run': plan['protected_run'], 'evaluated_at': 1000, 'not_after': 1300,
                    'trusted_contexts': ['context-0.cbor', 'context-1.cbor'], 'packets': packets}
         self.assertEqual(packet_plan.public_pool(plan['family'], plan['resources'], '2' * 64, carrier), packets)
@@ -94,10 +95,10 @@ class Packets(unittest.TestCase):
                 value = probes[phase + '-guard-' + kind]['arguments']
                 self.assertEqual(stripe_platform.request(value, resources, '1' * 64, '2' * 64)['method'], 'POST')
                 self.assertEqual(stripe_platform.entry_policy(value, resources), code)
-        for count, accepted in [(29, True), (30, False)]:
+        for count, accepted in [(25, True), (26, False)]:
             many = dict(resources, payments=[dict(resources['payments'][0], id='pi_TEST' + str(i)) for i in range(count)])
             expanded = packet_plan.arguments(stripe_platform.FAMILY, many, '2' * 64)
-            carrier = {'schema': 'auths.qualification-public-packets/3', 'protected_run': run,
+            carrier = {'schema': 'auths.qualification-public-packets/4', 'protected_run': run,
                 'evaluated_at': 1000, 'not_after': 1300,
                 'trusted_contexts': ['context-0.cbor', 'context-1.cbor'], 'packets': [
                     {'label': p['label'], 'proof': p['label'] + '.proof', 'action': p['label'] + '.action',
@@ -107,6 +108,33 @@ class Packets(unittest.TestCase):
                 self.assertEqual(len(packet_plan.public_pool(stripe_platform.FAMILY, many, '2' * 64, carrier)), 64)
             else:
                 with self.assertRaises(Refusal): packet_plan.public_pool(stripe_platform.FAMILY, many, '2' * 64, carrier)
+
+    def test_count_and_sum_experiments_have_distinct_fixed_native_windows(self):
+        run = 'recipe-qualification/123/1'
+        resources = {'schema': 'auths.stripe-platform-qualification-resources/1',
+            'protected_run': run, 'platform': 'acct_TEST123', 'payments': [
+                {'id': 'pi_TEST' + str(index), 'amount_received': 2000, 'currency': 'usd',
+                 'livemode': False, 'run_metadata': run} for index in range(16)]}
+        packets = packet_plan.arguments(stripe_platform.FAMILY, resources, '2' * 64)
+        self.assertEqual(len(packets), 54)
+        self.assertEqual(len(set(packet_plan.BUDGET_WINDOWS.values()) | {86400}), 5)
+        for phase in ['commissioning', 'live']:
+            by_label = {p['label']: p for p in packets}
+            for kind, resource in [('count', 'pi_TEST14'), ('sum', 'pi_TEST15')]:
+                label = phase + '-budget-' + kind
+                positive, overflow = [by_label[label + suffix]['arguments'] for suffix in ['', '-over']]
+                self.assertEqual(positive['payment_intent'], resource)
+                self.assertEqual(positive['amount'], 1000)
+                self.assertEqual(overflow['amount'], 500)
+                self.assertNotEqual(positive['operation_id'], overflow['operation_id'])
+                self.assertEqual(packet_plan.grant_for(label), phase + '-' + kind)
+                self.assertEqual(packet_plan.grant_for(label + '-over'), phase + '-' + kind)
+                self.assertEqual(packet_plan.grant_for(phase + '-00'), 'default')
+                self.assertIsNone(stripe_platform.entry_policy(positive, resources))
+            for kind in ['kind', 'generation', 'commitment', 'version']:
+                probe = by_label[phase + '-custody-' + kind]
+                self.assertEqual(probe['arguments']['payment_intent'], 'pi_TEST13')
+                self.assertEqual(packet_plan.grant_for(probe['label']), 'default')
 
     def test_an_unanticipated_credential_name_refuses_before_importing_the_sdk(self):
         with patch.dict(os.environ, {'UNANTICIPATED_PROVIDER_KEY': 'synthetic-forbidden-input'}, clear=True):

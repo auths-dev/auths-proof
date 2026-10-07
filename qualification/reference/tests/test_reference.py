@@ -203,7 +203,7 @@ class References(unittest.TestCase):
                     'proof': label + '.proof', 'action': label + '.action', 'arguments': packet['arguments']})
             (work / 'resources.json').write_bytes(canonical(self.stripe_resources()))
             (work / 'packets.json').write_bytes(canonical({
-                'schema': 'auths.qualification-public-packets/3', 'protected_run': RUN,
+                'schema': 'auths.qualification-public-packets/4', 'protected_run': RUN,
                 'evaluated_at': 1000, 'not_after': 1300,
                 'trusted_contexts': ['context-0.cbor', 'context-1.cbor'], 'packets': packets}))
             artifacts = json.loads((root / 'bindings/fixtures/qualification/commissioning-v2.json').read_bytes())

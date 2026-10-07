@@ -144,7 +144,11 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
         live.iter()
             .any(|line| line.contains("test ! -e") && line.contains("canaries"))
     );
+    assert!(!text.contains("pull_request_target"));
+}
 
+#[test]
+fn other_workflows_cannot_reach_qualification_signing() {
     // No other workflow names the signer's key, and nothing in the
     // repository runs on a trigger that gives a pull request's code secrets.
     for entry in std::fs::read_dir(repository().join(".github/workflows")).expect("workflows") {
@@ -159,7 +163,11 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
             );
         }
     }
-    assert!(!text.contains("pull_request_target"));
+    assert!(
+        !std::fs::read_to_string(repository().join(WORKFLOW))
+            .expect("workflow")
+            .contains("pull_request_target")
+    );
 }
 
 /// The trust directory holds public artifacts only.
