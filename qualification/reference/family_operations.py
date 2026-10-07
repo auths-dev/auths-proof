@@ -7,6 +7,8 @@ corpus never enter an operation or an observation.
 
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+import ipaddress
+import socket
 import time
 
 import airtable_record
@@ -15,7 +17,7 @@ from common import canonical, closed, Refusal, require, sha256
 from expand import child, decode, read
 from native_observation import Effects
 from network_fault import NativeWitness, ResponseFault
-from production_setup import GATEWAY_UID
+from production_setup import GATEWAY_UID, private_file
 from tls_fault import Witness
 import measure
 from packet_plan import public_pool
@@ -374,6 +376,31 @@ class Operations:
             'credential_leases': counts['credential_lease_calls'], 'provider_entries': counts['write_transport_entries'],
             'confirmed_by_read_back': 0})
 
+    def application_boundary(self, identifier):
+        require(self.consumer_python is not None and self.consumer_kit is not None,
+                'qualification.operations.installed-python-not-configured')
+        if identifier == 'isolation':
+            # Root first verifies these actual private files exist with the
+            # native owner/mode. ENOENT cannot masquerade as denied access.
+            values = [private_file(path, GATEWAY_UID) for path in [
+                self.deployment.operator_token, self.deployment.runtime_token,
+                self.deployment.state(0) / 'installation.json']]
+            kind, code = 'files', 'application-secret-access-refused'
+        else:
+            require(identifier == 'direct-provider', 'qualification.operations.step')
+            origin = 'api.stripe.com' if self.reference is stripe_platform else 'api.airtable.com'
+            addresses = {item[4][0] for item in socket.getaddrinfo(origin, 443, socket.AF_UNSPEC, socket.SOCK_STREAM)}
+            require(1 <= len(addresses) <= 32 and all(ipaddress.ip_address(value).is_global for value in addresses),
+                    'qualification.operations.provider-address')
+            values = [address for version in [4, 6] for address in
+                sorted(value for value in addresses if ipaddress.ip_address(value).version == version)[:2]]
+            require(any(ipaddress.ip_address(value).version == 4 for value in values),
+                    'qualification.operations.provider-address')
+            kind, code = 'egress', 'direct-provider-access-refused'
+        before = self.deployment.witness(0)
+        self.deployment.application_probe(self.consumer_python, self.consumer_kit, kind, values)
+        return self.completed_probe(code, before, self.deployment.witness(0))
+
     def step(self, case, index, operation):
         require(type(case) is str and type(index) is int and type(operation) is str,
                 'qualification.operations.step')
@@ -443,6 +470,9 @@ class Operations:
         elif identifier == 'doctor':
             require(phase == 'live' and index == 0 and operation == 'probe', 'qualification.operations.step')
             result = self.doctor()
+        elif identifier in ['isolation', 'direct-provider']:
+            require(index == 0 and operation == 'probe', 'qualification.operations.step')
+            result = self.application_boundary(identifier)
         elif identifier == 'installed-typescript':
             require(index == 0 and operation == 'installed-consumer', 'qualification.operations.step')
             result = self.typescript_consumer(phase)
