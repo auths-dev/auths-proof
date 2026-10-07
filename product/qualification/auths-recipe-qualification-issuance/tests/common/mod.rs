@@ -143,7 +143,10 @@ pub fn executable_corpus() -> auths_recipe_qualification_issuance::execution::Ru
     {
         // This fixture exercises intermediate issuance. Production readiness
         // requires an actual protected doctor report, not this subprocess double.
-        if matches!(scenario, Scenario::ObserverRotation | Scenario::ProductionReadiness) {
+        if matches!(
+            scenario,
+            Scenario::ObserverRotation | Scenario::ProductionReadiness
+        ) {
             continue;
         }
         let mut steps = match scenario {
