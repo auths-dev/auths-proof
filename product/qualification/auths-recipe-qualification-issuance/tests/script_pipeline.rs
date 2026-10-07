@@ -168,6 +168,10 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the four resource-session exits and stale phase outputs are checked together"
+)]
 fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
     let temporary = tempfile::tempdir().expect("directory");
     let root = temporary.path().join("repository");
@@ -182,13 +186,36 @@ fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
         family.join("corpus-manifest.json"),
     )
     .expect("corpus");
-    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run/live.sh");
+    let scripts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run");
     for mode in ["success", "setup-failed", "failed", "cleanup-failed"] {
         fs::write(work.join("fault"), mode).expect("fault");
+        // A prior phase's outputs must also become unusable if the overall
+        // resource session fails. These are synthetic orchestration fixtures.
+        fs::write(
+            work.join("commissioning-effects.json"),
+            r#"{"entered":1,"confirmed_by_read_back":1}"#,
+        )
+        .expect("earlier phase effects");
+        fs::write(work.join("cases/live.commissioning.json"), "[]").expect("earlier phase report");
         let output = Command::new("bash")
-            .arg(&script)
+            .arg(scripts.join("resource-session.sh"))
             .arg("example-refund-v1")
             .arg(&work)
+            .arg("bash")
+            .arg("-c")
+            .arg(
+                r#"set -e
+test -f "$1/disposable-resource"
+bash "$2" "$3" "$1"
+test -f "$1/disposable-resource"
+bash "$2" "$3" "$1"
+test -f "$1/disposable-resource"
+"#,
+            )
+            .arg("protected-journey-test")
+            .arg(&work)
+            .arg(scripts.join("live.sh"))
+            .arg("example-refund-v1")
             .env(
                 "AUTHS_QUALIFICATION",
                 env!("CARGO_BIN_EXE_auths-qualification"),
@@ -206,6 +233,15 @@ fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
             work.join("disposable-resource").exists(),
             mode == "cleanup-failed",
             "teardown runs even after partial setup or a refused stage"
+        );
+        assert_eq!(
+            work.join("cases/live.commissioning.json").exists(),
+            mode == "success",
+            "a failed resource session invalidates earlier commissioning evidence"
+        );
+        assert_eq!(
+            work.join("commissioning-effects.json").exists(),
+            mode == "success"
         );
         assert!(
             !String::from_utf8_lossy(&output.stderr)
