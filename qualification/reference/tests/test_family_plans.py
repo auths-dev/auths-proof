@@ -1,8 +1,11 @@
 """Source/artifact drift and refusal boundaries, without provider evidence."""
 
 import copy
+import os
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -14,6 +17,17 @@ from common import Refusal, canonical
 
 
 class Plans(unittest.TestCase):
+    def test_consumer_executes_the_venv_launcher_with_its_installed_prefix(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = Path(directory) / 'consumer'
+            subprocess.run([sys.executable, '-m', 'venv', '--without-pip', environment], check=True)
+            launcher = environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            with patch.dict(os.environ, {'AUTHS_QUALIFICATION_CONSUMER_PYTHON': str(launcher)}):
+                result = family_harness.command([family_harness.consumer_python(), '-c',
+                    'import sys; print(sys.prefix)'])
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(Path(result.stdout.decode().strip()).resolve(), environment.resolve())
+
     def test_generated_source_plans_are_current_and_any_changed_member_refuses(self):
         generate_families.generate(check=True)
         original = generate_families.read

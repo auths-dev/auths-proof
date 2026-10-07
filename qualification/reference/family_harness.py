@@ -34,6 +34,15 @@ def gateway():
     return Path(os.environ['AUTHS_GATEWAY']).resolve(strict=True)
 
 
+def consumer_python():
+    # Resolving a venv launcher symlink selects the base interpreter and loses
+    # its installed wheel. Keep the absolute launcher path when executing it.
+    python = Path(os.environ['AUTHS_QUALIFICATION_CONSUMER_PYTHON']).absolute()
+    require(python.is_file() and os.access(python, os.X_OK),
+            'qualification.harness.consumer-python')
+    return python
+
+
 def source_commit():
     revision = command(['/usr/bin/git', 'rev-parse', 'HEAD'])
     status = command(['/usr/bin/git', 'status', '--porcelain'])
@@ -80,7 +89,7 @@ def prepare(family, work):
                                      'gateway': gateway(), 'work': work})())
     # The wheel and public author kit are installed/copied by the credential-
     # free workflow. The SDK process never receives this checkout or its env.
-    python = Path(os.environ['AUTHS_QUALIFICATION_CONSUMER_PYTHON']).resolve(strict=True)
+    python = consumer_python()
     kit = Path(os.environ['AUTHS_QUALIFICATION_AUTHOR_KIT']).resolve(strict=True)
     result = command([python, '-B', kit / 'author_packets.py', '--plan', work / 'packet-plan.json',
                       '--work', work], cwd=work)
