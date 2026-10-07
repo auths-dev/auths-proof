@@ -119,9 +119,19 @@ class Operations:
 
     def read_back(self, label):
         before = self.deployment.witness(0)
-        result = self.deployment.reobserve(self.reviewed[label]['arguments']['operation_id'])
+        response = self.deployment.reobserve(self.reviewed[label]['arguments']['operation_id'])
         after = self.deployment.witness(0)
-        return self.project(label, result, before, after)
+        if response['ok']:
+            return self.project(label, response['result'], before, after)
+        if label.endswith('-09'):
+            observed, fresh = self.effects.project_admin_refusal(self.tuple, self.reviewed[label], self.resources,
+                                                                response, before, after)
+        else:
+            require(self.reference is stripe_platform, 'qualification.operations.recovery-refused')
+            observed, fresh = self.effects.project_stored_unknown(self.tuple, self.reviewed[label], self.resources,
+                sha256(read(self.deployment.work / self.packets[label]['trusted_context'], 4 * 1024 * 1024)),
+                self.deployment.support(), before, after)
+        return self.observation(observed, fresh)
 
     def wait_for_effect(self, label):
         deadline = time.monotonic() + 20
@@ -241,6 +251,33 @@ class Operations:
                     'qualification.operations.restart-scope')
         return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed')
 
+    def doctor(self):
+        require(self.phase == 'live', 'qualification.operations.phase')
+        for host in [0, 1]:
+            for context in [0, 1]:
+                require(self.deployment.command(['qualification-status', '--state-dir',
+                    self.deployment.state(host, context), '--tuple']) == self.tuple,
+                    'qualification.operations.doctor-tuple')
+        before = self.deployment.witness(0)
+        report, raw = self.deployment.doctor()
+        closed(report, ['schema', 'ready', 'checks'])
+        expected = [{'check': name, 'ready': True, 'code': None} for name in [
+            'trust', 'store', 'recipe', 'qualification', 'provider-secret-custody',
+            'connection-generation', 'clock', 'transport-policy', 'operator-plane-isolation']]
+        expected += [{'check': 'observer-custody', 'state': 'not-configured'}]
+        require(report['ready'] is True and type(report['checks']) is list
+                and all(type(item) is dict and item.get('ready') is True for item in report['checks'][:-1])
+                and report == {'schema': 'auths.gateway-readiness/1', 'ready': True, 'checks': expected},
+                'qualification.operations.doctor-not-ready')
+        counts = measure.delta(before, self.deployment.witness(0))
+        observation = self.observation({'verdict': {'outcome': 'complete', 'code': 'production-readiness-passed',
+            'request_sha256': None, 'evidence_sha256': sha256(raw)},
+            'credential_leases': counts['credential_lease_calls'], 'provider_entries': counts['write_transport_entries'],
+            'confirmed_by_read_back': 0}, {'kind': 'production-doctor',
+                'tuple_sha256': sha256(b'auths.qualification-tuple/1\0' + canonical(self.tuple)),
+                'report_sha256': sha256(raw)})
+        return observation
+
     def completed_probe(self, code):
         # Completion is constructed only after that source operation returned
         # actual native/provider facts; a corpus's expected code is never read.
@@ -345,6 +382,9 @@ class Operations:
             if index == 1:
                 require((case, 0) in self.completed, 'qualification.operations.order')
             result = self.rotate() if index == 0 else self.submit(phase, phase + '-08')
+        elif identifier == 'doctor':
+            require(phase == 'live' and index == 0 and operation == 'probe', 'qualification.operations.step')
+            result = self.doctor()
         elif identifier == 'installed-python':
             require(index == 0 and operation == 'installed-consumer', 'qualification.operations.step')
             result = self.python_consumer(phase)

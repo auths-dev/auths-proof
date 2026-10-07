@@ -305,3 +305,12 @@ aggregated without creating a synthetic witness. For Airtable, the follower's
 committed read-only recovery makes the owner's response CAS lose, so the
 reviewed race expects two leases in total. Protected execution still must
 verify these expectations before any qualification can be issued.
+
+Read-back cases retain native distinctions: an already linked terminal attempt
+refuses redundant re-observation without a lease; a lost Stripe response cannot
+acquire a locator from the controller's independent discovery. A refused Stripe
+re-observation needs the exact durable native Unknown record and this journey's
+previously measured unconfirmed entry before it can project Unknown. No refused
+admin response becomes linked effect evidence. The production doctor is run as
+root so its native application privilege-drop probe actually executes; its raw
+validated report digest and exact installed tuple enter the native runner.

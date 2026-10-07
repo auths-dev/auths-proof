@@ -119,6 +119,8 @@ class Deployment:
             write_bytes(path, read(self.work / name, 4 * 1024 * 1024), new=True)
             os.chown(path, GATEWAY_UID, GATEWAY_UID)
         os.chown(self.gateway, GATEWAY_UID, GATEWAY_UID)
+        require(len(str(self.state(0) / 'admin.sock').encode()) <= 107,
+                'qualification.production.socket-bound')
         self.processes = {}
         self.handoff_generation = 0
         self.permit = None
@@ -301,10 +303,22 @@ class Deployment:
     def reobserve(self, operation, host=0, context=0):
         require(re.fullmatch(r'qlf-[0-9a-f]{48}', operation) is not None,
                 'qualification.production.operation')
-        result = self.command(['reobserve', '--state-dir', self.state(host, context), '--operation-id', operation])
-        closed(result, ['schema', 'ok', 'code', 'result'])
-        require(result['ok'] is True, 'qualification.production.reobserve')
-        return result['result']
+        result = subprocess.run([str(self.binary), 'reobserve', '--state-dir', str(self.state(host, context)),
+            '--operation-id', operation], stdin=subprocess.DEVNULL, capture_output=True, timeout=90,
+            cwd=self.gateway, user=GATEWAY_UID, group=GATEWAY_UID, extra_groups=[], env=self.environment())
+        # Native admin refusals still have a closed response on stdout. Read
+        # that response only for its exact normal refusal exit, after scanning.
+        native_output(result, self.canaries, required=False)
+        require(result.returncode == 0 or (result.returncode == 1 and result.stderr == b'gateway.admin.refused\n'),
+                'qualification.production.reobserve')
+        response = decode(result.stdout)
+        closed(response, ['schema', 'ok', 'code', 'result'] if result.returncode == 0 else ['schema', 'ok', 'code'])
+        require(response['schema'] == 'auths.gateway-admin-response/1'
+                and response['ok'] is (result.returncode == 0)
+                and response['code'] == ('gateway.admin.reobserved' if result.returncode == 0
+                                         else 'gateway.reobserve.not-observable'),
+                'qualification.production.reobserve')
+        return response
 
     def rotate(self, credential):
         require(type(credential) is bytes and credential in self.canaries,
@@ -344,8 +358,14 @@ class Deployment:
         return self.command(['support-bundle', '--state-dir', self.state(host, context)])
 
     def doctor(self, host=0, context=0):
-        return self.command(['doctor', '--state-dir', self.state(host, context),
-            '--app-socket', self.app_socket(host, context), '--app-uid', APPLICATION_UID, '--app-gid', GATEWAY_UID])
+        # Only root can actually drop privileges to the application UID. The
+        # native doctor itself runs runtime checks as the gateway owner.
+        result = subprocess.run([str(self.binary), 'doctor', '--state-dir', str(self.state(host, context)),
+            '--app-socket', str(self.app_socket(host, context)), '--app-uid', str(APPLICATION_UID),
+            '--app-gid', str(GATEWAY_UID)], stdin=subprocess.DEVNULL, capture_output=True,
+            timeout=90, cwd=self.gateway, env=self.environment())
+        raw = native_output(result, self.canaries, json_output=False)
+        return decode(raw), raw
 
     def close(self):
         for host, context in list(self.processes):
