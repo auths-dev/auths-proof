@@ -56,7 +56,12 @@ attestation. Therefore its first qualification cannot bootstrap itself. A
 development installation or `testkit-production-unqualified` executable changes
 the target or shipped bytes and cannot establish the required production claim.
 That real-production authority question remains separate from the requested
-simulation; the shipping lease gate has no bypass.
+simulation; the shipping lease gate has no bypass. A proposed solution is
+[ADR 0016](../docs/adr/0016-bounded-qualification-commissioning-authority.md):
+a finite signed permit for an authenticated private qualification-run session,
+with exact action commitments, durable lease accounting and a fixed expiry.
+It is not implemented, cannot qualify a family, and cannot enable an ordinary
+application lease.
 
 The current executable corpus also fixes exact request/evidence digests before
 running, while disposable live resource identifiers may be created during setup.
