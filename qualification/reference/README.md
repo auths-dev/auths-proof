@@ -89,6 +89,20 @@ unmeasured effects and additional result fields refuse. The helper does not
 assert isolation, installed-consumer provenance or a passing wall; the family
 harness must measure those separately and the native runner decides the case.
 
+`../run/tls_fault.py` is the external response-loss mechanism for a disposable
+Linux gateway network namespace. UID-scoped REDIRECT rules select only the
+reviewed provider's IPv4 addresses at port 443; the relay checks the original
+destination and forwards the original TLS records. It has no TLS/private key,
+decrypts nothing and changes no gateway setting. After the actual private
+native counter stream shows one write entry, the relay holds encrypted server
+records beyond the handshake. A root-only private control socket can drop or
+release that hold. The source controller must independently confirm the
+effect before dropping the response; traffic counts cannot confirm it. Scope,
+inode, owner, frame, connection, buffer and time bounds fail closed. Disposable
+TLS 1.2/1.3 source tests exercise real encrypted transport with synthetic
+counters; native/provider qualification and network-namespace integration
+remain separate required steps.
+
 `fresh_evidence.py` is the separate response oracle for the reviewed Stripe
 refund and Airtable update. It validates the approved resource, exact intended
 value, test-mode success (Stripe) and the action-derived echo, then hashes the
