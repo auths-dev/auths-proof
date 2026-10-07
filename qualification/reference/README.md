@@ -25,6 +25,15 @@ must match, and the lease ceiling is a source-owned 64 acquisitions. The
 native issuer separately rechecks both offline artifacts and their mandatory
 scenarios before signing. An expansion is neither a live report nor a permit.
 
+`../run/commission.py` is the protected source-owned permit signer. It rederives
+the contract identity from this checkout before expanding the complete public
+packet pool. Only after that succeeds does it read the commissioning key and
+invoke its own native issuer. The key remains outside the publication directory,
+children inherit no key environment, and the public permit and trust artifacts
+are scanned with the actual key canary before output survives. Approval delay
+cannot extend the original two-hour author session. This entry point still
+requires the admitted source contracts and protected workflow integration.
+
 ```text
 python qualification/reference/expand.py \
   --reviewer <binary-built-in-this-signing-job> \
