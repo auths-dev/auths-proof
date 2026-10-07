@@ -93,3 +93,9 @@ provider error bodies never enter diagnostics.
 Unit cases use synthetic providers, including lost responses, changed ownership,
 foreign resources, duplicate records and unsafe files. Actual setup/cleanup
 rehearsals are recorded separately and confer no protected qualification.
+
+Stripe's [Refund object](https://docs.stripe.com/api/refunds/object) has no
+`livemode` attribute. Test mode is established by the test key/account balance
+and the exact freshly checked PaymentIntent and Charge; the refund must bind
+that same payment. An unexpected explicit live-mode marker is refused. Unit
+responses follow the provider's actual Refund shape.

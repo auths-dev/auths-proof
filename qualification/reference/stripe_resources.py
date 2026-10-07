@@ -140,7 +140,7 @@ class Resources:
                     'payment_intent': entry['id'], 'amount': remaining,
                     'metadata[auths_qualification_cleanup]': run,
                 }, idempotency=key(run, index, 'cleanup-' + str(remaining)))
-                require(refund.get('status') == 'succeeded' and refund.get('livemode') is False
+                require(refund.get('status') == 'succeeded' and refund.get('livemode', False) is False
                         and refund.get('payment_intent') == entry['id'],
                         'qualification.resources.cleanup-refused')
             fresh = self.api('GET', '/v1/charges/' + charge_id)

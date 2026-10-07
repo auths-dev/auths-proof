@@ -54,7 +54,7 @@ def witness(family, arguments, resources, action_commitment, recipe_digest, resp
     token = echo(arguments['operator_namespace'], arguments['operation_id'], action_commitment)
     if family == stripe.FAMILY:
         identifier(value.get('id'), r're_[A-Za-z0-9]{1,128}')
-        require(value.get('object') == 'refund' and value.get('livemode') is False
+        require(value.get('object') == 'refund' and value.get('livemode', False) is False
                 and value.get('payment_intent') == arguments['payment_intent']
                 and type(value.get('amount')) is int and value['amount'] == arguments['amount']
                 and value.get('currency') == arguments['currency']

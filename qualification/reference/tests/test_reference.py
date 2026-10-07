@@ -67,7 +67,7 @@ class References(unittest.TestCase):
 
     def test_fresh_stripe_evidence_checks_state_echo_and_raw_bytes(self):
         resources, arguments = self.stripe_resources(), self.stripe_arguments()
-        value = {'id': 're_TEST123', 'object': 'refund', 'livemode': False,
+        value = {'id': 're_TEST123', 'object': 'refund',
                  'payment_intent': arguments['payment_intent'], 'amount': arguments['amount'],
                  'currency': 'usd', 'status': 'succeeded',
                  'metadata': {'auths_echo': echo(stripe.SERVICE, arguments['operation_id'], COMMITMENT)}}

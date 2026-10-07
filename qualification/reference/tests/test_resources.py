@@ -62,7 +62,7 @@ class Stripe:
         self.refunds += 1
         charge['amount_refunded'] += fields['amount']
         charge['refunded'] = charge['amount_refunded'] == 2000
-        return {'status': 'succeeded', 'livemode': False, 'payment_intent': payment['id']}
+        return {'status': 'succeeded', 'payment_intent': payment['id']}
 
 
 class Airtable:
