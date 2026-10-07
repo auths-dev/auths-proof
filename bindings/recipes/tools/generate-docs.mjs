@@ -11,7 +11,7 @@ const descriptions = {
 };
 
 const authoritySetup = [
-  "This recipe reads existing canonical proof, action and trusted-context bytes. Put them in one directory as `workflow.proof.cbor`, `workflow.action.cbor` and `workflow.context.cbor`, and set `AUTHS_RECIPE_FIXTURE` to that directory.",
+  "This recipe reads a signed proof, its exact action and verification settings describing which signing identities you accept. Put them in one directory as `workflow.proof.cbor`, `workflow.action.cbor` and `workflow.context.cbor`, and set `AUTHS_RECIPE_FIXTURE` to that directory.",
   "",
   "For a disposable example, run this with the installed Python package. It generates its own in-memory signing key and public test artifacts; it needs no checkout, provider credential or downloaded fixture. The generated context trusts that disposable key only and is not production trust.",
   "",
@@ -41,7 +41,7 @@ const authoritySetup = [
 ].join("\n");
 const protectedClaims = {
   "01-authenticate-identity": "The native Rust implementation checks the identity, signature and exact message binding. This authenticates bytes; it grants no authority and performs no provider write.",
-  "02-verify-authority": "The native Rust verifier checks the supplied proof against the exact action and explicit trusted context. An authorized result is an offline verification result; it acquires no credential and performs no provider write.",
+  "02-verify-authority": "The native Rust verifier checks the supplied proof against the exact action and your explicit verification settings. An authorized result is an offline verification result; it acquires no credential and performs no provider write.",
 };
 const failureExercises = {
   "01-authenticate-identity": "The Python example changes the message while keeping the original signature and requires authentication to fail. No provider is contacted.",
