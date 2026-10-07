@@ -112,6 +112,7 @@ pub(super) fn run(
 ) -> Result<(), Failure> {
     let phase = match phase {
         "offline" => RunPhase::Offline,
+        "commissioning" => RunPhase::Commissioning,
         "live" => RunPhase::Live,
         _ => return Err(refused()),
     };
@@ -122,8 +123,17 @@ pub(super) fn run(
     let work = fs::canonicalize(work).map_err(|_| refused())?;
     let phase_token = match phase {
         RunPhase::Offline => "offline",
+        RunPhase::Commissioning => "commissioning",
         RunPhase::Live => "live",
     };
+    for index in 0..auths_recipe_qualification_issuance::execution::MAX_RUN_CASES {
+        let path = work.join(format!("scan/trace/{phase_token}-{index:03}.json"));
+        match fs::remove_file(path) {
+            Ok(()) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(_) => return Err(refused()),
+        }
+    }
     for member in EvidenceMemberKind::ALL {
         let token = serde_json::to_value(member).map_err(|_| refused())?;
         let path = work.join(format!(
@@ -136,8 +146,8 @@ pub(super) fn run(
             Err(_) => return Err(refused()),
         }
     }
-    if phase == RunPhase::Live {
-        match fs::remove_file(work.join("live-effects.json")) {
+    if phase != RunPhase::Offline {
+        match fs::remove_file(work.join(format!("{phase_token}-effects.json"))) {
             Ok(()) => (),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(_) => return Err(refused()),
@@ -154,11 +164,17 @@ pub(super) fn run(
         entered: 0,
         confirmed_by_read_back: 0,
     };
-    for case in corpus.cases.iter().filter(|case| case.phase == phase) {
+    for (case_index, case) in corpus
+        .cases
+        .iter()
+        .enumerate()
+        .filter(|(_, case)| case.phase == phase)
+    {
+        let mut observations = Vec::with_capacity(case.steps.len());
         let (report, effects) = case.execute(&tuple, |index, step| {
             let operation =
                 serde_json::to_value(step.operation).map_err(|_| IssuanceError::CaseFailed)?;
-            execute_step(
+            let observation = execute_step(
                 &harness,
                 case.id.as_str(),
                 index,
@@ -166,8 +182,24 @@ pub(super) fn run(
                 &work,
                 Duration::from_secs(timeout_seconds),
             )
-            .map_err(|_| IssuanceError::CaseFailed)
+            .map_err(|_| IssuanceError::CaseFailed)?;
+            observations.push(observation.clone());
+            Ok(observation)
         })?;
+        // Closed, bounded observations remain auditable and enter the existing
+        // trace scan. Provider bodies, credentials and child output never do.
+        let trace = serde_json::to_vec(&serde_json::json!({
+            "schema": "auths.qualification-execution-trace/1",
+            "phase": phase,
+            "tuple_sha256": tuple.digest().map_err(|_| refused())?,
+            "case": case.id,
+            "observations": observations,
+        }))
+        .map_err(|_| refused())?;
+        write(
+            &work.join(format!("scan/trace/{phase_token}-{case_index:03}.json")),
+            &trace,
+        )?;
         let member = case.scenario.member();
         let token = serde_json::to_value(member).map_err(|_| refused())?;
         reports
@@ -186,7 +218,7 @@ pub(super) fn run(
         }
     }
     if reports.is_empty()
-        || (phase == RunPhase::Live
+        || (phase != RunPhase::Offline
             && (live.entered == 0 || live.entered != live.confirmed_by_read_back))
     {
         return Err(refused());
@@ -197,9 +229,9 @@ pub(super) fn run(
             &cases,
         )?;
     }
-    if phase == RunPhase::Live {
+    if phase != RunPhase::Offline {
         let bytes = serde_json::to_vec(&live).map_err(|_| refused())?;
-        write(&work.join("live-effects.json"), &bytes)?;
+        write(&work.join(format!("{phase_token}-effects.json")), &bytes)?;
     }
     Ok(())
 }

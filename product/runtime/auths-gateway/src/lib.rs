@@ -12,10 +12,20 @@ pub mod app;
 mod audit;
 mod binding;
 mod bounds;
+pub mod commissioning_budget;
+#[cfg(unix)]
+pub mod commissioning_floor;
+#[cfg(unix)]
+pub use engine::{
+    CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
+    GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
+};
 mod connection;
 mod credential_journal;
 mod echo_verify;
 mod engine;
+mod execution_witness;
+pub use execution_witness::GatewayExecutionWitness;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
 mod generation_floor;

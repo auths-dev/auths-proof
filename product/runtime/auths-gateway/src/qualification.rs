@@ -23,14 +23,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub const QUALIFICATION_POLICY_REFUSED: &str = "gateway.install.qualification-policy";
 
 /// The schema identifier of the production lifecycle store.
-pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/5";
+pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/6";
 /// The schema identifier of the development file store.
 pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/3";
 
 /// The public qualification root this gateway build pins. A reviewed release
-/// supplies only the offline ceremony's public artifact here. Until then both
-/// the runtime and release projection authenticate no qualification.
-pub const PINNED_QUALIFICATION_ROOT: Option<&[u8]> = None;
+/// supplies only the offline ceremony's public artifact here. A root alone
+/// qualifies nothing; certificates, fresh revocations, index and evidence must
+/// still authenticate the exact installed candidate.
+pub const PINNED_QUALIFICATION_ROOT: Option<&[u8]> = Some(br#"{"public_key_b64":"pVEllMJVwyOSnakYUAekqDemY0xzc21a9gSB7m4lBsc","root_id":"auths-qualification-root-2026-10","schema":"auths.qualification-trust-root/1","signature_suite":"ed25519-v1"}"#);
 
 /// The stable code of one refusal.
 #[must_use]
@@ -444,6 +445,34 @@ impl QualificationGate {
             .clone()
     }
 
+    /// Private operator sessions reuse the configured root, target and clock;
+    /// application inputs cannot supply any of these values.
+    #[cfg(unix)]
+    pub(crate) fn commissioning_target(
+        &self,
+    ) -> Option<(&QualificationTrustRoot, &QualificationTuple)> {
+        if self.policy != QualificationPolicy::Required {
+            return None;
+        }
+        Some((self.root.as_ref()?, self.deployment.as_ref()?))
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn commissioning_time(&self) -> (u64, bool) {
+        match self.clock.now() {
+            Some(now) => (now, self.clock.trust() == ClockTrustState::Trusted),
+            None => (0, false),
+        }
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn remember_commissioning(
+        &self,
+        permit: &auths_recipe_qualification::VerifiedCommissioningPermit,
+    ) {
+        permit.remember(&mut self.state.lock().unwrap_or_else(PoisonError::into_inner));
+    }
+
     fn verdict(&self) -> QualificationVerdict {
         let unavailable = QualificationVerdict {
             state: RecipeQualificationState::Unqualified,
@@ -643,5 +672,95 @@ mod clock_tests {
             synchronization_marker_trust(&link, now),
             ClockTrustState::Untrusted
         );
+    }
+}
+
+#[cfg(test)]
+mod ceremony_tests {
+    use super::PINNED_QUALIFICATION_ROOT;
+    use auths_recipe_qualification::{
+        QualificationArtifactKind, QualificationRevocationList, QualificationSignerCertificate,
+        QualificationTrustRoot,
+    };
+    use ed25519_dalek::{Signature, VerifyingKey};
+    use sha2::{Digest as _, Sha256};
+
+    #[test]
+    fn pinned_ceremony_authenticates_separate_signer_purposes() {
+        let root_bytes =
+            include_bytes!("../../../../qualification/trust/qualification-trust-root.json");
+        assert_eq!(PINNED_QUALIFICATION_ROOT, Some(root_bytes.as_slice()));
+        let root =
+            QualificationTrustRoot::from_canonical_json(root_bytes).expect("canonical pinned root");
+        let verification_key = VerifyingKey::from_bytes(&root.body().public_key_b64.to_bytes())
+            .expect("root Ed25519 key");
+        let commissioner_bytes =
+            include_bytes!("../../../../qualification/trust/commissioning-signer-certificate.json");
+        let release_bytes =
+            include_bytes!("../../../../qualification/trust/signer-certificate.json");
+        let commissioner = QualificationSignerCertificate::from_canonical_json(commissioner_bytes)
+            .expect("commissioning certificate");
+        let release = QualificationSignerCertificate::from_canonical_json(release_bytes)
+            .expect("release certificate");
+        for certificate in [&commissioner, &release] {
+            assert_eq!(certificate.body().statement.root_id, root.body().root_id);
+            verification_key
+                .verify_strict(
+                    &certificate.body().signing_preimage().expect("preimage"),
+                    &Signature::from_bytes(&certificate.body().root_signature_b64.to_bytes()),
+                )
+                .expect("offline root signature");
+        }
+        assert_ne!(
+            commissioner.body().statement.public_key_b64,
+            release.body().statement.public_key_b64
+        );
+        assert_eq!(
+            commissioner.body().statement.permitted_artifact_kinds,
+            vec![QualificationArtifactKind::QualificationCommissioningPermit]
+        );
+        assert_eq!(
+            release.body().statement.permitted_artifact_kinds,
+            vec![
+                QualificationArtifactKind::QualificationReleaseIndex,
+                QualificationArtifactKind::RecipeQualificationAttestation
+            ]
+        );
+        let revocation_bytes =
+            include_bytes!("../../../../qualification/trust/revocation-list.json");
+        let revocations = QualificationRevocationList::from_canonical_json(revocation_bytes)
+            .expect("root-signed list");
+        assert_eq!(revocations.body().statement.root_id, root.body().root_id);
+        verification_key
+            .verify_strict(
+                &revocations.body().signing_preimage().expect("preimage"),
+                &Signature::from_bytes(&revocations.body().root_signature_b64.to_bytes()),
+            )
+            .expect("revocation signature");
+        let metadata: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../../../qualification/trust/ceremony.json"
+        ))
+        .expect("ceremony metadata");
+        for (name, bytes) in [
+            ("qualification-trust-root.json", root_bytes.as_slice()),
+            (
+                "commissioning-signer-certificate.json",
+                commissioner_bytes.as_slice(),
+            ),
+            ("signer-certificate.json", release_bytes.as_slice()),
+            ("revocation-list.json", revocation_bytes.as_slice()),
+        ] {
+            assert_eq!(
+                metadata["public_artifacts"][name],
+                hex::encode(Sha256::digest(bytes)),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            metadata["assessment"],
+            "repository-owner-delegated-technical-assessment"
+        );
+        assert_eq!(metadata["qualification_issued"], false);
+        assert_eq!(metadata["stable_launch_ready"], false);
     }
 }

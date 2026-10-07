@@ -7,7 +7,7 @@
 //! `auths_gateway_kernel::transition::valid_transition`. Records persist
 //! through a [`GatewayAttemptStore`], which is only an all-or-none
 //! insert-once, compare-and-swap, and sweep mechanism over opaque bounded
-//! bytes of four closed kinds: [`FileGatewayAttemptStore`] for one host, and
+//! bytes of five closed kinds: [`FileGatewayAttemptStore`] for one host, and
 //! the multi-host `PostgresLifecycleStore`, whose production qualification is
 //! still open.
 
@@ -922,7 +922,7 @@ pub enum GatewayInsert {
     },
 }
 
-/// Durable storage of opaque gateway records of four closed kinds.
+/// Durable storage of opaque gateway records of five closed kinds.
 /// Implementations never interpret the bytes.
 ///
 /// Every implementation must pass the same conformance suite: one winner per
@@ -996,7 +996,7 @@ pub trait GatewayAttemptStore: Send + Sync {
 /// Atomic file store for one host. This is not a multi-host store and does
 /// not establish credential isolation by itself.
 ///
-/// Files are named by kind (`claim-`, `slot-`, `sum-`, `conn-`, then the hex
+/// Files are named by kind (`claim-`, `slot-`, `sum-`, `conn-`, `commission-`, then the hex
 /// key and `.json`). Every mutation holds a host-wide exclusive `flock` on
 /// `.replace.lock` and every load holds it shared. A batch first writes
 /// `.batch.json` listing each target and its bytes, then creates the
@@ -1079,6 +1079,7 @@ impl FileGatewayAttemptStore {
             GatewayRecordKind::CountSlot => "slot-",
             GatewayRecordKind::SumSlot => "sum-",
             GatewayRecordKind::Connection => "conn-",
+            GatewayRecordKind::CommissioningBudget => "commission-",
         };
         format!("{prefix}{}.json", hex::encode(key.as_bytes()))
     }
@@ -1279,7 +1280,7 @@ impl FileGatewayAttemptStore {
 
 /// A record or batch file name this store writes.
 fn valid_file_name(name: &str) -> bool {
-    let Some(rest) = ["claim-", "slot-", "sum-", "conn-"]
+    let Some(rest) = ["claim-", "slot-", "sum-", "conn-", "commission-"]
         .iter()
         .find_map(|prefix| name.strip_prefix(prefix))
     else {

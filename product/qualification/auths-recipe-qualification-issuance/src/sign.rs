@@ -1,11 +1,13 @@
-//! The two signing roles. A trust root signs signer certificates and
+//! The distinct signing roles. A trust root signs signer certificates and
 //! revocation lists. A release signer signs attestations and the release
-//! index. Neither type has a method for the other's artifacts.
+//! index. A commissioning signer signs finite run permits. None can sign
+//! another role's artifacts.
 
-use crate::{IssuanceError, QualificationProposal};
+use crate::{CommissioningProposal, IssuanceError, QualificationProposal};
 use auths_recipe_qualification::{
-    ATTESTATION_SCHEMA, AttestationBody, AttestationStatement, PublicKeyB64,
-    QualificationArtifactKind, QualificationId, QualificationReleaseIndex,
+    ATTESTATION_SCHEMA, AttestationBody, AttestationStatement, COMMISSIONING_PERMIT_SCHEMA,
+    CommissioningPermitBody, CommissioningPermitStatement, PublicKeyB64, QualificationArtifactKind,
+    QualificationCommissioningPermit, QualificationId, QualificationReleaseIndex,
     QualificationRevocationList, QualificationRootId, QualificationSignatureSuite,
     QualificationSignerCertificate, QualificationSignerId, QualificationSignerKind,
     QualificationTrustRoot, RELEASE_INDEX_SCHEMA, REVOCATION_LIST_SCHEMA,
@@ -142,6 +144,39 @@ impl RootSigner {
         &self,
         request: CertificateRequest,
     ) -> Result<QualificationSignerCertificate, IssuanceError> {
+        self.certify_for(
+            request,
+            vec![
+                QualificationArtifactKind::QualificationReleaseIndex,
+                QualificationArtifactKind::RecipeQualificationAttestation,
+            ],
+        )
+    }
+
+    /// Certifies a commissioning signer for finite permits only.
+    ///
+    /// The certificate carries no attestation or release-index permission.
+    /// This offline ceremony does not authorize any action: a later protected
+    /// signer must re-verify a closed commissioning proposal.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IssuanceError::Format`] for an invalid certificate window.
+    pub fn certify_commissioner(
+        &self,
+        request: CertificateRequest,
+    ) -> Result<QualificationSignerCertificate, IssuanceError> {
+        self.certify_for(
+            request,
+            vec![QualificationArtifactKind::QualificationCommissioningPermit],
+        )
+    }
+
+    fn certify_for(
+        &self,
+        request: CertificateRequest,
+        permitted_artifact_kinds: Vec<QualificationArtifactKind>,
+    ) -> Result<QualificationSignerCertificate, IssuanceError> {
         let mut body = SignerCertificateBody {
             statement: SignerCertificateStatement {
                 schema: SIGNER_CERTIFICATE_SCHEMA.to_owned(),
@@ -152,10 +187,7 @@ impl RootSigner {
                 issued_at: request.issued_at,
                 not_before: request.not_before,
                 not_after: request.not_after,
-                permitted_artifact_kinds: vec![
-                    QualificationArtifactKind::QualificationReleaseIndex,
-                    QualificationArtifactKind::RecipeQualificationAttestation,
-                ],
+                permitted_artifact_kinds,
                 root_id: self.root.body().root_id.clone(),
             },
             root_signature_b64: SignatureB64::from_bytes(&[0; 64]),
@@ -205,6 +237,98 @@ impl fmt::Debug for RootSigner {
         formatter
             .debug_struct("RootSigner")
             .field("root_id", &self.root.body().root_id)
+            .finish_non_exhaustive()
+    }
+}
+
+/// A protected commissioning key, able to sign closed finite proposals only.
+/// It has no release-index, attestation, certificate or revocation method.
+pub struct CommissioningSigner {
+    key: SigningKey,
+    certificate: QualificationSignerCertificate,
+}
+
+impl CommissioningSigner {
+    /// Opens the exact key under a commissioning-only certificate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IssuanceError::NotPermitted`] for a release or mixed-purpose
+    /// certificate, or [`IssuanceError::KeyMismatch`] for another seed. Root
+    /// authentication is performed independently by the receiving verifier.
+    pub fn open(
+        seed: &SigningSeed,
+        certificate: QualificationSignerCertificate,
+    ) -> Result<Self, IssuanceError> {
+        if certificate.body().statement.permitted_artifact_kinds
+            != [QualificationArtifactKind::QualificationCommissioningPermit]
+        {
+            return Err(IssuanceError::NotPermitted);
+        }
+        if seed.public_key() != certificate.body().statement.public_key_b64 {
+            return Err(IssuanceError::KeyMismatch);
+        }
+        Ok(Self {
+            key: seed.key(),
+            certificate,
+        })
+    }
+
+    /// The public purpose certificate, without any private key material.
+    #[must_use]
+    pub const fn certificate(&self) -> &QualificationSignerCertificate {
+        &self.certificate
+    }
+
+    /// Signs one proposal after its exact offline evidence was checked.
+    ///
+    /// The receiving gateway still authenticates the certificate under its
+    /// pinned root, checks current revocations and runtime bindings, and
+    /// claims the immutable shared budget before any custody acquisition.
+    /// No qualification record or readiness assertion is produced.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IssuanceError::Window`] outside the certificate's window or
+    /// [`IssuanceError::Format`] for any permit bound, ordering or time fault.
+    pub fn permit(
+        &self,
+        proposal: &CommissioningProposal,
+        issued_at: u64,
+        not_before: u64,
+        not_after: u64,
+    ) -> Result<QualificationCommissioningPermit, IssuanceError> {
+        let signer = &self.certificate.body().statement;
+        if issued_at < signer.issued_at
+            || not_before < signer.not_before
+            || not_after > signer.not_after
+        {
+            return Err(IssuanceError::Window);
+        }
+        let mut body = CommissioningPermitBody {
+            statement: CommissioningPermitStatement {
+                schema: COMMISSIONING_PERMIT_SCHEMA.to_owned(),
+                binding: proposal.binding().clone(),
+                signer_id: signer.signer_id.clone(),
+                signature_suite: QualificationSignatureSuite::Ed25519V1,
+                issued_at,
+                not_before,
+                not_after,
+            },
+            signature_b64: SignatureB64::from_bytes(&[0; 64]),
+        };
+        // Refuse malformed authority before producing any signature bytes.
+        QualificationCommissioningPermit::from_body(&body)?;
+        body.signature_b64 = signature(&self.key, &body.signing_preimage()?);
+        Ok(QualificationCommissioningPermit::from_body(&body)?)
+    }
+}
+
+impl fmt::Debug for CommissioningSigner {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CommissioningSigner")
+            .field("signer_id", &self.certificate.body().statement.signer_id)
             .finish_non_exhaustive()
     }
 }

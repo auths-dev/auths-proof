@@ -50,7 +50,7 @@ those capabilities on every lease.
 
 The maintained offline seeds are `airtable/vectors.json`, the profile lock and
 gateway hostile, attempt and outcome corpora. Publish a family-owned executable
-`auths.qualification-corpus/1` covering the complete evidence wall, including
+`auths.qualification-corpus/3` covering the complete evidence wall, including
 an oracle-accepted update, all refused mappings, real application isolation and
 credential drift. These seeds alone are not the missing protected family corpus.
 

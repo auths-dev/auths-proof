@@ -1519,7 +1519,7 @@ entry, with its test evidence, in the change that introduces it:
 | Kind | Identities |
 | --- | --- |
 | Recipe | `auths.gateway-recipe-source/2`, `auths.gateway-compiled-recipe/2`, `auths.gateway-recipe-review/2`, `auths.gateway-recovery-capability/1` |
-| Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-bounded-sum/1`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/5` |
+| Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-bounded-sum/1`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/6` |
 | Policy | `auths.gateway.argument-ceiling-window-count/2`, `auths.gateway.argument-ceiling-policy/2`, `auths.gateway-counter-set/1` |
 | Evidence | `auths.gateway-pre-entry/1`, `auths.gateway-outcome/2`, `auths.gateway-observe/2`, `auths.gateway-audit-bundle/2`, `auths.gateway-audit-report/2`, `auths.gateway-echo-verification/1`, `auths.gateway-codes/1` |
 | Operator | `auths.gateway-operator-attestation/1`, `auths.gateway-installation/3`, `auths.gateway-admin-request/1`, `auths.gateway-admin-response/1` |
@@ -1579,7 +1579,7 @@ nothing was leased or sent.
 
 ### 9.4 PostgreSQL schema 5
 
-`auths.lifecycle.postgresql/5` replaces `/4`; a `/4` database is refused, not
+`auths.lifecycle.postgresql/6` replaces `/4`; a `/4` database is refused, not
 migrated. `auths_gateway_attempts` is replaced by:
 
 ```sql

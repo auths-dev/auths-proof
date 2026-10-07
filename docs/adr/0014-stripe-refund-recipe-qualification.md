@@ -63,7 +63,7 @@ the gateway receives only the restricted test key.
 The maintained platform profile/recipe are accompanied by gateway
 `attempt-scenarios-v3.json`, `bounds-aggregate.json`, `outcome-v2.json` and
 `hostile-recipes-v2.json`. They must be expanded into the family-owned
-`auths.qualification-corpus/1` with executable coverage of every mandatory wall
+`auths.qualification-corpus/3` with executable coverage of every mandatory wall
 scenario; they are not the missing protected family corpus.
 
 The live corpus must additionally exercise every declared capability, provider

@@ -1488,7 +1488,7 @@ Each was taken unattended as the narrower or fail-closed reading.
    rederived from the installed files. The semantic closure, package,
    version, operating system, and architecture are the build's. The build
    digest is SHA-256 of the running executable. The store kind and schema
-   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/5`,
+   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/6`,
    or `shared-file-v1` with `auths.gateway-attempt/3`). The recipe family and
    the provider contract identifier are declared by the operator at install,
    because a gateway cannot derive them; a wrong declaration matches no
@@ -1772,8 +1772,59 @@ durable shared lease bounds, time and revocation. Normal application leases
 remain subject to the current qualification gate. A permit is neither a
 qualification nor evidence of provider behavior or production readiness.
 
-This is a design prerequisite, not implementation completion or a change to
-the current gateway's accepted authority. The full signed schema, issuance,
-sealed runtime path, PostgreSQL accounting, authenticated operator interface,
-protected workflow and rejection/live evidence must land together before the
-bootstrap can be claimed resolved. Epic 5's done conditions remain unchanged.
+The signed schema, pure issuance/verifier, sealed private runtime path,
+PostgreSQL accounting, retained host floor and authenticated operator commands
+are implemented. The first offline root and separate purpose certificates are
+pinned, with no qualification issued. The protected family reference/workflow
+and rejection/live evidence still must land before the bootstrap can be
+claimed resolved. Epic 5's done conditions remain unchanged.
+
+### 22.4 Reviewed commissioning expansion (2026-10-07)
+
+The default candidate now derives its planned production tuple without installing
+custody through `qualification-candidate`. This is offline candidate identity,
+not a deployment or a qualified state. The protected live installation must
+print the same tuple before permit import or submission.
+
+`review-submission` verifies a proof and derives its actors, native action
+commitment and credential-free closed request without custody, state or provider
+I/O. Its optional evaluation time is an offline input and cannot alter the
+production lease clock. `qualification/reference/` independently derives the
+Stripe/Airtable requests, fixes resource membership and reconstructs the entire
+reviewed recipe and exact lock. Expansion invokes a reviewer built by the
+signing job from its checkout; downloaded candidate bytes are hashed but never
+executed with a signing key. The original candidate digest remains signed.
+One actor, finite exact actions, immutable resources and a source-owned ceiling
+of 64 custody acquisitions are required. The native issuer additionally checks
+offline evidence closure before issuing a two-hour permit.
+
+Both purpose-separated signer keys now exist in the existing reviewer-protected,
+default-branch-only signing environment. The offline root remains outside CI.
+Complete family setup/corpora, protected commissioning/live runs and final signed
+qualification still remain; these changes issue no qualification or readiness.
+
+### 22.5 Ordinary-client bootstrap closure (2026-10-07)
+
+The closed release-only corpus now distinguishes offline verification, private
+commissioning and ordinary qualified live execution (schema
+`auths.qualification-corpus/3`). An installed client in commissioning must
+measure a missing-qualification refusal with zero lease and entry; the same
+scenario in ordinary live execution must measure a fresh confirmed effect.
+Commissioning cases require the production tuple and cannot satisfy production
+readiness. Assembly selects one protected phase, limits the first record to two
+hours and explicitly excludes the ordinary-client/readiness claims that only
+the subsequent phase can establish. Both scopes belong to the same reviewed
+manifest and exact tuple. This closes the second dependency cycle without
+opening ordinary application leases under a commissioning permit. The protected
+workflow and family corpora still must execute this sequence.
+
+#### 22.6 Credential-free differential review
+
+Offline `oracle-accepts` / `oracle-rejects` cases execute the reviewed pure
+oracle followed by `review`, the candidate's native `review-submission` command.
+They compare exact proof/action verdict and closed request commitments with
+zero custody leases, provider entries and read-back confirmations. A permitted
+mapping is `complete`, without an HTTP response or effect claim. `review` is
+refused as a protected operation or a replacement for an application submission.
+First commissioning therefore depends on offline native verification, without
+requiring pre-existing qualification to collect that verification.

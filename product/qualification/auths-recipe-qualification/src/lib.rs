@@ -18,6 +18,7 @@
 
 mod canonical;
 mod closure;
+mod commissioning;
 mod error;
 mod evidence;
 mod ids;
@@ -46,6 +47,14 @@ pub use canonical::{Artifact, Canonical};
 pub use closure::{
     GatewaySemanticClosure, MAX_SEMANTIC_CLOSURE_BYTES, MAX_SEMANTIC_CLOSURE_FILES,
     SEMANTIC_CLOSURE_SCHEMA, SemanticClosureBody, SemanticClosureFile,
+};
+pub use commissioning::{
+    COMMISSIONING_BUDGET_BINDING_DOMAIN, COMMISSIONING_BUDGET_KEY_DOMAIN,
+    COMMISSIONING_PERMIT_FILE, COMMISSIONING_PERMIT_SCHEMA, CommissioningBinding,
+    CommissioningInputs, CommissioningOfflineEvidence, CommissioningPermitBody,
+    CommissioningPermitStatement, CommissioningRefusal, CommissioningRequest,
+    MAX_COMMISSIONING_ACTIONS, MAX_COMMISSIONING_LEASES, MAX_COMMISSIONING_PERMIT_BYTES,
+    MAX_COMMISSIONING_SECONDS, QualificationCommissioningPermit, VerifiedCommissioningPermit,
 };
 pub use error::QualificationFormatError;
 pub use evidence::{

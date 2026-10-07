@@ -17,7 +17,7 @@ pub const MAX_RUN_CASES: usize = 256;
 /// Largest sequence of operations within one case.
 pub const MAX_CASE_STEPS: usize = 32;
 /// Schema of the reviewed executable corpus.
-pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/1";
+pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/3";
 
 /// Where an operation may execute. Live cases never execute on a pull request.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -25,6 +25,9 @@ pub const CORPUS_SCHEMA: &str = "auths.qualification-corpus/1";
 pub enum RunPhase {
     /// No provider credential; an offline provider double is permitted.
     Offline,
+    /// First-run production evidence through finite private operator authority.
+    /// Ordinary installed clients must still demonstrate qualification refusal.
+    Commissioning,
     /// Disposable provider resources in a protected environment.
     Live,
 }
@@ -35,6 +38,8 @@ pub enum RunPhase {
 pub enum Operation {
     /// Evaluate the family's pure request/evidence oracle.
     Oracle,
+    /// Credential-free native proof/request review, only in offline differential cases.
+    Review,
     /// Submit through the candidate gateway's application socket.
     Submit,
     /// Replay the same logical operation, possibly with a fresh challenge.
@@ -103,6 +108,44 @@ pub struct ExpectedObservation {
     pub confirmed_by_read_back: u32,
 }
 
+/// Source-owned evidence comparison. Every non-evidence fact stays exact.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum EvidenceComparison {
+    /// Compare the complete verdict, including a precomputed evidence digest.
+    Static {},
+    /// Compare an observed candidate response digest with a separately obtained
+    /// fresh provider response over this exact reviewed resource/action subject.
+    IndependentReadBack {
+        /// Domain-bound resource/action/expected-state commitment from the oracle.
+        subject_sha256: Sha256Digest,
+    },
+    /// Compare the digest of a checked production doctor report for this tuple.
+    ProductionDoctor {},
+}
+
+/// Fresh evidence retained by the release harness separately from the candidate
+/// verdict. The harness must execute the reviewed oracle/read independently;
+/// copying the candidate's digest is not an independent witness.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum FreshEvidenceWitness {
+    /// Exact bytes from a new bounded read of the reviewed provider resource.
+    IndependentReadBack {
+        /// The same source-owned subject the corpus commits to.
+        subject_sha256: Sha256Digest,
+        /// SHA-256 of the independently read response bytes.
+        response_sha256: Sha256Digest,
+    },
+    /// A source-reviewed production doctor check, including tuple equality.
+    ProductionDoctor {
+        /// The actual candidate tuple checked in the report.
+        tuple_sha256: Sha256Digest,
+        /// SHA-256 of the independently validated raw doctor report.
+        report_sha256: Sha256Digest,
+    },
+}
+
 /// One actual observation. There is deliberately no `passed` member.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -111,6 +154,8 @@ pub struct RunObservation {
     pub tuple_sha256: Sha256Digest,
     /// Facts compared with the corpus, including independently measured counters.
     pub observed: ExpectedObservation,
+    /// An independently obtained fresh witness, only for the declared comparison.
+    pub fresh_evidence: Option<FreshEvidenceWitness>,
     /// Provider entries not authorized by the exact action.
     pub unauthorized_provider_entries: u32,
     /// Whether the application or exported outputs exposed a secret.
@@ -127,6 +172,8 @@ pub struct RunObservation {
 pub struct RunStep {
     /// Operation executed by the family harness on the candidate.
     pub operation: Operation,
+    /// Explicit evidence source; never an optional wildcard digest.
+    pub evidence_comparison: EvidenceComparison,
     /// Assertions made by the release runner, not the family harness.
     pub expected: ExpectedObservation,
 }
@@ -215,7 +262,7 @@ impl RunCase {
             _ => false,
         };
         let required = match self.scenario {
-            S::OracleAccepts | S::OracleRejects => before(Op::Oracle, Op::Submit),
+            S::OracleAccepts | S::OracleRejects => before(Op::Oracle, Op::Review),
             S::ProofReplay | S::FreshChallengeReplay => before(Op::Submit, Op::Replay),
             S::TwoInstanceRace => has(Op::Race),
             S::Restart => before(Op::Submit, Op::Restart) && before(Op::Restart, Op::Replay),
@@ -230,13 +277,16 @@ impl RunCase {
             }
             S::DeclaredCapability => has(Op::Submit) || has(Op::Probe),
             S::ProductionReadiness => {
-                has(Op::Probe)
+                self.phase == RunPhase::Live
+                    && has(Op::Probe)
                     && self.steps.iter().all(|step| {
                         step.operation == Op::Probe
                             && step.expected.verdict.outcome == RunOutcome::Complete
                             && step.expected.verdict.code.as_str() == "production-readiness-passed"
                             && step.expected.verdict.request_sha256.is_none()
-                            && step.expected.verdict.evidence_sha256.is_some()
+                            && (step.expected.verdict.evidence_sha256.is_some()
+                                || step.evidence_comparison
+                                    == EvidenceComparison::ProductionDoctor {})
                             && step.expected.credential_leases == 0
                             && step.expected.provider_entries == 0
                             && step.expected.confirmed_by_read_back == 0
@@ -256,11 +306,25 @@ impl RunCase {
                 | S::ProductionReadiness
         );
         if !harness_scenario(self.scenario)
+            || self.steps.iter().any(|step| !step.valid_comparison(self))
+            || self.steps.iter().any(|step| {
+                matches!(step.operation, Op::Oracle | Op::Review)
+                    && (step.expected.credential_leases != 0
+                        || step.expected.provider_entries != 0
+                        || step.expected.confirmed_by_read_back != 0
+                        || !matches!(
+                            step.expected.verdict.outcome,
+                            RunOutcome::Complete | RunOutcome::Refused
+                        ))
+            })
             || !required
             || self.steps.is_empty()
             || self.steps.len() > MAX_CASE_STEPS
-            || (live_only && self.phase != RunPhase::Live)
+            || (live_only && self.phase == RunPhase::Offline)
             || (has(Op::Oracle) && self.phase != RunPhase::Offline)
+            || (has(Op::Review)
+                && (self.phase != RunPhase::Offline
+                    || !matches!(self.scenario, S::OracleAccepts | S::OracleRejects)))
             || self
                 .capabilities
                 .iter()
@@ -294,7 +358,7 @@ impl RunCase {
         mut observe: impl FnMut(usize, &RunStep) -> Result<RunObservation, IssuanceError>,
     ) -> Result<(CaseReport, LiveEffects), IssuanceError> {
         self.validate()?;
-        if self.scenario == Scenario::ProductionReadiness
+        if (self.scenario == Scenario::ProductionReadiness || self.phase == RunPhase::Commissioning)
             && (tuple.target.store_kind
                 != auths_recipe_qualification::LifecycleStoreKind::PostgresqlV1
                 || !tuple.target.credential_store_kind.is_production())
@@ -310,7 +374,7 @@ impl RunCase {
         for (index, step) in self.steps.iter().enumerate() {
             let actual = observe(index, step)?;
             if actual.tuple_sha256 != tuple_digest
-                || actual.observed != step.expected
+                || !step.matches(&actual, tuple_digest)
                 || actual.unauthorized_provider_entries != 0
                 || actual.secret_exposed
                 || actual.repository_imported
@@ -318,14 +382,14 @@ impl RunCase {
                 || (actual.observed.confirmed_by_read_back > 0
                     && (actual.observed.verdict.outcome != RunOutcome::Observed
                         || actual.observed.verdict.evidence_sha256.is_none()))
-                || (step.operation == Operation::Oracle
+                || (matches!(step.operation, Operation::Oracle | Operation::Review)
                     && (actual.observed.credential_leases != 0
                         || actual.observed.provider_entries != 0
                         || actual.observed.confirmed_by_read_back != 0))
             {
                 return Err(IssuanceError::CaseFailed);
             }
-            if step.operation != Operation::Oracle {
+            if !matches!(step.operation, Operation::Oracle | Operation::Review) {
                 effects.entered = effects
                     .entered
                     .checked_add(actual.observed.provider_entries)
@@ -353,6 +417,31 @@ impl RunCase {
         effects: LiveEffects,
     ) -> Result<(), IssuanceError> {
         use Scenario as S;
+        if self.scenario == S::InstalledJourney {
+            let ordinary_effect = self.phase == RunPhase::Live
+                && effects.entered > 0
+                && effects.entered == effects.confirmed_by_read_back
+                && self.steps.iter().zip(observations).any(|(step, actual)| {
+                    step.operation == Operation::InstalledConsumer
+                        && actual.verdict.outcome == RunOutcome::Observed
+                        && actual.provider_entries > 0
+                        && actual.provider_entries == actual.confirmed_by_read_back
+                });
+            let first_run_refusal = self.phase == RunPhase::Commissioning
+                && observations.iter().all(|actual| {
+                    actual.verdict.outcome == RunOutcome::Refused
+                        && matches!(
+                            actual.verdict.code.as_str(),
+                            "gateway.qualification.unavailable" | "gateway.qualification.missing"
+                        )
+                        && actual.credential_leases == 0
+                        && actual.provider_entries == 0
+                        && actual.confirmed_by_read_back == 0
+                });
+            if !ordinary_effect && !first_run_refusal {
+                return Err(IssuanceError::CaseFailed);
+            }
+        }
         let no_entry = matches!(
             self.scenario,
             S::ApplicationCannotReadSecret
@@ -378,11 +467,31 @@ impl RunCase {
         {
             return Err(IssuanceError::CaseFailed);
         }
-        if self.steps.iter().zip(observations).any(|(step, actual)| {
-            step.operation == Operation::Replay
-                && (actual.provider_entries != 0 || actual.credential_leases != 0)
-        }) {
-            return Err(IssuanceError::CaseFailed);
+        let mut unresolved = false;
+        for (step, actual) in self.steps.iter().zip(observations) {
+            if step.operation == Operation::Replay {
+                let read_only_completion = unresolved
+                    && actual.credential_leases <= 1
+                    && matches!(
+                        actual.verdict.outcome,
+                        RunOutcome::Unknown | RunOutcome::ResponseRecorded | RunOutcome::Observed
+                    );
+                if actual.provider_entries != 0
+                    || (actual.credential_leases != 0 && !read_only_completion)
+                {
+                    return Err(IssuanceError::CaseFailed);
+                }
+            }
+            if step.operation != Operation::Oracle {
+                if actual.provider_entries > 0 {
+                    unresolved = matches!(
+                        actual.verdict.outcome,
+                        RunOutcome::Unknown | RunOutcome::ResponseRecorded
+                    );
+                } else if actual.verdict.outcome == RunOutcome::Observed {
+                    unresolved = false;
+                }
+            }
         }
         if matches!(
             self.scenario,
@@ -407,7 +516,7 @@ impl RunCase {
                     .map(|(_, actual)| &actual.verdict)
             };
             let oracle = verdict(Operation::Oracle).ok_or(IssuanceError::CaseFailed)?;
-            if Some(oracle) != verdict(Operation::Submit)
+            if Some(oracle) != verdict(Operation::Review)
                 || (oracle.outcome == RunOutcome::Refused) != (self.scenario == S::OracleRejects)
                 || (self.scenario == S::OracleAccepts && oracle.request_sha256.is_none())
             {
@@ -433,5 +542,59 @@ impl RunCase {
             }
         }
         Ok(())
+    }
+}
+
+impl RunStep {
+    fn valid_comparison(&self, case: &RunCase) -> bool {
+        use EvidenceComparison as Comparison;
+        match self.evidence_comparison {
+            Comparison::Static {} => true,
+            Comparison::IndependentReadBack { .. } => {
+                case.phase != RunPhase::Offline
+                    && self.expected.verdict.evidence_sha256.is_none()
+                    && self.expected.verdict.outcome == RunOutcome::Observed
+                    && matches!(
+                        self.operation,
+                        Operation::Submit
+                            | Operation::Replay
+                            | Operation::Race
+                            | Operation::ReadBack
+                            | Operation::InstalledConsumer
+                    )
+            }
+            Comparison::ProductionDoctor {} => {
+                case.phase == RunPhase::Live
+                    && case.scenario == Scenario::ProductionReadiness
+                    && self.operation == Operation::Probe
+                    && self.expected.verdict.evidence_sha256.is_none()
+            }
+        }
+    }
+
+    fn matches(&self, actual: &RunObservation, tuple: Sha256Digest) -> bool {
+        use EvidenceComparison as Comparison;
+        use FreshEvidenceWitness as Witness;
+        let expected_evidence = match (&self.evidence_comparison, &actual.fresh_evidence) {
+            (Comparison::Static {}, None) => return actual.observed == self.expected,
+            (
+                Comparison::IndependentReadBack { subject_sha256 },
+                Some(Witness::IndependentReadBack {
+                    subject_sha256: witnessed,
+                    response_sha256,
+                }),
+            ) if subject_sha256 == witnessed => Some(*response_sha256),
+            (
+                Comparison::ProductionDoctor {},
+                Some(Witness::ProductionDoctor {
+                    tuple_sha256,
+                    report_sha256,
+                }),
+            ) if tuple_sha256 == &tuple => Some(*report_sha256),
+            _ => return false,
+        };
+        let mut expected = self.expected.clone();
+        expected.verdict.evidence_sha256 = expected_evidence;
+        actual.observed == expected
     }
 }

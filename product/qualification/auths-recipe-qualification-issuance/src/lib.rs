@@ -12,6 +12,7 @@
 
 #![forbid(unsafe_code)]
 
+mod commissioning;
 mod error;
 pub mod execution;
 mod proposal;
@@ -20,6 +21,7 @@ pub mod stages;
 #[cfg(feature = "testkit")]
 pub mod testkit;
 
+pub use commissioning::CommissioningProposal;
 pub use error::IssuanceError;
 pub use proposal::{CaseReport, NotApplicable, QualificationProposal, RecordDraft, evidence};
-pub use sign::{CertificateRequest, ReleaseSigner, RootSigner, SigningSeed};
+pub use sign::{CertificateRequest, CommissioningSigner, ReleaseSigner, RootSigner, SigningSeed};

@@ -1,7 +1,12 @@
 # ADR 0016: Bound the first qualification run with explicit commissioning authority
 
-**Status:** Proposed. No commissioning authority is implemented or accepted by
-any current gateway. Ordinary production leases still require qualification.
+**Status:** Implementing. The closed permit, commissioning-only signer purpose,
+offline evidence closure, pure signature/binding verifier, atomic permanent
+budget, retained host floors and authenticated private operator commands are
+implemented. The first offline root ceremony and separate public signer
+certificates are pinned. Protected family references/workflows and actual live
+evidence remain required before the bootstrap is resolved.
+Ordinary production leases still require qualification.
 
 **Date:** 7 October 2026
 
@@ -100,10 +105,123 @@ must show no ordinary lease before qualification, measured finite commissioned
 leases, and ordinary qualified operation after import. CI and the signed evidence
 must name the exact shipped candidate. Simulations cannot establish this claim.
 
+The initial artifact implementation keeps its run/family budget key independent
+of signature, signer and validity window. Its immutable budget binding commits
+to every candidate, principal, context, resource, environment, offline-evidence,
+action and ceiling member. A durable registration must refuse a changed binding
+at the same key; renewal must consume the original counter. Windows are
+half-open, and both the issue-to-expiry and start-to-expiry durations are capped
+at two hours. Release certificates carry no commissioning permission;
+commissioning certificates carry no attestation or index permission. A
+mixed-purpose certificate is refused by the commissioning verifier.
+
+The public synthetic vector is
+`bindings/fixtures/qualification/commissioning-v1.json`. Native tests consume
+these frozen bytes without issuance code. They cover strict decoding and every
+single-bit signature mutation; issuance tests additionally cover purpose/root/
+domain separation, exact runtime bindings, time/revocation boundaries, finite
+action/lease bounds, evidence omissions and stable renewal identities. These
+tests establish the pure artifact boundary only, not durable consumption or a
+completed production bootstrap.
+
+The accounting component reuses the existing bounded opaque record store's
+insert-once and compare-and-swap operations. `commissioning-budget` is a fifth,
+non-expiring record kind in PostgreSQL schema 6. Schema 5 is rejected; disposable
+prelaunch databases must be recreated, with no migration or compatibility
+reader. The existing lifecycle transition contract remains version 4 because
+its transition and receipt semantics are unchanged.
+
+Runtime loading cannot initialize a missing counter. Authenticated fresh setup
+registers zero consumption once; a subsequent initialization returns existing
+consumption and refuses changed bindings. Every successful claim increments
+before custody and is never refunded. The record additionally remembers signer
+revocations, the largest accepted revocation sequence and the latest successful
+trusted verifier time. A renewed permit cannot reset any of them.
+
+The private session must persist the returned validated snapshot as an
+independently retained host floor before custody, including trust updates from
+denied attempts. The mechanism refuses database state below that floor. This
+does not detect a coordinated rollback of the database and every retained
+witness; retaining witnesses outside the restore set is an explicit operator
+obligation, as for the existing connection generation floor. Source tests run
+the same final-unit race, crash/reopen, renewal, sweep, revocation and restore
+cases on file and TLS PostgreSQL stores; the PostgreSQL cases require the
+existing protected CI fixture. A property test additionally bounds consumption
+over arbitrary accepted/refused input sequences. These tests exercise storage
+accounting only and grant no production credential authority.
+
 ## Consequences
+
+The private operator interface is `commissioning-init` followed by
+`commissioning-submit`. Both require the existing owner-private production
+installation and its signed operator attestation. The directory passed with
+`--from` contains `commissioning-permit.json`, `signer-certificate.json` and
+`revocation-list.json`. `--protected-run` identifies the exact workflow run and
+attempt; `--resource-binding` supplies the exact public resource file reviewed
+before issuance. A submit additionally names only `--proof` and `--action`.
+The root, production tuple, installed context and synchronized clock come from
+the installation, with no command-line root or policy override.
+
+The source revision is authenticated by the permit's signature together with
+the executable digest that the installation computes from its own running
+binary. There is no independently changeable runtime source-commit setting.
+The actor commitment is raw SHA-256 of the normalized `PrincipalId` UTF-8
+identifier; runtime extracts distinct actors only from the exact action IDs
+sealed by native verification and requires exactly one. The action commitment
+is the existing `auths.canonical-action.v1` commitment of verified canonical
+CBOR; the context and resource commitments are raw SHA-256 of the exact
+installed context and reviewed public resource-file bytes respectively.
+
+A host-private lock covers loading the prior witness, the database claim and
+atomic witness replacement. Private regular files reject symbolic links,
+hard links, different ownership, public modes, oversized bytes and malformed
+state. The snapshot and parent directory are synchronized before a claim
+returns. A failed acknowledgement burns any database-committed unit. Setup
+also records the authenticated revocation sequence without allowing or charging
+a credential acquisition. Import persistence merges prior authenticated
+revocations under a separate private host lock, so concurrent or stale writers
+cannot erase them.
+
+After a capacity/floor commit, the session rechecks current trusted time and
+reloads the exact connection generation immediately before custody. Waiting
+for storage cannot extend the signed permit window. Ordinary app/admin frames
+have no commissioning member or command. The operator's private submission
+uses the same translated order driver, native verifier, recipe checks,
+reservation, replay, transport and observation implementation; its authority
+is selected by the authenticated operator process, never by a proof or frame.
+
+Focused tests use public synthetic authority, frozen native quorum proofs and
+counted custody to exercise these boundaries. They establish runtime refusal
+and accounting behavior, not protected provider evidence or a completed first
+qualification. The first pinned root and public certificates are recorded in
+`qualification/trust/ceremony.json`, explicitly as a repository-owner-delegated
+technical assessment. Its private root key stays outside the checkout and CI.
+No qualification record or release index was issued by this ceremony.
 
 This adds explicit operator commissioning authority and its associated trust
 obligation. It does not make the first qualification appear to preexist its own
 evidence. Commissioning state remains distinct from `qualified`; readiness
 never derives true from a permit. The normal production application gate stays
 closed until the existing qualification chain verifies.
+
+## Three-phase corpus and finite first qualification
+
+The installed-client journey exposed a second first-run cycle: an ordinary
+client must remain refused until qualification exists. The closed release-only
+corpus is therefore version 2, with `offline`, `commissioning` and `live` phases.
+The commissioning phase requires PostgreSQL and production custody and cannot
+claim production readiness. Its installed-client case must witness a missing
+qualification refusal with no lease or provider entry. Private operator effects
+still need the complete mandatory wall and fresh read-back.
+
+The resulting first record has a maximum two-hour validity and explicitly
+excludes ordinary client success and production readiness. It authorizes the
+subsequent ordinary live phase for the same exact tuple. That phase requires
+a confirmed installed-client effect and the actual production doctor; a denied
+client, a development target or a commissioning doctor cannot substitute.
+Assembly reads offline reports and only the selected protected phase. The
+contract binds one unchanged manifest containing both phase scopes, so the
+first qualification does not require a different recipe, binary or contract.
+
+This sequencing must still be executed by protected jobs and retained as
+measured evidence before the first qualification can be claimed complete.
