@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import airtable_record
 import author_packets
 import packet_plan
+import stripe_platform
 from common import Refusal, canonical
 
 
@@ -20,7 +21,7 @@ class Packets(unittest.TestCase):
             'protected_run': 'recipe-qualification/123/1', 'base': airtable_record.BASE,
             'table': airtable_record.TABLE, 'records': [
                 {'id': 'recTEST0000000001', 'run_metadata': 'recipe-qualification/123/1'}]}
-        return {'schema': 'auths.qualification-packet-plan/2', 'family': airtable_record.FAMILY,
+        return {'schema': 'auths.qualification-packet-plan/3', 'family': airtable_record.FAMILY,
             'protected_run': resources['protected_run'], 'evaluated_at': 1000, 'not_after': 8200,
             'configuration': '1' * 64, 'extension': None, 'resources': resources,
             'packets': packet_plan.arguments(airtable_record.FAMILY, resources, '2' * 64)}
@@ -35,6 +36,7 @@ class Packets(unittest.TestCase):
             lambda p: p['resources'].update(base='appOTHER'),
             lambda p: p.update(not_after=9000), lambda p: p.update(evaluated_at=True),
             lambda p: p.update(credential='synthetic-forbidden-input'),
+            lambda p: p.update(schema='auths.qualification-packet-plan/2'),
             lambda p: p['packets'][0].update(context='fresh'),
             lambda p: p['packets'][1]['arguments'].update(operation_id='new-operation'),
             lambda p: p['packets'].reverse(), lambda p: p['packets'].pop()]
@@ -53,6 +55,58 @@ class Packets(unittest.TestCase):
             with self.assertRaises(Refusal): author_packets.command(canonical(changed) + b'\n', 0)
         for raw in [canonical(value), b' ' * 513 + b'\n', b'{"command":"close","command":"refresh"}\n']:
             with self.assertRaises(Refusal): author_packets.command(raw, 0)
+
+    def test_signing_pool_refuses_omitted_added_rebound_and_reordered_actions(self):
+        plan = self.plan()
+        packets = [{'label': item['label'], 'proof': item['label'] + '.proof',
+                    'action': item['label'] + '.action',
+                    'trusted_context': 'context-' + str(['initial', 'fresh'].index(item['context'])) + '.cbor',
+                    'arguments': item['arguments']} for item in plan['packets']]
+        carrier = {'schema': 'auths.qualification-public-packets/3',
+                   'protected_run': plan['protected_run'], 'evaluated_at': 1000, 'not_after': 1300,
+                   'trusted_contexts': ['context-0.cbor', 'context-1.cbor'], 'packets': packets}
+        self.assertEqual(packet_plan.public_pool(plan['family'], plan['resources'], '2' * 64, carrier), packets)
+        changes = [lambda c: c['packets'].pop(), lambda c: c['packets'].reverse(),
+                   lambda c: c['packets'].append(copy.deepcopy(c['packets'][0])),
+                   lambda c: c['packets'][0].update(proof='another.proof'),
+                   lambda c: c['packets'][1].update(trusted_context='context-0.cbor'),
+                   lambda c: c['packets'][0]['arguments'].update(operation_id='different-operation'),
+                   lambda c: c['trusted_contexts'].pop(), lambda c: c.update(protected_run='recipe-qualification/999/1')]
+        for change in changes:
+            changed = copy.deepcopy(carrier)
+            change(changed)
+            with self.assertRaises(Refusal):
+                packet_plan.public_pool(plan['family'], plan['resources'], '2' * 64, changed)
+
+    def test_stripe_guard_probes_are_fixed_valid_requests_with_independent_refusals(self):
+        run = 'recipe-qualification/123/1'
+        resources = {'schema': 'auths.stripe-platform-qualification-resources/1',
+            'protected_run': run, 'platform': 'acct_TEST123', 'payments': [
+                {'id': 'pi_TEST123', 'amount_received': 2000, 'currency': 'usd',
+                 'livemode': False, 'run_metadata': run}]}
+        packets = packet_plan.arguments(stripe_platform.FAMILY, resources, '2' * 64)
+        self.assertEqual(len(packets), 8)
+        for phase in ['commissioning', 'live']:
+            probes = {item['label']: item for item in packets if item['label'].startswith(phase + '-guard-')}
+            self.assertEqual(set(probes), {phase + '-guard-ceiling', phase + '-guard-currency'})
+            for kind, code in [('ceiling', 'gateway.relative-ceiling.above'),
+                               ('currency', 'gateway.relative-ceiling.binding-mismatch')]:
+                value = probes[phase + '-guard-' + kind]['arguments']
+                self.assertEqual(stripe_platform.request(value, resources, '1' * 64, '2' * 64)['method'], 'POST')
+                self.assertEqual(stripe_platform.entry_policy(value, resources), code)
+        for count, accepted in [(29, True), (30, False)]:
+            many = dict(resources, payments=[dict(resources['payments'][0], id='pi_TEST' + str(i)) for i in range(count)])
+            expanded = packet_plan.arguments(stripe_platform.FAMILY, many, '2' * 64)
+            carrier = {'schema': 'auths.qualification-public-packets/3', 'protected_run': run,
+                'evaluated_at': 1000, 'not_after': 1300,
+                'trusted_contexts': ['context-0.cbor', 'context-1.cbor'], 'packets': [
+                    {'label': p['label'], 'proof': p['label'] + '.proof', 'action': p['label'] + '.action',
+                     'trusted_context': 'context-' + str(['initial', 'fresh'].index(p['context'])) + '.cbor',
+                     'arguments': p['arguments']} for p in expanded]}
+            if accepted:
+                self.assertEqual(len(packet_plan.public_pool(stripe_platform.FAMILY, many, '2' * 64, carrier)), 64)
+            else:
+                with self.assertRaises(Refusal): packet_plan.public_pool(stripe_platform.FAMILY, many, '2' * 64, carrier)
 
     def test_an_unanticipated_credential_name_refuses_before_importing_the_sdk(self):
         with patch.dict(os.environ, {'UNANTICIPATED_PROVIDER_KEY': 'synthetic-forbidden-input'}, clear=True):

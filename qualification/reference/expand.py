@@ -116,6 +116,10 @@ def expand(args):
             and read(args.profile_lock, 65536) == read(source / 'profile.lock.json', 65536),
             'qualification.reference.reviewed-source')
     plan = decode(read(args.packets, 65536))
+    # Import after this module's byte/I/O helpers are defined: the packet
+    # planner also uses them when constructing the installed author's input.
+    from packet_plan import public_pool
+    public_pool(reference.FAMILY, bound_resources, tuple_value['compiled_recipe_sha256'], plan)
     closed(plan, ['schema', 'protected_run', 'evaluated_at', 'not_after', 'trusted_contexts', 'packets'])
     require(plan['schema'] == 'auths.qualification-public-packets/3'
             and plan['protected_run'] == protected_run
@@ -159,7 +163,9 @@ def expand(args):
         actors.add(reviewed['actors'][0])
         commitments.add(commitment)
         oracle.append({'label': label, 'request_sha256': sha256(canonical(expected)),
-                       'action_commitment': commitment, 'trusted_context_sha256': context_hashes[packet['trusted_context']]})
+                       'action_commitment': commitment, 'trusted_context_sha256': context_hashes[packet['trusted_context']],
+                       'entry_policy_code': reference.entry_policy(packet['arguments'], bound_resources)
+                            if reference is stripe_platform else None})
     require(len(actors) == 1, 'qualification.reference.principal-binding')
     require(used_contexts == set(context_names), 'qualification.reference.context-bound')
     tuple_digest = sha256(b'auths.qualification-tuple/1\0' + canonical(tuple_value))
@@ -178,7 +184,7 @@ def expand(args):
     args.out_dir.mkdir(mode=0o700)
     (args.out_dir / 'binding.json').write_bytes(canonical(binding))
     (args.out_dir / 'oracle-commitments.json').write_bytes(canonical({
-        'schema': 'auths.qualification-reference-expansion/1',
+        'schema': 'auths.qualification-reference-expansion/2',
         'protected_run': protected_run, 'source_commit': commit,
         'binding_sha256': sha256(canonical(binding)), 'oracle': oracle,
         'qualification_issued': False,

@@ -46,6 +46,10 @@ Each packet contains `label`, `proof`, `action`, `trusted_context` (adjacent fil
 expected `arguments`. Unknown fields, path traversal, changed source, wrong
 production targets, resource widening, actor changes or an oracle mismatch
 prevent output. Filenames never select code. Private author keys are absent.
+The signing expansion reconstructs the entire original source-owned packet
+pool, including both phase operations and both fresh-challenge replays. Missing,
+additional, reordered or rebound packets cannot receive a permit. A one-packet
+refresh is a private execution handoff, never a new signing input.
 
 The protected family setup, complete corpus and live workflow still need to
 use these references. No family is qualified by landing this code.
@@ -58,14 +62,32 @@ context, duplicate or reordered list, changed set, or schema 1 permit refuses.
 The public packet author supplies two native challenges under one exact actor
 and grant. Each phase's first resource has a `-fresh` replay packet with the same
 logical operation and arguments, under the second context. Refresh never changes
-that packet's assigned challenge, action or context. At most 31 resources fit
-the finite 64-packet ceiling including both replay packets. The source-owned
+that packet's assigned challenge, action or context. At most 31 Airtable or 29
+Stripe resources fit the finite 64-packet ceiling. Stripe also has two exact
+guard probes per phase: 1001 cents against a 2000-cent payment, and EUR against
+that USD payment. Their native proofs authorize request construction; the real
+relative-ceiling read must refuse them after one custody lease and before any
+write. A permit never replaces that guard. The grant has bounded USD/EUR sum
+partitions so the currency probe can reach the provider-read guard; every
+payment remains scoped to the exact reviewed test ledger. Source plan schema 3
+refuses obsolete plans. The source-owned
 protected corpus and native durable replay evidence still need integration.
 
 `measure.py` validates and subtracts native execution snapshots: matching fresh
 scope, no saturation/decrease, no duplicate host in an aggregate. Restarted
 engines must be measured separately. Budget consumption is never substituted
 for actual custody calls.
+
+`native_observation.py` projects actual native results and measured counter
+deltas into corpus facts. A recorded HTTP response or unlinked value match
+cannot become a confirmed effect. Linked evidence requires a new independent
+provider read with the reviewed exact state/echo and identical raw response
+digest. Its bounded journey ledger counts each measured entered write once;
+read-only recovery can confirm that earlier write, and subsequent observations
+cannot count it again. Changed tuples/actions, scope drift, duplicate entries,
+unmeasured effects and additional result fields refuse. The helper does not
+assert isolation, installed-consumer provenance or a passing wall; the family
+harness must measure those separately and the native runner decides the case.
 
 `fresh_evidence.py` is the separate response oracle for the reviewed Stripe
 refund and Airtable update. It validates the approved resource, exact intended

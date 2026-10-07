@@ -18,7 +18,7 @@ from author_socket import exchange, refresh
 from check_packets import review
 from common import require, sha256
 from expand import decode, read
-from packet_plan import prepare
+from packet_plan import prepare, public_pool
 from resource_io import finish, write
 
 AUTHOR_UID = 62002
@@ -73,6 +73,7 @@ def check(args):
         try:
             ready(process, work)
             original = decode(read(work / 'public-packets.json', 65536))
+            public_pool(reference.FAMILY, resources, original['packets'][0]['arguments']['recipe_digest'], original)
             initial = review(args.gateway, work, original['packets'][0], original['evaluated_at'])
             # Separate connections and fresh output directories simulate the
             # runner handing public packets across independent job steps.

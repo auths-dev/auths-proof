@@ -18,7 +18,7 @@ import airtable_record
 import stripe_platform
 from common import Refusal, canonical, require, sha256
 from expand import child, decode, read
-from packet_plan import prepare
+from packet_plan import prepare, public_pool
 from resource_io import finish, write
 
 
@@ -68,6 +68,7 @@ def check(args):
             require(response(process) == {'schema': 'auths.qualification-author-session/1', 'state': 'ready'},
                     'qualification.packets.author-response')
             plan = decode(read(work / 'public-packets.json', 65536))
+            public_pool(reference.FAMILY, resources, plan['packets'][0]['arguments']['recipe_digest'], plan)
             reviewed = []
             for packet in plan['packets']:
                 value = review(args.gateway, work, packet, plan['evaluated_at'])

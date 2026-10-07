@@ -52,6 +52,14 @@ Every permit must bind:
 - a signed validity window of at most two hours, current signer certification
   and a current root-signed revocation list.
 
+The reviewed finite pool may include exact provider-read refusal probes. The
+Stripe platform reference includes an amount above the relative ceiling and
+a currency mismatch; both proofs are native-valid and both require the real
+guard's post-lease refusal with zero write entries. The permit never replaces
+that guard or grants a callback. Signing reconstructs the entire source pool;
+an additional action, changed probe or omitted/reordered packet refuses. Each
+probe consumes the same finite credential budget as a successful submission.
+
 Resource acquisition, action authoring and independent oracle expansion happen
 before permit issuance. Expected request/evidence commitments are derived from
 the reviewed reference and bounded resource binding, not candidate answers.

@@ -50,13 +50,47 @@ def arguments(family, resources, recipe_digest):
                 # predeclared challenge. It is replay evidence, never a second
                 # planned write or caller-selected authoring authority.
                 packets.append({'label': label + '-fresh', 'context': 'fresh', 'arguments': dict(value)})
+        if reference is stripe_platform:
+            for kind, changed in [('ceiling', {'amount': 1001}), ('currency', {'currency': 'eur'})]:
+                label = phase + '-guard-' + kind
+                probe = dict(value, **changed)
+                probe['operation_id'] = 'qlf-' + sha256(canonical([family, resources['protected_run'], label]))[:48]
+                # These valid native actions are deliberately outside the
+                # provider's relative guard, so the corpus can measure its
+                # real post-lease refusal rather than a permit refusal.
+                reference.request(probe, resources, '0' * 64, recipe_digest)
+                require(reference.entry_policy(probe, resources) is not None,
+                        'qualification.packets.probe-binding')
+                packets.append({'label': label, 'context': 'initial', 'arguments': probe})
     return packets
+
+
+def public_pool(family, resources, recipe_digest, carrier):
+    """Reconstruct the entire source-owned pool before signing any authority.
+
+    This checks the original carrier, not a one-packet refresh. Native review
+    still authenticates each proof and both distinct context byte strings.
+    """
+    closed(carrier, ['schema', 'protected_run', 'evaluated_at', 'not_after',
+                     'trusted_contexts', 'packets'])
+    require(carrier['schema'] == 'auths.qualification-public-packets/3'
+            and carrier['protected_run'] == resources['protected_run']
+            and carrier['trusted_contexts'] == ['context-0.cbor', 'context-1.cbor'],
+            'qualification.packets.pool-binding')
+    planned = arguments(family, resources, recipe_digest)
+    expected = [{'label': packet['label'], 'proof': packet['label'] + '.proof',
+                 'action': packet['label'] + '.action',
+                 'trusted_context': 'context-' + str(['initial', 'fresh'].index(packet['context'])) + '.cbor',
+                 'arguments': packet['arguments']} for packet in planned]
+    require(4 <= len(expected) <= 64 and carrier['packets'] == expected,
+            'qualification.packets.pool-binding')
+    return expected
 
 
 def validate(plan):
     closed(plan, ['schema', 'family', 'protected_run', 'evaluated_at', 'not_after',
                   'configuration', 'extension', 'resources', 'packets'])
-    require(plan['schema'] == 'auths.qualification-packet-plan/2'
+    require(plan['schema'] == 'auths.qualification-packet-plan/3'
             and type(plan['family']) is str and plan['family'] in REFERENCES,
             'qualification.packets.schema')
     run_id(plan['protected_run'])
@@ -72,9 +106,11 @@ def validate(plan):
     for packet in packets:
         closed(packet, ['label', 'context', 'arguments'])
         require(type(packet['label']) is str and packet['label'] not in labels
-                and packet['label'] in {phase + '-' + str(index).zfill(2) + suffix
+                and packet['label'] in ({phase + '-' + str(index).zfill(2) + suffix
                                        for phase in ['commissioning', 'live'] for index in range(32)
                                        for suffix in (['', '-fresh'] if index == 0 else [''])}
+                    | ({phase + '-guard-' + kind for phase in ['commissioning', 'live']
+                        for kind in ['ceiling', 'currency']} if plan['family'] == stripe_platform.FAMILY else set()))
                 and packet['context'] == ('fresh' if packet['label'].endswith('-fresh') else 'initial'),
                 'qualification.packets.packet-bound')
         labels.add(packet['label'])
@@ -126,11 +162,11 @@ def prepare(args):
     extension = None
     if reference is stripe_platform:
         derived = child(args.gateway, ['bound-extension', '--argument', 'amount', '--ceiling', '10000',
-            '--window-seconds', '86400', '--max-count', '64', '--sum-limit', '32000', '--partition', 'currency=usd',
+            '--window-seconds', '86400', '--max-count', '64', '--sum-limit', '32000', '--partition', 'currency=usd,eur',
             '--scope', 'payment_intent=' + ','.join(payment['id'] for payment in resources['payments'])])
         extension = {name: derived[name] for name in ['extension_id', 'extension_body_hex']}
     evaluated_at = int(time.time())
-    plan = validate({'schema': 'auths.qualification-packet-plan/2', 'family': args.family,
+    plan = validate({'schema': 'auths.qualification-packet-plan/3', 'family': args.family,
         'protected_run': resources['protected_run'], 'evaluated_at': evaluated_at,
         'not_after': evaluated_at + PACKET_VALIDITY, 'configuration': review['verifier_configuration'],
         'extension': extension, 'resources': resources,
