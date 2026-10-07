@@ -101,6 +101,23 @@ class Session(unittest.TestCase):
             self.assertFalse(value.retired)
             with self.assertRaisesRegex(Refusal, 'cleanup-required'): value.final_proposal()
 
+    def test_an_active_restoration_worker_prevents_every_cleanup_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            value = self.journey(Path(directory))
+            value.stopping = threading.Event()
+            waits = []
+            class Worker:
+                def join(self, timeout): waits.append(timeout)
+                def is_alive(self): return True
+            value.worker = Worker()
+            # No cleanup dependency is installed: touching any would fail the
+            # test before the precise controller refusal can be observed.
+            with self.assertRaisesRegex(Refusal, 'controller-not-drained'): value.cleanup()
+            self.assertTrue(value.stopping.is_set())
+            self.assertEqual(waits, [production.CONTROLLER_DRAIN_SECONDS])
+            self.assertFalse(value.retired)
+            with self.assertRaisesRegex(Refusal, 'cleanup-required'): value.final_proposal()
+
     def test_partial_install_removes_its_database_before_exact_journal_retirement(self):
         with tempfile.TemporaryDirectory() as directory:
             value = self.journey(Path(directory))

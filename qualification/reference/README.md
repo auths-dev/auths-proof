@@ -399,3 +399,10 @@ the provider's [five requests per second per base limit](https://support.airtabl
 The two-host race remains concurrent inside its case. This is rehearsal pacing,
 not a production rate limiter or a trusted-clock input; a provider refusal remains
 the actual failure, and no write is retried to manufacture a passing result.
+
+Cleanup first drains the source operation worker, allowing up to 900 seconds
+for its bounded native commands and exact AWS restoration attempts. The worker
+cannot disappear as a daemon when the session exits. A native case still has
+its original 120-second deadline and remains failed after that deadline. If the
+worker remains active, cleanup refuses before retiring any credentials,
+identity, database or provider resources; restoration cannot race deletion.
