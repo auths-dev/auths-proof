@@ -155,6 +155,36 @@ class Effects:
                              status=next(value['status'] for value in native_results
                                          if value['outcome'] == 'observed-by-provider'))
 
+    def project_budget_race(self, tuple_value, reviewed, resources, owner, competitor, pairs, response, code):
+        require(code in ['gateway.policy.window-exhausted', 'gateway.policy.sum-exhausted']
+                and type(pairs) is list and len(pairs) == 2,
+                'qualification.observation.budget-hosts')
+        winner, loser = result(owner), result(competitor)
+        refusal = measure.delta(*pairs[1])
+        require(winner[2] is not None and loser == ('refused', code, None)
+                and refusal['credential_lease_calls'] == refusal['write_transport_entries'] == 0,
+                'qualification.observation.budget-refusal')
+        # The authenticated competitor uses a different operation. Preserve
+        # both real process scopes; no synthetic before/after pair is created.
+        return self._project(tuple_value, reviewed, resources, winner, measure.aggregate(pairs), response,
+                             status=owner.get('status'))
+
+    def project_guard_refusal(self, tuple_value, reviewed, resources, native, before, after):
+        require(tuple_value['recipe_family'] == stripe_platform.FAMILY,
+                'qualification.observation.guard-family')
+        actual = result(native)
+        expected = stripe_platform.entry_policy(reviewed['arguments'], resources)
+        require(expected in ['gateway.relative-ceiling.above', 'gateway.relative-ceiling.binding-mismatch']
+                and actual == ('refused', expected, None), 'qualification.observation.guard-refusal')
+        facts, fresh = self.project(tuple_value, reviewed, resources, native, before, after)
+        require(facts['credential_leases'] == 1 and facts['provider_entries'] == 0,
+                'qualification.observation.guard-entry')
+        # This valid original action was independently reauthenticated. The
+        # actual native guard code identifies a refusal after that same mapped
+        # request, unlike malformed proof/action refusals, which keep no hash.
+        facts['verdict']['request_sha256'] = sha256(canonical(reviewed['request']))
+        return facts, fresh
+
     def project_interrupted(self, tuple_value, reviewed, resources, trusted_context_sha256, support, before, after):
         interrupted_state(tuple_value, reviewed, trusted_context_sha256, support)
         counted = measure.delta(before, after)

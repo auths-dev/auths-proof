@@ -15,13 +15,15 @@ import airtable_record
 import stripe_platform
 from common import canonical, closed, Refusal, require, sha256
 from expand import child, decode, read
-from native_observation import Effects
+from native_observation import Effects, result as native_result
 from network_fault import NativeWitness, ResponseFault
 from production_setup import GATEWAY_UID, private_file
 from tls_fault import Witness
 import measure
 from packet_plan import public_pool
 from resource_io import write_bytes
+import resource_io
+import fresh_evidence
 
 POSITIVES = {'fresh-replay': 0, 'proof-replay': 1, 'two-host-race': 2,
     'restart': 3, 'crash': 4, 'ambiguous': 5, 'response-loss': 6,
@@ -51,6 +53,7 @@ class Operations:
         self.interrupted = set()
         self.consumer_node = None
         self.consumer_script = None
+        self.budget_refusals = set()
 
     def configure_consumers(self, python, kit):
         self.consumer_python, self.consumer_kit = Path(python).absolute(), Path(kit).absolute()
@@ -262,6 +265,72 @@ class Operations:
         return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed',
                                     resumed, self.deployment.witness(0))
 
+    def budget_race(self, phase, kind):
+        require(self.reference is stripe_platform and kind in ['count', 'sum'], 'qualification.operations.step')
+        label = phase + '-budget-' + kind
+        owner_handoff, packet = self.packet(label)
+        other_handoff, other_packet = self.packet(label + '-over')
+        require(packet['arguments']['operation_id'] != other_packet['arguments']['operation_id']
+                and packet['arguments']['payment_intent'] != other_packet['arguments']['payment_intent'],
+                'qualification.operations.budget-binding')
+        code = 'gateway.policy.window-exhausted' if kind == 'count' else 'gateway.policy.sum-exhausted'
+        children = [self.deployment.commissioning_child(handoff, current, host=host)
+                    for host, handoff, current in [(0, owner_handoff, packet), (1, other_handoff, other_packet)]] \
+            if phase == 'commissioning' else []
+        witness = Witness(children[0].witness, GATEWAY_UID) if children else NativeWitness(self.deployment, 0, 0)
+        try:
+            with ResponseFault(self.family, witness) as fault, ThreadPoolExecutor(max_workers=1) as pool:
+                if children:
+                    children[0].start()
+                    owner = None
+                else:
+                    owner = pool.submit(self.deployment.application_submit, owner_handoff, packet, 0)
+                fault.held()
+                self.wait_for_effect(label)
+                if children:
+                    children[1].start()
+                    competitor = children[1].finish()
+                else:
+                    before = self.deployment.witness(1)
+                    value = self.deployment.application_submit(other_handoff, other_packet, 1)
+                    competitor = {'result': value, 'before': before, 'after': self.deployment.witness(1)}
+                require(native_result(competitor['result']) == ('refused', code, None),
+                        'qualification.operations.budget-refusal')
+                fault.decide('release')
+                if children:
+                    first = children[0].finish()
+                    require(witness.entered() and first['before'] == witness.before and first['after'] == witness.last,
+                            'qualification.operations.witness-binding')
+                else:
+                    first = {'result': owner.result(timeout=90), 'before': witness.before,
+                             'after': self.deployment.witness(0)}
+                observed, fresh = self.effects.project_budget_race(self.tuple, self.reviewed[label], self.resources,
+                    first['result'], competitor['result'],
+                    [(first['before'], first['after']), (competitor['before'], competitor['after'])],
+                    self.oracle.fresh(self.reviewed[label], self.tuple['compiled_recipe_sha256']), code)
+                self.budget_refusals.add((phase, kind))
+                return self.observation(observed, fresh)
+        finally:
+            for child in children:
+                child.abort()
+
+    def budget_probe(self, phase, kind):
+        require((phase, kind) in self.budget_refusals, 'qualification.operations.budget-not-raced')
+        handoff, packet = self.packet(phase + '-budget-' + kind + '-over')
+        code = 'gateway.policy.window-exhausted' if kind == 'count' else 'gateway.policy.sum-exhausted'
+        before = self.deployment.witness(1)
+        if phase == 'commissioning':
+            execution = self.deployment.commissioning_submit(handoff, packet, host=1)
+            value = execution['result']
+            measured_before, measured_after = execution['before'], execution['after']
+        else:
+            value = self.deployment.application_submit(handoff, packet, host=1)
+            measured_before, measured_after = before, self.deployment.witness(1)
+        require(native_result(value) == ('refused', code, None)
+                and all(count == 0 for count in measure.delta(measured_before, measured_after).values()),
+                'qualification.operations.budget-refusal')
+        return self.completed_probe('budget-' + kind + '-refusal-confirmed', before, self.deployment.witness(1))
+
     def doctor(self):
         require(self.phase == 'live', 'qualification.operations.phase')
         for host in [0, 1]:
@@ -401,6 +470,71 @@ class Operations:
         self.deployment.application_probe(self.consumer_python, self.consumer_kit, kind, values)
         return self.completed_probe(code, before, self.deployment.witness(0))
 
+    def guard(self, phase, identifier):
+        label = phase + '-' + identifier
+        handoff, packet = self.packet(label)
+        if phase == 'commissioning':
+            execution = self.deployment.commissioning_submit(handoff, packet)
+            value, before, after = execution['result'], execution['before'], execution['after']
+        else:
+            before = self.deployment.witness(0)
+            value = self.deployment.application_submit(handoff, packet)
+            after = self.deployment.witness(0)
+        observed, fresh = self.effects.project_guard_refusal(self.tuple, self.reviewed[label], self.resources,
+                                                             value, before, after)
+        return self.observation(observed, fresh)
+
+    def capabilities(self, phase):
+        label = phase + '-10'
+        reviewed = self.reviewed[label]
+        effect = (self.family, self.resources['protected_run'], reviewed['arguments']['operator_namespace'],
+                  reviewed['arguments']['operation_id'])
+        require(effect in self.effects.entries and self.effects.entries[effect]['confirmed'] is True,
+                'qualification.operations.capability-unconfirmed-effect')
+        before = self.deployment.witness(0)
+        # A capability probe follows the actual native linked effect. It
+        # cannot pre-seed matching state that would conceal a failed write.
+        first = self.oracle.fresh(reviewed, self.tuple['compiled_recipe_sha256'])
+        measured = {'schema': 'auths.qualification-provider-capability-probes/1',
+            'family': self.family, 'protected_run': self.resources['protected_run'],
+            'request_sha256': sha256(canonical(reviewed['request'])),
+            'fixture_duplicate_api_entries': 0, 'additional_effects': 0,
+            'refused_reads': []}
+        if self.reference is stripe_platform:
+            require(self.current_credential is not None and self.current_credential.startswith(b'rk_test_'),
+                    'qualification.operations.runtime-credential')
+            key = self.current_credential.decode()
+            headers = {'Stripe-Version': '2025-03-31.basil'}
+            balance = resource_io.request('https://api.stripe.com', 'GET', '/v1/balance', key, headers=headers)
+            account = resource_io.request('https://api.stripe.com', 'GET', '/v1/account', key, headers=headers)
+            require(balance.get('livemode') is False and account.get('id') == self.resources['platform'],
+                    'qualification.operations.account-guard')
+            for path in ['/v1/customers', '/v1/payouts']:
+                status, _private = resource_io.exchange('https://api.stripe.com', 'GET', path, key, headers=headers)
+                require(status == 403, 'qualification.operations.denied-read-permission')
+                measured['refused_reads'].append({'path': path, 'status': status})
+            # The authorized test reference retries only this already observed
+            # run-owned request, using the same runtime key and idempotency key.
+            # This is explicitly a fixture API call, outside the native counter
+            # scope. It is retained rather than hidden in gateway measurements.
+            request = stripe_platform.request(reviewed['arguments'], self.resources,
+                reviewed['action_commitment'], self.tuple['compiled_recipe_sha256'])
+            require(request == reviewed['request'], 'qualification.operations.request-binding')
+            duplicate = resource_io.request('https://api.stripe.com', 'POST', '/v1/refunds', key,
+                request['body'].encode(), {**dict(request['headers']), 'Content-Type': request['content_type']})
+            prior = fresh_evidence.decode(first)
+            require(duplicate.get('id') == prior['id'], 'qualification.operations.idempotency-new-effect')
+            fresh_evidence.witness(self.family, reviewed['arguments'], self.resources,
+                reviewed['action_commitment'], self.tuple['compiled_recipe_sha256'], canonical(duplicate))
+            measured['fixture_duplicate_api_entries'] = 1
+        final = self.oracle.fresh(reviewed, self.tuple['compiled_recipe_sha256'])
+        require(fresh_evidence.decode(final).get('id') == fresh_evidence.decode(first).get('id'),
+                'qualification.operations.capability-effect-changed')
+        directory = self.deployment.work / 'provider-capability-probes'
+        directory.mkdir(mode=0o700, exist_ok=True)
+        write_bytes(directory / (phase + '.json'), canonical(measured), new=True)
+        return self.completed_probe('provider-capabilities-confirmed', before, self.deployment.witness(0))
+
     def step(self, case, index, operation):
         require(type(case) is str and type(index) is int and type(operation) is str,
                 'qualification.operations.step')
@@ -425,9 +559,20 @@ class Operations:
             if index == 1:
                 require((case, 0) in self.completed, 'qualification.operations.order')
             result = self.submit(phase, label) if index == 0 else self.read_back(label)
+        elif identifier == 'capabilities':
+            require(index in [0, 1] and operation == ['submit', 'probe'][index], 'qualification.operations.step')
+            if index == 1:
+                require((case, 0) in self.completed, 'qualification.operations.order')
+            result = self.submit(phase, phase + '-10') if index == 0 else self.capabilities(phase)
         elif identifier == 'two-host-race':
             require(index == 0 and operation == 'race', 'qualification.operations.step')
             result = self.race(phase, phase + '-02')
+        elif identifier in ['budget-count', 'budget-sum']:
+            require(index in [0, 1] and operation == ['race', 'probe'][index], 'qualification.operations.step')
+            kind = identifier.removeprefix('budget-')
+            if index == 1:
+                require((case, 0) in self.completed, 'qualification.operations.order')
+            result = self.budget_race(phase, kind) if index == 0 else self.budget_probe(phase, kind)
         elif identifier in ['restart', 'crash']:
             require(index in [0, 1, 2] and operation == ['submit', identifier, 'replay'][index],
                     'qualification.operations.step')
@@ -457,7 +602,7 @@ class Operations:
         elif identifier in ['guard-ceiling', 'guard-currency']:
             require(self.reference is stripe_platform and index == 0 and operation == 'probe',
                     'qualification.operations.step')
-            result = self.submit(phase, phase + '-' + identifier)
+            result = self.guard(phase, identifier)
         elif identifier in ['forged', 'altered']:
             require(index == 0 and operation == 'probe', 'qualification.operations.step')
             result = self.hostile(phase, identifier)
