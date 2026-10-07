@@ -1772,8 +1772,8 @@ durable shared lease bounds, time and revocation. Normal application leases
 remain subject to the current qualification gate. A permit is neither a
 qualification nor evidence of provider behavior or production readiness.
 
-This is a design prerequisite, not implementation completion or a change to
-the current gateway's accepted authority. The full signed schema, issuance,
-sealed runtime path, PostgreSQL accounting, authenticated operator interface,
-protected workflow and rejection/live evidence must land together before the
-bootstrap can be claimed resolved. Epic 5's done conditions remain unchanged.
+The signed schema, pure issuance/verifier, sealed private runtime path,
+PostgreSQL accounting, retained host floor and authenticated operator commands
+are implemented. Production root pinning, protected family reference/workflow
+and rejection/live evidence still must land before the bootstrap can be
+claimed resolved. Epic 5's done conditions remain unchanged.

@@ -21,6 +21,8 @@ mod tests;
 
 /// The separate signature domain of a commissioning permit.
 pub const COMMISSIONING_PERMIT_SCHEMA: &str = "auths.qualification-commissioning-permit/1";
+/// Public file within a protected commissioning artifact directory.
+pub const COMMISSIONING_PERMIT_FILE: &str = "commissioning-permit.json";
 /// The domain of the stable run/family budget key.
 pub const COMMISSIONING_BUDGET_KEY_DOMAIN: &str = "auths.qualification-commissioning-budget-key/1";
 /// The domain of the immutable budget binding, including its ceiling.
@@ -311,8 +313,8 @@ impl VerifiedCommissioningPermit {
         let cert = certificate.body();
         let signer = &cert.statement;
         let list = revocations.body();
-        let signed = permit.body();
-        let statement = &signed.statement;
+        let permit_body = permit.body();
+        let statement = &permit_body.statement;
         let root_key = root.body().public_key_b64.to_bytes();
         let root_signature = |preimage: Result<Vec<u8>, QualificationFormatError>,
                               signature: &SignatureB64| {
@@ -328,11 +330,11 @@ impl VerifiedCommissioningPermit {
             || statement.issued_at < signer.issued_at
             || statement.not_before < signer.not_before
             || statement.not_after > signer.not_after
-            || !signed.signing_preimage().is_ok_and(|bytes| {
+            || !permit_body.signing_preimage().is_ok_and(|bytes| {
                 verifies(
                     &signer.public_key_b64.to_bytes(),
                     &bytes,
-                    &signed.signature_b64.to_bytes(),
+                    &permit_body.signature_b64.to_bytes(),
                 )
             })
         {

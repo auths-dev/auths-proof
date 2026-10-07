@@ -444,6 +444,34 @@ impl QualificationGate {
             .clone()
     }
 
+    /// Private operator sessions reuse the configured root, target and clock;
+    /// application inputs cannot supply any of these values.
+    #[cfg(unix)]
+    pub(crate) fn commissioning_target(
+        &self,
+    ) -> Option<(&QualificationTrustRoot, &QualificationTuple)> {
+        if self.policy != QualificationPolicy::Required {
+            return None;
+        }
+        Some((self.root.as_ref()?, self.deployment.as_ref()?))
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn commissioning_time(&self) -> (u64, bool) {
+        match self.clock.now() {
+            Some(now) => (now, self.clock.trust() == ClockTrustState::Trusted),
+            None => (0, false),
+        }
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn remember_commissioning(
+        &self,
+        permit: &auths_recipe_qualification::VerifiedCommissioningPermit,
+    ) {
+        permit.remember(&mut self.state.lock().unwrap_or_else(PoisonError::into_inner));
+    }
+
     fn verdict(&self) -> QualificationVerdict {
         let unavailable = QualificationVerdict {
             state: RecipeQualificationState::Unqualified,

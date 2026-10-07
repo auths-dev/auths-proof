@@ -1,10 +1,10 @@
 # ADR 0016: Bound the first qualification run with explicit commissioning authority
 
 **Status:** Implementing. The closed permit, commissioning-only signer purpose,
-offline evidence closure, pure signature/binding verifier and atomic permanent
-budget mechanism are implemented. No current gateway accepts commissioning
-authority. Private operator sessions, retained host floors before custody and
-the protected live workflow remain required.
+offline evidence closure, pure signature/binding verifier, atomic permanent
+budget, retained host floors and authenticated private operator commands are
+implemented. Protected family references/workflows, production root pinning
+and actual live evidence remain required before the bootstrap is resolved.
 Ordinary production leases still require qualification.
 
 **Date:** 7 October 2026
@@ -150,6 +150,49 @@ over arbitrary accepted/refused input sequences. These tests exercise storage
 accounting only and grant no production credential authority.
 
 ## Consequences
+
+The private operator interface is `commissioning-init` followed by
+`commissioning-submit`. Both require the existing owner-private production
+installation and its signed operator attestation. The directory passed with
+`--from` contains `commissioning-permit.json`, `signer-certificate.json` and
+`revocation-list.json`. `--protected-run` identifies the exact workflow run and
+attempt; `--resource-binding` supplies the exact public resource file reviewed
+before issuance. A submit additionally names only `--proof` and `--action`.
+The root, production tuple, installed context and synchronized clock come from
+the installation, with no command-line root or policy override.
+
+The source revision is authenticated by the permit's signature together with
+the executable digest that the installation computes from its own running
+binary. There is no independently changeable runtime source-commit setting.
+The actor commitment is raw SHA-256 of the normalized `PrincipalId` UTF-8
+identifier; runtime extracts distinct actors only from the exact action IDs
+sealed by native verification and requires exactly one. The action commitment
+is the existing `auths.canonical-action.v1` commitment of verified canonical
+CBOR; the context and resource commitments are raw SHA-256 of the exact
+installed context and reviewed public resource-file bytes respectively.
+
+A host-private lock covers loading the prior witness, the database claim and
+atomic witness replacement. Private regular files reject symbolic links,
+hard links, different ownership, public modes, oversized bytes and malformed
+state. The snapshot and parent directory are synchronized before a claim
+returns. A failed acknowledgement burns any database-committed unit. Setup
+also records the authenticated revocation sequence without allowing or charging
+a credential acquisition. Import persistence merges prior authenticated
+revocations under a separate private host lock, so concurrent or stale writers
+cannot erase them.
+
+After a capacity/floor commit, the session rechecks current trusted time and
+reloads the exact connection generation immediately before custody. Waiting
+for storage cannot extend the signed permit window. Ordinary app/admin frames
+have no commissioning member or command. The operator's private submission
+uses the same translated order driver, native verifier, recipe checks,
+reservation, replay, transport and observation implementation; its authority
+is selected by the authenticated operator process, never by a proof or frame.
+
+Focused tests use public synthetic authority, frozen native quorum proofs and
+counted custody to exercise these boundaries. They establish runtime refusal
+and accounting behavior, not protected provider evidence or a completed first
+qualification. Production trust remains unavailable until its root is pinned.
 
 This adds explicit operator commissioning authority and its associated trust
 obligation. It does not make the first qualification appear to preexist its own

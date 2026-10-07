@@ -328,6 +328,8 @@ pub(crate) fn admitted(
         .closed_request_from_arguments(&arguments, commitment)
         .map_err(|error| crate::engine::not_entered(error.code()))?;
     Ok(VerifiedCommand {
+        #[cfg(unix)]
+        actors: Vec::new(),
         request,
         bound,
         approvers: Vec::new(),

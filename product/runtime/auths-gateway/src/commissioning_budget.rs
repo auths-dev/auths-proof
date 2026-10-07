@@ -126,6 +126,9 @@ impl CommissioningBudgetSnapshot {
         bytes: &[u8],
         binding: &CommissioningBinding,
     ) -> Result<Self, CommissioningBudgetRefusal> {
+        binding
+            .validate()
+            .map_err(|_| CommissioningBudgetRefusal::BindingMismatch)?;
         if bytes.is_empty() || bytes.len() > MAX_COMMISSIONING_BUDGET_BYTES {
             return Err(CommissioningBudgetRefusal::Corrupt);
         }
@@ -174,7 +177,7 @@ impl CommissioningBudgetSnapshot {
         Ok(())
     }
 
-    fn not_below(&self, floor: &Self) -> bool {
+    pub(crate) fn not_below(&self, floor: &Self) -> bool {
         self.record.budget_scope_sha256 == floor.record.budget_scope_sha256
             && self.record.budget_binding_sha256 == floor.record.budget_binding_sha256
             && self.record.maximum_credential_leases == floor.record.maximum_credential_leases
@@ -212,7 +215,7 @@ impl CommissioningBudgetUpdate {
 }
 
 /// Capacity for one exact commissioning binding on an existing atomic store.
-/// The production operator path must supply its production PostgreSQL backend;
+/// The production operator path must supply its production `PostgreSQL` backend;
 /// development stores may exercise this mechanism without granting authority.
 pub struct CommissioningBudget {
     store: Arc<dyn GatewayAttemptStore>,
@@ -344,12 +347,12 @@ impl CommissioningBudget {
             authority.remember(&mut remembered);
             let mut next = current.record.clone();
             next.accepted_revocation_sequence = remembered.accepted_revocation_sequence;
-            next.revoked_signers = remembered.revoked_signers.clone();
+            next.revoked_signers.clone_from(&remembered.revoked_signers);
             let refusal = authority
                 .evaluate(request, now, clock_trusted, &remembered)
                 .err()
                 .map(CommissioningBudgetRefusal::Permit)
-                .or_else(|| {
+                .or({
                     if now < current.record.latest_verifier_time {
                         Some(CommissioningBudgetRefusal::Rollback)
                     } else if current.record.consumed_credential_leases

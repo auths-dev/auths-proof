@@ -45,6 +45,14 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
+#[cfg(unix)]
+#[path = "commissioning_session.rs"]
+mod commissioning;
+#[cfg(unix)]
+pub use commissioning::{
+    CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
+};
+
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -229,6 +237,8 @@ pub struct GatewayAdminStatus {
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
     trusted_context: TrustedContext,
+    #[cfg(unix)]
+    trusted_context_sha256: auths_recipe_qualification::Sha256Digest,
     observer: Option<GatewayObserver>,
     workload_id: String,
     profile: ConnectionProfile,
@@ -298,6 +308,13 @@ impl GatewayEngine {
         Ok(Self {
             recipe,
             trusted_context,
+            #[cfg(unix)]
+            trusted_context_sha256: {
+                use sha2::Digest as _;
+                auths_recipe_qualification::Sha256Digest::from_bytes(
+                    sha2::Sha256::digest(trusted_context_cbor).into(),
+                )
+            },
             observer: None,
             workload_id,
             profile,
@@ -974,6 +991,12 @@ impl GatewayEngine {
             action: &[],
             started: Instant::now(),
             prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
         };
         io.prepare().await?;
         let context = SubmitContext {
@@ -1021,6 +1044,12 @@ impl GatewayEngine {
             action: action_cbor,
             started: Instant::now(),
             prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
         };
         submit::run(
             &SubmitContext {
@@ -1039,6 +1068,15 @@ impl GatewayEngine {
     /// hold the secret its credential generation names, and prepares the
     /// pinned transport. Nothing is stored.
     async fn prepare_entry(&self) -> Result<PreparedEntry, &'static str> {
+        self.prepare_entry_for(|| self.qualification.check()).await
+    }
+
+    /// Both authority paths perform exactly the same connection and transport
+    /// checks; the ordinary path supplies only its qualification check.
+    async fn prepare_entry_for(
+        &self,
+        check_authority: impl FnOnce() -> Result<(), &'static str>,
+    ) -> Result<PreparedEntry, &'static str> {
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
             Err(SharedConnectionError::Rollback) => {
@@ -1052,7 +1090,7 @@ impl GatewayEngine {
         }
         let descriptor = GatewayConnectionDescriptor::from_record(record, &self.recipe)
             .map_err(|_| "gateway.connection.recipe-mismatch")?;
-        self.qualification.check()?;
+        check_authority()?;
         if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
@@ -1194,23 +1232,41 @@ struct EngineIo<'a> {
     action: &'a [u8],
     started: Instant,
     prepared: OnceLock<PreparedEntry>,
+    #[cfg(unix)]
+    commissioning: Option<&'a CommissioningSession<'a>>,
+    #[cfg(unix)]
+    commissioned_action: OnceLock<commissioning::CommissionedAction>,
+    #[cfg(unix)]
+    commissioning_refusal: OnceLock<&'static str>,
 }
 
 impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
     fn clock(&self) -> Option<u64> {
+        #[cfg(unix)]
+        if self.commissioning.is_some() {
+            return Some(self.engine.qualification.commissioning_time().0);
+        }
         wall_clock_seconds()
     }
 
     fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        verify_detailed(
+        let verified = verify_detailed(
             &self.engine.recipe,
             &self.engine.trusted_context,
             now,
             self.proof,
             self.action,
-        )
+        )?;
+        #[cfg(unix)]
+        if let Some(session) = self.commissioning {
+            let action = session.bind_verified(&verified).map_err(not_entered)?;
+            self.commissioned_action
+                .set(action)
+                .map_err(|_| not_entered("gateway.commissioning.binding-mismatch"))?;
+        }
+        Ok(verified)
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
@@ -1222,6 +1278,20 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {
+        #[cfg(unix)]
+        let prepared = match self.commissioning {
+            Some(session) => {
+                let action = self
+                    .commissioned_action
+                    .get()
+                    .ok_or("gateway.commissioning.binding-mismatch")?;
+                self.engine
+                    .prepare_entry_for(|| session.check(action))
+                    .await?
+            }
+            None => self.engine.prepare_entry().await?,
+        };
+        #[cfg(not(unix))]
         let prepared = self.engine.prepare_entry().await?;
         self.prepared
             .set(prepared)
@@ -1229,6 +1299,18 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn reload(&self) -> bool {
+        #[cfg(unix)]
+        if let Some(session) = self.commissioning {
+            let checked = self
+                .commissioned_action
+                .get()
+                .ok_or("gateway.commissioning.binding-mismatch")
+                .and_then(|action| session.check(action));
+            if let Err(code) = checked {
+                let _ = self.commissioning_refusal.set(code);
+                return false;
+            }
+        }
         match self.prepared.get() {
             Some(prepared) => self.engine.unchanged(prepared).await,
             None => false,
@@ -1245,7 +1327,41 @@ impl SubmitIo for EngineIo<'_> {
 
     async fn lease(&self) -> Option<StoredSecretLease> {
         let prepared = self.prepared.get()?;
+        #[cfg(unix)]
+        if let Some(session) = self.commissioning {
+            if let Err(code) = session.claim(self.commissioned_action.get()?).await {
+                let _ = self.commissioning_refusal.set(code);
+                return None;
+            }
+            if !self.engine.unchanged(prepared).await {
+                return None;
+            }
+            if let Err(code) = session.check(self.commissioned_action.get()?) {
+                let _ = self.commissioning_refusal.set(code);
+                return None;
+            }
+            return self
+                .engine
+                .credentials
+                .lease_secret(
+                    &prepared.loaded.record().credential_binding(),
+                    Instant::now() + Duration::from_secs(30),
+                )
+                .await
+                .ok();
+        }
         self.engine.lease(prepared).await.ok()
+    }
+
+    fn authority_refusal(&self) -> Option<&'static str> {
+        #[cfg(unix)]
+        {
+            self.commissioning_refusal.get().copied()
+        }
+        #[cfg(not(unix))]
+        {
+            None
+        }
     }
 
     fn secret_admitted(&self, lease: &StoredSecretLease, guard: &GuardChecks) -> bool {
@@ -1261,7 +1377,7 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
-        wall_clock_seconds()
+        self.clock()
             .is_some_and(|now| now <= evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS))
             && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
     }
@@ -1381,6 +1497,9 @@ pub(crate) fn verify_command(
 /// need of its authorized branches.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    /// Exact actors of action IDs already sealed by the native verifier.
+    #[cfg(unix)]
+    pub(crate) actors: Vec<auths_model::PrincipalId>,
     pub(crate) request: ClosedProviderRequest,
     /// The bounded branch's links and the counters its claim reserves.
     pub(crate) bound: Option<BoundAdmission>,
@@ -1461,6 +1580,8 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
+        #[cfg(unix)]
+        actors: branches.actors,
         request,
         bound,
         approvers: branches.approvers,

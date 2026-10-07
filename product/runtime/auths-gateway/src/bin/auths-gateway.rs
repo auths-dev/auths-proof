@@ -356,6 +356,22 @@ mod unix {
             #[arg(long, default_value_t = false)]
             tuple: bool,
         },
+        /// Authenticated operator-only fresh commissioning registration.
+        /// Registers finite capacity once; never resets existing consumption.
+        CommissioningInit {
+            #[command(flatten)]
+            session: CommissioningOptions,
+        },
+        /// Operator-only exact proof submission under finite commissioning
+        /// authority. Does not open or change the ordinary application socket.
+        CommissioningSubmit {
+            #[command(flatten)]
+            session: CommissioningOptions,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+        },
         /// Write a redacted archive for a support request: versions,
         /// digests, closed states, stable codes, and the digest and stage of
         /// each stored attempt. It holds no proof, action, body, credential,
@@ -602,6 +618,23 @@ mod unix {
         /// installation. Production uses the root its build pins.
         #[arg(long)]
         qualification_trust_root: Option<PathBuf>,
+    }
+
+    #[derive(clap::Args)]
+    struct CommissioningOptions {
+        /// Existing production installation owned by this operator UID.
+        #[arg(long)]
+        state_dir: PathBuf,
+        /// Protected directory containing the permit, signer certificate and
+        /// root-signed revocation list. Production uses its compiled trust root.
+        #[arg(long)]
+        from: PathBuf,
+        /// Exact run identity, including workflow run attempt.
+        #[arg(long)]
+        protected_run: String,
+        /// Reviewed resource file expanded before permit issuance.
+        #[arg(long)]
+        resource_binding: PathBuf,
     }
 
     #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
@@ -1450,11 +1483,49 @@ mod unix {
     }
 
     fn write_verifier_state(state_dir: &Path, state: &VerifierState) -> Result<(), &'static str> {
+        // Concurrent imports must never erase a revocation remembered by an
+        // earlier authenticated operator command in this same installation.
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(i32::from_ne_bytes(
+                rustix::fs::OFlags::NOFOLLOW.bits().to_ne_bytes(),
+            ))
+            .open(state_dir.join("qualification-state.lock"))
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        let metadata = lock
+            .metadata()
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        if !metadata.is_file()
+            || metadata.permissions().mode() & 0o077 != 0
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+        {
+            return Err("gateway.qualification.unavailable");
+        }
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| "gateway.qualification.unavailable")?;
+        let mut merged = read_verifier_state(state_dir)?;
+        merged.accepted_revocation_sequence = merged
+            .accepted_revocation_sequence
+            .max(state.accepted_revocation_sequence);
+        merged.accepted_index_issued_at = merged
+            .accepted_index_issued_at
+            .max(state.accepted_index_issued_at);
+        merged
+            .revoked_signers
+            .extend(state.revoked_signers.iter().cloned());
+        merged
+            .revoked_qualifications
+            .extend(state.revoked_qualifications.iter().cloned());
         let stored = StoredVerifierState {
-            accepted_revocation_sequence: state.accepted_revocation_sequence,
-            accepted_index_issued_at: state.accepted_index_issued_at,
-            revoked_signers: state.revoked_signers.iter().cloned().collect(),
-            revoked_qualifications: state.revoked_qualifications.iter().cloned().collect(),
+            accepted_revocation_sequence: merged.accepted_revocation_sequence,
+            accepted_index_issued_at: merged.accepted_index_issued_at,
+            revoked_signers: merged.revoked_signers.into_iter().collect(),
+            revoked_qualifications: merged.revoked_qualifications.into_iter().collect(),
         };
         let bytes = serde_json::to_vec(&stored).map_err(|_| "gateway.qualification.unavailable")?;
         replace_private_file(&state_dir.join(QUALIFICATION_STATE_FILE), &bytes)
@@ -2487,6 +2558,75 @@ mod unix {
             .map_err(|error| Failure::at(code, socket, error))
     }
 
+    /// Direct operator process; ordinary application handlers never call this.
+    async fn commissioning(
+        options: &CommissioningOptions,
+        command: Option<(&Path, &Path)>,
+    ) -> Result<(), Failure> {
+        use auths_recipe_qualification::{
+            BoundedText, COMMISSIONING_PERMIT_FILE, CommissioningInputs,
+            MAX_COMMISSIONING_PERMIT_BYTES,
+        };
+        private_root(&options.state_dir)?;
+        if installation(&options.state_dir)?.deployment != Deployment::Production {
+            return Err("gateway.commissioning.binding-mismatch".into());
+        }
+        let directory = options.state_dir.clone();
+        let engine = tokio::task::spawn_blocking(move || load_engine(&directory))
+            .await
+            .map_err(|_| "gateway.commissioning.unavailable")??;
+        let permit = read_bounded(
+            &options.from.join(COMMISSIONING_PERMIT_FILE),
+            MAX_COMMISSIONING_PERMIT_BYTES,
+        )?;
+        let certificate = read_bounded(
+            &options.from.join(RELEASE_SIGNER_CERTIFICATE_FILE),
+            MAX_SIGNER_CERTIFICATE_BYTES,
+        )?;
+        let revocations = read_bounded(
+            &options.from.join(RELEASE_REVOCATION_LIST_FILE),
+            MAX_REVOCATION_LIST_BYTES,
+        )?;
+        let resources = read_bounded(&options.resource_binding, 64 * 1024)?;
+        let attestation = read_attestation(&options.state_dir.join(OPERATOR_ATTESTATION_FILE))?;
+        let protected_run = BoundedText::parse(&options.protected_run)
+            .map_err(|_| "gateway.commissioning.binding-mismatch")?;
+        let opened = engine.commissioning_session(&auths_gateway::CommissioningSessionInputs {
+            artifacts: CommissioningInputs {
+                signer_certificate: &certificate,
+                revocation_list: &revocations,
+                permit: &permit,
+            },
+            operator_attestation: &attestation,
+            protected_run: &protected_run,
+            resources: &resources,
+            floor_directory: &options.state_dir,
+        });
+        // Authenticated lists remain remembered even when they deny opening.
+        // Persist before acknowledging an import or reaching any custody lease.
+        write_verifier_state(&options.state_dir, &engine.qualification().verifier_state())?;
+        let session = opened?;
+        match command {
+            None => {
+                session.initialize_budget().await?;
+                println!(
+                    "{{\"outcome\":\"commissioning-registered\",\"qualification\":\"required\"}}"
+                );
+            }
+            Some((proof, action)) => {
+                let proof = read_bounded(proof, 4 * 1024 * 1024)?;
+                let action = read_bounded(action, 64 * 1024)?;
+                let result = session.submit(&proof, &action).await;
+                println!(
+                    "{}",
+                    serde_json::to_string(&result)
+                        .map_err(|_| "gateway.submit.invalid-response")?
+                );
+            }
+        }
+        Ok(())
+    }
+
     async fn submit(socket: PathBuf, proof: PathBuf, action: PathBuf) -> Result<(), Failure> {
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
@@ -3252,6 +3392,12 @@ mod unix {
                     .await
                     .map_err(|_| "gateway.qualification.unavailable")?
             }
+            Command::CommissioningInit { session } => commissioning(&session, None).await,
+            Command::CommissioningSubmit {
+                session,
+                proof,
+                action,
+            } => commissioning(&session, Some((&proof, &action))).await,
             #[cfg(feature = "loopback-provider")]
             Command::Serve {
                 state_dir,
@@ -3530,6 +3676,63 @@ mod unix {
     mod tests {
         use super::*;
         use auths_gateway::listener::APP_CAPACITY;
+
+        #[test]
+        fn concurrent_operator_imports_keep_every_authenticated_revocation() {
+            let directory = tempfile::tempdir().expect("installation");
+            let start = Arc::new(std::sync::Barrier::new(9));
+            let workers: Vec<_> = (1..=8)
+                .map(|index| {
+                    let directory = directory.path().to_owned();
+                    let start = start.clone();
+                    std::thread::spawn(move || {
+                        let mut state = VerifierState {
+                            accepted_revocation_sequence: index,
+                            accepted_index_issued_at: index * 10,
+                            ..VerifierState::default()
+                        };
+                        state.revoked_signers.insert(
+                            QualificationSignerId::parse(format!("synthetic-signer-{index}"))
+                                .expect("signer"),
+                        );
+                        start.wait();
+                        write_verifier_state(&directory, &state)
+                    })
+                })
+                .collect();
+            start.wait();
+            for worker in workers {
+                worker.join().expect("worker").expect("persisted");
+            }
+            write_verifier_state(directory.path(), &VerifierState::default())
+                .expect("stale writer");
+            let stored = read_verifier_state(directory.path()).expect("remembered");
+            assert_eq!(stored.accepted_revocation_sequence, 8);
+            assert_eq!(stored.accepted_index_issued_at, 80);
+            assert_eq!(stored.revoked_signers.len(), 8);
+        }
+
+        #[test]
+        fn application_and_admin_frames_cannot_select_a_commissioning_session() {
+            for field in ["commissioning", "permit", "authority", "operator_session"] {
+                let mut frame = serde_json::json!({"schema": APP_REQUEST_SCHEMA,
+                    "proof_b64": "AA", "action_b64": "AA"});
+                frame[field] = serde_json::json!("synthetic-untrusted-authority");
+                assert!(
+                    serde_json::from_value::<AppSubmission>(frame).is_err(),
+                    "{field}"
+                );
+            }
+            assert!(
+                parse_admin_request(
+                    &serde_json::to_vec(&serde_json::json!({
+                        "schema": ADMIN_REQUEST_SCHEMA, "command": "commissioning-submit"
+                    }))
+                    .expect("frame")
+                )
+                .is_err()
+            );
+        }
 
         fn serve_capacity(arguments: &[&str]) -> Result<usize, clap::Error> {
             let mut command = vec![

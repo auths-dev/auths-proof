@@ -13,6 +13,12 @@ mod audit;
 mod binding;
 mod bounds;
 pub mod commissioning_budget;
+#[cfg(unix)]
+pub mod commissioning_floor;
+#[cfg(unix)]
+pub use engine::{
+    CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
+};
 mod connection;
 mod credential_journal;
 mod echo_verify;
