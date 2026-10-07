@@ -149,10 +149,11 @@ class Operations:
                 time.sleep(0.5)
         require(False, 'qualification.operations.effect-not-independently-observed')
 
-    def lose_response(self, phase, label, *, crash=False):
+    def lose_response(self, phase, label, *, crash=False, observation=False):
         handoff, packet = self.packet(label)
         child = self.deployment.commissioning_child(handoff, packet) if phase == 'commissioning' else None
-        witness = Witness(child.witness, GATEWAY_UID) if child is not None else NativeWitness(self.deployment, 0, 0)
+        witness = Witness(child.witness, GATEWAY_UID, observation=observation) if child is not None \
+            else NativeWitness(self.deployment, 0, 0, observation=observation)
         try:
             with ResponseFault(self.family, witness) as fault, ThreadPoolExecutor(max_workers=1) as pool:
                 if child is not None:
@@ -254,7 +255,10 @@ class Operations:
             self.deployment.start(0)
             require(self.deployment.witness(0)['scope'] != before['scope'],
                     'qualification.operations.restart-scope')
-        return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed')
+        resumed = self.deployment.witness(0)
+        self.deployment.support()
+        return self.completed_probe('gateway-' + ('crash' if crash else 'restart') + '-completed',
+                                    resumed, self.deployment.witness(0))
 
     def doctor(self):
         require(self.phase == 'live', 'qualification.operations.phase')
@@ -283,21 +287,24 @@ class Operations:
                 'report_sha256': sha256(raw)})
         return observation
 
-    def completed_probe(self, code):
+    def completed_probe(self, code, before, after):
         # Completion is constructed only after that source operation returned
         # actual native/provider facts; a corpus's expected code is never read.
+        counted = measure.delta(before, after)
         return self.observation({'verdict': {'outcome': 'complete', 'code': code,
-            'request_sha256': None, 'evidence_sha256': None}, 'credential_leases': 0,
-            'provider_entries': 0, 'confirmed_by_read_back': 0})
+            'request_sha256': None, 'evidence_sha256': None},
+            'credential_leases': counted['credential_lease_calls'],
+            'provider_entries': counted['write_transport_entries'], 'confirmed_by_read_back': 0})
 
     def rotate(self):
         require(self.rotation_keys is not None, 'qualification.operations.genuine-rotation-required')
         successor = next(key for key in self.rotation_keys if key != self.current_credential)
+        before = self.deployment.witness(0)
         result = self.deployment.rotate(successor)
         require(result.get('ok') is True and result.get('code') == 'gateway.admin.rotated',
                 'qualification.operations.rotation-refused')
         self.current_credential = successor
-        return self.completed_probe('provider-secret-rotated')
+        return self.completed_probe('provider-secret-rotated', before, self.deployment.witness(0))
 
     def hostile(self, phase, identifier):
         label = phase + '-13'
@@ -406,13 +413,17 @@ class Operations:
                 result = self.resume_host(phase, label, crash=identifier == 'crash')
             else:
                 result = self.submit(phase, label)
-        elif identifier in ['ambiguous', 'response-loss']:
+        elif identifier in ['ambiguous', 'response-loss', 'visibility']:
             ending = 'replay' if identifier == 'ambiguous' else 'read-back'
-            require(index in [0, 1] and operation == ['drop-response', ending][index],
+            first = 'delay-visibility' if identifier == 'visibility' else 'drop-response'
+            require(index in [0, 1] and operation == [first, ending][index],
                     'qualification.operations.step')
             label = phase + '-' + str(POSITIVES[identifier]).zfill(2)
             if index == 0:
-                result = self.lose_response(phase, label)
+                # Visibility withholds the actual observation response after
+                # the second native credential lease. The write response and
+                # its verified locator have already reached durable state.
+                result = self.lose_response(phase, label, observation=identifier == 'visibility')
             else:
                 require((case, 0) in self.completed, 'qualification.operations.order')
                 result = self.submit(phase, label) if ending == 'replay' else self.read_back(label)

@@ -83,7 +83,10 @@ class Deployment:
         self.sockets.mkdir(mode=0o750)
         os.chmod(self.sockets, 0o750)
         os.chown(self.sockets, GATEWAY_UID, GATEWAY_UID)
-        self.canaries = list(canaries)
+        # The root session adds actual renewed OIDC tokens to this same private
+        # list. Copying it would omit later credentials from output scanning.
+        require(type(canaries) is list, 'qualification.production.canaries')
+        self.canaries = canaries
         require(self.canaries and all(type(value) is bytes and len(value) >= 8 for value in self.canaries),
                 'qualification.production.canaries')
         self.database = {}
