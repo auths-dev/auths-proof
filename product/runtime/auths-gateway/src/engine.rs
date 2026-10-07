@@ -70,6 +70,9 @@ pub enum GatewayEngineConfigurationError {
     /// The installed recipe differs from the operator-approved digest.
     #[error("gateway recipe approval digest mismatch")]
     UnapprovedRecipe,
+    /// An independent process measurement scope could not be allocated.
+    #[error("gateway execution witness unavailable")]
+    WitnessUnavailable,
 }
 
 /// Closed, secret-free application result. A recorded response or matching
@@ -331,6 +334,7 @@ pub struct GatewayEngine {
     qualification: Arc<crate::QualificationGate>,
     attempts: GatewayAttempts,
     in_flight: AtomicU64,
+    execution_witness: Arc<crate::execution_witness::ExecutionWitness>,
     /// The gateway clock of the last successful slot sweep; zero before one.
     last_sweep: AtomicU64,
     drain_limit: Duration,
@@ -405,6 +409,10 @@ impl GatewayEngine {
             qualification: Arc::new(crate::QualificationGate::unconfigured()),
             attempts,
             in_flight: AtomicU64::new(0),
+            execution_witness: Arc::new(
+                crate::execution_witness::ExecutionWitness::new()
+                    .map_err(|_| GatewayEngineConfigurationError::WitnessUnavailable)?,
+            ),
             last_sweep: AtomicU64::new(0),
             drain_limit: DRAIN_LIMIT,
             retirement_delay: crate::CredentialRetirementDelay::FIXED.as_duration(),
@@ -969,6 +977,14 @@ impl GatewayEngine {
         deleted.map(|()| outcome)
     }
 
+    /// Reads process-local execution counters without accessing custody, the
+    /// store, the network, or qualification authority. A snapshot is diagnostic
+    /// evidence only; it never confirms a provider effect.
+    #[must_use]
+    pub fn execution_witness(&self) -> crate::GatewayExecutionWitness {
+        self.execution_witness.snapshot()
+    }
+
     /// Reads the shared record's state and this process's counts. Nothing is
     /// changed.
     ///
@@ -1182,11 +1198,17 @@ impl GatewayEngine {
                 descriptor.credential(),
                 port,
             )
-            .map(|transport| PreparedEntry { loaded, transport })
+            .map(|transport| PreparedEntry {
+                loaded,
+                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
+            })
             .map_err(|_| "gateway.transport.preparation");
         }
         GatewayHttpTransport::prepare(&self.recipe, descriptor.credential())
-            .map(|transport| PreparedEntry { loaded, transport })
+            .map(|transport| PreparedEntry {
+                loaded,
+                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
+            })
             .map_err(|_| "gateway.transport.preparation")
     }
 
@@ -1206,6 +1228,7 @@ impl GatewayEngine {
         // Time moved since the entry was prepared, so the gate is asked
         // again: nothing reaches the credential store unqualified.
         self.qualification.check().map_err(|_| ())?;
+        self.execution_witness.lease();
         self.credentials
             .lease_secret(
                 &prepared.loaded.record().credential_binding(),
@@ -1421,6 +1444,7 @@ impl SubmitIo for EngineIo<'_> {
                 let _ = self.commissioning_refusal.set(code);
                 return None;
             }
+            self.engine.execution_witness.lease();
             return self
                 .engine
                 .credentials

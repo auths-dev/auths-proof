@@ -24,6 +24,8 @@ mod connection;
 mod credential_journal;
 mod echo_verify;
 mod engine;
+mod execution_witness;
+pub use execution_witness::GatewayExecutionWitness;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
 mod generation_floor;

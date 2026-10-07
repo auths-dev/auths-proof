@@ -426,6 +426,13 @@ mod unix {
             #[arg(long)]
             admin_socket: Option<PathBuf>,
         },
+        /// Read actual custody/HTTP boundary counts through the private socket.
+        ExecutionWitness {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
+        },
         /// Ask the private operator socket for one read-only re-observation
         /// of a stored attempt.
         Reobserve {
@@ -952,6 +959,8 @@ mod unix {
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<GatewayAdminStatus>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        execution_witness: Option<auths_gateway::GatewayExecutionWitness>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<GatewaySubmitResult>,
         /// The reference commitment of a prepared successor. It names the
         /// stored secret without revealing it or where it is kept.
@@ -991,6 +1000,7 @@ mod unix {
                 drained: None,
                 in_flight: None,
                 status: None,
+                execution_witness: None,
                 result: None,
                 commitment: None,
                 qualification: None,
@@ -2079,6 +2089,7 @@ mod unix {
         RotatePrepare(Zeroizing<Vec<u8>>),
         RotateCommit([u8; 32]),
         Status,
+        ExecutionWitness,
         Reobserve(String),
         QualificationReload,
     }
@@ -2098,6 +2109,7 @@ mod unix {
             AdminRequestCommand::Enable {} => Ok(AdminCommand::Enable),
             AdminRequestCommand::Revoke {} => Ok(AdminCommand::Revoke),
             AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
+            AdminRequestCommand::ExecutionWitness {} => Ok(AdminCommand::ExecutionWitness),
             AdminRequestCommand::QualificationReload {} => Ok(AdminCommand::QualificationReload),
             AdminRequestCommand::Reobserve { operation_id } => {
                 Ok(AdminCommand::Reobserve(operation_id))
@@ -2182,6 +2194,11 @@ mod unix {
                         ..AdminResponse::refused("gateway.admin.status")
                     },
                     Err(code) => AdminResponse::refused(code),
+                },
+                Ok(AdminCommand::ExecutionWitness) => AdminResponse {
+                    ok: true,
+                    execution_witness: Some(engine.execution_witness()),
+                    ..AdminResponse::refused("gateway.admin.execution-witness")
                 },
                 Ok(AdminCommand::QualificationReload) => {
                     let reloading = Arc::clone(&engine);
@@ -2708,10 +2725,17 @@ mod unix {
             Some((proof, action)) => {
                 let proof = read_bounded(proof, 4 * 1024 * 1024)?;
                 let action = read_bounded(action, 64 * 1024)?;
+                let before = engine.execution_witness();
                 let result = session.submit(&proof, &action).await;
+                let measured = serde_json::json!({
+                    "schema": "auths.gateway-commissioning-execution/1",
+                    "result": result,
+                    "before": before,
+                    "after": engine.execution_witness(),
+                });
                 println!(
                     "{}",
-                    serde_json::to_string(&result)
+                    serde_json::to_string(&measured)
                         .map_err(|_| "gateway.submit.invalid-response")?
                 );
             }
@@ -3622,6 +3646,14 @@ mod unix {
                 }
                 let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 let command = serde_json::json!({"command": "revoke"});
+                admin_command(&state_dir, &admin_socket, command, None).await
+            }
+            Command::ExecutionWitness {
+                state_dir,
+                admin_socket,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "execution-witness"});
                 admin_command(&state_dir, &admin_socket, command, None).await
             }
             Command::Status {

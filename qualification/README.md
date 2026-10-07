@@ -230,3 +230,20 @@ That phase must show a confirmed effect from the installed ordinary client; a
 refusal cannot satisfy it. Only that phase can contribute production doctor
 evidence to a stable launch projection. A permit or an initial record alone
 never establishes stable readiness.
+
+### Measured execution boundaries
+
+The private `auths-gateway execution-witness` command reads process-local
+`auths.gateway-execution-witness/1` counters without consulting custody, the
+store or the provider. The application channel cannot request or reset them.
+Subtract snapshots only with the same random scope, after all measured calls
+complete; reject decreasing or saturated counters. Aggregate each separately
+scoped host for a two-instance race. Restart establishes a fresh scope.
+
+`commissioning-submit` returns `auths.gateway-commissioning-execution/1` with
+its result and before/after snapshots from its own short-lived engine. A
+credential lease count is an actual store call, including a failing call;
+a write entry is the HTTP client's execution boundary, including ambiguity.
+Neither is a claim that a provider received or performed a mutation. Reads,
+including credential probes, are counted separately. First qualification must
+still independently read back the reviewed disposable resource.

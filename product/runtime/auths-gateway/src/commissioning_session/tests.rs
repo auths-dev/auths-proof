@@ -261,6 +261,7 @@ async fn ordinary_submission_cannot_select_commissioning_authority() {
     );
     assert!(ordinary.lease().await.is_none());
     assert_eq!(setup.leases(), 0);
+    assert_eq!(setup.engine().execution_witness().credential_lease_calls, 0);
     assert_eq!(
         session
             .floor
@@ -389,4 +390,45 @@ async fn changed_resources_run_operator_or_context_cannot_open_a_session() {
         );
         assert_eq!(setup.leases(), 0);
     }
+}
+
+#[tokio::test]
+async fn execution_witness_measures_custody_calls_even_when_a_charged_call_fails() {
+    let setup = Setup::new().await;
+    let before = setup.engine().execution_witness();
+    let session = setup
+        .engine()
+        .commissioning_session(&setup.inputs())
+        .expect("operator");
+    session.initialize_budget().await.expect("registered");
+    let commissioned = io(&setup, Some(&session));
+    commissioned.verify(NOW).expect("native exact actor");
+    commissioned
+        .prepare()
+        .await
+        .expect("prepared with custody present");
+    let record = commissioned.prepared.get().expect("entry").loaded.record();
+    setup
+        .engine()
+        .credentials
+        .delete_connection(record.connection_id(), &[record.credential_generation()])
+        .await
+        .expect("remove custody after preparation");
+    assert!(commissioned.lease().await.is_none());
+    assert_eq!(setup.leases(), 1, "the actual failing store call was made");
+    let after = setup.engine().execution_witness();
+    assert_eq!(after.scope, before.scope);
+    assert_eq!(
+        after.credential_lease_calls - before.credential_lease_calls,
+        1
+    );
+    assert_eq!(after.write_transport_entries, 0);
+    assert_eq!(after.read_transport_entries, 0);
+    assert!(
+        commissioned.lease().await.is_none(),
+        "spent capacity cannot retry"
+    );
+    assert_eq!(setup.engine().execution_witness(), after);
+    let restarted = Setup::new().await;
+    assert_ne!(restarted.engine().execution_witness().scope, after.scope);
 }
