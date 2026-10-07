@@ -5,6 +5,10 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use auths_recipe_qualification::{
+    QualificationRevocationList, QualificationSignerCertificate, QualificationTrustRoot,
+};
+
 const WORKFLOW: &str = ".github/workflows/recipe-qualification.yml";
 const PROTECTED: &str =
     "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'";
@@ -65,7 +69,16 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
     let names: Vec<&str> = jobs.keys().map(String::as_str).collect();
     assert_eq!(
         names,
-        ["assemble", "families", "live", "offline", "sign", "verify"]
+        [
+            "candidate",
+            "families",
+            "live",
+            "offline",
+            "packet-author",
+            "sign",
+            "simulation",
+            "verify"
+        ]
     );
     for (name, lines) in &jobs {
         let has = |needle: &str| lines.iter().any(|line| line.contains(needle));
@@ -78,8 +91,8 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
         let protected = lines.iter().any(|line| line == PROTECTED);
         assert_eq!(
             protected,
-            !matches!(name.as_str(), "families" | "offline"),
-            "{name}: everything after offline evidence runs only by hand on the default branch"
+            matches!(name.as_str(), "live" | "sign" | "verify"),
+            "{name}: live evidence and signing run only by hand on the default branch"
         );
         assert_eq!(
             has("QUALIFICATION_RELEASE_SIGNER_KEY"),
@@ -103,7 +116,7 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
     );
     // The key is used only by a tool the signing job built itself, and no
     // privileged or signing-path job runs a binary another job produced.
-    for name in ["assemble", "sign", "verify"] {
+    for name in ["sign", "verify"] {
         let lines = &jobs[name];
         assert!(
             lines
@@ -120,8 +133,8 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
     let live = &jobs["live"];
     let scan = live
         .iter()
-        .position(|line| line.contains("redact.sh"))
-        .expect("the live job scans");
+        .position(|line| line.contains("close_proposal.py"))
+        .expect("the live job closes and scans its final proposal");
     let upload = live
         .iter()
         .position(|line| line.contains("upload-artifact"))
@@ -154,7 +167,9 @@ fn a_pull_request_reaches_no_secret_and_no_signing_job() {
 fn the_repository_holds_no_qualification_key() {
     let trust = repository().join("qualification/trust");
     for entry in std::fs::read_dir(trust).expect("trust directory") {
-        let name = entry.expect("entry").file_name();
+        let entry = entry.expect("entry");
+        assert!(entry.file_type().expect("type").is_file());
+        let name = entry.file_name();
         let name = name.to_string_lossy();
         assert!(
             matches!(
@@ -162,9 +177,54 @@ fn the_repository_holds_no_qualification_key() {
                 ".gitkeep"
                     | "qualification-trust-root.json"
                     | "signer-certificate.json"
+                    | "commissioning-signer-certificate.json"
                     | "revocation-list.json"
+                    | "ceremony.json"
             ),
             "{name} is not a public trust artifact"
         );
+        let bytes = std::fs::read(entry.path()).expect("public artifact");
+        match name.as_ref() {
+            "qualification-trust-root.json" => {
+                QualificationTrustRoot::from_canonical_json(&bytes).expect("closed public root");
+            }
+            "signer-certificate.json" | "commissioning-signer-certificate.json" => {
+                QualificationSignerCertificate::from_canonical_json(&bytes)
+                    .expect("closed public certificate");
+            }
+            "revocation-list.json" => {
+                QualificationRevocationList::from_canonical_json(&bytes)
+                    .expect("closed public revocations");
+            }
+            "ceremony.json" => {
+                let ceremony: serde_json::Value = serde_json::from_slice(&bytes).expect("ceremony");
+                let mut keys: Vec<&str> = ceremony
+                    .as_object()
+                    .expect("ceremony object")
+                    .keys()
+                    .map(String::as_str)
+                    .collect();
+                keys.sort_unstable();
+                assert_eq!(
+                    keys,
+                    [
+                        "assessment",
+                        "created_at",
+                        "operator",
+                        "private_key_retention",
+                        "public_artifacts",
+                        "qualification_issued",
+                        "schema",
+                        "scope",
+                        "stable_launch_ready"
+                    ]
+                );
+                assert_eq!(ceremony["schema"], "auths.qualification-root-ceremony/1");
+                assert_eq!(ceremony["qualification_issued"], false);
+                assert_eq!(ceremony["stable_launch_ready"], false);
+            }
+            ".gitkeep" => assert!(bytes.is_empty()),
+            _ => unreachable!("filename checked above"),
+        }
     }
 }
