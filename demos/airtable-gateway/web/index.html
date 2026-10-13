@@ -25,7 +25,7 @@ Another writer can overwrite the record. This profile declares no numeric spend 
 <option value="competing-writer">Another writer copies value, changes echo</option><option value="recover-competing">Observe competing-writer operation again</option>
 <option value="rate-limit">Provider returns 429</option><option value="provider-error">Provider returns 500</option>
 <option value="malformed-response">Malformed provider JSON</option><option value="oversized-response">Oversized provider response</option>
-<option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read signed stored outcome</option>
+<option value="typescript-positive">Fresh update through installed TypeScript client</option><option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read signed stored outcome</option>
 </select><p id="proposal">Each experiment fixes its record, operation and signed arguments.</p>
 <button id="submit" disabled>Submit through the gateway</button>
 <p class="small">Run the exact update before replay. Recovery resubmits the original operation to the native replay boundary;

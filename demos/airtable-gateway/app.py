@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-injection',
           'wrong-recipe', 'altered-action', 'forged-proof', 'expired-action', 'race',
           'lost-response', 'competing-writer', 'rate-limit', 'provider-error',
-          'malformed-response', 'oversized-response', 'encoded-segment')
+          'malformed-response', 'oversized-response', 'encoded-segment', 'typescript-positive')
 EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
 FAULTS = ('lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response')
@@ -194,7 +194,7 @@ class Application:
             records = await asyncio.gather(self.exchange(packet, 0), self.exchange(packet, 1))
         else:
             records = [await self.exchange(packet, 2 if experiment == 'fresh-replay' else 0,
-                                           typescript=experiment == 'typescript')]
+                                           typescript=experiment in ('typescript', 'typescript-positive'))]
         for record in records:
             if experiment != 'observe':
                 await self.remember(packet, record)

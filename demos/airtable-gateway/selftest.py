@@ -50,7 +50,7 @@ def test_native_refusals_replay_race_and_loss(operator):
             'demo.selftest-path-escaped-fixed-resource')
     require(records[0]['outcome'] in ['not-entered', 'response-recorded', 'denied'],
             'demo.selftest-path-injection-effect-claim')
-    for label in ['exact', 'pending']:
+    for label in ['exact', 'pending', 'typescript-positive']:
         result, records, traffic = execute(label)
         require(records[0]['outcome'] == 'observed-by-provider', 'demo.selftest-observation:' + label)
         writes = [item for item in traffic if item['kind'] == 'write']
