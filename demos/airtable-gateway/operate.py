@@ -103,7 +103,7 @@ async def authority(binary, resources, directory, mode):
         for index, label in enumerate(LABELS):
             cases[label] = {'arguments': {'operator_namespace': 'airtable-demo',
                 'operation_id': label, 'recipe_digest': '0' * 64 if label == 'wrong-recipe' else review['recipe_digest'],
-                'record_id': 'rec../other-record' if label == 'path-injection' else resources['records'][index],
+                'record_id': '..' if label == 'path-injection' else 'rec../other-record' if label == 'encoded-segment' else resources['records'][index],
                 'replacement': 'Pending' if label == 'pending' else 'Rejected' if label == 'unsupported-value' else 'Approved'}}
         plan = {'schema': 'auths.airtable-gateway-demo/1', 'mode': mode,
                 'trust': 'separate operator-issued development root and actor; no production trust claim',

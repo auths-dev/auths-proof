@@ -38,12 +38,12 @@ def test_native_refusals_replay_race_and_loss(operator):
             'other_actor_writes': sum(item['kind'] == 'fixture-write' for item in traffic)})
         return result, records, traffic
 
-    for label in ['unsupported-value', 'record-substitution', 'wrong-recipe', 'altered-action', 'forged-proof', 'expired-action']:
+    for label in ['unsupported-value', 'record-substitution', 'path-injection', 'wrong-recipe', 'altered-action', 'forged-proof', 'expired-action']:
         _, records, traffic = execute(label)
         require(all(item['outcome'] in ['not-entered', 'denied', 'indeterminate'] for item in records)
                 and not traffic and cases[-1]['native_counters']['credential_lease_calls'] == 0,
                 'demo.selftest-pre-custody-refusal:' + label)
-    _, records, traffic = execute('path-injection')
+    _, records, traffic = execute('encoded-segment')
     # Percent-encoded text may name a nonexistent record, but cannot add a
     # path segment or escape the operator's fixed base/table.
     require(not traffic or all(item['path'] == PREFIX + quote('rec../other-record', safe='') for item in traffic),

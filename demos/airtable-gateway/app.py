@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-injection',
           'wrong-recipe', 'altered-action', 'forged-proof', 'expired-action', 'race',
           'lost-response', 'competing-writer', 'rate-limit', 'provider-error',
-          'malformed-response', 'oversized-response')
+          'malformed-response', 'oversized-response', 'encoded-segment')
 EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
 FAULTS = ('lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response')
@@ -101,6 +101,11 @@ class Application:
                 command_type=UnsupportedStatus,
                 fields={**FIELDS, 'replacement': EnumField(('Approved', 'Pending', 'Rejected'))})
             command_type = UnsupportedStatus
+        elif label == 'path-injection':
+            from auths.self_hosted import ExactMcpTool, StringField
+            contract = ExactMcpTool(service=CONTRACT.service, name=CONTRACT.name,
+                command_type=SetDemoStatus,
+                fields={**FIELDS, 'record_id': StringField(min_length=1, max_length=43)})
         authored = await author_mcp_proof(
             contract=contract, command=command_type(**case['arguments']),
             grants=[GrantEvidence(unb64(grant['bytes']), evidence)],
