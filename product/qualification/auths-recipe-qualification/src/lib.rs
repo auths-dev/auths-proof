@@ -18,9 +18,11 @@
 
 mod canonical;
 mod closure;
+mod commissioning;
 mod error;
 mod evidence;
 mod ids;
+mod launch;
 mod model;
 mod release;
 mod verify;
@@ -46,6 +48,15 @@ pub use closure::{
     GatewaySemanticClosure, MAX_SEMANTIC_CLOSURE_BYTES, MAX_SEMANTIC_CLOSURE_FILES,
     SEMANTIC_CLOSURE_SCHEMA, SemanticClosureBody, SemanticClosureFile,
 };
+pub use commissioning::{
+    COMMISSIONING_BUDGET_BINDING_DOMAIN, COMMISSIONING_BUDGET_KEY_DOMAIN,
+    COMMISSIONING_PERMIT_FILE, COMMISSIONING_PERMIT_SCHEMA, CommissioningBinding,
+    CommissioningInputs, CommissioningOfflineEvidence, CommissioningPermitBody,
+    CommissioningPermitStatement, CommissioningRefusal, CommissioningRequest,
+    MAX_COMMISSIONING_ACTIONS, MAX_COMMISSIONING_CONTEXTS, MAX_COMMISSIONING_LEASES,
+    MAX_COMMISSIONING_PERMIT_BYTES, MAX_COMMISSIONING_SECONDS, QualificationCommissioningPermit,
+    VerifiedCommissioningPermit,
+};
 pub use error::QualificationFormatError;
 pub use evidence::{
     ClosureFault, EVIDENCE_SCHEMA, EvidenceBody, EvidenceCase, MAX_EVIDENCE_BYTES,
@@ -56,6 +67,7 @@ pub use ids::{
     BoundedText, GitCommit, InvalidIdentifier, PublicKeyB64, QualificationId, QualificationRootId,
     QualificationSignerId, RecipeFamilyId, Sha256Digest, SignatureB64,
 };
+pub use launch::LaunchCandidate;
 pub use model::{
     CapabilityKind, CapabilityResult, ContractDeclarations, EvidenceMember, EvidenceMemberKind,
     EvidenceResult, ExercisedCapability, InstalledPackage, LifecycleStoreKind, LiveEffects,

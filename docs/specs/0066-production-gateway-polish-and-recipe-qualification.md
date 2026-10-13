@@ -567,11 +567,15 @@ is never silently skipped. Infrastructure failure produces no candidate.
 The machinery is not accepted using mocks alone. Its release gate requires two
 recipe families against two live providers:
 
-- the Stripe refund journey, including a genuinely distinct connected account
-  when account-scope support is part of the qualified tuple; and
+- the platform-account Stripe refund journey in test mode, with no Connect
+  account-scope capability in this launch tuple (owner decision, 7 October 2026); and
 - one independently authored simple write recipe from the field-lab journey
   (Airtable or Todoist), proving that qualification does not depend on a
   first-party provider module.
+
+A future tuple that declares Connect account-scope support must exercise a
+genuinely distinct connected account; the platform-only evidence cannot qualify
+that capability.
 
 Each requires its own ADR and protected evidence. The two recipes share the
 qualification mechanism, not provider semantics. Until both attestations
@@ -1428,7 +1432,7 @@ Each was taken unattended as the narrower or fail-closed reading.
    | 1 | `clean-source`, `recipe-digest-rederives` | conformance |
    | 2 | `recipe-vectors`, `closed-enumeration-hostile` | conformance |
    | 3 | `oracle-accepts`, `oracle-rejects` | differential |
-   | 4 | `application-cannot-read-secret` | hostile |
+   | 4 | `application-cannot-read-secret`, `production-readiness` (launch gate) | hostile |
    | 5 | `forged-proof`, `altered-action`, `proof-replay`, `fresh-challenge-replay`, `direct-provider-attempt`, `ambiguous-response` | hostile |
    | 5 | `two-instance-race` | multi-instance |
    | 5 | `restart`, `crash` | restart |
@@ -1440,7 +1444,13 @@ Each was taken unattended as the narrower or fail-closed reading.
    | 11 | `log-scan`, `trace-scan`, `metric-scan`, `support-bundle-scan`, `evidence-scan` | redaction |
    | 12 | `installed-journey`, `no-repository-import`, `no-provider-token` | installed-consumer |
 
-   Thirty-four are required of every record. `observer-rotation` and
+   The closed set has thirty-seven scenarios. Thirty-four are required of every
+   record. `production-readiness` is additionally required for the stable launch
+   projection: a protected live, read-only doctor probe on the exact PostgreSQL
+   and production-custody target, with all required typed rows ready and zero
+   leases or provider entries. Its evidence commits to the actual doctor report.
+   Intermediate records may omit it but cannot close the stable launch gate.
+   `observer-rotation` and
    `declared-capability` are required exactly when a capability they show is
    exercised. `freshness` is placed in row 7 because the signed time bounds
    are part of the trust transitions.
@@ -1478,7 +1488,7 @@ Each was taken unattended as the narrower or fail-closed reading.
    rederived from the installed files. The semantic closure, package,
    version, operating system, and architecture are the build's. The build
    digest is SHA-256 of the running executable. The store kind and schema
-   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/5`,
+   follow the deployment (`postgresql-v1` with `auths.lifecycle.postgresql/6`,
    or `shared-file-v1` with `auths.gateway-attempt/3`). The recipe family and
    the provider contract identifier are declared by the operator at install,
    because a gateway cannot derive them; a wrong declaration matches no
@@ -1640,10 +1650,244 @@ source-free packaged simulation passed 47 steps in Docker against the verified
 `f1f92c3f` package after fixing development file-rotation and tuple-declaration
 friction. The sanitized report is
 `deployment/gateway/evidence/operator-simulation-2026-10-06.json`.
-Exact-current-commit hosted verification remains pending; no live provider,
+The exact `393edc52` candidate subsequently passed all 26 main CI jobs and the
+six package/isolation/PostgreSQL/recipe/SDK workflows. Its source-free hosted
+rehearsal passed all 47 steps in 0.553 seconds, and the downloaded archive passed
+the same 47 steps in Docker in 6.162 seconds. PR #205 merged as `4623d635` on
+2026-10-06 under the owner's labeled-simulation deliverable. No live provider,
 production AWS rotation or production PostgreSQL PITR is claimed by this run.
 Epic 5
 also lacks the owner's offline root ceremony, protected signer secret,
 two protected provider environments and human release review. On 2026-10-06,
 GitHub environment/secret metadata confirmed no qualification signer secret
 and neither family live environment. No production recipe is qualified.
+
+## 22. Epic 5 engineering and unresolved qualification inputs (2026-10-06)
+
+The release projection now verifies every signed index entry, exact candidate
+identity, production target, time/revocation, evidence closure and production
+readiness, requiring independent families, contracts and provider kinds.
+Finalization re-evaluates the result and the manifest binds exactly one
+projection. Signing publishes the canonical evidence needed to inspect closure.
+The current build pins no root and derives false; hosted verification is pending.
+
+[ADR 0014](../adr/0014-stripe-refund-recipe-qualification.md) and
+[ADR 0015](../adr/0015-airtable-record-update-recipe-qualification.md) are proposed
+provider decisions, not production-qualified families. The owner has directed
+the agent to simulate bootstrap and both provider harnesses independently.
+`qualification/simulation/run.py` now runs disposable in-memory root/signer
+creation, certification, signing, index/revocation publication and required-gate
+import. Unsigned and expired inputs cannot lease; verified test import can.
+The signed placeholder records explicitly claim no provider run. Separate
+Stripe and Airtable harness reports measure actual native driver leases, entries,
+fresh read-back, replay, reopen, response loss and response-record crash against
+independent wire oracles and mutable doubles. Each measured provider report
+also has a detached signature under a fresh self-signed simulation key; the
+runner re-reads and verifies the exact published bytes in a separate native
+stage. These signatures have no production or protected-run authority.
+The production pinned root stays
+unchanged and stable launch readiness stays false. The rehearsal is a maintained
+CI job and needs no external credentials.
+
+The local rehearsal passed 36 measured provider cases (18 per family), plus
+the disposable two-family signing/import ceremony. Each race entered one
+write; a concurrent contender may additionally use a measured read-only
+reconciliation lease. The
+candidate kit embeds its fixtures and is run in Docker without checkout,
+credentials or network. Hosted verification of that packaged run is pending.
+
+The protected production run still has a first-attestation cycle:
+production leases require qualification before the live effects needed to issue
+it. A reviewed authority design must resolve this without bypassing the shipped
+lease gate. Dynamically created provider identifiers need reviewed oracle/corpus
+binding before execution, not expected digests copied from candidate output.
+Those real-production prerequisites do not block the owner-directed simulation.
+No protected live evidence or production qualification is claimed.
+
+### 22.1 Live independent-operator rehearsal (2026-10-07)
+
+The agent located and used the existing sandbox credentials without publishing
+them. `qualification/simulation/live/airtable.py` passed against real Airtable
+with the downloaded gateway package at `20837b56` and the installed Linux
+Python SDK `0.0.1rc1`. It fixed a dedicated table in the recipe before review,
+created a disposable record, used two independent gateway processes with a
+shared durable file store, and obtained one provider-observed submission and
+one replay refusal. Fresh independent read-back matched value and echo.
+Original-proof replay, altered action and replay after process restart were
+refused. The application UID could read neither the provider credential nor
+gateway state; the actual support bundle passed secret scanning. Cleanup
+deleted the created record. The exact published report has a verified detached
+simulation signature and is retained with the support bundle under
+`qualification/simulation/evidence/airtable-live-2026-10-07/`.
+
+The first isolation check caught Docker Desktop host sharing presenting the
+credential file as owned by the application caller. The corrected runner
+receives dotenv input only through operator stdin, stages it in a root-owned
+private directory on the container filesystem and repeats the access check.
+It mounts no provider credential or source checkout. Failed journeys also
+delete their disposable records.
+
+The Stripe test keys authenticate, but the platform lists no connected
+accounts and refuses creating one with HTTP 400 because Connect is not enabled.
+This is a real failed setup, not distinct-account qualification evidence.
+The Airtable token reaches the existing base; its restriction to one base has
+not been established. These reports exclude protected production qualification,
+production PostgreSQL/AWS custody, complete-corpus coverage and independently
+witnessed lease/provider-entry counts. Stable readiness remains false.
+
+### 22.2 Owner-approved Stripe scope change (2026-10-07)
+
+The owner has excluded paid Connect onboarding and authorized adapting the
+qualification case to a platform-account refund. The launch Stripe family is
+now `stripe-platform-refund-v1`: its separately generated profile and reviewed
+recipe are under `qualification/simulation/live/stripe-platform/`. Neither the
+profile nor the recipe declares a connected-account argument or account-scope
+header. The restricted test credential guard, platform-identity commitment,
+version pin, denied reads, relative ceiling, count/sum budgets, idempotency,
+response locator and fresh echo observation remain required. Connected-account
+selection is explicitly outside this tuple and these reports.
+
+The revised platform-only live Stripe run passed through the downloaded
+`20837b56` gateway and installed `0.0.1rc1` Linux wheel. The restricted key
+passed its test-mode/platform/denied-read guards. Grant ceiling, relative
+ceiling and currency partition violations were refused. One 500-cent refund
+against a freshly created 2,000-cent test payment was confirmed by an
+independent fresh refund listing with matching amount and echo; original proof,
+altered action and replay after restart were refused. The application could
+read neither the staged credential nor gateway state. Teardown refunded the
+remaining balance and freshly confirmed the charge was fully refunded.
+The exact signed simulation report and support bundle are retained under
+`qualification/simulation/evidence/stripe-platform-live-2026-10-07/`.
+Both live provider journeys now have measured development evidence. They still
+exclude protected production qualification and the full production evidence
+wall; the normal production lease gate remains unchanged.
+
+### 22.3 First-run commissioning design (2026-10-07)
+
+[ADR 0016](../adr/0016-bounded-qualification-commissioning-authority.md) proposes
+a separate, finite signed authority for an authenticated operator qualification
+run against the exact production candidate. It binds reviewed resource/action
+commitments, the production tuple, trusted context, one protected run and actor,
+durable shared lease bounds, time and revocation. Normal application leases
+remain subject to the current qualification gate. A permit is neither a
+qualification nor evidence of provider behavior or production readiness.
+
+The signed schema, pure issuance/verifier, sealed private runtime path,
+PostgreSQL accounting, retained host floor and authenticated operator commands
+are implemented. The first offline root and separate purpose certificates are
+pinned, with no qualification issued. The protected family reference/workflow
+and rejection/live evidence still must land before the bootstrap can be
+claimed resolved. Epic 5's done conditions remain unchanged.
+
+### 22.4 Reviewed commissioning expansion (2026-10-07)
+
+The default candidate now derives its planned production tuple without installing
+custody through `qualification-candidate`. This is offline candidate identity,
+not a deployment or a qualified state. The protected live installation must
+print the same tuple before permit import or submission.
+
+`review-submission` verifies a proof and derives its actors, native action
+commitment and credential-free closed request without custody, state or provider
+I/O. Its optional evaluation time is an offline input and cannot alter the
+production lease clock. `qualification/reference/` independently derives the
+Stripe/Airtable requests, fixes resource membership and reconstructs the entire
+reviewed recipe and exact lock. Expansion invokes a reviewer built by the
+signing job from its checkout; downloaded candidate bytes are hashed but never
+executed with a signing key. The original candidate digest remains signed.
+One actor, finite exact actions, immutable resources and a source-owned ceiling
+of 64 custody acquisitions are required. The native issuer additionally checks
+offline evidence closure before issuing a two-hour permit.
+
+Both purpose-separated signer keys now exist in the existing reviewer-protected,
+default-branch-only signing environment. The offline root remains outside CI.
+Complete family setup/corpora, protected commissioning/live runs and final signed
+qualification still remain; these changes issue no qualification or readiness.
+
+### 22.5 Ordinary-client bootstrap closure (2026-10-07)
+
+The closed release-only corpus now distinguishes offline verification, private
+commissioning and ordinary qualified live execution (schema
+`auths.qualification-corpus/3`). An installed client in commissioning must
+measure a missing-qualification refusal with zero lease and entry; the same
+scenario in ordinary live execution must measure a fresh confirmed effect.
+Commissioning cases require the production tuple and cannot satisfy production
+readiness. Assembly selects one protected phase, limits the first record to two
+hours and explicitly excludes the ordinary-client/readiness claims that only
+the subsequent phase can establish. Both scopes belong to the same reviewed
+manifest and exact tuple. This closes the second dependency cycle without
+opening ordinary application leases under a commissioning permit. The protected
+workflow and family corpora still must execute this sequence.
+
+#### 22.6 Credential-free differential review
+
+Offline `oracle-accepts` / `oracle-rejects` cases execute the reviewed pure
+oracle followed by `review`, the candidate's native `review-submission` command.
+They compare exact proof/action verdict and closed request commitments with
+zero custody leases, provider entries and read-back confirmations. A permitted
+mapping is `complete`, without an HTTP response or effect claim. `review` is
+refused as a protected operation or a replacement for an application submission.
+First commissioning therefore depends on offline native verification, without
+requiring pre-existing qualification to collect that verification.
+
+#### 22.7 Reviewed family plans and executable offline collection
+
+Both family directories now bind the exact source compiler, provider references,
+packet author, maintained recipe/lock and ADR in a canonical reviewed-plan
+manifest. The native provider contract hashes that manifest; a record separately
+hashes the concrete native corpus expanded from its authenticated public pool.
+The source generator refuses drift before permit contract derivation. Candidate
+outcomes never supply expected verdicts or request/evidence commitments.
+
+The full plan fixes 16 resources per family and includes both protected phases,
+ordinary Python/TypeScript journeys, isolation, drift, rotation, replay, race,
+restart, crash, loss/delayed visibility and production doctor. Stripe additionally
+has fixed count/sum capacity experiments and exact relative-ceiling probes.
+The installed author keeps one actor and reviewed grants; the distinct native
+budget windows isolate those capacity experiments without resetting state.
+
+The six offline scenarios have an executable family harness and hosted jobs
+using the actual installed wheel and shipping gateway. The native runner derives
+their conformance/differential reports, and the issuer constructs canonical
+offline evidence. Verification of this new collection is pending. Protected
+operations currently refuse without their production journey implementation;
+the source plan is not evidence that those operations ran. Epic 5 remains open.
+
+#### 22.8 Production operator installation boundary
+
+The installed SDK now authors both exact-context operator statements using a
+separate process and key, reconstructs the native signing preimage, verifies
+the signatures and checks key separation from all packet actors. These are
+technical operator statements; they assert no human review or qualification.
+
+Native installation now selects administrative AWS custody just as rotation
+does: the restricted operator identity writes, while the distinct runtime
+identity reads the stored commitment for a join. Neither IAM role is broadened.
+The existing custody workflow supplies the reader identity and admits live
+identity only for manual runs on main. The semantic closure is regenerated
+with the native fixture generator after this source change.
+
+The private production controller binds the shipping executable, prepares two
+hosts for each trusted context, requires PostgreSQL/TLS and AWS custody, and
+compares all four installed tuples with the planned tuple. Complete protected
+provider orchestration and hosted verification are still pending.
+
+#### 22.9 Retained workflow and exact environment cutover
+
+The production reference now connects preparation, finite commissioning,
+independent first-release signing, ordinary required-gate execution, cleanup
+and independently reconstructed final signing. Its records name the existing
+`gateway-custody-live` environment, which the launch projection requires
+exactly. This supersedes §20.3 reading 18 and §20.4 item 6's proposed per-family
+environment names; no alternate environment name is accepted. Before reaching
+provider credentials, the live job checks actual required-reviewer protection
+and exactly one deployment policy for the `main` branch. Missing protection
+refuses. The workflow does not change shared environment policy or upload keys.
+
+Both purpose-separated signer jobs use `recipe-qualification-signing`; each
+step receives only its own key. All family reconstruction completes before the
+release key is read. Interrupted native installs retain approved cleanup inputs
+without an execution floor; revocation is required before native collection can
+retire them. Source cleanup drains any active restoration before deleting state.
+Airtable rehearsal traffic is paced without serializing a race or retrying a
+write. Hosted verification and both full protected runs remain pending. These
+engineering changes issue no qualification or stable launch claim.

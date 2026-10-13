@@ -16994,6 +16994,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-gateway",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-github",
       "target_layer": "product",
       "scope": "internal",
@@ -17161,6 +17173,18 @@
       "source": "xtask",
       "source_layer": "tooling",
       "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-recipe-qualification",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",

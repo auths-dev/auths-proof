@@ -30,12 +30,14 @@ auths-ci-plan = { path = "ci-plan", version = "1.0.0-rc.1" }
 auths-lab-matrix.workspace = true
 auths-lifecycle.workspace = true
 auths-github = { workspace = true, features = ["fixture-support"] }
+auths-gateway.workspace = true
 auths-kubernetes.workspace = true
 auths-opentofu.workspace = true
 auths-postgresql.workspace = true
 auths-proof-exchange-testkit.workspace = true
 auths-radicle = { workspace = true, features = ["fixture-support"] }
 auths-records-api.workspace = true
+auths-recipe-qualification.workspace = true
 auths-stripe = { workspace = true, features = ["fixture-support"] }
 base64ct.workspace = true
 ed25519-dalek.workspace = true

@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   store-contract:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: gateway-custody-live
@@ -89,6 +90,7 @@ jobs:
         run: rm -f "${RUNNER_TEMP}/custody-identity-token"
 
   gateway-journey:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     # A real gateway whose provider secret lives in the production store:
     # the north-star refund journey, hostile cases included, with the key
     # installed into Secrets Manager and leased from it for every write.
@@ -121,12 +123,14 @@ jobs:
         working-directory: examples/stripe-refund-approval
         env:
           AWS_ROLE_ARN: arn:aws:iam::585985124542:role/auths-gateway-custody-gateway
+          AUTHS_GATEWAY_RUNTIME_ROLE_ARN: arn:aws:iam::585985124542:role/auths-gateway-custody-runtime
           NAMESPACE: journey-${{ github.run_id }}-${{ github.run_attempt }}
           KMS_KEY: arn:aws:kms:eu-west-1:585985124542:key/1e1c85ae-7d9c-4f2d-978f-bd672b597907
         run: |
           set -euo pipefail
           umask 077
           export AWS_WEB_IDENTITY_TOKEN_FILE="${RUNNER_TEMP}/journey-identity-token"
+          export AUTHS_GATEWAY_RUNTIME_TOKEN_FILE="${AWS_WEB_IDENTITY_TOKEN_FILE}"
           refresh() {
             curl --fail-with-body --silent --show-error \
               -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
@@ -156,6 +160,7 @@ jobs:
           retention-days: 30
 
   provider-journey:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     # The same journey against a live provider: Stripe test mode. The gateway
     # is the default build, with no loopback option, and its restricted test
     # key lives in Secrets Manager. The run makes one 15.00 test refund and
@@ -198,6 +203,7 @@ jobs:
         env:
           STRIPE_TEST_RESTRICTED_KEY: ${{ secrets.STRIPE_TEST_KEY }}
           AWS_ROLE_ARN: arn:aws:iam::585985124542:role/auths-gateway-custody-gateway
+          AUTHS_GATEWAY_RUNTIME_ROLE_ARN: arn:aws:iam::585985124542:role/auths-gateway-custody-runtime
           NAMESPACE: provider-${{ github.run_id }}-${{ github.run_attempt }}
           KMS_KEY: arn:aws:kms:eu-west-1:585985124542:key/1e1c85ae-7d9c-4f2d-978f-bd672b597907
           STRIPE_ACCOUNT: acct_1QekbYID70YvJ7mY
@@ -207,6 +213,7 @@ jobs:
           set -euo pipefail
           umask 077
           export AWS_WEB_IDENTITY_TOKEN_FILE="${RUNNER_TEMP}/provider-identity-token"
+          export AUTHS_GATEWAY_RUNTIME_TOKEN_FILE="${AWS_WEB_IDENTITY_TOKEN_FILE}"
           refresh() {
             curl --fail-with-body --silent --show-error \
               -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
@@ -241,4 +248,3 @@ jobs:
           path: target/journey-artifacts/provider-journey-summary.json
           if-no-files-found: warn
           retention-days: 30
-

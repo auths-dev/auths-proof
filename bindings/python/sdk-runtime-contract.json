@@ -2,7 +2,7 @@
   "schema": "auths.python-runtime-contract/1",
   "package": {
     "name": "auths",
-    "version": "1.0.0rc1",
+    "version": "0.0.1rc1",
     "nativeAbi": 2,
     "wheelAbi": "abi3-py39"
   },

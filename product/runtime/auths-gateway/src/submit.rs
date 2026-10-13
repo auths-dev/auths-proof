@@ -70,6 +70,13 @@ pub(crate) trait SubmitIo {
     /// Leases the credential.
     async fn lease(&self) -> Option<Self::Lease>;
 
+    /// A sealed operator authority's more specific pre-custody refusal, when
+    /// present. It refines diagnostics only; the translated driver still owns
+    /// the refusal transition and records no provider entry.
+    fn authority_refusal(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Whether the leased secret starts with a declared prefix. The secret
     /// never leaves the lease.
     fn secret_admitted(&self, lease: &Self::Lease, guard: &GuardChecks) -> bool;
@@ -714,7 +721,13 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(claim) = self.claim.take() else {
             return false;
         };
-        let code = refusal_code(refusal);
+        let code = match refusal {
+            Refusal::CredentialUnavailable | Refusal::ConnectionChanged => self
+                .io
+                .authority_refusal()
+                .unwrap_or_else(|| refusal_code(refusal)),
+            _ => refusal_code(refusal),
+        };
         let pre_entry = (!self.pre_entry.is_empty()).then_some(&self.pre_entry);
         let recorded = claim.record_not_entered(code, pre_entry).await.is_ok();
         if recorded {

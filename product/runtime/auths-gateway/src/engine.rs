@@ -45,6 +45,14 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
+#[cfg(unix)]
+#[path = "commissioning_session.rs"]
+mod commissioning;
+#[cfg(unix)]
+pub use commissioning::{
+    CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
+};
+
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -62,6 +70,9 @@ pub enum GatewayEngineConfigurationError {
     /// The installed recipe differs from the operator-approved digest.
     #[error("gateway recipe approval digest mismatch")]
     UnapprovedRecipe,
+    /// An independent process measurement scope could not be allocated.
+    #[error("gateway execution witness unavailable")]
+    WitnessUnavailable,
 }
 
 /// Closed, secret-free application result. A recorded response or matching
@@ -104,6 +115,87 @@ pub struct GatewayEvidenceSummary {
     pub evidence_digest: String,
     /// Gateway wall-clock seconds; not authenticated.
     pub observed_at: u64,
+}
+
+/// A verified submission's bounded, credential-free request projection for
+/// offline operator review and differential qualification. It grants no
+/// execution authority and records no claim, lease, provider entry or receipt.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GatewaySubmissionReview {
+    /// Exactly `auths.gateway-submission-review/1`.
+    pub schema: &'static str,
+    /// Every exact actor whose action branch the native verifier authorized.
+    pub actors: Vec<String>,
+    /// Native commitment to the verified canonical action bytes.
+    pub action_commitment: String,
+    /// Typed profile arguments decoded from the verified action.
+    pub arguments: Map<String, Value>,
+    /// The closed outbound request, before any credential is attached.
+    pub request: GatewayRequestReview,
+}
+
+/// Public request facts used to compare an independently reviewed oracle.
+/// No authorization header or provider response is included.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GatewayRequestReview {
+    /// Closed HTTP method.
+    pub method: String,
+    /// Recipe-derived HTTPS URL.
+    pub url: String,
+    /// Recipe-derived body media type.
+    pub content_type: String,
+    /// Exact bounded UTF-8 JSON or form body.
+    pub body: String,
+    /// Ordered recipe-derived headers, without credential material.
+    pub headers: Vec<(String, String)>,
+    /// Declared derived idempotency key, if any.
+    pub idempotency_key: Option<String>,
+}
+
+/// Reviews proof and action through the same native verification and closed
+/// request construction as submission, without opening custody or a store.
+/// `now` is an offline evaluation input; this function grants no lease and
+/// cannot replace the production deployment clock.
+///
+/// # Errors
+/// Returns the exact native/profile refusal for invalid or unauthorized input.
+/// A successful review establishes only offline eligibility; lifecycle,
+/// qualification, custody, guard, evidence and capacity checks still apply
+/// when the operator submits through an installed gateway.
+#[cfg(unix)]
+pub fn review_submission(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof: &[u8],
+    action: &[u8],
+) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
+    let command = verify_detailed(recipe, context, now, proof, action)?;
+    let request = &command.request;
+    Ok(GatewaySubmissionReview {
+        schema: "auths.gateway-submission-review/1",
+        actors: command
+            .actors
+            .iter()
+            .map(|actor| actor.as_str().to_owned())
+            .collect(),
+        action_commitment: hex::encode(request.action_commitment()),
+        arguments: command.arguments,
+        request: GatewayRequestReview {
+            method: request.method().as_str().to_owned(),
+            url: request.url().to_owned(),
+            content_type: request.content_type().to_owned(),
+            body: std::str::from_utf8(request.body())
+                .map_err(|_| not_entered("gateway.action.projection"))?
+                .to_owned(),
+            headers: request
+                .headers()
+                .iter()
+                .map(|header| (header.name().to_owned(), header.value().to_owned()))
+                .collect(),
+            idempotency_key: request.idempotency_key().map(str::to_owned),
+        },
+    })
 }
 
 impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
@@ -229,6 +321,8 @@ pub struct GatewayAdminStatus {
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
     trusted_context: TrustedContext,
+    #[cfg(unix)]
+    trusted_context_sha256: auths_recipe_qualification::Sha256Digest,
     observer: Option<GatewayObserver>,
     workload_id: String,
     profile: ConnectionProfile,
@@ -240,6 +334,7 @@ pub struct GatewayEngine {
     qualification: Arc<crate::QualificationGate>,
     attempts: GatewayAttempts,
     in_flight: AtomicU64,
+    execution_witness: Arc<crate::execution_witness::ExecutionWitness>,
     /// The gateway clock of the last successful slot sweep; zero before one.
     last_sweep: AtomicU64,
     drain_limit: Duration,
@@ -298,6 +393,13 @@ impl GatewayEngine {
         Ok(Self {
             recipe,
             trusted_context,
+            #[cfg(unix)]
+            trusted_context_sha256: {
+                use sha2::Digest as _;
+                auths_recipe_qualification::Sha256Digest::from_bytes(
+                    sha2::Sha256::digest(trusted_context_cbor).into(),
+                )
+            },
             observer: None,
             workload_id,
             profile,
@@ -307,6 +409,10 @@ impl GatewayEngine {
             qualification: Arc::new(crate::QualificationGate::unconfigured()),
             attempts,
             in_flight: AtomicU64::new(0),
+            execution_witness: Arc::new(
+                crate::execution_witness::ExecutionWitness::new()
+                    .map_err(|_| GatewayEngineConfigurationError::WitnessUnavailable)?,
+            ),
             last_sweep: AtomicU64::new(0),
             drain_limit: DRAIN_LIMIT,
             retirement_delay: crate::CredentialRetirementDelay::FIXED.as_duration(),
@@ -362,6 +468,9 @@ impl GatewayEngine {
     /// requires it unchanged, and never deletes its active credential or a
     /// future prepared generation. Run under operator workload identity.
     /// Existing attempts and provider state are never changed.
+    /// An explicitly revoked record is cleanup authority even when an
+    /// interrupted install left no usable execution floor; all other states
+    /// still require that floor. Collection never repairs an execution floor.
     ///
     /// # Errors
     /// A damaged journal, changed connection or failed deletion refuses and
@@ -371,7 +480,7 @@ impl GatewayEngine {
             .credential_journal
             .clone()
             .ok_or("gateway.admin.credential-journal-unavailable")?;
-        let current = self.load_for_admin().await?;
+        let current = self.load_for_collection().await?;
         let record = current.record().clone();
         let id = record.connection_id().clone();
         let reading = journal.clone();
@@ -379,7 +488,7 @@ impl GatewayEngine {
             .await
             .map_err(|_| "gateway.admin.credential-journal-unavailable")??;
         tokio::time::sleep(self.retirement_delay).await;
-        let latest = self.load_for_admin().await?;
+        let latest = self.load_for_collection().await?;
         if !latest.unchanged(&current) {
             return Err("gateway.admin.generation-conflict");
         }
@@ -405,6 +514,14 @@ impl GatewayEngine {
             deleted += 1;
         }
         Ok(deleted)
+    }
+
+    async fn load_for_collection(&self) -> Result<LoadedConnection, &'static str> {
+        self.connection
+            .load_for_credential_collection()
+            .await
+            .map_err(|_| "gateway.admin.connection-unavailable")?
+            .ok_or("gateway.admin.connection-unavailable")
     }
 
     /// Installs the qualification gate the operator plane built for this
@@ -871,6 +988,14 @@ impl GatewayEngine {
         deleted.map(|()| outcome)
     }
 
+    /// Reads process-local execution counters without accessing custody, the
+    /// store, the network, or qualification authority. A snapshot is diagnostic
+    /// evidence only; it never confirms a provider effect.
+    #[must_use]
+    pub fn execution_witness(&self) -> crate::GatewayExecutionWitness {
+        self.execution_witness.snapshot()
+    }
+
     /// Reads the shared record's state and this process's counts. Nothing is
     /// changed.
     ///
@@ -974,6 +1099,12 @@ impl GatewayEngine {
             action: &[],
             started: Instant::now(),
             prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
         };
         io.prepare().await?;
         let context = SubmitContext {
@@ -1021,6 +1152,12 @@ impl GatewayEngine {
             action: action_cbor,
             started: Instant::now(),
             prepared: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning: None,
+            #[cfg(unix)]
+            commissioned_action: OnceLock::new(),
+            #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
         };
         submit::run(
             &SubmitContext {
@@ -1039,6 +1176,15 @@ impl GatewayEngine {
     /// hold the secret its credential generation names, and prepares the
     /// pinned transport. Nothing is stored.
     async fn prepare_entry(&self) -> Result<PreparedEntry, &'static str> {
+        self.prepare_entry_for(|| self.qualification.check()).await
+    }
+
+    /// Both authority paths perform exactly the same connection and transport
+    /// checks; the ordinary path supplies only its qualification check.
+    async fn prepare_entry_for(
+        &self,
+        check_authority: impl FnOnce() -> Result<(), &'static str>,
+    ) -> Result<PreparedEntry, &'static str> {
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
             Err(SharedConnectionError::Rollback) => {
@@ -1052,7 +1198,7 @@ impl GatewayEngine {
         }
         let descriptor = GatewayConnectionDescriptor::from_record(record, &self.recipe)
             .map_err(|_| "gateway.connection.recipe-mismatch")?;
-        self.qualification.check()?;
+        check_authority()?;
         if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
@@ -1063,11 +1209,17 @@ impl GatewayEngine {
                 descriptor.credential(),
                 port,
             )
-            .map(|transport| PreparedEntry { loaded, transport })
+            .map(|transport| PreparedEntry {
+                loaded,
+                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
+            })
             .map_err(|_| "gateway.transport.preparation");
         }
         GatewayHttpTransport::prepare(&self.recipe, descriptor.credential())
-            .map(|transport| PreparedEntry { loaded, transport })
+            .map(|transport| PreparedEntry {
+                loaded,
+                transport: transport.with_witness(Arc::clone(&self.execution_witness)),
+            })
             .map_err(|_| "gateway.transport.preparation")
     }
 
@@ -1087,6 +1239,7 @@ impl GatewayEngine {
         // Time moved since the entry was prepared, so the gate is asked
         // again: nothing reaches the credential store unqualified.
         self.qualification.check().map_err(|_| ())?;
+        self.execution_witness.lease();
         self.credentials
             .lease_secret(
                 &prepared.loaded.record().credential_binding(),
@@ -1194,23 +1347,41 @@ struct EngineIo<'a> {
     action: &'a [u8],
     started: Instant,
     prepared: OnceLock<PreparedEntry>,
+    #[cfg(unix)]
+    commissioning: Option<&'a CommissioningSession<'a>>,
+    #[cfg(unix)]
+    commissioned_action: OnceLock<commissioning::CommissionedAction>,
+    #[cfg(unix)]
+    commissioning_refusal: OnceLock<&'static str>,
 }
 
 impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
     fn clock(&self) -> Option<u64> {
+        #[cfg(unix)]
+        if self.commissioning.is_some() {
+            return Some(self.engine.qualification.commissioning_time().0);
+        }
         wall_clock_seconds()
     }
 
     fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        verify_detailed(
+        let verified = verify_detailed(
             &self.engine.recipe,
             &self.engine.trusted_context,
             now,
             self.proof,
             self.action,
-        )
+        )?;
+        #[cfg(unix)]
+        if let Some(session) = self.commissioning {
+            let action = session.bind_verified(&verified).map_err(not_entered)?;
+            self.commissioned_action
+                .set(action)
+                .map_err(|_| not_entered("gateway.commissioning.binding-mismatch"))?;
+        }
+        Ok(verified)
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
@@ -1222,6 +1393,20 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {
+        #[cfg(unix)]
+        let prepared = match self.commissioning {
+            Some(session) => {
+                let action = self
+                    .commissioned_action
+                    .get()
+                    .ok_or("gateway.commissioning.binding-mismatch")?;
+                self.engine
+                    .prepare_entry_for(|| session.check(action))
+                    .await?
+            }
+            None => self.engine.prepare_entry().await?,
+        };
+        #[cfg(not(unix))]
         let prepared = self.engine.prepare_entry().await?;
         self.prepared
             .set(prepared)
@@ -1229,6 +1414,18 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn reload(&self) -> bool {
+        #[cfg(unix)]
+        if let Some(session) = self.commissioning {
+            let checked = self
+                .commissioned_action
+                .get()
+                .ok_or("gateway.commissioning.binding-mismatch")
+                .and_then(|action| session.check(action));
+            if let Err(code) = checked {
+                let _ = self.commissioning_refusal.set(code);
+                return false;
+            }
+        }
         match self.prepared.get() {
             Some(prepared) => self.engine.unchanged(prepared).await,
             None => false,
@@ -1245,7 +1442,42 @@ impl SubmitIo for EngineIo<'_> {
 
     async fn lease(&self) -> Option<StoredSecretLease> {
         let prepared = self.prepared.get()?;
+        #[cfg(unix)]
+        if let Some(session) = self.commissioning {
+            if let Err(code) = session.claim(self.commissioned_action.get()?).await {
+                let _ = self.commissioning_refusal.set(code);
+                return None;
+            }
+            if !self.engine.unchanged(prepared).await {
+                return None;
+            }
+            if let Err(code) = session.check(self.commissioned_action.get()?) {
+                let _ = self.commissioning_refusal.set(code);
+                return None;
+            }
+            self.engine.execution_witness.lease();
+            return self
+                .engine
+                .credentials
+                .lease_secret(
+                    &prepared.loaded.record().credential_binding(),
+                    Instant::now() + Duration::from_secs(30),
+                )
+                .await
+                .ok();
+        }
         self.engine.lease(prepared).await.ok()
+    }
+
+    fn authority_refusal(&self) -> Option<&'static str> {
+        #[cfg(unix)]
+        {
+            self.commissioning_refusal.get().copied()
+        }
+        #[cfg(not(unix))]
+        {
+            None
+        }
     }
 
     fn secret_admitted(&self, lease: &StoredSecretLease, guard: &GuardChecks) -> bool {
@@ -1261,7 +1493,7 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
-        wall_clock_seconds()
+        self.clock()
             .is_some_and(|now| now <= evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS))
             && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
     }
@@ -1381,6 +1613,9 @@ pub(crate) fn verify_command(
 /// need of its authorized branches.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    /// Exact actors of action IDs already sealed by the native verifier.
+    #[cfg(unix)]
+    pub(crate) actors: Vec<auths_model::PrincipalId>,
     pub(crate) request: ClosedProviderRequest,
     /// The bounded branch's links and the counters its claim reserves.
     pub(crate) bound: Option<BoundAdmission>,
@@ -1461,6 +1696,8 @@ pub(crate) fn verify_detailed(
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
+        #[cfg(unix)]
+        actors: branches.actors,
         request,
         bound,
         approvers: branches.approvers,
@@ -2110,6 +2347,58 @@ pub(crate) mod tests {
                     .expect("notes")
                     .is_empty()
             );
+        }
+
+        #[tokio::test]
+        async fn interrupted_install_cleanup_requires_revocation_and_never_repairs_the_floor() {
+            let mut installation = installation(8).await;
+            let host = &mut installation.first;
+            let record = host.record().await;
+            let directory = tempfile::tempdir().expect("private cleanup root");
+            std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))
+                .expect("private cleanup mode");
+            let journal = crate::CredentialJournal::new(directory.path().to_path_buf());
+            journal.initialize(record.connection_id()).expect("journal");
+            journal
+                .register(record.connection_id(), record.credential_generation())
+                .expect("note");
+            host.engine.credential_journal = Some(journal);
+            host.engine.connection = host
+                .engine
+                .connection
+                .clone()
+                .with_generation_floor(crate::GenerationFloor::new(directory.path().to_path_buf()));
+            let path = directory.path().join("connection-floor.json");
+            let leases = host.leases.load(Ordering::SeqCst);
+            for damaged in [None, Some(b"corrupt".to_vec())] {
+                if let Some(bytes) = damaged {
+                    std::fs::write(&path, bytes).expect("damaged floor");
+                }
+                assert!(matches!(
+                    host.engine.prepare_entry().await,
+                    Err("gateway.connection.restore-rollback")
+                ));
+                assert_eq!(
+                    host.engine.collect_credentials().await,
+                    Err("gateway.admin.connection-unavailable")
+                );
+                assert_eq!(host.stored(&installation.connection_id), [1]);
+            }
+            SharedConnection::new(host.engine.attempts.store(), provider(), alias())
+                .stop(true, wall_clock_seconds().expect("clock"))
+                .await
+                .expect("explicit store-only revoke");
+            assert_eq!(host.engine.collect_credentials().await, Ok(1));
+            assert!(host.stored(&installation.connection_id).is_empty());
+            assert_eq!(
+                std::fs::read(&path).expect("retained floor").as_slice(),
+                b"corrupt"
+            );
+            assert!(matches!(
+                host.engine.prepare_entry().await,
+                Err("gateway.connection.restore-rollback")
+            ));
+            assert_eq!(host.leases.load(Ordering::SeqCst), leases);
         }
 
         #[tokio::test]

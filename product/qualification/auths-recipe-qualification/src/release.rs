@@ -75,6 +75,8 @@ pub enum QualificationSignerKind {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum QualificationArtifactKind {
+    /// A bounded first-qualification run, never a completed qualification.
+    QualificationCommissioningPermit,
     /// The release index.
     QualificationReleaseIndex,
     /// A qualification attestation.

@@ -1,0 +1,12 @@
+{
+  "statement": {
+    "schema": "auths.provider-simulation-attestation/1",
+    "simulation": true,
+    "stable_launch_ready": false,
+    "signer_kind": "disposable-self-signed-simulation-key",
+    "family": "airtable-record-update-v1",
+    "report_sha256": "a12ce66e95a1be381d7192829703511462ee096fa3a8f4de7ba687603ad1bc16",
+    "public_key_b64": "E/fZPLxpY+38f21PI7ltrRGy13lb74+yOMQVnw1c9PE"
+  },
+  "signature_b64": "OFQBeMCUhz/NZvYAyqH6K2r8tKw8msPotqzvy6ENbdiVg/Cglak07DpgrgLN/2hweL4kRQJdXHj0w6CNkSdtAQ"
+}

@@ -280,7 +280,7 @@ pub(super) fn target() -> QualificationTarget {
         gateway_version: bounded("1.0.0-rc.1"),
         gateway_build_sha256: digest_of("gateway build"),
         store_kind: LifecycleStoreKind::PostgresqlV1,
-        store_schema: bounded("auths.lifecycle.postgresql/5"),
+        store_schema: bounded("auths.lifecycle.postgresql/6"),
         credential_store_kind: CredentialStoreKind::AwsSecretsManagerV1,
     }
 }

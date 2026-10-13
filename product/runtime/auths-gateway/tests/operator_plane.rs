@@ -171,6 +171,7 @@ fn a_joined_process_sees_every_change_committed_through_the_other() {
     let store = root.join("shared-attempts");
     let first = root.join("first");
     let second = root.join("second");
+    let refused_state = root.join("refused-join");
     let store_argument = store.display().to_string();
     let shared = ["--attempt-store", store_argument.as_str()];
 
@@ -183,7 +184,7 @@ fn a_joined_process_sees_every_change_committed_through_the_other() {
     assert!(installed.status.success(), "{}", stderr(&installed));
     let refused = install(
         &root,
-        &second,
+        &refused_state,
         &[&["--join"], &shared[..]].concat(),
         b"another-token\n",
     );
@@ -193,6 +194,8 @@ fn a_joined_process_sees_every_change_committed_through_the_other() {
         "{}",
         stderr(&refused)
     );
+    assert!(refused_state.join("installation.json").is_file());
+    assert!(!refused_state.join("connection-floor.json").exists());
     let joined = install(
         &root,
         &second,

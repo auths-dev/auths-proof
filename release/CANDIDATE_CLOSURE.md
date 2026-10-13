@@ -19,8 +19,8 @@ behavior remain unchanged and domain-owned.
 
 - Rust workspace and maintained crates: `1.0.0-rc.1`.
 - TypeScript distribution `@auths-dev/sdk`: `1.0.0-rc.1`.
-- Python distribution `auths`: `1.0.0rc1`, the PEP 440 spelling equivalent to
-  the SemVer RC.
+- Python distribution `auths`: `0.0.1rc1`, the PEP 440 spelling of the owner-requested
+  Python SDK coordinate `0.0.1-rc1`.
 - Candidate tag contract: `auths-v1.0.0-rc.1`.
 - Release public-surface semantic identity: version 15.
 - Semantic-freeze inventory: version 15.

@@ -86,11 +86,11 @@ if __name__ == "__main__":
 
 ## What Auths protected
 
-The recipe uses Rust-owned canonicalization, commitments, authorization, and receipt/recovery semantics. TypeScript and Python coordinate bounded I/O but cannot mint an effect-capable authorization object.
+The native Rust implementation checks the identity, signature and exact message binding. This authenticates bytes; it grants no authority and performs no provider write.
 
 ## Break it safely
 
-The executable includes its failure exercise and asserts that no unauthorized or duplicate provider entry occurs. CI fails if the adversarial result changes.
+The Python example changes the message while keeping the original signature and requires authentication to fail. No provider is contacted.
 
 ## Take it to production
 

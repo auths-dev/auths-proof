@@ -179,9 +179,18 @@ pub(crate) struct GatewayHttpTransport {
     requirement: CredentialRequirement,
     /// Version headers every response must echo with these values.
     required_versions: Vec<(String, String)>,
+    witness: Option<std::sync::Arc<crate::execution_witness::ExecutionWitness>>,
 }
 
 impl GatewayHttpTransport {
+    pub(crate) fn with_witness(
+        mut self,
+        witness: std::sync::Arc<crate::execution_witness::ExecutionWitness>,
+    ) -> Self {
+        self.witness = Some(witness);
+        self
+    }
+
     /// Resolves and pins a public IPv4 address before claim or secret access.
     pub(crate) fn prepare(
         recipe: &CompiledRecipe,
@@ -221,6 +230,7 @@ impl GatewayHttpTransport {
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
             required_versions: recipe.required_response_versions(),
+            witness: None,
         })
     }
 
@@ -252,6 +262,7 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
             required_versions: recipe.required_response_versions(),
+            witness: None,
         })
     }
 
@@ -292,6 +303,9 @@ impl GatewayHttpTransport {
             .body(request.body().to_vec())
             .build()
             .map_err(|_| GatewayTransportError::NotEntered)?;
+        if let Some(witness) = &self.witness {
+            witness.write();
+        }
         let mut response = match self.client.execute(outbound).await {
             Ok(response) => response,
             Err(_) => return Ok(WriteTransportOutcome::Unknown),
@@ -358,6 +372,9 @@ impl GatewayHttpTransport {
             );
         }
         let outbound = outbound.build().ok()?;
+        if let Some(witness) = &self.witness {
+            witness.read();
+        }
         let mut response = self.client.execute(outbound).await.ok()?;
         let status = response.status().as_u16();
         let version_ok = self.versions_echoed(response.headers());
@@ -396,6 +413,7 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: review.credential().clone(),
             required_versions: recipe.required_response_versions(),
+            witness: None,
         }
     }
 
@@ -635,7 +653,25 @@ mod tests {
                 target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
                 requirement: recipe.review().credential().clone(),
                 required_versions: Vec::new(),
+                witness: None,
             };
+            let witness = std::sync::Arc::new(
+                crate::execution_witness::ExecutionWitness::new().expect("scope"),
+            );
+            let transport = transport.with_witness(std::sync::Arc::clone(&witness));
+            assert!(
+                transport
+                    .read(
+                        reqwest::Method::GET,
+                        "https://unapproved.example/",
+                        &[],
+                        1024,
+                        b"synthetic-transport-fixture",
+                    )
+                    .await
+                    .is_none()
+            );
+            assert_eq!(witness.snapshot().read_transport_entries, 0);
             assert!(matches!(
                 transport.write(&request, &lease).await,
                 Ok(WriteTransportOutcome::ResponseRecorded { status: 200, .. })
@@ -654,6 +690,13 @@ mod tests {
                     .await
                     .and_then(|response| response.usable_body().map(<[u8]>::to_vec))
                     .is_some()
+            );
+            let measured = witness.snapshot();
+            assert_eq!(measured.write_transport_entries, 1);
+            assert_eq!(measured.read_transport_entries, 1);
+            assert_eq!(
+                measured.credential_lease_calls, 0,
+                "transport never calls custody"
             );
             let heads = provider.await.expect("provider");
             assert!(heads[0].starts_with("patch /v0/"), "{}", heads[0]);

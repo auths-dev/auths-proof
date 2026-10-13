@@ -26,6 +26,7 @@ mod product_waist;
 mod public_naming;
 mod release;
 mod release_control;
+mod release_launch;
 mod sdk_experience;
 mod sdk_vocabulary;
 mod semantic_freeze;

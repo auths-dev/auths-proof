@@ -40,7 +40,7 @@ coordinate = "auths"
 media_type = "application/vnd.python.wheel"
 reproducibility = "platform-reproducible"
 producer = "maturin build"
-publication = "PyPI only after exact-manifest authorization"
+publication = "GitHub prerelease assets after exact-manifest authorization; PyPI publication is separately authorized"
 
 [[families]]
 id = "wasm-module"

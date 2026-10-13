@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createVerifier } from "@auths-dev/sdk/verify";
 
 const fixture = process.env.AUTHS_RECIPE_FIXTURE;
-if (fixture === undefined) throw new Error("AUTHS_RECIPE_FIXTURE is required");
+if (fixture === undefined) throw new Error("Set AUTHS_RECIPE_FIXTURE to the directory containing workflow.proof.cbor, workflow.action.cbor and workflow.context.cbor; see the recipe setup instructions.");
 const [proof, action, trustedContext] = await Promise.all([
   readFile(`${fixture}/workflow.proof.cbor`),
   readFile(`${fixture}/workflow.action.cbor`),

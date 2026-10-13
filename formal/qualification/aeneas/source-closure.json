@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "f3b8cc9336cc95cfabab6629e583f58717601435d678375a62416160a2efb461",
+  "digest": "cdfc1e60823a53d8ed627e77d9bdaee386faa45e1d8bd440f8d69645a96dc6cc",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "e11d08de053ca87e33f265c6ff0bc55d4cca51777cf9b54f5c2fa39b4d032a24",
+      "sha256": "f84825e2ac0d4af57a406ab4b49ae5ce4e9360caf0a23e092906257743509b04",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -261,7 +261,7 @@
     },
     {
       "path": "xtask/Cargo.toml",
-      "sha256": "ec016a7130a9a604c146f56458e30fef96c9dedc82790f07047dabeac1142e2d"
+      "sha256": "66b2989994cb878392e352a3c1a632b6cc64074aa4e37e8e77361a191a60a0c5"
     },
     {
       "path": "xtask/ci-plan/Cargo.toml",
@@ -353,7 +353,7 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "dd5c06c25f6404e2647e8132e038cefd78fd1f239dda2149a3d8cd58a5522d38"
+      "sha256": "e897303e906ad3eab43badd52a60142ee1350a6f53e8e7ad8b2e505ac88240fe"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",
@@ -381,11 +381,15 @@
     },
     {
       "path": "xtask/src/release.rs",
-      "sha256": "46b7f15530d8cda42636f585381f00c9e952d0d4048a0e536e7fa23f0a0f659e"
+      "sha256": "777158590253b03652d94d988ad7a96b5a750481e4f2eaf5f1e0edc6d48f2e8f"
     },
     {
       "path": "xtask/src/release_control.rs",
-      "sha256": "6027e030cd2db03818a23d816e3011f2b504c18599d100322d994387207db090"
+      "sha256": "0e3727745909381939280674d53309c0ef3d7c52dc58add091f860ba79ab2893"
+    },
+    {
+      "path": "xtask/src/release_launch.rs",
+      "sha256": "1ace0de9a642e0e408997ce52c8244b628b2fb340b4cb354d9ffcddd44f357ce"
     },
     {
       "path": "xtask/src/sdk_experience.rs",
@@ -397,7 +401,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "3227a3dc0a2edc827e2408545063f142b3f89bb7277799fb6a9608669729d5f6"
+      "sha256": "9e36c78ae7ed8ce11bbc545ef7db8c1741c826038d01a7fb66d6e7fa5c91b18b"
     },
     {
       "path": "xtask/src/stripe.rs",

@@ -59,6 +59,10 @@
       {
         "path": "evidence/conformance.json",
         "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      {
+        "path": "target/release-evidence/launch-readiness.json",
+        "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
       }
     ],
     "benchmarks": [

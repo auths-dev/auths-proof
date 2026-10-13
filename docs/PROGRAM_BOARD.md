@@ -414,3 +414,77 @@ shared controls, retained-floor restore refusal, drained file rotation,
 privilege-dropped diagnostics, support redaction, disposable trust stages,
 restart and store-only outage controls. Exact-current-commit hosted rehearsal
 and CI remain pending. Live production and human adoption claims remain open.
+
+Epic 5 engineering is underway on `codex/recipe-qualification`, based on the
+operator-polish candidate. The exact `393edc52` source-free hosted rehearsal
+passed 47 steps in 0.553 seconds; its downloaded archive passed the same 47
+steps in local Docker in 6.162 seconds, including manifest and payload checks.
+Main CI remains pending. The initial Epic 5 change derives stable launch
+readiness from every signed index entry, exact candidate/production target,
+freshness and revocation, three independence dimensions and complete
+digest-bound evidence. Each launch claim additionally needs protected
+production readiness evidence. The signing output retains those artifacts;
+`release-check` emits the projection. No production root is pinned, so the
+current projection remains false. Hosted verification of this implementation
+is pending. Provider ADRs/corpora/harnesses, live qualification, signed release
+publication and the installed SDK pilot remain outstanding.
+
+The Epic 5 finalizer now re-evaluates launch readiness before binding the
+projection, and the manifest contract refuses a missing or duplicate reference.
+ADR 0014 (Stripe Connect refund) and ADR 0015 (Airtable field update) remain
+proposed; neither has an executable protected family corpus or a qualification.
+The documented first-attestation bootstrap cycle and reviewed dynamic resource
+binding must be resolved before live qualification. The production lease gate
+has not been relaxed. Epic 4's exact `393edc52` candidate passed all 26 main CI
+jobs plus the six package/isolation/PostgreSQL/recipe/SDK workflows and the
+47-step Docker rehearsal. PR #205 merged on 2026-10-06 as `4623d635` under the
+owner's labeled-simulation deliverable. Production live and human claims remain
+explicitly unexercised. Epic 5's current GitHub verification remains pending.
+
+The owner explicitly assigned first bootstrap and Stripe/Airtable qualification
+to the agent as simulations. `qualification/simulation/run.py` now executes the
+disposable ceremony and native provider harnesses without external credentials.
+The required gate measures zero leases for unsigned fixtures and permits an
+entry after verified import under disposable test trust. Separate provider
+reports measure exact requests, replay, restart, response loss, crash, race and
+hostile input behavior. The Airtable ADR now correctly names its derived linked
+read-back recovery; Stripe cannot recover a response-provided locator that was
+lost. Signing fixtures explicitly exclude provider-run claims. Production trust
+and readiness remain unchanged; real users remain the owner's offline work.
+The local expanded rehearsal passed 36 provider cases and the two-family
+ceremony. Hosted kit verification is pending; the kit is designed to run in
+Docker with no checkout or network mounted.
+
+On 2026-10-07 the agent used the existing `.env` credentials and completed a
+real Airtable operator rehearsal through downloaded gateway commit `20837b56`
+and the installed Linux Python SDK `0.0.1rc1`. It passed fresh value/echo
+read-back, two-process submission, replay/altered-action/restart refusals,
+application credential isolation, support-bundle scanning, record cleanup and
+verification of the exact report's detached simulation signature. Evidence is
+retained in `qualification/simulation/evidence/airtable-live-2026-10-07/`.
+Docker Desktop host sharing initially defeated the file-owner access check;
+the runner now receives the credential through operator-only stdin and stages
+it privately inside the container. The Stripe keys work, but creating a
+distinct test connected account is refused because Connect is not enabled.
+These are development live observations, not protected production
+qualifications; no production trust or stable-readiness claim has changed.
+
+The owner then excluded paid Connect onboarding and authorized adapting the
+Stripe test to platform-account refunds. The agent generated a separate
+`stripe-platform-refund-v1` profile/recipe with no connected-account argument
+or scope header, updated AP-SPEC-066 §7.6 and ADR 0014, and passed the real
+Stripe journey using the same downloaded gateway and installed `0.0.1rc1` wheel.
+Credential guards, limit refusals, fresh refund value/echo
+read-back, proof/altered-action/restart refusals, secret isolation, support
+scanning, full test-payment cleanup and the published report signature all
+passed. Evidence is retained under
+`qualification/simulation/evidence/stripe-platform-live-2026-10-07/`.
+Connect scope is excluded; both real provider rehearsals remain development
+evidence and do not change production qualification or stable readiness.
+
+The next bootstrap design is recorded in proposed ADR 0016. It separates
+finite, signed operator commissioning authority from normal application
+qualification, with exact candidate/action/run bindings and durable lease
+bounds. No gateway accepts such a permit yet; the ordinary production gate
+and stable-readiness result remain unchanged. The existing protected AWS
+custody workflow provides a reusable infrastructure starting point.

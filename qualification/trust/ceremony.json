@@ -1,0 +1,16 @@
+{
+  "schema": "auths.qualification-root-ceremony/1",
+  "created_at": "2026-10-07T03:01:16+00:00",
+  "assessment": "repository-owner-delegated-technical-assessment",
+  "operator": "Codex acting under the repository owner\u2019s standing authorization",
+  "scope": "Offline root ceremony and purpose-separated public signer certificates only",
+  "private_key_retention": "Owner-private directory outside every Git checkout; no root key in CI",
+  "qualification_issued": false,
+  "stable_launch_ready": false,
+  "public_artifacts": {
+    "qualification-trust-root.json": "ff4768642d4141eab6c1d8bdec78b5c2aa64aad516de51611b3eb17373204ed8",
+    "signer-certificate.json": "50e6657008b1e060b8e10ea1747105abf8fa3528d51fb97d027044e57446dbb9",
+    "commissioning-signer-certificate.json": "639fa51c6b4493b52aad880f9c8df8d4f5b58fceac53aef56f4a891e7ff82bf7",
+    "revocation-list.json": "c8b34e4cab39c768c40a284c9c8ffd0370f8360d0c715a6b1e0989bb2a990d33"
+  }
+}

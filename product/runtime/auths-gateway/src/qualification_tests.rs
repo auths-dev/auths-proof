@@ -84,6 +84,10 @@ fn required(
 
 async fn host_with(gate: &Arc<QualificationGate>) -> (Installation, ()) {
     let mut installation = installation(8).await;
+    #[cfg(feature = "loopback-provider")]
+    {
+        installation.first.engine = installation.first.engine.with_loopback_provider(9);
+    }
     installation
         .first
         .engine
@@ -111,6 +115,217 @@ async fn an_engine_without_a_configured_gate_leases_nothing() {
     );
     assert!(installation.first.lease_refused_after(|| {}).await);
     assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn verify_simulation_reports() {
+    use sha2::Digest as _;
+    use std::io::Read as _;
+
+    let Some(directory) = std::env::var_os("AUTHS_QUALIFICATION_SIMULATION_OUTPUT") else {
+        return;
+    };
+    let directory = std::path::PathBuf::from(directory);
+    let bounded = |path: &std::path::Path, maximum: u64| {
+        assert!(
+            std::fs::symlink_metadata(path)
+                .expect("metadata")
+                .file_type()
+                .is_file()
+        );
+        let mut bytes = Vec::new();
+        std::fs::File::open(path)
+            .expect("public file")
+            .take(maximum + 1)
+            .read_to_end(&mut bytes)
+            .expect("bounded public file");
+        assert!(bytes.len() as u64 <= maximum);
+        bytes
+    };
+    let mut verified = Vec::new();
+    for family in ["stripe-platform-refund-v1", "airtable-record-update-v1"] {
+        let report = bounded(&directory.join(format!("{family}.json")), 1_048_576);
+        let signature = bounded(&directory.join(format!("{family}.attestation.json")), 4096);
+        assert!(crate::simulation_attestation::verify(&report, &signature));
+        verified.push(
+            json!({"family": family, "report_sha256": hex::encode(sha2::Sha256::digest(&report)),
+            "signature_sha256": hex::encode(sha2::Sha256::digest(&signature))}),
+        );
+    }
+    std::fs::write(
+        directory.join("provider-signature-verification.json"),
+        serde_json::to_vec_pretty(
+            &json!({"schema": "auths.provider-simulation-signature-verification/1",
+            "simulation": true, "stable_launch_ready": false, "verified": verified,
+            "scope": "detached self-signed simulation reports; no production trust"}),
+        )
+        .expect("verification report"),
+    )
+    .expect("write verification report");
+}
+
+/// Rehearses the first ceremony under fresh ephemeral trust. The signed
+/// records are deliberately the issuance testkit's placeholder records;
+/// their excluded claim says they stand for no provider run. Family driver
+/// measurements are separate artifacts, never substituted for this corpus.
+#[tokio::test]
+async fn operator_bootstrap_qualification_simulation() {
+    use auths_recipe_qualification::{QualificationRootId, QualificationSignerId};
+    use auths_recipe_qualification_issuance::{
+        CertificateRequest, ReleaseSigner, RootSigner, SigningSeed,
+    };
+
+    let root_seed = SigningSeed::generate().expect("disposable root");
+    let signer_seed = SigningSeed::generate().expect("disposable release signer");
+    let root = RootSigner::create(
+        &root_seed,
+        QualificationRootId::parse("simulation-root").expect("root ID"),
+    )
+    .expect("root");
+    let certificate = root
+        .certify(CertificateRequest {
+            signer_id: QualificationSignerId::parse("simulation-signer").expect("signer ID"),
+            public_key_b64: signer_seed.public_key(),
+            issued_at: NOW - HOUR,
+            not_before: NOW - HOUR,
+            not_after: NOW + 24 * HOUR,
+        })
+        .expect("certificate");
+    let signer = ReleaseSigner::open(&signer_seed, certificate).expect("signer");
+    let proposals = [
+        proposal(1, &tuple_for("simulation-stripe-platform-refund-v1")),
+        proposal(2, &tuple_for("simulation-airtable-update-v1")),
+    ];
+    let attestations: Vec<_> = proposals
+        .iter()
+        .map(|proposal| {
+            signer
+                .attest(proposal, NOW, NOW, NOW + 12 * HOUR)
+                .expect("attestation")
+        })
+        .collect();
+    let listed: Vec<_> = proposals
+        .iter()
+        .zip(&attestations)
+        .map(|(proposal, attestation)| (proposal.record(), attestation))
+        .collect();
+    let index = signer.index(NOW, &listed).expect("signed index");
+    let list = root
+        .revoke(1, NOW - HOUR, NOW + 24 * HOUR, Vec::new(), Vec::new())
+        .expect("list");
+    let attested_bundle = QualificationBundle {
+        signer_certificate: signer.certificate().canonical_bytes().to_vec(),
+        revocation_list: list.canonical_bytes().to_vec(),
+        release_index: index.canonical_bytes().to_vec(),
+        records: proposals
+            .iter()
+            .map(|proposal| proposal.record().canonical_bytes().to_vec())
+            .collect(),
+        attestations: attestations
+            .iter()
+            .map(|attestation| attestation.canonical_bytes().to_vec())
+            .collect(),
+    };
+    let clock = Arc::new(FixedClock::at(NOW));
+    let mut measurements = Vec::new();
+    for closed in &proposals {
+        let deployment = closed.record().body().tuple.clone();
+        let gate = required(Some(root.trust_root().clone()), deployment.clone(), &clock);
+        let (installation, ()) = host_with(&gate).await;
+        let host = &installation.first;
+        assert_eq!(
+            refusal(host).await.as_deref(),
+            Some("gateway.qualification.unavailable")
+        );
+        let mut unsigned = attested_bundle.clone();
+        unsigned.attestations.clear();
+        assert!(gate.load(&unsigned));
+        assert_eq!(
+            refusal(host).await.as_deref(),
+            Some("gateway.qualification.missing")
+        );
+        assert_eq!(host.leases.load(Ordering::SeqCst), 0);
+        let before_signature_leases = host.leases.load(Ordering::SeqCst);
+        assert!(gate.load(&attested_bundle));
+        assert_eq!(refusal(host).await, None);
+        assert_eq!(host.leases.load(Ordering::SeqCst), 1);
+        let after_verified_import_leases = host.leases.load(Ordering::SeqCst);
+        let mut forged = attested_bundle.clone();
+        let position = forged.attestations[0].len() / 2;
+        forged.attestations[0][position] ^= 1;
+        assert!(gate.load(&forged));
+        // The untouched second record may remain qualified. A corrupt member
+        // cannot enable the record whose attestation was changed.
+        if deployment.recipe_family == proposals[0].record().body().tuple.recipe_family {
+            assert!(refusal(host).await.is_some());
+            assert_eq!(host.leases.load(Ordering::SeqCst), 1);
+        }
+        assert!(gate.load(&attested_bundle));
+        clock.set(NOW + 13 * HOUR);
+        assert_eq!(
+            refusal(host).await.as_deref(),
+            Some("gateway.qualification.expired")
+        );
+        clock.set(NOW);
+        let no_root = required(None, deployment.clone(), &clock);
+        assert!(!no_root.load(&attested_bundle));
+        let (untrusted, ()) = host_with(&no_root).await;
+        assert_eq!(
+            refusal(&untrusted.first).await.as_deref(),
+            Some("gateway.qualification.unavailable")
+        );
+        assert_eq!(untrusted.first.leases.load(Ordering::SeqCst), 0);
+        measurements.push(json!({"family": deployment.recipe_family,
+            "before_signature_leases": before_signature_leases,
+            "after_verified_import_leases": after_verified_import_leases,
+            "unsigned_refused": true, "expired_refused": true, "missing_root_refused": true}));
+    }
+    if let Some(directory) = std::env::var_os("AUTHS_QUALIFICATION_SIMULATION_OUTPUT") {
+        let directory = std::path::PathBuf::from(directory).join("bootstrap");
+        std::fs::create_dir_all(&directory).expect("public output directory");
+        std::fs::write(
+            directory.join("root.json"),
+            root.trust_root().canonical_bytes(),
+        )
+        .expect("public root");
+        for (name, bytes) in [
+            (
+                "signer-certificate.json",
+                &attested_bundle.signer_certificate,
+            ),
+            ("revocation-list.json", &attested_bundle.revocation_list),
+            ("release-index.json", &attested_bundle.release_index),
+        ] {
+            std::fs::write(directory.join(name), bytes).expect("public artifact");
+        }
+        for (position, closed) in proposals.iter().enumerate() {
+            std::fs::write(
+                directory.join(format!("record-{position}.json")),
+                closed.record().canonical_bytes(),
+            )
+            .expect("record");
+            std::fs::write(
+                directory.join(format!("attestation-{position}.json")),
+                &attested_bundle.attestations[position],
+            )
+            .expect("attestation");
+            for (member, evidence) in closed.evidence().iter().enumerate() {
+                std::fs::write(
+                    directory.join(format!("fixture-evidence-{position}-{member}.json")),
+                    evidence.canonical_bytes(),
+                )
+                .expect("explicit fixture");
+            }
+        }
+        std::fs::write(directory.join("simulation.json"), serde_json::to_vec_pretty(&json!({
+            "schema": "auths.qualification-bootstrap-simulation/1", "simulation": true,
+            "stable_launch_ready": false, "ephemeral_keys_destroyed_on_return": true,
+            "clock": {"kind": "fixed-test-clock", "unix_seconds": NOW},
+            "evidence_kind": "explicit placeholder fixtures: no provider-run claim",
+            "measurements": measurements, "production_root_changed": false,
+            "excluded_claims": ["production qualification", "live provider acceptance", "human review"]
+        })).expect("report")).expect("write report");
+    }
 }
 
 #[tokio::test]

@@ -12,10 +12,20 @@ pub mod app;
 mod audit;
 mod binding;
 mod bounds;
+pub mod commissioning_budget;
+#[cfg(unix)]
+pub mod commissioning_floor;
+#[cfg(unix)]
+pub use engine::{
+    CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
+    GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
+};
 mod connection;
 mod credential_journal;
 mod echo_verify;
 mod engine;
+mod execution_witness;
+pub use execution_witness::GatewayExecutionWitness;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
 mod generation_floor;
@@ -51,6 +61,8 @@ mod qualification_tests;
 mod quorum_tests;
 #[cfg(test)]
 mod scenario_tests;
+#[cfg(test)]
+mod simulation_attestation;
 #[cfg(test)]
 mod store_testkit;
 
@@ -99,10 +111,10 @@ pub use operator::{
 #[cfg(any(test, feature = "testkit-harness"))]
 pub use qualification::FixedClock;
 pub use qualification::{
-    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
-    QUALIFICATION_POLICY_REFUSED, QualificationBundle, QualificationGate, QualificationPolicy,
-    QualificationStatus, SynchronizedHostClock, deployment_tuple, qualification_code,
-    qualification_policy,
+    DeploymentClock, DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA,
+    PINNED_QUALIFICATION_ROOT, POSTGRES_STORE_SCHEMA, QUALIFICATION_POLICY_REFUSED,
+    QualificationBundle, QualificationGate, QualificationPolicy, QualificationStatus,
+    SynchronizedHostClock, deployment_tuple, qualification_code, qualification_policy,
 };
 pub use readiness::{
     ClockTrustState, CredentialRetirementDelay, ObserverCustodyState, PreconditionState,

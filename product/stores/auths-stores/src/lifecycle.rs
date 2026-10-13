@@ -34,9 +34,9 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
-const SCHEMA_VERSION: i32 = 5;
+const SCHEMA_VERSION: i32 = 6;
 const CONTRACT_ID: &str = "auths.lifecycle.transactional-store/4";
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v5.sql");
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v6.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -533,7 +533,7 @@ impl PostgresStoreSummary {
     /// Returns the physical schema identity.
     #[must_use]
     pub const fn schema_id(self) -> &'static str {
-        "auths.lifecycle.postgresql/5"
+        "auths.lifecycle.postgresql/6"
     }
 
     /// Returns the transactional store contract identity.
@@ -705,7 +705,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 5,
+            schema_version: 6,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })

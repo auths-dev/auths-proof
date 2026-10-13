@@ -527,7 +527,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/fixtures/v1/lifecycle/registry.toml".to_owned(),
                 "product/runtime/auths-lifecycle/src".to_owned(),
                 "product/stores/auths-stores/src/lifecycle.rs".to_owned(),
-                "product/stores/auths-stores/migrations/postgres_lifecycle_v5.sql".to_owned(),
+                "product/stores/auths-stores/migrations/postgres_lifecycle_v6.sql".to_owned(),
                 "product/stores/auths-stores/tests/postgres_lifecycle.rs".to_owned(),
                 "product/stores/auths-stores/tests/postgres_tls".to_owned(),
             ],
@@ -705,6 +705,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "xtask/src/public_naming.rs".to_owned(),
         "xtask/src/release.rs".to_owned(),
         "xtask/src/release_control.rs".to_owned(),
+        "xtask/src/release_launch.rs".to_owned(),
         "xtask/src/semantic_freeze.rs".to_owned(),
     ]);
     entries.push(freeze_entry(

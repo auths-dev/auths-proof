@@ -6,7 +6,7 @@
 
 mod common;
 
-use std::{fs, path::Path, process::Command};
+use std::{fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
 
 fn succeed(command: &mut Command) {
     let output = command.output().expect("command");
@@ -25,7 +25,10 @@ fn succeed(command: &mut Command) {
 fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refuses() {
     let temporary = tempfile::tempdir().expect("directory");
     let root = temporary.path().join("repository");
-    let family = root.join("qualification/families/example-refund-v1");
+    // Exercise the actual closed resource projection with synthetic Stripe
+    // IDs. The subprocess double still establishes no provider qualification.
+    let family_name = "stripe-platform-refund-v1";
+    let family = root.join(format!("qualification/families/{family_name}"));
     fs::create_dir_all(&family).expect("family");
     let draft = common::draft_json();
     let record = serde_json::json!({
@@ -35,6 +38,36 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
         "residual_assumptions": draft["residual_assumptions"], "excluded_claims": draft["excluded_claims"],
     });
     fs::write(family.join("record.json"), record.to_string()).expect("record");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification");
+    for (directory, names) in [
+        (
+            "reference",
+            &[
+                "resource_summary.py",
+                "resource_io.py",
+                "fresh_evidence.py",
+                "common.py",
+                "stripe_platform.py",
+                "airtable_record.py",
+            ][..],
+        ),
+        (
+            "run",
+            &[
+                "assemble.sh",
+                "close_proposal.py",
+                "scan_publication.py",
+                "redact.sh",
+            ][..],
+        ),
+    ] {
+        let output = root.join("qualification").join(directory);
+        fs::create_dir_all(&output).expect("source-owned release scripts");
+        for name in names {
+            fs::copy(source.join(directory).join(name), output.join(name))
+                .expect("reviewed source script");
+        }
+    }
     succeed(Command::new("git").args(["init", "--quiet"]).arg(&root));
     succeed(Command::new("git").arg("-C").arg(&root).args(["add", "."]));
     succeed(Command::new("git").arg("-C").arg(&root).args([
@@ -60,6 +93,17 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
         .to_owned();
     let work = temporary.path().join("work");
     let harness = common::stage_fixture(&work);
+    fs::set_permissions(&work, fs::Permissions::from_mode(0o700)).expect("private work");
+    let mut tuple = common::tuple_json();
+    tuple["recipe_family"] = family_name.into();
+    let typed: auths_recipe_qualification::QualificationTuple =
+        serde_json::from_value(tuple.clone()).expect("synthetic tuple");
+    fs::write(work.join("tuple.json"), tuple.to_string()).expect("tuple");
+    fs::write(
+        work.join("tuple-digest"),
+        typed.digest().expect("tuple digest").to_hex(),
+    )
+    .expect("tuple digest");
     let tool = env!("CARGO_BIN_EXE_auths-qualification");
     for phase in ["offline", "live"] {
         succeed(
@@ -82,7 +126,13 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
     .expect("packages");
     fs::write(
         work.join("resources.json"),
-        draft["provider_resources"].to_string(),
+        serde_json::json!({
+            "schema": "auths.stripe-platform-qualification-resources/1",
+            "protected_run": "recipe-qualification/123/1", "platform": "acct_SYNTHETIC",
+            "payments": [{"id": "pi_SYNTHETIC", "amount_received": 2000, "currency": "usd",
+                "livemode": false, "run_metadata": "recipe-qualification/123/1"}],
+        })
+        .to_string(),
     )
     .expect("resources");
     let facts = serde_json::json!({
@@ -93,24 +143,62 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
     });
     fs::write(work.join("facts.json"), facts.to_string()).expect("facts");
     fs::write(work.join("canaries"), "synthetic-canary-not-a-credential\n").expect("canaries");
+    fs::set_permissions(work.join("canaries"), fs::Permissions::from_mode(0o600))
+        .expect("private canaries");
     for kind in ["log", "trace", "metric", "support-bundle"] {
         let directory = work.join("scan").join(kind);
         fs::create_dir_all(&directory).expect("scan directory");
         fs::write(directory.join("test-output"), "closed test states only").expect("output");
     }
-    let scripts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run");
-    succeed(
-        Command::new("bash")
+    let scripts = root.join("qualification/run");
+    for name in [
+        "commissioning-effects.json",
+        "facts.json",
+        "unexpected-public-output",
+    ] {
+        let path = work.join(name);
+        let original = fs::read(&path).ok();
+        fs::write(&path, "synthetic-canary-not-a-credential").expect("planted leak");
+        let refused = Command::new("bash")
             .arg(scripts.join("redact.sh"))
             .arg(&work)
             .env("AUTHS_QUALIFICATION", tool)
+            .current_dir(&root)
+            .output()
+            .expect("redaction refusal");
+        assert!(!refused.status.success(), "unlisted output must be scanned");
+        assert!(
+            work.join("canaries").exists(),
+            "retain private scan inputs on failure"
+        );
+        assert!(!work.join("cases/redaction.scan.json").exists());
+        assert!(
+            !String::from_utf8_lossy(&refused.stderr).contains("synthetic-canary-not-a-credential")
+        );
+        match original {
+            Some(bytes) => fs::write(path, bytes).expect("restore public fact"),
+            None => fs::remove_file(path).expect("remove leak"),
+        }
+    }
+    // The real workflow retains its canaries until the actual final proposal
+    // has been assembled, rebuilt from the complete scan, and rescanned.
+    succeed(
+        Command::new("python3")
+            .arg("-B")
+            .arg(scripts.join("close_proposal.py"))
+            .args(["--family", family_name])
+            .arg("--work")
+            .arg(&work)
+            .args(["--environment", "test-environment", "--run", "test-run"])
+            .arg("--tool")
+            .arg(tool)
             .current_dir(&root),
     );
     assert!(!work.join("canaries").exists());
     let assemble = || {
         Command::new("bash")
             .arg(scripts.join("assemble.sh"))
-            .arg("example-refund-v1")
+            .arg(family_name)
             .arg(&work)
             .args(["test-environment", "test-run"])
             .env("AUTHS_QUALIFICATION", tool)
@@ -118,13 +206,18 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
             .output()
             .expect("assemble")
     };
-    let assembled = assemble();
-    assert!(
-        assembled.status.success(),
-        "{}",
-        String::from_utf8_lossy(&assembled.stderr)
-    );
     assert!(work.join("proposal/record.json").is_file());
+    let record: serde_json::Value = serde_json::from_slice(
+        &fs::read(work.join("proposal/record.json")).expect("closed record"),
+    )
+    .expect("canonical JSON");
+    assert_eq!(
+        record["provider_resources"],
+        serde_json::json!([
+            "stripe:test-payment:pi_SYNTHETIC",
+            "stripe:test-platform:acct_SYNTHETIC"
+        ])
+    );
     // A failed rerun cannot leave its old proposal usable by the signing job.
     fs::copy(
         work.join("cases/recovery.live.json"),
@@ -137,6 +230,10 @@ fn stage_reports_flow_through_redaction_and_assembly_and_missing_execution_refus
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the four resource-session exits and stale phase outputs are checked together"
+)]
 fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
     let temporary = tempfile::tempdir().expect("directory");
     let root = temporary.path().join("repository");
@@ -151,13 +248,37 @@ fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
         family.join("corpus-manifest.json"),
     )
     .expect("corpus");
-    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run/live.sh");
+    let scripts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../qualification/run");
+    fs::create_dir_all(work.join("cases")).expect("earlier phase report directory");
     for mode in ["success", "setup-failed", "failed", "cleanup-failed"] {
         fs::write(work.join("fault"), mode).expect("fault");
+        // A prior phase's outputs must also become unusable if the overall
+        // resource session fails. These are synthetic orchestration fixtures.
+        fs::write(
+            work.join("commissioning-effects.json"),
+            r#"{"entered":1,"confirmed_by_read_back":1}"#,
+        )
+        .expect("earlier phase effects");
+        fs::write(work.join("cases/live.commissioning.json"), "[]").expect("earlier phase report");
         let output = Command::new("bash")
-            .arg(&script)
+            .arg(scripts.join("resource-session.sh"))
             .arg("example-refund-v1")
             .arg(&work)
+            .arg("bash")
+            .arg("-c")
+            .arg(
+                r#"set -e
+test -f "$1/disposable-resource"
+bash "$2" "$3" "$1"
+test -f "$1/disposable-resource"
+bash "$2" "$3" "$1"
+test -f "$1/disposable-resource"
+"#,
+            )
+            .arg("protected-journey-test")
+            .arg(&work)
+            .arg(scripts.join("live.sh"))
+            .arg("example-refund-v1")
             .env(
                 "AUTHS_QUALIFICATION",
                 env!("CARGO_BIN_EXE_auths-qualification"),
@@ -175,6 +296,15 @@ fn live_script_cleans_up_after_success_setup_failure_and_stage_failure() {
             work.join("disposable-resource").exists(),
             mode == "cleanup-failed",
             "teardown runs even after partial setup or a refused stage"
+        );
+        assert_eq!(
+            work.join("cases/live.commissioning.json").exists(),
+            mode == "success",
+            "a failed resource session invalidates earlier commissioning evidence"
+        );
+        assert_eq!(
+            work.join("commissioning-effects.json").exists(),
+            mode == "success"
         );
         assert!(
             !String::from_utf8_lossy(&output.stderr)

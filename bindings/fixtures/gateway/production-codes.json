@@ -21,6 +21,110 @@
       }
     },
     {
+      "code": "gateway.commissioning.binding-mismatch",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.clock-untrusted",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.contention",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.exhausted",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.expired",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.registration-missing",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.restore-rollback",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.revocation-rollback",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.revocation-stale",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.revoked",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.state-corrupt",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.store-unavailable",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.commissioning.unavailable",
+      "owner": "commissioning-budget",
+      "stage": "before-custody",
+      "status": "implemented",
+      "epic": 5,
+      "case": null
+    },
+    {
       "code": "gateway.connection.credential-generation-missing",
       "owner": "engine",
       "stage": "before-claim",

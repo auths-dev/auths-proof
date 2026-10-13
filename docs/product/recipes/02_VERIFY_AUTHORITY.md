@@ -8,6 +8,34 @@ Verify existing proof, action, and trust bytes without gaining an execution capa
 
 Use a supported Node.js or CPython runtime and install the single Auths package. The executable source below is run against the packed npm artifact and wheel in CI.
 
+This recipe reads a signed proof, its exact action and verification settings describing which signing identities you accept. Put them in one directory as `workflow.proof.cbor`, `workflow.action.cbor` and `workflow.context.cbor`, and set `AUTHS_RECIPE_FIXTURE` to that directory.
+
+For a disposable example, run this with the installed Python package. It generates its own in-memory signing key and public test artifacts; it needs no checkout, provider credential or downloaded fixture. The generated context trusts that disposable key only and is not production trust.
+
+```python
+from pathlib import Path
+from auths.testkit import development_mcp_artifacts
+
+artifacts = development_mcp_artifacts(
+    service="recipe-demo", name="publish_report", arguments={"report": "weekly"}
+)
+directory = Path("auths-demo-evidence")
+directory.mkdir(exist_ok=True)
+for name, data in [
+    ("proof", artifacts.proof),
+    ("action", artifacts.action),
+    ("context", artifacts.trusted_context),
+]:
+    (directory / ("workflow." + name + ".cbor")).write_bytes(data)
+```
+
+Save the verification program below as `verify_authority.py` or compile the TypeScript program, then run:
+
+```sh
+AUTHS_RECIPE_FIXTURE="$PWD/auths-demo-evidence" python verify_authority.py
+AUTHS_RECIPE_FIXTURE="$PWD/auths-demo-evidence" node verify_authority.js
+```
+
 ## TypeScript
 
 Source: `typescript/02-verify-authority.ts`
@@ -17,7 +45,7 @@ import { readFile } from "node:fs/promises";
 import { createVerifier } from "@auths-dev/sdk/verify";
 
 const fixture = process.env.AUTHS_RECIPE_FIXTURE;
-if (fixture === undefined) throw new Error("AUTHS_RECIPE_FIXTURE is required");
+if (fixture === undefined) throw new Error("Set AUTHS_RECIPE_FIXTURE to the directory containing workflow.proof.cbor, workflow.action.cbor and workflow.context.cbor; see the recipe setup instructions.");
 const [proof, action, trustedContext] = await Promise.all([
   readFile(`${fixture}/workflow.proof.cbor`),
   readFile(`${fixture}/workflow.action.cbor`),
@@ -43,7 +71,14 @@ from pathlib import Path
 from auths.verify import VerificationInput, verify
 
 
-root = Path(os.environ["AUTHS_RECIPE_FIXTURE"])
+fixture = os.environ.get("AUTHS_RECIPE_FIXTURE")
+if not fixture:
+    raise SystemExit(
+        "Set AUTHS_RECIPE_FIXTURE to the directory containing workflow.proof.cbor, "
+        "workflow.action.cbor and workflow.context.cbor; "
+        "see docs/product/recipes/02_VERIFY_AUTHORITY.md for a disposable example."
+    )
+root = Path(fixture)
 proof = (root / "workflow.proof.cbor").read_bytes()
 action = (root / "workflow.action.cbor").read_bytes()
 context = (root / "workflow.context.cbor").read_bytes()
@@ -77,11 +112,11 @@ print(
 
 ## What Auths protected
 
-The recipe uses Rust-owned canonicalization, commitments, authorization, and receipt/recovery semantics. TypeScript and Python coordinate bounded I/O but cannot mint an effect-capable authorization object.
+The native Rust verifier checks the supplied proof against the exact action and your explicit verification settings. An authorized result is an offline verification result; it acquires no credential and performs no provider write.
 
 ## Break it safely
 
-The executable includes its failure exercise and asserts that no unauthorized or duplicate provider entry occurs. CI fails if the adversarial result changes.
+The Python example changes one action byte and requires authorization to fail. The trust context is an explicit input; do not replace governed production trust with a self-trusting test context.
 
 ## Take it to production
 
