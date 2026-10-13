@@ -1,0 +1,14 @@
+{
+  "schema": "auths.gateway-demo-contract/1",
+  "platform": "stripe",
+  "family": "stripe-platform-refund-v1",
+  "application_boundary": "installed public GatewayClient; proof and action only",
+  "recipe_source": "qualification/simulation/live/stripe-platform/recipe.json",
+  "profile_source": "qualification/simulation/live/stripe-platform/profile.toml",
+  "qualification_workflow": ".github/workflows/recipe-qualification.yml",
+  "shipping_executor": "auths-gateway",
+  "application_provider_credential": false,
+  "simulation_evidence": "selftest.py",
+  "browser_evidence": "tests/browser.py",
+  "protected_qualification": false
+}
