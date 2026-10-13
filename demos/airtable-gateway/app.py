@@ -2,7 +2,7 @@
 """Application: public SDK authoring and proof/action-only gateway submission."""
 import argparse
 import asyncio
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import importlib.metadata
 import json
 import os
@@ -13,6 +13,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
+from typing import Literal
 
 from auths.adapters.custody import PublicControlEvidence
 from auths.authoring import GrantEvidence, author_mcp_proof
@@ -31,6 +32,16 @@ LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-
 EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
 FAULTS = ('lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response')
+
+
+@dataclass(frozen=True)
+class UnsupportedStatus:
+    """Closed adversarial signing input; the installed profile rejects Rejected."""
+    operator_namespace: Literal['airtable-demo']
+    operation_id: str
+    recipe_digest: str
+    record_id: str
+    replacement: Literal['Approved', 'Pending', 'Rejected']
 
 
 class Application:
@@ -81,15 +92,17 @@ class Application:
                          for item in grant['evidence'])
         issued = int(time.time()) - (600 if label == 'expired-action' else 0)
         contract = CONTRACT
+        command_type = SetDemoStatus
         if label == 'unsupported-value':
             # A signed adversarial call exercises the installed recipe schema,
             # rather than letting a frontend enum stand in for enforcement.
             from auths.self_hosted import ExactMcpTool, EnumField
             contract = ExactMcpTool(service=CONTRACT.service, name=CONTRACT.name,
-                command_type=SetDemoStatus,
+                command_type=UnsupportedStatus,
                 fields={**FIELDS, 'replacement': EnumField(('Approved', 'Pending', 'Rejected'))})
+            command_type = UnsupportedStatus
         authored = await author_mcp_proof(
-            contract=contract, command=SetDemoStatus(**case['arguments']),
+            contract=contract, command=command_type(**case['arguments']),
             grants=[GrantEvidence(unb64(grant['bytes']), evidence)],
             trusted_context_template=unb64(self.plan['template']), signer=self.signer,
             challenge=unb64(self.plan['challenges'][1 if fresh else 0]),
