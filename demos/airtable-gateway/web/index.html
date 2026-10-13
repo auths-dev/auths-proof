@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airtable · Auths gateway</title><link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script></head>
+<body><header><a href="/">AUTHS / AIRTABLE</a><span id="mode">Connecting</span></header>
+<main><p class="eyebrow">Exact authority. A separate execution boundary.</p>
+<h1>Let the app propose a status.<br>Keep the Airtable token out of its hands.</h1>
+<p class="intro">Set one record’s <strong>DemoStatus</strong> in a fixed disposable table.
+The app submits proof and the exact action. The general gateway owns the PATCH and token.</p>
+<div id="connection" role="status">Checking the demo…</div>
+<section class="workbench"><article><h2>Approved authority</h2><dl>
+<dt>Fixed base</dt><dd id="base">—</dd><dt>Fixed table</dt><dd id="table">—</dd>
+<dt>Field</dt><dd>DemoStatus</dd><dt>Permitted values</dt><dd>Approved · Pending</dd>
+<dt>Trust expires</dt><dd id="expiry">—</dd><dt>Recipe</dt><dd id="recipe" class="digest">—</dd></dl>
+<p>This is an exact set, with no expected-old-value check or atomic compare-and-swap.
+Another writer can overwrite the record. This profile declares no numeric spend or count budget.</p></article>
+<article><h2>Proposed action</h2><label for="experiment">Choose a closed experiment</label>
+<select id="experiment">
+<option value="exact">Set exact record to Approved</option><option value="pending">Set another exact record to Pending</option>
+<option value="unsupported-value">Signed unsupported value: Rejected</option><option value="record-substitution">Swap the record after signing</option>
+<option value="path-injection">Hostile record segment: cannot escape fixed table</option><option value="wrong-recipe">Wrong recipe digest</option>
+<option value="altered-action">Swap the action after signing</option><option value="forged-proof">Altered proof bytes</option>
+<option value="expired-action">Expired action</option><option value="replay">Replay the exact update</option>
+<option value="fresh-replay">Same operation, fresh challenge</option><option value="race">Two gateways race one operation</option>
+<option value="lost-response">Lose PATCH response; delay visibility</option><option value="recover-loss">Observe lost operation again; never PATCH again</option>
+<option value="competing-writer">Another writer copies value, changes echo</option><option value="recover-competing">Observe competing-writer operation again</option>
+<option value="rate-limit">Provider returns 429</option><option value="provider-error">Provider returns 500</option>
+<option value="malformed-response">Malformed provider JSON</option><option value="oversized-response">Oversized provider response</option>
+<option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read signed stored outcome</option>
+</select><p id="proposal">Each experiment fixes its record, operation and signed arguments.</p>
+<button id="submit" disabled>Submit through the gateway</button>
+<p class="small">Run the exact update before replay. Recovery resubmits the original operation to the native replay boundary;
+only another read can occur. Wait three seconds after response loss before observing again.</p></article></section>
+<section class="result" aria-live="polite"><div><p class="eyebrow">Measured native result</p><h2 id="outcome">No action submitted</h2></div>
+<ol class="stages"><li>Verify proof</li><li>Claim operation</li><li>Enter provider</li><li>Record response</li><li>Observe value + echo</li></ol>
+<p id="explanation">Authorization, a recorded HTTP response and a matching fresh value/echo are separate facts.</p>
+<pre id="result-json">{}</pre><a href="/receipt" id="receipt-link">Inspect the evidence →</a></section>
+<section class="limits"><h2>What this run can establish</h2>
+<p>This is a development demo, not protected production qualification. Simulation never reaches Airtable.
+Live mode touches only the fixed disposable table. Neither mode proves exclusive causation, atomic CAS,
+provider idempotency or PAT restriction to a single base.</p>
+<p>A matching value with the wrong echo cannot confirm this action. Unknown writes retain their consumed operation.
+There is no automatic PATCH retry. The operator diagnoses and retires the run-owned records separately.</p></section></main>
+<footer>Data-only recipe · Installed public SDK · Credential-owning general gateway</footer></body></html>

@@ -145,8 +145,8 @@ not test inconvenience.
 | Experiment | Required observation |
 | --- | --- |
 | Request/oracle | Independent reference derives exact fixed-base/table PATCH, `DemoStatus`, action echo, segment encoding, allowed enum, GET subject and bounded pointers. It agrees with the native decision and request commitment. |
-| Refusal | Forged/altered proof, wrong recipe/trust, malformed/unknown fields, path injection, record substitution, unsupported replacement and expired authority enter no write; pre-custody refusals lease nothing. |
-| Replay/budget/race | Original and fresh-challenge replays, distinct-operation budget boundaries, two processes sharing the durable store and concurrent final capacity preserve admission without another PATCH. Read-only reconciliation leases are recorded separately. |
+| Refusal | Forged/altered proof, wrong recipe/trust, malformed/unknown fields, record substitution, unsupported replacement and expired authority enter no write; hostile path text must never escape the fixed base/table; pre-custody refusals lease nothing. |
+| Replay/budget/race | Original and fresh-challenge replays, applicable distinct-operation budget boundaries, two processes sharing the durable store and concurrent final capacity preserve admission without another PATCH. Read-only reconciliation leases are recorded separately. |
 | Crash | Real process interruption before entry, after entry and before response persistence retains the actual attempt across restart. No case pre-seeds a successful outcome or edits gateway floors/counters. |
 | Response loss/recovery | Lose the real PATCH response and delay visibility. Only fresh matching record, replacement and exact action echo can resolve the declared linked observation. Mismatched/absent echo, unavailable reads and stale evidence remain unresolved; no retry PATCH occurs. |
 | Competing writer | Another run-owned actor changes value/echo before observation. The gateway does not claim success from unrelated matching values and does not overwrite that actor through recovery. Explicitly exclude atomic CAS and prevention of later external writes. |
@@ -236,3 +236,30 @@ Track **gateway demo implemented**, **development live evidence** and
 PATCH or existing generic gateway implementation alone closes none of the
 unmeasured demo/qualification requirements. No exclusive-causation, provider
 idempotency, arbitrary-record access or CAS claim is implied.
+
+## 8. Gateway demo engineering candidate
+
+The current `demos/airtable-gateway/` candidate adds a public installed-SDK
+application, separate operator-issued root/actor authority, three native gateway
+processes sharing durable operation claims, source-free Docker kit, CLI and
+connected workbench/evidence page. CI measures exact request/read-back, enum
+and proof/record refusals, replay/fresh challenge/race/restart, real response
+loss with delayed visibility, another actual HTTP writer with a mismatched echo,
+429/500 and malformed/oversized responses, process isolation and native audit.
+
+Two source findings refine the engineering expectations. The reviewed profile
+has no numeric argument or count-only capability: count/sum budgets are not
+applicable, and no dummy spend field is added. Record fields have length bounds
+rather than an Airtable-ID regex. Native path construction encodes hostile text
+as one segment; a safe encoded nonexistent record may receive an entered 404.
+Tests must prove it cannot escape the fixed resource, not claim such text
+necessarily refuses before a lease. Record substitution after signing still
+must refuse without custody or provider access.
+
+Development `doctor` must retain its production-readiness refusal while its
+store/recipe/generation/transport/isolation checks pass. Live preparation checks
+actual text-column schema and runtime read access; it does not prove excluded
+base access or two-key rotation. The simulation and packaged CI candidate remain
+separate from protected full-corpus qualification, development live evidence,
+independent human review and actual GitHub-release installation. Those acceptance
+items remain open until measured on the required deployment.

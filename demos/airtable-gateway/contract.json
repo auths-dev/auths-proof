@@ -1,0 +1,15 @@
+{
+  "schema": "auths.gateway-demo-contract/1",
+  "platform": "airtable",
+  "family": "airtable-record-update-v1",
+  "application_boundary": "installed public GatewayClient; proof and action only",
+  "recipe_source": "bindings/fixtures/gateway/airtable/recipe.json; fixed base/table reviewed by qualification/reference/airtable_record.py",
+  "profile_source": "bindings/fixtures/gateway/airtable/profile.toml",
+  "qualification_workflow": ".github/workflows/recipe-qualification.yml",
+  "shipping_executor": "auths-gateway",
+  "application_provider_credential": false,
+  "simulation_evidence": "selftest.py",
+  "browser_evidence": "tests/browser.py",
+  "protected_qualification": false,
+  "budgets": "not applicable: the reviewed profile has no numeric argument or count-only capability"
+}
