@@ -31,7 +31,8 @@ Open <http://localhost:8080>. Start with **Exact refund**, then replay, boundary
 altered proof/action, two-gateway race and budget experiments. Each choice has
 one fixed operation and payment. Run the count/sum positive before its overflow.
 The separate operator starts two native gateway processes for the race and a
-third installation for the second challenge; the web app runs
+third installation for the second challenge. Each installation checks its own
+credential and account; all three share the operation/budget store. The web app runs
 as UID 62004. Gateway state and root/observer keys remain root-private.
 
 Default mode is clearly labeled **simulation**. A counting Stripe double measures
@@ -79,6 +80,11 @@ Pin trust and observer independently from the operator's `private/pins.json` and
 use `auths-gateway audit`. Missing outcomes cannot be treated as verified merely
 because the UI says success. Read-back echo attribution assumes other writers
 did not copy the action echo; this is not proof of settlement or exclusive causation.
+
+`doctor` intentionally reports **not production ready** for this development
+installation: file custody, software observer, local clock and missing protected
+qualification do not satisfy production policy. Store, recipe, generation,
+transport and operator/application isolation checks must still pass.
 
 ## Real Stripe test mode
 

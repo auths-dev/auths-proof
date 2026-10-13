@@ -27,6 +27,7 @@ def serve(key_digest, ledger, *, port=0):
             body = canonical(value)
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Stripe-Version', VERSION)
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)

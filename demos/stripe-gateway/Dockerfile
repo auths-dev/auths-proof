@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
 WORKDIR /opt/demo
 COPY . /opt/demo/
 RUN /opt/consumer/bin/pip install --no-index artifacts/auths-*.whl \
-    && npm install --omit=dev --ignore-scripts --no-audit --no-fund --no-save artifacts/auths-dev-sdk-*.tgz \
+    && npm install --omit=dev --ignore-scripts --no-audit --no-fund --no-save ./artifacts/auths-dev-sdk-*.tgz \
     && chmod 755 bin/auths-gateway bin/auths-gateway-simulation
 ENTRYPOINT ["/opt/consumer/bin/python", "/opt/demo/operate.py"]
 CMD ["--mode", "simulation"]

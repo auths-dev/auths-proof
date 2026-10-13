@@ -206,13 +206,13 @@ class Operator:
             args = [self.binary, 'install', '--state-dir', state, '--recipe', HERE / 'recipe.json',
                     '--profile-lock', HERE / 'profile.lock.json', '--trusted-context',
                     HOME / 'private' / ('context-' + str(1 if host == 2 else 0) + '.cbor'), '--approve-digest', plan['recipe_digest'],
-                    '--provider', 'stripe', '--alias', 'demo', '--credential-stdin', '--attempt-store', attempts]
-            if host:
-                args.append('--join')
-            else:
-                args.extend(['--account-label', resources['platform']])
-                if self.port is not None:
-                    args.extend(['--loopback-provider', self.port])
+                    '--provider', 'stripe', '--alias', 'demo' + str(host), '--credential-stdin',
+                    '--attempt-store', attempts, '--account-label', resources['platform']]
+            # Each installation checks the account and restricted credential.
+            # All three share the operation/budget store; no simulation join
+            # may accidentally probe the live provider with a synthetic key.
+            if self.port is not None:
+                args.extend(['--loopback-provider', self.port])
             child(args, stdin=(self.keys['runtime'] + '\n').encode())
         # A shared software observer exists only in this labeled development
         # deployment. It is never a production signing-custody claim.

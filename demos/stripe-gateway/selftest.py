@@ -128,7 +128,16 @@ def test_application_isolation_and_native_audit(operator):
     doctor = child([operator.binary, 'doctor', '--state-dir', HOME / 'gateway0',
                     '--app-socket', HOME / 'sockets/app0.sock', '--app-uid', APP_UID, '--app-gid', APP_GID], check=False)
     doctor_value = decode(doctor.stdout)
-    require(doctor_value.get('ready') is True, 'demo.selftest-doctor-not-ready')
+    require(doctor_value.get('schema') == 'auths.gateway-readiness/1'
+            and doctor_value.get('ready') is False and doctor.returncode != 0,
+            'demo.selftest-development-must-not-claim-production-readiness')
+    checks = {item['check']: item for item in doctor_value['checks']}
+    for name in ['store', 'recipe', 'connection-generation', 'transport-policy', 'operator-plane-isolation']:
+        require(checks[name]['ready'] is True, 'demo.selftest-doctor-failed:' + name)
+    for name in ['trust', 'qualification', 'provider-secret-custody', 'clock']:
+        require(checks[name]['ready'] is False, 'demo.selftest-development-production-gate:' + name)
+    require(checks['observer-custody']['state'] == 'not-ready',
+            'demo.selftest-software-observer-not-production-ready')
     pins = decode(read(HOME / 'private/pins.json'))
     audit = child([operator.binary, 'audit', '--bundle', HOME / 'app/audit.json',
                    '--trusted-context-sha256', pins['trusted_context_sha256'],
