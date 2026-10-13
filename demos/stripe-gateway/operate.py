@@ -5,6 +5,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import signal
@@ -20,6 +21,9 @@ from app import LABELS
 
 HERE = Path(__file__).resolve().parent
 HOME = Path('/run/demo')
+PRIVATE = HOME / 'private'
+JOURNAL = PRIVATE / 'resources.json'
+POOL = PRIVATE / 'resource-pool.json'
 APP_UID, APP_GID = 62004, 62005
 ENVIRONMENT = {'PATH': '/opt/consumer/bin:/usr/local/bin:/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'}
 
@@ -39,11 +43,11 @@ def input_credentials():
 def cleanup_existing():
     require(os.getuid() == 0 and HOME.is_dir() and not HOME.is_symlink()
             and HOME.stat().st_uid == 0, 'demo.operator-private-session-required')
-    require((HOME / 'resources.json').is_file(), 'demo.resource-journal-unavailable')
+    require(JOURNAL.is_file(), 'demo.resource-journal-unavailable')
     keys = input_credentials()
     sys.path.insert(0, str(HERE / 'reference'))
     from stripe_resources import Resources
-    Resources(keys).cleanup(HOME / 'resources.json')
+    Resources(keys).cleanup(JOURNAL)
     print('{"status":"run-owned-test-payments-retired","stripe_records_retained":true}')
 
 
@@ -63,8 +67,9 @@ def gateway(binary, *arguments):
 async def authority(binary, resources, directory, mode):
     app = directory / 'app'
     private = directory / 'private'
-    for path in [app, private]:
-        path.mkdir(mode=0o700)
+    app.mkdir(mode=0o700)
+    require(private.is_dir() and not private.is_symlink() and private.stat().st_uid == 0
+            and private.stat().st_mode & 0o777 == 0o700, 'demo.operator-private-directory-required')
     for name, parent in [('root', private), ('actor', app)]:
         write(parent / (name + '.seed'), secrets.token_bytes(32), new=True)
         write(parent / (name + '.json'), canonical({'schema': 'auths.approval-signer/1',
@@ -139,6 +144,7 @@ class Operator:
         require(os.getuid() == 0, 'demo.operator-root-required')
         require(not HOME.exists(), 'demo.fresh-container-required')
         HOME.mkdir(mode=0o755)
+        PRIVATE.mkdir(mode=0o700)
         self.mode, self.processes, self.double, self.resources = mode, [], None, None
         self.binary = HERE / 'bin' / ('auths-gateway-simulation' if mode == 'simulation' else 'auths-gateway')
         self.keys, self.sockets = {}, HOME / 'sockets'
@@ -194,9 +200,9 @@ class Operator:
             from stripe_resources import Resources
             self.resources = Resources(self.keys)
             session = 'stripe-demo/' + str(int(time.time())) + '/1'
-            journal = HOME / 'resources.json'
-            self.resources.prepare(session, 16, journal, HOME / 'resource-pool.json')
-            pool = decode(read(HOME / 'resource-pool.json'))
+            journal = JOURNAL
+            self.resources.prepare(session, 16, journal, POOL)
+            pool = decode(read(POOL))
             resources = {'platform': pool['platform'], 'payments': [value['id'] for value in pool['payments']]}
         plan = asyncio.run(authority(self.binary, resources, HOME, self.mode))
         attempts = HOME / 'attempts'
@@ -253,8 +259,8 @@ class Operator:
         self.processes.clear()
         if self.double:
             self.double.shutdown()
-        if self.resources and (HOME / 'resources.json').exists():
-            self.resources.cleanup(HOME / 'resources.json')
+        if self.resources and JOURNAL.exists():
+            self.resources.cleanup(JOURNAL)
 
 
 def main():
@@ -293,4 +299,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ValueError as error:
+        code = str(error)
+        if not re.fullmatch(r'(?:demo|qualification)\.[a-z0-9.-]+(?::[a-z0-9-]+)?', code):
+            code = 'demo.operator-input-refused'
+        print(code, file=sys.stderr)
+        raise SystemExit(1) from None
