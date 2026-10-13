@@ -1,9 +1,11 @@
 # AP-SPEC-068: Robust Airtable demo through the general gateway
 
-- **Status:** Proposed. Source audit completed 13 October 2026; no new demo or
-  protected qualification is claimed by this document.
+- **Status:** Implementation in progress. The engineering candidate is implemented
+  on `codex/general-gateway-demos` through `605017cd`; hosted verification,
+  protected qualification and a production deployment remain open.
 - **Depends on:** [AP-SPEC-063](0063-generalized-gateway.md),
   [AP-SPEC-066](0066-production-gateway-polish-and-recipe-qualification.md),
+  [AP-SPEC-039](0039-enterprise-coordination-and-operations-plane.md),
   [ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md),
   [ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md), and the
   [domain boundary plan](../target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md).
@@ -30,6 +32,25 @@ app-held-token path may remain a clearly labeled self-hosted SDK reference;
 it MUST NOT remain the primary credential-isolated demo or a hidden fallback
 when gateway installation/qualification fails. Shared presentation or authoring
 helpers may be reused; provider execution remains exclusively in the gateway.
+
+### 1.1 Product interpretation
+
+This demonstration is the cross-provider proof of the product boundary, not the
+initial commercial wedge. It establishes that an application can request an
+exact third-party write without holding the provider credential and without an
+Airtable-specific executor in Auths core or the gateway.
+
+The Stripe companion is the first packaged commercial journey. Airtable proves
+that its enforcement mechanics are reusable through a second data-only recipe
+while its field, resource, observation and provider-limit semantics remain
+explicitly Airtable-owned. The initial product MAY be deployed as a
+single-tenant, customer-hosted installation. Multi-tenancy, a public recipe
+marketplace and arbitrary Airtable authoring are not requirements of this spec.
+
+The commercial coordination product is not owned by this demo or by the gateway
+runtime. AP-SPEC-039 owns its separate implementation and requires it to consume
+versioned public Auths interfaces. This repository retains the open enforcement,
+SDK, local operations, reference deployment and conformance surfaces.
 
 ## 2. Audited starting point and actual gaps
 
@@ -135,6 +156,33 @@ An unknown write offers bounded observation, never automatic PATCH retry.
 Default setup requires no adjacent checkout or compiler. Operator setup reads
 secrets privately; app execution has no `.env`, PAT, AWS or signing-key access.
 
+### 4.1 Productization boundary
+
+The current workbench exercises fixed engineering scenarios. It MAY add a
+non-privileged local simulator that demonstrates the versioned integration
+contracts below, but it MUST NOT become the commercial coordination product.
+
+The open repository owns and tests:
+
+1. Native K-of-N approval proposal, review, signing, collection and gateway
+   verification, including insufficient threshold, duplicate signer, wrong
+   record/action, expiry and replay cases.
+2. Production gateway installation and diagnosis using PostgreSQL/TLS, AWS
+   Secrets Manager, qualification inputs and customer-near PAT scope.
+3. Bounded local status, recovery and evidence-export interfaces that preserve
+   authorization, response recording, linked observation and unresolved outcome.
+4. A local approval simulator showing fixed base/table, exact record,
+   replacement, recipe digest, authority and expiry. Simulator state alone never
+   authorizes an action.
+
+The separately owned AP-SPEC-039 product may provide the real human approval
+inbox and routing, guided customer onboarding, fleet operation and searchable
+history. It MUST use the public contracts above and MUST NOT receive the PAT,
+reinterpret a native result, add an Airtable executor or create a second
+authorization implementation. A missing public integration contract discovered
+by that product is added to the smallest valid open product layer with
+conformance evidence; it is not implemented as a demo-only API.
+
 ## 5. Required proof and evidence matrix
 
 All applicable AP-SPEC-066 wall scenarios remain mandatory. Bind each case's
@@ -239,7 +287,7 @@ idempotency, arbitrary-record access or CAS claim is implied.
 
 ## 8. Gateway demo engineering candidate
 
-The current `demos/airtable-gateway/` candidate adds a public installed-SDK
+The branch through `605017cd` adds a public installed-SDK
 application, separate operator-issued root/actor authority, three native gateway
 processes sharing durable operation claims, source-free Docker kit, CLI and
 connected workbench/evidence page. CI measures exact request/read-back, enum
@@ -271,3 +319,20 @@ model explicitly displayed. The application never receives it. This convenience
 is not two-key rotation or provider-key separation evidence and does not change
 §6’s protected credential requirements. Real record/view identifiers provide
 provider-website links only in live mode.
+
+| Product capability | Current candidate | Remaining gap |
+| --- | --- | --- |
+| Credential-isolated application | Implemented: the app submits proof/action bytes and cannot read the PAT or private gateway state. | Re-measure on the production custody/deployment tuple. |
+| Exact write enforcement | Implemented: the fixed recipe, closed enum, durable replay state, race/restart and read-only ambiguous-outcome recovery use the general gateway. | Close hosted verification and the protected evidence wall. |
+| Packaged developer journey | Implemented: source-free Docker handoff, installed Python and TypeScript clients, CLI, browser workbench and evidence view. | Repeat from the actual release artifact and complete independent human use. |
+| Real provider effect | Implemented as an explicit development launch against one disposable Airtable table through the shipping gateway. | Run the retained protected sequence with two scoped PATs and current signed inputs. |
+| Production operations | Not established: the demo intentionally uses one PAT for setup/runtime, development file custody/store, a software observer and local clock. | Deploy PostgreSQL/TLS, AWS web-identity custody, version-pinned Secrets Manager, two-key rotation and production diagnostics. |
+| Approval integration | Native K-of-N authoring and verification exist outside this demo; the workbench does not yet exercise their public end-to-end contracts. | Add only the local simulator and hostile integration cases in §4.1. A real inbox belongs to the AP-SPEC-039 product. |
+| Protected qualification | Not established. | Complete §6 and publish current verifiable artifacts. |
+
+No further provider-specific production executor is required. The next increment
+is to run this exact application path on the production tuple, complete protected
+qualification and exercise the open integration contracts in §4.1. The
+commercial inbox and coordination service remain a separate product. Airtable's
+business role is evidence that this product shape generalizes; it is not a
+reason to turn the first launch into a broad connector catalogue.

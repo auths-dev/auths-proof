@@ -1,9 +1,11 @@
 # AP-SPEC-067: Robust Stripe demo through the general gateway
 
-- **Status:** Proposed. Source audit completed 13 October 2026; no new demo or
-  protected qualification is claimed by this document.
+- **Status:** Implementation in progress. The engineering candidate is implemented
+  on `codex/general-gateway-demos` through `605017cd`; hosted verification,
+  protected qualification and a production deployment remain open.
 - **Depends on:** [AP-SPEC-063](0063-generalized-gateway.md),
   [AP-SPEC-066](0066-production-gateway-polish-and-recipe-qualification.md),
+  [AP-SPEC-039](0039-enterprise-coordination-and-operations-plane.md),
   [ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md),
   [ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md), and the
   [domain boundary plan](../target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md).
@@ -32,6 +34,31 @@ The work MUST NOT extend the old profile-specific demo services into a second
 production execution path. Existing pure evaluators, fixtures and tests may
 inform a reviewed oracle. Each reused behavior needs an explicit comparison
 with the recipe; similar operation names do not establish equivalence.
+
+### 1.1 Product interpretation
+
+This demonstration is the first single-customer product prototype, not merely
+an architecture example. Its product promise is:
+
+> A customer can let an application or agent request one bounded Stripe refund
+> without giving that application or agent a Stripe credential.
+
+The reusable product is the general gateway and its operator control surface.
+Stripe is the first packaged commercial journey, not a reason to add a
+provider-specific production executor. The initial deployment MAY be a
+single-tenant, customer-hosted installation. Multi-tenancy, a public recipe
+marketplace and a broad provider catalogue are not launch requirements for this
+specification.
+
+The commercial coordination product is not owned by this demo or by the gateway
+runtime. AP-SPEC-039 owns its separate implementation and requires it to consume
+versioned public Auths interfaces. This repository retains the open enforcement,
+SDK, local operations, reference deployment and conformance surfaces.
+
+The Airtable companion demonstrates that the same application/gateway boundary
+supports another provider through data-only recipes. It does not reduce the
+Stripe recipe's own qualification obligations or make provider semantics
+generic.
 
 ## 2. Audited starting point and actual gaps
 
@@ -124,6 +151,33 @@ qualification or exhausted budget before offering a live submission. Secrets
 must not appear in UI, arguments, logs, artifacts or support bundles.
 Fresh-install instructions must distinguish operator installation from app
 submission. The packaged example includes diagnosis and run-owned cleanup.
+
+### 4.1 Productization boundary
+
+The current workbench exercises fixed engineering scenarios. It MAY add a
+non-privileged local simulator that demonstrates the versioned integration
+contracts below, but it MUST NOT become the commercial coordination product.
+
+The open repository owns and tests:
+
+1. Native K-of-N approval proposal, review, signing, collection and gateway
+   verification, including insufficient threshold, duplicate signer, wrong
+   action, expiry and replay cases.
+2. Production gateway installation and diagnosis using PostgreSQL/TLS, AWS
+   Secrets Manager, qualification inputs and customer-near provider scope.
+3. Bounded local status, recovery and evidence-export interfaces that preserve
+   the distinction between authorization, provider response and observed effect.
+4. A local approval simulator showing the exact PaymentIntent, amount, currency,
+   account, recipe digest, authority limits and expiry. Simulator state alone
+   never authorizes an action.
+
+The separately owned AP-SPEC-039 product may provide the real human approval
+inbox and routing, guided customer onboarding, fleet operation and searchable
+history. It MUST use the public contracts above and MUST NOT receive the Stripe
+credential, reinterpret a native result, introduce a hosted Stripe executor or
+create a second authorization implementation. A missing public integration
+contract discovered by that product is added to the smallest valid open product
+layer with conformance evidence; it is not implemented as a demo-only API.
 
 ## 5. Required proof and evidence matrix
 
@@ -222,7 +276,7 @@ human trial. No new real-money, Connect or other Stripe-family claim is implied.
 
 ## 8. Implementation status
 
-The current branch adds `demos/stripe-gateway/`: public SDK authoring/submission,
+The branch through `605017cd` adds `demos/stripe-gateway/`: public SDK authoring/submission,
 a separate operator and actor, two gateway processes with shared durable state,
 CLI and HTTP workbench, native audit export, a counting platform-provider double,
 shipping-binary live test-mode setup/cleanup and a source-free Docker handoff.
@@ -230,3 +284,18 @@ The new hosted workflow runs installed Python/TypeScript clients and a real
 browser. Verification is pending; no protected run, production qualification,
 provider rotation or GitHub release installation is claimed. Old vertical
 examples remain references, with the maintained entry point moved to this demo.
+
+| Product capability | Current candidate | Remaining gap |
+| --- | --- | --- |
+| Credential-isolated application | Implemented: the app submits proof/action bytes and cannot read the setup or runtime Stripe keys or private gateway state. | Re-measure on the production custody/deployment tuple. |
+| Exact write enforcement | Implemented: recipe-derived refund, grant and provider-read bounds, durable replay/budget state, race/restart and ambiguous-outcome behavior use the general gateway. | Close hosted verification and the protected evidence wall. |
+| Packaged developer journey | Implemented: source-free Docker handoff, installed Python and TypeScript clients, CLI, browser workbench and evidence view. | Repeat from the actual release artifact and complete independent human use. |
+| Real provider effect | Implemented as an explicit development launch against Stripe test mode through the shipping gateway. | Run the retained protected sequence with current signed inputs. |
+| Production operations | Not established: the demo intentionally uses development file custody/store, software observer custody and a local clock. | Deploy PostgreSQL/TLS, AWS web-identity custody, version-pinned Secrets Manager and production diagnostics. |
+| Approval integration | Native K-of-N authoring and verification exist outside this demo; the workbench does not yet exercise their public end-to-end contracts. | Add only the local simulator and hostile integration cases in §4.1. A real inbox belongs to the AP-SPEC-039 product. |
+| Protected qualification | Not established. | Complete §6 and publish current verifiable artifacts. |
+
+No further gateway architecture is required before attempting productization.
+The next increment is to run this exact application path on the production tuple,
+complete protected qualification and exercise the open integration contracts in
+§4.1. The commercial inbox and coordination service remain a separate product.
