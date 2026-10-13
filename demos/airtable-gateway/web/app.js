@@ -31,6 +31,7 @@ async function initialize() {
     return;
   }
   element('base').textContent = status.base;
+  element('credential-model').textContent = status.provider_credential_model;
   element('table').textContent = status.table;
   element('expiry').textContent = new Date(status.expires_at * 1000).toLocaleString();
   element('recipe').textContent = status.recipe_digest;
@@ -43,6 +44,20 @@ async function initialize() {
   }
   element('submit').disabled = Date.now() >= status.expires_at * 1000;
   if (status.records.length) display(status.records.at(-1));
+  function proposal() {
+    const value = element('experiment').value;
+    const original = value === 'recover-loss' ? 'lost-response' : value === 'recover-competing' ? 'competing-writer' : 'exact';
+    const action = status.proposals[value] || status.proposals[original];
+    element('proposal').textContent = `${action.record_id} → ${action.replacement} · operation ${action.operation_id}`;
+    const link = element('provider-link');
+    link.hidden = status.mode !== 'live' || !/^rec[A-Za-z0-9]{14}$/.test(action.record_id);
+    if (!link.hidden) {
+      link.href = `https://airtable.com/${status.base}/${status.table}/` + (status.view ? `${status.view}/${action.record_id}` : '');
+      link.textContent = status.view ? 'Open this record on Airtable ↗' : 'Open this table on Airtable ↗';
+    }
+  }
+  element('experiment').addEventListener('change', proposal);
+  proposal();
   element('submit').addEventListener('click', async () => {
     element('submit').disabled = true;
     try {

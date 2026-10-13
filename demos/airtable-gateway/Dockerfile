@@ -11,4 +11,4 @@ RUN /opt/consumer/bin/pip install --no-index artifacts/auths-*.whl \
     && npm install --omit=dev --ignore-scripts --no-audit --no-fund --no-save ./artifacts/auths-dev-sdk-*.tgz \
     && chmod 755 bin/auths-gateway bin/auths-gateway-simulation
 ENTRYPOINT ["/opt/consumer/bin/python", "/opt/demo/operate.py"]
-CMD ["--mode", "simulation"]
+CMD []

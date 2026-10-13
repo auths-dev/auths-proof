@@ -66,6 +66,7 @@ class Application:
                 'relative_limit': '50% of independently read amount_received',
                 'grant_limits': self.plan['limits'], 'experiments': list(EXPERIMENTS),
                 'sdk_version': importlib.metadata.version('auths'),
+                'proposals': {label: case['arguments'] for label, case in self.plan['cases'].items()},
                 'records': self.records[-64:]}
 
     async def packet(self, label, *, fresh=False):

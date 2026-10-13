@@ -259,17 +259,17 @@ class Operator:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['simulation', 'live'], default='simulation')
+    parser.add_argument('--live', action='store_true', help='Use the real provider with operator-only stdin credentials')
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--selftest', action='store_true')
     parser.add_argument('--cleanup', action='store_true')
     args = parser.parse_args()
     if args.cleanup:
-        require(args.mode == 'live' and not args.selftest, 'demo.live-cleanup-required')
+        require(args.live and not args.selftest, 'demo.live-cleanup-required')
         cleanup_existing()
         return
-    require(not args.selftest or args.mode == 'simulation', 'demo.selftest-simulation-only')
-    operator = Operator(args.mode)
+    require(not args.selftest or not args.live, 'demo.selftest-simulation-only')
+    operator = Operator('live' if args.live else 'simulation')
     def interrupted(*_):
         raise Refusal('demo.interrupted')
     signal.signal(signal.SIGTERM, interrupted)

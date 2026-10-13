@@ -78,11 +78,13 @@ class Application:
                 'mode': self.plan['mode'], 'production_qualified': False,
                 'trust': self.plan['trust'], 'recipe_digest': self.plan['recipe_digest'],
                 'provider': 'Airtable disposable table' if self.plan['mode'] == 'live' else 'counting Airtable double',
-                'base': self.plan['base'], 'table': self.plan['table'], 'expires_at': self.plan['expires_at'],
+                'base': self.plan['base'], 'table': self.plan['table'], 'view': self.plan['view'], 'expires_at': self.plan['expires_at'],
+                'provider_credential_model': self.plan['provider_credential_model'],
                 'effect': 'Set DemoStatus and action-derived auths_echo; no compare-and-swap',
                 'grant_limits': {'budgets': 'No numeric budget capability in this reviewed profile'},
                 'experiments': [value for value in EXPERIMENTS if value not in OPERATOR_CASES],
                 'sdk_version': importlib.metadata.version('auths'),
+                'proposals': {label: case['arguments'] for label, case in self.plan['cases'].items()},
                 'records': self.records[-64:]}
 
     async def packet(self, label, *, fresh=False):

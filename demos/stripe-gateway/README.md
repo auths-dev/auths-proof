@@ -86,6 +86,28 @@ installation: file custody, software observer, local clock and missing protected
 qualification do not satisfy production policy. Store, recipe, generation,
 transport and operator/application isolation checks must still pass.
 
+## Explicit live launch from an existing private `.env`
+
+`--live` is a startup parameter. A browser URL cannot change the gateway’s
+provider, trust or credentials. The operator launcher reads the named private
+file and sends only the selected credential fields over stdin. It never mounts
+that file into the app or exports it into the app environment.
+
+```sh
+python3 launch.py --live --env-file /absolute/private/stripe.env
+```
+
+The file must contain `STRIPE_TEST_API_KEY` (setup test key) and `STRIPE_TEST_RESTRICTED_KEY` (restricted test runtime key). The launcher keeps it owner-private and
+requires a local Docker endpoint. Default launch without `--live` is simulation.
+Use `--image` for your locally built reviewed image and `--name`/`--port` to run
+another instance. A named live journal survives interruption; use the same name
+and env file with `--live --cleanup` only after the serving container has stopped.
+
+Live mode shows **Open on Stripe** beside the selected actual provider target.
+The link is hidden during simulation. Provider login/account access is still
+required. Inspect the test payment’s refund and its `auths_echo` metadata. Those website observations complement the
+native signed evidence; they do not replace audit verification.
+
 ## Real Stripe test mode
 
 Use a disposable test platform account. It needs a setup-only `sk_test_` key
@@ -101,7 +123,7 @@ The example below names a private file rather than embedding any credential:
 ```sh
 docker run --platform linux/amd64 --rm --init -i --name auths-stripe-gateway-demo \
   -p 127.0.0.1:8080:8080 -v stripe-demo-journal:/run \
-  auths-stripe-gateway-demo --mode live < /absolute/private/stripe-demo-credentials.json
+  auths-stripe-gateway-demo --live < /absolute/private/stripe-demo-credentials.json
 ```
 
 Live mode uses the **shipping** gateway, reaches only `https://api.stripe.com`,
@@ -117,7 +139,7 @@ with the same private credential input and retained journal volume:
 
 ```sh
 docker run --platform linux/amd64 --rm --init -i -v stripe-demo-journal:/run \
-  auths-stripe-gateway-demo --mode live --cleanup \
+  auths-stripe-gateway-demo --live --cleanup \
   < /absolute/private/stripe-demo-credentials.json
 ```
 

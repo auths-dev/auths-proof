@@ -103,6 +103,28 @@ Audit offline using independently pinned trust digest and observer principal
 from the operator's private `pins.json`. Do not infer signature verification
 from UI success.
 
+## Explicit live launch from an existing private `.env`
+
+`--live` is a startup parameter. A browser URL cannot change the gateway’s
+provider, trust or credentials. The operator launcher reads the named private
+file and sends only the selected credential fields over stdin. It never mounts
+that file into the app or exports it into the app environment.
+
+```sh
+python3 launch.py --live --env-file /absolute/private/airtable.env
+```
+
+The file must contain `PERSONAL_ACCESS_TOKEN` (owner-authorized development PAT). The launcher keeps it owner-private and
+requires a local Docker endpoint. Default launch without `--live` is simulation.
+Use `--image` for your locally built reviewed image and `--name`/`--port` to run
+another instance. A named live journal survives interruption; use the same name
+and env file with `--live --cleanup` only after the serving container has stopped.
+
+Live mode shows **Open on Airtable** beside the selected actual provider target.
+The link is hidden during simulation. Provider login/account access is still
+required. Inspect the selected record’s `DemoStatus` and exact `auths_echo` in the fixed table. Those website observations complement the
+native signed evidence; they do not replace audit verification.
+
 ## Optional real Airtable mode
 
 Only the owner-authorized dedicated disposable base `appQD3Qf0YFBCW9bV`, table
@@ -111,9 +133,10 @@ and `auths_echo`, no customer data and no automations with external effects.
 Changing these resources requires a new recipe review; the app cannot select
 another base/table.
 
-Supply private stdin JSON with exactly `setup` and `runtime`, containing
-**distinct** PATs. Setup needs `schema.bases:read` and record read/write for creation/deletion on the
-selected disposable table. Runtime needs `data.records:read` and `data.records:write` there. Setup checks
+Supply private stdin JSON with exactly `token`. This development run uses one
+owner-provided PAT for both operator setup and gateway custody; the app receives
+neither. It does not prove provider-key separation or rotation. The operator needs `schema.bases:read` and record read/write for creation/deletion on the
+selected disposable table. The PAT also needs `data.records:read` and `data.records:write` there. Setup checks
 the [actual metadata schema](https://support.airtable.com/articles/6292134965-getting-started-with-airtable-s-web-api), prepares 16 run-owned records using the reviewed
 ownership journal, and verifies fresh runtime read access before serving.
 Provider-configured permissions remain external prerequisites: this demo does
@@ -123,7 +146,7 @@ The recipe has no per-lease account guard.
 ```sh
 docker run --platform linux/amd64 --rm --init -i --name auths-airtable-gateway-demo \
   -p 127.0.0.1:8081:8081 -v airtable-demo-journal:/run \
-  auths-airtable-gateway-demo --mode live < /absolute/private/airtable-demo-credentials.json
+  auths-airtable-gateway-demo --live < /absolute/private/airtable-demo-credentials.json
 ```
 
 Do not put PATs in arguments, chat, source, build inputs or app environment.
@@ -138,7 +161,7 @@ an interruption or failed cleanup, and recover with the same private input:
 
 ```sh
 docker run --platform linux/amd64 --rm --init -i -v airtable-demo-journal:/run \
-  auths-airtable-gateway-demo --mode live --cleanup \
+  auths-airtable-gateway-demo --live --cleanup \
   < /absolute/private/airtable-demo-credentials.json
 ```
 

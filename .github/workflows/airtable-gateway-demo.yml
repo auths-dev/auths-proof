@@ -76,6 +76,8 @@ jobs:
           npm run build
           node --check web/app.js
           npm run test:web
+      - name: Verify private live launcher boundaries
+        run: python demos/airtable-gateway/tests/test_launch.py
       - name: Construct the source-free demo handoff
         run: |
           python demos/airtable-gateway/tools/package.py \

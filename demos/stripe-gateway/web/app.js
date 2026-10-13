@@ -38,6 +38,16 @@ async function initialize() {
   if (status.mode === 'live') element('experiment').querySelector('[value="lost-response"]').disabled = true;
   element('submit').disabled = Date.now() >= status.expires_at * 1000;
   if (status.records.length) display(status.records.at(-1));
+  function proposal() {
+    const value = element('experiment').value;
+    const action = status.proposals[value] || status.proposals.exact;
+    element('proposal').textContent = `${action.payment_intent} · ${action.amount / 100} ${action.currency.toUpperCase()} · operation ${action.operation_id}`;
+    const link = element('provider-link');
+    link.hidden = status.mode !== 'live' || !/^pi_[A-Za-z0-9]+$/.test(action.payment_intent);
+    if (!link.hidden) link.href = `https://dashboard.stripe.com/test/payments/${action.payment_intent}`;
+  }
+  element('experiment').addEventListener('change', proposal);
+  proposal();
   element('submit').addEventListener('click', async () => {
     element('submit').disabled = true;
     try {

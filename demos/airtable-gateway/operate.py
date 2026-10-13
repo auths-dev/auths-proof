@@ -5,6 +5,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import signal
@@ -28,12 +29,14 @@ def input_credentials():
     raw = sys.stdin.buffer.read(8193)
     require(0 < len(raw) <= 8192, 'demo.credential-input-bound')
     values = decode(raw)
-    require(type(values) is dict and set(values) == {'setup', 'runtime'}, 'demo.test-keys-required')
-    for name, prefix in [('setup', 'pat'), ('runtime', 'pat')]:
-        value = values[name]
-        require(type(value) is str and value.startswith(prefix) and 20 <= len(value) <= 2048
-                and all(33 <= ord(char) <= 126 for char in value), 'demo.test-keys-required')
-    return values
+    require(type(values) is dict and set(values) == {'token'}, 'demo.development-pat-required')
+    value = values['token']
+    require(type(value) is str and value.startswith('pat') and 20 <= len(value) <= 2048
+            and all(33 <= ord(char) <= 126 for char in value), 'demo.development-pat-required')
+    # One owner-provided development PAT is shared by setup and gateway.
+    # The app never receives it; this is explicitly not rotation/separation proof.
+    return {'setup': value, 'runtime': value}
+
 
 
 def cleanup_existing():
@@ -108,7 +111,8 @@ async def authority(binary, resources, directory, mode):
         plan = {'schema': 'auths.airtable-gateway-demo/1', 'mode': mode,
                 'trust': 'separate operator-issued development root and actor; no production trust claim',
                 'expires_at': expires, 'recipe_digest': review['recipe_digest'],
-                'base': resources['base'], 'table': resources['table'], 'grants': grants,
+                'base': resources['base'], 'table': resources['table'], 'view': resources['view'], 'grants': grants,
+                'provider_credential_model': 'one owner-provided development PAT for operator and gateway' if mode == 'live' else 'independent simulation runtime and fixture credentials',
                 'template': b64(template), 'contexts': list(map(b64, contexts)),
                 'challenges': list(map(b64, challenges)), 'cases': cases}
         write(app / 'application.json', canonical(plan), new=True)
@@ -173,10 +177,9 @@ class Operator:
             self.keys['fixture'] = 'pat_fixture_' + secrets.token_hex(24)
             self.double, self.fixture = serve(digest(token.encode()), HOME / 'provider.jsonl', self.keys['fixture'])
             self.port = self.double.server_address[1]
-            resources = {'base': BASE, 'table': TABLE, 'records': record_ids()}
+            resources = {'base': BASE, 'table': TABLE, 'view': None, 'records': record_ids()}
         else:
             self.keys = input_credentials()
-            require(self.keys['setup'] != self.keys['runtime'], 'demo.separate-setup-runtime-pats-required')
             sys.path.insert(0, str(HERE / 'reference'))
             from airtable_resources import Resources
             from airtable_record import BASE, TABLE
@@ -191,7 +194,7 @@ class Operator:
             session = 'airtable-demo/' + str(int(time.time())) + '/1'
             self.resources.prepare(session, 16, HOME / 'resources.json', HOME / 'resource-pool.json')
             pool = decode(read(HOME / 'resource-pool.json'))
-            resources = {'base': pool['base'], 'table': pool['table'], 'records': [value['id'] for value in pool['records']]}
+            resources = {'base': pool['base'], 'table': pool['table'], 'view': next((view.get('id') for view in tables[0].get('views', []) if re.fullmatch(r'viw[A-Za-z0-9]{14}', str(view.get('id')))), None), 'records': [value['id'] for value in pool['records']]}
             # Fresh runtime access checks precede any gateway application effect.
             for record in resources['records']:
                 value = request('https://api.airtable.com', 'GET', '/v0/' + BASE + '/' + TABLE + '/' + record,
@@ -258,17 +261,17 @@ class Operator:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['simulation', 'live'], default='simulation')
+    parser.add_argument('--live', action='store_true', help='Use the real provider with operator-only stdin credentials')
     parser.add_argument('--port', type=int, default=8081)
     parser.add_argument('--selftest', action='store_true')
     parser.add_argument('--cleanup', action='store_true')
     args = parser.parse_args()
     if args.cleanup:
-        require(args.mode == 'live' and not args.selftest, 'demo.live-cleanup-required')
+        require(args.live and not args.selftest, 'demo.live-cleanup-required')
         cleanup_existing()
         return
-    require(not args.selftest or args.mode == 'simulation', 'demo.selftest-simulation-only')
-    operator = Operator(args.mode)
+    require(not args.selftest or not args.live, 'demo.selftest-simulation-only')
+    operator = Operator('live' if args.live else 'simulation')
     def interrupted(*_):
         raise Refusal('demo.interrupted')
     signal.signal(signal.SIGTERM, interrupted)

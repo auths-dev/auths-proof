@@ -264,3 +264,10 @@ base access or two-key rotation. The simulation and packaged CI candidate remain
 separate from protected full-corpus qualification, development live evidence,
 independent human review and actual GitHub-release installation. Those acceptance
 items remain open until measured on the required deployment.
+
+The development launcher accepts `--live --env-file` and a single owner-provided
+PAT shared by operator preparation and gateway custody, with that credential
+model explicitly displayed. The application never receives it. This convenience
+is not two-key rotation or provider-key separation evidence and does not change
+§6’s protected credential requirements. Real record/view identifiers provide
+provider-website links only in live mode.
