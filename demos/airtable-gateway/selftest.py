@@ -108,7 +108,8 @@ def test_native_refusals_replay_race_and_loss(operator):
             'demo.selftest-matching-value-wrong-echo-not-confirmed')
     for label in ['rate-limit', 'provider-error', 'malformed-response', 'oversized-response']:
         _, records, traffic = execute(label)
-        require(records[0]['outcome'] in ['response-recorded', 'unknown']
+        require((records[0]['outcome'] in ['response-recorded', 'unknown']
+                 or records[0]['outcome'] == 'observed' and records[0].get('matched') is False)
                 and cases[-1]['native_counters']['write_transport_entries'] == 1,
                 'demo.selftest-provider-error-not-confirmed:' + label)
         _, records, traffic = execute(label)

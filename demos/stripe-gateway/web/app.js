@@ -2,6 +2,7 @@
 const element = id => document.getElementById(id);
 const descriptions = {
   'observed-by-provider': 'A fresh provider read matched the verified value and this action’s echo. The link assumes no other writer copied the echo.',
+  observed: 'The gateway read the declared field. Value equality alone does not link that value to this action or establish its effect.',
   'response-recorded': 'The gateway recorded an HTTP response. This alone does not establish an effect.',
   unknown: 'The outcome remains unknown. The provider may have received the write; its response or locator is unavailable. Authority remains consumed; no automatic retry is allowed.',
   'not-entered': 'The gateway refused before write transport. A provider-read guard may already have acquired a credential and read evidence.',
@@ -13,7 +14,9 @@ const descriptions = {
 let token;
 function display(record) {
   const outcomes = record.records.map(item => item.result.outcome);
-  element('outcome').textContent = outcomes.join(' / ').toUpperCase();
+  element('outcome').textContent = record.records.map(item => item.result.outcome === 'observed'
+    ? (item.result.matched === false ? 'FIELD READ · VALUE MISMATCH' : 'FIELD READ · UNLINKED')
+    : item.result.outcome.toUpperCase()).join(' / ');
   element('explanation').textContent = outcomes.map(value => descriptions[value] || 'Inspect the exact gateway result below.').join(' ');
   element('result-json').textContent = JSON.stringify(record, null, 2);
 }
