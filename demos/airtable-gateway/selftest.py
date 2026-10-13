@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote
 
 from demo_common import canonical, decode, digest, read, require, write
@@ -117,6 +118,56 @@ def test_native_refusals_replay_race_and_loss(operator):
     return cases
 
 
+def test_native_process_crashes(operator):
+    from operate import HOME
+    ledger = HOME / 'provider.jsonl'
+
+    def writes():
+        return sum(decode(line)['kind'] == 'write' for line in ledger.read_bytes().splitlines())
+
+    def kill_gateway():
+        process = next(process for process, _, host in operator.processes if host == 0)
+        process.kill()
+        require(process.wait(timeout=10) == -9, 'demo.selftest-gateway-not-killed')
+
+    before = writes()
+    kill_gateway()
+    completed = operator.application('submit', '--experiment', 'crash-before')
+    require(completed.returncode == 0 and decode(completed.stdout)['records'][0]['result']['outcome'] == 'transport-unconfirmed'
+            and writes() == before, 'demo.selftest-crash-before-entry')
+    operator.restart(0)
+    completed = operator.application('submit', '--experiment', 'crash-before')
+    require(completed.returncode == 0 and decode(completed.stdout)['records'][0]['result']['outcome'] == 'observed-by-provider'
+            and writes() == before + 1, 'demo.selftest-confirmed-pre-entry-restart')
+    before, witness = writes(), operator.witnesses()[0]
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(operator.application, 'submit', '--experiment', 'crash-after')
+        require(operator.fixture.delivered.wait(20), 'demo.selftest-delivery-timeout')
+        entered = operator.witnesses()[0]
+        require(entered['scope'] == witness['scope']
+                and entered['write_transport_entries'] == witness['write_transport_entries'] + 1
+                and writes() == before + 1, 'demo.selftest-crash-after-real-entry')
+        kill_gateway()
+        operator.fixture.release_response.set()
+        completed = pending.result(timeout=30)
+    require(completed.returncode == 0 and decode(completed.stdout)['records'][0]['result']['outcome'] == 'transport-unconfirmed',
+            'demo.selftest-crash-after-ipc-unconfirmed')
+    operator.restart(0)
+    fresh = operator.witnesses()[0]
+    require(fresh['scope'] != entered['scope'], 'demo.selftest-crash-counter-scope-not-renewed')
+    completed = operator.application('submit', '--experiment', 'crash-after')
+    after = operator.witnesses()[0]
+    require(completed.returncode == 0 and decode(completed.stdout)['records'][0]['result']['outcome'] == 'observed-by-provider'
+            and writes() == before + 1 and after['write_transport_entries'] == fresh['write_transport_entries']
+            and after['read_transport_entries'] == fresh['read_transport_entries'] + 1,
+            'demo.selftest-crash-recovery-must-only-read')
+    return [{'case': 'crash-before-entry', 'gateway_exit_signal': 'SIGKILL', 'provider_writes_before_restart': 0,
+             'provider_writes_after_operator_confirmed_restart': 1},
+            {'case': 'crash-after-effect-before-response', 'gateway_exit_signal': 'SIGKILL',
+             'before_kill': entered, 'after_restart': after, 'provider_writes': 1,
+             'recovery_write_entries': 0, 'recovery_read_entries': 1}]
+
+
 def test_application_isolation_and_native_audit(operator):
     from operate import APP_UID, APP_GID, ENVIRONMENT, HOME, child
     private = [HOME / 'private' / 'root.seed', HOME / 'gateway0' / 'credentials.cbor',
@@ -152,6 +203,7 @@ def test_application_isolation_and_native_audit(operator):
 def run(operator):
     from operate import HOME
     cases = test_native_refusals_replay_race_and_loss(operator)
+    cases.extend(test_native_process_crashes(operator))
     verified = test_application_isolation_and_native_audit(operator)
     report = {'schema': 'auths.airtable-gateway-demo-evidence/1',
               'mode': 'simulation', 'production_qualification': False,

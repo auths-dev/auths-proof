@@ -112,9 +112,9 @@ Changing these resources requires a new recipe review; the app cannot select
 another base/table.
 
 Supply private stdin JSON with exactly `setup` and `runtime`, containing
-**distinct** PATs. Setup needs schema read plus record creation/deletion on the
-selected disposable table. Runtime needs record read/write there. Setup checks
-the actual metadata schema, prepares 16 run-owned records using the reviewed
+**distinct** PATs. Setup needs `schema.bases:read` and record read/write for creation/deletion on the
+selected disposable table. Runtime needs `data.records:read` and `data.records:write` there. Setup checks
+the [actual metadata schema](https://support.airtable.com/articles/6292134965-getting-started-with-airtable-s-web-api), prepares 16 run-owned records using the reviewed
 ownership journal, and verifies fresh runtime read access before serving.
 Provider-configured permissions remain external prerequisites: this demo does
 not establish write-only restrictions, an excluded-base scope proof or rotation.
@@ -150,8 +150,10 @@ session. Do not overwrite a dirty journal or use forced kill as normal cleanup.
 The workflow packages and verifies exact payload digests outside the checkout,
 installs both SDK artifacts, measures native verification/replay/race/recovery,
 independent wire/read-back, competing-writer traffic, error bounds, UID isolation,
-production-readiness refusal and offline audit. Actual desktop/mobile browser
-views are retained. These are engineering tests, not completed protected runs.
+production-readiness refusal and offline audit. The operator rehearsal also kills the real gateway before submission and after
+provider delivery while the response is held, then verifies durable restart and
+read-only recovery. These process faults are operator-only, not web controls.
+Actual desktop/mobile browser views are retained. These are engineering tests, not completed protected runs.
 
 Protected AWS custody, PostgreSQL/TLS, two genuine rotation PATs, verified excluded
 base access, current signed qualification, full crash/canary/lifecycle corpus,

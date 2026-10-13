@@ -28,10 +28,12 @@ HERE = Path(__file__).resolve().parent
 LABELS = ('exact', 'pending', 'unsupported-value', 'record-substitution', 'path-injection',
           'wrong-recipe', 'altered-action', 'forged-proof', 'expired-action', 'race',
           'lost-response', 'competing-writer', 'rate-limit', 'provider-error',
-          'malformed-response', 'oversized-response', 'encoded-segment', 'typescript-positive')
+          'malformed-response', 'oversized-response', 'encoded-segment', 'typescript-positive',
+          'crash-before', 'crash-after')
 EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript', 'recover-loss', 'recover-competing')
 FAULTS = ('lost-response', 'competing-writer', 'rate-limit', 'provider-error',
           'malformed-response', 'oversized-response')
+OPERATOR_CASES = ('crash-before', 'crash-after')
 
 
 @dataclass(frozen=True)
@@ -78,7 +80,8 @@ class Application:
                 'provider': 'Airtable disposable table' if self.plan['mode'] == 'live' else 'counting Airtable double',
                 'base': self.plan['base'], 'table': self.plan['table'], 'expires_at': self.plan['expires_at'],
                 'effect': 'Set DemoStatus and action-derived auths_echo; no compare-and-swap',
-                'grant_limits': {'budgets': 'No numeric budget capability in this reviewed profile'}, 'experiments': list(EXPERIMENTS),
+                'grant_limits': {'budgets': 'No numeric budget capability in this reviewed profile'},
+                'experiments': [value for value in EXPERIMENTS if value not in OPERATOR_CASES],
                 'sdk_version': importlib.metadata.version('auths'),
                 'records': self.records[-64:]}
 
@@ -179,7 +182,7 @@ class Application:
             require(label in self.packets, 'demo.run-original-first')
             packet = await self.packet(label, fresh=experiment == 'fresh-replay')
         else:
-            require(self.plan['mode'] == 'simulation' or experiment not in FAULTS,
+            require(self.plan['mode'] == 'simulation' or experiment not in FAULTS + OPERATOR_CASES,
                     'demo.live-fault-not-configured')
             packet = await self.packet(experiment)
         if experiment == 'observe':
@@ -265,6 +268,7 @@ def serve(application, port):
                 require(0 < length <= 1024, 'demo.request-bound')
                 value = decode(self.rfile.read(length))
                 require(type(value) is dict and set(value) == {'experiment'}, 'demo.invalid-request')
+                require(value['experiment'] not in OPERATOR_CASES, 'demo.operator-case-required')
                 # This lock only orders app history. The race itself executes
                 # simultaneously on two independent gateway processes.
                 with application.lock:

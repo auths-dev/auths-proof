@@ -24,6 +24,8 @@ class Fixture:
         self.lock, self.ledger, self.token = threading.Lock(), ledger, fixture_token
         self.records = {record: {'DemoStatus': 'Pending', 'auths_echo': ''} for record in record_ids()}
         self.hidden_until = {}
+        self.delivered = threading.Event()
+        self.release_response = threading.Event()
         self.port = None
 
     def release_visibility(self, record):
@@ -70,7 +72,7 @@ def serve(runtime_digest, ledger, fixture_token):
             if not header.startswith('Bearer ') or not (external or hmac.compare_digest(key, runtime_digest)):
                 return self.reply(401, {'error': 'credential-refused'})
             record = self.path[len(PREFIX):] if self.path.startswith(PREFIX) else None
-            status, value, raw, drop, compete = 404, {'error': 'missing-record'}, None, False, False
+            status, value, raw, drop, compete, hold = 404, {'error': 'missing-record'}, None, False, False, False
             with fixture.lock:
                 fields = fixture.records.get(record)
                 if fields is not None:
@@ -103,6 +105,7 @@ def serve(runtime_digest, ledger, fixture_token):
                         else:
                             fixture.records[record] = dict(request['fields'])
                             status, value = 200, {'id': record, 'fields': dict(request['fields'])}
+                            hold = not external and record == record_ids()[7]
                             if not external and record in [record_ids()[10], record_ids()[11]]:
                                 drop = True
                                 if record == record_ids()[10]:
@@ -121,6 +124,9 @@ def serve(runtime_digest, ledger, fixture_token):
                     'response_dropped_after_effect': drop})
             if compete:
                 fixture.compete(record)
+            if hold:
+                fixture.delivered.set()
+                fixture.release_response.wait(20)
             if drop:
                 self.close_connection = True
                 self.connection.shutdown(socket.SHUT_RDWR)

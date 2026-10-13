@@ -245,7 +245,8 @@ processes sharing durable operation claims, source-free Docker kit, CLI and
 connected workbench/evidence page. CI measures exact request/read-back, enum
 and proof/record refusals, replay/fresh challenge/race/restart, real response
 loss with delayed visibility, another actual HTTP writer with a mismatched echo,
-429/500 and malformed/oversized responses, process isolation and native audit.
+429/500 and malformed/oversized responses, actual gateway SIGKILL before entry
+and after provider effect/before response persistence, process isolation and native audit.
 
 Two source findings refine the engineering expectations. The reviewed profile
 has no numeric argument or count-only capability: count/sum budgets are not
