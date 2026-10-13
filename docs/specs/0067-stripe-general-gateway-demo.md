@@ -1,8 +1,9 @@
 # AP-SPEC-067: Robust Stripe demo through the general gateway
 
-- **Status:** Implementation in progress. The engineering candidate is implemented
-  on `codex/general-gateway-demos` through `605017cd`; hosted verification,
-  protected qualification and a production deployment remain open.
+- **Status:** Implementation in progress. The engineering candidate, including
+  native K-of-N approval integration, is implemented on
+  `codex/general-gateway-demos`; hosted verification, protected qualification
+  and a production deployment remain open.
 - **Depends on:** [AP-SPEC-063](0063-generalized-gateway.md),
   [AP-SPEC-066](0066-production-gateway-polish-and-recipe-qualification.md),
   [AP-SPEC-039](0039-enterprise-coordination-and-operations-plane.md),
@@ -292,10 +293,11 @@ examples remain references, with the maintained entry point moved to this demo.
 | Packaged developer journey | Implemented: source-free Docker handoff, installed Python and TypeScript clients, CLI, browser workbench and evidence view. | Repeat from the actual release artifact and complete independent human use. |
 | Real provider effect | Implemented as an explicit development launch against Stripe test mode through the shipping gateway. | Run the retained protected sequence with current signed inputs. |
 | Production operations | Not established: the demo intentionally uses development file custody/store, software observer custody and a local clock. | Deploy PostgreSQL/TLS, AWS web-identity custody, version-pinned Secrets Manager and production diagnostics. |
-| Approval integration | Native K-of-N authoring and verification exist outside this demo; the workbench does not yet exercise their public end-to-end contracts. | Add only the local simulator and hostile integration cases in §4.1. A real inbox belongs to the AP-SPEC-039 product. |
+| Approval integration | Implemented: the local simulator uses public native proposal, exact review, 2-of-3 signed-response collection and gateway verification. Insufficient quorum and duplicate response cases enter no provider write, and audit export carries the used responses. | Replace the simulator with a real human inbox only in the separately owned AP-SPEC-039 product; simulator state remains non-authoritative. |
 | Protected qualification | Not established. | Complete §6 and publish current verifiable artifacts. |
 
 No further gateway architecture is required before attempting productization.
 The next increment is to run this exact application path on the production tuple,
-complete protected qualification and exercise the open integration contracts in
-§4.1. The commercial inbox and coordination service remain a separate product.
+complete protected qualification and connect the already exercised public
+approval contracts to the separately owned product. The commercial inbox and
+coordination service remain a separate product.

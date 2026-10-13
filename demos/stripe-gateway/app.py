@@ -4,30 +4,36 @@ import argparse
 import asyncio
 from dataclasses import asdict
 import importlib.metadata
-import json
 import os
 from pathlib import Path
 import secrets
-import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from auths.adapters.custody import PublicControlEvidence
-from auths.authoring import GrantEvidence, author_mcp_proof
+from auths.authoring import (GrantEvidence, collect_approvals, propose_mcp_approval,
+                             sign_approval_action)
 from auths.gateway import (GatewayClient, GatewayEndpoint, GatewayProtocolError,
                            GatewaySignedObservation, GatewayPreEntryObservations)
 from auths.self_hosted import load_signer_file
 
-from demo_common import Refusal, b64, canonical, decode, digest, read, require, unb64, write
+from demo_common import Refusal, b64, canonical, decode, read, require, unb64, write
 from generated import CONTRACT, CreateRefund
 
 HERE = Path(__file__).resolve().parent
 LABELS = ('exact', 'boundary', 'above-boundary', 'above-grant', 'wrong-currency',
           'altered-action', 'forged-proof', 'expired-action', 'race', 'lost-response',
-          'count-positive', 'count-overflow', 'sum-positive', 'sum-overflow')
-EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript')
+          'count-positive', 'count-overflow', 'sum-positive', 'sum-overflow',
+          'approval-insufficient')
+EXPERIMENTS = LABELS + ('replay', 'fresh-replay', 'observe', 'typescript',
+                        'approval-duplicate')
+
+
+def approval_target(_label, arguments):
+    """Return the exact generated contract and typed command under review."""
+    return CONTRACT, CreateRefund(**arguments)
 
 
 class Application:
@@ -46,11 +52,13 @@ class Application:
         self.packets = {}
         self.records = []
         self.entries = {}
+        self.approval_responses = []
         if (self.directory / 'results.json').exists():
             self.records = decode(read(self.directory / 'results.json'))
         if (self.directory / 'audit.json').exists():
-            self.entries = {item['operation_id']: item for item in
-                            decode(read(self.directory / 'audit.json'))['entries']}
+            audit = decode(read(self.directory / 'audit.json'))
+            self.entries = {item['operation_id']: item for item in audit['entries']}
+            self.approval_responses = audit.get('approval_responses', [])
         for label in LABELS:
             path = self.directory / ('packet-' + label + '.json')
             if path.exists():
@@ -65,9 +73,37 @@ class Application:
                 'platform': self.plan['platform'], 'expires_at': self.plan['expires_at'],
                 'relative_limit': '50% of independently read amount_received',
                 'grant_limits': self.plan['limits'], 'experiments': list(EXPERIMENTS),
+                'approval': self.plan['approval'],
                 'sdk_version': importlib.metadata.version('auths'),
                 'proposals': {label: case['arguments'] for label, case in self.plan['cases'].items()},
                 'records': self.records[-64:]}
+
+    def proposal(self, label, *, fresh=False):
+        case = self.plan['cases'][label]
+        grant = self.plan['grants'][case['grant']]
+        contract, command = approval_target(label, case['arguments'])
+        key = label + (':fresh' if fresh else '')
+        approval = self.plan['approvals'][key]
+        return propose_mcp_approval(
+            contract=contract, command=command, required=approval['required'],
+            approvers=self.plan['approval']['principals'], actor=self.plan['approval']['actor'],
+            actor_grant=unb64(grant['bytes']),
+            challenge=unb64(self.plan['challenges'][1 if fresh else 0]),
+            evaluation_time=case['evaluation_time'],
+            validity_seconds=case['validity_seconds'])
+
+    def approval_duplicate(self):
+        proposal = self.proposal('exact')
+        response = self.plan['approvals']['exact']['responses'][0]
+        collection = collect_approvals(proposal, [response, response])
+        refused = [status.code for status in collection.statuses if status.code]
+        require(collection.approved == 0 and collection.required == 2
+                and refused == ['approval.duplicate-response'],
+                'demo.approval-duplicate-not-refused')
+        code = refused[0]
+        return {'operation_id': 'exact', 'result': {'outcome': 'not-submitted',
+                'code': code, 'approved': collection.approved, 'required': collection.required,
+                'unattributed': list(collection.unattributed)}, 'language': 'python'}
 
     async def packet(self, label, *, fresh=False):
         if not fresh and label in self.packets:
@@ -77,22 +113,14 @@ class Application:
         grant = self.plan['grants'][case['grant']]
         evidence = tuple(PublicControlEvidence(item['type'], item['media_type'], unb64(item['bytes']))
                          for item in grant['evidence'])
-        issued = int(time.time()) - (600 if label == 'expired-action' else 0)
-        authored = await author_mcp_proof(
-            contract=CONTRACT, command=CreateRefund(**case['arguments']),
-            grants=[GrantEvidence(unb64(grant['bytes']), evidence)],
-            trusted_context_template=unb64(self.plan['template']), signer=self.signer,
-            challenge=unb64(self.plan['challenges'][1 if fresh else 0]),
-            evaluation_time=issued, validity_seconds=300)
-        proof, action = authored.proof, authored.action
+        proposal = self.proposal(label, fresh=fresh)
+        approval = self.plan['approvals'][label + (':fresh' if fresh else '')]
+        collection = collect_approvals(proposal, approval['responses'][:approval['required']])
+        signed = await sign_approval_action(
+            proposal, self.signer, grants=[GrantEvidence(unb64(grant['bytes']), evidence)])
+        proof, action = collection.assemble(signed), proposal.action
         if label == 'altered-action':
-            other = self.plan['cases']['above-boundary']['arguments']
-            modified = await author_mcp_proof(
-                contract=CONTRACT, command=CreateRefund(**other),
-                grants=[GrantEvidence(unb64(grant['bytes']), evidence)],
-                trusted_context_template=unb64(self.plan['template']), signer=self.signer,
-                challenge=unb64(self.plan['challenges'][0]), evaluation_time=issued, validity_seconds=300)
-            action = modified.action
+            action = self.proposal('above-boundary').action
         if label == 'forged-proof':
             proof = proof[:-1] + bytes([proof[-1] ^ 1])
         packet = (proof, action, case['arguments']['operation_id'])
@@ -100,7 +128,7 @@ class Application:
             self.packets[label] = packet
             write(self.directory / ('packet-' + label + '.json'),
                   canonical({'proof': b64(proof), 'action': b64(action), 'operation': packet[2],
-                             'action_commitment': authored.action_commitment.hex()}), new=True)
+                             'approval_requirement': proposal.requirement.requirement_id.hex()}), new=True)
         return packet
 
     async def exchange(self, packet, host=0, *, typescript=False):
@@ -142,9 +170,24 @@ class Application:
             except GatewayProtocolError:
                 pass  # Missing signed evidence stays missing; audit must report it.
             self.entries[operation] = entry
+            recorded = {(item['operation_id'], item['response']) for item in self.approval_responses}
+            for response in self.plan['approvals'].get(operation, {}).get('responses', [])[:2]:
+                if (operation, response) not in recorded:
+                    self.approval_responses.append({'operation_id': operation, 'response': response})
+                    recorded.add((operation, response))
 
     async def execute(self, experiment):
         require(experiment in EXPERIMENTS, 'demo.unknown-experiment')
+        if experiment == 'approval-duplicate':
+            records = [self.approval_duplicate()]
+            result = {'schema': 'auths.stripe-gateway-demo-result/1', 'experiment': experiment,
+                      'action': self.plan['cases']['exact']['arguments'], 'records': records,
+                      'decided_by': 'native-approval-collection', 'production_qualified': False,
+                      'display_signature': 'unsigned', 'recorded_at': int(time.time())}
+            require(len(self.records) < 256, 'demo.session-full')
+            self.records.append(result)
+            write(self.directory / 'results.json', canonical(self.records))
+            return result
         if experiment in ('replay', 'fresh-replay', 'observe', 'typescript'):
             require('exact' in self.packets, 'demo.run-exact-first')
             packet = await self.packet('exact', fresh=experiment == 'fresh-replay')
@@ -183,7 +226,8 @@ class Application:
                 'recipe_b64': b64(read(HERE / 'recipe.json')),
                 'profile_lock_b64': b64(read(HERE / 'profile.lock.json')),
                 'trusted_context_b64': self.plan['contexts'][0],
-                'entries': list(self.entries.values()), 'approval_responses': []}
+                'entries': list(self.entries.values()),
+                'approval_responses': self.approval_responses}
 
 
 def serve(application, port):

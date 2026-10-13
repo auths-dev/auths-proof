@@ -1,6 +1,5 @@
 """Actual browser against packaged app, two native gateways and counting provider."""
 import json
-from pathlib import Path
 import urllib.request
 import urllib.error
 from playwright.sync_api import expect, sync_playwright
@@ -13,7 +12,11 @@ def test_packaged_workbench_and_unsigned_evidence():
         page.goto('http://localhost:8080')
         expect(page.locator('#mode')).to_contain_text('SIMULATION')
         expect(page.locator('#submit')).to_be_enabled()
-        for case, outcome in [('above-boundary', 'NOT-ENTERED'), ('exact', 'OBSERVED-BY-PROVIDER'),
+        expect(page.locator('#approval')).to_contain_text('2 of 3')
+        expect(page.locator('#approval-review')).to_contain_text('create_refund_v1')
+        for case, outcome in [('approval-insufficient', 'DENIED'),
+                              ('approval-duplicate', 'NOT-SUBMITTED'),
+                              ('above-boundary', 'NOT-ENTERED'), ('exact', 'OBSERVED-BY-PROVIDER'),
                               ('replay', 'NOT-ENTERED'), ('lost-response', 'UNKNOWN')]:
             page.locator('#experiment').select_option(case)
             page.locator('#submit').click()

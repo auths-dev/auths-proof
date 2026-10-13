@@ -2,8 +2,6 @@
 """Separate operator: disposable resources, independent trust, gateway installation."""
 import argparse
 import asyncio
-import base64
-import json
 import os
 import re
 from pathlib import Path
@@ -13,11 +11,13 @@ import subprocess
 import sys
 import time
 
-from auths.self_hosted import (AssurancePolicy, AssuranceRequirement, Permission, Profile,
-                              TrustAnchor, TrustedContextRequest, author_root_grant,
-                              compile_trusted_context, load_signer_file)
-from demo_common import Refusal, b64, canonical, decode, digest, read, require, write
-from app import LABELS
+from auths.authoring import approval_requests, approve, open_approval_request, propose_mcp_approval
+from auths.self_hosted import (ApprovalRequirement, ApproverAnchor, AssurancePolicy,
+                              AssuranceRequirement, Permission, Profile, TrustAnchor,
+                              TrustedContextRequest, author_root_grant, compile_trusted_context,
+                              load_signer_file)
+from demo_common import Refusal, b64, canonical, decode, digest, read, require, unb64, write
+from app import LABELS, approval_target
 
 HERE = Path(__file__).resolve().parent
 HOME = Path('/run/demo')
@@ -26,6 +26,9 @@ JOURNAL = PRIVATE / 'resources.json'
 POOL = PRIVATE / 'resource-pool.json'
 APP_UID, APP_GID = 62004, 62005
 ENVIRONMENT = {'PATH': '/opt/consumer/bin:/usr/local/bin:/usr/bin:/bin', 'PYTHONNOUSERSITE': '1'}
+MANAGERS = ('manager-a', 'manager-b', 'manager-c')
+APPROVALS_REQUIRED = 2
+ACTION_VALIDITY_SECONDS = 1800
 
 
 def input_credentials():
@@ -72,12 +75,14 @@ async def authority(binary, resources, directory, mode):
     app.mkdir(mode=0o700)
     require(private.is_dir() and not private.is_symlink() and private.stat().st_uid == 0
             and private.stat().st_mode & 0o777 == 0o700, 'demo.operator-private-directory-required')
-    for name, parent in [('root', private), ('actor', app)]:
+    for name, parent in [('root', private), ('actor', app),
+                         *((name, private) for name in MANAGERS)]:
         write(parent / (name + '.seed'), secrets.token_bytes(32), new=True)
         write(parent / (name + '.json'), canonical({'schema': 'auths.approval-signer/1',
               'custody': 'development-ed25519', 'seed_file': name + '.seed'}), new=True)
     root = load_signer_file(private / 'root.json').signer
     actor = load_signer_file(app / 'actor.json').signer
+    managers = {name: load_signer_file(private / (name + '.json')).signer for name in MANAGERS}
     review = decode(gateway(binary, 'review', '--recipe', HERE / 'recipe.json',
                             '--profile-lock', HERE / 'profile.lock.json'))
     now, expires = int(time.time()), int(time.time()) + 3600
@@ -99,9 +104,14 @@ async def authority(binary, resources, directory, mode):
         anchors = [TrustAnchor('operator-root', root.descriptor.principal, ('raw-key-v1',),
                    (Profile('auths.mcp', 2),), (permission,), (audience,), (audience,),
                    now - 3600, expires, 1, 'raw-key-baseline')]
+        approver_principals = tuple(managers[name].descriptor.principal for name in MANAGERS)
         options = {'anchors': anchors, 'assurance': policy,
                    'configuration': bytes.fromhex(review['verifier_configuration']),
-                   'evidence_types': ('raw-key-v1',), 'critical_extensions': ()}
+                   'evidence_types': ('raw-key-v1',), 'critical_extensions': (),
+                   'approver_anchors': tuple(ApproverAnchor(principal, ('raw-key-v1',),
+                       now - 3600, expires) for principal in approver_principals),
+                   'approval_requirements': (ApprovalRequirement(approver_principals,
+                       APPROVALS_REQUIRED),)}
         template = compile_trusted_context(**options)
         challenges = [secrets.token_bytes(32), secrets.token_bytes(32)]
         contexts = [compile_trusted_context(**options,
@@ -110,15 +120,56 @@ async def authority(binary, resources, directory, mode):
         for index, label in enumerate(LABELS):
             cases[label] = {'arguments': {'operator_namespace': 'airtable-demo',
                 'operation_id': label, 'recipe_digest': '0' * 64 if label == 'wrong-recipe' else review['recipe_digest'],
-                'record_id': '..' if label == 'path-injection' else 'rec../other-record' if label == 'encoded-segment' else resources['records'][{'typescript-positive': 8, 'crash-before': 3, 'crash-after': 7}.get(label, index)],
-                'replacement': 'Pending' if label == 'pending' else 'Rejected' if label == 'unsupported-value' else 'Approved'}}
+                'record_id': '..' if label == 'path-injection' else 'rec../other-record' if label == 'encoded-segment' else resources['records'][{'typescript-positive': 8, 'crash-before': 3, 'crash-after': 7, 'approval-insufficient': 9}.get(label, index)],
+                'replacement': 'Pending' if label == 'pending' else 'Rejected' if label == 'unsupported-value' else 'Approved'},
+                'evaluation_time': now - 600 if label == 'expired-action' else now,
+                'validity_seconds': 300 if label == 'expired-action' else ACTION_VALIDITY_SECONDS}
+
+        async def approval_bundle(label, *, fresh=False):
+            case = cases[label]
+            grant = grants['default']
+            contract, command = approval_target(label, case['arguments'])
+            required = 1 if label == 'approval-insufficient' else APPROVALS_REQUIRED
+            proposal = propose_mcp_approval(
+                contract=contract, command=command, required=required,
+                approvers=approver_principals, actor=actor.descriptor.principal,
+                actor_grant=unb64(grant['bytes']),
+                challenge=challenges[1 if fresh else 0],
+                evaluation_time=case['evaluation_time'],
+                validity_seconds=case['validity_seconds'])
+            issued = approval_requests(proposal)
+            responses, first_review = [], None
+            for name in MANAGERS:
+                signer = managers[name]
+                request = next(item for item in issued
+                               if item.approver == signer.descriptor.principal)
+                reviewed = open_approval_request(request.text, now=case['evaluation_time'])
+                response = await approve(reviewed, signer)
+                responses.append(response.text)
+                if first_review is None:
+                    first_review = {'title': reviewed.title,
+                        'fields': list(map(list, reviewed.fields)),
+                        'display_digest_hex': reviewed.display_digest_hex,
+                        'valid_from': reviewed.valid_from, 'valid_until': reviewed.valid_until,
+                        'required': reviewed.required}
+            require(first_review is not None, 'demo.approval-review-unavailable')
+            return {'required': required, 'responses': responses, 'review': first_review}
+
+        approvals = {label: await approval_bundle(label) for label in LABELS}
+        approvals['exact:fresh'] = await approval_bundle('exact', fresh=True)
         plan = {'schema': 'auths.airtable-gateway-demo/1', 'mode': mode,
                 'trust': 'separate operator-issued development root and actor; no production trust claim',
                 'expires_at': expires, 'recipe_digest': review['recipe_digest'],
                 'base': resources['base'], 'table': resources['table'], 'view': resources['view'], 'grants': grants,
                 'provider_credential_model': 'one owner-provided development PAT for operator and gateway' if mode == 'live' else 'independent simulation runtime and fixture credentials',
                 'template': b64(template), 'contexts': list(map(b64, contexts)),
-                'challenges': list(map(b64, challenges)), 'cases': cases}
+                'challenges': list(map(b64, challenges)), 'cases': cases,
+                'approval': {'required': APPROVALS_REQUIRED, 'approvers': list(MANAGERS),
+                    'principals': list(approver_principals), 'actor': actor.descriptor.principal,
+                    'mode': 'local native signed-response simulator; simulator state is not authority',
+                    'reviews': {label: value['review'] for label, value in approvals.items()
+                                if not label.endswith(':fresh')}},
+                'approvals': approvals}
         write(app / 'application.json', canonical(plan), new=True)
         for index, context in enumerate(contexts):
             write(private / ('context-' + str(index) + '.cbor'), context, new=True)
@@ -129,6 +180,8 @@ async def authority(binary, resources, directory, mode):
     finally:
         await root.aclose()
         await actor.aclose()
+        for signer in managers.values():
+            await signer.aclose()
 
 
 class Operator:

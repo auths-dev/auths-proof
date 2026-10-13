@@ -10,6 +10,7 @@ const descriptions = {
   indeterminate: 'Native verification could not establish authority.',
   'transport-unconfirmed': 'The app lost its gateway exchange. Entry may have occurred. Inspect through the operator; do not retry a write automatically.',
   'signed-observation': 'The gateway returned signed stored-outcome bytes. This is an observation, not a new provider write.',
+  'not-submitted': 'Native approval collection stopped before the gateway. Simulator state alone cannot authorize an action.',
 };
 let token;
 function display(record) {
@@ -36,6 +37,7 @@ async function initialize() {
   element('base').textContent = status.base;
   element('credential-model').textContent = status.provider_credential_model;
   element('table').textContent = status.table;
+  element('approval').textContent = `${status.approval.required} of ${status.approval.approvers.length} native signed responses`;
   element('expiry').textContent = new Date(status.expires_at * 1000).toLocaleString();
   element('recipe').textContent = status.recipe_digest;
   // Fault injection is operator/test controlled. Live traffic is never routed
@@ -52,6 +54,8 @@ async function initialize() {
     const original = value === 'recover-loss' ? 'lost-response' : value === 'recover-competing' ? 'competing-writer' : 'exact';
     const action = status.proposals[value] || status.proposals[original];
     element('proposal').textContent = `${action.record_id} → ${action.replacement} · operation ${action.operation_id}`;
+    const review = status.approval.reviews[value] || status.approval.reviews[original];
+    element('approval-review').textContent = `${review.title} · ${review.fields.map(([label, field]) => `${label}: ${field}`).join(' · ')} · expires ${new Date(review.valid_until * 1000).toLocaleTimeString()}`;
     const link = element('provider-link');
     link.hidden = status.mode !== 'live' || !/^rec[A-Za-z0-9]{14}$/.test(action.record_id);
     if (!link.hidden) {

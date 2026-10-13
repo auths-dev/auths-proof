@@ -10,6 +10,7 @@ The app supplies proof and the exact action. The gateway holds the credential.</
 <section class="workbench"><article><h2>Approved authority</h2>
 <dl><dt>Platform</dt><dd id="platform">—</dd><dt>Per-action grant ceiling</dt><dd>$20.00</dd>
 <dt>Provider basis limit</dt><dd>50% of the selected payment</dd><dt>Default window</dt><dd>32 entries · $320.00 per currency · 1 day</dd>
+<dt>Native approval</dt><dd id="approval">—</dd>
 <dt>Trust expires</dt><dd id="expiry">—</dd><dt>Recipe</dt><dd id="recipe" class="digest">—</dd></dl>
 <p>Verification is followed by a durable claim and a private credential lease.
 A grant does not override a provider-read guard or another consumed operation.</p></article>
@@ -19,16 +20,18 @@ A grant does not override a provider-read guard or another consumed operation.</
 <option value="above-boundary">50% boundary + 1¢</option><option value="above-grant">Grant ceiling + 1¢</option>
 <option value="wrong-currency">Wrong payment currency</option><option value="altered-action">Action swapped after signing</option>
 <option value="forged-proof">Altered proof bytes</option><option value="expired-action">Expired action</option>
+<option value="approval-insufficient">One approval against a 2-of-3 policy</option><option value="approval-duplicate">Same approver response twice</option>
 <option value="replay">Replay the exact refund</option><option value="fresh-replay">Same operation, fresh challenge</option>
 <option value="race">Two gateways race one operation</option><option value="lost-response">Lose response after delivery</option>
 <option value="count-positive">One-entry grant: first refund</option><option value="count-overflow">One-entry grant: second operation</option>
 <option value="sum-positive">$10 sum grant: exact refund</option><option value="sum-overflow">$10 sum grant: another 1¢</option>
 <option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read the signed stored outcome</option>
 </select><p id="proposal">Each experiment fixes its payment, operation and signed arguments.</p>
+<p id="approval-review" class="small">The native review binds the exact action, authority and expiry.</p>
 <a id="provider-link" hidden target="_blank" rel="noopener noreferrer">Open on Stripe ↗</a>
 <button id="submit" disabled>Submit through the gateway</button>
 <p class="small">Each choice is a finite operation. Repeating it cannot create fresh authority.
-Run the exact refund before replay; run each budget positive before its overflow.</p></article></section>
+Run the exact refund before replay; run each budget positive before its overflow. The local simulator supplies signed responses only for this closed fixture; its UI state is never authority.</p></article></section>
 <section class="result" aria-live="polite"><div><p class="eyebrow">Measured native result</p><h2 id="outcome">No action submitted</h2></div>
 <ol class="stages"><li>Verify proof</li><li>Claim operation</li><li>Enter provider</li><li>Record response</li><li>Observe effect</li></ol>
 <p id="explanation">Authorization, a recorded HTTP response and observed success are separate facts.</p>

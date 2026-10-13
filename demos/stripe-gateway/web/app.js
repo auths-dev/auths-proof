@@ -10,6 +10,7 @@ const descriptions = {
   indeterminate: 'Native verification could not establish authority.',
   'transport-unconfirmed': 'The app lost its gateway exchange. Entry may have occurred. Inspect through the operator; do not retry a write automatically.',
   'signed-observation': 'The gateway returned signed stored-outcome bytes. This is an observation, not a new provider write.',
+  'not-submitted': 'Native approval collection stopped before the gateway. Simulator state alone cannot authorize an action.',
 };
 let token;
 function display(record) {
@@ -34,6 +35,7 @@ async function initialize() {
     return;
   }
   element('platform').textContent = status.platform;
+  element('approval').textContent = `${status.approval.required} of ${status.approval.approvers.length} native signed responses`;
   element('expiry').textContent = new Date(status.expires_at * 1000).toLocaleString();
   element('recipe').textContent = status.recipe_digest;
   // Fault injection is operator/test controlled. Live traffic is never routed
@@ -45,6 +47,8 @@ async function initialize() {
     const value = element('experiment').value;
     const action = status.proposals[value] || status.proposals.exact;
     element('proposal').textContent = `${action.payment_intent} · ${action.amount / 100} ${action.currency.toUpperCase()} · operation ${action.operation_id}`;
+    const review = status.approval.reviews[value] || status.approval.reviews.exact;
+    element('approval-review').textContent = `${review.title} · ${review.fields.map(([label, field]) => `${label}: ${field}`).join(' · ')} · expires ${new Date(review.valid_until * 1000).toLocaleTimeString()}`;
     const link = element('provider-link');
     link.hidden = status.mode !== 'live' || !/^pi_[A-Za-z0-9]+$/.test(action.payment_intent);
     if (!link.hidden) link.href = `https://dashboard.stripe.com/test/payments/${action.payment_intent}`;

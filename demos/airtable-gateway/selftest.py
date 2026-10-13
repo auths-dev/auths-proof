@@ -1,7 +1,5 @@
 """Actual installed SDK/native journey with independent HTTP and execution counters."""
 import base64
-import json
-import os
 from pathlib import Path
 import subprocess
 import urllib.request
@@ -39,11 +37,19 @@ def test_native_refusals_replay_race_and_loss(operator):
             'other_actor_writes': sum(item['kind'] == 'fixture-write' for item in traffic)})
         return result, records, traffic
 
-    for label in ['unsupported-value', 'record-substitution', 'path-injection', 'wrong-recipe', 'altered-action', 'forged-proof', 'expired-action']:
+    for label in ['unsupported-value', 'record-substitution', 'path-injection', 'wrong-recipe',
+                  'altered-action', 'forged-proof', 'expired-action',
+                  'approval-insufficient']:
         _, records, traffic = execute(label)
         require(all(item['outcome'] in ['not-entered', 'denied', 'indeterminate'] for item in records)
                 and not traffic and cases[-1]['native_counters']['credential_lease_calls'] == 0,
                 'demo.selftest-pre-custody-refusal:' + label)
+    _, records, traffic = execute('approval-duplicate')
+    require(records[0]['outcome'] == 'not-submitted'
+            and records[0]['approved'] == 0 and records[0]['required'] == 2
+            and records[0]['code'] == 'approval.duplicate-response'
+            and not traffic and not any(cases[-1]['native_counters'].values()),
+            'demo.selftest-duplicate-approval-entered-gateway')
     _, records, traffic = execute('encoded-segment')
     # Percent-encoded text may name a nonexistent record, but cannot add a
     # path segment or escape the operator's fixed base/table.
@@ -57,10 +63,8 @@ def test_native_refusals_replay_race_and_loss(operator):
         writes = [item for item in traffic if item['kind'] == 'write']
         require(len(writes) == 1 and cases[-1]['native_counters']['write_transport_entries'] == 1,
                 'demo.selftest-write-count:' + label)
-        packet = decode(read(HOME / 'app' / ('packet-' + label + '.json')))
         action = result['action']
-        echo = 'auths-e1-' + digest(b'auths.gateway-echo/1\0' + action['operator_namespace'].encode()
-               + b'\0' + action['operation_id'].encode() + b'\0' + bytes.fromhex(packet['action_commitment']))
+        echo = records[0]['evidence']['echo']
         expected = canonical({'fields': {'DemoStatus': action['replacement'], 'auths_echo': echo}}).decode()
         require(writes[0]['body'] == expected and writes[0]['idempotency_key'] is None
                 and writes[0]['path'] == PREFIX + action['record_id'], 'demo.selftest-independent-request-mapping')
@@ -171,7 +175,10 @@ def test_native_process_crashes(operator):
 
 def test_application_isolation_and_native_audit(operator):
     from operate import APP_UID, APP_GID, ENVIRONMENT, HOME, child
-    private = [HOME / 'private' / 'root.seed', HOME / 'gateway0' / 'credentials.cbor',
+    private = [HOME / 'private' / 'root.seed',
+               *(HOME / 'private' / (name + '.seed') for name in
+                 ['manager-a', 'manager-b', 'manager-c']),
+               HOME / 'gateway0' / 'credentials.cbor',
                HOME / 'gateway0' / 'observer.seed', HOME / 'gateway0' / 'installation.json',
                HOME / 'attempts']
     for path in private:
@@ -197,7 +204,9 @@ def test_application_isolation_and_native_audit(operator):
                    '--trusted-context-sha256', pins['trusted_context_sha256'],
                    '--observer', pins['observer']['observer_anchor']['principal']])
     result = decode(audit.stdout)
-    require(result['inconsistent'] == 0 and result['unverified'] == 0, 'demo.selftest-audit-open')
+    require(result['inconsistent'] == 0 and result['unverified'] == 0
+            and len(result['approval_responses']) >= 2,
+            'demo.selftest-audit-open')
     return {'doctor': doctor_value, 'audit': result}
 
 
@@ -219,7 +228,9 @@ def run(operator):
                              capture_output=True, timeout=30)
     require(support.returncode == 0, 'demo.selftest-support-refused')
     published = data + audit + support.stdout
-    for secret in list(operator.keys.values()) + [read(HOME / 'private/root.seed'), read(HOME / 'app/actor.seed')]:
+    private_seeds = [read(HOME / 'private' / (name + '.seed'))
+                     for name in ['root', 'manager-a', 'manager-b', 'manager-c']]
+    for secret in list(operator.keys.values()) + private_seeds + [read(HOME / 'app/actor.seed')]:
         raw = secret.encode() if isinstance(secret, str) else secret
         for encoded in [raw, raw.hex().encode(), base64.b64encode(raw), base64.urlsafe_b64encode(raw)]:
             require(encoded not in published, 'demo.selftest-report-secret-exposure')

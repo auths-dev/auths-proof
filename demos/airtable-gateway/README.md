@@ -6,6 +6,15 @@ proof/action bytes to the gateway socket. Only the operator and gateway hold
 provider credentials. The older field-lab `airtable-cli` app-owned-PAT mode is a
 self-hosted reference; its token holder can bypass enforcement.
 
+Every closed fixture action now traverses the public native approval protocol:
+the app constructs an exact typed proposal, two of three operator-held manager
+identities sign responses, the app collects those public responses and the
+gateway verifies the quorum as part of the proof. Manager keys remain in the
+root-private operator directory; the app receives no manager or provider secret.
+The workbench shows the native review fields and includes insufficient-quorum
+and duplicate-response cases. This local simulator is integration evidence, not
+a human approval inbox: simulator state or a UI click never authorizes an action.
+
 ## Source-free local demo
 
 Download `airtable-gateway-demo.tgz` and its checksum from the **Airtable gateway
@@ -24,7 +33,7 @@ docker run --platform linux/amd64 --rm --init --name auths-airtable-gateway-demo
 ```
 
 Open <http://localhost:8081>. Choose **Set exact record to Approved**, then replay,
-unsupported value, swapped record, two-gateway race and response-loss controls.
+approval, unsupported value, swapped record, two-gateway race and response-loss controls.
 The UI and CLI show actual native gateway results. Their history is unsigned;
 **Inspect the evidence** exposes native signed outcome/pre-entry bytes in the
 actual gateway audit-bundle format. Missing evidence remains missing.

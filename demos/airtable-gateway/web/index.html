@@ -11,6 +11,7 @@ The app submits proof and the exact action. The general gateway owns the PATCH a
 <dt>Fixed base</dt><dd id="base">—</dd><dt>Fixed table</dt><dd id="table">—</dd>
 <dt>Provider credential</dt><dd id="credential-model">—</dd>
 <dt>Field</dt><dd>DemoStatus</dd><dt>Permitted values</dt><dd>Approved · Pending</dd>
+<dt>Native approval</dt><dd id="approval">—</dd>
 <dt>Trust expires</dt><dd id="expiry">—</dd><dt>Recipe</dt><dd id="recipe" class="digest">—</dd></dl>
 <p>This is an exact set, with no expected-old-value check or atomic compare-and-swap.
 Another writer can overwrite the record. This profile declares no numeric spend or count budget.</p></article>
@@ -21,6 +22,7 @@ Another writer can overwrite the record. This profile declares no numeric spend 
 <option value="path-injection">Invalid record: parent-directory segment</option><option value="encoded-segment">Hostile text: safely encoded as one segment</option><option value="wrong-recipe">Wrong recipe digest</option>
 <option value="altered-action">Swap the action after signing</option><option value="forged-proof">Altered proof bytes</option>
 <option value="expired-action">Expired action</option><option value="replay">Replay the exact update</option>
+<option value="approval-insufficient">One approval against a 2-of-3 policy</option><option value="approval-duplicate">Same approver response twice</option>
 <option value="fresh-replay">Same operation, fresh challenge</option><option value="race">Two gateways race one operation</option>
 <option value="lost-response">Lose PATCH response; delay visibility</option><option value="recover-loss">Observe lost operation again; never PATCH again</option>
 <option value="competing-writer">Another writer copies value, changes echo</option><option value="recover-competing">Observe competing-writer operation again</option>
@@ -28,10 +30,11 @@ Another writer can overwrite the record. This profile declares no numeric spend 
 <option value="malformed-response">Malformed provider JSON</option><option value="oversized-response">Oversized provider response</option>
 <option value="typescript-positive">Fresh update through installed TypeScript client</option><option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read signed stored outcome</option>
 </select><p id="proposal">Each experiment fixes its record, operation and signed arguments.</p>
+<p id="approval-review" class="small">The native review binds the exact action, authority and expiry.</p>
 <a id="provider-link" hidden target="_blank" rel="noopener noreferrer">Open on Airtable ↗</a>
 <button id="submit" disabled>Submit through the gateway</button>
 <p class="small">Run the exact update before replay. Recovery resubmits the original operation to the native replay boundary;
-only another read can occur. Wait three seconds after response loss before observing again.</p></article></section>
+only another read can occur. Wait three seconds after response loss before observing again. The local simulator supplies signed responses only for this closed fixture; its UI state is never authority.</p></article></section>
 <section class="result" aria-live="polite"><div><p class="eyebrow">Measured native result</p><h2 id="outcome">No action submitted</h2></div>
 <ol class="stages"><li>Verify proof</li><li>Claim operation</li><li>Enter provider</li><li>Record response</li><li>Observe value + echo</li></ol>
 <p id="explanation">Authorization, a recorded HTTP response and a matching fresh value/echo are separate facts.</p>

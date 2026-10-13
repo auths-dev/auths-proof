@@ -10,6 +10,15 @@ admission, HTTP response and linked provider read-back are separate stages.
 The evidence page exports the native audit-bundle format with available signed
 outcome/pre-entry observations; its display and history are explicitly unsigned.
 
+Every closed fixture action now traverses the public native approval protocol:
+the app constructs an exact typed proposal, two of three operator-held manager
+identities sign responses, the app collects those public responses and the
+gateway verifies the quorum as part of the proof. Manager keys remain in the
+root-private operator directory; the app receives no manager or provider secret.
+The workbench shows the native review fields and includes insufficient-quorum
+and duplicate-response cases. This local simulator is integration evidence, not
+a human approval inbox: simulator state or a UI click never authorizes an action.
+
 ## Source-free Docker quick start
 
 Download `stripe-gateway-demo.tgz` and its checksum from the **Stripe gateway demo**
@@ -27,8 +36,8 @@ docker run --platform linux/amd64 --rm --init --name auths-stripe-gateway-demo \
   -p 127.0.0.1:8080:8080 auths-stripe-gateway-demo
 ```
 
-Open <http://localhost:8080>. Start with **Exact refund**, then replay, boundary,
-altered proof/action, two-gateway race and budget experiments. Each choice has
+Open <http://localhost:8080>. Start with **Exact refund**, then replay, approval,
+boundary, altered proof/action, two-gateway race and budget experiments. Each choice has
 one fixed operation and payment. Run the count/sum positive before its overflow.
 The separate operator starts two native gateway processes for the race and a
 third installation for the second challenge. Each installation checks its own
