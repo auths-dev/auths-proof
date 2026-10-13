@@ -196,7 +196,7 @@ class Operator:
             require(all(fields.get(name) in ('singleLineText', 'multilineText')
                         for name in ['Name', 'DemoStatus', 'auths_echo']), 'demo.required-text-fields-unavailable')
             self.resources = Resources(self.keys['setup'])
-            session = 'airtable-demo/' + str(int(time.time())) + '/1'
+            session = 'airtable-demo/' + str(int(time.time())) + '/' + str(secrets.randbelow(2**64 - 1) + 1)
             self.resources.prepare(session, 16, JOURNAL, POOL)
             pool = decode(read(POOL))
             resources = {'base': pool['base'], 'table': pool['table'], 'view': next((view.get('id') for view in tables[0].get('views', []) if re.fullmatch(r'viw[A-Za-z0-9]{14}', str(view.get('id')))), None), 'records': [value['id'] for value in pool['records']]}

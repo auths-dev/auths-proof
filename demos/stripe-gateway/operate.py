@@ -199,7 +199,7 @@ class Operator:
             sys.path.insert(0, str(HERE / 'reference'))
             from stripe_resources import Resources
             self.resources = Resources(self.keys)
-            session = 'stripe-demo/' + str(int(time.time())) + '/1'
+            session = 'stripe-demo/' + str(int(time.time())) + '/' + str(secrets.randbelow(2**64 - 1) + 1)
             journal = JOURNAL
             self.resources.prepare(session, 16, journal, POOL)
             pool = decode(read(POOL))
