@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import urllib.request
+import urllib.error
 from playwright.sync_api import expect, sync_playwright
 
 
@@ -40,6 +41,17 @@ def test_http_origin_and_closed_experiment_refusals():
         raise AssertionError('missing origin/session was accepted')
     except urllib.error.HTTPError as error:
         assert error.code == 403
+    with urllib.request.urlopen('http://localhost:8080/api/status') as response:
+        token = json.load(response)['submission_token']
+    for body in [b'{"experiment":"unlisted"}', b'{"experiment":"exact","provider_url":"https://other.example"}']:
+        request = urllib.request.Request('http://localhost:8080/api/experiment', data=body,
+            headers={'Content-Type': 'application/json', 'Origin': 'http://localhost:8080',
+                     'X-Demo-Token': token}, method='POST')
+        try:
+            urllib.request.urlopen(request)
+            raise AssertionError('unlisted experiment or provider argument was accepted')
+        except urllib.error.HTTPError as error:
+            assert error.code == 400
 
 
 if __name__ == '__main__':

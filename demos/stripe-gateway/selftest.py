@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
+import urllib.request
 from urllib.parse import urlencode
 
 from demo_common import canonical, decode, digest, read, require, write
@@ -71,9 +72,18 @@ def test_native_refusals_replay_race_and_loss(operator):
         require(writes[0]['body'] == expected and writes[0]['idempotency_key'] == key
                 and writes[0]['stripe_account'] is None and writes[0]['stripe_version'] == '2025-03-31.basil',
                 'demo.selftest-independent-request-mapping')
-        refund = operator.refunds[writes[0]['refund']]
+        locator = writes[0]['refund']
+        require(type(locator) is str and locator.startswith('re_demo_'), 'demo.selftest-refund-locator')
+        request = urllib.request.Request(f'http://127.0.0.1:{operator.port}/v1/refunds/{locator}',
+            headers={'Authorization': 'Bearer ' + operator.keys['runtime'], 'Stripe-Version': '2025-03-31.basil'})
+        # Independent fresh HTTP read, outside native execution counters.
+        with urllib.request.urlopen(request, timeout=5) as response:
+            refund_bytes = response.read(16385)
+        require(len(refund_bytes) <= 16384, 'demo.selftest-refund-response-bound')
+        refund = decode(refund_bytes)
         require(refund['amount'] == action['amount'] and refund['payment_intent'] == action['payment_intent']
                 and refund['metadata']['auths_echo'] == echo, 'demo.selftest-independent-read-back')
+        cases[-1]['independent_read_back'] = {'fixture_api_entries': 1, 'response_sha256': digest(refund_bytes)}
     for label in ['replay', 'fresh-replay', 'typescript']:
         _, records, traffic = execute(label)
         require(records[0]['outcome'] == 'not-entered' and records[0]['code'] == 'gateway.attempt.replay'

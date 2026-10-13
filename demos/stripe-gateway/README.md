@@ -22,8 +22,8 @@ artifact metadata, then:
 sha256sum -c stripe-gateway-demo.tgz.sha256
 tar xzf stripe-gateway-demo.tgz
 cd stripe-gateway-demo
-docker build -t auths-stripe-gateway-demo .
-docker run --rm --init --name auths-stripe-gateway-demo \
+docker build --platform linux/amd64 -t auths-stripe-gateway-demo .
+docker run --platform linux/amd64 --rm --init --name auths-stripe-gateway-demo \
   -p 127.0.0.1:8080:8080 auths-stripe-gateway-demo
 ```
 
@@ -93,7 +93,7 @@ Do not put values in command arguments, chat, source or Docker build arguments.
 The example below names a private file rather than embedding any credential:
 
 ```sh
-docker run --rm --init -i --name auths-stripe-gateway-demo \
+docker run --platform linux/amd64 --rm --init -i --name auths-stripe-gateway-demo \
   -p 127.0.0.1:8080:8080 -v stripe-demo-journal:/run \
   auths-stripe-gateway-demo --mode live < /absolute/private/stripe-demo-credentials.json
 ```
@@ -110,7 +110,7 @@ After the serving container has stopped, recover an interrupted live session
 with the same private credential input and retained journal volume:
 
 ```sh
-docker run --rm --init -i -v stripe-demo-journal:/run \
+docker run --platform linux/amd64 --rm --init -i -v stripe-demo-journal:/run \
   auths-stripe-gateway-demo --mode live --cleanup \
   < /absolute/private/stripe-demo-credentials.json
 ```
