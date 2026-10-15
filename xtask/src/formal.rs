@@ -360,6 +360,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
     let (formal_root, _) = prepare_formal_translation(false, false)?;
     for target in [
         "Auths.Codec.Refinement",
+        "Auths.Product.Refinement.CollectionFence",
         "Auths.Refinement.Production",
         "Auths.Refinement.Observation",
         "Auths.Product.Refinement",
@@ -1817,6 +1818,20 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             claim.claim_text = "The independent CBOR head grammar reads every valid shortest head encoding and preserves arbitrary following bytes.".to_owned();
             claim.scope = "The pure natural-number byte model: major tags below eight and arguments below 2^64. This model theorem alone is not a refinement of the shipping encoder or a complete protocol-object codec claim.".to_owned();
         }
+        if declaration
+            .name
+            .starts_with("Auths.Product.CollectionFence.")
+        {
+            claim.claim_text = format!(
+                "The independent collection-fence history model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated property")
+            );
+            claim.scope = "Arbitrary finite model histories with any number of workers, collection, admission, crashes, recovery, and acknowledgement loss. This is the cutoff invariant, not a proof of the complete counter-admission algorithm or backend/driver correspondence.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2114,6 +2129,7 @@ const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Fun
 const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
 const CONNECTIONS_TRANSLATION: &str = "formal/qualification/aeneas/generated/connections/Funs.lean";
 const CODEC_TRANSLATION: &str = "formal/qualification/aeneas/generated/codec/Funs.lean";
+const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/Funs.lean";
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
@@ -2151,6 +2167,44 @@ fn qualified_refinement_metadata(
         .or_else(|| {
             codec_refinement_metadata(declaration).map(|metadata| (metadata, CODEC_TRANSLATION))
         })
+        .or_else(|| {
+            collection_fence_refinement_metadata(declaration)
+                .map(|metadata| (metadata, STORES_TRANSLATION))
+        })
+}
+
+fn collection_fence_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted.",
+        "These are exact scalar-decision refinements and a conditional model-history consequence. Store locking/transaction wiring, filesystem/database durability, state parsing, the actual store-to-model history bridge, and the complete counter-admission algorithm remain outside these theorems. Backend conformance supports the retained store contract; AP-SPEC-069 E4 is not complete.",
+    ];
+    const OPEN: &str = "auths_stores::gateway_fence::gateway_window_open";
+    const ADVANCE: &str = "auths_stores::gateway_fence::advance_gateway_collection";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model" => (
+            "The mechanically translated shipping slot-eligibility leaf agrees exactly with the independent collection-cutoff predicate.",
+            &[OPEN],
+            "Every u64 expiry and optional u64 durable cutoff; no cutoff admits every expiry, and a present cutoff requires a strictly later expiry.",
+        ),
+        "Auths.Product.Refinement.CollectionFence.translated_advance_refines_model" => (
+            "The mechanically translated shipping cutoff-advance leaf returns exactly the independent model's monotone maximum.",
+            &[ADVANCE],
+            "Every optional u64 previous cutoff and u64 requested cutoff, including older clock samples and the u64 boundary.",
+        ),
+        "Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses" => (
+            "The mechanically translated slot-eligibility leaf refuses an already collected expiry after every declared model history from that cutoff.",
+            &[OPEN],
+            "An arbitrary finite collection/admission model history whose final cutoff is the translated input, and an expiry no later than the prior cutoff. The actual backend-history bridge is not asserted.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn codec_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

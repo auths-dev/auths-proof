@@ -12,6 +12,9 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model" = "exact"
+"Auths.Product.Refinement.CollectionFence.translated_advance_refines_model" = "exact"
+"Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses" = "partial"
 "Auths.Codec.Refinement.read_head_refines" = "exact"
 "Auths.Codec.Refinement.read_tail_bounded" = "exact"
 "Auths.Codec.Refinement.read_head_accepts_encoding" = "partial"

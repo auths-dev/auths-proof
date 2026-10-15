@@ -3,12 +3,14 @@
 #![forbid(unsafe_code)]
 
 mod gateway_attempt;
+mod gateway_fence;
 mod lifecycle;
 
 pub use gateway_attempt::{
     GatewayRecordEntry, GatewayRecordInsert, GatewayRecordKind, MAX_GATEWAY_BATCH_ENTRIES,
     MAX_GATEWAY_RECORD_BYTES, validate_gateway_batch,
 };
+pub use gateway_fence::{advance_gateway_collection, gateway_window_open};
 pub use lifecycle::{
     InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,
     PersistentLifecycleStore, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,

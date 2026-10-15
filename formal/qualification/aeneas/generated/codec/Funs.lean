@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 namespace auths_codec
 
 /-- [auths_codec::cbor::read_tail]: loop body 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 42:4-59:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 42:4-58:1 -/
 @[rust_loop_body]
 def cbor.read_tail_loop.body
   (input : Slice Std.U8) (position : Std.Usize) (remaining : Std.U8)
@@ -47,7 +47,7 @@ def cbor.read_tail_loop.body
   else ok (done (core.result.Result.Ok (value, position)))
 
 /-- [auths_codec::cbor::read_tail]: loop 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 42:4-59:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 42:4-58:1 -/
 @[rust_loop]
 def cbor.read_tail_loop
   (input : Slice Std.U8) (position : Std.Usize) (remaining : Std.U8)
@@ -60,7 +60,7 @@ def cbor.read_tail_loop
     (position, remaining, value)
 
 /-- [auths_codec::cbor::read_tail]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 36:0-59:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 36:0-58:1 -/
 @[reducible]
 def cbor.read_tail
   (input : Slice Std.U8) (position : Std.Usize) (remaining : Std.U8)
@@ -70,7 +70,7 @@ def cbor.read_tail
   cbor.read_tail_loop input position remaining value
 
 /-- [auths_codec::cbor::read_head]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 65:0-89:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 64:0-88:1 -/
 def cbor.read_head
   (input : Slice Std.U8) (position : Std.Usize) :
   Result (core.result.Result cbor.Head cbor.Error)
@@ -137,7 +137,7 @@ def cbor.read_head
       | _ => ok (core.result.Result.Err ())
 
 /-- [auths_codec::cbor::append_tail]: loop body 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 92:4-95:5 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 95:4-98:5 -/
 @[rust_loop_body]
 def cbor.append_tail_loop.body
   (value : Std.U64) (output : alloc.vec.Vec Std.U8) (remaining : Std.U8) :
@@ -156,7 +156,7 @@ def cbor.append_tail_loop.body
   else ok (done output)
 
 /-- [auths_codec::cbor::append_tail]: loop 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 92:4-95:5 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 95:4-98:5 -/
 @[rust_loop]
 def cbor.append_tail_loop
   (output : alloc.vec.Vec Std.U8) (value : Std.U64) (remaining : Std.U8) :
@@ -168,7 +168,7 @@ def cbor.append_tail_loop
     (output, remaining)
 
 /-- [auths_codec::cbor::append_tail]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 91:0-97:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 94:0-100:1 -/
 @[reducible]
 def cbor.append_tail
   (output : alloc.vec.Vec Std.U8) (value : Std.U64) (remaining : Std.U8) :
@@ -177,7 +177,7 @@ def cbor.append_tail
   cbor.append_tail_loop output value remaining
 
 /-- [auths_codec::cbor::encode_head]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 100:0-123:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 107:0-130:1 -/
 def cbor.encode_head
   (major : Std.U8) (argument : Std.U64) :
   Result (core.result.Result (alloc.vec.Vec Std.U8) cbor.Error)

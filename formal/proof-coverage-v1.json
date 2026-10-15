@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "bc1572638dbc8b278acdbfd08e1b466e603ffddade0db699e51cb16bcf5cc620",
-  "inputs_sha256": "eac80dc1063ef09ab8dbaceac06ff38980ff9a09173d70a2dc28a51e8c6c0db5",
+  "scope_definition_sha256": "2f54d2131a63b2ad3bd3e9fbd03ab7c6952a031c4d950534f770a8ef811309bf",
+  "inputs_sha256": "1cf5feb87f3670a223d99e2602b941a5ce9c991132a3de0d3781700c94a6aec6",
   "inputs": {
     "Cargo.toml": "sha256:6e0240aa432bcdb5b4f855618994582d2e428afe5ee4e4f6a3f8d21a518f8d24",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -27,11 +27,11 @@
     "core/crates/auths-authority/Cargo.toml": "sha256:4f68212938029f79ebd857b4f3038494eb85d0163d49f07e51376715cf959815",
     "core/crates/auths-authority/src/lib.rs": "sha256:da88d5194de4e17449e69972c0fb042afa3c39798a8f570f30771e77c384f1eb",
     "core/crates/auths-codec/Cargo.toml": "sha256:b164e44179704bcb76d32f7e25281ed17f738e434290997e979739ebe49b4f77",
-    "core/crates/auths-codec/src/approval.rs": "sha256:34427b5bfee35a943d3a36cc027aa4ef33cb377d2930981ac5f4dbdf3b0a5a0e",
-    "core/crates/auths-codec/src/bounded_policy.rs": "sha256:7d16ad97aac76725e7360fc3d62de47820aed9ce4c68c4f02d0608e991c94b71",
-    "core/crates/auths-codec/src/cbor.rs": "sha256:29cffbc27ea849dc744f41b98cbe2353e007d9ec17d2755cdfb77e069c22bd9f",
+    "core/crates/auths-codec/src/approval.rs": "sha256:eb0a867ab26c151f9f947090dd81b5802541e818104ac2b363634e2c8f568005",
+    "core/crates/auths-codec/src/bounded_policy.rs": "sha256:5c84447f057e2bf356323c6d83cab4daf64fcce221051a0863350f414ad0fb85",
+    "core/crates/auths-codec/src/cbor.rs": "sha256:696cd6a1cbe08f7a2eb0d313f88c89a08792b97bdec63d9881b0831d6ff76998",
     "core/crates/auths-codec/src/decode.rs": "sha256:af17c02b0ee459f63baaf189ae6d7a5d77d45f36045f6a4d2a287c9619b08b33",
-    "core/crates/auths-codec/src/encode.rs": "sha256:c91c1c3f1fd34bbc60cfcc0e4bdfe7b0324fab40b20173d9cf9ffdd1381be2ed",
+    "core/crates/auths-codec/src/encode.rs": "sha256:1df5a654f18e6c3f9a677a7952445b5d270f3d639ea6e70035f05d32fac2d602",
     "core/crates/auths-codec/src/error.rs": "sha256:fecb0737c16deb42d859f1dc7727c698438d9ac12064fd99e0024629642c390c",
     "core/crates/auths-codec/src/hash.rs": "sha256:f88e111f1dbb2cef6b7b5e9c948cb45ff92e366710c8a5f5c636138aa748479e",
     "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
@@ -59,16 +59,16 @@
     "core/crates/auths-verifier/src/observation.rs": "sha256:0bb07f06a0f9524c88427df1c972b1de8ba038a9eeeb15d3134c25125ae84b1e",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
-    "formal/coverage-scope-v1.toml": "sha256:bc1572638dbc8b278acdbfd08e1b466e603ffddade0db699e51cb16bcf5cc620",
-    "formal/lean-assurance-audit-v1.json": "sha256:27cb04cc28a5fe0ad609aa52feaf30e877d4534495c29ca298988cae9eda0ab4",
+    "formal/coverage-scope-v1.toml": "sha256:2f54d2131a63b2ad3bd3e9fbd03ab7c6952a031c4d950534f770a8ef811309bf",
+    "formal/lean-assurance-audit-v1.json": "sha256:85b96d098556053ac0e239a73f8dd28b6be4163ad197915e4abf38f8b444c998",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
     "formal/qualification/aeneas/generated/authority/translation.json": "sha256:104f4b5fc036d3bfe533be7567dc2308f87fb34e8719363e71c77358eb129ba5",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:18780975fd972e2f15dc2f85f73dcb1412840a0aee72d7ef6e4984c227d992c3",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:3e3d16be7f2734d066bea6a2d77a9542d160f7fefe2285d69dbd4a93fc3c1a8d",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:d22192192ca6c6b57c2eba5d8d5dd465f887703579db62d758e0a969d551069e",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:376b8cdb24c289935a5e02f8bc45438780a76db672c095d86206272d4368a822",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:c8c86db058f313ab46ee86370d79ee70130c1ead3860dd7dabd49f2a89af1636",
@@ -77,8 +77,10 @@
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:d4d36b72718a4076b7c0561abfa2edc006a1f9a4491762979f86c3dd99a71fdc",
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:66e62345ea87b3150722b2d8b37473269c1cbfdaa09c875a3546ae381b7f5cd0",
-    "formal/qualification/aeneas/qualification.toml": "sha256:4306b1aa14cb0f518d9a03f8bec48e7136e89545a02d623f10e5adfd430f3927",
-    "formal/theorem-kinds-v1.toml": "sha256:7dc1e267c3e2bbc2a06ed3d8d90b7946e708e28d159bd941b88249ac9150a49d",
+    "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
+    "formal/qualification/aeneas/generated/stores/translation.json": "sha256:96dc13e36f9f3715b226f9194df90efcdfd2817f86b872f5b56c558cb6f3bb37",
+    "formal/qualification/aeneas/qualification.toml": "sha256:6b514e891695dc7da9f291889dc26ca81c3d53c77c3cf9052ab5f95f1cc896a8",
+    "formal/theorem-kinds-v1.toml": "sha256:353aecaf5e04aa67181d007460c634b68205ef6b1f86a5974e3a165b2b402ce4",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -109,7 +111,11 @@
     "product/runtime/auths-lifecycle/src/registry.rs": "sha256:53495fe6f7a77422593a41623e28716f1c140dcc1e00f87f6b0ffbfb93a5ef90",
     "product/runtime/auths-lifecycle/src/sealed.rs": "sha256:2e0c03b5813c926c159598bb7890d1523825edbe57cd687d42a5dfb3374a0c19",
     "product/runtime/auths-lifecycle/src/test_support.rs": "sha256:221d9a5c5ef8e1f9f8fd66927484eaf813571d0568470278ecd8fa08a5eec8cd",
-    "product/runtime/auths-lifecycle/src/transition.rs": "sha256:011805a28efdd541f44ccea54dd0e34a1e58f4004447ee58013703b4fb6b2822"
+    "product/runtime/auths-lifecycle/src/transition.rs": "sha256:011805a28efdd541f44ccea54dd0e34a1e58f4004447ee58013703b4fb6b2822",
+    "product/stores/auths-stores/src/gateway_attempt.rs": "sha256:81c5ed9dad20ef8d544299b111b496d4a2af3d234364482bc5f892de358fa0ad",
+    "product/stores/auths-stores/src/gateway_fence.rs": "sha256:b3286828c65b8d0d9203c1ce2381eef709b8cd1ae89b9b3f5ddcf87707f2a906",
+    "product/stores/auths-stores/src/lib.rs": "sha256:6cf1be4c3ea934531f920713db3b278b770cfa94c6b910e18c119bd5d70ff36a",
+    "product/stores/auths-stores/src/lifecycle.rs": "sha256:0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
   },
   "claim": {
     "decision_functions": 1031,
@@ -143,6 +149,7 @@
       "product/policy/auths-bounded-policy"
     ],
     "translated_crates": [
+      "product/stores/auths-stores",
       "core/crates/auths-codec",
       "core/crates/auths-model",
       "core/crates/auths-algebra-kernel",
@@ -177,7 +184,10 @@
       "core/crates/auths-verifier/src/trace.rs": "explanation",
       "product/runtime/auths-lifecycle/src/codec.rs": "decoding",
       "product/runtime/auths-lifecycle/src/sealed.rs": "storage",
-      "product/runtime/auths-lifecycle/src/test_support.rs": "test-support"
+      "product/runtime/auths-lifecycle/src/test_support.rs": "test-support",
+      "product/stores/auths-stores/src/gateway_attempt.rs": "storage",
+      "product/stores/auths-stores/src/lib.rs": "interface",
+      "product/stores/auths-stores/src/lifecycle.rs": "storage"
     }
   },
   "metrics": {
@@ -250,33 +260,33 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1393,
-      "span_lines": 15048,
-      "code_lines": 15007,
+      "functions": 1499,
+      "span_lines": 16705,
+      "code_lines": 16652,
       "by_level": {
         "translated": {
-          "functions": 214,
-          "function_share": 0.1536,
-          "span_lines": 2599,
-          "span_line_share": 0.1727,
-          "code_lines": 2588,
-          "code_line_share": 0.1725
+          "functions": 216,
+          "function_share": 0.1441,
+          "span_lines": 2610,
+          "span_line_share": 0.1562,
+          "code_lines": 2599,
+          "code_line_share": 0.1561
         },
         "direct": {
-          "functions": 72,
-          "function_share": 0.0517,
-          "span_lines": 1084,
-          "span_line_share": 0.072,
-          "code_lines": 1073,
-          "code_line_share": 0.0715
+          "functions": 74,
+          "function_share": 0.0494,
+          "span_lines": 1095,
+          "span_line_share": 0.0655,
+          "code_lines": 1084,
+          "code_line_share": 0.0651
         },
         "closure": {
-          "functions": 212,
-          "function_share": 0.1522,
-          "span_lines": 2568,
-          "span_line_share": 0.1707,
-          "code_lines": 2557,
-          "code_line_share": 0.1704
+          "functions": 214,
+          "function_share": 0.1428,
+          "span_lines": 2579,
+          "span_line_share": 0.1544,
+          "code_lines": 2568,
+          "code_line_share": 0.1542
         }
       }
     },
@@ -284,31 +294,31 @@
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
       "functions": 1117,
-      "span_lines": 14037,
-      "code_lines": 13971,
+      "span_lines": 14028,
+      "code_lines": 13962,
       "by_level": {
         "translated": {
           "functions": 90,
           "function_share": 0.0806,
-          "span_lines": 998,
+          "span_lines": 997,
           "span_line_share": 0.0711,
-          "code_lines": 987,
+          "code_lines": 986,
           "code_line_share": 0.0706
         },
         "direct": {
           "functions": 43,
           "function_share": 0.0385,
-          "span_lines": 618,
+          "span_lines": 617,
           "span_line_share": 0.044,
-          "code_lines": 607,
+          "code_lines": 606,
           "code_line_share": 0.0434
         },
         "closure": {
           "functions": 88,
           "function_share": 0.0788,
-          "span_lines": 967,
+          "span_lines": 966,
           "span_line_share": 0.0689,
-          "code_lines": 956,
+          "code_lines": 955,
           "code_line_share": 0.0684
         }
       }
@@ -572,6 +582,13 @@
       "translated": 6,
       "refined_closure": 6,
       "refined_closure_code_lines": 200
+    },
+    "product/stores/auths-stores": {
+      "decision_functions": 2,
+      "decision_code_lines": 12,
+      "translated": 2,
+      "refined_closure": 2,
+      "refined_closure_code_lines": 12
     }
   },
   "second_parser": {
@@ -2916,8 +2933,8 @@
       "lean_name": "auths_codec.cbor.append_tail",
       "file": "core/crates/auths-codec/src/cbor.rs",
       "span": [
-        91,
-        97
+        94,
+        100
       ],
       "decision_scope": false
     },
@@ -2926,8 +2943,8 @@
       "lean_name": "auths_codec.cbor.encode_head",
       "file": "core/crates/auths-codec/src/cbor.rs",
       "span": [
-        100,
-        123
+        107,
+        130
       ],
       "decision_scope": false
     }
@@ -2943,6 +2960,9 @@
       "Auths.Lifecycle.Refinement.translated_transition_refines_rich": "exact",
       "Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model": "exact",
       "Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model": "exact",
+      "Auths.Product.Refinement.CollectionFence.translated_advance_refines_model": "exact",
+      "Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses": "partial",
+      "Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model": "exact",
       "Auths.Product.Refinement.Connections.translated_lease_generation_refines_model": "exact",
       "Auths.Product.Refinement.Connections.translated_next_generation_refines_model": "exact",
       "Auths.Product.Refinement.Connections.translated_retained_generation_refines_model": "exact",
@@ -3015,19 +3035,19 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 326,
+    "aeneas_local_definitions": 328,
     "by_kind": {
+      "function": 216,
       "loop": 96,
-      "function": 214,
       "derived": 16
     },
-    "refined_direct": 72,
-    "refined_closure": 217,
-    "theorems_naming_translated_functions": 78
+    "refined_direct": 74,
+    "refined_closure": 219,
+    "theorems_naming_translated_functions": 81
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "992410c02d811a4b453a4e07fa6c806e3ee99f43ccda508c7c018a640858a2ce",
+    "current_formal_inputs_sha256": "9cfae92b8ea85d6394784a2acba21f66a24141a8a25acea5365d51d545bc3893",
     "fresh": false,
     "campaigns": {
       "s1": {

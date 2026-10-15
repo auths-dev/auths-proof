@@ -7,10 +7,10 @@
 At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `eac80dc1063ef09ab8dbaceac06ff38980ff9a09173d70a2dc28a51e8c6c0db5` over the 92 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `1cf5feb87f3670a223d99e2602b941a5ce9c991132a3de0d3781700c94a6aec6` over the 98 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `bc1572638dbc8b278acdbfd08e1b466e603ffddade0db699e51cb16bcf5cc620`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `2f54d2131a63b2ad3bd3e9fbd03ab7c6952a031c4d950534f770a8ef811309bf`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -46,6 +46,9 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
 | `product/runtime/auths-lifecycle/src/sealed.rs` | storage |
 | `product/runtime/auths-lifecycle/src/test_support.rs` | test-support |
+| `product/stores/auths-stores/src/gateway_attempt.rs` | storage |
+| `product/stores/auths-stores/src/lib.rs` | interface |
+| `product/stores/auths-stores/src/lifecycle.rs` | storage |
 
 ## 3. Scope table
 
@@ -53,8 +56,8 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,031 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,353 | 1,289 (11.4%) | 856 (7.5%) | 1,289 (11.4%) |
 | verifier-core | 785 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,802 | 907 (10.3%) | 558 (6.3%) | 907 (10.3%) |
-| translated-crates | 1,393 | 214 (15.4%) | 72 (5.2%) | 212 (15.2%) | 15,007 | 2,588 (17.2%) | 1,073 (7.1%) | 2,557 (17.0%) |
-| verifier-closure | 1,117 | 90 (8.1%) | 43 (3.8%) | 88 (7.9%) | 13,971 | 987 (7.1%) | 607 (4.3%) | 956 (6.8%) |
+| translated-crates | 1,499 | 216 (14.4%) | 74 (4.9%) | 214 (14.3%) | 16,652 | 2,599 (15.6%) | 1,084 (6.5%) | 2,568 (15.4%) |
+| verifier-closure | 1,117 | 90 (8.1%) | 43 (3.8%) | 88 (7.9%) | 13,962 | 986 (7.1%) | 606 (4.3%) | 955 (6.8%) |
 | decision-nontrivial | 443 | 81 (18.3%) | 44 (9.9%) | 81 (18.3%) | 9,589 | 1,202 (12.5%) | 820 (8.6%) | 1,202 (12.5%) |
 
 Decision scope by crate:
@@ -181,14 +184,14 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 5. Translated functions outside the refined closure
 
-- `auths_codec::cbor::append_tail` (`core/crates/auths-codec/src/cbor.rs`, lines 91-97)
-- `auths_codec::cbor::encode_head` (`core/crates/auths-codec/src/cbor.rs`, lines 100-123)
+- `auths_codec::cbor::append_tail` (`core/crates/auths-codec/src/cbor.rs`, lines 94-100)
+- `auths_codec::cbor::encode_head` (`core/crates/auths-codec/src/cbor.rs`, lines 107-130)
 
 ## 6. Mutation adequacy
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `992410c02d811a4b453a4e07fa6c806e3ee99f43ccda508c7c018a640858a2ce`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `9cfae92b8ea85d6394784a2acba21f66a24141a8a25acea5365d51d545bc3893`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -201,7 +204,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 67 exact, 1 verdict-exact, 9 partial, 1 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 69 exact, 1 verdict-exact, 10 partial, 1 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 109 of 1,031 functions (10.6%) and 1,286 of 11,353 code lines (11.3%).
 
@@ -218,6 +221,9 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Lifecycle.Refinement.translated_transition_refines_rich` | exact |
 | `Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model` | exact |
 | `Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model` | exact |
+| `Auths.Product.Refinement.CollectionFence.translated_advance_refines_model` | exact |
+| `Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses` | partial |
+| `Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_lease_generation_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_next_generation_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_retained_generation_refines_model` | exact |

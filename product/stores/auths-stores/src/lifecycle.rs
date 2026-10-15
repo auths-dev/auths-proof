@@ -34,9 +34,9 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
-const SCHEMA_VERSION: i32 = 6;
-const CONTRACT_ID: &str = "auths.lifecycle.transactional-store/4";
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v6.sql");
+const SCHEMA_VERSION: i32 = 7;
+const CONTRACT_ID: &str = "auths.lifecycle.transactional-store/5";
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v7.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -533,7 +533,7 @@ impl PostgresStoreSummary {
     /// Returns the physical schema identity.
     #[must_use]
     pub const fn schema_id(self) -> &'static str {
-        "auths.lifecycle.postgresql/6"
+        "auths.lifecycle.postgresql/7"
     }
 
     /// Returns the transactional store contract identity.
@@ -705,7 +705,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 6,
+            schema_version: 7,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })
@@ -1033,7 +1033,8 @@ fn initialize_or_verify_schema(
                     to_regclass('auths_lifecycle_records') IS NOT NULL,
                     to_regclass('auths_recovery_references') IS NOT NULL,
                     to_regclass('auths_recovery_leases') IS NOT NULL,
-                    to_regclass('auths_gateway_records') IS NOT NULL",
+                    to_regclass('auths_gateway_records') IS NOT NULL,
+                    to_regclass('auths_gateway_collection') IS NOT NULL",
             &[],
         )
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
@@ -1052,14 +1053,18 @@ fn initialize_or_verify_schema(
     let gateway_records_exist: bool = tables
         .try_get(4)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let gateway_collection_exists: bool = tables
+        .try_get(5)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
     match (
         metadata_exists,
         records_exist,
         references_exist,
         leases_exist,
         gateway_records_exist,
+        gateway_collection_exists,
     ) {
-        (false, false, false, false, false) => {
+        (false, false, false, false, false, false) => {
             let existing: i64 = client
                 .query_one(
                     "SELECT count(*)
@@ -1076,7 +1081,7 @@ fn initialize_or_verify_schema(
                 .batch_execute(POSTGRES_SCHEMA)
                 .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
         }
-        (true, true, true, true, true) => {}
+        (true, true, true, true, true, true) => {}
         _ => return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch),
     }
     verify_store_contract(client)?;
@@ -1121,6 +1126,19 @@ fn verify_store_contract(client: &mut Client) -> Result<(), LifecycleStoreConfig
         .try_get(1)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
     if schema_version != SCHEMA_VERSION || contract_id != CONTRACT_ID {
+        return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
+    }
+    let cutoff = client
+        .query_opt(
+            "SELECT collected_through FROM auths_gateway_collection WHERE singleton = TRUE",
+            &[],
+        )
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?
+        .ok_or(LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let cutoff: Option<i64> = cutoff
+        .try_get(0)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    if cutoff.is_some_and(|value| value < 0) {
         return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
     }
     Ok(())

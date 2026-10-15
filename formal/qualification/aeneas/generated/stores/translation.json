@@ -1,0 +1,45 @@
+{
+  "aeneas_version": "3a8586fa",
+  "charon_version": "0.1.225",
+  "crate": "auths_stores",
+  "functions": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_stores.gateway_fence.gateway_window_open",
+      "lean_file": "qualification/aeneas/generated/stores/Funs.lean",
+      "rust_name": "auths_stores::gateway_fence::gateway_window_open",
+      "is_local": true,
+      "source": {
+        "file": "product/stores/auths-stores/src/gateway_fence.rs",
+        "begin_line": 7,
+        "end_line": 12
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_stores.gateway_fence.advance_gateway_collection",
+      "lean_file": "qualification/aeneas/generated/stores/Funs.lean",
+      "rust_name": "auths_stores::gateway_fence::advance_gateway_collection",
+      "is_local": true,
+      "source": {
+        "file": "product/stores/auths-stores/src/gateway_fence.rs",
+        "begin_line": 18,
+        "end_line": 23
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

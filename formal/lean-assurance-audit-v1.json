@@ -6,6 +6,62 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Product.CollectionFence",
+      "name": "Auths.Product.CollectionFence.collection_cannot_reopen_window",
+      "statement": "∀ (cutoff expiry : ℕ) {current : Option ℕ},\n  Auths.Product.CollectionFence.History (some cutoff) current →\n    Auths.Product.CollectionFence.openWindow current expiry → cutoff < expiry"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CollectionFence",
+      "name": "Auths.Product.CollectionFence.swept_window_cannot_readmit",
+      "statement": "∀ (cutoff expiry : ℕ) {current : Option ℕ},\n  Auths.Product.CollectionFence.History (some cutoff) current →\n    expiry ≤ cutoff → ¬Auths.Product.CollectionFence.openWindow current expiry"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.CollectionFence",
+      "name": "Auths.Product.CollectionFence.later_window_admits",
+      "statement": "∀ (cutoff expiry : ℕ), cutoff < expiry → Auths.Product.CollectionFence.openWindow (some cutoff) expiry"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.CollectionFence",
+      "name": "Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model",
+      "statement": "∀ (expiry : Aeneas.Std.U64) (current : Option Aeneas.Std.U64),\n  auths_stores.gateway_fence.gateway_window_open expiry current =\n    Aeneas.Std.Result.ok\n      (decide\n        (Auths.Product.CollectionFence.openWindow (Auths.Product.Refinement.CollectionFence.cutoffView current)\n          ↑expiry))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.CollectionFence",
+      "name": "Auths.Product.Refinement.CollectionFence.translated_advance_refines_model",
+      "statement": "∀ (current : Option Aeneas.Std.U64) (requested : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_stores.gateway_fence.advance_gateway_collection current requested) fun result =>\n    ↑result =\n      Auths.Product.CollectionFence.advance (Auths.Product.Refinement.CollectionFence.cutoffView current) ↑requested"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.CollectionFence",
+      "name": "Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses",
+      "statement": "∀ (cutoff : ℕ) (expiry : Aeneas.Std.U64) (current : Option Aeneas.Std.U64),\n  Auths.Product.CollectionFence.History (some cutoff) (Auths.Product.Refinement.CollectionFence.cutoffView current) →\n    ↑expiry ≤ cutoff → auths_stores.gateway_fence.gateway_window_open expiry current = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Codec.Semantics",
       "name": "Auths.Codec.readHead_encodeHead",
       "statement": "∀ (head : Auths.Codec.Head),\n  head.Valid → ∀ (tail : List ℕ), Auths.Codec.readHead (Auths.Codec.encodeHead head ++ tail) = some (head, tail)"

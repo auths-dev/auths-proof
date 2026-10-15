@@ -12,7 +12,7 @@
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
         "begin_line": 42,
-        "end_line": 59
+        "end_line": 58
       },
       "is_opaque": false,
       "can_fail": true,
@@ -31,7 +31,7 @@
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
         "begin_line": 42,
-        "end_line": 59
+        "end_line": 58
       },
       "is_opaque": false,
       "can_fail": true,
@@ -50,7 +50,7 @@
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
         "begin_line": 36,
-        "end_line": 59
+        "end_line": 58
       },
       "is_opaque": false,
       "can_fail": true,
@@ -66,8 +66,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
-        "begin_line": 65,
-        "end_line": 89
+        "begin_line": 64,
+        "end_line": 88
       },
       "is_opaque": false,
       "can_fail": true,
@@ -83,8 +83,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
-        "begin_line": 92,
-        "end_line": 95
+        "begin_line": 95,
+        "end_line": 98
       },
       "is_opaque": false,
       "can_fail": true,
@@ -102,8 +102,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
-        "begin_line": 92,
-        "end_line": 95
+        "begin_line": 95,
+        "end_line": 98
       },
       "is_opaque": false,
       "can_fail": true,
@@ -121,8 +121,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
-        "begin_line": 91,
-        "end_line": 97
+        "begin_line": 94,
+        "end_line": 100
       },
       "is_opaque": false,
       "can_fail": true,
@@ -138,8 +138,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/cbor.rs",
-        "begin_line": 100,
-        "end_line": 123
+        "begin_line": 107,
+        "end_line": 130
       },
       "is_opaque": false,
       "can_fail": true,

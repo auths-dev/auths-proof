@@ -20,11 +20,18 @@ import Auths.Refinement.Approval
 import Auths.Observation
 import Auths.Approval
 import Auths.Codec.Refinement
+import Auths.Product.Refinement.CollectionFence
 
 namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Product.CollectionFence.collection_cannot_reopen_window,
+    `Auths.Product.CollectionFence.swept_window_cannot_readmit,
+    `Auths.Product.CollectionFence.later_window_admits,
+    `Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model,
+    `Auths.Product.Refinement.CollectionFence.translated_advance_refines_model,
+    `Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses,
     `Auths.Codec.readHead_encodeHead,
     `Auths.Codec.Refinement.read_head_refines,
     `Auths.Codec.Refinement.read_tail_bounded,

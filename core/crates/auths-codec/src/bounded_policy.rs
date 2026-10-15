@@ -80,7 +80,7 @@ pub fn encode_bounded_policy_commitment(
         if let Some(parent) = body.parent() {
             bytes(encoder, parent.as_bytes())
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
             Ok(())
         }
     })

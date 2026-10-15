@@ -12,7 +12,7 @@ shipping-source refinement and hosted evidence gates.
 | M2: crypto integration | Pending | E5.1–E5.4. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
-| M5: history and storage | Pending | E4.1–E4.6, including collection fencing and authority-derived entry expiry. |
+| M5: history and storage | In progress | Both backends now fence slot admission against a durable monotone collection cutoff. Exact scalar-decision refinements and arbitrary finite cutoff-history invariants are implemented; backend conformance and the complete admission/driver-history bridge remain to be qualified. Authority-derived entry expiry is still required. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
 
 No E1–E5 workstream is complete yet. Existing component claims retain their
@@ -39,7 +39,7 @@ unchanged. Authoritative Lean now additionally replays the public theorem
 closure into a fresh kernel environment with the pinned `leanchecker`.
 
 The local qualification construction passed two byte-identical clean
-translations, all nine qualification cases, and the compiled audit of 326
+translations, all ten qualification cases, and the compiled audit of 332
 claims. A separate fresh-environment replay of `Auths.Codec.Refinement`
 passed. These are development results; the exact pushed revision still
 requires the hosted authoritative gates.
@@ -52,3 +52,34 @@ The unsuccessful loop rewrites were removed. This is a concrete need for an
 owned, bounded decoder-state transition before claiming whole-object
 refinement. The prototype's partial output is not in the qualification
 inventory and cannot support an assurance claim.
+
+## Collection-fence slice
+
+The file store persists and synchronizes `.collection.json` before deleting
+slots. PostgreSQL schema `/7` (transactional-store contract `/5`) orders
+admissions with a shared row lock and collection with an exclusive row lock;
+the cutoff and deletions commit together. Both backends check every slot's
+actual expiry in the atomic claim/slot batch. A closed window records a
+terminal refusal without reserving slots or granting an execution handle.
+Collection with a zero deletion limit still closes the window conservatively.
+
+File stores reject obsolete unmarked state and missing, corrupt, oversized,
+or obsolete collection metadata. Missing locks are not silently recreated for
+an initialized store. File reads check size before allocation and cap the
+read even if the file changes. Key uniqueness and wrong-kind reads now agree
+with PostgreSQL across all five record kinds.
+
+The independent cutoff model permits arbitrary finite interleavings and any
+number of workers, including crashes, recovery, lost acknowledgements, and
+partial sweeps. The shipping cutoff comparison and monotone-advance functions
+refine that model. These statements do **not** yet establish the actual
+backend/driver-to-history correspondence, aggregate counter derivation, the
+complete admission algorithm, or E4 as a whole. The shared backend suite adds
+collection/admission races, restart and old-clock attempts, lost commit
+acknowledgements, marker/lock corruption, and refusal before any lease/write.
+Hosted conformance remains required evidence.
+
+The collection-fence qualification includes the ninth production extraction
+crate, four accepted/refused boundary examples, six additional audited
+claims, and two byte-identical clean translations. The source comparisons
+remain narrower than the backend transaction and crash-recovery contracts.

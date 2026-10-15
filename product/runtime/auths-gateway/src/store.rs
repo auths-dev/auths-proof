@@ -18,14 +18,16 @@ use crate::{
 };
 use auths_gateway_kernel::transition::{self, AttemptView, Link, Reading, Stage};
 use auths_lifecycle::StoreError;
-use auths_stores::{GatewayRecordInsert, PostgresLifecycleStore};
+use auths_stores::{
+    GatewayRecordInsert, PostgresLifecycleStore, advance_gateway_collection, gateway_window_open,
+};
 use base64ct::{Base64, Encoding as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
-    io::Write as _,
+    io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
@@ -40,6 +42,9 @@ const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
 const BATCH_FILE: &str = ".batch.json";
 const LOCK_FILE: &str = ".replace.lock";
+const COLLECTION_FILE: &str = ".collection.json";
+const FILE_STORE_SCHEMA: &str = "auths.gateway-file-store/1";
+const MAX_COLLECTION_FILE_BYTES: usize = 512;
 /// A load that keeps finding a crashed batch gives up after this many
 /// rollbacks rather than spin.
 const MAX_RECOVERY_ROUNDS: usize = 8;
@@ -920,6 +925,11 @@ pub enum GatewayInsert {
         /// The index, in the caller's order, of an entry whose key existed.
         index: usize,
     },
+    /// At least one slot belongs to a closed window; nothing was inserted.
+    ClosedWindow {
+        /// The shared durable cutoff checked atomically with this batch.
+        collected_through: u64,
+    },
 }
 
 /// Durable storage of opaque gateway records of five closed kinds.
@@ -930,12 +940,15 @@ pub enum GatewayInsert {
 /// sweeps of expired slots only, and fail-closed reads that never report
 /// unreadable state as absent.
 pub trait GatewayAttemptStore: Send + Sync {
-    /// Inserts every entry, or none when any key already exists.
+    /// Inserts every entry only when every key is absent and every slot's
+    /// expiry is strictly after the shared durable collection cutoff. The
+    /// cutoff check and insertion have one ordered linearization point.
     ///
     /// # Errors
     /// Returns [`GatewayAttemptError::Corrupt`] for an entry outside its
-    /// bounds and [`GatewayAttemptError::Unavailable`] when storage fails;
-    /// nothing is inserted in either case.
+    /// bounds and [`GatewayAttemptError::Unavailable`] when storage fails.
+    /// An unavailable result may follow an all-or-none commit whose
+    /// acknowledgement was lost; it must never produce an execution handle.
     fn insert_all(
         &self,
         entries: &[GatewayRecordEntry],
@@ -945,11 +958,13 @@ pub trait GatewayAttemptStore: Send + Sync {
     ///
     /// # Errors
     /// Returns [`GatewayAttemptError::Replay`] when the key already exists,
-    /// including a record left by a crashed claim.
+    /// including a record left by a crashed claim, and
+    /// [`GatewayAttemptError::InvalidTransition`] for a slot in a closed window.
     fn insert(&self, entry: &GatewayRecordEntry) -> Result<(), GatewayAttemptError> {
         match self.insert_all(std::slice::from_ref(entry))? {
             GatewayInsert::Inserted => Ok(()),
             GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
+            GatewayInsert::ClosedWindow { .. } => Err(GatewayAttemptError::InvalidTransition),
         }
     }
 
@@ -979,7 +994,9 @@ pub trait GatewayAttemptStore: Send + Sync {
     ) -> Result<(), GatewayAttemptError>;
 
     /// Deletes at most `limit` count and sum slots whose expiry is at or
-    /// before `now`, and returns how many were deleted.
+    /// before `now`, and returns how many were deleted. Durably advances a
+    /// shared monotone cutoff before deletion (or atomically with it), even
+    /// when `limit` is zero. Claims and the cutoff are never collected.
     ///
     /// # Errors
     /// Returns [`GatewayAttemptError::Unavailable`] when storage fails.
@@ -1028,6 +1045,13 @@ struct SlotFile {
     record_b64: String,
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CollectionFile {
+    schema: String,
+    collected_through: Option<u64>,
+}
+
 /// Where a conformance test stops a batch, to leave the state a crash at
 /// that step would leave. Production batches never stop early.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1046,7 +1070,8 @@ impl FileGatewayAttemptStore {
     ///
     /// # Errors
     /// Rejects symlinks, broad permissions, foreign ownership, a malformed
-    /// batch file, and I/O errors.
+    /// batch file, obsolete unmarked state, missing security metadata or
+    /// lock state, and I/O errors. It initializes only a fresh empty directory.
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, GatewayAttemptError> {
         let root = root.into();
         if !is_normalized_absolute(&root) {
@@ -1069,8 +1094,100 @@ impl FileGatewayAttemptStore {
             _ => GatewayAttemptError::UnsafeDirectory,
         })?;
         let store = Self { root };
+        store.initialize_collection()?;
         store.recover()?;
         Ok(store)
+    }
+
+    fn initialize_collection(&self) -> Result<(), GatewayAttemptError> {
+        let (lock, fresh) = if self.root.join(COLLECTION_FILE).exists() {
+            (
+                Self::lock_options()
+                    .open(self.root.join(LOCK_FILE))
+                    .map_err(|error| {
+                        if error.kind() == std::io::ErrorKind::NotFound {
+                            GatewayAttemptError::Corrupt
+                        } else {
+                            GatewayAttemptError::Unavailable
+                        }
+                    })?,
+                false,
+            )
+        } else {
+            match Self::lock_options()
+                .create_new(true)
+                .open(self.root.join(LOCK_FILE))
+            {
+                Ok(lock) => (lock, true),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => (
+                    Self::lock_options()
+                        .open(self.root.join(LOCK_FILE))
+                        .map_err(|_| GatewayAttemptError::Unavailable)?,
+                    false,
+                ),
+                Err(_) => return Err(GatewayAttemptError::Unavailable),
+            }
+        };
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if self.root.join(COLLECTION_FILE).exists() {
+            if fresh {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+            self.collection_cutoff()?;
+            return Ok(());
+        }
+        if !fresh {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        // An unmarked nonempty store is obsolete or lost security state.
+        // Never interpret a missing cutoff as an empty collection history.
+        for entry in fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)? {
+            let entry = entry.map_err(|_| GatewayAttemptError::Unavailable)?;
+            if entry.file_name().to_str() != Some(LOCK_FILE) {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+        }
+        let bytes = canonical(&CollectionFile {
+            schema: FILE_STORE_SCHEMA.to_owned(),
+            collected_through: None,
+        })?;
+        self.pending(&bytes)?
+            .persist_noclobber(self.root.join(COLLECTION_FILE))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        sync_directory(&self.root)
+    }
+
+    fn collection_cutoff(&self) -> Result<Option<u64>, GatewayAttemptError> {
+        let bytes = Self::read_file(&self.root.join(COLLECTION_FILE), MAX_COLLECTION_FILE_BYTES)?
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let state: CollectionFile =
+            serde_json::from_slice(&bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+        if state.schema != FILE_STORE_SCHEMA || canonical(&state)? != bytes {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if state
+            .collected_through
+            .is_some_and(|cutoff| i64::try_from(cutoff).is_err())
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(state.collected_through)
+    }
+
+    fn publish_collection(&self, now: u64) -> Result<(), GatewayAttemptError> {
+        i64::try_from(now).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let next = advance_gateway_collection(self.collection_cutoff()?, now);
+        let bytes = canonical(&CollectionFile {
+            schema: FILE_STORE_SCHEMA.to_owned(),
+            collected_through: Some(next),
+        })?;
+        self.pending(&bytes)?
+            .persist(self.root.join(COLLECTION_FILE))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        // No deletion can begin until both the replacement file and its
+        // directory entry have been synchronized successfully.
+        sync_directory(&self.root)
     }
 
     fn file_name(kind: GatewayRecordKind, key: &GatewayAttemptKey) -> String {
@@ -1088,13 +1205,42 @@ impl FileGatewayAttemptStore {
         self.root.join(Self::file_name(kind, key))
     }
 
+    fn key_exists(&self, key: &GatewayAttemptKey) -> Result<bool, GatewayAttemptError> {
+        for kind in [
+            GatewayRecordKind::Attempt,
+            GatewayRecordKind::CountSlot,
+            GatewayRecordKind::SumSlot,
+            GatewayRecordKind::Connection,
+            GatewayRecordKind::CommissioningBudget,
+        ] {
+            match fs::symlink_metadata(self.path_for(kind, key)) {
+                Ok(_) => return Ok(true),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err(GatewayAttemptError::Unavailable),
+            }
+        }
+        Ok(false)
+    }
+
     fn read_file(path: &Path, maximum: usize) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
+        let file = match File::open(path) {
+            Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(GatewayAttemptError::Unavailable),
         };
-        if bytes.is_empty() || bytes.len() > maximum {
+        let maximum = u64::try_from(maximum).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let metadata = file
+            .metadata()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if !metadata.is_file() || metadata.len() > maximum {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let read_limit = maximum.checked_add(1).ok_or(GatewayAttemptError::Corrupt)?;
+        let mut bytes = Vec::new();
+        file.take(read_limit)
+            .read_to_end(&mut bytes)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if bytes.is_empty() || u64::try_from(bytes.len()).map_or(true, |length| length > maximum) {
             return Err(GatewayAttemptError::Corrupt);
         }
         Ok(Some(bytes))
@@ -1134,15 +1280,19 @@ impl FileGatewayAttemptStore {
         Ok(pending)
     }
 
-    fn lock(&self, operation: rustix::fs::FlockOperation) -> Result<File, GatewayAttemptError> {
+    fn lock_options() -> OpenOptions {
         let mut options = OpenOptions::new();
-        options.read(true).write(true).create(true).truncate(false);
+        options.read(true).write(true);
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt as _;
             options.mode(0o600);
         }
-        let lock = options
+        options
+    }
+
+    fn lock(&self, operation: rustix::fs::FlockOperation) -> Result<File, GatewayAttemptError> {
+        let lock = Self::lock_options()
             .open(self.root.join(LOCK_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
         rustix::fs::flock(&lock, operation).map_err(|_| GatewayAttemptError::Unavailable)?;
@@ -1152,6 +1302,7 @@ impl FileGatewayAttemptStore {
     /// Serializes mutations across every process on this host.
     fn exclusive(&self) -> Result<File, GatewayAttemptError> {
         let lock = self.lock(rustix::fs::FlockOperation::LockExclusive)?;
+        self.collection_cutoff()?;
         self.recover_locked()?;
         Ok(lock)
     }
@@ -1163,6 +1314,7 @@ impl FileGatewayAttemptStore {
     fn shared(&self) -> Result<File, GatewayAttemptError> {
         for _ in 0..MAX_RECOVERY_ROUNDS {
             let lock = self.lock(rustix::fs::FlockOperation::LockShared)?;
+            self.collection_cutoff()?;
             if !self.root.join(BATCH_FILE).exists() {
                 return Ok(lock);
             }
@@ -1226,8 +1378,18 @@ impl FileGatewayAttemptStore {
             })
             .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
         let _lock = self.exclusive()?;
-        for (index, (name, _)) in files.iter().enumerate() {
-            if self.root.join(name).exists() {
+        let cutoff = self.collection_cutoff()?;
+        for entry in entries {
+            if let Some(expiry) = entry.expires_at
+                && !gateway_window_open(expiry, cutoff)
+            {
+                return Ok(GatewayInsert::ClosedWindow {
+                    collected_through: cutoff.ok_or(GatewayAttemptError::Corrupt)?,
+                });
+            }
+        }
+        for (index, entry) in entries.iter().enumerate() {
+            if self.key_exists(&entry.key)? {
                 return Ok(GatewayInsert::Exists { index });
             }
         }
@@ -1310,6 +1472,14 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         validate_batch(std::slice::from_ref(entry))?;
         let bytes = Self::file_bytes(entry)?;
         let _lock = self.exclusive()?;
+        if let Some(expiry) = entry.expires_at
+            && !gateway_window_open(expiry, self.collection_cutoff()?)
+        {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        if self.key_exists(&entry.key)? {
+            return Err(GatewayAttemptError::Replay);
+        }
         match self
             .pending(&bytes)?
             .persist_noclobber(self.path_for(entry.kind, &entry.key))
@@ -1329,13 +1499,17 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
     ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
         let _lock = self.shared()?;
         let path = self.path_for(kind, key);
-        if kind.expires() {
+        let record = if kind.expires() {
             Self::read_file(&path, MAX_SLOT_FILE_BYTES)?
                 .map(|bytes| Self::decode_slot(&bytes).map(|(_, record)| record))
                 .transpose()
         } else {
             Self::read_file(&path, MAX_RECORD_BYTES)
+        }?;
+        if record.is_none() && self.key_exists(key)? {
+            return Err(GatewayAttemptError::Corrupt);
         }
+        Ok(record)
     }
 
     fn replace(
@@ -1364,6 +1538,7 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
 
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
         let _lock = self.exclusive()?;
+        self.publish_collection(now)?;
         let mut names: Vec<String> = fs::read_dir(&self.root)
             .map_err(|_| GatewayAttemptError::Unavailable)?
             .map(|entry| {
@@ -1471,6 +1646,9 @@ impl GatewayAttemptStore for PostgresGatewayAttemptStore {
         match self.store()?.insert_gateway_records(&mechanism) {
             Ok(GatewayRecordInsert::Inserted) => Ok(GatewayInsert::Inserted),
             Ok(GatewayRecordInsert::Exists { index }) => Ok(GatewayInsert::Exists { index }),
+            Ok(GatewayRecordInsert::ClosedWindow { collected_through }) => {
+                Ok(GatewayInsert::ClosedWindow { collected_through })
+            }
             Err(error) => Err(postgres_error(error)),
         }
     }
@@ -2329,6 +2507,9 @@ fn reserve_with_claim(
         }
         let (record, stored, entries) = claim_batch(key, base, bound, &counts, &sums, &totals)?;
         match store.insert_all(&entries)? {
+            GatewayInsert::ClosedWindow { .. } => {
+                return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
+            }
             GatewayInsert::Inserted => {
                 return Ok(Reserved::Claimed {
                     stored,

@@ -1,13 +1,13 @@
 CREATE TABLE auths_lifecycle_store_meta (
     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-    schema_version INTEGER NOT NULL CHECK (schema_version = 6),
+    schema_version INTEGER NOT NULL CHECK (schema_version = 7),
     contract_id TEXT NOT NULL CHECK (
-        contract_id = 'auths.lifecycle.transactional-store/4'
+        contract_id = 'auths.lifecycle.transactional-store/5'
     )
 );
 
 INSERT INTO auths_lifecycle_store_meta (singleton, schema_version, contract_id)
-VALUES (TRUE, 6, 'auths.lifecycle.transactional-store/4');
+VALUES (TRUE, 7, 'auths.lifecycle.transactional-store/5');
 
 CREATE TABLE auths_lifecycle_records (
     workflow_id TEXT PRIMARY KEY CHECK (
@@ -68,3 +68,10 @@ CREATE TABLE auths_gateway_records (
 CREATE INDEX auths_gateway_records_expiry
 ON auths_gateway_records (expires_at)
 WHERE record_kind IN ('count-slot', 'sum-slot');
+
+CREATE TABLE auths_gateway_collection (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    collected_through BIGINT NULL CHECK (collected_through IS NULL OR collected_through >= 0)
+);
+
+INSERT INTO auths_gateway_collection (singleton, collected_through) VALUES (TRUE, NULL);

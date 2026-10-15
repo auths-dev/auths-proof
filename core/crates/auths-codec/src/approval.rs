@@ -241,7 +241,7 @@ pub(crate) fn encode_approval_statement_to(
     if let Some(attributes) = statement.attributes() {
         bytes(encoder, attributes.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     encode_key(encoder, 9)?;
     encode_text(encoder, statement.audience().as_str())?;

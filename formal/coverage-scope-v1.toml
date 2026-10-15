@@ -13,6 +13,7 @@ schema = "auths-proof-coverage-scope/v1"
 verifier_crate = "core/crates/auths-verifier"
 decision_kernel_crates = ["product/runtime/auths-lifecycle", "product/policy/auths-bounded-policy"]
 translated_crates = [
+    "product/stores/auths-stores",
     "core/crates/auths-codec",
     "core/crates/auths-model",
     "core/crates/auths-algebra-kernel",
@@ -48,6 +49,10 @@ crates = ["core/crates/auths-codec"]
 [[components]]
 name = "the signature suites"
 crates = []
+
+[[components]]
+name = "the stateful gateway store backends"
+crates = ["product/stores/auths-stores"]
 
 [files]
 "core/crates/auths-algebra-kernel/src/generated.rs" = "decision"
@@ -111,3 +116,8 @@ crates = []
 "product/runtime/auths-lifecycle/src/sealed.rs" = "storage"
 "product/runtime/auths-lifecycle/src/test_support.rs" = "test-support"
 "product/runtime/auths-lifecycle/src/transition.rs" = "decision"
+
+"product/stores/auths-stores/src/gateway_fence.rs" = "decision"
+"product/stores/auths-stores/src/gateway_attempt.rs" = "storage"
+"product/stores/auths-stores/src/lifecycle.rs" = "storage"
+"product/stores/auths-stores/src/lib.rs" = "interface"

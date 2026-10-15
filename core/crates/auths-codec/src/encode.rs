@@ -133,7 +133,7 @@ pub(crate) fn encode_optional_budget(
     if let Some(budget) = budget {
         encode_budget(encoder, budget)
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
         Ok(())
     }
 }
@@ -264,7 +264,7 @@ pub(crate) fn encode_grant_statement_to(
     if let Some(parent) = statement.parent() {
         bytes(encoder, parent.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 13)?;
     encode_status_policy(encoder, statement.status_policy())?;
@@ -345,7 +345,7 @@ pub(crate) fn encode_action_envelope_to(
     if let Some(grant) = envelope.terminal_grant() {
         bytes(encoder, grant.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 14)?;
     bytes(encoder, envelope.authorization_plan().as_bytes())?;
@@ -421,7 +421,7 @@ fn encode_assurance_claim(
     if let Some(observed_at) = claim.observed_at() {
         encoder.u64(observed_at.get()).map_err(encode_error)?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 3)?;
     text(encoder, claim.source().as_str())?;
@@ -560,7 +560,7 @@ fn encode_verification_result_to(
     if let Some(plan_id) = result.plan_id() {
         bytes(encoder, plan_id.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 7)?;
     if include_result_digest {
@@ -591,7 +591,7 @@ fn encode_verification_result_to(
     if let Some(configuration) = result.required_configuration() {
         bytes(encoder, configuration.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 14)?;
     bytes(encoder, result.local_configuration().as_bytes())?;
@@ -944,26 +944,20 @@ fn encode_attachment(
     key(encoder, 3)?;
     text(encoder, attachment.disposition().as_str())?;
     key(encoder, 4)?;
-    encoder
-        .bool(matches!(
-            attachment.confidentiality(),
-            auths_model::Confidentiality::Encrypted
-        ))
-        .map_err(encode_error)?;
+    encoder.bool(matches!(
+        attachment.confidentiality(),
+        auths_model::Confidentiality::Encrypted
+    ));
     key(encoder, 5)?;
-    encoder
-        .bool(matches!(
-            attachment.presence(),
-            auths_model::Presence::Required
-        ))
-        .map_err(encode_error)?;
+    encoder.bool(matches!(
+        attachment.presence(),
+        auths_model::Presence::Required
+    ));
     key(encoder, 6)?;
-    encoder
-        .bool(matches!(
-            attachment.opacity(),
-            auths_model::Opacity::OpaqueAllowed
-        ))
-        .map_err(encode_error)?;
+    encoder.bool(matches!(
+        attachment.opacity(),
+        auths_model::Opacity::OpaqueAllowed
+    ));
     Ok(())
 }
 
@@ -1069,7 +1063,7 @@ fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(),
     if let Some(body) = bundle.canonical_body() {
         bytes(encoder, body)?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
 
     key(encoder, 10)?;
@@ -1194,25 +1188,25 @@ fn encode_assurance_policy(
         if let Some(source) = requirement.source() {
             text(encoder, source.as_str())?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 4)?;
         if let Some(adapter) = requirement.adapter() {
             text(encoder, adapter.as_str())?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 5)?;
         if let Some(version) = requirement.adapter_version() {
             encoder.u16(version).map_err(encode_error)?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 6)?;
         if let Some(maximum_age) = requirement.maximum_age() {
             encoder.u64(maximum_age.get()).map_err(encode_error)?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 7)?;
         encoder
@@ -1528,7 +1522,7 @@ fn encode_composition_requirement(
     if let Some(plan) = requirement.expected_plan() {
         bytes(encoder, plan.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 1)?;
     encoder

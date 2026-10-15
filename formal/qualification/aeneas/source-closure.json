@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "18280354f265eac433b29fbc932e44d6494693b93f2ffe8a82e06a28e1d737e8",
+  "digest": "37ba27a8b1e60d013eba527c5f7184afb1f3875086b1dcee6cf4bc2e7403b2a2",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,96 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "c28f99d9958db6b011b82d361405dac0e4b303608d9a390fb0c4a196dffe4361",
+      "sha256": "8d0b770e93f31e12a38f6fcaf9aaa6e0637486383feda88e2d56f24647be9db2",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
       "sha256": "6e0240aa432bcdb5b4f855618994582d2e428afe5ee4e4f6a3f8d21a518f8d24"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/Cargo.toml",
+      "sha256": "86ba3e3f9a0a70d970568bfb3113b7ba7bbdd81c3eebbb52743dd574a0c0ecaa"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/src/lib.rs",
+      "sha256": "a75674842f8a7142004369ccd206ab43e476459293f0ff4bed4d4e659031b3e3"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.icp.att",
+      "sha256": "b960b8ddbae13e5bb0d8c2ed4e5e0365132435bb0f064aa38ea3e3222d484143"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.icp.json",
+      "sha256": "675c8be7338cd0d377b84f997d88b04cc69d0350c61a603aa3d1c971cd0723fc"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.rot.att",
+      "sha256": "be3fe05e9a745b1b42ce19a3232c03cac48a351bb1fc748a20b6bb52f00eba54"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.rot.json",
+      "sha256": "a13d665078292b6e3348680740558410d4d47257533f5530c6d4f200f72cc89e"
+    },
+    {
+      "path": "core/adapters/auths-did-key/Cargo.toml",
+      "sha256": "d5a3ae07ecde83f91eed4c3785051dd0f44eab6c891754f3309b6b40596707d7"
+    },
+    {
+      "path": "core/adapters/auths-did-key/src/lib.rs",
+      "sha256": "b76a3f4528a725df53cfa9242e6e414e1d26caa48468aaed497e28b121f4497c"
+    },
+    {
+      "path": "core/adapters/auths-did-web/Cargo.toml",
+      "sha256": "851692ce82a034de341faa08c2043e0ce759dd41daf9d2591e983a3b8c1b6fb2"
+    },
+    {
+      "path": "core/adapters/auths-did-web/src/lib.rs",
+      "sha256": "2524f33979429214c1282c7fbd8823f19ca6b0ec4997e4bbea8a9472749be099"
+    },
+    {
+      "path": "core/adapters/auths-hsm-attested/Cargo.toml",
+      "sha256": "55b1581f654bfc62c3a838212e8d034a05066afd7ea382efeb6254a26a8da98a"
+    },
+    {
+      "path": "core/adapters/auths-hsm-attested/src/lib.rs",
+      "sha256": "42594b26a7d6ebc47b44096ad5e3472c677c64f3b470b85b91e55334f3899bb6"
+    },
+    {
+      "path": "core/adapters/auths-raw-key/Cargo.toml",
+      "sha256": "f49616bc18c19e6aaa7e6a02ccebcdb9f5c1422c1278ef9869e0dbf22ceda7be"
+    },
+    {
+      "path": "core/adapters/auths-raw-key/src/lib.rs",
+      "sha256": "45eec1b295dac3bed65cd79c942870b926b06b3f5d38eaebaeb6140ac69315fa"
+    },
+    {
+      "path": "core/adapters/auths-signature-ed25519/Cargo.toml",
+      "sha256": "47a70030633b264bacc5d0d301ba6ca19f9c7dfb88cdb70ed2acb0dbf3731ce9"
+    },
+    {
+      "path": "core/adapters/auths-signature-ed25519/README.md",
+      "sha256": "db674be2735e49a47264790d09205cb3e8c681c2cca8b69e787de997bca1ddc0"
+    },
+    {
+      "path": "core/adapters/auths-signature-ed25519/src/lib.rs",
+      "sha256": "ab30df01217858dfceb6d6a20341d1cd66ba56323d164da696a335bf4dd78053"
+    },
+    {
+      "path": "core/adapters/auths-spiffe-x509/Cargo.toml",
+      "sha256": "6201e1d823d1ce7f6bf63bcc11b20699dae0c3a0df6e3ab5fbf32158c8088827"
+    },
+    {
+      "path": "core/adapters/auths-spiffe-x509/src/lib.rs",
+      "sha256": "724808ac4fdbc1a912ac31b6af36789041be2ca8b9d80ec10df598130e961932"
+    },
+    {
+      "path": "core/adapters/auths-webauthn/Cargo.toml",
+      "sha256": "53c91387dc2f44da35f30477b3a2e5daab374ea27e64784519df5df60f71d5af"
+    },
+    {
+      "path": "core/adapters/auths-webauthn/src/lib.rs",
+      "sha256": "d660d8881d60808461f1f6fcdbd5f6bd17b27f5f86799ab3e2212a6eb1817719"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -26,6 +110,26 @@
     {
       "path": "core/crates/auths-algebra-kernel/src/lib.rs",
       "sha256": "6654667eeb9b353d6648954c9fd2e8838462a82ce6b2803eb49e1366892c68c6"
+    },
+    {
+      "path": "core/crates/auths-assurance/Cargo.toml",
+      "sha256": "afcb12a97ddd09d7a264b9ecd3fcaefc865ff2c9b4539ee85b00883420ba333a"
+    },
+    {
+      "path": "core/crates/auths-assurance/src/lib.rs",
+      "sha256": "0fb2ec844d674b25a9e20b1601452c89c2454901fa506adfa9bb38ef9a7fa213"
+    },
+    {
+      "path": "core/crates/auths-author/Cargo.toml",
+      "sha256": "1e6f0e3bc079ddb558decf0db26b291c6e72fc47327b6df1b7650d41689b215f"
+    },
+    {
+      "path": "core/crates/auths-author/src/lib.rs",
+      "sha256": "e14475f2f49715a1869d5fa6b11ff1fbb72497e39097e09f833b0bae7e5b3f2b"
+    },
+    {
+      "path": "core/crates/auths-author/src/observations.rs",
+      "sha256": "dda7d6bfa6f4bd7e95a480ca283c2c0e996f69c5c15cb0c7197af328131a7066"
     },
     {
       "path": "core/crates/auths-authority/Cargo.toml",
@@ -41,15 +145,15 @@
     },
     {
       "path": "core/crates/auths-codec/src/approval.rs",
-      "sha256": "34427b5bfee35a943d3a36cc027aa4ef33cb377d2930981ac5f4dbdf3b0a5a0e"
+      "sha256": "eb0a867ab26c151f9f947090dd81b5802541e818104ac2b363634e2c8f568005"
     },
     {
       "path": "core/crates/auths-codec/src/bounded_policy.rs",
-      "sha256": "7d16ad97aac76725e7360fc3d62de47820aed9ce4c68c4f02d0608e991c94b71"
+      "sha256": "5c84447f057e2bf356323c6d83cab4daf64fcce221051a0863350f414ad0fb85"
     },
     {
       "path": "core/crates/auths-codec/src/cbor.rs",
-      "sha256": "29cffbc27ea849dc744f41b98cbe2353e007d9ec17d2755cdfb77e069c22bd9f"
+      "sha256": "696cd6a1cbe08f7a2eb0d313f88c89a08792b97bdec63d9881b0831d6ff76998"
     },
     {
       "path": "core/crates/auths-codec/src/decode.rs",
@@ -57,7 +161,7 @@
     },
     {
       "path": "core/crates/auths-codec/src/encode.rs",
-      "sha256": "c91c1c3f1fd34bbc60cfcc0e4bdfe7b0324fab40b20173d9cf9ffdd1381be2ed"
+      "sha256": "1df5a654f18e6c3f9a677a7952445b5d270f3d639ea6e70035f05d32fac2d602"
     },
     {
       "path": "core/crates/auths-codec/src/error.rs",
@@ -74,6 +178,34 @@
     {
       "path": "core/crates/auths-codec/src/observation.rs",
       "sha256": "fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149"
+    },
+    {
+      "path": "core/crates/auths-composition/Cargo.toml",
+      "sha256": "331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e"
+    },
+    {
+      "path": "core/crates/auths-composition/src/lib.rs",
+      "sha256": "e42e3b0b6a9985b73c533aeb23799c638979aa27a9ce7d0f10a8d60340570fb1"
+    },
+    {
+      "path": "core/crates/auths-identity/Cargo.toml",
+      "sha256": "4c0b69816e1c00caee21927a39ea2daf55d24d77cf60c216d9cb8a0e2622c993"
+    },
+    {
+      "path": "core/crates/auths-identity/README.md",
+      "sha256": "1e9efc35b80410ca4a79cfa6d3a417f44c1aac5d309cde34506de38d264e0516"
+    },
+    {
+      "path": "core/crates/auths-identity/examples/custom-method.rs",
+      "sha256": "2efca1ffbaf35348d0567d66100af7690c18ef32bf54ec1ad45ef3e1eb3d614d"
+    },
+    {
+      "path": "core/crates/auths-identity/examples/signed_message.rs",
+      "sha256": "a29bf595ee99f36fa77f89fe104803bdc9877ccc97b1dbf7c8fc9346a50a7168"
+    },
+    {
+      "path": "core/crates/auths-identity/src/lib.rs",
+      "sha256": "09e84bd7743a76c4656aa2e531f69dbe76e0e67207ac5c7615d9b8e4fa04da5c"
     },
     {
       "path": "core/crates/auths-model/Cargo.toml",
@@ -98,6 +230,202 @@
     {
       "path": "core/crates/auths-model/src/observation.rs",
       "sha256": "b3ed3e3cc090afca2896a7d3de7988afccc1ee1ea0ebd91b51a8bc0f20ad8dbb"
+    },
+    {
+      "path": "core/crates/auths-multikey/Cargo.toml",
+      "sha256": "858756c1197befcada06134742bffe8d58cf674cadd6c046bf710570e96efaf2"
+    },
+    {
+      "path": "core/crates/auths-multikey/src/lib.rs",
+      "sha256": "f5177fffb11e40eeaaa665ba886c541fc1f24d5eacdd6983fb03dc20148733f0"
+    },
+    {
+      "path": "core/crates/auths-path-webpki/Cargo.toml",
+      "sha256": "b1b3e498fde58392f039d05b3abc41cedf76e2c033cb2bc4fbcd3f02ecc25a43"
+    },
+    {
+      "path": "core/crates/auths-path-webpki/src/lib.rs",
+      "sha256": "4e80058649340dbd961ac3f5567e2370f15ed30ed064965b54e6e86fb5e9ad1a"
+    },
+    {
+      "path": "core/crates/auths-ports/Cargo.toml",
+      "sha256": "596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c"
+    },
+    {
+      "path": "core/crates/auths-ports/src/binding.rs",
+      "sha256": "a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d"
+    },
+    {
+      "path": "core/crates/auths-ports/src/diagnostics.rs",
+      "sha256": "aa596572503b5a65a918bb2ff38281c144ff53821ee914e9325c852828d852df"
+    },
+    {
+      "path": "core/crates/auths-ports/src/lib.rs",
+      "sha256": "8da1debf86f9532df0660155d04298beb1ba3a1204508f8586e2e67cd2fb3449"
+    },
+    {
+      "path": "core/crates/auths-ports/src/path.rs",
+      "sha256": "b68fc547b4e4d97a60cbbc1cc1939fc6b34a8233b81f840bd396914a707e3ea1"
+    },
+    {
+      "path": "core/crates/auths-raw-key-core/Cargo.toml",
+      "sha256": "98c0bc8527a537512e43a74dd6ba9658c6f0cdc16610cf938e3f9b43785d836d"
+    },
+    {
+      "path": "core/crates/auths-raw-key-core/src/lib.rs",
+      "sha256": "98c0500c41697aae28708ad0bf970b9a97583d96a3d2c18d23e7fa351e0f7d12"
+    },
+    {
+      "path": "core/crates/auths-registries/Cargo.toml",
+      "sha256": "590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2"
+    },
+    {
+      "path": "core/crates/auths-registries/src/lib.rs",
+      "sha256": "450d3886d85ee333b7e046317fb5b47cde62483d5f3e41d46265e2caf4c373ec"
+    },
+    {
+      "path": "core/crates/auths-registries/src/template.rs",
+      "sha256": "1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4"
+    },
+    {
+      "path": "core/crates/auths-signature-core/Cargo.toml",
+      "sha256": "6bee2230eb30af1be0bd5c2d57bd3e1903497a70028d47290d4ac6e9e0e8bca0"
+    },
+    {
+      "path": "core/crates/auths-signature-core/src/lib.rs",
+      "sha256": "6e3f9311ded5e49ea50d445eb21e6d8fa12442aa4362a73e0cb6fda15b7cd865"
+    },
+    {
+      "path": "core/crates/auths-signature/Cargo.toml",
+      "sha256": "7f7b5682466ba439d8c59579022cb61068cad9fb4bd2d73e1cc21327c902b450"
+    },
+    {
+      "path": "core/crates/auths-signature/src/lib.rs",
+      "sha256": "b3d9ac4cc3ba0797b9e1c09f2d6ac05089b25dac4e285a5af28c0165b33d925b"
+    },
+    {
+      "path": "core/crates/auths-verifier/Cargo.toml",
+      "sha256": "c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/approval.rs",
+      "sha256": "c3cae6a49e169051eb555bb092b1069a4d422516d6a2114623a89e5f31ff923f"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/causal.rs",
+      "sha256": "9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/lib.rs",
+      "sha256": "6e921b2a1df23f4662a2f8ab3d89333766cc80bf5b262a2051a8de2eb1b8e3ba"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/observation.rs",
+      "sha256": "0bb07f06a0f9524c88427df1c972b1de8ba038a9eeeb15d3134c25125ae84b1e"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/trace.rs",
+      "sha256": "2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8"
+    },
+    {
+      "path": "core/crates/auths-verifier/tests/approval_properties.rs",
+      "sha256": "ade9928d0efd1544fe0c6af909b6ac4ea6905e8210d3f0315a6df3b40a830de1"
+    },
+    {
+      "path": "core/crates/auths-verifier/tests/observation_action_facts.rs",
+      "sha256": "a1889530553e1313abb256ff51f5901bd18dfdad47f24dfe9faa933035ad8dde"
+    },
+    {
+      "path": "core/crates/auths-verifier/tests/portable_conformance.rs",
+      "sha256": "06130c2b403eca87a3be3edeab5395e80db96c87faa5d14c2878a78250fe958e"
+    },
+    {
+      "path": "core/testkit/auths-testkit/Cargo.toml",
+      "sha256": "d2c38ae2edfed6bcb8c3e3fa83bc4d62d88441026302c99c237a4c6c32724986"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/action_decode.rs",
+      "sha256": "510057e80afec42aefe89e2229dcb781109f926d3a059ba1e518ce18dc361ae0"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/context.rs",
+      "sha256": "ce3bd4638d8a3fba4b72d8a2e54a3f4e865ac185c905c5d9e9f7f93f9b36526a"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/mod.rs",
+      "sha256": "184728c6aa4fd2e6a3ad3153388b8f85e380974e09a8f61fbcd438c1871dc2b4"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/mutation.rs",
+      "sha256": "eee0a6a94b28dba4fa7b4877151543e014c242dd5b7dd742ce907e33c645e3ed"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/oracle.rs",
+      "sha256": "05fb0738ccf2939457eda356d76cd55e42a3c238c60e88895212df2aa196e778"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/shrink.rs",
+      "sha256": "b947731dc50c7b79f3850c7c4637c1a1855a76c458a14b5b07caaf78c2ab7fc7"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/approval.rs",
+      "sha256": "07c6035ef4fd1ca32029696bff4b60f556acba12d41e42e3f598a119e48f4433"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/bounded_policy.rs",
+      "sha256": "98f465d5eef8cc103dcf84acd744909176760f5e756a70eb218e41095e3d0ed4"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/check_sites.rs",
+      "sha256": "b8068f7025e85ca74a88ec8b014566f752f26c0b61b5d6459d1f688dd6517586"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/conformance.rs",
+      "sha256": "6c6c5bf61003e6837cc3a99b60196ab78931cf3e3fa154b995843a7dd7081ad1"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/kernel_checks.rs",
+      "sha256": "43787567221fb1868e465634ad73d71e8ff527b275dacff6e3584a39345983f8"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/lib.rs",
+      "sha256": "8a5d42d0bddc59f883ff1207efb9a4389c181b86cfe26ea8a858d25ebbe5b0ea"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/mechanism_conformance.rs",
+      "sha256": "da5ca5e080fcf4c0ca1fd3f1fd77317653d924e87b1b50864df795a2d684f150"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/observation.rs",
+      "sha256": "d9e3e85da180dbc975dbc1a4052b0824d8d20a7f3da7fc0c8f87e9df416ab97d"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/product_waist.rs",
+      "sha256": "9a47bd772b6974b1da08c06b5883e77b6ed3ed9fdc761507b3461a18792e75de"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/status_extensions.rs",
+      "sha256": "c1de567ab6f2dd4075a07d988e3cfb190f5d2ee1143e4c73be8d0a2d4064def4"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/status_scope.rs",
+      "sha256": "2a1566884515030b2062eb193d747ec3d74c97e310f7776e98ebead3522b5f79"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-model/Cargo.toml",
+      "sha256": "34b2db64f93a288e942b5a3918d28cdcbef906e0dc9074ce848018d3d5f7a1fa"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-model/src/lib.rs",
+      "sha256": "49fac5aff2339d3a57c41cb8bb2a82852538e8f77ecc4b157c88e264ff31fb55"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-port/Cargo.toml",
+      "sha256": "7ff660f1b7579dc570c791090aeb450404fbbf44c92781e289f5ccdde746d739"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-port/src/lib.rs",
+      "sha256": "b408fb40c6432edc1facb3d8b3e9433a033f8dc73fe2e0ba5a88c972ca675021"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -136,12 +464,56 @@
       "sha256": "b27e252238449bcee87a3d4d4deeca5537e8af380e2559ca24ea04fa88265793"
     },
     {
+      "path": "formal/qualification/aeneas/cases/Stores.lean",
+      "sha256": "7cb57dba378673e1ad581380d738d35978fd0ee97c5d5a62af4190f9938167ee"
+    },
+    {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "4306b1aa14cb0f518d9a03f8bec48e7136e89545a02d623f10e5adfd430f3927"
+      "sha256": "6b514e891695dc7da9f291889dc26ca81c3d53c77c3cf9052ab5f95f1cc896a8"
     },
     {
       "path": "formal/translation-toolchain.lock",
       "sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+    },
+    {
+      "path": "product/config/auths-config/Cargo.toml",
+      "sha256": "e4b568ab9f6d84f7d7e6d66443fe825f360db9c27bc7c31d6ddc0647ba3ab304"
+    },
+    {
+      "path": "product/config/auths-config/src/lib.rs",
+      "sha256": "fecf00ea65cef9018fda9af2063326d7065b869266d0d9e73a4f06816f1102cc"
+    },
+    {
+      "path": "product/errors/auths-errors/Cargo.toml",
+      "sha256": "3b3a199b6460ba75bda84475bb5accd35e1485448a3981038db85bf4772dd350"
+    },
+    {
+      "path": "product/errors/auths-errors/src/lib.rs",
+      "sha256": "7feeb9069fa4003f94f1f07c1c94619cf1c883e0dbaaf2187f04d0f742264bdd"
+    },
+    {
+      "path": "product/operations/auths-operations/Cargo.toml",
+      "sha256": "73dde1e914ba5e1386f8d49c0d730423cc72ae77ec44c6554a6a75cc8e8922b1"
+    },
+    {
+      "path": "product/operations/auths-operations/src/explanation.rs",
+      "sha256": "b4a39bcbd5712cb9e735ee7deeb281f3fa6af5ddca973735bf3d87dce427ef11"
+    },
+    {
+      "path": "product/operations/auths-operations/src/lib.rs",
+      "sha256": "3f401a56555113b98f57bca172a2660eaecedf76247b83a3fdbb089c133a29cd"
+    },
+    {
+      "path": "product/operations/auths-operations/src/render/json.rs",
+      "sha256": "2ae042639960afee123730e945d373bc5dda1d2b3af20ae16c939a7e99b9e418"
+    },
+    {
+      "path": "product/operations/auths-operations/src/render/mod.rs",
+      "sha256": "b3b7f6fe473f49227ace5a68bfc3d8dc14b5db8dd9888fd9e207070337b1b8bf"
+    },
+    {
+      "path": "product/operations/auths-operations/src/render/text.rs",
+      "sha256": "f216cf3bdb00e264523271b16e7059535ac6b1aabf271cebd7935af155e4bfec"
     },
     {
       "path": "product/policy/auths-bounded-policy/Cargo.toml",
@@ -194,6 +566,50 @@
     {
       "path": "product/policy/auths-bounded-policy/src/registry.rs",
       "sha256": "4e251ea5833559841f8ee0bd9b66c0c01c39fa5e3a21720a19c4e8adbfcb99d0"
+    },
+    {
+      "path": "product/profiles/auths-profile-api/Cargo.toml",
+      "sha256": "7ae85761f58625b5d678f961fd052eebf3e000ef565c7312e3ac857763c0017f"
+    },
+    {
+      "path": "product/profiles/auths-profile-api/src/lib.rs",
+      "sha256": "a194b82b20bf8aa864c2334ef6c6aec30b2154ded972862252d5dcefa488ab95"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/Cargo.toml",
+      "sha256": "db264fc25242f7b7e4133cbe5782545b3107b406c87168ae072683cfb59eac66"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/profile-v1.json",
+      "sha256": "fd46beeda8b55b802f8d4e61d4f5d0b1b74db77fcbeebddafab54bc06098df31"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/profile-v2.json",
+      "sha256": "2547772b2c38a28efef13adc789f9a55d13edfedbd301ff80a3216571dd6918e"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/src/arguments.rs",
+      "sha256": "a5de696586d507e2aee4a49fee99ef1ef4c51a2e46603f8838f1af6d9009833f"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/src/lib.rs",
+      "sha256": "d0f8b733a09ef8408336cdebc8948d6a5861012ce6878598b11be7084dfd4280"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/src/session.rs",
+      "sha256": "166c281fa66333388e4760d6098dad02d3359e1d5de4b8f93312c014f97abb03"
+    },
+    {
+      "path": "product/receipts/auths-receipts/Cargo.toml",
+      "sha256": "6001fa1375899953aafcb07c23a6da0c8f57ea7ec08bb9c950b12a60a8cc6f0f"
+    },
+    {
+      "path": "product/receipts/auths-receipts/src/disclosure.rs",
+      "sha256": "ba9ed439be0a320c8a01f5b6e9b51361c1a37e076947490d8e4a484ba6bb119c"
+    },
+    {
+      "path": "product/receipts/auths-receipts/src/lib.rs",
+      "sha256": "547a57c4160256719cafb7d0ab972d9fc80b0da14fbbce4148c70c414070ff36"
     },
     {
       "path": "product/runtime/auths-connections/Cargo.toml",
@@ -252,6 +668,14 @@
       "sha256": "cefb8f01d915880f6921f2501ff881ad94b9de61072c34d9cd19220992f97374"
     },
     {
+      "path": "product/runtime/auths-kernel-runtime/Cargo.toml",
+      "sha256": "926bcd0053e5edd703be8f0027ad009e2982db013c8174c1366edbf38b48087d"
+    },
+    {
+      "path": "product/runtime/auths-kernel-runtime/src/lib.rs",
+      "sha256": "7108faae9ca4bc32dc093ddaf885ac8f74f3c9b8d317b7c7d0ed00d1d0ab5972"
+    },
+    {
       "path": "product/runtime/auths-lifecycle/Cargo.toml",
       "sha256": "c5053c705f8d5554b44e432fe75287a2faf11d644e5a2552e45ad6cd94176af5"
     },
@@ -302,6 +726,94 @@
     {
       "path": "product/runtime/auths-lifecycle/tests/lifecycle.rs",
       "sha256": "735466062bd8f032f9a9d410384d62107e32bcff5457520426d7deca5aecd686"
+    },
+    {
+      "path": "product/runtime/auths-runtime/Cargo.toml",
+      "sha256": "dd29d80a8b4bb56c869f036a6c9998f6e6d1c0383ac5dc03fa42b24abe2a7ff7"
+    },
+    {
+      "path": "product/runtime/auths-runtime/src/lib.rs",
+      "sha256": "132ca03d58c14905d3a822a4972f42a22a5ad33a45f2ba9ca44f3a57d810b4b0"
+    },
+    {
+      "path": "product/runtime/auths-runtime/src/production.rs",
+      "sha256": "fd4eff4270c571c10fcff6cf27df28961ebf074de8a1a028f500fda1ca376820"
+    },
+    {
+      "path": "product/stores/auths-stores/Cargo.toml",
+      "sha256": "a32c4b76d17b264be5d40d24497ff237e1ed87822e8bab86229b3db93106dbe3"
+    },
+    {
+      "path": "product/stores/auths-stores/migrations/postgres_lifecycle_v7.sql",
+      "sha256": "1986577c5e1905e3c451bd8b272ffbd2a3b78852ba2c6a581d20848e2ee88657"
+    },
+    {
+      "path": "product/stores/auths-stores/src/gateway_attempt.rs",
+      "sha256": "81c5ed9dad20ef8d544299b111b496d4a2af3d234364482bc5f892de358fa0ad"
+    },
+    {
+      "path": "product/stores/auths-stores/src/gateway_fence.rs",
+      "sha256": "b3286828c65b8d0d9203c1ce2381eef709b8cd1ae89b9b3f5ddcf87707f2a906"
+    },
+    {
+      "path": "product/stores/auths-stores/src/lib.rs",
+      "sha256": "6cf1be4c3ea934531f920713db3b278b770cfa94c6b910e18c119bd5d70ff36a"
+    },
+    {
+      "path": "product/stores/auths-stores/src/lifecycle.rs",
+      "sha256": "0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_lifecycle.rs",
+      "sha256": "de1b673679fe1bb858a96fde8fdfba0de2f8b9c656a6ce07a260380cfbc67451"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/.gitignore",
+      "sha256": "f5c10da83055c0c3e72f3167971d1916e443dc90390e32b42844552cc37b81e0"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/README.md",
+      "sha256": "0d7dce2b85d8290c15e0f8b84bbe1753bbfb82263a4cebc084d8d4d33f64c164"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/compose.yaml",
+      "sha256": "2b1814fefd08b38c12a6e5f510bd218200a2b91597f56db7c84e5d2880fad3c7"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generate-certificates.sh",
+      "sha256": "7e32dcc80aefef2c22a4415e28946f6b5c7404de65de827868e5e955c2c22be2"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/ca.crt",
+      "sha256": "3f1a598926f5b1e5aa0d71533709c34a81a4b144ea4d561dac8410f608de527f"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/ca.key",
+      "sha256": "c08947a9306d46890d76214826dd24ff84f7a8cd92a6582671f463d761faab48"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/ca.srl",
+      "sha256": "3608c1cfe5cde21dcb2555f06eca423d8644faae315ba674f765ad75087c1fa4"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.crt",
+      "sha256": "3cfa1f81708a0b87fac9a1608b430c1ad5b607f6364b31beef2b8c0661df2e06"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.csr",
+      "sha256": "dc8dcd92ca5388e3ef24052861f54f25f132cfba6b9e3232431c34bc3497f699"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.ext",
+      "sha256": "4c30d3cd80ef1cd8ec89b0605cb8b6d0065c688515ee78f0cb42b1c8efeb9002"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.key",
+      "sha256": "2d47052e13817ee3a2a4df3519bc2e5919dea0a694e3e7427c272f7e67579047"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/production_recovery.rs",
+      "sha256": "605629e4f79d7c38c8acd86aad1fcd2c9d3fcfbbe0a2f56de411ce7937cea2e5"
     },
     {
       "path": "xtask/Cargo.toml",
@@ -369,7 +881,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "8fe06e1b70b78837a90a021e903284545b11b6ea4a5fabf55aad50288643b0e1"
+      "sha256": "1b8e6a0bdd13c09a9b3f5cddc138d9e1260971892faf4a7b50f919cb813cab51"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -381,7 +893,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "b4921ca89eb63d7eec4c0fd4433370223fe5b720b282312afdf4e66f609ad28e"
+      "sha256": "4825f5d6f4381313fe41eea6c62363f465d9a7b1b603202211f0fd9c56e369d4"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -445,7 +957,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "9e36c78ae7ed8ce11bbc545ef7db8c1741c826038d01a7fb66d6e7fa5c91b18b"
+      "sha256": "c57617cd19351f71e145974e9c134717ce3d9e816510a8a03c922746b66bb9b0"
     },
     {
       "path": "xtask/src/stripe.rs",

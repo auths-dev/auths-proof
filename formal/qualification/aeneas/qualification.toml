@@ -11,6 +11,10 @@ translation_warnings = []
 required_compiled_external_axioms = 0
 
 source_files = [
+  "product/stores/auths-stores/Cargo.toml",
+  "product/stores/auths-stores/src/lib.rs",
+  "product/stores/auths-stores/src/gateway_fence.rs",
+  "formal/qualification/aeneas/cases/Stores.lean",
   "core/crates/auths-codec/Cargo.toml",
   "core/crates/auths-codec/src/lib.rs",
   "core/crates/auths-codec/src/cbor.rs",
@@ -63,6 +67,9 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/stores/Types.lean",
+  "formal/qualification/aeneas/generated/stores/Funs.lean",
+  "formal/qualification/aeneas/generated/stores/translation.json",
   "formal/qualification/aeneas/generated/codec/Types.lean",
   "formal/qualification/aeneas/generated/codec/Funs.lean",
   "formal/qualification/aeneas/generated/codec/translation.json",
@@ -96,6 +103,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.Stores",
   "qualification.aeneas.cases.Codec",
   "qualification.aeneas.cases.Model",
   "qualification.aeneas.cases.Algebra",
@@ -220,6 +228,18 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_stores"
+translation_json = "formal/qualification/aeneas/generated/stores/translation.json"
+local_functions = 2
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = [
+  "auths_stores::gateway_fence::gateway_window_open",
+  "auths_stores::gateway_fence::advance_gateway_collection",
+]
+allowed_external_symbols = []
 
 [[translations]]
 crate_name = "auths_codec"

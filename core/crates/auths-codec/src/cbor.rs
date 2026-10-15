@@ -44,9 +44,8 @@ fn read_tail(
             Some(byte) => *byte,
             None => return Err(Error),
         };
-        let shifted = match value.checked_mul(256) {
-            Some(shifted) => shifted,
-            None => return Err(Error),
+        let Some(shifted) = value.checked_mul(256) else {
+            return Err(Error);
         };
         value = match shifted.checked_add(u64::from(byte)) {
             Some(value) => value,
@@ -88,6 +87,10 @@ pub(crate) fn read_head(input: &[u8], position: usize) -> Result<Head, Error> {
     })
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "Truncation deliberately selects the low eight bits of the shifted value"
+)]
 fn append_tail(mut output: Vec<u8>, value: u64, mut remaining: u8) -> Vec<u8> {
     while remaining > 0 {
         remaining -= 1;
@@ -97,6 +100,10 @@ fn append_tail(mut output: Vec<u8>, value: u64, mut remaining: u8) -> Vec<u8> {
 }
 
 /// Encodes the unique shortest head for one major type and unsigned argument.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "The inline branch proves the argument is at most 23 before narrowing it"
+)]
 pub(crate) fn encode_head(major: u8, argument: u64) -> Result<Vec<u8>, Error> {
     if major > 7 {
         return Err(Error);
@@ -285,14 +292,12 @@ impl Encoder {
         self.payload(3, text.as_bytes())
     }
 
-    pub(crate) fn bool(&mut self, value: bool) -> Result<(), Error> {
+    pub(crate) fn bool(&mut self, value: bool) {
         self.output.push(if value { 245 } else { 244 });
-        Ok(())
     }
 
-    pub(crate) fn null(&mut self) -> Result<(), Error> {
+    pub(crate) fn null(&mut self) {
         self.output.push(246);
-        Ok(())
     }
 }
 
