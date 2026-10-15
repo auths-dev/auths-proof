@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn every_unicode_scalar_matches_the_character_oracle() {
         let mut allowed = Vec::new();
-        for scalar in 0..=0x10ffff {
+        for scalar in 0..=0x0010_ffff {
             let Some(character) = char::from_u32(scalar) else {
                 continue;
             };

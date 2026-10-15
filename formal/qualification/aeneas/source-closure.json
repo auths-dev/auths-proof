@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "93831896636cdecb19c40b7d0ad0eb16b49470ba05c1359331cf454ac9c8a12e",
+  "digest": "923929fc101e719125df90c0153c1a25a83c450ae3be68f7494f6c0a7bac63a8",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -225,7 +225,7 @@
     },
     {
       "path": "core/crates/auths-model/src/identifier.rs",
-      "sha256": "c35c1c411d258a7f155a766b4eb71820e2abaa409745ae7df18daaf1e931e059"
+      "sha256": "c8dc49cf467ee0456a447a5337ead067b7d0a80eaa6c745b469e9b837cb627b0"
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
@@ -773,7 +773,7 @@
     },
     {
       "path": "product/stores/auths-stores/tests/postgres_lifecycle.rs",
-      "sha256": "de1b673679fe1bb858a96fde8fdfba0de2f8b9c656a6ce07a260380cfbc67451"
+      "sha256": "4f51a0e27f2d96e0ed8acf7ec9055ddf993ee49f3af2e299c81539f7e065bc85"
     },
     {
       "path": "product/stores/auths-stores/tests/postgres_tls/.gitignore",
