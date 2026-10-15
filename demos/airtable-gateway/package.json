@@ -1,0 +1,24 @@
+{
+  "name": "auths-airtable-gateway-demo",
+  "version": "0.1.0",
+  "description": "Exact record update through the installed general gateway client",
+  "type": "module",
+  "files": [
+    "submit.mjs",
+    "recipe.json",
+    "profile.toml",
+    "profile.lock.json",
+    "README.md"
+  ],
+  "dependencies": {
+    "@auths-dev/sdk": "1.0.0-rc.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:web": "node --test tests/web-smoke.mjs"
+  }
+}

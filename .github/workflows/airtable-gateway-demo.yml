@@ -1,0 +1,151 @@
+name: Airtable gateway demo
+
+on:
+  pull_request:
+    paths:
+      - 'demos/airtable-gateway/**'
+      - 'bindings/python/**'
+      - 'bindings/typescript/**'
+      - 'bindings/wasm/**'
+      - 'qualification/reference/**'
+      - 'bindings/fixtures/gateway/airtable/**'
+      - 'product/**'
+      - 'core/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - '.github/workflows/airtable-gateway-demo.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'demos/airtable-gateway/**'
+      - 'product/**'
+      - '.github/workflows/airtable-gateway-demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airtable-gateway-demo-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+      - name: Build installed SDK inputs and distinct shipping/simulation gateways
+        run: |
+          mkdir -p target/airtable-demo
+          python -m venv .airtable-demo-venv
+          .airtable-demo-venv/bin/pip install maturin==1.9.6
+          .airtable-demo-venv/bin/maturin build --profile python-extension --locked \
+            --manifest-path bindings/python/Cargo.toml --out target/airtable-demo
+          cargo build --locked --release -p auths-gateway --bin auths-gateway
+          cp target/release/auths-gateway target/airtable-demo/auths-gateway
+          cargo build --locked --release -p auths-gateway --features loopback-provider --bin auths-gateway
+          cp target/release/auths-gateway target/airtable-demo/auths-gateway-simulation
+      - run: npm ci
+        working-directory: bindings/typescript
+      - run: cargo install wasm-pack --version 0.15.0 --locked
+      - run: npm run build:wasm
+        working-directory: bindings/typescript
+      - run: npm run build
+        working-directory: bindings/typescript
+      - run: npm pack --pack-destination ../../target/airtable-demo
+        working-directory: bindings/typescript
+      - name: Compile the public TypeScript client against the packed SDK
+        run: |
+          cp -R demos/airtable-gateway "$RUNNER_TEMP/airtable-client"
+          cd "$RUNNER_TEMP/airtable-client"
+          npm install --ignore-scripts --no-save --no-audit --no-fund "$GITHUB_WORKSPACE"/target/airtable-demo/auths-dev-sdk-*.tgz
+          npm run build
+          node --check web/app.js
+          npm run test:web
+      - name: Verify private live launcher boundaries
+        run: python demos/airtable-gateway/tests/test_launch.py
+      - name: Construct the source-free demo handoff
+        run: |
+          python demos/airtable-gateway/tools/package.py \
+            --gateway target/airtable-demo/auths-gateway \
+            --simulation-gateway target/airtable-demo/auths-gateway-simulation \
+            --wheel target/airtable-demo/auths-*.whl --npm target/airtable-demo/auths-dev-sdk-*.tgz \
+            --compiled-client "$RUNNER_TEMP/airtable-client/build/submit.mjs" \
+            --commit "$(git rev-parse HEAD)" --output target/airtable-demo/airtable-gateway-demo.tgz
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: airtable-gateway-demo-package
+          path: |
+            target/airtable-demo/airtable-gateway-demo.tgz
+            target/airtable-demo/airtable-gateway-demo.tgz.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  installed-demo:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # No checkout in this job: Docker receives only the reviewed handoff.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: airtable-gateway-demo-package
+          path: package
+      - name: Verify and install every handed-off payload
+        run: |
+          cd package
+          sha256sum -c airtable-gateway-demo.tgz.sha256
+          tar xzf airtable-gateway-demo.tgz
+          cd airtable-gateway-demo
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          manifest=json.loads(Path('manifest.json').read_text())
+          assert manifest['schema']=='auths.airtable-gateway-demo-package/1'
+          assert manifest['production_qualification'] is False
+          for item in manifest['files']:
+              assert hashlib.sha256(Path(item['path']).read_bytes()).hexdigest()==item['sha256']
+          assert not list(Path('.').rglob('*.rs'))
+          PY
+          docker build -t auths-airtable-gateway-demo .
+      - name: Measure the isolated native journey and audit
+        run: |
+          mkdir -p evidence
+          docker run --rm --init -v "$PWD/evidence:/evidence" auths-airtable-gateway-demo --selftest
+      - name: Inspect the actual browser workbench and evidence
+        run: |
+          docker run -d --init --name airtable-workbench -p 127.0.0.1:8081:8081 auths-airtable-gateway-demo
+          python3 -m pip install playwright==1.62.0
+          python3 -m playwright install --with-deps chromium
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:8081/api/status >/dev/null; then break; fi
+            sleep 1
+          done
+          sudo mkdir -p /evidence
+          sudo chmod 777 /evidence
+          python3 package/airtable-gateway-demo/tests/browser.py
+          cp /evidence/*.png evidence/
+      - name: Stop the packaged operator
+        if: always()
+        run: docker stop --time 30 airtable-workbench || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: airtable-gateway-demo-evidence
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 30

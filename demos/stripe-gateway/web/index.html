@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stripe · Auths gateway</title><link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script></head>
+<body><header><a href="/">AUTHS / STRIPE</a><span id="mode">Connecting</span></header>
+<main><p class="eyebrow">Exact authority. A separate execution boundary.</p>
+<h1>Let the app request a refund.<br>Keep the Stripe key out of its hands.</h1>
+<p class="intro">One platform-account test refund, sent by the general Auths gateway.
+The app supplies proof and the exact action. The gateway holds the credential.</p>
+<div id="connection" role="status">Checking the demo…</div>
+<section class="workbench"><article><h2>Approved authority</h2>
+<dl><dt>Platform</dt><dd id="platform">—</dd><dt>Per-action grant ceiling</dt><dd>$20.00</dd>
+<dt>Provider basis limit</dt><dd>50% of the selected payment</dd><dt>Default window</dt><dd>32 entries · $320.00 per currency · 1 day</dd>
+<dt>Native approval</dt><dd id="approval">—</dd>
+<dt>Trust expires</dt><dd id="expiry">—</dd><dt>Recipe</dt><dd id="recipe" class="digest">—</dd></dl>
+<p>Verification is followed by a durable claim and a private credential lease.
+A grant does not override a provider-read guard or another consumed operation.</p></article>
+<article><h2>Proposed action</h2><label for="experiment">Choose a closed experiment</label>
+<select id="experiment">
+<option value="exact">Exact refund · $10.00</option><option value="boundary">50% boundary · $10.00</option>
+<option value="above-boundary">50% boundary + 1¢</option><option value="above-grant">Grant ceiling + 1¢</option>
+<option value="wrong-currency">Wrong payment currency</option><option value="altered-action">Action swapped after signing</option>
+<option value="forged-proof">Altered proof bytes</option><option value="expired-action">Expired action</option>
+<option value="approval-insufficient">One approval against a 2-of-3 policy</option><option value="approval-duplicate">Same approver response twice</option>
+<option value="replay">Replay the exact refund</option><option value="fresh-replay">Same operation, fresh challenge</option>
+<option value="race">Two gateways race one operation</option><option value="lost-response">Lose response after delivery</option>
+<option value="count-positive">One-entry grant: first refund</option><option value="count-overflow">One-entry grant: second operation</option>
+<option value="sum-positive">$10 sum grant: exact refund</option><option value="sum-overflow">$10 sum grant: another 1¢</option>
+<option value="typescript">Replay through installed TypeScript client</option><option value="observe">Read the signed stored outcome</option>
+</select><p id="proposal">Each experiment fixes its payment, operation and signed arguments.</p>
+<p id="approval-review" class="small">The native review binds the exact action, authority and expiry.</p>
+<a id="provider-link" hidden target="_blank" rel="noopener noreferrer">Open on Stripe ↗</a>
+<button id="submit" disabled>Submit through the gateway</button>
+<p class="small">Each choice is a finite operation. Repeating it cannot create fresh authority.
+Run the exact refund before replay; run each budget positive before its overflow. The local simulator supplies signed responses only for this closed fixture; its UI state is never authority.</p></article></section>
+<section class="result" aria-live="polite"><div><p class="eyebrow">Measured native result</p><h2 id="outcome">No action submitted</h2></div>
+<ol class="stages"><li>Verify proof</li><li>Claim operation</li><li>Enter provider</li><li>Record response</li><li>Observe effect</li></ol>
+<p id="explanation">Authorization, a recorded HTTP response and observed success are separate facts.</p>
+<pre id="result-json">{}</pre><a href="/receipt" id="receipt-link">Inspect the evidence →</a></section>
+<section class="limits"><h2>What this run can establish</h2>
+<p id="limitations">This is a development demo, not protected production qualification.
+Simulation traffic never reaches Stripe. Live mode reaches only Stripe test mode.
+Neither mode proves real-money settlement, Connect isolation or exclusive causation.</p>
+<p>After a lost response without a stored refund locator, the outcome stays unknown.
+There is no automatic refund retry. Restart and credential rotation belong to the operator,
+who can diagnose the private gateway separately.</p></section></main>
+<footer>Data-only recipe · Installed public SDK · Credential-owning general gateway</footer></body></html>

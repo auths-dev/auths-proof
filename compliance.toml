@@ -2001,3 +2001,43 @@ security_state = []
 [packages."auths.dev/independent-verifier".claims]
 independent-semantic-implementation = ["bindings/independent/go/auths/api_test.go#TestSharedCorpusRunsInNativeGoTest"]
 language-binding = ["bindings/independent/go/auths/api_test.go#TestVerifyReturnsNativeAuthorizedResult"]
+
+[packages.auths-stripe-gateway-demo]
+kind = "npm"
+layer = "demos"
+path = "demos/stripe-gateway"
+core_apis = []
+protocol_versions = ["auths-proof/v1", "auths.gateway-submit/1", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/2"]
+wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle"]
+fixture_suites = ["demos/stripe-gateway", "qualification/simulation/live/stripe-platform"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/2", "stripe-platform-refund-v1"]
+transports = ["unix", "http-local-demo", "https-provider-test-mode"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history"]
+
+[packages.auths-stripe-gateway-demo.claims]
+demo-conformance-fixture = ["demos/stripe-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
+runtime-enforcement-boundary = ["demos/stripe-gateway/selftest.py#test_application_isolation_and_native_audit"]
+receipt-producer-consumer = ["demos/stripe-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
+
+[packages.auths-airtable-gateway-demo]
+kind = "npm"
+layer = "demos"
+path = "demos/airtable-gateway"
+core_apis = []
+protocol_versions = ["auths-proof/v1", "auths.gateway-submit/1", "auths.gateway-audit-bundle/2", "auths.gateway-recipe-source/2"]
+wire_objects = ["CanonicalAction", "ProofBundle", "SignedObservation", "GatewayAuditBundle"]
+fixture_suites = ["demos/airtable-gateway", "bindings/fixtures/gateway/airtable"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/2", "airtable-record-update-v1"]
+transports = ["unix", "http-local-demo", "https-provider-disposable-table"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "operator-issued-grants", "separate-trusted-context", "gateway-app-socket"]
+security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-owned-signing-key", "unsigned-demo-history"]
+
+[packages.auths-airtable-gateway-demo.claims]
+demo-conformance-fixture = ["demos/airtable-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
+runtime-enforcement-boundary = ["demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit"]
+receipt-producer-consumer = ["demos/airtable-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
