@@ -134,7 +134,28 @@ statements are unchanged. The hosted lint failure was reproduced on affected
 packages and fixed without weakening the gate; the exact pushed revision
 still requires authoritative hosted tests.
 
-An isolated action-decoder experiment with owned attachment state passes
-strict translation. Including the model constructors exposes iterator-based
-validation that still needs a source-compatible formalization. These
-experiments are outside the production qualification inventory.
+An isolated action-decoder experiment with owned attachment state now passes
+strict translation with the constructor bodies included. The candidate uses
+bounded byte validation for identifier control/whitespace rules and owned
+attachment transitions. Exhaustive native comparison covers every Unicode
+scalar and allowed-scalar concatenations. Constructor and object refinement
+proofs are still required; the experiment remains outside the production
+qualification inventory.
+
+## Verification checkpoint: 15 October 2026
+
+Hosted run `38808755694` passed repository preflight, generated-artifact
+freshness, fast Lean feedback, Kani, compliance, secret scanning, and the
+OpenTofu, PostgreSQL, and records API live jobs. The full authoritative job
+found a stale gateway semantic-closure fixture and an incorrect new test
+expectation: replay recovery may lease a credential for its read-only
+observation. The corrected test checks exactly one read and no provider
+writes; the focused file-store conformance case passes locally. The closure
+fixture was regenerated from its real production inputs.
+
+The dependency gate also reported four Rustls advisories fixed upstream in
+0.23.46. The workspace requirement and lockfile now select that release,
+without advisory exceptions. The patched closure passes local qualification
+construction: 342 audited claims, all ten qualification cases, and two
+byte-identical translations. The patched revision still needs hosted gates;
+none of these results completes an E1–E5 workstream.

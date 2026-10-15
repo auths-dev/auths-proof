@@ -2399,7 +2399,17 @@ async fn conformance_lost_acknowledgements(backend: Backend) {
         run(&reopened, &record.recipe, &record.observer, &retry).await,
         replay_refused()
     );
-    assert_eq!(retry.leases(), 0);
+    assert_eq!(
+        retry.leases(),
+        1,
+        "recovery may lease for its read-only observation"
+    );
+    assert_eq!(provider.reads(), 1);
+    assert_eq!(
+        provider.writes(),
+        0,
+        "lost acknowledgements cannot grant a write"
+    );
     raw.lose_sweep_ack.store(true, Ordering::SeqCst);
     tokio::task::spawn_blocking(move || {
         assert_eq!(
