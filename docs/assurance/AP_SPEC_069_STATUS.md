@@ -192,3 +192,16 @@ the five additions use only the existing foundational axiom allowlist. The
 hosted authoritative implementation job for the preceding `f97d7e7f` checkpoint
 passed, including the storage and deadline tests. This identifier checkpoint
 still requires its own hosted gates. No E1–E5 workstream is complete yet.
+
+The preceding hosted translation job found a seven/eight-character tool-version
+reporting mismatch in the two newly extracted crates. Normalization now derives
+every report path from the authoritative artifact mapping and records the full
+pinned commit; a regression test covers all nine reports and rejects an
+unrelated tool identity. This changes reporting, not the translated algorithm
+or accepted toolchain. Local qualification of this repair again passes all
+347 claims, ten cases, and byte-identical reproduction.
+
+The PostgreSQL fixture now creates its host output directory before Docker,
+preserving runner ownership of `target/`. Source qualification plans were
+regenerated with the current schema-7 store descriptor; all six focused plan
+and commissioning tests pass. Hosted backend qualification remains required.

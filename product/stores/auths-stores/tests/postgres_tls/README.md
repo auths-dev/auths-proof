@@ -7,6 +7,7 @@ across three independent store instances.
 Run from the repository root:
 
 ```text
+mkdir -p target/test-support/auths-stores/postgres-tls
 docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml up -d --wait
 AUTHS_POSTGRES_URL='host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require' \
 AUTHS_POSTGRES_CA_PEM="$PWD/target/test-support/auths-stores/postgres-tls/ca.crt" \
@@ -14,6 +15,9 @@ AUTHS_POSTGRES_SERVER_NAME=localhost \
 cargo test -p auths-stores --test postgres_lifecycle -- --ignored
 docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml down -v
 ```
+
+Create the host directory before Docker starts so the runner retains ownership
+of `target/` and can compile the test binaries.
 
 The certificates and database are disposable. The harness records no customer
 data, credentials, actions, or receipt payloads.

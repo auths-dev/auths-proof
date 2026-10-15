@@ -1,5 +1,5 @@
 {
-  "aeneas_version": "3a8586f",
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
   "charon_version": "0.1.225",
   "crate": "auths_codec",
   "functions": [
@@ -19,7 +19,13 @@
       "can_diverge": true,
       "is_rec": false,
       "reducible": false,
-      "loop": { "id": 0, "pos": [ 0 ], "is_body": true },
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
       "parent_lean_name": "auths_codec.cbor.read_tail"
     },
     {
@@ -38,7 +44,13 @@
       "can_diverge": true,
       "is_rec": false,
       "reducible": false,
-      "loop": { "id": 0, "pos": [ 0 ], "is_body": false },
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
       "parent_lean_name": "auths_codec.cbor.read_tail"
     },
     {
@@ -91,7 +103,13 @@
       "can_diverge": true,
       "is_rec": false,
       "reducible": false,
-      "loop": { "id": 0, "pos": [ 0 ], "is_body": true },
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
       "parent_lean_name": "auths_codec.cbor.append_tail"
     },
     {
@@ -110,7 +128,13 @@
       "can_diverge": true,
       "is_rec": false,
       "reducible": false,
-      "loop": { "id": 0, "pos": [ 0 ], "is_body": false },
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
       "parent_lean_name": "auths_codec.cbor.append_tail"
     },
     {

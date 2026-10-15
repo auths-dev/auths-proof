@@ -86,7 +86,7 @@ def generate(check=False):
         record = {'provider_kind': 'stripe' if stripe else 'airtable', 'validity_days': 30,
             'not_applicable': [{'capability': name, 'reason': reason} for name, reason in sorted(reasons.items())],
             'custody_descriptor': 'aws-secrets-manager-v1 with immutable versions and a customer-managed key',
-            'store_descriptor': 'postgresql-v1 schema 6 shared by two isolated gateway processes',
+            'store_descriptor': 'postgresql-v1 schema 7 shared by two isolated gateway processes',
             'residual_assumptions': assumptions,
             'excluded_claims': sorted(['Global exactly-once effects across other actors or deployments.',
                 'Provider availability, settlement, or indefinite retention.',

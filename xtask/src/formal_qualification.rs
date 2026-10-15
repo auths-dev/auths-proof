@@ -2224,19 +2224,11 @@ fn synchronize_aeneas_output(root: &Path, reproduced: &Path, update: bool) -> Re
 }
 
 fn canonicalize_aeneas_versions(reproduced: &Path, expected_commit: &str) -> Result<(), String> {
-    let expected_short = expected_commit;
-    for component in [
-        "model",
-        "algebra",
-        "authority",
-        "bounded_policy",
-        "lifecycle",
-        "gateway",
-        "connections",
-    ] {
-        let path = reproduced
-            .join(format!("{component}-run"))
-            .join("translation.json");
+    for &(source, _) in AENEAS_OUTPUT_MAPPINGS
+        .iter()
+        .filter(|(source, _)| source.ends_with("translation.json"))
+    {
+        let path = reproduced.join(source);
         let mut report: Value = serde_json::from_slice(
             &fs::read(&path)
                 .map_err(|error| format!("could not read {}: {error}", path.display()))?,
@@ -2253,12 +2245,12 @@ fn canonicalize_aeneas_versions(reproduced: &Path, expected_commit: &str) -> Res
                 path.display()
             )
         })?;
-        if !aeneas_version_matches(actual, expected_short) {
+        if !aeneas_version_matches(actual, expected_commit) {
             return Err(format!(
-                "Aeneas translation identity drifted for {component}: expected {expected_short}, found {actual}"
+                "Aeneas translation identity drifted for {source}: expected {expected_commit}, found {actual}"
             ));
         }
-        report["aeneas_version"] = Value::String(expected_short.to_owned());
+        report["aeneas_version"] = Value::String(expected_commit.to_owned());
         write_pretty_json(&path, &report)?;
     }
     Ok(())
@@ -2888,6 +2880,37 @@ def character := 's'
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn every_mapped_translation_report_uses_the_full_pinned_commit() {
+        let directory = tempfile::tempdir().expect("owned translation fixture");
+        let commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0";
+        let reports = AENEAS_OUTPUT_MAPPINGS
+            .iter()
+            .filter(|(source, _)| source.ends_with("translation.json"))
+            .map(|(source, _)| directory.path().join(source))
+            .collect::<Vec<_>>();
+        assert_eq!(reports.len(), EXPECTED_TRANSLATIONS.len());
+        for (index, path) in reports.iter().enumerate() {
+            fs::create_dir_all(path.parent().expect("report parent")).expect("fixture directory");
+            let abbreviation = &commit[..if index % 2 == 0 { 7 } else { 8 }];
+            write_pretty_json(
+                path,
+                &json!({"aeneas_version": abbreviation, "sentinel": 17}),
+            )
+            .expect("fixture report");
+        }
+        canonicalize_aeneas_versions(directory.path(), commit).expect("all report identities");
+        for path in &reports {
+            let report: Value = serde_json::from_slice(&fs::read(path).expect("report bytes"))
+                .expect("report JSON");
+            assert_eq!(report["aeneas_version"], commit);
+            assert_eq!(report["sentinel"], 17);
+        }
+        write_pretty_json(&reports[0], &json!({"aeneas_version": "0000000"}))
+            .expect("wrong identity");
+        assert!(canonicalize_aeneas_versions(directory.path(), commit).is_err());
     }
 
     #[test]

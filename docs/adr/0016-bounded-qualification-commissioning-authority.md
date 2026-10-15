@@ -147,7 +147,7 @@ completed production bootstrap.
 
 The accounting component reuses the existing bounded opaque record store's
 insert-once and compare-and-swap operations. `commissioning-budget` is a fifth,
-non-expiring record kind in PostgreSQL schema 6. Schema 5 is rejected; disposable
+non-expiring record kind in the current PostgreSQL schema 7. Older schemas are rejected; disposable
 prelaunch databases must be recreated, with no migration or compatibility
 reader. The existing lifecycle transition contract remains version 4 because
 its transition and receipt semantics are unchanged.
