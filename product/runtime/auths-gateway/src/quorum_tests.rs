@@ -451,7 +451,13 @@ async fn native_entry_horizon_uses_counted_approval_and_ignores_unlisted_approva
     let temp = tempfile::tempdir().expect("state");
     let harness = fresh_harness(temp.path());
     let io = crate::scenario_tests::TestIo::new(&harness.provider, verified).at_entry_time(NOW + 4);
-    let result = crate::submit::run(&harness.store, &harness.recipe, &harness.observer, &io).await;
+    let context = crate::submit::SubmitContext {
+        recipe: &harness.recipe,
+        attempts: &harness.store,
+        context: &harness.context,
+        observer: Some(&harness.observer),
+    };
+    let result = crate::submit::run(&context, &io).await;
     assert_eq!(
         result,
         crate::engine::not_entered("gateway.attempt.entry-deadline")

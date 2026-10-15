@@ -1,3 +1,4 @@
+import Auths.Codec.Encoder
 import Auths.Codec.Refinement
 
 open Aeneas Aeneas.Std Result
@@ -33,5 +34,29 @@ example : auths_codec.cbor.read_tail truncatedInput 1#usize 4#u8 0#u64
     obtain ⟨decoded, next⟩ := pair
     have := contract.1
     simp [truncatedInput] at this
+
+example : auths_codec.cbor.encode_head 8#u8 0#u64 = ok (core.result.Result.Err ()) := rfl
+
+private theorem encoding_case (major : Std.U8) (argument : Std.U64)
+    (expected : List Nat) (valid : major.val < 8)
+    (bytes : encodeHead ⟨major.val, argument.val⟩ = expected) :
+    auths_codec.cbor.encode_head major argument ⦃ result =>
+      ∃ output, result = .Ok output ∧ byteList output.val = expected ⦄ := by
+  apply spec_mono (Auths.Codec.Refinement.Encoder.encode_head_refines major argument)
+  intro result refines
+  cases result with
+  | Err =>
+    simp only [Auths.Codec.Refinement.Encoder.EncodingRefines] at refines
+    omega
+  | Ok output => exact ⟨output, rfl, refines.2.trans bytes⟩
+
+example : auths_codec.cbor.encode_head 0#u8 23#u64 ⦃ result =>
+    ∃ output, result = .Ok output ∧ byteList output.val = [23] ⦄ := by
+  apply encoding_case <;> decide
+
+example : auths_codec.cbor.encode_head 7#u8 18446744073709551615#u64 ⦃ result =>
+    ∃ output, result = .Ok output ∧
+      byteList output.val = [251, 255, 255, 255, 255, 255, 255, 255, 255] ⦄ := by
+  apply encoding_case <;> decide
 
 end qualification.aeneas.cases

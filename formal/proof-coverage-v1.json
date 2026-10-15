@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "20386546600f175da14d3af0fd155d6ea6f49cd44282ccda95195dc5c56fb720",
-  "inputs_sha256": "e0d51075eb46e40289b015363090a0cf66da31a32a2eceecda887b99f76bab48",
+  "inputs_sha256": "fa737aab6726308ecd3bddf097d1c95e364031f2fec11d34b07a6fd4c5cdefa1",
   "inputs": {
     "Cargo.toml": "sha256:6e0240aa432bcdb5b4f855618994582d2e428afe5ee4e4f6a3f8d21a518f8d24",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -60,7 +60,7 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:20386546600f175da14d3af0fd155d6ea6f49cd44282ccda95195dc5c56fb720",
-    "formal/lean-assurance-audit-v1.json": "sha256:07ecc3d6623f1ffa3256ae52ffb6eb8f8c06693370006f72d8d2212278d2dea6",
+    "formal/lean-assurance-audit-v1.json": "sha256:b4797c4637184fac89892b65d10e3727dc02deea349355939b961f1e6f67f967",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -71,8 +71,8 @@
     "formal/qualification/aeneas/generated/codec/translation.json": "sha256:376b8cdb24c289935a5e02f8bc45438780a76db672c095d86206272d4368a822",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
-    "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:fc7725a72670d98969ae2f6cddb47aca88c4f8e72333d3699dbaf8792fc4f489",
-    "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:47431ef5e1e7781d9fc442c6885130053351b122fc6fb7bd2ce707728635987b",
+    "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
+    "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:a9d551b89ca88ed72032d2e58f08d1106b83d77956d2677492452ad41312cb4a",
     "formal/qualification/aeneas/generated/lifecycle/Funs.lean": "sha256:817dcbb854a599fb14c89854d8023809a390f7a00e1cc70dbc7151d7b254649f",
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:d4d36b72718a4076b7c0561abfa2edc006a1f9a4491762979f86c3dd99a71fdc",
@@ -80,7 +80,7 @@
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:96dc13e36f9f3715b226f9194df90efcdfd2817f86b872f5b56c558cb6f3bb37",
     "formal/qualification/aeneas/qualification.toml": "sha256:d23297c3da8039028eaf681e4fc5767c2f5169bf949d6824e9675a94a0ee24f2",
-    "formal/theorem-kinds-v1.toml": "sha256:2bedd1d75a17c90f5a54e23916db49bf38700121a39d6f55fdf46dae3ec61d57",
+    "formal/theorem-kinds-v1.toml": "sha256:b39b6b06616b2663186cd720707902e56b6c4283b0ecccaef25c521b00a1f42e",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -95,7 +95,7 @@
     "product/runtime/auths-connections/src/model.rs": "sha256:de34a089cac9702acb889b7602b3e4732306c9e61029ec892582b7e02b73fc77",
     "product/runtime/auths-connections/src/registry.rs": "sha256:e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946",
     "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:e9d65744bae273d65face4285e5d2da75c06a92ab48f7b8333d496604e31c63c",
-    "product/runtime/auths-gateway-kernel/src/deadline.rs": "sha256:63243911770e5f34056522fb8ad01cc9b6d512e576d361d66de3007789ee281d",
+    "product/runtime/auths-gateway-kernel/src/deadline.rs": "sha256:25c96a7ef2427f54930e90cf739e6149dc21de9454f5d6d20984f0d5735cca19",
     "product/runtime/auths-gateway-kernel/src/lib.rs": "sha256:a9c572f38ad9922024d51514484f74e9b59fd440de05edc02126cf09cbf09fa6",
     "product/runtime/auths-gateway-kernel/src/order.rs": "sha256:e0045f877c4b7fe3860c291039853885064ddcdebba7c9b345ab65e81e646dda",
     "product/runtime/auths-gateway-kernel/src/outcome.rs": "sha256:e9785b1afe70788c89b51b18655bcd5acff7b0c8e3d12fb79c6f05a202e67e6b",
@@ -262,32 +262,32 @@
       "scope": "translated-crates",
       "minimum_code_lines": 0,
       "functions": 1501,
-      "span_lines": 16720,
-      "code_lines": 16667,
+      "span_lines": 16718,
+      "code_lines": 16665,
       "by_level": {
         "translated": {
           "functions": 218,
           "function_share": 0.1452,
-          "span_lines": 2625,
-          "span_line_share": 0.157,
-          "code_lines": 2614,
-          "code_line_share": 0.1568
+          "span_lines": 2623,
+          "span_line_share": 0.1569,
+          "code_lines": 2612,
+          "code_line_share": 0.1567
         },
         "direct": {
-          "functions": 76,
-          "function_share": 0.0506,
-          "span_lines": 1110,
-          "span_line_share": 0.0664,
-          "code_lines": 1099,
-          "code_line_share": 0.0659
+          "functions": 78,
+          "function_share": 0.052,
+          "span_lines": 1139,
+          "span_line_share": 0.0681,
+          "code_lines": 1128,
+          "code_line_share": 0.0677
         },
         "closure": {
-          "functions": 216,
-          "function_share": 0.1439,
-          "span_lines": 2594,
-          "span_line_share": 0.1551,
-          "code_lines": 2583,
-          "code_line_share": 0.155
+          "functions": 218,
+          "function_share": 0.1452,
+          "span_lines": 2623,
+          "span_line_share": 0.1569,
+          "code_lines": 2612,
+          "code_line_share": 0.1567
         }
       }
     },
@@ -307,20 +307,20 @@
           "code_line_share": 0.0697
         },
         "direct": {
-          "functions": 43,
-          "function_share": 0.0383,
-          "span_lines": 617,
-          "span_line_share": 0.0434,
-          "code_lines": 606,
-          "code_line_share": 0.0429
+          "functions": 45,
+          "function_share": 0.04,
+          "span_lines": 648,
+          "span_line_share": 0.0456,
+          "code_lines": 637,
+          "code_line_share": 0.045
         },
         "closure": {
-          "functions": 88,
-          "function_share": 0.0783,
-          "span_lines": 966,
-          "span_line_share": 0.068,
-          "code_lines": 955,
-          "code_line_share": 0.0675
+          "functions": 90,
+          "function_share": 0.0801,
+          "span_lines": 997,
+          "span_line_share": 0.0702,
+          "code_lines": 986,
+          "code_line_share": 0.0697
         }
       }
     },
@@ -572,10 +572,10 @@
     },
     "product/runtime/auths-gateway-kernel": {
       "decision_functions": 100,
-      "decision_code_lines": 1209,
+      "decision_code_lines": 1207,
       "translated": 97,
       "refined_closure": 97,
-      "refined_closure_code_lines": 1183
+      "refined_closure_code_lines": 1181
     },
     "product/runtime/auths-lifecycle": {
       "decision_functions": 138,
@@ -2928,30 +2928,13 @@
       }
     ]
   },
-  "translated_outside_closure": [
-    {
-      "rust_name": "auths_codec::cbor::append_tail",
-      "lean_name": "auths_codec.cbor.append_tail",
-      "file": "core/crates/auths-codec/src/cbor.rs",
-      "span": [
-        94,
-        100
-      ],
-      "decision_scope": false
-    },
-    {
-      "rust_name": "auths_codec::cbor::encode_head",
-      "lean_name": "auths_codec.cbor.encode_head",
-      "file": "core/crates/auths-codec/src/cbor.rs",
-      "span": [
-        107,
-        130
-      ],
-      "decision_scope": false
-    }
-  ],
+  "translated_outside_closure": [],
   "theorem_kinds": {
     "classified": {
+      "Auths.Codec.Refinement.Encoder.append_tail_exact": "partial",
+      "Auths.Codec.Refinement.Encoder.encode_head_byte_bound": "partial",
+      "Auths.Codec.Refinement.Encoder.encode_head_refines": "exact",
+      "Auths.Codec.Refinement.Encoder.encode_head_roundtrip": "partial",
       "Auths.Codec.Refinement.read_head_accepts_encoding": "partial",
       "Auths.Codec.Refinement.read_head_refines": "exact",
       "Auths.Codec.Refinement.read_tail_bounded": "exact",
@@ -3045,13 +3028,13 @@
       "loop": 96,
       "derived": 16
     },
-    "refined_direct": 76,
-    "refined_closure": 221,
-    "theorems_naming_translated_functions": 84
+    "refined_direct": 78,
+    "refined_closure": 223,
+    "theorems_naming_translated_functions": 88
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "33a3abdf4928ec58a29b662e750c9e5f26efea4a6c52c6b0476d8fe8b6559fa0",
+    "current_formal_inputs_sha256": "628dc6b650864be7b3b6314b9e3a67be4e94b4786e962e1e5c34d55fcb226cb3",
     "fresh": false,
     "campaigns": {
       "s1": {

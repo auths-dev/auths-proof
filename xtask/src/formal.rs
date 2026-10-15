@@ -360,6 +360,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
     let (formal_root, _) = prepare_formal_translation(false, false)?;
     for target in [
         "Auths.Codec.Refinement",
+        "Auths.Codec.Encoder",
         "Auths.Product.Refinement.CollectionFence",
         "Auths.Product.Refinement.EntryDeadline",
         "Auths.Refinement.Production",
@@ -2263,8 +2264,30 @@ fn codec_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMe
         "This claim covers only CBOR heads and unsigned argument bytes. Payloads, UTF-8 validation, protocol object schemas, constructors, complete-object canonical checks, allocation/work accounting, and the verifier are outside this theorem. It does not complete AP-SPEC-069 E1.",
     ];
     const HEAD: &str = "auths_codec::cbor::read_head";
+    const ENCODE: &str = "auths_codec::cbor::encode_head";
+    const APPEND: &str = "auths_codec::cbor::append_tail";
     const TAIL: &str = "auths_codec::cbor::read_tail";
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Codec.Refinement.Encoder.append_tail_exact" => (
+            "The mechanically translated shipping head-argument encoder appends exactly the independent big-endian digit sequence and terminates within its supplied capacity.",
+            &[APPEND],
+            "Every translated u64 value and initial byte vector, with width at most eight and initial length plus width within the platform vector bound.",
+        ),
+        "Auths.Codec.Refinement.Encoder.encode_head_refines" => (
+            "The mechanically translated shipping head encoder is total and exactly follows the independent shortest definite-head grammar, refusing invalid major tags.",
+            &[ENCODE, APPEND],
+            "Every u8 major tag and u64 argument; successful bytes agree with the independent grammar and failure occurs only for tags above seven.",
+        ),
+        "Auths.Codec.Refinement.Encoder.encode_head_byte_bound" => (
+            "Every successful mechanically translated shipping head encoding contains one through nine bytes.",
+            &[ENCODE, APPEND],
+            "Every u8 major tag and u64 argument. This bounds head output bytes, not the complete object's allocation/work or the physical allocator.",
+        ),
+        "Auths.Codec.Refinement.Encoder.encode_head_roundtrip" => (
+            "Every valid mechanically translated shipping head encoding is accepted by the mechanically translated shipping reader, recovering its exact major/argument and preserving arbitrary following bytes.",
+            &[ENCODE, APPEND, HEAD, TAIL],
+            "Major tags below eight, every u64 argument, and every bounded input slice/cursor containing the encoded bytes followed by the declared tail. This is head-codec completeness, not whole-object completeness.",
+        ),
         "Auths.Codec.Refinement.read_head_refines" => (
             "The mechanically translated shipping CBOR head reader is total and exactly agrees with the independent definite-head byte grammar on success and refusal; success advances one to nine bytes without exceeding the input.",
             &[HEAD, TAIL],

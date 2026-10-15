@@ -68,9 +68,9 @@ core/crates/auths-codec/src/bounded_policy.rs	94	96	3	bounded_policy_digest	core
 core/crates/auths-codec/src/bounded_policy.rs	103	105	3	bounded_policy_link	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/bounded_policy.rs	117	149	33	decode_bounded_policy_commitment	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/cbor.rs	36	58	23	read_tail	core/crates/auths-codec	decoding	0	0		1	1	1	1
-core/crates/auths-codec/src/cbor.rs	64	88	25	read_head	core/crates/auths-codec	decoding	0	0		1	1	1	2
-core/crates/auths-codec/src/cbor.rs	94	100	7	append_tail	core/crates/auths-codec	decoding	0	0		1	0	0	0
-core/crates/auths-codec/src/cbor.rs	107	130	24	encode_head	core/crates/auths-codec	decoding	0	0		1	0	0	0
+core/crates/auths-codec/src/cbor.rs	64	88	25	read_head	core/crates/auths-codec	decoding	0	0		1	1	1	3
+core/crates/auths-codec/src/cbor.rs	94	100	7	append_tail	core/crates/auths-codec	decoding	0	0		1	1	1	1
+core/crates/auths-codec/src/cbor.rs	107	130	24	encode_head	core/crates/auths-codec	decoding	0	0		1	1	1	3
 core/crates/auths-codec/src/cbor.rs	139	141	3	Decoder::new	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/cbor.rs	143	145	3	Decoder::position	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/cbor.rs	147	154	8	Decoder::head	core/crates/auths-codec	decoding	0	0		0	0	0	0
@@ -1426,8 +1426,8 @@ product/runtime/auths-gateway-kernel/src/construct.rs	780	804	25	build_body	prod
 product/runtime/auths-gateway-kernel/src/construct.rs	812	833	22	construct_write	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/construct.rs	840	852	13	construct_action_read	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/construct.rs	858	865	8	construct_credential_read	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
-product/runtime/auths-gateway-kernel/src/deadline.rs	15	26	12	intersect_entry_bounds	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
-product/runtime/auths-gateway-kernel/src/deadline.rs	31	33	3	entry_time_allows	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
+product/runtime/auths-gateway-kernel/src/deadline.rs	15	24	10	intersect_entry_bounds	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/deadline.rs	29	31	3	entry_time_allows	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
 product/runtime/auths-gateway-kernel/src/order.rs	387	393	7	start	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/order.rs	397	406	10	go	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
 product/runtime/auths-gateway-kernel/src/order.rs	410	412	3	stop	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0

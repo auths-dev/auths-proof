@@ -31,20 +31,18 @@ theorem translated_intersection_refines_model
     (left right : auths_gateway_kernel.deadline.EntryBound) :
     auths_gateway_kernel.deadline.intersect_entry_bounds left right
       ⦃ result => boundView result = meet (boundView left) (boundView right) ⦄ := by
-  unfold auths_gateway_kernel.deadline.intersect_entry_bounds
-  split <;> rename_i first
-  · simp [boundView, meet, UScalar.lt_equiv] at *
-    simp_all
-  · split <;> rename_i second
-    · simp [boundView, meet, UScalar.lt_equiv] at *
-      simp_all
-    · split <;> rename_i inclusive
-      · have notFirst : ¬ left.not_after.val < right.not_after.val := by simpa using first
-        have notSecond : ¬ right.not_after.val < left.not_after.val := by simpa using second
-        simp [boundView, meet, notFirst, notSecond, inclusive]
-      · have notFirst : ¬ left.not_after.val < right.not_after.val := by simpa using first
-        have notSecond : ¬ right.not_after.val < left.not_after.val := by simpa using second
-        simp [boundView, meet, notFirst, notSecond, inclusive]
+  simp only [auths_gateway_kernel.deadline.intersect_entry_bounds, lift, bind_tc_ok,
+    core.cmp.impls.OrdU64.cmp]
+  by_cases first : left.not_after.val < right.not_after.val
+  · have order := Nat.compare_eq_lt.mpr first
+    simp [order, boundView, meet, first]
+  · by_cases second : right.not_after.val < left.not_after.val
+    · have order := Nat.compare_eq_gt.mpr second
+      simp [order, boundView, meet, first, second]
+    · have equal : left.not_after.val = right.not_after.val := by omega
+      have order := Nat.compare_eq_eq.mpr equal
+      cases inclusive : left.inclusive <;>
+        simp [order, boundView, meet, first, second, inclusive]
 
 theorem translated_clock_rollback_refuses (evaluatedAt now : Std.U64)
     (bound : auths_gateway_kernel.deadline.EntryBound)

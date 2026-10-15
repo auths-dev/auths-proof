@@ -13,15 +13,13 @@ pub struct EntryBound {
 /// Intersects two upper endpoints without incrementing or overflowing time.
 #[must_use]
 pub fn intersect_entry_bounds(left: EntryBound, right: EntryBound) -> EntryBound {
-    if left.not_after < right.not_after {
-        left
-    } else if right.not_after < left.not_after {
-        right
-    } else {
-        EntryBound {
+    match left.not_after.cmp(&right.not_after) {
+        core::cmp::Ordering::Less => left,
+        core::cmp::Ordering::Greater => right,
+        core::cmp::Ordering::Equal => EntryBound {
             not_after: left.not_after,
             inclusive: left.inclusive && right.inclusive,
-        }
+        },
     }
 }
 

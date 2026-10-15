@@ -20,6 +20,7 @@ import Auths.Refinement.Approval
 import Auths.Observation
 import Auths.Approval
 import Auths.Codec.Refinement
+import Auths.Codec.Encoder
 import Auths.Product.Refinement.CollectionFence
 import Auths.Product.Refinement.EntryDeadline
 
@@ -27,6 +28,10 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Codec.Refinement.Encoder.append_tail_exact,
+    `Auths.Codec.Refinement.Encoder.encode_head_refines,
+    `Auths.Codec.Refinement.Encoder.encode_head_byte_bound,
+    `Auths.Codec.Refinement.Encoder.encode_head_roundtrip,
     `Auths.Product.EntryDeadline.permits_fold,
     `Auths.Product.EntryDeadline.exclusive_endpoint_refuses,
     `Auths.Product.EntryDeadline.inclusive_endpoint_admits,

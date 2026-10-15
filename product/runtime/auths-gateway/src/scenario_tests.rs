@@ -2569,7 +2569,7 @@ async fn conformance_shared_connection_record(backend: Backend) {
         );
         let wrong_kind = attempt_entry(key, b"claim");
         assert_eq!(
-            first.insert_all(&[wrong_kind.clone()]),
+            first.insert_all(std::slice::from_ref(&wrong_kind)),
             Ok(GatewayInsert::Exists { index: 0 })
         );
         assert_eq!(first.insert(&wrong_kind), Err(GatewayAttemptError::Replay));
@@ -2629,7 +2629,7 @@ fn file_store_refuses_lost_or_invalid_collection_state() {
             .expect("obsolete marker"),
             "oversized" => std::fs::write(&marker, [0_u8; 513]).expect("oversized marker"),
             "missing-lock" => {
-                std::fs::remove_file(root.join(".replace.lock")).expect("remove lock")
+                std::fs::remove_file(root.join(".replace.lock")).expect("remove lock");
             }
             _ => unreachable!("closed fault table"),
         }

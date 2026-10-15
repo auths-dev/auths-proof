@@ -8,7 +8,7 @@ shipping-source refinement and hosted evidence gates.
 | Milestone | State | Evidence / remaining work |
 | --- | --- | --- |
 | M0: claims and extraction slices | In progress | The shipping head reader now refines the independent grammar for every byte slice and cursor, including reserved tags and truncated arguments. Four audited claims, positive/refusal cases, and the codec extraction inventory are connected. Full protocol-object extraction and hosted qualification remain required. |
-| M1: complete codec | In progress | The object codecs now use the in-repository CBOR reader/encoder; the previous dependency is a test oracle. Differential hostile-input properties and existing corpus/fixture checks need hosted validation. Object/carrier, work/allocation bounds, and complete codec refinements remain required. |
+| M1: complete codec | In progress | Shipping head reading and writing refine the independent grammar, with a source-to-source head round trip and a one-to-nine-byte output bound. The object codecs use these primitives; the previous dependency is a test oracle. Object/carrier, work/allocation bounds, complete codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | Pending | E5.1–E5.4. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
@@ -27,8 +27,11 @@ success agrees with the independent grammar and advances one through nine
 bytes without exceeding the input. `read_tail_bounded` fixes both verdict and
 value for widths zero through eight. `read_head_accepts_encoding` supplies
 completeness on valid independent head encodings with arbitrary following
-bytes. The independent encoder's round trip does **not** yet establish a
-refinement of the Rust encoder.
+bytes. The shipping head encoder now also refines the independent grammar:
+it refuses invalid major tags, emits the shortest head for valid tags, and
+produces one through nine bytes. Its actual output round-trips through the
+shipping reader with arbitrary following bytes. These are head-codec claims;
+they do not yet establish a complete protocol-object codec.
 
 The qualification corpus includes an accepted unsigned head, a missing-byte
 refusal at an outlying cursor, and a truncated four-byte argument. The
@@ -114,3 +117,24 @@ byte-identical translations, ten qualification cases, and the compiled
 338-claim audit. The previous 332 statements are unchanged. The new claims
 use only the existing foundational axiom allowlist. Hosted end-to-end and
 backend evidence is still required for this revision.
+
+## Head-encoder slice
+
+The actual `encode_head` and bounded `append_tail` now refine the independent
+big-endian grammar. Invalid major tags receive a typed refusal, successful
+output has one through nine bytes, and every valid encoding round-trips
+through the actual head reader with arbitrary following bytes. Positive
+qualification cases cover the inline boundary and maximum u64 argument;
+an invalid major tag is refused. This does not prove complete-object
+canonicality or physical allocator behavior.
+
+Local qualification passed two byte-identical clean translations, ten
+qualification cases, and the compiled audit of 342 claims. Existing theorem
+statements are unchanged. The hosted lint failure was reproduced on affected
+packages and fixed without weakening the gate; the exact pushed revision
+still requires authoritative hosted tests.
+
+An isolated action-decoder experiment with owned attachment state passes
+strict translation. Including the model constructors exposes iterator-based
+validation that still needs a source-compatible formalization. These
+experiments are outside the production qualification inventory.

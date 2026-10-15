@@ -3,6 +3,50 @@
     {
       "axioms": [
         "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Encoder",
+      "name": "Auths.Codec.Refinement.Encoder.append_tail_exact",
+      "statement": "∀ (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) (value : Aeneas.Std.U64) (remaining : Aeneas.Std.U8),\n  ↑remaining ≤ 8 →\n    (↑output).length + ↑remaining ≤ Aeneas.Std.Usize.max →\n      Aeneas.Std.WP.spec (auths_codec.cbor.append_tail output value remaining) fun encoded =>\n        Auths.Codec.Refinement.byteList ↑encoded =\n          Auths.Codec.Refinement.byteList ↑output ++ Auths.Codec.bigEndian ↑remaining ↑value"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Encoder",
+      "name": "Auths.Codec.Refinement.Encoder.encode_head_refines",
+      "statement": "∀ (major : Aeneas.Std.U8) (argument : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_codec.cbor.encode_head major argument) fun result =>\n    Auths.Codec.Refinement.Encoder.EncodingRefines major argument result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Encoder",
+      "name": "Auths.Codec.Refinement.Encoder.encode_head_byte_bound",
+      "statement": "∀ (major : Aeneas.Std.U8) (argument : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_codec.cbor.encode_head major argument) fun result =>\n    match result with\n    | Aeneas.Std.core.result.Result.Err a => 7 < ↑major\n    | Aeneas.Std.core.result.Result.Ok output => 1 ≤ (↑output).length ∧ (↑output).length ≤ 9"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Encoder",
+      "name": "Auths.Codec.Refinement.Encoder.encode_head_roundtrip",
+      "statement": "∀ (major : Aeneas.Std.U8) (argument : Aeneas.Std.U64),\n  ↑major < 8 →\n    Aeneas.Std.WP.spec (auths_codec.cbor.encode_head major argument) fun result =>\n      ∃ output,\n        result = Aeneas.Std.core.result.Result.Ok output ∧\n          ∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (position : Aeneas.Std.Usize) (tail : List ℕ),\n            List.drop (↑position) (Auths.Codec.Refinement.byteList ↑input) =\n                Auths.Codec.Refinement.byteList ↑output ++ tail →\n              Aeneas.Std.WP.spec (auths_codec.cbor.read_head input position) fun decoded =>\n                ∃ head,\n                  decoded = Aeneas.Std.core.result.Result.Ok head ∧\n                    Auths.Codec.Refinement.headView head = { major := ↑major, argument := ↑argument } ∧\n                      List.drop (↑head.next) (Auths.Codec.Refinement.byteList ↑input) = tail ∧\n                        ↑head.next ≤ (↑input).length"
+    },
+    {
+      "axioms": [
+        "propext",
         "Quot.sound"
       ],
       "kind": "theorem",

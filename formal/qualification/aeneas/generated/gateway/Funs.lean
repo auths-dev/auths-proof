@@ -1287,24 +1287,23 @@ def construct.construct_credential_read
     }
 
 /-- [auths_gateway_kernel::deadline::intersect_entry_bounds]:
-    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 15:0-26:1
+    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 15:0-24:1
     Visibility: public -/
 def deadline.intersect_entry_bounds
   (left : deadline.EntryBound) (right : deadline.EntryBound) :
   Result deadline.EntryBound
   := do
-  if left.not_after < right.not_after
-  then ok left
-  else
-    if right.not_after < left.not_after
-    then ok right
-    else
-      if left.inclusive
-      then ok { left with inclusive := right.inclusive }
-      else ok left
+  let o ← lift (core.cmp.impls.OrdU64.cmp left.not_after right.not_after)
+  match o with
+  | Ordering.lt => ok left
+  | Ordering.eq =>
+    if left.inclusive
+    then ok { left with inclusive := right.inclusive }
+    else ok left
+  | Ordering.gt => ok right
 
 /-- [auths_gateway_kernel::deadline::entry_time_allows]:
-    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 31:0-33:1
+    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 29:0-31:1
     Visibility: public -/
 def deadline.entry_time_allows
   (evaluated_at : Std.U64) (now : Std.U64) (bound : deadline.EntryBound) :

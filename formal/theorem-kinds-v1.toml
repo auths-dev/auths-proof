@@ -12,6 +12,10 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Codec.Refinement.Encoder.append_tail_exact" = "partial"
+"Auths.Codec.Refinement.Encoder.encode_head_refines" = "exact"
+"Auths.Codec.Refinement.Encoder.encode_head_byte_bound" = "partial"
+"Auths.Codec.Refinement.Encoder.encode_head_roundtrip" = "partial"
 "Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model" = "exact"
 "Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model" = "exact"
 "Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses" = "partial"
