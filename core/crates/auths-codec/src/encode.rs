@@ -1,5 +1,6 @@
 //! Deterministic target V1 encoders.
 
+use crate::cbor::Encoder;
 use crate::{
     CodecError,
     hash::{grant_id, grant_status_id, principal_status_id},
@@ -17,14 +18,13 @@ use auths_model::{
     StatusPolicy, StatusScope, StatusTrustRule, TrustAnchor, TrustedContext, VerificationCode,
     VerificationDecision, VerificationResources, VerificationStage, VerifierLimits,
 };
-use minicbor::Encoder;
 
-pub(crate) type V1Encoder = Encoder<Vec<u8>>;
+pub(crate) type V1Encoder = Encoder;
 
 /// Shape version of the canonical portable verification result.
 pub const PORTABLE_RESULT_ABI_VERSION: u16 = 4;
 
-pub(crate) fn encode_error<T>(_error: minicbor::encode::Error<T>) -> CodecError {
+pub(crate) fn encode_error(_error: crate::cbor::Error) -> CodecError {
     CodecError::Malformed
 }
 

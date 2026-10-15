@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5",
-  "inputs_sha256": "56f5f8df74c31a2554725ec967451d36bfa6e7c4a49004b3c83bb5cd32c35f52",
+  "scope_definition_sha256": "4f55a496933947fbed68651c6b6bba80fece3d140546db0e99bd3b733fc72e5f",
+  "inputs_sha256": "7821afb97eb9024aad77e7894a976db31c8a1a3036e6ff2b0b248359d1061dc4",
   "inputs": {
     "Cargo.toml": "sha256:6e0240aa432bcdb5b4f855618994582d2e428afe5ee4e4f6a3f8d21a518f8d24",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -26,15 +26,16 @@
     "core/crates/auths-assurance/src/lib.rs": "sha256:0fb2ec844d674b25a9e20b1601452c89c2454901fa506adfa9bb38ef9a7fa213",
     "core/crates/auths-authority/Cargo.toml": "sha256:4f68212938029f79ebd857b4f3038494eb85d0163d49f07e51376715cf959815",
     "core/crates/auths-authority/src/lib.rs": "sha256:da88d5194de4e17449e69972c0fb042afa3c39798a8f570f30771e77c384f1eb",
-    "core/crates/auths-codec/Cargo.toml": "sha256:e20e51826e17814effd9d8925d18d5fbdd6c0d37bf50231e743ec2611314722c",
-    "core/crates/auths-codec/src/approval.rs": "sha256:fbff43bf4d57f69f8b7738a8647751cde75c5a932dee65d924a1fe9c7202f91f",
-    "core/crates/auths-codec/src/bounded_policy.rs": "sha256:d21f6728be2d8a04b6d94921f2b683f7e61cbb42e0ac6866f1c88a49caa534c3",
-    "core/crates/auths-codec/src/decode.rs": "sha256:ba2999584cdf53b1b517ecb9c7ea50d39efee17c666a9a38e2ad1ac94379f778",
-    "core/crates/auths-codec/src/encode.rs": "sha256:8491192053e2e15d62b4d2a491de22405b7487ead69ab6f6bca40669ce7ca5f7",
+    "core/crates/auths-codec/Cargo.toml": "sha256:b164e44179704bcb76d32f7e25281ed17f738e434290997e979739ebe49b4f77",
+    "core/crates/auths-codec/src/approval.rs": "sha256:34427b5bfee35a943d3a36cc027aa4ef33cb377d2930981ac5f4dbdf3b0a5a0e",
+    "core/crates/auths-codec/src/bounded_policy.rs": "sha256:7d16ad97aac76725e7360fc3d62de47820aed9ce4c68c4f02d0608e991c94b71",
+    "core/crates/auths-codec/src/cbor.rs": "sha256:65bf6824156d1b080c1328019397ee3c8e7927f6245f63570c2027354a559330",
+    "core/crates/auths-codec/src/decode.rs": "sha256:af17c02b0ee459f63baaf189ae6d7a5d77d45f36045f6a4d2a287c9619b08b33",
+    "core/crates/auths-codec/src/encode.rs": "sha256:c91c1c3f1fd34bbc60cfcc0e4bdfe7b0324fab40b20173d9cf9ffdd1381be2ed",
     "core/crates/auths-codec/src/error.rs": "sha256:fecb0737c16deb42d859f1dc7727c698438d9ac12064fd99e0024629642c390c",
     "core/crates/auths-codec/src/hash.rs": "sha256:f88e111f1dbb2cef6b7b5e9c948cb45ff92e366710c8a5f5c636138aa748479e",
-    "core/crates/auths-codec/src/lib.rs": "sha256:3b0e5c94c6f34f750b88a9333e1d5c8145746d845d3a23e0d2f61807cf592ea7",
-    "core/crates/auths-codec/src/observation.rs": "sha256:38328b0c71ff97a4196eeade8b4faa889527ff1f80bb168468bcd49082a3987e",
+    "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
+    "core/crates/auths-codec/src/observation.rs": "sha256:fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149",
     "core/crates/auths-composition/Cargo.toml": "sha256:331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
     "core/crates/auths-composition/src/lib.rs": "sha256:e42e3b0b6a9985b73c533aeb23799c638979aa27a9ce7d0f10a8d60340570fb1",
     "core/crates/auths-model/Cargo.toml": "sha256:565c15302b0cc9270db1e28efa3862804846850ba933cc17aea8abcec4a65987",
@@ -54,11 +55,11 @@
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
     "core/crates/auths-verifier/src/approval.rs": "sha256:c3cae6a49e169051eb555bb092b1069a4d422516d6a2114623a89e5f31ff923f",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
-    "core/crates/auths-verifier/src/lib.rs": "sha256:f22dec38dfa47ced8da4f605390da8453273bee1da010f57fd1fdfcb10e0b389",
+    "core/crates/auths-verifier/src/lib.rs": "sha256:6e921b2a1df23f4662a2f8ab3d89333766cc80bf5b262a2051a8de2eb1b8e3ba",
     "core/crates/auths-verifier/src/observation.rs": "sha256:0bb07f06a0f9524c88427df1c972b1de8ba038a9eeeb15d3134c25125ae84b1e",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
-    "formal/coverage-scope-v1.toml": "sha256:053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5",
+    "formal/coverage-scope-v1.toml": "sha256:4f55a496933947fbed68651c6b6bba80fece3d140546db0e99bd3b733fc72e5f",
     "formal/lean-assurance-audit-v1.json": "sha256:adbc3882efd275e821ae5fb5da68107d44915cb9205dbdc57681d4493e8b85ee",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
@@ -158,6 +159,7 @@
     "non_decision_files": {
       "core/crates/auths-codec/src/approval.rs": "decoding",
       "core/crates/auths-codec/src/bounded_policy.rs": "decoding",
+      "core/crates/auths-codec/src/cbor.rs": "decoding",
       "core/crates/auths-codec/src/decode.rs": "decoding",
       "core/crates/auths-codec/src/encode.rs": "decoding",
       "core/crates/auths-codec/src/error.rs": "decoding",
@@ -278,33 +280,33 @@
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1083,
-      "span_lines": 13828,
-      "code_lines": 13762,
+      "functions": 1117,
+      "span_lines": 14033,
+      "code_lines": 13967,
       "by_level": {
         "translated": {
           "functions": 86,
-          "function_share": 0.0794,
+          "function_share": 0.077,
           "span_lines": 918,
-          "span_line_share": 0.0664,
+          "span_line_share": 0.0654,
           "code_lines": 907,
-          "code_line_share": 0.0659
+          "code_line_share": 0.0649
         },
         "direct": {
           "functions": 41,
-          "function_share": 0.0379,
+          "function_share": 0.0367,
           "span_lines": 569,
-          "span_line_share": 0.0411,
+          "span_line_share": 0.0405,
           "code_lines": 558,
-          "code_line_share": 0.0405
+          "code_line_share": 0.04
         },
         "closure": {
           "functions": 86,
-          "function_share": 0.0794,
+          "function_share": 0.077,
           "span_lines": 918,
-          "span_line_share": 0.0664,
+          "span_line_share": 0.0654,
           "code_lines": 907,
-          "code_line_share": 0.0659
+          "code_line_share": 0.0649
         }
       }
     },
@@ -2998,7 +3000,7 @@
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "f250c011aa84a978f1f65e91ead3ed8aee7e3b6502e7d80868a583381df305db",
+    "current_formal_inputs_sha256": "6c3a8811f0f07f40e8727b4d2096a0819bc3016468b79b91e74d7072fff4f5ac",
     "fresh": false,
     "campaigns": {
       "s1": {

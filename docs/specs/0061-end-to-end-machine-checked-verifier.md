@@ -20,6 +20,12 @@
   landed, and its predicates are already translated (§6).
 - **Followed by:** the reference-monitor theorem (board §3), which needs this
   spec's end-to-end statement as its verifier premise.
+- **Coordination:** [AP-SPEC-069](0069-authorization-to-execution-formal-assurance.md)
+  specifies the five authorization-to-execution assurance extensions. This
+  spec owns the codec, crypto integration, and core-verifier implementation
+  route; 069 adds their joint acceptance criteria and the gateway/history
+  composition. Its §1.2 clarifies how pending obligations and primitive
+  contracts are represented without weakening the current assurance audit.
 - **Scope:** extend the machine-checked surface from the authority algebra and
   rich authority predicates to the whole path
   `verify_v1(proof_cbor, action_cbor, context_cbor) → result_cbor`. That
@@ -71,7 +77,8 @@ Each phase has its own permitted claim sentence (§5).
 - the link from those specifications to executable code (§3.2):
   - under the linked-implementation reading, HACL*'s F* proofs, the
     unverified translation of that code to Rust, and libcrux's edits to it;
-  - under the fallback, a specification axiom over the current libraries;
+  - under the current-library route, explicit implementation-meets-spec
+    premises over those libraries;
 - the premises of adapters outside the proved set (§4).
 
 **Never claimed:**
@@ -135,8 +142,9 @@ accepted.
 ### 3.2 Hashing and signatures
 
 Proving elliptic-curve implementations in Lean from scratch is out of scope.
-The link from the Lean specifications to executable code is one of two
-readings. The owner decides between them when phase 2 starts (§8).
+The link from the Lean specifications to executable code has two readings.
+AP-SPEC-069 §8 fixes (c) for the initial implementation; switching to (b)
+requires a later dependency/evidence review (§8).
 
 - **(b) Linked verified implementation.**
   - **What:** `libcrux-ed25519`, `libcrux-ecdsa` (P-256) and `libcrux-sha2`,
@@ -152,21 +160,23 @@ readings. The owner decides between them when phase 2 starts (§8).
   - **Blocker:** `cargo deny` fails on RUSTSEC-2026-0173 through `hax-lib`. So
     (b) requires either an owner-reviewed advisory exception or an upstream
     release without that dependency.
-- **(c) Specification axiom** over `ed25519-dalek`, `p256` and `sha2`, with the
+- **(c) Specification premises** over `ed25519-dalek`, `p256` and `sha2`, with the
   smaller claim sentence. It is a smaller claim, not a skipped phase.
 
-Under either reading, the link is a named, reviewed axiom per primitive:
+Under either reading, the link is a named, reviewed implementation-meets-spec
+contract per primitive. As fixed by AP-SPEC-069 §1.2 and §8, represent these
+contracts as explicit theorem premises, not new global Lean axioms:
 
 ```text
-axiom ed25519_impl_meets_spec :
+Ed25519ImplMeetsSpec :=
   ∀ pk msg sig, impl_verify pk msg sig = true ↔ Ed25519.Spec.verify pk msg sig
 ```
 
-There is one of these for Ed25519, one for P-256 ECDSA, and one for SHA-256.
-The P-256 axiom states ECDSA as specified, which allows any s ∈ [1, n−1]; the
-low-S rule is part of the glue.
+There is one of these premises for Ed25519, one for P-256 ECDSA, and one for
+SHA-256. The P-256 contract states ECDSA as specified, which allows any
+s ∈ [1, n−1]; the low-S rule is part of the glue.
 
-**Suite glue.** The axioms cover only the primitive. The glue around them MUST
+**Suite glue.** The premises cover only the primitive. The glue around them MUST
 be extracted and proved under either reading:
 
 1. **Ed25519 key.**
@@ -179,7 +189,8 @@ be extracted and proved under either reading:
    - Exactly 64 bytes.
    - R is not a small-order encoding.
 
-   S < L and the cofactorless verification equation sit inside the axiom.
+   S < L and the cofactorless verification equation sit inside the primitive
+   contract.
 2. **P-256 key.**
    - Exactly 33 bytes, with prefix `0x02` or `0x03`.
    - Decoded by the verified `compressed_to_coordinates` under (b), or after
@@ -200,7 +211,7 @@ a non-canonical key, the result class changes from a verification failure to
 `InvalidKey`. That change MUST land in phase 2 with corpus vectors, and with
 the Go and TypeScript verifiers agreeing. Rule 2 is the registry's key rule.
 The Go and TypeScript verifiers enforce it, and Rust enforces it after the
-P-256 key-encoding change (PR #176). Under (c), the axioms
+P-256 key-encoding change (PR #176). Under (c), the primitive contracts
 are true only once these rules hold, because RFC 8032 decoding and the
 registry reject inputs that the current libraries accept.
 
@@ -237,7 +248,7 @@ went through six layers).
   declared work bound" is a theorem about that counter, because the
   translation cannot supply fuel.
 - **The P-256 primitive** stays opaque (Charon overflows its stack on it) and
-  is covered by §3.2's axiom.
+  is covered by §3.2's explicit primitive premise.
 
 ### 3.4 Extraction rules
 
@@ -276,15 +287,23 @@ relying party can therefore tell a fully proved decision from one that crossed
 a tested boundary. The result MUST carry a boolean `proved_configuration`, set
 when every executed handler is in the proved set.
 
+The in-scope stages also include AP-SPEC-065's native K-of-N approvals and
+grant-carried approval requirements, AP-SPEC-060's observation-requirement
+laws, and AP-SPEC-064's status issuer scope. Their existing pure refinements
+must join the complete verifier theorem; cryptographic/status checks and
+stage orchestration cannot remain assumed while claiming that stage is
+proved. Product-layer bounded-policy admission and persistent replay remain
+outside this offline verifier and are composed under AP-SPEC-069.
+
 ## 5. Phases, gates, and permitted claims
 
 Sizes are at agent speed, from research 0001 and 0002.
 
 | Phase | Work | Size | Claim permitted after its gate is green |
 | --- | --- | --- | --- |
-| 0 | Fix the Lean statement of the target theorem, the codec model, and the axiom list. Add them to `assurance-manifest-v1.toml` as open claims. | 2–3 days | None; the statement is public |
+| 0 | Fix the Lean statement of the target theorem, the codec model, and the explicit assumption list. Keep unproved obligations in AP-SPEC-069; add assurance-manifest entries only as audited theorems land. The current manifest has no `open` status. | 2–3 days | None; the statement is public |
 | 1 | Extractable canonical codec under §3.4, with §3.1's three theorems; cutover; corpus and fuzz parity | 2–3 weeks | "Canonical decoding is machine-checked to be total, bounded, and unique." |
-| 2 | Decide §3.2's reading; extract and prove the suite glue; tighten Ed25519 key validation with vectors; add P-256 corpus vectors; prove domain-separated preimage construction | 1–2 weeks | (b): "Signature checks are proved against the RFC 8032, FIPS 186-5 and FIPS 180-4 specifications, assuming the pinned libcrux Ed25519, P-256 ECDSA and SHA-256 code meets them; that code is verified in F* (HACL*) and translated to Rust by an unverified compiler." (c): "Signature checks are proved against the RFC 8032, FIPS 186-5 and FIPS 180-4 specifications, assuming a specification axiom that `ed25519-dalek`, `p256` and `sha2` implement them; those libraries are tested, not verified." |
+| 2 | Use §3.2's initial current-library route; extract and prove the suite glue; tighten Ed25519 key validation with vectors; add P-256 corpus vectors; prove domain-separated preimage construction | 1–2 weeks | (b), after separate review: "Signature checks are proved against the RFC 8032, FIPS 186-5 and FIPS 180-4 specifications, assuming the pinned libcrux Ed25519, P-256 ECDSA and SHA-256 code meets them; that code is verified in F* (HACL*) and translated to Rust by an unverified compiler." Initial (c): "Signature checks are proved against the RFC 8032, FIPS 186-5 and FIPS 180-4 specifications, under explicit premises that `ed25519-dalek`, `p256` and `sha2` implement them; those libraries are tested, not verified." |
 | 3 | §3.4 refactor of the staged verifier and the §4 adapter set, as gated per-stage slices; closed-enum entry point; work counter and bound | 4–7 weeks | "For the proved configuration, `verify_v1` is machine-checked end to end against the rich authority model, assuming the published trusted computing base." |
 | 4 | AP-SPEC-060's translated observation predicates join the end-to-end statement; `proved_configuration` in results and all bindings | 2–3 days | Same, with observation requirements included |
 
@@ -330,7 +349,7 @@ Each phase gate requires all of the following:
 
 | Sentence | Readings | Pick |
 | --- | --- | --- |
-| Board: "with verified crypto" | (a) prove curve arithmetic in Lean; (b) link a verified implementation by a named axiom; (c) axiomatize the spec over the current libraries | (b) if the owner approves the RUSTSEC-2026-0173 exception when phase 2 starts; otherwise (c). PROVISIONAL default: (c), the narrower reading, with no new dependency and a smaller claim. Both need §3.2's glue. |
+| Board: "with verified crypto" | (a) prove curve arithmetic in Lean; (b) link a verified implementation by explicit premises; (c) explicit specification premises over the current libraries | Initial route (c), fixed by AP-SPEC-069: no new dependency or advisory exception, with the narrower conditional claim. Route (b) requires a later dependency/evidence review. Both need §3.2's glue. |
 | Board: "End-to-end" | (a) every adapter; (b) a stated proved configuration | (b), with `proved_configuration` in results (§4) |
 | Board: "After 059/060" | (a) do not start until both land; (b) start phases 0–1, which touch neither | (b). This is now moot: both have landed. |
 

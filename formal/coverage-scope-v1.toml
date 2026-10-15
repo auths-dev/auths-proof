@@ -55,6 +55,7 @@ crates = []
 "core/crates/auths-authority/src/lib.rs" = "decision"
 "core/crates/auths-codec/src/approval.rs" = "decoding"
 "core/crates/auths-codec/src/bounded_policy.rs" = "decoding"
+"core/crates/auths-codec/src/cbor.rs" = "decoding"
 "core/crates/auths-codec/src/decode.rs" = "decoding"
 "core/crates/auths-codec/src/encode.rs" = "decoding"
 "core/crates/auths-codec/src/error.rs" = "decoding"

@@ -1248,8 +1248,8 @@ fn verify_portable_sealed(
 /// Unwraps the canonical encoding, or digest, of an already constructed model
 /// value.
 fn infallible_encoding<T>(encoded: Result<T, CodecError>) -> T {
-    // INVARIANT: the V1 encoders write into a `Vec`, whose minicbor writer
-    // cannot fail, and frame only lengths that fit in `u64`, so no
+    // INVARIANT: the V1 encoders write valid major tags into a `Vec` and
+    // frame only lengths that fit in `u64`, so no
     // constructed model value makes them return `Err`.
     encoded.expect("canonical V1 encoding of a constructed model value cannot fail")
 }

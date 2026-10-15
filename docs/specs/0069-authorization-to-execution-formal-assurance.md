@@ -1,0 +1,753 @@
+# AP-SPEC-069: Formal assurance from authorization to execution
+
+- **Status:** Draft, 15 October 2026. This document specifies work; it does not
+  add a proved claim or change the status of an existing qualification.
+- **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
+- **Purpose:** strengthen the claim that a person or agent can perform useful,
+  narrowly authorized work without receiving the provider credential. Cover
+  the five remaining assurance boundaries identified in the source review:
+  canonical decoding, complete verification, authorized request construction,
+  concurrent durable admission, and cryptographic integration.
+- **Depends on:** [AP-SPEC-011](0011-rich-authority-refinement-and-bounded-authorization.md),
+  [ADR 0011](../adr/0011-rich-authority-rust-lean-link.md),
+  [AP-SPEC-026](0026-reservation-and-execution-state-semantics.md),
+  [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md),
+  [AP-SPEC-060](0060-evidence-conditioned-authority.md),
+  [AP-SPEC-061](0061-end-to-end-machine-checked-verifier.md),
+  [AP-SPEC-063](0063-generalized-gateway.md),
+  [AP-SPEC-064](0064-status-issuer-scope.md),
+  [AP-SPEC-065](0065-native-k-of-n-approvals.md), and
+  [AP-SPEC-066](0066-production-gateway-polish-and-recipe-qualification.md).
+- **Governing boundary:** [profile and domain abstraction plan](../target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md).
+  Provider writes remain data-only recipes in the generic gateway. Core stays
+  offline, deterministic, bounded, and independent of credentials and stores.
+- **Normative language:** **MUST**, **MUST NOT**, **SHOULD**, and **MAY** specify
+  implementation requirements.
+
+## 1. Decision and intended behavior
+
+The product promise is limited authority with enforceable consequences. A
+worker may possess an Auths signing key and delegated permission, yet must be
+unable to turn an approval for one action into a different provider request,
+use retries to obtain another execution, exceed a shared allowance through
+delegates, or interpret an ambiguous response as fresh permission.
+
+For example, an approval to attach an existing payment to a named invoice
+must bind the exact payment, invoice, operator namespace, logical operation,
+recipe, and any required case commitment. The gateway must derive its request
+from that action. The business fact that those objects belong together is
+owned by the profile, recipe author, and approval policy; a hash of a case
+version alone does not establish that fact.
+
+If the intended business invariant must hold when the provider mutates state,
+the integration needs a qualified provider-supported conditional write or
+reservation with that meaning. A signed snapshot or a fresh pre-entry read
+cannot prove that another writer did not change state in the interval.
+
+This program strengthens five links in one chain:
+
+```text
+ operator-owned trust / registry / recipe / connection
+                |                         |
+ untrusted proof + action bytes            |
+                |                         |
+       [E1 canonical decoding]             |
+                |                         |
+       [E5 exact signature boundary]       |
+                |                         |
+       [E2 complete verification]          |
+                | sealed verified action  |
+       [E3 checked mapping + driver] <-----+
+                | exact request / operation / counters
+       [E4 atomic claim + durable state]
+                | entry checks + sealed credential lease
+       [one bounded transport invocation] ------> provider
+                |                                   |
+       [recorded outcome / signed evidence] <--------+
+```
+
+The five workstreams are assurance extensions to existing mechanisms. They
+are not a replacement gateway, a new policy language, or a second verifier.
+
+### 1.1 Existing evidence and remaining boundaries
+
+The baseline is the checked-in assurance evidence, not an inference that
+production qualification is unfinished. Recipe/provider qualification and
+software proof coverage answer different questions and retain their own
+exact-artifact gates.
+
+| Boundary | Already present | Extension required here |
+| --- | --- | --- |
+| Authority | Rich authority, attenuation, approval/observation predicates, and selected shipping-Rust refinements | Compose these results with the actual verifier stages and registered handlers |
+| Codec | Canonical re-encoding checks, bounded constructors, corpus, and fuzzing | Prove decoding/encoding and their connection to constructor-valid carriers |
+| Requests | `RequestConstruction` theorems and translated construction leaves | Prove source validation/lowering, verified argument projection, and the driver/transport handoff |
+| Execution | `SubmitOrder.at_most_one_send`, recovery transitions, aggregate count/sum bounds, and store conformance | Prove their composition across concurrent submissions and durable storage transitions |
+| Connections | Credential-generation and revocation model/refinement theorems | Connect those checks to the execution trace and state precisely when an administrative change takes effect |
+| Cryptography | Central signature primitives and protocol preimage construction | Prove the surrounding encoding, selection, and message-binding logic under explicit primitive contracts |
+
+Sources: [formal README](../../formal/README.md),
+[assurance manifest](../../formal/assurance-manifest-v1.toml),
+[coverage report](../assurance/PROOF_COVERAGE.md), and
+[translation qualification](../../formal/qualification/aeneas/qualification.toml).
+The coverage report's `decision` denominator excludes codec/crypto roles and
+does not describe the whole gateway. A percentage increase alone is not a
+completion criterion.
+
+### 1.2 Relationship to AP-SPEC-061
+
+AP-SPEC-061 owns the implementation route for E1, E5, and the core portion of
+E2. This document coordinates their acceptance criteria with E3 and E4, the
+gateway reference-monitor result that AP-SPEC-061 leaves for later work.
+There MUST be one codec cutover and one production verification path for each
+supported configuration, not competing implementations under the two specs.
+
+Two details of AP-SPEC-061 are clarified here:
+
+1. Unproved obligations stay in this specification until proved. The current
+   assurance manifest accepts `proved`, `qualified`, and `assumed`, not
+   `open`. A placeholder theorem or an `assumed` row MUST NOT satisfy a done
+   gate for a proved obligation.
+2. Crypto-library contracts are named explicit theorem premises, not new
+   global Lean axioms. This preserves the current foundational axiom
+   allowlist while making the conditional claim visible in both the theorem
+   and the manifest. It does not prove the primitive contract itself.
+
+## 2. Threat model and limits of the claim
+
+The adversary controls the application and its network submissions. It may
+own a legitimately delegated actor key, reorder or duplicate attachments,
+mix authentic material from different requests, alter approved fields,
+choose fresh operation IDs, race many workers, disconnect at any boundary,
+and restart a process. Provider responses may be unavailable, delayed,
+malformed, oversized, inconsistent, or produced by another authorized writer.
+
+The proof MUST NOT assume that a request is honest because it is correctly
+signed, that a controller key represents a human decision, or that the worker
+will choose a stable business operation ID.
+
+The trusted boundary is explicit:
+
+| Premise | Meaning and enforcement evidence |
+| --- | --- |
+| Operator provisioning | Trust anchors, context, required verifier configuration, recipes, and connections come from the operator plane. Decoding a caller-supplied context does not make it trusted. |
+| Cryptographic contracts | The selected primitive implements its stated function. Collision resistance and signature security, where used to interpret commitments or authenticity, remain separately named cryptographic assumptions. |
+| Store contract | Successful acknowledged claims are durable; batches are atomic; compare-and-swap and uniqueness have the stated concurrency behavior. Backend conformance supplies evidence for this contract. |
+| Clock contract | Verification uses the supplied evaluation time; runtime freshness and lease/entry deadlines use the named clock samples. Mathematical time predicates do not establish that a wall clock is correct. |
+| Runtime and transport | The Rust compiler, OS isolation, credential adapter, HTTP/TLS stack, and external I/O satisfy the inventoried leaf contracts. Unproved parts remain named assumptions. |
+| Provider contract | The provider interprets a request according to its independently reviewed API contract. Auths does not define provider business meaning. |
+
+A compromised gateway host or operator, a stolen provider credential used
+outside Auths, and rollback of all durable state to an undetectable old backup
+are outside this claim. Backup/restore procedures MUST preserve claims,
+counter history, and generation/fencing state; a missing or obsolete store
+must not silently become a fresh installation under the same authority.
+
+No theorem here claims provider exactly-once effects, settlement, constant
+time, unforgeability, correctness of every principal adapter, or atomicity
+between an external read and a later write.
+
+## 3. Architecture, APIs, and user-visible behavior
+
+### 3.1 Ownership and API invariants
+
+| Surface | Required contract |
+| --- | --- |
+| Core `verify_v1` / sealed verifier | Explicit bounded inputs and trusted configuration; deterministic result; only the sealed authorized result can project a verified action |
+| Gateway `submit(proof_cbor, action_cbor)` | Application supplies no provider URL, headers, credential selector, trust replacement, connection generation, or caller assertion that a check passed |
+| Recipe compilation | Validates a closed source and exact profile lock; emits digest-bound plans; grants no execution authority |
+| Durable admission | Claims the logical operation and every required counter slot before credential lease; only the winning acknowledged claim produces an execution handle |
+| Credential/transport boundary | Uses the operator-bound generation and a bounded lease; accepts only the closed request attached to that handle; adds credentials only at the transport leaf |
+| Recovery and audit | Preserve the original action, recipe, operation, observation plan, and outcome provenance; re-observation cannot mint a write handle |
+
+Names for new Lean declarations below are proposed obligation names, not
+claims that these declarations exist. Preserve current public Rust/SDK APIs
+unless a phase identifies a missing invariant. Any required wire/result
+change updates specifications, canonical fixtures, bindings, and independent
+implementations atomically.
+
+### 3.2 Approval and result UX
+
+This program requires no new customer screen. Existing SDK review, approval,
+receipt, and readiness surfaces MUST preserve these distinctions:
+
+- Review data comes from the canonical action and installed recipe. Show the
+  relevant account/resource identifiers, quantities, units, operation, and
+  policy commitments without truncation that makes distinct actions look
+  identical. If business data is represented by a commitment, the approving
+  application must separately validate the committed data and display it.
+- Editing any approval-bound field requires a new exact-action approval.
+  A valid old approval must not be reused because a case label is unchanged.
+- `Authorized`, transport entry, an HTTP response, a matched provider
+  observation, and a confirmed business effect are different states.
+  HTTP 200 alone cannot become a business-success assertion.
+- Evidence identifies which data is native signed evidence and which is an
+  unsigned provider read. An auditor verifies signatures against independently
+  supplied trust and binds the evidence to the exact action and recipe.
+- A future `proved_configuration` indication follows AP-SPEC-061. It is
+  computed from actual executed handlers and exact build/configuration
+  evidence, never supplied by an application or inferred from a green UI.
+
+## 4. E1: Canonical, total, bounded decoding
+
+**Risk:** the prover reasons about one value while the signer, SDK, or executor
+interprets different bytes; hostile lengths or nesting bypass the resource
+limits before a constructor can reject them.
+
+**Owners:** `core/crates/auths-codec`, constructor invariants in `auths-model`,
+and new `formal/Auths/Codec/` model/refinement/theorem modules. Use
+AP-SPEC-061's in-repository extractable tokenizer and direct source cutover.
+The old codec may remain only as a test oracle.
+
+### 4.1 Required obligations
+
+For each security-bearing object on the proved configuration's input/output
+closure, including action, proof, context, grants, status, approvals,
+observations, and critical-extension payloads:
+
+| ID | Quantified property |
+| --- | --- |
+| E1.1 `decode_total_bounded` | For every byte string and valid deployment limits, decode returns a value or typed error without an out-of-bounds read, arithmetic overflow, or panic; input traversal, depth, collection counts, allocation requests, and abstract work stay within the specified bounds. |
+| E1.2 `decode_encode_exact` | `decode(L, b) = ok v` implies constructor-valid `v`, complete input consumption, and `encode(v) = ok b`. |
+| E1.3 `encode_decode_exact` | For every constructor-valid `v` whose encoding and structural dimensions fit `L`, `decode(L, encode(v)) = ok v`. |
+| E1.4 `validated_carrier_refines` | Every successfully decoded carrier satisfies the representation premises used by the rich and translated authority, approval, observation, and policy proofs. |
+
+E1.2 plus determinism gives one accepted encoding per decoded value. E1.3
+MUST use a declared well-formedness relation and explicit limits; it cannot
+quantify over values whose encoded form the deployment intentionally rejects.
+
+The specification MUST define the allowed CBOR subset independently of the
+implementation: definite lengths, shortest integers, ordered unique map keys,
+well-formed text, permitted fields, exact types, and no trailing data. Check
+declared lengths before allocating or iterating. A byte limit on the final
+object does not justify an unbounded intermediate allocation.
+
+Work bounds concern a named abstract operation counter and allocation model,
+not a promise about wall-clock time or OS out-of-memory behavior. The bound
+must include failed parses, re-encoding, and nested extension payloads.
+
+### 4.2 Evidence and exit
+
+The shipping codec's translated functions MUST refine the readable model;
+tests of a second Lean decoder are insufficient. Add positive, malformed,
+truncated, duplicate-key, non-minimal-integer, trailing-byte, invalid UTF-8,
+oversized-length, deepest-nesting, and exact-limit fixtures. Differentially
+check Rust, WASM, Python, TypeScript, and the existing independent verifier
+implementations where applicable. Any changed existing wire decision is
+resolved explicitly before cutover.
+
+**Permitted claim:** canonical decoding for the named objects is
+machine-checked for exactness, totality, and the stated resource bounds,
+subject to the published translation/compiler boundary.
+
+## 5. E2: Complete verifier soundness and useful authorization
+
+**Risk:** individually correct predicates are skipped, fed the wrong values,
+combined incorrectly, or followed by an unauthorized result projection.
+
+**Owners:** `auths-verifier`, `auths-composition`, `auths-registries`, the
+existing authority/model kernels, and new `formal/Auths/Verifier/` modules.
+AP-SPEC-061's closed-registry entry point and extractable per-stage slices
+remain the implementation route. Extend its proved set to include native
+K-of-N approvals and AP-SPEC-064 status issuer scope.
+
+### 5.1 Required obligations
+
+| ID | Quantified property |
+| --- | --- |
+| E2.1 `verify_authorized_sound` | For every bounded proof/action input under operator-provisioned context and the declared primitive/adapter contracts, `Authorized` implies the independent rich authorization relation for those exact decoded values. |
+| E2.2 `composition_refines_plan` | The shipping evaluator agrees with a structural Lean plan evaluator for every valid bounded plan, including `all_of`, `any_of`, `k_of_n`, structural invalidity, and the three-valued branch outcomes. |
+| E2.3 `checks_and_projection_exact` | Required/executed configuration, all action-binding fields, handler dispatch, accepted branch selection, and the sealed result/action projection agree with their specifications. Stable denial/indeterminate codes retain the specified precedence. |
+| E2.4 `verifier_total_bounded` | Every bounded input terminates within the declared complete verifier work bound; no failing branch, status lookup, attachment traversal, or composition recursion escapes it. |
+| E2.5 `valid_requests_authorize` | Declared well-formed, sufficiently authorized requests are accepted. Prove a semantic completeness result for the closed proved configuration and concrete positive witnesses for each supported action/approval configuration. |
+
+The authorization relation MUST be written independently of the implementation
+result. Defining it as “the verifier returned Authorized” proves nothing.
+Soundness alone also permits an implementation that refuses everything;
+E2.5 prevents that failure mode.
+
+The proof's check inventory MUST include:
+
+- canonical action/body/profile/permission binding, audience, challenge,
+  validity, exact required configuration, attachments, and shared action
+  identity across the plan;
+- trusted-root provenance, signature/principal control, every delegation edge,
+  terminal coverage, registry acceptance, unknown critical extensions, and
+  the executable extension-law implementations;
+- status authenticity, issuer scope, freshness, and revocation according to
+  the supplied context; evidence presence cannot substitute for a status
+  decision;
+- distinct counted approvers, correct requirement ID, exact action/audience/
+  challenge binding, relevant grant and context requirements, and separation
+  of approval from authority. Principal distinctness is the current contract;
+  do not silently claim distinct humans or distinct underlying keys;
+- observation signature/anchor/schema/subject/fact binding, freshness,
+  authority-chain separation, and retained requirements through delegation;
+- composition thresholds, distinct-actor/root floors, authorized branch
+  selection, and every deciding pure registry predicate named by the
+  check-site inventory.
+
+Missing required evidence MUST remain denied or indeterminate according to
+the protocol, never become authorized through fallback. Optional invalid or
+stray approvals follow AP-SPEC-065's ignore/count rules; this requirement
+must not accidentally turn them into blanket request denials.
+
+### 5.2 Evidence and exit
+
+Every deciding and refusal site in the proved configuration must map to a
+translated, audited theorem with adequate strength. Prove the registry shell
+dispatch/projection bridge or retain it as an explicitly tested boundary and
+withhold the complete-verifier claim. A configuration commitment or a boolean
+coverage flag by itself does not prove that bridge.
+
+Adversarial fixtures must splice valid material across actions, contexts,
+requirements, issuers, and profiles; duplicate approvers; mix authorized and
+indeterminate branches; and exercise every threshold boundary. Include
+multiple sufficient approval subsets so no positional or single-happy-path
+implementation can satisfy E2.5.
+
+**Permitted claim:** the exact proved verifier configuration refines the rich
+authorization relation, conditionally on its published primitive, adapter,
+translation, compiler, and provisioning contracts.
+
+## 6. E3: Authorized action to exact outbound request
+
+**Risk:** a correct approval/verifier is bypassed by a compiler field-index
+mistake, a different JSON interpretation, a stale request object, or an I/O
+driver that uses data not covered by the verified action.
+
+**Owners:** `auths-gateway/src/recipe/{source,validate,lower,runtime}.rs`,
+`recipe.rs`, `engine.rs`, `submit.rs`, and `auths-gateway-kernel`. Extend
+`RequestConstruction`/`SubmitOrder` and their refinements; add focused
+compilation and driver models rather than another request language.
+
+### 6.1 Required obligations
+
+| ID | Quantified property |
+| --- | --- |
+| E3.1 `compile_preserves_recipe` | For every accepted source/profile lock, source decoding, validation, digest canonicalization, and lowering preserve the independent declarative mapping and all bounds. |
+| E3.2 `verified_projection_exact` | The command, named fields, positional argument vector, operation identity, scope, and policy inputs are lossless projections of the sealed canonical action; rejection cannot yield an executable value. |
+| E3.3 `closed_request_refines_recipe` | For every accepted source and verified action, the constructed request tuple equals the source-level recipe interpretation: method, origin, path, declared headers, content type, and body. |
+| E3.4 `driver_refines_commands` | Every security-relevant driver effect is exactly the command selected by the proved step machine, with the verified action, request, claim, connection binding, and lease from that same attempt. |
+| E3.5 `execution_requires_authority` | Compose E2 with E3 and E4: each gateway write entry has a matching authorized action, approved mapping, winning durable claim, reserved counters, required entry checks, and exact request. |
+
+Model the recipe's decoded source semantics independently of its lowered
+plans. Proving two functions that both use an incorrect field index does not
+establish the intended mapping. Source/lock JSON parsing and canonicalization
+must either be included in the refinement or remain explicit external
+contracts; in the latter case, publish only the smaller decoded-source claim.
+
+The proof must establish header-name/value safety, exact enum/type checks,
+JSON escaping and integer precision, form encoding, profile-field ordering,
+and unambiguous operation/idempotency/echo commitment preimages. Prove that
+unreferenced fields cannot affect a rendered component, and referenced fields
+cannot be substituted by similarly named values from an unverified request.
+Specify duplicate-member, number, and Unicode handling at each JSON boundary.
+Recipe-source whitespace may normalize to the same decoded source and digest;
+this is different from E1's canonical CBOR uniqueness. No consumer may review
+one interpretation of a duplicate member while executing another.
+
+For each security-relevant approved field, record whether it is emitted into
+the request or checked by a named admission condition/commitment contract.
+An opaque case commitment does not tell the generic gateway that a selected
+invoice is correct or a database version is current. Such business meaning
+needs an independently checked profile/approval oracle; it must not become a
+provider-specific branch in the gateway.
+Quantity contracts must state their units, currency where applicable, and
+rounding rules. Agreement on an integer alone does not establish agreement
+on its financial meaning.
+
+### 6.2 Driver, transport, and credential boundary
+
+The existing `SubmitOrder` proof already constrains the command sequence.
+E3.4 must additionally cover the actual driver's command-to-I/O mapping,
+event/result conversion, request ownership, cancellation, and one-use handle
+consumption. Qualify the extraction route before restructuring that code.
+If async code cannot translate, move decisions and payload/handle transitions
+into a translatable closed kernel consumed by the shipping driver. Any
+remaining interpreter correspondence assumption stays named; E3.4/E3.5 are
+not complete merely because the kernel has a theorem.
+
+The request property ends at the exact transport invocation. The HTTP leaf
+must have a reviewed contract for URL parsing/normalization, credential-header
+injection, default headers, DNS pinning, TLS hostname validation, no proxy,
+no redirects, no automatic write retry, and response/time bounds. Include
+an independent wire oracle for the actual pinned HTTP stack, covering
+dot-segments, percent encoding, encoded separators, header collisions, and
+body preservation. Do not claim that a theorem about a URL string proves
+the request a client library puts on the wire.
+
+Secret bytes remain outside action/proof/recipe/evidence data. Prove structural
+confinement of credential access and explicit output projections; continue
+isolation and redaction tests for actual secrets. This is not a proof of OS
+isolation, all memory behavior, or absence of side channels.
+
+**Permitted claim:** the named production mapping and driver boundary execute
+only requests derived from the authorized action and installed recipe,
+subject to the specifically retained transport/runtime contracts.
+
+## 7. E4: Concurrent admission, crashes, and durable state
+
+**Risk:** a theorem about one submission or sequential arrivals does not
+establish safety of concurrent read/claim/retry sequences, lost commit
+acknowledgements, recovery, or counter collection.
+
+**Owners:** `auths-gateway/src/{bounds,store,submit,connection}.rs`,
+`auths-connections`, and `auths-stores/src/gateway_attempt.rs`. Extend
+`CeilingCount`, `Recovery`, `ConnectionGenerations`, and their refinements
+with a global history model and the shipping admission algorithm.
+
+### 7.1 State and transition model
+
+Model arbitrarily many workers and arbitrary finite interleavings. State
+includes logical-operation claims, count/sum slots and their cumulative
+values, attempt records, connection/credential generations, collection
+fences, and outstanding one-use execution handles. Crashes discard volatile
+handles; they do not erase acknowledged durable state.
+
+Use the actual identity `(operator_namespace, logical_operation_id)`. Prove
+its framed key derivation under the declared hash assumption. Changing the
+challenge, proof, actor, case version, recipe, process, or credential
+generation must not clear an existing claim for that identity. A genuinely
+different operation ID remains a different operation; see §7.4.
+
+The store model MUST permit an error or lost acknowledgement after a batch
+committed. The caller may proceed only after the success that grants its
+execution handle. “An error occurred” must not imply “the claim is absent.”
+Likewise, rollback of a transaction is distinct from rollback of the durable
+database to an older snapshot.
+
+### 7.2 Required obligations
+
+| ID | Quantified property |
+| --- | --- |
+| E4.1 `claim_has_one_owner` | Every logical identity has at most one successful execution owner across workers/restarts. Replays, conflicts, indeterminate commits, and read-only recovery mint no new owner. |
+| E4.2 `admission_refines_aggregate_bounds` | The actual counter derivation, smallest applicable capacities, frontier search, cumulative reads, conflict retries, and atomic claim/slot batch refine the existing aggregate count/sum specification for every interleaving. |
+| E4.3 `every_history_preserves_capacity` | Every finite history preserves each applicable chain/partition/window bound; delegates, sibling workers, and alternate valid proofs cannot multiply a shared allowance. |
+| E4.4 `crash_recovery_preserves_authority` | Every crash/restart prefix preserves claim identity, counter commitments, observation plan, checkpoint/response provenance, and valid compare-and-swap transitions. Uncertainty cannot grant another write or fabricated evidence. |
+| E4.5 `collection_cannot_reopen_capacity` | Slot collection never reopens an admitted/reclaimed window, even after another process uses an earlier clock value; claims are not collected. |
+| E4.6 `connection_checks_bind_entry` | A lease and write entry use the connection/credential generations that passed their specified reloads, readiness/qualification gates, account/scope guards, and authority-derived entry deadline. No stale-generation fallback or expired authorization may license a new entry. |
+
+The gateway's present fixed-window slots are consumed at admission and are
+never released within the window, including after a later pre-entry refusal
+or unknown response. Preserve that contract. The older lifecycle model's
+reserve/commit/release theorems do not authorize adding refunds to gateway
+slots. Exhaustion may retain a terminal `not-entered` claim without slots;
+contention exhaustion may safely refuse. Specify both cases exactly.
+
+These are fixed windows, not rolling intervals. Adjacent windows can each
+admit their full allowance near a boundary. Preserve and expose that policy
+meaning; a rolling-period promise requires its own model and mechanism.
+
+E4.5 requires a shared durable collection/admission fence, or an existing
+shipping mechanism proved equivalent. The initial design is one monotone
+`collected_through` cutoff in the shared gateway store:
+
+1. Before deleting slots eligible at cutoff `t`, the sweeper durably advances
+   the fence to at least `t`; a crash may leave fewer deletions, never an
+   unrecorded deletion boundary.
+2. A bounded admission atomically checks that its slot expiry is strictly
+   greater than the current fence and inserts its claim/slots. A separate
+   fence read followed by the old unconditional `insert_all` is insufficient.
+3. Fence advancement and fenced admission have ordered linearization points.
+   A stale worker cannot insert into a collected window after its slots have
+   disappeared. Unknown commit outcomes retain the same conservative rules
+   as claims. Mixed window lengths use their actual validated slot expiry.
+
+This needs a narrow conditional-batch operation in the gateway store port and
+both backends, not a caller-held boolean. A process-local last-sweep timestamp
+is not sufficient. The fence may conservatively close an old window whose
+slots were not deleted after a crash. Until this mechanism lands, any
+window-safety claim must retain its clock/collection premise and cannot claim
+tolerance of clock rollback. Correct wall-clock time remains a separate
+assumption even with this fence.
+
+### 7.3 Revocation, recovery, and backend evidence
+
+E2 establishes validity at the supplied evaluation time. E4 must also prevent
+an approval or grant that expires while the worker is waiting from licensing
+a later entry. Project an internal `EntryNotAfter` from the exact sufficient
+authorization witness: the relevant grants/action, counted approvals,
+required observations/status freshness horizons, and installed time-limited
+gates. Preserve inclusive/exclusive endpoints from the respective contracts.
+It is the minimum of those applicable horizons and the existing maximum
+verification-to-entry interval; it cannot come from caller JSON.
+
+At the final deadline gate require a valid clock sample at or after the
+evaluation time and within `EntryNotAfter`, together with the existing
+monotonic elapsed-time limit and lease deadline. An expired horizon or
+disallowed rollback must produce the existing typed pre-entry failure,
+retain any claim/slots, and send no write. A proof that the earlier evaluation
+time was valid, or that fewer than 60 seconds elapsed, is insufficient by
+itself. This is an
+execution-boundary extension; it does not change offline verification's
+evaluation-time contract or promise cancellation of an in-flight request.
+
+Use the existing connection semantics: a committed disable/revocation/rotation
+is observed at the next shared-record reload. A submission that passed its
+last entry reload may already be in flight. Prove that actual rule, including
+the local drain and credential-retirement interval; do not describe it as
+instant cancellation of requests already past the gate. A stronger global
+quiescence contract would be separate work.
+
+Re-observation is read-only and uses the stored observation plan. A response
+locator cannot resolve a lost response that never recorded that locator.
+Unlinked observations cannot become linked recovery evidence. Another
+writer producing a matching field or token does not prove exclusive causation.
+
+The abstract store contract must include atomic batches, unique keys,
+compare-and-swap against exact expected record bytes, durable success,
+fail-closed corrupt/unreadable loads, and the relevant collection fence.
+Specify a linearization point for each operation. PostgreSQL may implement
+the contract with its actual transaction isolation, unique constraints, and
+rollback; do not assume the backend uses serializable isolation. File-store
+evidence must cover locking, journal recovery, file and directory durability,
+and every partial batch boundary.
+
+Run the same backend conformance against multi-process races, commit-before-
+acknowledgement loss, every persisted crash boundary, replacement races,
+collection/admission races, and restart with missing/corrupt/obsolete state.
+These tests support the external store premise; they are not a proof of the
+database, filesystem, or storage hardware.
+
+### 7.4 Business identity and progress
+
+The application cannot be trusted to implement “once per payment” merely by
+usually choosing the same operation ID. A product making that promise MUST
+derive or enforce its stable business identity in the trusted profile,
+approval issuer, or operator-owned workflow, bind it into the exact action,
+and test fresh-ID attempts. This requirement is domain-owned; core must not
+learn Stripe payment semantics. A fresh ID must also remain subject to the
+same applicable aggregate budget.
+
+Safety holds under arbitrary scheduling. Progress is conditional on available
+dependencies, valid input, deadlines, and finite contention. Prove a positive
+available-capacity admission witness and bounded termination of retries;
+do not promise starvation freedom or availability during a partition.
+
+**Permitted claim:** across the declared store/clock/runtime contracts, the
+gateway admits one owner per logical operation, conserves the stated shared
+allowances, and preserves these properties through the modeled failures.
+This is at-most-once gateway write entry, not provider exactly-once effect.
+
+## 8. E5: Exact cryptographic integration
+
+**Risk:** a vetted primitive receives the wrong key, suite, object type,
+profile, or signing bytes; a correct signature then authenticates a different
+statement from the one the verifier uses.
+
+**Owners:** `auths-codec/src/hash.rs`, `auths-signature-core`, the signature
+adapters and proved principal/status handlers, plus new
+`formal/Auths/Crypto/` integration modules. Use AP-SPEC-061's phase 2 route.
+
+### 8.1 Required obligations
+
+| ID | Quantified property |
+| --- | --- |
+| E5.1 `signing_preimage_exact` | Every object uses exactly its registered prefix, protocol/object/profile/version tags, length framing, canonical unsigned statement, and signature descriptor. |
+| E5.2 `framing_is_unambiguous` | On the validated bounded domain, equality of preimage bytes implies equality of their framed inputs; different object/domain tags cannot share a preimage. This does not assert collision-free hashes. |
+| E5.3 `suite_glue_refines_spec` | Key/signature decoding, suite dispatch, key/principal binding, low-S and other registry rules, and the exact message passed to the primitive refine the named suite specification. |
+| E5.4 `commitments_bind_exact_inputs` | Core and gateway action/operation/recipe/account/echo/idempotency commitments use the specified preimages without omitted fields or ambiguous concatenation, under separately recorded hash assumptions. |
+
+Cover approvals, observations, principal/grant status, grants, actions, and
+any outcome signatures used by the composed execution claim. Keep different
+protocol hash/signature domains distinct. Validate Ed25519 encodings against
+the declared RFC 8032/registry contract and P-256's compressed-key, fixed-width
+signature, point-validity, and low-S rules; do not assume a library constructor
+enforces every protocol restriction. Coordinate any tightening of accepted
+inputs and stable errors across the corpus and independent implementations.
+
+The initial dependency choice is AP-SPEC-061's current-library route:
+`ed25519-dalek`, `p256`, and `sha2`, with named implementation-meets-spec
+premises. This specification adds no cryptographic dependency or advisory
+exception. A later switch to a verified implementation needs its own evidence
+and dependency review and retains the translation/compiler assumptions.
+
+Represent primitive contracts as explicit parameters, for example:
+
+```text
+CryptoRefines(impl, spec) ->
+  suite_verify(impl, key_bytes, message_bytes, signature_bytes) = accepted ->
+  SuiteSpecAccepts(spec, key_bytes, message_bytes, signature_bytes)
+```
+
+This is a proposed statement shape, not an unconditional proof that the
+libraries meet their specifications. Keep the existing foundational axiom
+allowlist; forbid `sorryAx` and native-evaluation axioms in new public claims.
+Every manifest entry and permitted claim sentence must expose the relevant
+primitive premise. Collision resistance does not mean SHA-256 is injective
+over all byte strings, and it must never be silently derived from functional
+correctness of SHA-256.
+
+Use published algorithm/encoding vectors and independent negative cases:
+wrong domains/profiles/suites, modified lengths/descriptors, noncanonical or
+small-order Ed25519 encodings as applicable to the declared suite, invalid
+P-256 points/forms, high-S signatures, and actual P-256 positive tuples.
+
+**Permitted claim:** signature and commitment integration is machine-checked
+against the named specifications, conditional on the explicit primitive and
+cryptographic assumptions. No claim that elliptic-curve arithmetic or
+cryptographic security has been proved in Lean is introduced.
+
+## 9. Composed claim and adequacy
+
+The final reference-monitor statement is over every finite prefix of a
+reachable system history, not one canned demonstration. Informally:
+
+```text
+For every supported installation I and history H,
+  Provisioned(I) and ExternalContracts(I, H) and Reachable(I, H)
+  imply that every GatewayWriteEntry in H has:
+    an exact decoded and authorized action under I's supplied trust;
+    all required approvals, evidence, and applicable product policy;
+    a request equal to I's approved recipe applied to that action;
+    one winning durable operation owner and its reserved counters;
+    the required connection, credential, freshness, and entry checks;
+    at most one write entry for that logical operation in H;
+    outcome/evidence transitions justified by what was actually recorded.
+```
+
+`ExternalContracts` MUST enumerate the contracts in §2 and any smaller
+remaining runtime/transport boundary. It cannot contain “all writes are
+authorized,” “the driver behaves like the theorem,” or the desired budget
+bound as a disguised premise. An intermediate result may retain a precisely
+named driver/store bridge premise, but it cannot satisfy the corresponding
+uncompleted E3/E4 obligation or the final M6 gate. Physical I/O and backend
+contracts remain external as defined above; the shipping authorization,
+mapping, and admission algorithms must be related to their specifications.
+
+The public statement and all its definitions require review independently of
+the proof implementation. Add positive witnesses and targeted mutations:
+
+| Attack or defect | Required result |
+| --- | --- |
+| Change invoice, payment, account, amount/currency, case commitment, namespace, operation, or recipe while reusing the original approval | That approval cannot authorize the changed action; the unchanged proof cannot license a write |
+| Reuse authentic approval/evidence under another audience, challenge, requirement, issuer, or profile | Refusal or indeterminate according to the protocol; no write |
+| Duplicate an approver or count an authority principal as a required approver | Quorum is not inflated |
+| Mis-index a field, drop a compiler guard, or substitute the original unverified JSON | Corresponding refinement/adequacy obligation fails |
+| Replay with a fresh challenge, worker, process, or credential generation | No second owner/write for the same logical identity |
+| Invent a fresh operation ID for the same business event | The domain-owned once-per-business-event rule rejects it where that rule is promised; otherwise it remains subject to all approvals and shared bounds |
+| Race the last count/sum capacity across delegates and workers | At most the allowed aggregate admission; no partial claim/slot batch grants execution |
+| Lose a commit acknowledgement or kill a process at a persistence/transport boundary | No duplicate permission; retained state is conservatively recoverable |
+| Collect old slots, then use an old clock/window | The collection fence prevents renewed admission |
+| Disable/rotate between checks | The next defined reload rejects stale state; requests past the last gate retain their explicitly stated in-flight semantics |
+| Return a 2xx response, mismatched echo, missing locator, or malformed read | Preserve the appropriate response/unknown/observation classification; never invent confirmed business success |
+| Replace the implementation with deny-all or panic | Completeness/positive witnesses or totality proofs fail |
+
+Quantify over all bounded accepted inputs and arbitrary finite histories;
+case fixtures and bounded Kani checks supplement those theorems. They cannot
+replace an unbounded history invariant with a fixed worker count.
+
+## 10. Delivery sequence, proof hygiene, and done gates
+
+### 10.1 Bounded milestones
+
+| Milestone | Deliverable | Prerequisites and exit |
+| --- | --- | --- |
+| M0: Claims and extraction slices | Independent semantic relations, theorem contracts, source/assumption/check-site map, and small positive/negative translation examples | Freeze the intended claims before proofs; demonstrate the route on real shipping functions without extraction-only semantics |
+| M1: E1 codec | Tokenizer, constructors, encoding, all E1 proofs, and direct cutover | Corpus parity, hostile bounds cases, and exact-source qualification |
+| M2: E5 crypto integration | Framing and suite-glue proofs with explicit primitive contracts | E1 for byte-level claims; cross-language vectors; no global axiom expansion |
+| M3: E2 verifier | Pure registry/composition refinements, staged verifier proofs, complete sealed projection | E1/E5 for the complete byte-to-authority claim; approvals/status/observations included |
+| M4: E3 mapping and driver | Source/lock/argument/plan refinements and the driver bridge | Existing request/order proofs reused; E2 supplies the complete authorization premise |
+| M5: E4 history and storage | Admission algorithm refinement, crash/collection/connection invariants, backend conformance | May develop against an explicit authorization premise before M3; the complete claim waits for composition |
+| M6: Composed assurance | E3.5, full history statement, release-bound evidence, and truthful SDK/operator reporting | Every prerequisite and remaining assumption visible on the exact release revision |
+
+Each milestone is split into reviewable changes. First prove one complete
+small path from shipping function to readable specification and a useful
+positive action. Establish extraction/build cost on representative boundary
+inputs before scaling. Reuse the pinned toolchain and qualified translation;
+do not spend a phase proving an independent model with no production bridge.
+
+### 10.2 Required evidence for every proved claim
+
+1. The exact declaration and statement, full quantified domain, readable
+   definitions, non-vacuity witnesses, residual premises, and source closure.
+2. Mechanically translated shipping functions, exact production feature set,
+   reviewed external models, strict warning gates, and two byte-identical
+   translation reproductions when that closure changes.
+3. Updates to `Auths.Theorems`, the compiled `Auths.AssuranceAudit`,
+   `assurance-manifest-v1.toml`, and `theorem-kinds-v1.toml`. Prefer exact or
+   verdict-exact refinement; a weaker lemma cannot satisfy an exactness gate.
+4. Transitive axiom audit, including dependencies. No `sorry`, blanket opaque
+   local predicate, extra global axiom, or native-evaluation admission may
+   discharge a new public obligation.
+5. A fail-closed check of theorem premises and representation validity; their
+   source must not be replaced by a test-only constructor or trusted flag.
+6. Updated check-site and coverage evidence with stable declared denominators.
+   Report codec, verifier, compiler/driver, and stateful-store coverage
+   separately; do not improve a headline by excluding hard code.
+7. Corresponding adversarial, differential, property, fuzz, and mutation
+   evidence. Required security mutants must be killed; an equivalent mutant
+   needs a reviewed explanation. Results must match the release inputs.
+8. Hosted CI on the exact revision, including the authoritative formal,
+   translation, Kani, implementation, compliance, and secret gates appropriate
+   to the change. Add clean proof rechecking with the pinned Lean toolchain's
+   supported checker to the authoritative proof job; audit statements as well
+   as proof terms.
+
+Follow the repository's GitHub-first policy. This documentation change runs
+no formal qualification. Implementation work uses focused translation slices
+to construct changes and hosted CI for the authoritative result. A fast Lean
+feedback build alone does not qualify a milestone.
+
+### 10.3 Decisions fixed by this spec
+
+- Keep one monorepo and the existing layer boundaries. Reuse current kernels
+  and theorem modules; create no universal business-policy abstraction.
+- Keep current crypto libraries for the initial proof route and use explicit
+  premises. No new dependency, advisory exception, or global axiom is implied.
+- Preserve canonical wire behavior and stable decisions except separately
+  specified, reviewed security corrections such as stricter suite encodings.
+- Preserve conservative gateway slot consumption and read-only recovery.
+- Require a shared collection/admission fence before claiming tolerance of
+  clock rollback after collection; global instantaneous revocation and
+  provider-conditional business writes remain outside scope.
+- Keep UI rendering, actual host isolation, and provider semantics supported
+  by their own evidence rather than describing them as consequences of Lean.
+
+Implementation choices within these contracts do not require changing the
+public promise. A failed feasibility gate leaves its claim unearned; it does
+not authorize weakening the theorem or moving the risk into an unnamed axiom.
+
+## 11. Evidence and references
+
+Local baseline references are listed in §1.1. Additional anchors:
+
+- [Qualified Rust-to-Lean decision](../adr/0011-rich-authority-rust-lean-link.md).
+- [Gateway ordering model](../../formal/Auths/Product/SubmitOrder.lean),
+  [request construction](../../formal/Auths/Product/RequestConstruction.lean),
+  [recovery](../../formal/Auths/Product/Recovery.lean),
+  [aggregate bounds](../../formal/Auths/Product/CeilingCount.lean), and
+  [connection generations](../../formal/Auths/Product/ConnectionGenerations.lean).
+- [Protocol domain separation](../../core/spec/v1/domain-separation.md).
+- [Lean proof validation](https://lean-lang.org/doc/reference/latest/ValidatingProofs/):
+  statement meaning, transitive axioms, and proof rechecking are separate
+  review concerns. Tool availability must be checked against the pinned Lean
+  version rather than silently upgrading the toolchain.
+- [Aeneas](https://github.com/AeneasVerif/aeneas): the repository's qualified
+  pinned revision, not upstream's current branch, governs extraction here.
+- [RFC 8032](https://datatracker.ietf.org/doc/html/rfc8032): Ed25519 decoding and
+  verification specification referenced by E5 and AP-SPEC-061.
+
+## 12. What must be built to support this decision
+
+These are additions to the proof boundary, not assertions that existing
+runtime features or provider qualifications are absent.
+
+| Build item | Evidence for the gap | Completion evidence |
+| --- | --- | --- |
+| Extractable canonical codec and constructor bridge | `formal/README.md` and AP-SPEC-061 exclude codecs from the current proof surface | E1.1–E1.4 on the shipping codec and full input closure |
+| Full composition/registry/stage and sealed-result proofs | `PROOF_COVERAGE.md` identifies these functions/check sites outside the refined closure | E2.1–E2.5 with every required check mapped |
+| Source/lock compiler, argument conversion, and driver bridges | Gateway refinement residual assumptions in the assurance manifest explicitly exclude compilation/conversion and the async I/O correspondence | E3.1–E3.5, with any retained JSON/transport/interpreter boundary named |
+| Global admission and crash refinement | Existing aggregate predicates assume derived counters and atomic store behavior; the actual `reserve_with_claim` protocol is outside that proof | E4.1–E4.4 and multi-process backend conformance under the actual transaction/file semantics |
+| Shared closed-window/admission fence | Baseline slot collection uses gateway time; `last_sweep` is process-local and the current proofs assume the clock/store boundary | E4.5, including collect/rollback/old-worker races, without claiming a trusted wall clock was proved |
+| Execution-time connection and qualification bridge | Current generation proofs do not by themselves prove which runtime path consumes a lease and sends a request | E4.6 composed with E3.4, preserving the existing next-reload/in-flight contract |
+| Authority-derived entry expiry | The current runtime checks a fixed verification-to-entry interval; the new contract also needs the exact authorization witness's remaining validity | Internal `EntryNotAfter` projection and final checks, with expiry/rollback/queue-delay cases and no caller override |
+| Domain-owned business-identity and intent evidence | Logical-operation deduplication and an opaque case hash do not themselves establish once-per-payment behavior or correct invoice selection | A reference workflow that enforces stable business identity, validates committed facts before approval, and independently checks the recipe's intended mapping |
+| Suite/preimage proofs and explicit primitive premises | Codec/hash, signature suites, and full signature dispatch remain outside the present proof surface | E5.1–E5.4 and audited conditional claims |
+| Final claim and independent adequacy review | Current claims are scoped component/refinement statements | The composed history theorem, positive useful-work witnesses, mutation evidence, and exact-release public claim |
+
+The first implementation change should establish M0 and the smallest E1
+tokenizer/constructor refinement slice. It must leave a positive accepted
+object and a meaningful malformed/bounds rejection proved against the exact
+shipping code. That is the starting point for the larger codec cutover,
+without claiming the other four enhancements have been completed.

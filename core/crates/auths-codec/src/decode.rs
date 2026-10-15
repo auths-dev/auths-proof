@@ -1,5 +1,6 @@
 //! Strict, bounded target V1 decoders.
 
+use crate::cbor::{Decoder, Type};
 use crate::{
     CodecError,
     encode::{
@@ -33,7 +34,6 @@ use auths_model::{
     VerificationMethod, VerificationResources, VerificationResultDigest, VerificationStage,
     VerifierConfigurationId, VerifierLimits,
 };
-use minicbor::{Decoder, data::Type};
 
 pub(crate) type V1Decoder<'a> = Decoder<'a>;
 

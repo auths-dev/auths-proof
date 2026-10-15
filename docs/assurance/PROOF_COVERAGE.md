@@ -7,10 +7,10 @@
 At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `56f5f8df74c31a2554725ec967451d36bfa6e7c4a49004b3c83bb5cd32c35f52` over the 89 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `7821afb97eb9024aad77e7894a976db31c8a1a3036e6ff2b0b248359d1061dc4` over the 90 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `4f55a496933947fbed68651c6b6bba80fece3d140546db0e99bd3b733fc72e5f`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -30,6 +30,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | --- |
 | `core/crates/auths-codec/src/approval.rs` | decoding |
 | `core/crates/auths-codec/src/bounded_policy.rs` | decoding |
+| `core/crates/auths-codec/src/cbor.rs` | decoding |
 | `core/crates/auths-codec/src/decode.rs` | decoding |
 | `core/crates/auths-codec/src/encode.rs` | decoding |
 | `core/crates/auths-codec/src/error.rs` | decoding |
@@ -53,7 +54,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | decision | 1,031 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,353 | 1,289 (11.4%) | 856 (7.5%) | 1,289 (11.4%) |
 | verifier-core | 785 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,802 | 907 (10.3%) | 558 (6.3%) | 907 (10.3%) |
 | translated-crates | 1,138 | 210 (18.5%) | 70 (6.2%) | 210 (18.5%) | 10,662 | 2,508 (23.5%) | 1,024 (9.6%) | 2,508 (23.5%) |
-| verifier-closure | 1,083 | 86 (7.9%) | 41 (3.8%) | 86 (7.9%) | 13,762 | 907 (6.6%) | 558 (4.1%) | 907 (6.6%) |
+| verifier-closure | 1,117 | 86 (7.7%) | 41 (3.7%) | 86 (7.7%) | 13,967 | 907 (6.5%) | 558 (4.0%) | 907 (6.5%) |
 | decision-nontrivial | 443 | 81 (18.3%) | 44 (9.9%) | 81 (18.3%) | 9,589 | 1,202 (12.5%) | 820 (8.6%) | 1,202 (12.5%) |
 
 Decision scope by crate:
@@ -186,7 +187,7 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `f250c011aa84a978f1f65e91ead3ed8aee7e3b6502e7d80868a583381df305db`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `6c3a8811f0f07f40e8727b4d2096a0819bc3016468b79b91e74d7072fff4f5ac`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |

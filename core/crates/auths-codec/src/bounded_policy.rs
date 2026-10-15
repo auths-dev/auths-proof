@@ -1,5 +1,6 @@
 //! Deterministic encoding of `bounded-policy-commitment-v1` extension bodies.
 
+use crate::cbor::Decoder;
 use crate::{
     CodecError,
     decode::{
@@ -17,7 +18,6 @@ use auths_model::{
     MAX_BOUNDED_POLICY_BYTES, MAX_POLICY_CANONICALIZATION_BYTES, MAX_POLICY_IDENTIFIER_BYTES,
     PolicyCommitment, PolicyIdentifier,
 };
-use minicbor::Decoder;
 
 fn encode_commitment(
     encoder: &mut V1Encoder,
