@@ -13,9 +13,21 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "bd588f183a80542bc1f6f1990e0cae4aefa149f304693d37e535208266bbb553";
+    "970c3fcf32a243e22d92c07f6a1826bc827177c53308a7e2f68f7ef74b57f20a";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "codec-run/qualification/aeneas/generated/codec/Types.lean",
+        "formal/qualification/aeneas/generated/codec/Types.lean",
+    ),
+    (
+        "codec-run/qualification/aeneas/generated/codec/Funs.lean",
+        "formal/qualification/aeneas/generated/codec/Funs.lean",
+    ),
+    (
+        "codec-run/translation.json",
+        "formal/qualification/aeneas/generated/codec/translation.json",
+    ),
     (
         "model-run/qualification/aeneas/generated/model/Types.lean",
         "formal/qualification/aeneas/generated/model/Types.lean",
@@ -124,6 +136,9 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/codec/Types.lean",
+    "formal/qualification/aeneas/generated/codec/Funs.lean",
+    "formal/qualification/aeneas/generated/codec/translation.json",
     "formal/qualification/aeneas/generated/model/Types.lean",
     "formal/qualification/aeneas/generated/model/Funs.lean",
     "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean",
@@ -154,6 +169,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.Codec",
     "qualification.aeneas.cases.Model",
     "qualification.aeneas.cases.Algebra",
     "qualification.aeneas.cases.Authority",
@@ -164,6 +180,7 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "formal/qualification/aeneas/cases/Codec.lean",
     ".cargo/config.toml",
     "Cargo.toml",
     "Cargo.lock",
@@ -180,6 +197,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_codec",
+        "formal/qualification/aeneas/generated/codec/translation.json",
+    ),
     (
         "auths_model",
         "formal/qualification/aeneas/generated/model/translation.json",
@@ -546,8 +567,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 7
-        || qualification.translations.len() != 7
+    if qualification.case_modules.len() != 8
+        || qualification.translations.len() != 8
         || qualification.external_models.len() != 4
         || qualification.warning_inventory.len() != 4
         || qualification.template_axioms.len() != 3
@@ -1871,6 +1892,17 @@ fn reproduce(
     fs::create_dir_all(&llbc)
         .map_err(|error| format!("could not create {}: {error}", llbc.display()))?;
 
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_codec::cbor::read_head,auths_codec::cbor::encode_head",
+            &stable_llbc.join("auths_codec.llbc"),
+            "core/crates/auths-codec/Cargo.toml",
+            &[],
+        ),
+        root,
+        &[],
+    )?;
     let model_starts = [
         "auths_model::inclusive_window_contains",
         "auths_model::validity_window_contains",
@@ -2005,6 +2037,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_codec",
         "auths_model",
         "auths_algebra_kernel",
         "auths_authority",
@@ -2030,6 +2063,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_codec", "codec"),
         ("auths_model", "model"),
         ("auths_algebra_kernel", "algebra"),
         ("auths_authority", "authority"),
@@ -2066,6 +2100,7 @@ fn reproduce(
         )?;
     }
     for crate_name in [
+        "auths_codec",
         "auths_model",
         "auths_algebra_kernel",
         "auths_authority",

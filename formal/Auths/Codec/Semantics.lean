@@ -34,6 +34,26 @@ def unsigned : List Nat → Nat
   | [] => 0
   | byte :: rest => byte * 256 ^ rest.length + unsigned rest
 
+/-- Left-to-right positional interpretation, with an explicit initial value. -/
+def accumulate : Nat → List Nat → Nat
+  | value, [] => value
+  | value, byte :: rest => accumulate (value * 256 + byte) rest
+
+theorem accumulate_ge_initial (value : Nat) (bytes : List Nat) :
+    value ≤ accumulate value bytes := by
+  induction bytes generalizing value with
+  | nil => exact Nat.le_refl _
+  | cons byte rest ih =>
+    exact Nat.le_trans (by omega) (ih (value * 256 + byte))
+
+theorem accumulate_eq (value : Nat) (bytes : List Nat) :
+    accumulate value bytes = value * 256 ^ bytes.length + unsigned bytes := by
+  induction bytes generalizing value with
+  | nil => simp [accumulate, unsigned]
+  | cons byte rest ih =>
+    simp only [accumulate, ih, unsigned, List.length_cons, Nat.pow_succ]
+    simp [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm, Nat.add_assoc]
+
 def argumentWidth (value : Nat) : Nat :=
   if value < 24 then 0
   else if value < 256 then 1
@@ -99,6 +119,39 @@ theorem unsigned_append_singleton (bytes : List Nat) (byte : Nat) :
     simp only [List.cons_append, unsigned, List.length_append, List.length_singleton,
       Nat.pow_succ, ih]
     simp [Nat.add_mul, Nat.mul_assoc, Nat.add_assoc]
+
+theorem unsigned_lt_power (bytes : List Nat) (valid : BytesValid bytes) :
+    unsigned bytes < 256 ^ bytes.length := by
+  induction bytes with
+  | nil => simp [unsigned]
+  | cons byte rest ih =>
+    have digit : byte ≤ 255 := by
+      have := valid byte (by simp)
+      omega
+    have restValid : BytesValid rest := by
+      intro value member
+      exact valid value (by simp [member])
+    have tailBound := ih restValid
+    have scaled := Nat.mul_le_mul_right (256 ^ rest.length) digit
+    simp only [unsigned, List.length_cons, Nat.pow_succ]
+    omega
+
+theorem unsigned_take_drop_succ (bytes : List Nat) (position width : Nat)
+    (fits : position + (width + 1) ≤ bytes.length) :
+    unsigned ((bytes.drop position).take (width + 1)) =
+      bytes[position]'(by omega) * 256 ^ width +
+        unsigned ((bytes.drop (position + 1)).take width) := by
+  have atByte : position < bytes.length := by omega
+  have restFits : width ≤ (bytes.drop (position + 1)).length := by
+    simp only [List.length_drop]
+    omega
+  calc
+    _ = unsigned (bytes[position] :: (bytes.drop (position + 1)).take width) := by
+      apply congrArg unsigned
+      rw [List.drop_eq_getElem_cons atByte]
+      rfl
+    _ = _ := by
+      rw [unsigned, List.length_take, Nat.min_eq_left restFits]
 
 theorem unsigned_bigEndian (width value : Nat) (fits : value < 256 ^ width) :
     unsigned (bigEndian width value) = value := by

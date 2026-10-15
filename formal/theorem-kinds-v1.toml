@@ -12,6 +12,9 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Codec.Refinement.read_head_refines" = "exact"
+"Auths.Codec.Refinement.read_tail_bounded" = "exact"
+"Auths.Codec.Refinement.read_head_accepts_encoding" = "partial"
 "Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich" = "exact"
 "Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich" = "exact"
 "Auths.Lifecycle.Refinement.translated_replay_refines_rich" = "exact"

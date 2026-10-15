@@ -19,11 +19,16 @@ import Auths.Refinement.Observation
 import Auths.Refinement.Approval
 import Auths.Observation
 import Auths.Approval
+import Auths.Codec.Refinement
 
 namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Codec.readHead_encodeHead,
+    `Auths.Codec.Refinement.read_head_refines,
+    `Auths.Codec.Refinement.read_tail_bounded,
+    `Auths.Codec.Refinement.read_head_accepts_encoding,
     `Auths.Rich.finiteSet_subset_refl,
     `Auths.Rich.finiteSet_subset_trans,
     `Auths.Rich.finiteSet_subset_antisymm,

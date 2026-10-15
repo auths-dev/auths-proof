@@ -69,13 +69,17 @@ pub(crate) fn read_head(input: &[u8], position: usize) -> Result<Head, Error> {
     };
     let additional = first % 32;
     let start = position + 1;
-    let (argument, next) = match additional {
-        0..=23 => (u64::from(additional), start),
-        24 => read_tail(input, start, 1, 0)?,
-        25 => read_tail(input, start, 2, 0)?,
-        26 => read_tail(input, start, 4, 0)?,
-        27 => read_tail(input, start, 8, 0)?,
-        _ => return Err(Error),
+    let (argument, next) = if additional < 24 {
+        (u64::from(additional), start)
+    } else {
+        let width = match additional {
+            24 => 1,
+            25 => 2,
+            26 => 4,
+            27 => 8,
+            _ => return Err(Error),
+        };
+        read_tail(input, start, width, 0)?
     };
     Ok(Head {
         major: first / 32,
@@ -237,58 +241,58 @@ impl Encoder {
         self.output
     }
 
-    fn head(&mut self, major: u8, argument: u64) -> Result<&mut Self, Error> {
+    fn head(&mut self, major: u8, argument: u64) -> Result<(), Error> {
         self.output
             .extend_from_slice(&encode_head(major, argument)?);
-        Ok(self)
+        Ok(())
     }
 
-    pub(crate) fn map(&mut self, entries: u64) -> Result<&mut Self, Error> {
+    pub(crate) fn map(&mut self, entries: u64) -> Result<(), Error> {
         self.head(5, entries)
     }
 
-    pub(crate) fn array(&mut self, entries: u64) -> Result<&mut Self, Error> {
+    pub(crate) fn array(&mut self, entries: u64) -> Result<(), Error> {
         self.head(4, entries)
     }
 
-    pub(crate) fn u64(&mut self, value: u64) -> Result<&mut Self, Error> {
+    pub(crate) fn u64(&mut self, value: u64) -> Result<(), Error> {
         self.head(0, value)
     }
 
-    pub(crate) fn u32(&mut self, value: u32) -> Result<&mut Self, Error> {
+    pub(crate) fn u32(&mut self, value: u32) -> Result<(), Error> {
         self.u64(u64::from(value))
     }
 
-    pub(crate) fn u16(&mut self, value: u16) -> Result<&mut Self, Error> {
+    pub(crate) fn u16(&mut self, value: u16) -> Result<(), Error> {
         self.u64(u64::from(value))
     }
 
-    pub(crate) fn u8(&mut self, value: u8) -> Result<&mut Self, Error> {
+    pub(crate) fn u8(&mut self, value: u8) -> Result<(), Error> {
         self.u64(u64::from(value))
     }
 
-    fn payload(&mut self, major: u8, bytes: &[u8]) -> Result<&mut Self, Error> {
+    fn payload(&mut self, major: u8, bytes: &[u8]) -> Result<(), Error> {
         self.head(major, u64::try_from(bytes.len()).map_err(|_| Error)?)?;
         self.output.extend_from_slice(bytes);
-        Ok(self)
+        Ok(())
     }
 
-    pub(crate) fn bytes(&mut self, bytes: &[u8]) -> Result<&mut Self, Error> {
+    pub(crate) fn bytes(&mut self, bytes: &[u8]) -> Result<(), Error> {
         self.payload(2, bytes)
     }
 
-    pub(crate) fn str(&mut self, text: &str) -> Result<&mut Self, Error> {
+    pub(crate) fn str(&mut self, text: &str) -> Result<(), Error> {
         self.payload(3, text.as_bytes())
     }
 
-    pub(crate) fn bool(&mut self, value: bool) -> Result<&mut Self, Error> {
+    pub(crate) fn bool(&mut self, value: bool) -> Result<(), Error> {
         self.output.push(if value { 245 } else { 244 });
-        Ok(self)
+        Ok(())
     }
 
-    pub(crate) fn null(&mut self) -> Result<&mut Self, Error> {
+    pub(crate) fn null(&mut self) -> Result<(), Error> {
         self.output.push(246);
-        Ok(self)
+        Ok(())
     }
 }
 
@@ -315,7 +319,8 @@ mod tests {
         }
 
         #[test]
-        fn head_cursor_never_exceeds_input(input: Vec<u8>, position: usize) {
+        fn head_cursor_never_exceeds_input(input: Vec<u8>, position_seed: usize) {
+            let position = position_seed % (input.len() + 1);
             if let Ok(head) = read_head(&input, position) {
                 prop_assert!(position < head.next);
                 prop_assert!(head.next <= input.len());
@@ -349,6 +354,34 @@ mod tests {
             prop_assert_eq!(Decoder::new(&input).bool().ok(), minicbor::Decoder::new(&input).bool().ok());
             prop_assert_eq!(Decoder::new(&input).null().ok(), minicbor::Decoder::new(&input).null().ok());
         }
+    }
+
+    #[test]
+    fn every_integer_width_boundary_matches_previous_encoder() {
+        for value in [
+            0,
+            23,
+            24,
+            255,
+            256,
+            65_535,
+            65_536,
+            4_294_967_295,
+            4_294_967_296,
+            u64::MAX,
+        ] {
+            let encoded = encode_head(0, value).unwrap();
+            let mut oracle = minicbor::Encoder::new(Vec::new());
+            oracle.u64(value).unwrap();
+            assert_eq!(encoded, oracle.into_writer());
+            let head = read_head(&encoded, 0).unwrap();
+            assert_eq!(head.argument, value);
+            assert_eq!(head.next, encoded.len());
+            for length in 0..encoded.len() {
+                assert!(read_head(&encoded[..length], 0).is_err());
+            }
+        }
+        assert!(read_head(&[0], usize::MAX).is_err());
     }
 
     #[test]

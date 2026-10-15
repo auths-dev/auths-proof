@@ -7,10 +7,10 @@
 At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `7821afb97eb9024aad77e7894a976db31c8a1a3036e6ff2b0b248359d1061dc4` over the 90 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `eac80dc1063ef09ab8dbaceac06ff38980ff9a09173d70a2dc28a51e8c6c0db5` over the 92 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `4f55a496933947fbed68651c6b6bba80fece3d140546db0e99bd3b733fc72e5f`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `bc1572638dbc8b278acdbfd08e1b466e603ffddade0db699e51cb16bcf5cc620`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -53,8 +53,8 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,031 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,353 | 1,289 (11.4%) | 856 (7.5%) | 1,289 (11.4%) |
 | verifier-core | 785 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,802 | 907 (10.3%) | 558 (6.3%) | 907 (10.3%) |
-| translated-crates | 1,138 | 210 (18.5%) | 70 (6.2%) | 210 (18.5%) | 10,662 | 2,508 (23.5%) | 1,024 (9.6%) | 2,508 (23.5%) |
-| verifier-closure | 1,117 | 86 (7.7%) | 41 (3.7%) | 86 (7.7%) | 13,967 | 907 (6.5%) | 558 (4.0%) | 907 (6.5%) |
+| translated-crates | 1,393 | 214 (15.4%) | 72 (5.2%) | 212 (15.2%) | 15,007 | 2,588 (17.2%) | 1,073 (7.1%) | 2,557 (17.0%) |
+| verifier-closure | 1,117 | 90 (8.1%) | 43 (3.8%) | 88 (7.9%) | 13,971 | 987 (7.1%) | 607 (4.3%) | 956 (6.8%) |
 | decision-nontrivial | 443 | 81 (18.3%) | 44 (9.9%) | 81 (18.3%) | 9,589 | 1,202 (12.5%) | 820 (8.6%) | 1,202 (12.5%) |
 
 Decision scope by crate:
@@ -181,13 +181,14 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 5. Translated functions outside the refined closure
 
-None: every function Aeneas translates is in the refined closure.
+- `auths_codec::cbor::append_tail` (`core/crates/auths-codec/src/cbor.rs`, lines 91-97)
+- `auths_codec::cbor::encode_head` (`core/crates/auths-codec/src/cbor.rs`, lines 100-123)
 
 ## 6. Mutation adequacy
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `6c3a8811f0f07f40e8727b4d2096a0819bc3016468b79b91e74d7072fff4f5ac`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `992410c02d811a4b453a4e07fa6c806e3ee99f43ccda508c7c018a640858a2ce`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -200,7 +201,7 @@ None: every function Aeneas translates is in the refined closure.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 65 exact, 1 verdict-exact, 8 partial, 1 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 67 exact, 1 verdict-exact, 9 partial, 1 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 109 of 1,031 functions (10.6%) and 1,286 of 11,353 code lines (11.3%).
 
@@ -208,6 +209,9 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 
 | Theorem | Kind |
 | --- | --- |
+| `Auths.Codec.Refinement.read_head_accepts_encoding` | partial |
+| `Auths.Codec.Refinement.read_head_refines` | exact |
+| `Auths.Codec.Refinement.read_tail_bounded` | exact |
 | `Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_replay_refines_rich` | exact |

@@ -359,6 +359,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
     formal_qualification::validate_source_closure(&root())?;
     let (formal_root, _) = prepare_formal_translation(false, false)?;
     for target in [
+        "Auths.Codec.Refinement",
         "Auths.Refinement.Production",
         "Auths.Refinement.Observation",
         "Auths.Product.Refinement",
@@ -502,6 +503,15 @@ pub(crate) fn ci_formal_lean_authoritative() -> Result<(), String> {
     let (formal_root, attenuation_dimensions) = prepare_formal_translation(false, false)?;
     clear_repository_lean_outputs(&formal_root)?;
     build_and_audit_formal(&formal_root, update)?;
+    // Replay the public theorem closure into an empty kernel environment.
+    // This catches environment manipulation; it is separate from checking
+    // theorem meaning and the transitive axiom allowlist above.
+    command_in(
+        "lake",
+        &["env", "leanchecker", "--fresh", "Auths.Theorems"],
+        &formal_root,
+        None,
+    )?;
     formal_qualification::validate(&root(), &attenuation_dimensions)?;
     run_formal_semantic_checks(&formal_root, true, false)?;
     write_formal_phase_result("lean", &closure_digest, "executed-clean", 0)?;
@@ -1803,6 +1813,10 @@ pub(crate) fn synchronize_formal_assurance_manifest(
         };
         claim.lean_statement_sha256 = statement_digest;
         claim.formal_review.clone_from(&manifest.statement_review);
+        if declaration.name == "Auths.Codec.readHead_encodeHead" {
+            claim.claim_text = "The independent CBOR head grammar reads every valid shortest head encoding and preserves arbitrary following bytes.".to_owned();
+            claim.scope = "The pure natural-number byte model: major tags below eight and arguments below 2^64. This model theorem alone is not a refinement of the shipping encoder or a complete protocol-object codec claim.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2099,6 +2113,7 @@ const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/autho
 const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
 const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
 const CONNECTIONS_TRANSLATION: &str = "formal/qualification/aeneas/generated/connections/Funs.lean";
+const CODEC_TRANSLATION: &str = "formal/qualification/aeneas/generated/codec/Funs.lean";
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
@@ -2133,6 +2148,43 @@ fn qualified_refinement_metadata(
             connections_refinement_metadata(declaration)
                 .map(|metadata| (metadata, CONNECTIONS_TRANSLATION))
         })
+        .or_else(|| {
+            codec_refinement_metadata(declaration).map(|metadata| (metadata, CODEC_TRANSLATION))
+        })
+}
+
+fn codec_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted. Slices have the translated platform length bound.",
+        "This claim covers only CBOR heads and unsigned argument bytes. Payloads, UTF-8 validation, protocol object schemas, constructors, complete-object canonical checks, allocation/work accounting, and the verifier are outside this theorem. It does not complete AP-SPEC-069 E1.",
+    ];
+    const HEAD: &str = "auths_codec::cbor::read_head";
+    const TAIL: &str = "auths_codec::cbor::read_tail";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Codec.Refinement.read_head_refines" => (
+            "The mechanically translated shipping CBOR head reader is total and exactly agrees with the independent definite-head byte grammar on success and refusal; success advances one to nine bytes without exceeding the input.",
+            &[HEAD, TAIL],
+            "Every translated byte slice and platform cursor, including missing input, reserved/indefinite heads, non-minimal heads, and truncated arguments.",
+        ),
+        "Auths.Codec.Refinement.read_tail_bounded" => (
+            "The mechanically translated shipping CBOR argument reader returns precisely the big-endian unsigned value when the bytes fit, or a typed error exactly when the input is too short, and returns the exact final cursor.",
+            &[TAIL],
+            "Every byte slice, cursor at or before its end, and argument width from zero through eight, with initial accumulator zero.",
+        ),
+        "Auths.Codec.Refinement.read_head_accepts_encoding" => (
+            "The mechanically translated shipping head reader accepts every independently encoded valid head, recovers that head exactly, and preserves an arbitrary following tail.",
+            &[HEAD, TAIL],
+            "Every valid head (major below eight and argument below 2^64), tail, byte slice and cursor representing that independent encoding.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn approval_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

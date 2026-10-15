@@ -13,6 +13,7 @@ schema = "auths-proof-coverage-scope/v1"
 verifier_crate = "core/crates/auths-verifier"
 decision_kernel_crates = ["product/runtime/auths-lifecycle", "product/policy/auths-bounded-policy"]
 translated_crates = [
+    "core/crates/auths-codec",
     "core/crates/auths-model",
     "core/crates/auths-algebra-kernel",
     "core/crates/auths-authority",

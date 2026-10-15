@@ -7,7 +7,7 @@ shipping-source refinement and hosted evidence gates.
 
 | Milestone | State | Evidence / remaining work |
 | --- | --- | --- |
-| M0: claims and extraction slices | In progress | The spec fixes 24 obligations. The new shipping CBOR head reader/encoder translate under the pinned strict Charon/Aeneas route. The independent head model proves fixed-width integer and canonical head round trips. The production refinement, audited inventory, and reproducible qualification still need to be joined. |
+| M0: claims and extraction slices | In progress | The shipping head reader now refines the independent grammar for every byte slice and cursor, including reserved tags and truncated arguments. Four audited claims, positive/refusal cases, and the codec extraction inventory are connected. Full protocol-object extraction and hosted qualification remain required. |
 | M1: complete codec | In progress | The object codecs now use the in-repository CBOR reader/encoder; the previous dependency is a test oracle. Differential hostile-input properties and existing corpus/fixture checks need hosted validation. Object/carrier, work/allocation bounds, and complete codec refinements remain required. |
 | M2: crypto integration | Pending | E5.1–E5.4. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
@@ -18,3 +18,37 @@ shipping-source refinement and hosted evidence gates.
 No E1–E5 workstream is complete yet. Existing component claims retain their
 current scope; new source or a successful model proof alone does not expand
 the public assurance claim.
+
+## First exact-source slice
+
+`Auths.Codec.Refinement.read_head_refines` covers the translated production
+`read_head` and `read_tail`. Every result is a typed CBOR success or refusal;
+success agrees with the independent grammar and advances one through nine
+bytes without exceeding the input. `read_tail_bounded` fixes both verdict and
+value for widths zero through eight. `read_head_accepts_encoding` supplies
+completeness on valid independent head encodings with arbitrary following
+bytes. The independent encoder's round trip does **not** yet establish a
+refinement of the Rust encoder.
+
+The qualification corpus includes an accepted unsigned head, a missing-byte
+refusal at an outlying cursor, and a truncated four-byte argument. The
+compiled axiom check reports only `propext`, `Classical.choice`, and
+`Quot.sound`, within the existing allowlist. Existing audited theorem
+statements were compared with their previous statement hashes and are
+unchanged. Authoritative Lean now additionally replays the public theorem
+closure into a fresh kernel environment with the pinned `leanchecker`.
+
+The local qualification construction passed two byte-identical clean
+translations, all nine qualification cases, and the compiled audit of 326
+claims. A separate fresh-environment replay of `Auths.Codec.Refinement`
+passed. These are development results; the exact pushed revision still
+requires the hosted authoritative gates.
+
+The next object-level prototype extracted `decode_canonical_action` through
+Charon. Strict Aeneas translation rejected its fallible attachment iteration.
+Removing borrowed encoder returns eliminated the encoder arrow-type errors;
+factoring the attachment loop still exposed an Aeneas context-match failure.
+The unsuccessful loop rewrites were removed. This is a concrete need for an
+owned, bounded decoder-state transition before claiming whole-object
+refinement. The prototype's partial output is not in the qualification
+inventory and cannot support an assurance claim.

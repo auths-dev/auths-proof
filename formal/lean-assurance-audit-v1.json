@@ -6,6 +6,49 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Codec.Semantics",
+      "name": "Auths.Codec.readHead_encodeHead",
+      "statement": "∀ (head : Auths.Codec.Head),\n  head.Valid → ∀ (tail : List ℕ), Auths.Codec.readHead (Auths.Codec.encodeHead head ++ tail) = some (head, tail)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Refinement",
+      "name": "Auths.Codec.Refinement.read_head_refines",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (position : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_codec.cbor.read_head input position) fun result =>\n    Auths.Codec.Refinement.HeadRefines input position result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Refinement",
+      "name": "Auths.Codec.Refinement.read_tail_bounded",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (position : Aeneas.Std.Usize) (remaining : Aeneas.Std.U8),\n  ↑position ≤ (↑input).length →\n    ↑remaining ≤ 8 →\n      Aeneas.Std.WP.spec (auths_codec.cbor.read_tail input position remaining 0#u64) fun result =>\n        match result with\n        | Aeneas.Std.core.result.Result.Err a => (↑input).length < ↑position + ↑remaining\n        | Aeneas.Std.core.result.Result.Ok (decoded, next) =>\n          ↑position + ↑remaining ≤ (↑input).length ∧\n            ↑decoded =\n                Auths.Codec.unsigned\n                  (List.take (↑remaining) (List.drop (↑position) (Auths.Codec.Refinement.byteList ↑input))) ∧\n              ↑next = ↑position + ↑remaining"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Refinement",
+      "name": "Auths.Codec.Refinement.read_head_accepts_encoding",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (position : Aeneas.Std.Usize) (head : Auths.Codec.Head) (tail : List ℕ),\n  head.Valid →\n    List.drop (↑position) (Auths.Codec.Refinement.byteList ↑input) = Auths.Codec.encodeHead head ++ tail →\n      Aeneas.Std.WP.spec (auths_codec.cbor.read_head input position) fun result =>\n        ∃ decoded,\n          result = Aeneas.Std.core.result.Result.Ok decoded ∧\n            Auths.Codec.Refinement.headView decoded = head ∧\n              List.drop (↑decoded.next) (Auths.Codec.Refinement.byteList ↑input) = tail ∧\n                ↑decoded.next ≤ (↑input).length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Rich.Theorems",
       "name": "Auths.Rich.finiteSet_subset_refl",
       "statement": "∀ {α : Type u} (set : Auths.Rich.FiniteSet α), set ⊆ set"
