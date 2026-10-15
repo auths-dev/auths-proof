@@ -477,6 +477,7 @@ impl QualificationGate {
         let unavailable = QualificationVerdict {
             state: RecipeQualificationState::Unqualified,
             refusal: Some(QualificationRefusal::Unavailable),
+            valid_through: None,
         };
         let (Some(deployment), Some(held)) = (&self.deployment, self.held()) else {
             return unavailable;
@@ -500,6 +501,29 @@ impl QualificationGate {
             policy: self.policy,
             state: verdict.state,
             code: verdict.refusal.map(qualification_code),
+        }
+    }
+
+    /// Temporal witness from the exact currently accepted qualification.
+    /// Development policy adds no qualification deadline.
+    pub(crate) fn entry_bound(
+        &self,
+    ) -> Result<auths_gateway_kernel::deadline::EntryBound, &'static str> {
+        use auths_gateway_kernel::deadline::EntryBound;
+        if self.policy == QualificationPolicy::Optional {
+            return Ok(EntryBound {
+                not_after: u64::MAX,
+                inclusive: true,
+            });
+        }
+        let verdict = self.verdict();
+        match (verdict.refusal, verdict.valid_through) {
+            (None, Some(not_after)) if verdict.permits_lease() => Ok(EntryBound {
+                not_after,
+                inclusive: true,
+            }),
+            (Some(refusal), _) => Err(qualification_code(refusal)),
+            _ => Err(qualification_code(QualificationRefusal::Unavailable)),
         }
     }
 

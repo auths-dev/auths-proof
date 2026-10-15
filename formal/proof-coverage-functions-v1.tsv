@@ -876,8 +876,11 @@ core/crates/auths-ports/src/lib.rs	161	163	3	ControlEvidence::work_units	core/cr
 core/crates/auths-ports/src/lib.rs	168	170	3	ControlEvidence::signature_message	core/crates/auths-ports	interface	0	0		0	0	0	0
 core/crates/auths-ports/src/lib.rs	231	243	13	PrincipalMethod::evaluate_control	core/crates/auths-ports	interface	0	0		0	0	0	0
 core/crates/auths-ports/src/lib.rs	356	363	8	ProfilePolicy::action_fact	core/crates/auths-ports	interface	0	0		0	0	0	0
-core/crates/auths-ports/src/lib.rs	552	564	13	PrincipalControlError::fmt	core/crates/auths-ports	interface	0	0		0	0	0	0
-core/crates/auths-ports/src/lib.rs	579	585	7	SignatureError::fmt	core/crates/auths-ports	interface	0	0		0	0	0	0
+core/crates/auths-ports/src/lib.rs	464	469	6	StatusEvaluation::new	core/crates/auths-ports	interface	0	0		0	0	0	0
+core/crates/auths-ports/src/lib.rs	473	475	3	StatusEvaluation::decision	core/crates/auths-ports	interface	0	0		0	0	0	0
+core/crates/auths-ports/src/lib.rs	479	481	3	StatusEvaluation::valid_through	core/crates/auths-ports	interface	0	0		0	0	0	0
+core/crates/auths-ports/src/lib.rs	586	598	13	PrincipalControlError::fmt	core/crates/auths-ports	interface	0	0		0	0	0	0
+core/crates/auths-ports/src/lib.rs	613	619	7	SignatureError::fmt	core/crates/auths-ports	interface	0	0		0	0	0	0
 core/crates/auths-ports/src/path.rs	34	44	11	CertificateDer::new	core/crates/auths-ports	interface	0	0		0	0	0	0
 core/crates/auths-ports/src/path.rs	48	50	3	CertificateDer::as_bytes	core/crates/auths-ports	interface	0	0		0	0	0	0
 core/crates/auths-ports/src/path.rs	67	77	11	ExtendedKeyUsage::from_der_content	core/crates/auths-ports	interface	0	0		0	0	0	0
@@ -942,33 +945,33 @@ core/crates/auths-registries/src/lib.rs	453	470	18	ExactStatusMethod::freshness	
 core/crates/auths-registries/src/lib.rs	474	476	3	ExactStatusMethod::id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/lib.rs	478	480	3	ExactStatusMethod::configuration_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/lib.rs	482	484	3	ExactStatusMethod::maximum_work_units	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	486	513	28	ExactStatusMethod::principal	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	515	542	28	ExactStatusMethod::grant	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	545	613	69	select_principal	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	615	683	69	select_grant	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	704	714	11	PureRegistrySet::empty	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	730	777	48	CoreSemantics::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	783	914	132	verifier_configuration_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	932	941	10	ImmutableRegistries::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	949	1010	62	ImmutableRegistries::with_pure	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1014	1016	3	ImmutableRegistries::manifest_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1021	1023	3	ImmutableRegistries::configuration_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1027	1038	12	ImmutableRegistries::principal_method	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1042	1053	12	ImmutableRegistries::signature_suite	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1057	1073	17	ImmutableRegistries::resource_matcher	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1077	1093	17	ImmutableRegistries::profile_policy	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1097	1113	17	ImmutableRegistries::budget_algebra	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1117	1142	26	ImmutableRegistries::extension_handler	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1147	1155	9	ImmutableRegistries::extension_laws	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1159	1185	27	ImmutableRegistries::status_method	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1189	1209	21	ImmutableRegistries::assurance_claim	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1213	1226	14	ImmutableRegistries::assurance_implications	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1240	1255	16	AcceptedExtensionLaws::maximum_work_units	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1259	1263	5	AcceptedExtensionLaws::attenuates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1283	1291	9	CoreExtensionLaws::target_v1	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1295	1308	14	CoreExtensionLaws::attenuates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1311	1319	9	reject_duplicates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	1331	1336	6	RegistryError::fmt	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	486	522	37	ExactStatusMethod::principal	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	524	560	37	ExactStatusMethod::grant	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	563	658	96	select_principal	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	660	755	96	select_grant	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	776	786	11	PureRegistrySet::empty	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	802	849	48	CoreSemantics::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	855	986	132	verifier_configuration_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1004	1013	10	ImmutableRegistries::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1021	1082	62	ImmutableRegistries::with_pure	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1086	1088	3	ImmutableRegistries::manifest_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1093	1095	3	ImmutableRegistries::configuration_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1099	1110	12	ImmutableRegistries::principal_method	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1114	1125	12	ImmutableRegistries::signature_suite	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1129	1145	17	ImmutableRegistries::resource_matcher	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1149	1165	17	ImmutableRegistries::profile_policy	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1169	1185	17	ImmutableRegistries::budget_algebra	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1189	1214	26	ImmutableRegistries::extension_handler	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1219	1227	9	ImmutableRegistries::extension_laws	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1231	1257	27	ImmutableRegistries::status_method	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1261	1281	21	ImmutableRegistries::assurance_claim	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1285	1298	14	ImmutableRegistries::assurance_implications	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1312	1327	16	AcceptedExtensionLaws::maximum_work_units	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1331	1335	5	AcceptedExtensionLaws::attenuates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1355	1363	9	CoreExtensionLaws::target_v1	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1367	1380	14	CoreExtensionLaws::attenuates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1383	1391	9	reject_duplicates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/lib.rs	1403	1408	6	RegistryError::fmt	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/template.rs	60	100	41	TrustedContextTemplate::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/template.rs	113	128	16	TrustedContextTemplate::with_approvals	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/template.rs	132	135	4	TrustedContextTemplate::with_principal_status	core/crates/auths-registries	decision	1	0	1	0	0	0	0
@@ -980,18 +983,19 @@ core/crates/auths-registries/src/template.rs	167	170	4	TrustedContextTemplate::a
 core/crates/auths-registries/src/template.rs	181	184	4	TrustedContextTemplate::declare_budget_free_profile	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/template.rs	192	271	80	TrustedContextTemplate::compile	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/template.rs	278	282	5	sorted_unique	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	71	77	7	limit_or_malformed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	81	106	26	chain_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	109	119	11	context_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	125	139	15	binds_exact	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	144	150	7	classify	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	156	181	26	Approvals::new	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	185	213	29	Approvals::evaluate_list	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	216	221	6	Approvals::get	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	224	241	18	Approvals::satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	243	318	76	Approvals::evaluate	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	324	362	39	signature_verdict	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/approval.rs	367	423	57	status_verdict	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	72	78	7	limit_or_malformed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	82	107	26	chain_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	110	120	11	context_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	126	140	15	binds_exact	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	145	151	7	classify	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	157	182	26	Approvals::new	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	186	214	29	Approvals::evaluate_list	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	217	222	6	Approvals::get	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	225	242	18	Approvals::satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	247	255	9	Approvals::valid_through	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	257	338	82	Approvals::evaluate	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	344	382	39	signature_verdict	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/approval.rs	387	454	68	status_verdict	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/causal.rs	33	100	65	causal_slice	core/crates/auths-verifier	explanation	0	0		0	0	0	0
 core/crates/auths-verifier/src/causal.rs	102	135	34	classify	core/crates/auths-verifier	explanation	0	0		0	0	0	0
 core/crates/auths-verifier/src/causal.rs	137	171	35	plan_child_contribution	core/crates/auths-verifier	explanation	0	0		0	0	0	0
@@ -1013,92 +1017,95 @@ core/crates/auths-verifier/src/lib.rs	245	247	3	ResolvedProof::decoded	core/crat
 core/crates/auths-verifier/src/lib.rs	251	253	3	ResolvedProof::plan_id	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	274	276	3	ControlVerifiedProof::resolved	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	280	282	3	ControlVerifiedProof::work_units	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	333	335	3	SealedVerificationResult::portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	339	341	3	SealedVerificationResult::cbor	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	345	347	3	SealedVerificationResult::action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	351	359	9	SealedVerificationResult::into_parts	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	365	367	3	VerifiedAction::canonical_action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	371	373	3	VerifiedAction::proof_digest	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	377	379	3	VerifiedAction::context_digest	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	383	385	3	VerifiedAction::plan_id	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	390	392	3	VerifiedAction::action_ids	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	397	399	3	VerifiedAction::authorized_branches	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	403	405	3	VerifiedAction::assurance	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	409	411	3	VerifiedAction::assurance_satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	416	418	3	VerifiedAction::observation_satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	424	426	3	VerifiedAction::approval_satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	430	432	3	VerifiedAction::work_units	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	437	450	14	verify	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	460	478	19	verify_explained	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	480	487	8	failure_code	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	489	569	81	failure_fact_kind	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	571	607	37	record_configuration_facts	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	609	629	21	record_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	632	790	156	verify_internal	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	792	800	9	branch_fact_result	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	802	810	9	branch_verification_code	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	812	866	55	record_plan_events	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	868	954	87	record_composition_decision	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	966	979	14	verify_v1	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	987	1043	57	verify_v1_sealed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1049	1056	8	verify_portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1059	1246	187	verify_portable_sealed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1250	1255	3	infallible_encoding	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1257	1267	11	seal_portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1270	1308	39	portable_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1310	1313	4	finalize_portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1321	1331	11	decode_proof	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1339	1441	98	resolve_proof	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1443	1458	16	require_expected_plan	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1467	1571	104	verify_principal_control	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1573	1619	47	verify_status_controls	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1628	1753	124	verify_authority_measured	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1758	1776	19	evaluate_context_approvals	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1780	1794	15	bind_verified_action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1796	1811	16	codec_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1813	1825	13	principal_status_records	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1827	1839	13	grant_status_records	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1841	1856	16	statement_exists	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1858	1878	21	resolve_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1880	1892	13	reject_duplicate_attachments	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1902	1952	51	validate_carried_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	1955	1992	38	verify_signed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2000	2065	66	evaluate_signature	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2067	2089	23	bound_evidence	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2091	2118	28	control_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2120	2122	3	signature_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2124	2204	81	validate_action_binding	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2206	2296	91	validate_attachments	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2298	2314	17	same_shared_action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2326	2375	49	verify_branch	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2389	2487	96	verify_branch_from_anchor	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2491	2532	42	delegate_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2534	2558	25	evaluate_branch_assurance	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2560	2568	9	action_or_first_method	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2570	2588	19	branch_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2590	2606	17	control_for	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2608	2622	15	participant_report	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2624	2650	27	evaluate_extensions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2661	2680	20	check_status_extensions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2698	2744	47	check_principal_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2747	2786	40	check_grant_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2788	2812	25	status_decision	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2814	2847	34	validate_resource_constraints	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2849	2915	61	validate_budget_constraints	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2917	2933	17	validate_assurance_claims	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2935	2944	10	registry_operation_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	48	54	7	limit_or_malformed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	58	76	19	validate_observation_attachments	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	80	104	25	chain_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	111	132	22	require_parent_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	137	179	43	Stage::evaluate	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	181	188	8	Stage::in_authority_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	190	214	25	Stage::candidates	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	218	277	60	Stage::requirement	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	285	318	34	Stage::action_facts	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	320	357	38	Stage::eligible	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	359	384	26	Stage::subject_in_namespaces	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/observation.rs	389	458	70	Stage::authentic	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	335	337	3	SealedVerificationResult::portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	341	343	3	SealedVerificationResult::cbor	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	347	349	3	SealedVerificationResult::action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	353	361	9	SealedVerificationResult::into_parts	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	372	374	3	VerifiedAction::authority_not_after	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	378	380	3	VerifiedAction::canonical_action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	384	386	3	VerifiedAction::proof_digest	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	390	392	3	VerifiedAction::context_digest	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	396	398	3	VerifiedAction::plan_id	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	403	405	3	VerifiedAction::action_ids	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	410	412	3	VerifiedAction::authorized_branches	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	416	418	3	VerifiedAction::assurance	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	422	424	3	VerifiedAction::assurance_satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	429	431	3	VerifiedAction::observation_satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	437	439	3	VerifiedAction::approval_satisfactions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	443	445	3	VerifiedAction::work_units	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	450	463	14	verify	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	473	491	19	verify_explained	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	493	500	8	failure_code	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	502	582	81	failure_fact_kind	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	584	620	37	record_configuration_facts	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	622	642	21	record_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	645	803	156	verify_internal	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	805	813	9	branch_fact_result	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	815	823	9	branch_verification_code	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	825	879	55	record_plan_events	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	881	967	87	record_composition_decision	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	979	992	14	verify_v1	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1000	1056	57	verify_v1_sealed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1062	1069	8	verify_portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1072	1259	187	verify_portable_sealed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1263	1268	3	infallible_encoding	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1270	1280	11	seal_portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1283	1321	39	portable_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1323	1326	4	finalize_portable	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1334	1344	11	decode_proof	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1352	1454	98	resolve_proof	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1456	1471	16	require_expected_plan	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1480	1584	104	verify_principal_control	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1586	1632	47	verify_status_controls	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1641	1770	128	verify_authority_measured	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1775	1793	19	evaluate_context_approvals	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1797	1812	16	bind_verified_action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1814	1829	16	codec_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1831	1843	13	principal_status_records	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1845	1857	13	grant_status_records	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1859	1874	16	statement_exists	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1876	1896	21	resolve_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1898	1910	13	reject_duplicate_attachments	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1920	1970	51	validate_carried_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	1973	2010	38	verify_signed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2018	2083	66	evaluate_signature	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2085	2107	23	bound_evidence	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2109	2136	28	control_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2138	2140	3	signature_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2142	2222	81	validate_action_binding	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2224	2314	91	validate_attachments	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2316	2332	17	same_shared_action	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2345	2394	49	verify_branch	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2408	2515	105	verify_branch_from_anchor	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2519	2560	42	delegate_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2562	2586	25	evaluate_branch_assurance	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2589	2615	27	assurance_horizon	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2617	2625	9	action_or_first_method	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2627	2645	19	branch_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2647	2663	17	control_for	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2665	2679	15	participant_report	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2681	2707	27	evaluate_extensions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2718	2737	20	check_status_extensions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2755	2802	48	check_principal_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2805	2845	41	check_grant_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2848	2857	10	status_horizon	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2859	2883	25	status_decision	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2885	2918	34	validate_resource_constraints	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2920	2986	61	validate_budget_constraints	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2988	3004	17	validate_assurance_claims	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	3006	3015	10	registry_operation_failure	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	54	60	7	limit_or_malformed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	64	82	19	validate_observation_attachments	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	86	110	25	chain_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	117	138	22	require_parent_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	143	189	47	Stage::evaluate	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	191	198	8	Stage::in_authority_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	200	224	25	Stage::candidates	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	228	297	70	Stage::requirement	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	305	338	34	Stage::action_facts	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	340	377	38	Stage::eligible	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	379	404	26	Stage::subject_in_namespaces	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/observation.rs	409	478	70	Stage::authentic	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/trace.rs	58	102	45	FactKind::code	core/crates/auths-verifier	explanation	0	0		0	0	0	0
 core/crates/auths-verifier/src/trace.rs	149	151	3	FactEvaluation::sequence	core/crates/auths-verifier	explanation	0	0		0	0	0	0
 core/crates/auths-verifier/src/trace.rs	154	156	3	FactEvaluation::stage	core/crates/auths-verifier	explanation	0	0		0	0	0	0
@@ -1419,6 +1426,8 @@ product/runtime/auths-gateway-kernel/src/construct.rs	780	804	25	build_body	prod
 product/runtime/auths-gateway-kernel/src/construct.rs	812	833	22	construct_write	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/construct.rs	840	852	13	construct_action_read	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/construct.rs	858	865	8	construct_credential_read	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/deadline.rs	15	26	12	intersect_entry_bounds	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/deadline.rs	31	33	3	entry_time_allows	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
 product/runtime/auths-gateway-kernel/src/order.rs	387	393	7	start	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/order.rs	397	406	10	go	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
 product/runtime/auths-gateway-kernel/src/order.rs	410	412	3	stop	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0

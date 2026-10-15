@@ -221,6 +221,17 @@ impl CommissioningSession<'_> {
         Ok(action)
     }
 
+    pub(super) fn entry_bound(
+        &self,
+        action: &CommissionedAction,
+    ) -> Result<auths_gateway_kernel::deadline::EntryBound, &'static str> {
+        self.check(action)?;
+        Ok(auths_gateway_kernel::deadline::EntryBound {
+            not_after: self.authority.entry_not_after(),
+            inclusive: false,
+        })
+    }
+
     pub(super) fn check(&self, action: &CommissionedAction) -> Result<(), &'static str> {
         let (now, trusted) = self.engine.qualification.commissioning_time();
         self.authority

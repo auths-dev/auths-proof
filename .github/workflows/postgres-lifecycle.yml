@@ -30,13 +30,13 @@ jobs:
       - name: Run multi-host lifecycle evidence
         env:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
-          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/target/test-support/auths-stores/postgres-tls/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: cargo test -p auths-stores --test postgres_lifecycle -- --ignored
       - name: Run gateway attempt-store conformance and hostile suites
         env:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
-          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/target/test-support/auths-stores/postgres-tls/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: |
           cargo test -p auths-gateway --lib -- --ignored postgres

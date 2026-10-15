@@ -147,6 +147,13 @@ inductive construct.ConstructError where
 | HeaderValue : construct.ConstructError
 | BodySize : construct.ConstructError
 
+/-- [auths_gateway_kernel::deadline::EntryBound]
+    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 6:0-11:1
+    Visibility: public -/
+structure deadline.EntryBound where
+  not_after : Std.U64
+  inclusive : Bool
+
 /-- [auths_gateway_kernel::order::Mode]
     Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 34:0-41:1
     Visibility: public -/

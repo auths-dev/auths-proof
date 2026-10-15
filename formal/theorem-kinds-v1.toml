@@ -12,6 +12,9 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model" = "exact"
+"Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model" = "exact"
+"Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses" = "partial"
 "Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model" = "exact"
 "Auths.Product.Refinement.CollectionFence.translated_advance_refines_model" = "exact"
 "Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses" = "partial"

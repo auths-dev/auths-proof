@@ -361,6 +361,19 @@ impl VerifiedCommissioningPermit {
         &self.permit
     }
 
+    /// Exclusive last entry time of the exact authenticated permit, its
+    /// signer and revocation list. Evaluation must still check current
+    /// revocations, clock trust and installed bindings.
+    #[must_use]
+    pub fn entry_not_after(&self) -> u64 {
+        self.permit
+            .body()
+            .statement
+            .not_after
+            .min(self.certificate.body().statement.not_after)
+            .min(self.revocations.body().statement.next_update)
+    }
+
     /// Permanently remembers authenticated revocations and the largest sequence.
     ///
     /// A stale list still revokes what it names. The runtime must durably

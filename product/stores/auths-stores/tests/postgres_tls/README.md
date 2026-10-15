@@ -9,7 +9,7 @@ Run from the repository root:
 ```text
 docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml up -d --wait
 AUTHS_POSTGRES_URL='host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require' \
-AUTHS_POSTGRES_CA_PEM="$PWD/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt" \
+AUTHS_POSTGRES_CA_PEM="$PWD/target/test-support/auths-stores/postgres-tls/ca.crt" \
 AUTHS_POSTGRES_SERVER_NAME=localhost \
 cargo test -p auths-stores --test postgres_lifecycle -- --ignored
 docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml down -v

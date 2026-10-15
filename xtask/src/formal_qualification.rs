@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "e2f84a600cd82113ea4b089dfce006cb7ea6d587ccb14f8029147572cb8ea5c7";
+    "cc73248090cd6fda1af6d5ef0496b49748478d49a3202141f9a593bb24818b59";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -2048,7 +2048,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
+            "auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
             &stable_llbc.join("auths_gateway_kernel.llbc"),
             "product/runtime/auths-gateway-kernel/Cargo.toml",
             &[],

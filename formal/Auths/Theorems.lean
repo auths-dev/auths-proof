@@ -21,11 +21,18 @@ import Auths.Observation
 import Auths.Approval
 import Auths.Codec.Refinement
 import Auths.Product.Refinement.CollectionFence
+import Auths.Product.Refinement.EntryDeadline
 
 namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Product.EntryDeadline.permits_fold,
+    `Auths.Product.EntryDeadline.exclusive_endpoint_refuses,
+    `Auths.Product.EntryDeadline.inclusive_endpoint_admits,
+    `Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model,
+    `Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model,
+    `Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses,
     `Auths.Product.CollectionFence.collection_cannot_reopen_window,
     `Auths.Product.CollectionFence.swept_window_cannot_readmit,
     `Auths.Product.CollectionFence.later_window_admits,

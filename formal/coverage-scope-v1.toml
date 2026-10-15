@@ -99,6 +99,7 @@ crates = ["product/stores/auths-stores"]
 "product/runtime/auths-connections/src/model.rs" = "decision"
 "product/runtime/auths-connections/src/registry.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/construct.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/deadline.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/lib.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/order.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/outcome.rs" = "decision"

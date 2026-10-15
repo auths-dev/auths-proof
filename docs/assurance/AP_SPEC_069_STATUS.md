@@ -12,7 +12,7 @@ shipping-source refinement and hosted evidence gates.
 | M2: crypto integration | Pending | E5.1–E5.4. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
-| M5: history and storage | In progress | Both backends now fence slot admission against a durable monotone collection cutoff. Exact scalar-decision refinements and arbitrary finite cutoff-history invariants are implemented; backend conformance and the complete admission/driver-history bridge remain to be qualified. Authority-derived entry expiry is still required. |
+| M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
 
 No E1–E5 workstream is complete yet. Existing component claims retain their
@@ -39,7 +39,7 @@ unchanged. Authoritative Lean now additionally replays the public theorem
 closure into a fresh kernel environment with the pinned `leanchecker`.
 
 The local qualification construction passed two byte-identical clean
-translations, all ten qualification cases, and the compiled audit of 332
+translations, all ten qualification cases, and the compiled audit of 338
 claims. A separate fresh-environment replay of `Auths.Codec.Refinement`
 passed. These are development results; the exact pushed revision still
 requires the hosted authoritative gates.
@@ -83,3 +83,34 @@ The collection-fence qualification includes the ninth production extraction
 crate, four accepted/refused boundary examples, six additional audited
 claims, and two byte-identical clean translations. The source comparisons
 remain narrower than the backend transaction and crash-recovery contracts.
+
+## Entry-deadline slice
+
+The sealed native result retains the successful anchors and grants/actions'
+expiry, counted approvals and their anchors/status, selected observation
+freshness and observer anchors, and selected assurance freshness. Status
+methods return a typed horizon with their decision; the native method uses
+only the relevant latest in-scope statements. Missing revocation-list entries
+retain the snapshot window, without inventing a statement-age requirement.
+Failed branches and ignored approvals do not contribute temporal bounds.
+
+The production command intersects that witness with the 60-second maximum.
+Preparation retains the accepted qualification or commissioning endpoint;
+the final gate intersects it with the current installed gate and refuses
+clock rollback. Inclusive native/qualification bounds and exclusive
+commissioning bounds keep their endpoint modes, without adding one to a
+timestamp. Expiry refuses entry and retains consumed claim/slot capacity.
+The monotonic deadline and final secret-lease check remain required.
+
+The new Lean endpoint model covers arbitrary finite intersections, including
+equality, and the translated shipping intersection and time predicate refine
+it. The complete verifier-to-temporal-witness and driver-to-I/O proofs remain
+open; the endpoint refinements alone do not establish those correspondences.
+Native quorum, status-age, exclusive/inclusive boundary, rollback, and retained
+capacity cases are added for hosted validation.
+
+The deadline slice passed the local qualification construction: two
+byte-identical translations, ten qualification cases, and the compiled
+338-claim audit. The previous 332 statements are unchanged. The new claims
+use only the existing foundational axiom allowlist. Hosted end-to-end and
+backend evidence is still required for this revision.

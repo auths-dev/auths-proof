@@ -6,6 +6,66 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Product.EntryDeadline",
+      "name": "Auths.Product.EntryDeadline.permits_fold",
+      "statement": "∀ (bounds : List Auths.Product.EntryDeadline.Bound) (initial : Auths.Product.EntryDeadline.Bound) (now : ℕ),\n  Auths.Product.EntryDeadline.permits (List.foldl Auths.Product.EntryDeadline.meet initial bounds) now ↔\n    Auths.Product.EntryDeadline.permits initial now ∧ ∀ bound ∈ bounds, Auths.Product.EntryDeadline.permits bound now"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.EntryDeadline",
+      "name": "Auths.Product.EntryDeadline.exclusive_endpoint_refuses",
+      "statement": "∀ (evaluatedAt endpoint : ℕ),\n  ¬Auths.Product.EntryDeadline.admits evaluatedAt { deadline := endpoint, inclusive := false } endpoint"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.EntryDeadline",
+      "name": "Auths.Product.EntryDeadline.inclusive_endpoint_admits",
+      "statement": "∀ (evaluatedAt endpoint : ℕ),\n  evaluatedAt ≤ endpoint →\n    Auths.Product.EntryDeadline.admits evaluatedAt { deadline := endpoint, inclusive := true } endpoint"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.EntryDeadline",
+      "name": "Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model",
+      "statement": "∀ (evaluatedAt now : Aeneas.Std.U64) (bound : auths_gateway_kernel.deadline.EntryBound),\n  auths_gateway_kernel.deadline.entry_time_allows evaluatedAt now bound =\n    Aeneas.Std.Result.ok\n      (decide\n        (Auths.Product.EntryDeadline.admits (↑evaluatedAt) (Auths.Product.Refinement.EntryDeadline.boundView bound)\n          ↑now))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.EntryDeadline",
+      "name": "Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model",
+      "statement": "∀ (left right : auths_gateway_kernel.deadline.EntryBound),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.deadline.intersect_entry_bounds left right) fun result =>\n    Auths.Product.Refinement.EntryDeadline.boundView result =\n      Auths.Product.EntryDeadline.meet (Auths.Product.Refinement.EntryDeadline.boundView left)\n        (Auths.Product.Refinement.EntryDeadline.boundView right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.EntryDeadline",
+      "name": "Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses",
+      "statement": "∀ (evaluatedAt now : Aeneas.Std.U64) (bound : auths_gateway_kernel.deadline.EntryBound),\n  ↑now < ↑evaluatedAt →\n    auths_gateway_kernel.deadline.entry_time_allows evaluatedAt now bound = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Product.CollectionFence",
       "name": "Auths.Product.CollectionFence.collection_cannot_reopen_window",
       "statement": "∀ (cutoff expiry : ℕ) {current : Option ℕ},\n  Auths.Product.CollectionFence.History (some cutoff) current →\n    Auths.Product.CollectionFence.openWindow current expiry → cutoff < expiry"

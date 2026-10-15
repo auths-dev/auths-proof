@@ -1286,6 +1286,39 @@ def construct.construct_credential_read
       body := (alloc.vec.Vec.new Std.U8)
     }
 
+/-- [auths_gateway_kernel::deadline::intersect_entry_bounds]:
+    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 15:0-26:1
+    Visibility: public -/
+def deadline.intersect_entry_bounds
+  (left : deadline.EntryBound) (right : deadline.EntryBound) :
+  Result deadline.EntryBound
+  := do
+  if left.not_after < right.not_after
+  then ok left
+  else
+    if right.not_after < left.not_after
+    then ok right
+    else
+      if left.inclusive
+      then ok { left with inclusive := right.inclusive }
+      else ok left
+
+/-- [auths_gateway_kernel::deadline::entry_time_allows]:
+    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 31:0-33:1
+    Visibility: public -/
+def deadline.entry_time_allows
+  (evaluated_at : Std.U64) (now : Std.U64) (bound : deadline.EntryBound) :
+  Result Bool
+  := do
+  if now >= evaluated_at
+  then
+    if now < bound.not_after
+    then ok true
+    else if now = bound.not_after
+         then ok bound.inclusive
+         else ok false
+  else ok false
+
 /-- [auths_gateway_kernel::order::start]:
     Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 387:0-393:1
     Visibility: public -/

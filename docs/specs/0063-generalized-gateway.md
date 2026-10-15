@@ -641,7 +641,7 @@ follows this order. The last column names the epic that adds each new step.
 | 9 | Lease the credential (30-second deadline); apply the prefix guard (§5.2); when declared, the account read (§5.7), then each denied read in order (§5.8) | Recorded `not-entered` | today; guard, account, and denied reads 3 |
 | 10 | When declared, run the pre-entry re-read (§5.3), then the relative-ceiling read and check (§5.6); record their observations and basis in one `attempting → attempting` | Recorded `not-entered`, keeping what was read | 3 |
 | 11 | Increment the in-flight count; reload the shared record; require it unchanged | Recorded `not-entered`, `gateway.connection.changed` | 5 |
-| 12 | Refuse entry after `evaluated_at + 60` seconds, on the gateway clock or the monotonic deadline started at step 1 | Recorded `not-entered`, `gateway.attempt.entry-deadline` | 3 |
+| 12 | Refuse a clock sample before `evaluated_at`, outside the sealed authority/installed-gate horizon, after `evaluated_at + 60`, or outside the monotonic deadline started at step 1; preserve each inclusive/exclusive endpoint | Recorded `not-entered`, `gateway.attempt.entry-deadline` | 3; temporal witness 069 |
 | 13 | Send the one write, with provider headers, the account-scope header, the key or declared field, and the echo | Before network entry: recorded `not-entered`, `gateway.transport.not-entered` | today; account scope 2; other additions 3 |
 | 14 | Record the response (status, digest, locator), or `unknown` | — | today; locator 3 |
 | 15 | Decrement the in-flight count; perform at most one read-back | — | 5; today |

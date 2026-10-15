@@ -42,6 +42,7 @@ source_files = [
   "product/runtime/auths-gateway-kernel/Cargo.toml",
   "product/runtime/auths-gateway-kernel/src/lib.rs",
   "product/runtime/auths-gateway-kernel/src/construct.rs",
+  "product/runtime/auths-gateway-kernel/src/deadline.rs",
   "product/runtime/auths-gateway-kernel/src/order.rs",
   "product/runtime/auths-gateway-kernel/src/outcome.rs",
   "product/runtime/auths-gateway-kernel/src/ratio.rs",
@@ -439,10 +440,12 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_gateway_kernel"
 translation_json = "formal/qualification/aeneas/generated/gateway/translation.json"
-local_functions = 123
+local_functions = 125
 external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
+  "auths_gateway_kernel::deadline::entry_time_allows",
+  "auths_gateway_kernel::deadline::intersect_entry_bounds",
   "auths_gateway_kernel::recovery::recovery_capability",
   "auths_gateway_kernel::construct::construct_write",
   "auths_gateway_kernel::construct::construct_action_read",

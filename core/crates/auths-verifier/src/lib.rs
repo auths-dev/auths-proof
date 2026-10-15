@@ -296,6 +296,7 @@ pub struct VerifiedAuthority {
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
     approval_satisfactions: Vec<ApprovalSatisfaction>,
+    authority_not_after: Timestamp,
     work_units: u64,
 }
 
@@ -316,6 +317,7 @@ pub struct VerifiedAction {
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
     approval_satisfactions: Vec<ApprovalSatisfaction>,
+    authority_not_after: Timestamp,
     work_units: u64,
 }
 
@@ -360,6 +362,17 @@ impl SealedVerificationResult {
 }
 
 impl VerifiedAction {
+    /// Inclusive last time allowed by the temporal evidence selected in this
+    /// verification: successful anchors, grants/actions, counted approvals,
+    /// selected observations/status, and selected assurance freshness.
+    /// It does not assert that the host clock is correct or that no newer
+    /// revocation exists. Downstream entry must also reject clock rollback
+    /// and impose its own shorter operational deadlines.
+    #[must_use]
+    pub const fn authority_not_after(&self) -> Timestamp {
+        self.authority_not_after
+    }
+
     /// Returns exact profile-canonical bytes and derived meaning.
     #[must_use]
     pub const fn canonical_action(&self) -> &CanonicalAction {
@@ -1641,6 +1654,7 @@ fn verify_authority_measured(
     let mut observation_satisfactions = Vec::new();
     let mut approval_requirements = Vec::new();
     let mut action_ids = Vec::new();
+    let mut authority_not_after = Timestamp::new(u64::MAX);
     let bundle = controlled.resolved.decoded.bundle();
     let mut approvals = approval::Approvals::new(bundle)?;
     let approval_inputs = approval::Inputs {
@@ -1664,6 +1678,7 @@ fn verify_authority_measured(
             &approval_inputs,
         ) {
             Ok(branch) => {
+                authority_not_after = authority_not_after.min(branch.authority_not_after);
                 authorized_branches.push(reference);
                 action_ids.push(branch.action_id);
                 assurance.extend(branch.assurance);
@@ -1722,6 +1737,7 @@ fn verify_authority_measured(
         diagnostics,
     )?);
     let approval_satisfactions = approvals.satisfactions(&approval_requirements);
+    authority_not_after = authority_not_after.min(approvals.valid_through(&approval_requirements));
     assurance.sort_by(|left, right| {
         left.role()
             .cmp(&right.role())
@@ -1748,6 +1764,7 @@ fn verify_authority_measured(
         assurance_satisfactions,
         observation_satisfactions,
         approval_satisfactions,
+        authority_not_after,
         work_units: meter.used,
     })
 }
@@ -1789,6 +1806,7 @@ pub(crate) fn bind_verified_action(authority: VerifiedAuthority) -> VerifiedActi
         assurance_satisfactions: authority.assurance_satisfactions,
         observation_satisfactions: authority.observation_satisfactions,
         approval_satisfactions: authority.approval_satisfactions,
+        authority_not_after: authority.authority_not_after,
         work_units: authority.work_units,
     }
 }
@@ -2316,6 +2334,7 @@ fn same_shared_action(
 /// Authority established for one authorization-plan branch that authorized.
 struct BranchAuthority {
     action_id: ActionId,
+    authority_not_after: Timestamp,
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
@@ -2410,7 +2429,11 @@ fn verify_branch_from_anchor(
     {
         return Err(VerificationFailure::Denied(DenialReason::UntrustedRoot));
     }
-    check_principal_status(
+    let mut authority_not_after = anchor
+        .validity()
+        .expires_at()
+        .min(action.envelope().validity().expires_at());
+    authority_not_after = authority_not_after.min(check_principal_status(
         controlled,
         anchor.status_policy(),
         anchor.principal(),
@@ -2419,13 +2442,14 @@ fn verify_branch_from_anchor(
         context,
         registries,
         meter,
-    )?;
+    )?);
     // Every grant subject is checked under the anchor's policy, not the
     // grant's own: by chain linkage the subjects are every issuer after the
     // root and the actor, and a grant's policy governs only that grant.
     for grant in chain {
         let id = grant_id(grant.statement()).map_err(codec_failure)?;
-        check_grant_status(
+        authority_not_after = authority_not_after.min(grant.statement().validity().expires_at());
+        authority_not_after = authority_not_after.min(check_grant_status(
             controlled,
             grant.statement().status_policy(),
             id,
@@ -2433,8 +2457,8 @@ fn verify_branch_from_anchor(
             context,
             registries,
             meter,
-        )?;
-        check_principal_status(
+        )?);
+        authority_not_after = authority_not_after.min(check_principal_status(
             controlled,
             anchor.status_policy(),
             grant.statement().subject(),
@@ -2443,7 +2467,7 @@ fn verify_branch_from_anchor(
             context,
             registries,
             meter,
-        )?;
+        )?);
     }
     validate_resource_constraints(anchor, chain, action, context, registries, meter)?;
     validate_budget_constraints(anchor, chain, action, context, registries, meter)?;
@@ -2463,7 +2487,9 @@ fn verify_branch_from_anchor(
         ParticipantRole::Actor,
     )?);
     let assurance_satisfactions = evaluate_branch_assurance(&reports, context, registries, meter)?;
-    let observation_satisfactions = observation::Stage {
+    authority_not_after =
+        authority_not_after.min(assurance_horizon(&assurance_satisfactions, context)?);
+    let (observation_satisfactions, observation_not_after) = observation::Stage {
         chain,
         root: anchor.principal(),
         action,
@@ -2472,10 +2498,12 @@ fn verify_branch_from_anchor(
         registries,
     }
     .evaluate(meter)?;
+    authority_not_after = authority_not_after.min(observation_not_after);
     let approval_requirements = approval::chain_requirements(chain)?;
     approvals.evaluate_list(&approval_requirements, approval_inputs, meter)?;
     Ok(BranchAuthority {
         action_id,
+        authority_not_after,
         assurance: reports,
         assurance_satisfactions,
         observation_satisfactions,
@@ -2555,6 +2583,35 @@ fn evaluate_branch_assurance(
         },
     )
     .map_err(VerificationFailure::Indeterminate)
+}
+
+/// Reads only evidence already selected by the assurance evaluator.
+fn assurance_horizon(
+    satisfactions: &[AssuranceSatisfaction],
+    context: &TrustedContext,
+) -> Result<Timestamp, VerificationFailure> {
+    let mut valid_through = Timestamp::new(u64::MAX);
+    for satisfaction in satisfactions {
+        let requirement = context
+            .assurance_policy()
+            .requirements()
+            .get(usize::from(satisfaction.requirement_index()))
+            .ok_or(VerificationFailure::Indeterminate(
+                Requirement::AssuranceRequirementNotMet,
+            ))?;
+        if let Some(age) = requirement.maximum_age() {
+            let observed =
+                satisfaction
+                    .claim()
+                    .observed_at()
+                    .ok_or(VerificationFailure::Indeterminate(
+                        Requirement::AssuranceRequirementNotMet,
+                    ))?;
+            valid_through =
+                valid_through.min(Timestamp::new(observed.get().saturating_add(age.get())));
+        }
+    }
+    Ok(valid_through)
 }
 
 fn action_or_first_method<'a>(
@@ -2704,9 +2761,9 @@ fn check_principal_status(
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
+) -> Result<Timestamp, VerificationFailure> {
     let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-        return Ok(());
+        return Ok(Timestamp::new(u64::MAX));
     };
     let implementation = registries
         .status_method(context.accepted_registries(), method, true)
@@ -2735,12 +2792,13 @@ fn check_principal_status(
         )
         .map_err(registry_operation_failure)?;
     if matches!(
-        (listing, decision),
+        (listing, decision.decision()),
         (StatusListing::RevocationList, StatusDecision::Missing)
     ) {
-        return Ok(());
+        return status_horizon(decision, context.evaluation_time());
     }
-    status_decision(decision, true)
+    status_decision(decision.decision(), true)?;
+    status_horizon(decision, context.evaluation_time())
 }
 
 /// Out-of-scope statements take no part, as for principal status.
@@ -2752,9 +2810,9 @@ fn check_grant_status(
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
+) -> Result<Timestamp, VerificationFailure> {
     let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-        return Ok(());
+        return Ok(Timestamp::new(u64::MAX));
     };
     let implementation = registries
         .status_method(context.accepted_registries(), method, false)
@@ -2782,7 +2840,20 @@ fn check_grant_status(
             context.evaluation_time(),
         )
         .map_err(registry_operation_failure)?;
-    status_decision(decision, false)
+    status_decision(decision.decision(), false)?;
+    status_horizon(decision, context.evaluation_time())
+}
+
+/// Refuses a registry's unusable temporal witness before sealing authority.
+fn status_horizon(
+    evaluation: auths_ports::StatusEvaluation,
+    evaluation_time: Timestamp,
+) -> Result<Timestamp, VerificationFailure> {
+    if evaluation.valid_through() < evaluation_time {
+        Err(VerificationFailure::Indeterminate(Requirement::StaleStatus))
+    } else {
+        Ok(evaluation.valid_through())
+    }
 }
 
 fn status_decision(decision: StatusDecision, principal: bool) -> Result<(), VerificationFailure> {
@@ -3627,6 +3698,11 @@ mod tests {
         assert_eq!(
             authorized.action().unwrap().canonical_action(),
             &fixture.canonical
+        );
+
+        assert_eq!(
+            authorized.action().unwrap().authority_not_after(),
+            Timestamp::new(20)
         );
 
         let denied =

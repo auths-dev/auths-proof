@@ -1,3 +1,4 @@
+import Auths.Product.Refinement.EntryDeadline
 import qualification.aeneas.generated.gateway.Funs
 
 open Aeneas Aeneas.Std Result
@@ -93,5 +94,13 @@ example :
       ok { state := { plan, phase := order.Phase.Done, argument := 0#u64 },
            action := order.SubmitAction.Stop order.Stop.Halted } := by
   rfl
+
+-- Inclusive native windows and exclusive operator windows keep their exact
+-- endpoints, including the maximum timestamp without adding one.
+example : deadline.entry_time_allows 10#u64 20#u64 ⟨20#u64, true⟩ = ok true := rfl
+example : deadline.entry_time_allows 10#u64 20#u64 ⟨20#u64, false⟩ = ok false := rfl
+example : deadline.entry_time_allows 10#u64 9#u64 ⟨20#u64, true⟩ = ok false := rfl
+example : deadline.intersect_entry_bounds ⟨18446744073709551615#u64, true⟩
+    ⟨18446744073709551615#u64, false⟩ = ok ⟨18446744073709551615#u64, false⟩ := rfl
 
 end qualification.aeneas.cases

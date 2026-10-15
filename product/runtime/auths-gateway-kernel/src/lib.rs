@@ -18,6 +18,7 @@
 extern crate alloc;
 
 pub mod construct;
+pub mod deadline;
 pub mod order;
 pub mod outcome;
 pub mod ratio;

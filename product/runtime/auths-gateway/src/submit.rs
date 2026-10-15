@@ -87,7 +87,11 @@ pub(crate) trait SubmitIo {
     /// Whether entry is still within the deadline after `evaluated_at`, on
     /// the gateway clock and on the monotonic clock started with the
     /// submission.
-    fn within_entry_deadline(&self, evaluated_at: u64) -> bool;
+    fn within_entry_deadline(
+        &self,
+        evaluated_at: u64,
+        bound: auths_gateway_kernel::deadline::EntryBound,
+    ) -> bool;
 
     /// Sends the one write under `lease`.
     async fn write(
@@ -394,7 +398,10 @@ impl<I: SubmitIo> Run<'_, I> {
                 None => false,
             }),
             SubmitAction::CheckDeadline => {
-                SubmitEvent::Deadline(self.io.within_entry_deadline(self.evaluated_at))
+                SubmitEvent::Deadline(self.verified.as_ref().is_some_and(|verified| {
+                    self.io
+                        .within_entry_deadline(self.evaluated_at, verified.entry_not_after)
+                }))
             }
             SubmitAction::Send => SubmitEvent::Write(self.send().await),
             SubmitAction::RecordResponse => {

@@ -361,6 +361,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
     for target in [
         "Auths.Codec.Refinement",
         "Auths.Product.Refinement.CollectionFence",
+        "Auths.Product.Refinement.EntryDeadline",
         "Auths.Refinement.Production",
         "Auths.Refinement.Observation",
         "Auths.Product.Refinement",
@@ -1832,6 +1833,17 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "Arbitrary finite model histories with any number of workers, collection, admission, crashes, recovery, and acknowledgement loss. This is the cutoff invariant, not a proof of the complete counter-admission algorithm or backend/driver correspondence.".to_owned();
         }
+        if declaration.name.starts_with("Auths.Product.EntryDeadline.") {
+            claim.claim_text = format!(
+                "The independent entry-deadline model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated property")
+            );
+            claim.scope = "Finite lists of independent natural-number upper endpoints, preserving inclusive and exclusive boundaries. This is endpoint algebra; it does not establish that an actual verification or installed gate supplied every required bound.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2171,6 +2183,44 @@ fn qualified_refinement_metadata(
             collection_fence_refinement_metadata(declaration)
                 .map(|metadata| (metadata, STORES_TRANSLATION))
         })
+        .or_else(|| {
+            entry_deadline_refinement_metadata(declaration)
+                .map(|metadata| (metadata, GATEWAY_TRANSLATION))
+        })
+}
+
+fn entry_deadline_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted.",
+        "These theorems refine only the endpoint intersection and clock predicate for supplied typed bounds. The complete verifier's extraction of the temporal witness, installed gate projection, actual driver/I/O correspondence, monotonic clock and secret-lease enforcement remain outside these theorems. They do not complete AP-SPEC-069 E2, E3 or E4.",
+    ];
+    const CHECK: &str = "auths_gateway_kernel::deadline::entry_time_allows";
+    const MEET: &str = "auths_gateway_kernel::deadline::intersect_entry_bounds";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model" => (
+            "The mechanically translated shipping entry-time predicate is total and exactly matches the independent lower-time and inclusive/exclusive endpoint semantics.",
+            &[CHECK],
+            "Every u64 evaluation time, current sample and upper endpoint, with either endpoint mode.",
+        ),
+        "Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model" => (
+            "The mechanically translated shipping endpoint intersection returns precisely the model's minimum endpoint and preserves exclusion when equal bounds meet.",
+            &[MEET],
+            "Every pair of u64 upper endpoints and endpoint modes, without incrementing timestamps or overflowing.",
+        ),
+        "Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses" => (
+            "The mechanically translated shipping entry-time predicate refuses every current sample before its evaluation time.",
+            &[CHECK],
+            "Every u64 evaluation time, earlier current sample and typed upper endpoint.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn collection_fence_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

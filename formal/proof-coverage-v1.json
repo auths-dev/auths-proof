@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "2f54d2131a63b2ad3bd3e9fbd03ab7c6952a031c4d950534f770a8ef811309bf",
-  "inputs_sha256": "1cf5feb87f3670a223d99e2602b941a5ce9c991132a3de0d3781700c94a6aec6",
+  "scope_definition_sha256": "20386546600f175da14d3af0fd155d6ea6f49cd44282ccda95195dc5c56fb720",
+  "inputs_sha256": "e0d51075eb46e40289b015363090a0cf66da31a32a2eceecda887b99f76bab48",
   "inputs": {
     "Cargo.toml": "sha256:6e0240aa432bcdb5b4f855618994582d2e428afe5ee4e4f6a3f8d21a518f8d24",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -47,20 +47,20 @@
     "core/crates/auths-ports/Cargo.toml": "sha256:596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c",
     "core/crates/auths-ports/src/binding.rs": "sha256:a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d",
     "core/crates/auths-ports/src/diagnostics.rs": "sha256:aa596572503b5a65a918bb2ff38281c144ff53821ee914e9325c852828d852df",
-    "core/crates/auths-ports/src/lib.rs": "sha256:8da1debf86f9532df0660155d04298beb1ba3a1204508f8586e2e67cd2fb3449",
+    "core/crates/auths-ports/src/lib.rs": "sha256:e7f7fdcb480de4d69d488af5234915542627eb2fbc987232c4b5c47363a491dc",
     "core/crates/auths-ports/src/path.rs": "sha256:b68fc547b4e4d97a60cbbc1cc1939fc6b34a8233b81f840bd396914a707e3ea1",
     "core/crates/auths-registries/Cargo.toml": "sha256:590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2",
-    "core/crates/auths-registries/src/lib.rs": "sha256:450d3886d85ee333b7e046317fb5b47cde62483d5f3e41d46265e2caf4c373ec",
+    "core/crates/auths-registries/src/lib.rs": "sha256:020bab93285f280aa2c05a67afa09ad1ca2f1e128e90e898c69bc7a7bfd16c89",
     "core/crates/auths-registries/src/template.rs": "sha256:1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4",
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
-    "core/crates/auths-verifier/src/approval.rs": "sha256:c3cae6a49e169051eb555bb092b1069a4d422516d6a2114623a89e5f31ff923f",
+    "core/crates/auths-verifier/src/approval.rs": "sha256:2826a5227945a3e0ea000584f1e1c794bec3b313b13843f4284e0e716f830d33",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
-    "core/crates/auths-verifier/src/lib.rs": "sha256:6e921b2a1df23f4662a2f8ab3d89333766cc80bf5b262a2051a8de2eb1b8e3ba",
-    "core/crates/auths-verifier/src/observation.rs": "sha256:0bb07f06a0f9524c88427df1c972b1de8ba038a9eeeb15d3134c25125ae84b1e",
+    "core/crates/auths-verifier/src/lib.rs": "sha256:bf3e86dcf93ab0e49d9a555c0510d592a6c3b0ef6ca17b95832ec6f190829f1a",
+    "core/crates/auths-verifier/src/observation.rs": "sha256:2b43ee60e1f105d33b325914ae723f91fe191675f27a9a9c04ea812c2fe27785",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
-    "formal/coverage-scope-v1.toml": "sha256:2f54d2131a63b2ad3bd3e9fbd03ab7c6952a031c4d950534f770a8ef811309bf",
-    "formal/lean-assurance-audit-v1.json": "sha256:85b96d098556053ac0e239a73f8dd28b6be4163ad197915e4abf38f8b444c998",
+    "formal/coverage-scope-v1.toml": "sha256:20386546600f175da14d3af0fd155d6ea6f49cd44282ccda95195dc5c56fb720",
+    "formal/lean-assurance-audit-v1.json": "sha256:07ecc3d6623f1ffa3256ae52ffb6eb8f8c06693370006f72d8d2212278d2dea6",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -71,16 +71,16 @@
     "formal/qualification/aeneas/generated/codec/translation.json": "sha256:376b8cdb24c289935a5e02f8bc45438780a76db672c095d86206272d4368a822",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
-    "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:c8c86db058f313ab46ee86370d79ee70130c1ead3860dd7dabd49f2a89af1636",
-    "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:4b9e3e1158b6751a458ae6581e7e2230a1b242913d9a4842710d3bea3e08ee45",
+    "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:fc7725a72670d98969ae2f6cddb47aca88c4f8e72333d3699dbaf8792fc4f489",
+    "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:47431ef5e1e7781d9fc442c6885130053351b122fc6fb7bd2ce707728635987b",
     "formal/qualification/aeneas/generated/lifecycle/Funs.lean": "sha256:817dcbb854a599fb14c89854d8023809a390f7a00e1cc70dbc7151d7b254649f",
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:d4d36b72718a4076b7c0561abfa2edc006a1f9a4491762979f86c3dd99a71fdc",
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:66e62345ea87b3150722b2d8b37473269c1cbfdaa09c875a3546ae381b7f5cd0",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:96dc13e36f9f3715b226f9194df90efcdfd2817f86b872f5b56c558cb6f3bb37",
-    "formal/qualification/aeneas/qualification.toml": "sha256:6b514e891695dc7da9f291889dc26ca81c3d53c77c3cf9052ab5f95f1cc896a8",
-    "formal/theorem-kinds-v1.toml": "sha256:353aecaf5e04aa67181d007460c634b68205ef6b1f86a5974e3a165b2b402ce4",
+    "formal/qualification/aeneas/qualification.toml": "sha256:d23297c3da8039028eaf681e4fc5767c2f5169bf949d6824e9675a94a0ee24f2",
+    "formal/theorem-kinds-v1.toml": "sha256:2bedd1d75a17c90f5a54e23916db49bf38700121a39d6f55fdf46dae3ec61d57",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -95,7 +95,8 @@
     "product/runtime/auths-connections/src/model.rs": "sha256:de34a089cac9702acb889b7602b3e4732306c9e61029ec892582b7e02b73fc77",
     "product/runtime/auths-connections/src/registry.rs": "sha256:e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946",
     "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:e9d65744bae273d65face4285e5d2da75c06a92ab48f7b8333d496604e31c63c",
-    "product/runtime/auths-gateway-kernel/src/lib.rs": "sha256:cfda6f8453426564c085475f183b6f790b438768a19668f1b65d33ba59dc8632",
+    "product/runtime/auths-gateway-kernel/src/deadline.rs": "sha256:63243911770e5f34056522fb8ad01cc9b6d512e576d361d66de3007789ee281d",
+    "product/runtime/auths-gateway-kernel/src/lib.rs": "sha256:a9c572f38ad9922024d51514484f74e9b59fd440de05edc02126cf09cbf09fa6",
     "product/runtime/auths-gateway-kernel/src/order.rs": "sha256:e0045f877c4b7fe3860c291039853885064ddcdebba7c9b345ab65e81e646dda",
     "product/runtime/auths-gateway-kernel/src/outcome.rs": "sha256:e9785b1afe70788c89b51b18655bcd5acff7b0c8e3d12fb79c6f05a202e67e6b",
     "product/runtime/auths-gateway-kernel/src/ratio.rs": "sha256:7ace22264812e6fc1ef3a62afee402cf43494bb71ae0d3de219ad1b39d690bcb",
@@ -118,9 +119,9 @@
     "product/stores/auths-stores/src/lifecycle.rs": "sha256:0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
   },
   "claim": {
-    "decision_functions": 1031,
+    "decision_functions": 1035,
     "decision_closure_functions": 110,
-    "decision_code_lines": 11353,
+    "decision_code_lines": 11521,
     "decision_closure_code_lines": 1289,
     "check_sites": 82,
     "covered_check_sites": 15,
@@ -194,165 +195,165 @@
     "decision": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1031,
-      "span_lines": 11396,
-      "code_lines": 11353,
+      "functions": 1035,
+      "span_lines": 11564,
+      "code_lines": 11521,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1067,
+          "function_share": 0.1063,
           "span_lines": 1300,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1124,
           "code_lines": 1289,
-          "code_line_share": 0.1135
+          "code_line_share": 0.1119
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0543,
+          "function_share": 0.0541,
           "span_lines": 867,
-          "span_line_share": 0.0761,
+          "span_line_share": 0.075,
           "code_lines": 856,
-          "code_line_share": 0.0754
+          "code_line_share": 0.0743
         },
         "closure": {
           "functions": 110,
-          "function_share": 0.1067,
+          "function_share": 0.1063,
           "span_lines": 1300,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1124,
           "code_lines": 1289,
-          "code_line_share": 0.1135
+          "code_line_share": 0.1119
         }
       }
     },
     "verifier-core": {
       "scope": "verifier-core",
       "minimum_code_lines": 0,
-      "functions": 785,
-      "span_lines": 8842,
-      "code_lines": 8802,
+      "functions": 789,
+      "span_lines": 9010,
+      "code_lines": 8970,
       "by_level": {
         "translated": {
           "functions": 86,
-          "function_share": 0.1096,
+          "function_share": 0.109,
           "span_lines": 918,
-          "span_line_share": 0.1038,
+          "span_line_share": 0.1019,
           "code_lines": 907,
-          "code_line_share": 0.103
+          "code_line_share": 0.1011
         },
         "direct": {
           "functions": 41,
-          "function_share": 0.0522,
+          "function_share": 0.052,
           "span_lines": 569,
-          "span_line_share": 0.0644,
+          "span_line_share": 0.0632,
           "code_lines": 558,
-          "code_line_share": 0.0634
+          "code_line_share": 0.0622
         },
         "closure": {
           "functions": 86,
-          "function_share": 0.1096,
+          "function_share": 0.109,
           "span_lines": 918,
-          "span_line_share": 0.1038,
+          "span_line_share": 0.1019,
           "code_lines": 907,
-          "code_line_share": 0.103
+          "code_line_share": 0.1011
         }
       }
     },
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1499,
-      "span_lines": 16705,
-      "code_lines": 16652,
+      "functions": 1501,
+      "span_lines": 16720,
+      "code_lines": 16667,
       "by_level": {
         "translated": {
-          "functions": 216,
-          "function_share": 0.1441,
-          "span_lines": 2610,
-          "span_line_share": 0.1562,
-          "code_lines": 2599,
-          "code_line_share": 0.1561
+          "functions": 218,
+          "function_share": 0.1452,
+          "span_lines": 2625,
+          "span_line_share": 0.157,
+          "code_lines": 2614,
+          "code_line_share": 0.1568
         },
         "direct": {
-          "functions": 74,
-          "function_share": 0.0494,
-          "span_lines": 1095,
-          "span_line_share": 0.0655,
-          "code_lines": 1084,
-          "code_line_share": 0.0651
+          "functions": 76,
+          "function_share": 0.0506,
+          "span_lines": 1110,
+          "span_line_share": 0.0664,
+          "code_lines": 1099,
+          "code_line_share": 0.0659
         },
         "closure": {
-          "functions": 214,
-          "function_share": 0.1428,
-          "span_lines": 2579,
-          "span_line_share": 0.1544,
-          "code_lines": 2568,
-          "code_line_share": 0.1542
+          "functions": 216,
+          "function_share": 0.1439,
+          "span_lines": 2594,
+          "span_line_share": 0.1551,
+          "code_lines": 2583,
+          "code_line_share": 0.155
         }
       }
     },
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1117,
-      "span_lines": 14028,
-      "code_lines": 13962,
+      "functions": 1124,
+      "span_lines": 14208,
+      "code_lines": 14142,
       "by_level": {
         "translated": {
           "functions": 90,
-          "function_share": 0.0806,
+          "function_share": 0.0801,
           "span_lines": 997,
-          "span_line_share": 0.0711,
+          "span_line_share": 0.0702,
           "code_lines": 986,
-          "code_line_share": 0.0706
+          "code_line_share": 0.0697
         },
         "direct": {
           "functions": 43,
-          "function_share": 0.0385,
+          "function_share": 0.0383,
           "span_lines": 617,
-          "span_line_share": 0.044,
+          "span_line_share": 0.0434,
           "code_lines": 606,
-          "code_line_share": 0.0434
+          "code_line_share": 0.0429
         },
         "closure": {
           "functions": 88,
-          "function_share": 0.0788,
+          "function_share": 0.0783,
           "span_lines": 966,
-          "span_line_share": 0.0689,
+          "span_line_share": 0.068,
           "code_lines": 955,
-          "code_line_share": 0.0684
+          "code_line_share": 0.0675
         }
       }
     },
     "decision-nontrivial": {
       "scope": "decision",
       "minimum_code_lines": 4,
-      "functions": 443,
-      "span_lines": 9629,
-      "code_lines": 9589,
+      "functions": 446,
+      "span_lines": 9794,
+      "code_lines": 9754,
       "by_level": {
         "translated": {
           "functions": 81,
-          "function_share": 0.1828,
+          "function_share": 0.1816,
           "span_lines": 1213,
-          "span_line_share": 0.126,
+          "span_line_share": 0.1239,
           "code_lines": 1202,
-          "code_line_share": 0.1254
+          "code_line_share": 0.1232
         },
         "direct": {
           "functions": 44,
-          "function_share": 0.0993,
+          "function_share": 0.0987,
           "span_lines": 831,
-          "span_line_share": 0.0863,
+          "span_line_share": 0.0848,
           "code_lines": 820,
-          "code_line_share": 0.0855
+          "code_line_share": 0.0841
         },
         "closure": {
           "functions": 81,
-          "function_share": 0.1828,
+          "function_share": 0.1816,
           "span_lines": 1213,
-          "span_line_share": 0.126,
+          "span_line_share": 0.1239,
           "code_lines": 1202,
-          "code_line_share": 0.1254
+          "code_line_share": 0.1232
         }
       }
     }
@@ -361,132 +362,132 @@
     "decision_without_macro_rules_functions": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1014,
-      "span_lines": 11343,
-      "code_lines": 11300,
+      "functions": 1018,
+      "span_lines": 11511,
+      "code_lines": 11468,
       "by_level": {
         "translated": {
           "functions": 109,
-          "function_share": 0.1075,
+          "function_share": 0.1071,
           "span_lines": 1297,
-          "span_line_share": 0.1143,
+          "span_line_share": 0.1127,
           "code_lines": 1286,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1121
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0552,
+          "function_share": 0.055,
           "span_lines": 867,
-          "span_line_share": 0.0764,
+          "span_line_share": 0.0753,
           "code_lines": 856,
-          "code_line_share": 0.0758
+          "code_line_share": 0.0746
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1075,
+          "function_share": 0.1071,
           "span_lines": 1297,
-          "span_line_share": 0.1143,
+          "span_line_share": 0.1127,
           "code_lines": 1286,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1121
         }
       }
     },
     "decision_exact_or_verdict_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1031,
-      "span_lines": 11396,
-      "code_lines": 11353,
+      "functions": 1035,
+      "span_lines": 11564,
+      "code_lines": 11521,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1067,
+          "function_share": 0.1063,
           "span_lines": 1300,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1124,
           "code_lines": 1289,
-          "code_line_share": 0.1135
+          "code_line_share": 0.1119
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0543,
+          "function_share": 0.0541,
           "span_lines": 867,
-          "span_line_share": 0.0761,
+          "span_line_share": 0.075,
           "code_lines": 856,
-          "code_line_share": 0.0754
+          "code_line_share": 0.0743
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1057,
+          "function_share": 0.1053,
           "span_lines": 1297,
-          "span_line_share": 0.1138,
+          "span_line_share": 0.1122,
           "code_lines": 1286,
-          "code_line_share": 0.1133
+          "code_line_share": 0.1116
         }
       }
     },
     "decision_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1031,
-      "span_lines": 11396,
-      "code_lines": 11353,
+      "functions": 1035,
+      "span_lines": 11564,
+      "code_lines": 11521,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1067,
+          "function_share": 0.1063,
           "span_lines": 1300,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1124,
           "code_lines": 1289,
-          "code_line_share": 0.1135
+          "code_line_share": 0.1119
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0543,
+          "function_share": 0.0541,
           "span_lines": 867,
-          "span_line_share": 0.0761,
+          "span_line_share": 0.075,
           "code_lines": 856,
-          "code_line_share": 0.0754
+          "code_line_share": 0.0743
         },
         "closure": {
           "functions": 105,
-          "function_share": 0.1018,
+          "function_share": 0.1014,
           "span_lines": 1202,
-          "span_line_share": 0.1055,
+          "span_line_share": 0.1039,
           "code_lines": 1198,
-          "code_line_share": 0.1055
+          "code_line_share": 0.104
         }
       }
     },
     "decision_without_trait_instance_records": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1031,
-      "span_lines": 11396,
-      "code_lines": 11353,
+      "functions": 1035,
+      "span_lines": 11564,
+      "code_lines": 11521,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1067,
+          "function_share": 0.1063,
           "span_lines": 1300,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1124,
           "code_lines": 1289,
-          "code_line_share": 0.1135
+          "code_line_share": 0.1119
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0543,
+          "function_share": 0.0541,
           "span_lines": 867,
-          "span_line_share": 0.0761,
+          "span_line_share": 0.075,
           "code_lines": 856,
-          "code_line_share": 0.0754
+          "code_line_share": 0.0743
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1057,
+          "function_share": 0.1053,
           "span_lines": 1297,
-          "span_line_share": 0.1138,
+          "span_line_share": 0.1122,
           "code_lines": 1286,
-          "code_line_share": 0.1133
+          "code_line_share": 0.1116
         }
       }
     }
@@ -543,14 +544,14 @@
     },
     "core/crates/auths-registries": {
       "decision_functions": 82,
-      "decision_code_lines": 1152,
+      "decision_code_lines": 1224,
       "translated": 0,
       "refined_closure": 0,
       "refined_closure_code_lines": 0
     },
     "core/crates/auths-verifier": {
-      "decision_functions": 116,
-      "decision_code_lines": 3143,
+      "decision_functions": 120,
+      "decision_code_lines": 3239,
       "translated": 0,
       "refined_closure": 0,
       "refined_closure_code_lines": 0
@@ -570,11 +571,11 @@
       "refined_closure_code_lines": 51
     },
     "product/runtime/auths-gateway-kernel": {
-      "decision_functions": 98,
-      "decision_code_lines": 1194,
-      "translated": 95,
-      "refined_closure": 95,
-      "refined_closure_code_lines": 1168
+      "decision_functions": 100,
+      "decision_code_lines": 1209,
+      "translated": 97,
+      "refined_closure": 97,
+      "refined_closure_code_lines": 1183
     },
     "product/runtime/auths-lifecycle": {
       "decision_functions": 138,
@@ -593,10 +594,10 @@
   },
   "second_parser": {
     "parser": "syn 2 (full syntax tree), independent of the scanner's tokenizer",
-    "decision_functions": 1031,
+    "decision_functions": 1035,
     "decision_files": 30,
-    "agreements": 1014,
-    "agreement_share": 0.9835,
+    "agreements": 1018,
+    "agreement_share": 0.9836,
     "disagreements": [
       {
         "file": "core/crates/auths-model/src/lib.rs",
@@ -991,7 +992,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1007,7 +1008,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1023,7 +1024,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1039,7 +1040,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1055,7 +1056,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1071,7 +1072,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1087,7 +1088,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           },
           {
@@ -1110,7 +1111,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1126,7 +1127,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1142,7 +1143,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           },
           {
@@ -1165,7 +1166,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           }
         ]
@@ -1181,14 +1182,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "same_shared_action",
-            "begin_line": 2298,
+            "begin_line": 2316,
             "refined_closure": false
           }
         ]
@@ -1204,7 +1205,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "evaluate_extensions",
-            "begin_line": 2624,
+            "begin_line": 2681,
             "refined_closure": false
           },
           {
@@ -1227,14 +1228,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "evaluate_extensions",
-            "begin_line": 2624,
+            "begin_line": 2681,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ImmutableRegistries::extension_handler",
-            "begin_line": 1117,
+            "begin_line": 1189,
             "refined_closure": false
           }
         ]
@@ -1250,7 +1251,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "evaluate_extensions",
-            "begin_line": 2624,
+            "begin_line": 2681,
             "refined_closure": false
           },
           {
@@ -1273,7 +1274,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "validate_observation_attachments",
-            "begin_line": 58,
+            "begin_line": 64,
             "refined_closure": false
           }
         ]
@@ -1289,7 +1290,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_attachments",
-            "begin_line": 2206,
+            "begin_line": 2224,
             "refined_closure": false
           }
         ]
@@ -1305,7 +1306,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_attachments",
-            "begin_line": 2206,
+            "begin_line": 2224,
             "refined_closure": false
           }
         ]
@@ -1321,7 +1322,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_attachments",
-            "begin_line": 2206,
+            "begin_line": 2224,
             "refined_closure": false
           }
         ]
@@ -1337,7 +1338,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_attachments",
-            "begin_line": 2206,
+            "begin_line": 2224,
             "refined_closure": false
           }
         ]
@@ -1353,7 +1354,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_attachments",
-            "begin_line": 2206,
+            "begin_line": 2224,
             "refined_closure": false
           }
         ]
@@ -1369,7 +1370,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_attachments",
-            "begin_line": 2206,
+            "begin_line": 2224,
             "refined_closure": false
           }
         ]
@@ -1385,14 +1386,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_action_binding",
-            "begin_line": 2124,
+            "begin_line": 2142,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ImmutableRegistries::profile_policy",
-            "begin_line": 1077,
+            "begin_line": 1149,
             "refined_closure": false
           }
         ]
@@ -1408,14 +1409,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "verify_signed",
-            "begin_line": 1955,
+            "begin_line": 1973,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "control_for",
-            "begin_line": 2590,
+            "begin_line": 2647,
             "refined_closure": false
           }
         ]
@@ -1431,7 +1432,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "verify_branch",
-            "begin_line": 2326,
+            "begin_line": 2345,
             "refined_closure": false
           }
         ]
@@ -1447,7 +1448,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_status_extensions",
-            "begin_line": 2661,
+            "begin_line": 2718,
             "refined_closure": false
           },
           {
@@ -1461,7 +1462,7 @@
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_principal_status",
-            "begin_line": 2698,
+            "begin_line": 2755,
             "refined_closure": false
           }
         ]
@@ -1477,14 +1478,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_status_extensions",
-            "begin_line": 2661,
+            "begin_line": 2718,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_principal_status",
-            "begin_line": 2698,
+            "begin_line": 2755,
             "refined_closure": false
           }
         ]
@@ -1500,21 +1501,21 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "status_decision",
-            "begin_line": 2788,
+            "begin_line": 2859,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "select_principal",
-            "begin_line": 545,
+            "begin_line": 563,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_principal_status",
-            "begin_line": 2698,
+            "begin_line": 2755,
             "refined_closure": false
           },
           {
@@ -1537,7 +1538,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_status_extensions",
-            "begin_line": 2661,
+            "begin_line": 2718,
             "refined_closure": false
           },
           {
@@ -1551,7 +1552,7 @@
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_grant_status",
-            "begin_line": 2747,
+            "begin_line": 2805,
             "refined_closure": false
           }
         ]
@@ -1567,14 +1568,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_status_extensions",
-            "begin_line": 2661,
+            "begin_line": 2718,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_grant_status",
-            "begin_line": 2747,
+            "begin_line": 2805,
             "refined_closure": false
           }
         ]
@@ -1590,28 +1591,28 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "status_decision",
-            "begin_line": 2788,
+            "begin_line": 2859,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "select_grant",
-            "begin_line": 615,
+            "begin_line": 660,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_grant_status",
-            "begin_line": 2747,
+            "begin_line": 2805,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ExactStatusMethod::grant",
-            "begin_line": 515,
+            "begin_line": 524,
             "refined_closure": false
           }
         ]
@@ -1627,21 +1628,21 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "status_decision",
-            "begin_line": 2788,
+            "begin_line": 2859,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "select_principal",
-            "begin_line": 545,
+            "begin_line": 563,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "check_principal_status",
-            "begin_line": 2698,
+            "begin_line": 2755,
             "refined_closure": false
           },
           {
@@ -1664,14 +1665,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_resource_constraints",
-            "begin_line": 2814,
+            "begin_line": 2885,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ImmutableRegistries::resource_matcher",
-            "begin_line": 1057,
+            "begin_line": 1129,
             "refined_closure": false
           }
         ]
@@ -1687,7 +1688,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_resource_constraints",
-            "begin_line": 2814,
+            "begin_line": 2885,
             "refined_closure": false
           },
           {
@@ -1710,7 +1711,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_resource_constraints",
-            "begin_line": 2814,
+            "begin_line": 2885,
             "refined_closure": false
           },
           {
@@ -1733,14 +1734,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ImmutableRegistries::budget_algebra",
-            "begin_line": 1097,
+            "begin_line": 1169,
             "refined_closure": false
           }
         ]
@@ -1756,7 +1757,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
@@ -1779,7 +1780,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
@@ -1802,7 +1803,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
@@ -1825,14 +1826,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ImmutableRegistries::budget_algebra",
-            "begin_line": 1097,
+            "begin_line": 1169,
             "refined_closure": false
           }
         ]
@@ -1848,7 +1849,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
@@ -1878,7 +1879,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_budget_constraints",
-            "begin_line": 2849,
+            "begin_line": 2920,
             "refined_closure": false
           },
           {
@@ -1908,14 +1909,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "require_parent_requirements",
-            "begin_line": 111,
+            "begin_line": 117,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "chain_requirements",
-            "begin_line": 80,
+            "begin_line": 86,
             "refined_closure": false
           },
           {
@@ -2285,7 +2286,7 @@
             "role": "also",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "AcceptedExtensionLaws::attenuates",
-            "begin_line": 1259,
+            "begin_line": 1331,
             "refined_closure": false
           },
           {
@@ -2329,7 +2330,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "evaluate_extensions",
-            "begin_line": 2624,
+            "begin_line": 2681,
             "refined_closure": false
           },
           {
@@ -2532,14 +2533,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "validate_assurance_claims",
-            "begin_line": 2917,
+            "begin_line": 2988,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-registries/src/lib.rs",
             "function": "ImmutableRegistries::assurance_claim",
-            "begin_line": 1189,
+            "begin_line": 1261,
             "refined_closure": false
           }
         ]
@@ -2562,7 +2563,7 @@
             "role": "also",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "evaluate_branch_assurance",
-            "begin_line": 2534,
+            "begin_line": 2562,
             "refined_closure": false
           }
         ]
@@ -2578,14 +2579,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "Stage::evaluate",
-            "begin_line": 137,
+            "begin_line": 143,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "Stage::in_authority_chain",
-            "begin_line": 181,
+            "begin_line": 191,
             "refined_closure": false
           },
           {
@@ -2608,7 +2609,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "Stage::requirement",
-            "begin_line": 218,
+            "begin_line": 228,
             "refined_closure": false
           },
           {
@@ -2638,7 +2639,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "Stage::requirement",
-            "begin_line": 218,
+            "begin_line": 228,
             "refined_closure": false
           },
           {
@@ -2661,14 +2662,14 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "Stage::requirement",
-            "begin_line": 218,
+            "begin_line": 228,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/observation.rs",
             "function": "Stage::action_facts",
-            "begin_line": 285,
+            "begin_line": 305,
             "refined_closure": false
           },
           {
@@ -2691,21 +2692,21 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate_list",
-            "begin_line": 185,
+            "begin_line": 186,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate",
-            "begin_line": 243,
+            "begin_line": 257,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "chain_requirements",
-            "begin_line": 81,
+            "begin_line": 82,
             "refined_closure": false
           },
           {
@@ -2742,21 +2743,21 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate_list",
-            "begin_line": 185,
+            "begin_line": 186,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate",
-            "begin_line": 243,
+            "begin_line": 257,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "status_verdict",
-            "begin_line": 367,
+            "begin_line": 387,
             "refined_closure": false
           },
           {
@@ -2786,7 +2787,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "verify_authority_measured",
-            "begin_line": 1628,
+            "begin_line": 1641,
             "refined_closure": false
           }
         ]
@@ -2802,7 +2803,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "verify_authority_measured",
-            "begin_line": 1628,
+            "begin_line": 1641,
             "refined_closure": false
           }
         ]
@@ -2818,7 +2819,7 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "verify_authority_measured",
-            "begin_line": 1628,
+            "begin_line": 1641,
             "refined_closure": false
           }
         ]
@@ -2834,28 +2835,28 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate_list",
-            "begin_line": 185,
+            "begin_line": 186,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate",
-            "begin_line": 243,
+            "begin_line": 257,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "binds_exact",
-            "begin_line": 125,
+            "begin_line": 126,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "signature_verdict",
-            "begin_line": 324,
+            "begin_line": 344,
             "refined_closure": false
           },
           {
@@ -2892,21 +2893,21 @@
             "role": "refusal",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate_list",
-            "begin_line": 185,
+            "begin_line": 186,
             "refined_closure": false
           },
           {
             "role": "guard",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "Approvals::evaluate",
-            "begin_line": 243,
+            "begin_line": 257,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-verifier/src/approval.rs",
             "function": "status_verdict",
-            "begin_line": 367,
+            "begin_line": 387,
             "refined_closure": false
           },
           {
@@ -2968,6 +2969,9 @@
       "Auths.Product.Refinement.Connections.translated_retained_generation_refines_model": "exact",
       "Auths.Product.Refinement.Connections.translated_rotation_refines_model": "exact",
       "Auths.Product.Refinement.Connections.translated_state_change_refines_model": "exact",
+      "Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses": "partial",
+      "Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model": "exact",
+      "Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model": "exact",
       "Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model": "exact",
       "Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model": "exact",
       "Auths.Product.Refinement.Gateway.translated_construct_write_refines_model": "exact",
@@ -3035,19 +3039,19 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 328,
+    "aeneas_local_definitions": 330,
     "by_kind": {
-      "function": 216,
+      "function": 218,
       "loop": 96,
       "derived": 16
     },
-    "refined_direct": 74,
-    "refined_closure": 219,
-    "theorems_naming_translated_functions": 81
+    "refined_direct": 76,
+    "refined_closure": 221,
+    "theorems_naming_translated_functions": 84
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "9cfae92b8ea85d6394784a2acba21f66a24141a8a25acea5365d51d545bc3893",
+    "current_formal_inputs_sha256": "33a3abdf4928ec58a29b662e750c9e5f26efea4a6c52c6b0476d8fe8b6559fa0",
     "fresh": false,
     "campaigns": {
       "s1": {

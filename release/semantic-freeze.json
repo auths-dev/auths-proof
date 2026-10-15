@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 389,
+  "freezeVersion": 390,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 38,
+      "version": 39,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -90,7 +90,7 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "b47e501a2ed6632c147d1901bfdd3c361e2e5b85edc08e3bb8e5f42bc62024af"
+      "sha256": "c9be95ca48e5db253e9aea021974ccc942625939b8775be5280c2159a5c6a452"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
@@ -202,7 +202,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 61,
+      "version": 62,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -210,11 +210,11 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "0e79038d3d5002857b565fc2ab1052dc237fc4a7d99b2edd2ea60ebf32684af8"
+      "sha256": "5357e4eaf111f00601deefa1cd6807f594a70a9a56ae5e43cf24156120d7c458"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
-      "version": 21,
+      "version": 22,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -222,11 +222,11 @@
       "owners": [
         "formal/qualification/aeneas/generated"
       ],
-      "sha256": "97f4984e2e90b278a360551e60d01475d9caf3c0b63af93b2aba2aa3c5e239e7"
+      "sha256": "b87f0ca7bcdf8305e8a293520f8820c891608ba1b9d47330c442099b161663e2"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml",
-      "version": 18,
+      "version": 19,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -234,11 +234,11 @@
       "owners": [
         "formal/qualification/aeneas/qualification.toml"
       ],
-      "sha256": "7531392c913d93f344405ea76cf839abd1dcd95889fe73500840654b134e59aa"
+      "sha256": "472f4f77ecd71c2a7adf8e36fb4029e64c87b903615b59d37c6ea611a3419a24"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 101,
+      "version": 102,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "bca07372f810f21a3a5ae57202dcdb722a318fcea3d35a19810b568ab54134f3"
+      "sha256": "0efb5bd62afa29f55db719c89b90968680b1ee1ada2936785198c0959bd02507"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 136,
+      "version": 137,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -784,7 +784,7 @@
     },
     {
       "id": "auths.product.lifecycle",
-      "version": 17,
+      "version": 18,
       "classification": "frozen-meaning",
       "categories": [
         "reservation-state",
@@ -801,7 +801,7 @@
         "product/stores/auths-stores/tests/postgres_lifecycle.rs",
         "product/stores/auths-stores/tests/postgres_tls"
       ],
-      "sha256": "c36ad01bc7aa0fb27a8dc5fceac42fc9cf8055b584eab4621e908fd0b5c7d4dd"
+      "sha256": "484fcfe3c1593eecdedd54ea0ac649c7ae621700b9050f8a7d037e8f2e6d1ea4"
     },
     {
       "id": "auths.product.mcp-closed-execution",
@@ -871,7 +871,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 133,
+      "version": 134,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 389,
+      "version": 390,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1104,7 +1104,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "153df3b7c4830e6a50893652b01b2937b609629c66f40fdbd1b880d7b4cf74f7"
+      "sha256": "6ba009464c9063d2bae59825db19c388485750c0737a60390dc2850de7681281"
     }
   ]
 }
