@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "37ba27a8b1e60d013eba527c5f7184afb1f3875086b1dcee6cf4bc2e7403b2a2",
+  "digest": "8a1b90aa360f8df77c51235153d096c2287f870a41e585e9ef392e1f3109542b",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -782,34 +782,6 @@
     {
       "path": "product/stores/auths-stores/tests/postgres_tls/generate-certificates.sh",
       "sha256": "7e32dcc80aefef2c22a4415e28946f6b5c7404de65de827868e5e955c2c22be2"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/ca.crt",
-      "sha256": "3f1a598926f5b1e5aa0d71533709c34a81a4b144ea4d561dac8410f608de527f"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/ca.key",
-      "sha256": "c08947a9306d46890d76214826dd24ff84f7a8cd92a6582671f463d761faab48"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/ca.srl",
-      "sha256": "3608c1cfe5cde21dcb2555f06eca423d8644faae315ba674f765ad75087c1fa4"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.crt",
-      "sha256": "3cfa1f81708a0b87fac9a1608b430c1ad5b607f6364b31beef2b8c0661df2e06"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.csr",
-      "sha256": "dc8dcd92ca5388e3ef24052861f54f25f132cfba6b9e3232431c34bc3497f699"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.ext",
-      "sha256": "4c30d3cd80ef1cd8ec89b0605cb8b6d0065c688515ee78f0cb42b1c8efeb9002"
-    },
-    {
-      "path": "product/stores/auths-stores/tests/postgres_tls/generated/server.key",
-      "sha256": "2d47052e13817ee3a2a4df3519bc2e5919dea0a694e3e7427c272f7e67579047"
     },
     {
       "path": "product/stores/auths-stores/tests/production_recovery.rs",
