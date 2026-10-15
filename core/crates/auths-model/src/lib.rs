@@ -7,6 +7,7 @@
 extern crate alloc;
 
 mod bounded;
+mod identifier;
 
 pub use bounded::{BoundError, BoundedBytes, BoundedSet};
 
@@ -110,12 +111,7 @@ impl ProtocolVersion {
 }
 
 fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<String, ModelError> {
-    if value.is_empty()
-        || value.len() > maximum
-        || value
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
-    {
+    if !identifier::bounded_identifier_valid(value, maximum) {
         return Err(error);
     }
     Ok(value.to_string())

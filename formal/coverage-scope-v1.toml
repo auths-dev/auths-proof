@@ -72,6 +72,7 @@ crates = ["product/stores/auths-stores"]
 "core/crates/auths-model/src/approval.rs" = "decision"
 "core/crates/auths-model/src/bounded.rs" = "decision"
 "core/crates/auths-model/src/bounded_policy.rs" = "decision"
+"core/crates/auths-model/src/identifier.rs" = "decision"
 "core/crates/auths-model/src/lib.rs" = "decision"
 "core/crates/auths-model/src/observation.rs" = "decision"
 "core/crates/auths-ports/src/binding.rs" = "interface"

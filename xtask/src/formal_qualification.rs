@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "cc73248090cd6fda1af6d5ef0496b49748478d49a3202141f9a593bb24818b59";
+    "6274846a1ef061ce37d41c914fe05d44b8b9525b124aa45ea3ba841e56741d65";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -1109,7 +1109,19 @@ def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=\n\
   if h : value.toByteArray.size ≤ U32.max then\n\
     ok (Aeneas.Std.toStr value h)\n\
   else\n\
-    fail .panic\n"
+    fail .panic\n\
+\n\
+@[rust_fun \"core::str::{str}::len\"]\n\
+def core.str.Str.len (value : Str) : Result Std.Usize :=\n\
+  ok (Slice.len value)\n\
+\n\
+@[rust_fun \"core::str::{str}::is_empty\"]\n\
+def core.str.Str.is_empty (value : Str) : Result Bool :=\n\
+  ok value.val.isEmpty\n\
+\n\
+@[rust_fun \"core::str::{str}::as_bytes\"]\n\
+def core.str.Str.as_bytes (value : Str) : Result (Slice Std.U8) :=\n\
+  ok value\n"
         .to_owned()
 }
 
@@ -1936,6 +1948,7 @@ fn reproduce(
         &[],
     )?;
     let model_starts = [
+        "auths_model::identifier::bounded_identifier_valid",
         "auths_model::inclusive_window_contains",
         "auths_model::validity_window_contains",
         "auths_model::permission_set_contains",

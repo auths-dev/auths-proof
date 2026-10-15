@@ -7,8 +7,8 @@ shipping-source refinement and hosted evidence gates.
 
 | Milestone | State | Evidence / remaining work |
 | --- | --- | --- |
-| M0: claims and extraction slices | In progress | The shipping head reader now refines the independent grammar for every byte slice and cursor, including reserved tags and truncated arguments. Four audited claims, positive/refusal cases, and the codec extraction inventory are connected. Full protocol-object extraction and hosted qualification remain required. |
-| M1: complete codec | In progress | Shipping head reading and writing refine the independent grammar, with a source-to-source head round trip and a one-to-nine-byte output bound. The object codecs use these primitives; the previous dependency is a test oracle. Object/carrier, work/allocation bounds, complete codec refinements and hosted corpus/property evidence remain required. |
+| M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
+| M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. The shared identifier validator has exact scan/bounds refinements and Unicode-stream adequacy. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | Pending | E5.1–E5.4. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
@@ -159,3 +159,36 @@ without advisory exceptions. The patched closure passes local qualification
 construction: 342 audited claims, all ten qualification cases, and two
 byte-identical translations. The patched revision still needs hosted gates;
 none of these results completes an E1–E5 workstream.
+
+## Identifier-validation slice
+
+The shipping model now uses one bounded byte validator before copying an
+identifier into its owned string. Its fixed UTF-8 prefix set agrees with the
+pinned character rule for control and whitespace characters. URI-scheme
+validation and every identifier-specific bound remain in their existing
+constructors. There is one production path.
+
+The independent scalar model proves correctness for any finite stream through
+U+10FFFF, including arbitrary following bytes and the absence of false matches
+across scalar boundaries. The exact shipping lookahead is total on every byte
+slice/cursor; the full scan terminates with a decreasing remaining-byte
+measure. The bounded validator fixes acceptance for every translated carrier
+and maximum. Its Unicode-policy composition retains an explicit UTF-8 byte
+representation premise; this does not by itself prove UTF-8 decoding or every
+constructor/carrier invariant.
+
+The qualification now extracts 141 local model function records and seven
+standard-library externals, with zero opaque local functions. The additional
+externals are transparent borrowed-string length, emptiness, and byte access;
+they introduce no axiom or assumed Auths predicate. Positive/refusal cases
+cover exact byte bounds, empty input, U+2028, and the nearby permitted U+200B.
+Native qualification includes every Unicode scalar in isolation and an ASCII
+frame, the concatenation of all allowed scalars, and randomized comparison
+with the previous character predicate.
+
+Local qualification passed two byte-identical translations, ten qualification
+cases, and 347 compiled claims. The previous 342 statement hashes are unchanged;
+the five additions use only the existing foundational axiom allowlist. The
+hosted authoritative implementation job for the preceding `f97d7e7f` checkpoint
+passed, including the storage and deadline tests. This identifier checkpoint
+still requires its own hosted gates. No E1–E5 workstream is complete yet.

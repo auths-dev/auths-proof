@@ -1,4 +1,4 @@
-freeze_version = 392
+freeze_version = 393
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -6,7 +6,7 @@ freeze_version = 392
 # made the two generated artifacts hash each other and therefore unable to
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
-"auths.core.protocol" = 39
+"auths.core.protocol" = 40
 "auths.frozen-bytes/architecture/dependency-graph.json" = 80
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 2
@@ -16,10 +16,10 @@ freeze_version = 392
 "auths.frozen-bytes/core/fixtures/v1/manifest.json" = 15
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 64
-"auths.frozen-bytes/formal/qualification/aeneas/generated" = 23
-"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 19
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 104
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 65
+"auths.frozen-bytes/formal/qualification/aeneas/generated" = 24
+"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 20
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 105
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 4
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 3
@@ -47,7 +47,7 @@ freeze_version = 392
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
 "auths.identity.protocol" = 137
 "auths.modular-components" = 22
-"auths.portable-abi-bindings" = 122
+"auths.portable-abi-bindings" = 123
 "auths.product.bounded-domains" = 19
 "auths.product.bounded-policy" = 6
 "auths.product.configuration-commitments" = 1
@@ -67,4 +67,4 @@ freeze_version = 392
 "auths.product.vocabulary" = 26
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 79
-"auths.release.public-surface" = 392
+"auths.release.public-surface" = 393

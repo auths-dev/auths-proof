@@ -49,3 +49,15 @@ if h : value.toByteArray.size ≤ U32.max then
 ok (Aeneas.Std.toStr value h)
 else
 fail .panic
+
+@[rust_fun "core::str::{str}::len"]
+def core.str.Str.len (value : Str) : Result Std.Usize :=
+ok (Slice.len value)
+
+@[rust_fun "core::str::{str}::is_empty"]
+def core.str.Str.is_empty (value : Str) : Result Bool :=
+ok value.val.isEmpty
+
+@[rust_fun "core::str::{str}::as_bytes"]
+def core.str.Str.as_bytes (value : Str) : Result (Slice Std.U8) :=
+ok value

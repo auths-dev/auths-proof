@@ -7,6 +7,61 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Model.IdentifierSemantics",
+      "name": "Auths.Model.Identifier.contains_encoded_scalars",
+      "statement": "∀ (scalars : List ℕ),\n  (∀ scalar ∈ scalars, scalar ≤ 1114111) →\n    Auths.Model.Identifier.containsExcluded (List.flatMap Auths.Model.Identifier.utf8 scalars) =\n      scalars.any fun scalar => decide (Auths.Model.Identifier.excluded scalar)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Identifier",
+      "name": "Auths.Refinement.Identifier.forbidden_at_exact",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (position : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_model.identifier.forbidden_identifier_at input position) fun result =>\n    result = Auths.Refinement.Identifier.excludedPrefix (List.drop ↑position ↑input)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Identifier",
+      "name": "Auths.Refinement.Identifier.scan_exact",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (position : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_model.identifier.contains_forbidden_identifier_loop input position) fun result =>\n    result = Auths.Refinement.Identifier.containsExcluded (List.drop ↑position ↑input)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Identifier",
+      "name": "Auths.Refinement.Identifier.identifier_exact",
+      "statement": "∀ (value : Aeneas.Std.Str) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_model.identifier.bounded_identifier_valid value maximum) fun result =>\n    result =\n      (!(↑value).isEmpty && decide ((↑value).length ≤ ↑maximum) && !Auths.Refinement.Identifier.containsExcluded ↑value)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Identifier",
+      "name": "Auths.Refinement.Identifier.identifier_unicode_exact",
+      "statement": "∀ (value : Aeneas.Std.Str) (maximum : Aeneas.Std.Usize) (scalars : List ℕ),\n  List.map (fun x => ↑x) ↑value = List.flatMap Auths.Model.Identifier.utf8 scalars →\n    (∀ scalar ∈ scalars, scalar ≤ 1114111) →\n      Aeneas.Std.WP.spec (auths_model.identifier.bounded_identifier_valid value maximum) fun result =>\n        result =\n          (!(↑value).isEmpty && decide ((↑value).length ≤ ↑maximum) &&\n            !scalars.any fun scalar => decide (Auths.Model.Identifier.excluded scalar))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Codec.Encoder",
       "name": "Auths.Codec.Refinement.Encoder.append_tail_exact",
       "statement": "∀ (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) (value : Aeneas.Std.U64) (remaining : Aeneas.Std.U8),\n  ↑remaining ≤ 8 →\n    (↑output).length + ↑remaining ≤ Aeneas.Std.Usize.max →\n      Aeneas.Std.WP.spec (auths_codec.cbor.append_tail output value remaining) fun encoded =>\n        Auths.Codec.Refinement.byteList ↑encoded =\n          Auths.Codec.Refinement.byteList ↑output ++ Auths.Codec.bigEndian ↑remaining ↑value"

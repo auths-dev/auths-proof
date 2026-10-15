@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "bc5eb3961e8e9b598070d6195af869911dbac4419fcbce8e142eace8f8027e74",
+  "digest": "60b6483bda67f63728e78314fe568b2febddef2dd67506c33835715b540a393a",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -224,8 +224,12 @@
       "sha256": "306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450"
     },
     {
+      "path": "core/crates/auths-model/src/identifier.rs",
+      "sha256": "c35c1c411d258a7f155a766b4eb71820e2abaa409745ae7df18daaf1e931e059"
+    },
+    {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "e7cfe6bb9574c6b016aa63e70658c31e0b90903ec6479a49f4a2ceb64f5bad97"
+      "sha256": "064cff3eec9077831fc51a77588d9d0d2029f1c68a6d394282f531d605323691"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",
@@ -461,7 +465,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Model.lean",
-      "sha256": "b27e252238449bcee87a3d4d4deeca5537e8af380e2559ca24ea04fa88265793"
+      "sha256": "ebd31a481094b891fc64a924e12581ad516c0bed153238f3f2b7b97d1b914724"
     },
     {
       "path": "formal/qualification/aeneas/cases/Stores.lean",
@@ -469,7 +473,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "d23297c3da8039028eaf681e4fc5767c2f5169bf949d6824e9675a94a0ee24f2"
+      "sha256": "9df58cef62b327e98ee36a0fcf6d0438fa9deefe677b26a7a663f583ad30ff57"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -869,7 +873,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "2e3970f485e4e3102c23329217e7f2a677ace5ba2a1c5df4542ec1867425bd21"
+      "sha256": "4c96688efcb3b891893dab02cf87989495ecb9fb8ac52cd86d7f85d5339f688f"
     },
     {
       "path": "xtask/src/fuzz.rs",
