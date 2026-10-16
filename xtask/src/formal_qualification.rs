@@ -13,9 +13,33 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "3def05e8d6b7212f0a9c667033270db7824d239e074a131a791ed95adaa4cb4e";
+    "27fe5f124bb9a393a9c188307de6c7206ac3776dd0bfdb1206034c3fab20c50a";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "p256-run/qualification/aeneas/generated/p256/Types.lean",
+        "formal/qualification/aeneas/generated/p256/Types.lean",
+    ),
+    (
+        "p256-run/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+        "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+    ),
+    (
+        "p256-run/qualification/aeneas/generated/p256/Funs.lean",
+        "formal/qualification/aeneas/generated/p256/Funs.lean",
+    ),
+    (
+        "p256-run/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+    ),
+    (
+        "p256-run/translation.json",
+        "formal/qualification/aeneas/generated/p256/translation.json",
+    ),
+    (
+        "p256-run/name-normalization.json",
+        "formal/qualification/aeneas/generated/p256/name-normalization.json",
+    ),
     (
         "sha256-run/qualification/aeneas/generated/sha256/Types.lean",
         "formal/qualification/aeneas/generated/sha256/Types.lean",
@@ -211,6 +235,8 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/p256/FunsExternal.lean",
     "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
     "formal/qualification/aeneas/generated/sha256/FunsExternal.lean",
     "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
@@ -228,6 +254,14 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/p256/Types.lean",
+    "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/p256/Funs.lean",
+    "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/p256/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/p256/translation.json",
+    "formal/qualification/aeneas/generated/p256/name-normalization.json",
     "formal/qualification/aeneas/generated/sha256/Types.lean",
     "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
@@ -290,6 +324,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.P256",
     "qualification.aeneas.cases.Sha256",
     "qualification.aeneas.cases.Signature",
     "qualification.aeneas.cases.Composition",
@@ -305,6 +340,8 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "formal/Auths/Crypto/P256Primitives.lean",
+    "formal/qualification/aeneas/cases/P256.lean",
     "core/crates/auths-signature-core/Cargo.toml",
     "core/crates/auths-signature-core/src/lib.rs",
     "formal/qualification/aeneas/cases/Signature.lean",
@@ -337,6 +374,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_signature_core",
+        "formal/qualification/aeneas/generated/p256/translation.json",
+    ),
     (
         "auths_codec",
         "formal/qualification/aeneas/generated/sha256/translation.json",
@@ -388,6 +429,8 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
@@ -732,11 +775,11 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 12
-        || qualification.translations.len() != 12
-        || qualification.external_models.len() != 16
+    if qualification.case_modules.len() != 13
+        || qualification.translations.len() != 13
+        || qualification.external_models.len() != 19
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 11
+        || qualification.template_axioms.len() != 13
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -752,6 +795,9 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "signature-explicit-primitive-context-v1",
             "sha256-monomorphic-foreign-names-v1",
             "sha256-explicit-primitive-context-v1",
+            "p256-monomorphic-export-names-v1",
+            "p256-qualified-discriminants-v1",
+            "p256-explicit-primitive-context-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -1190,6 +1236,14 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
+            render_p256_types_external(),
+        ),
+        (
+            "formal/qualification/aeneas/generated/p256/FunsExternal.lean",
+            render_p256_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
             render_sha256_types_external(),
         ),
@@ -1249,6 +1303,75 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_p256_types_external() -> String {
+    r#"-- REVIEWED EXPLICIT FOREIGN TYPES. NO GLOBAL INSTANCE OR AXIOM.
+import Auths.Crypto.P256Primitives
+namespace AuthsNativeP256
+abbrev ecdsa.qualified_p256_type_decls_4 [P : Auths.Crypto.P256Primitives] := P.Key
+abbrev ecdsa.qualified_p256_type_decls_11 [P : Auths.Crypto.P256Primitives] := P.Signature
+abbrev signature.error.Error [P : Auths.Crypto.P256Primitives] := P.Error
+end AuthsNativeP256
+"#
+    .to_owned()
+}
+
+fn render_p256_functions_external() -> String {
+    r#"-- REVIEWED TRANSPARENT STANDARD MATCHES AND EXPLICIT FOREIGN PROJECTIONS.
+import qualification.aeneas.generated.p256.Types
+open Aeneas Aeneas.Std Result
+namespace AuthsNativeP256
+variable [P : Auths.Crypto.P256Primitives]
+
+def SharedSliceU8.Insts.CoreConvertTryIntoArrayU864.try_into (bytes : Slice Std.U8) :
+    Result core.qualified_p256_type_decls_9 :=
+  if sized : bytes.val.length = 64 then
+    ok (.Ok ⟨bytes.val, by scalar_tac⟩)
+  else ok (.Err ())
+
+def core.qualified_p256_fun_decls_27 (value : core.qualified_p256_type_decls_16) : Result Bool :=
+  ok (match value with | .Ok _ => true | .Err _ => false)
+
+def core.qualified_p256_fun_decls_30 (value : core.qualified_p256_type_decls_17) :
+    Result core.qualified_p256_type_decls_13 :=
+  ok (match value with | .Ok key => .Some key | .Err _ => .None)
+
+def core.qualified_p256_fun_decls_24 (value : core.qualified_p256_type_decls_14) :
+    Result core.qualified_p256_type_decls_12 :=
+  ok (match value with | .Ok signature => .Some signature | .Err _ => .None)
+
+
+def core.qualified_p256_type_decls_3.Insts.CoreOpsTry_traitTry.branch
+    (value : core.qualified_p256_type_decls_3) : Result core.qualified_p256_type_decls_6 :=
+  ok (match value with | .Ok key => .Continue key | .Err reason => .Break (.Err reason))
+
+def core.qualified_p256_type_decls_0.Insts.CoreOpsTry_traitFromResidualqualified_p256_type_decls_7.from_residual
+    (residual : core.qualified_p256_type_decls_7) : Result core.qualified_p256_type_decls_0 :=
+  match residual with
+  | .Ok impossible => nomatch impossible
+  | .Err reason => ok (.Err reason)
+
+def core.qualified_p256_fun_decls_20 (bytes : Slice Std.U8) : Result Std.Usize := ok (Slice.len bytes)
+
+def ecdsa.qualified_p256_fun_decls_23 (bytes : Slice Std.U8) :
+    Result core.qualified_p256_type_decls_14 := do
+  let value ← P.parse bytes
+  ok (match value with | .Ok signature => .Ok signature | .Err reason => .Err reason)
+
+def ecdsa.qualified_p256_fun_decls_29 (bytes : Slice Std.U8) :
+    Result core.qualified_p256_type_decls_17 := do
+  let value ← P.decode bytes
+  ok (match value with | .Ok key => .Ok key | .Err reason => .Err reason)
+
+def ecdsa.qualified_p256_type_decls_4.Insts.SignatureVerifierVerifierqualified_p256_type_decls_11.verify
+    (key : ecdsa.qualified_p256_type_decls_4) (message : Slice Std.U8)
+    (signature : ecdsa.qualified_p256_type_decls_11) : Result core.qualified_p256_type_decls_16 := do
+  let value ← P.verify key message signature
+  ok (match value with | .Ok valueUnit => .Ok valueUnit | .Err reason => .Err reason)
+
+end AuthsNativeP256
+"#.to_owned()
 }
 
 fn render_sha256_types_external() -> String {
@@ -2533,6 +2656,37 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_signature_core::verify_p256_sha256,auths_signature_core::validate_p256_key",
+            &stable_llbc.join("auths_signature_core_p256.llbc"),
+            "core/crates/auths-signature-core/Cargo.toml",
+            &[
+                "--monomorphize",
+                "--opaque",
+                "p256",
+                "--opaque",
+                "ecdsa",
+                "--opaque",
+                "elliptic_curve",
+                "--opaque",
+                "primeorder",
+                "--opaque",
+                "crypto_bigint",
+                "--opaque",
+                "signature",
+            ],
+        ),
+        root,
+        &[],
+    )?;
+    normalize_p256_llbc_names(
+        &stable_llbc.join("auths_signature_core_p256.llbc"),
+        output,
+        charon,
+        root,
+    )?;
     normalize_sha256_llbc_names(
         &stable_llbc.join("auths_codec_sha256.llbc"),
         output,
@@ -2541,6 +2695,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_signature_core_p256",
         "auths_codec_sha256",
         "auths_signature_core",
         "auths_composition",
@@ -2571,6 +2726,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_signature_core_p256", "p256"),
         ("auths_codec_sha256", "sha256"),
         ("auths_signature_core", "signature"),
         ("auths_composition", "composition"),
@@ -2605,8 +2761,17 @@ fn reproduce(
                 .display()
                 .to_string(),
         ];
-        if matches!(crate_name, "auths_composition" | "auths_signature_core") {
+        if matches!(
+            crate_name,
+            "auths_composition" | "auths_signature_core" | "auths_signature_core_p256"
+        ) {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
+        }
+        if subdir == "p256" {
+            aeneas_arguments.splice(
+                0..0,
+                ["-namespace".to_owned(), "AuthsNativeP256".to_owned()],
+            );
         }
         if subdir == "sha256" {
             aeneas_arguments.splice(
@@ -2617,6 +2782,7 @@ fn reproduce(
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_signature_core_p256",
         "auths_codec_sha256",
         "auths_signature_core",
         "auths_composition",
@@ -2637,6 +2803,7 @@ fn reproduce(
     normalize_signature_discriminants(output)?;
     normalize_signature_primitive_context(output)?;
     normalize_sha256_primitive_context(output)?;
+    normalize_p256_context(output)?;
     Ok(())
 }
 
@@ -2713,6 +2880,139 @@ fn normalize_signature_discriminants(output: &Path) -> Result<(), String> {
 // The pinned OCaml name-pattern emitter cannot print `Instantiated` name
 // elements. These are foreign declaration identities only: preserve every
 // Auths name, body, signature, layout, source span and call/type ID.
+fn p256_export_names(mut document: Value) -> Result<(Value, Value), String> {
+    let original = document.clone();
+    let mut substitutions = BTreeMap::<String, Value>::new();
+    let mut selected = Vec::new();
+    let mut identities = BTreeSet::new();
+    let mut ledger = Vec::new();
+    for group in [
+        "type_decls",
+        "fun_decls",
+        "global_decls",
+        "trait_decls",
+        "trait_impls",
+    ] {
+        let rows = document["translated"][group]
+            .as_array()
+            .ok_or_else(|| format!("P-256 LLBC omits {group}"))?;
+        for (index, row) in rows.iter().enumerate().filter(|(_, row)| !row.is_null()) {
+            let name = row["item_meta"]["name"]
+                .as_array()
+                .ok_or("P-256 declaration has no name")?;
+            if !name.iter().any(|part| part.get("Instantiated").is_some()) {
+                continue;
+            }
+            let id = row["def_id"]
+                .as_u64()
+                .ok_or("P-256 declaration has no id")?;
+            let root = name
+                .first()
+                .and_then(|part| part["Ident"][0].as_str())
+                .ok_or("P-256 name has no crate root")?;
+            let expected_root = match (group, id) {
+                ("type_decls", 4 | 11) => "ecdsa",
+                ("type_decls", 0 | 3 | 6 | 7 | 9 | 12 | 13 | 14 | 16 | 17) => "core",
+                ("fun_decls", 2 | 4) => "auths_signature_core",
+                ("fun_decls", 14 | 18 | 23 | 26 | 29) => "ecdsa",
+                ("fun_decls", 5 | 6 | 7 | 13 | 15 | 17 | 20 | 22 | 24 | 27 | 30 | 31 | 32 | 33) => {
+                    "core"
+                }
+                _ => "",
+            };
+            if root != expected_root || !identities.insert((group, id)) {
+                return Err(
+                    "P-256 export-name inventory contains an unreviewed identity".to_owned(),
+                );
+            }
+            let renamed = if root == "auths_signature_core" {
+                let base = if id == 2 {
+                    "verify_p256_sha256_with"
+                } else {
+                    "decode_p256_key_with"
+                };
+                if row["item_meta"]["is_local"] != true
+                    || name.len() != 3
+                    || name[1] != json!({"Ident": [base, 0]})
+                    || name[2].get("Instantiated").is_none()
+                {
+                    return Err(
+                        "P-256 normalization would change an unreviewed Auths source name"
+                            .to_owned(),
+                    );
+                }
+                Value::Array(name[..2].to_vec())
+            } else {
+                if row["item_meta"]["is_local"] != false {
+                    return Err("P-256 foreign alias names a local declaration".to_owned());
+                }
+                json!([{"Ident": [root, 0]}, {"Ident": [format!("qualified_p256_{group}_{id}"), 0]}])
+            };
+            let key = serde_json::to_string(&row["item_meta"]["name"])
+                .map_err(|error| error.to_string())?;
+            if substitutions.insert(key, renamed.clone()).is_some() {
+                return Err("P-256 foreign declaration names are not unique".to_owned());
+            }
+            selected.push((group, index, renamed.clone()));
+            ledger.push(json!({
+                "declaration_group": group, "declaration_id": id,
+                "original_name": row["item_meta"]["name"],
+                "normalized_name": renamed, "source_span": row["item_meta"]["span"],
+            }));
+        }
+    }
+    if selected.len() != 33 {
+        return Err("P-256 foreign monomorphized name inventory drifted".to_owned());
+    }
+    fn rewrite(value: &mut Value, substitutions: &BTreeMap<String, Value>) -> Result<(), String> {
+        if value
+            .as_array()
+            .and_then(|array| array.first())
+            .is_some_and(|first| first.get("Ident").is_some())
+        {
+            let key = serde_json::to_string(value).map_err(|error| error.to_string())?;
+            if let Some(replacement) = substitutions.get(&key) {
+                value.clone_from(replacement);
+                return Ok(());
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    rewrite(value, substitutions)?;
+                }
+            }
+            Value::Object(values) => {
+                for value in values.values_mut() {
+                    rewrite(value, substitutions)?;
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+    rewrite(&mut document, &substitutions)?;
+    let mut expected = original.clone();
+    for (group, index, name) in selected {
+        expected["translated"][group][index]["item_meta"]["name"] = name;
+    }
+    // Charon stores copies of declaration names in three metadata caches.
+    for cache in ["item_names", "assoc_item_names", "short_names"] {
+        expected["translated"][cache] = document["translated"][cache].clone();
+    }
+    if expected != document {
+        return Err("P-256 name normalization changed non-name declaration data".to_owned());
+    }
+    Ok((
+        document,
+        json!({
+            "schema": "auths-proof-foreign-name-normalization/v1",
+            "declarations": ledger,
+            "preserved": ["Auths base source names", "all function bodies", "signatures", "generics", "layouts", "source spans", "call and type IDs"],
+        }),
+    ))
+}
+
 fn sha256_foreign_names(mut document: Value) -> Result<(Value, Value), String> {
     let original = document.clone();
     let mut substitutions = BTreeMap::<String, Value>::new();
@@ -2835,6 +3135,35 @@ fn sha256_foreign_names(mut document: Value) -> Result<(Value, Value), String> {
     ))
 }
 
+fn normalize_p256_llbc_names(
+    path: &Path,
+    output: &Path,
+    charon: &Path,
+    root: &Path,
+) -> Result<(), String> {
+    let source = fs::read(path).map_err(|error| format!("could not read P-256 LLBC: {error}"))?;
+    let document =
+        serde_json::from_slice(&source).map_err(|error| format!("invalid P-256 LLBC: {error}"))?;
+    let path_text = path.display().to_string();
+    let arguments = ["pretty-print", path_text.as_str()];
+    let original = run_output(charon, &arguments, root, &[])?;
+    let (document, mut ledger) = p256_export_names(document)?;
+    write_pretty_json(path, &document)?;
+    let normalized = run_output(charon, &arguments, root, &[])?;
+    // Charon's short-name cache has nondeterministic map iteration order and
+    // hash-cons references. Use its pinned canonical printer, as the existing
+    // two-run LLBC gate does. The full JSON preservation check above still
+    // compares every body/type field and permits only reviewed name changes.
+    ledger["canonicalization"] = json!("pinned-charon-pretty-print-v1");
+    ledger["original_canonical_llbc_sha256"] =
+        json!(hex::encode(Sha256::digest(original.as_bytes())));
+    ledger["normalized_canonical_llbc_sha256"] =
+        json!(hex::encode(Sha256::digest(normalized.as_bytes())));
+    fs::create_dir_all(output.join("p256-run"))
+        .map_err(|error| format!("could not create P-256 output directory: {error}"))?;
+    write_pretty_json(&output.join("p256-run/name-normalization.json"), &ledger)
+}
+
 fn normalize_sha256_llbc_names(
     path: &Path,
     output: &Path,
@@ -2865,6 +3194,48 @@ fn normalize_sha256_llbc_names(
         &output.join("sha256-run/foreign-name-normalization.json"),
         &ledger,
     )
+}
+
+fn normalize_p256_context(output: &Path) -> Result<(), String> {
+    let directory = output.join("p256-run/qualification/aeneas/generated/p256");
+    for file in ["Types.lean", "Funs.lean"] {
+        let path = directory.join(file);
+        let source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, p256_context(&source, file == "Types.lean")?)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn p256_context(source: &str, types: bool) -> Result<String, String> {
+    let marker = if types {
+        "namespace AuthsNativeP256\n"
+    } else {
+        "noncomputable section\n"
+    };
+    if source.matches(marker).count() != 1
+        || source.contains("variable [primitive")
+        || !source.contains("namespace AuthsNativeP256\n")
+        || source.contains("qualified_discriminant")
+    {
+        return Err("P-256 explicit primitive context input drifted".to_owned());
+    }
+    let generalized = source.replace(
+        marker,
+        &format!("{marker}\nvariable [primitive : Auths.Crypto.P256Primitives]\n"),
+    );
+    if !types {
+        return Ok(generalized);
+    }
+    if generalized.matches("import Aeneas\n").count() != 1 {
+        return Err("P-256 type import input drifted".to_owned());
+    }
+    Ok(generalized
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize"))
 }
 
 fn normalize_sha256_primitive_context(output: &Path) -> Result<(), String> {
@@ -4003,5 +4374,140 @@ mod sha256_foreign_name_tests {
         assert!(sha256_primitive_context(&generalized).is_err());
         assert!(sha256_primitive_context(&format!("{source}{source}")).is_err());
         assert!(sha256_primitive_context("def wrapper := selected_digest").is_err());
+    }
+}
+
+#[cfg(test)]
+mod p256_export_name_tests {
+    use super::{p256_context, p256_export_names};
+    use serde_json::{Value, json};
+
+    fn row(id: u64, root: &str) -> Value {
+        let local = root == "auths_signature_core";
+        let base = if local {
+            if id == 2 {
+                "verify_p256_sha256_with".to_owned()
+            } else {
+                "decode_p256_key_with".to_owned()
+            }
+        } else {
+            format!("foreign_{id}")
+        };
+        json!({"def_id": id, "item_meta": {
+            "name": [{"Ident": [root, 0]}, {"Ident": [base, 0]}, {"Instantiated": {"closed": true}}],
+            "is_local": local, "span": {"source": "exact.rs", "line": id}},
+            "body": {"guard": "preserved", "call_ids": [3, 7]},
+            "signature": {"input": "bytes", "output": "retained"},
+            "generics": [], "layout": {"size": 64}})
+    }
+
+    fn fixture() -> Value {
+        let mut types = vec![Value::Null; 18];
+        for id in [0_u64, 3, 4, 6, 7, 9, 11, 12, 13, 14, 16, 17] {
+            types[usize::try_from(id).expect("fixture id")] = row(
+                id,
+                if [4, 11].contains(&id) {
+                    "ecdsa"
+                } else {
+                    "core"
+                },
+            );
+        }
+        let mut functions = vec![Value::Null; 34];
+        for id in [
+            2_u64, 4, 5, 6, 7, 13, 14, 15, 17, 18, 20, 22, 23, 24, 26, 27, 29, 30, 31, 32, 33,
+        ] {
+            let root = if [2, 4].contains(&id) {
+                "auths_signature_core"
+            } else if [14, 18, 23, 26, 29].contains(&id) {
+                "ecdsa"
+            } else {
+                "core"
+            };
+            let mut function = row(id, root);
+            if root != "auths_signature_core" {
+                function["item_meta"]["name"][1] = json!({"Ident": [format!("function_{id}"), 0]});
+            }
+            functions[usize::try_from(id).expect("fixture id")] = function;
+        }
+        json!({"translated": {"type_decls": types, "fun_decls": functions,
+            "global_decls": [], "trait_decls": [], "trait_impls": [],
+            "item_names": [], "assoc_item_names": [], "short_names": [],
+            "target_information": {"pointer_bytes": 8}}})
+    }
+
+    #[test]
+    fn exact_export_adaptation_preserves_all_executable_fields() {
+        let original = fixture();
+        let (normalized, ledger) = p256_export_names(original.clone()).expect("closed inventory");
+        assert_eq!(ledger["declarations"].as_array().expect("ledger").len(), 33);
+        for group in ["type_decls", "fun_decls"] {
+            for (old, new) in original["translated"][group]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .zip(normalized["translated"][group].as_array().expect("rows"))
+            {
+                if old.is_null() {
+                    assert!(new.is_null());
+                    continue;
+                }
+                let mut expected = old.clone();
+                expected["item_meta"]["name"] = new["item_meta"]["name"].clone();
+                assert_eq!(expected, *new);
+            }
+        }
+        for id in [2, 4] {
+            assert_eq!(
+                normalized["translated"]["fun_decls"][id]["item_meta"]["name"]
+                    .as_array()
+                    .expect("base name")
+                    .len(),
+                2
+            );
+        }
+        assert!(p256_export_names(normalized).is_err());
+    }
+
+    #[test]
+    fn unreviewed_auths_paths_missing_identities_and_body_names_fail_closed() {
+        let mut auths = fixture();
+        auths["translated"]["fun_decls"][2]["item_meta"]["name"][1] =
+            json!({"Ident": ["another_algorithm", 0]});
+        assert!(p256_export_names(auths).is_err());
+        let mut local_foreign = fixture();
+        local_foreign["translated"]["type_decls"][4]["item_meta"]["is_local"] = json!(true);
+        assert!(p256_export_names(local_foreign).is_err());
+        let mut missing = fixture();
+        missing["translated"]["type_decls"][4] = Value::Null;
+        assert!(p256_export_names(missing).is_err());
+        let mut body = fixture();
+        body["translated"]["fun_decls"][2]["body"] =
+            body["translated"]["type_decls"][4]["item_meta"]["name"].clone();
+        assert!(p256_export_names(body).is_err());
+        let mut extra = fixture();
+        extra["translated"]["global_decls"] = json!([row(99, "core")]);
+        assert!(p256_export_names(extra).is_err());
+    }
+
+    #[test]
+    fn primitive_context_preserves_every_generated_body_and_rejects_repetition() {
+        let functions = "noncomputable section\nnamespace AuthsNativeP256\ndef source := actual_calls_and_guards\nend AuthsNativeP256\n";
+        let parameter = "\nvariable [primitive : Auths.Crypto.P256Primitives]\n";
+        let normalized = p256_context(functions, false).expect("function context");
+        assert_eq!(normalized.replace(parameter, ""), functions);
+        assert!(p256_context(&normalized, false).is_err());
+        assert!(p256_context(&format!("{functions}{functions}"), false).is_err());
+        assert!(p256_context("def source := alternate", false).is_err());
+        let types = "import Aeneas\nnamespace AuthsNativeP256\n@[discriminant isize]\ninductive Closed where | one\nend AuthsNativeP256\n";
+        let normalized = p256_context(types, true).expect("type context");
+        assert_eq!(
+            normalized
+                .replace(parameter, "")
+                .replace("import Auths.Support.Discriminant\n", "")
+                .replace("qualified_discriminant", "discriminant"),
+            types
+        );
+        assert!(p256_context(&normalized, true).is_err());
     }
 }

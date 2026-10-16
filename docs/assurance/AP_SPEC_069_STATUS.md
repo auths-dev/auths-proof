@@ -796,3 +796,46 @@ Exact-revision hosted gates remain required.
 Caller unsigned-object and descriptor construction, all commitment call sites,
 P-256 public native-library integration, the remaining complete-object codec
 and complete E5 remain open. No whole AP-SPEC-069 milestone is declared done.
+
+## Native P-256 public API and explicit primitive interface
+
+The production P-256 verifier now shares one explicit private primitive
+interface for point recovery, scalar parsing and the exact-message equation.
+Its fixed-width signature conversion owns exactly 64 copied bytes, avoiding
+region-erased borrowed array types in monomorphic extraction. The public key
+validator uses a direct result match. Public Rust APIs and stable decisions
+are preserved; no second production verifier or compatibility route is added.
+
+The actual native public verification and key-validation APIs now refine the
+independent suite models under displayed foreign functional contracts. The
+accepted-input equivalence requires compressed form, a decoded point, exact
+signature width, a parsed scalar, numeric low-S and the exact-message equation.
+Concrete guards and the actual native adapters are translated. Library
+correctness and elliptic-curve arithmetic/security are not proved or assumed
+as global axioms. Explicit forwarding mocks demonstrate key, message and
+signature binding and changed-input refusal; they assert no authenticity.
+
+The native unit translates 14 local functions and ten explicit foreign/standard
+interfaces, with no opaque Auths function. The reviewed name adapter preserves
+every body, signature, generic, layout, source span and call/type ID. Thirty-one
+foreign export paths receive aliases. Two unique Auths helper specializations
+lose only their final name-only instantiation suffix; their original complete
+identities remain in the ledger and their base source names are retained.
+Exactly dependent types/functions receive an explicit primitive parameter.
+The standard monomorphic Result/Option/Try and array/slice operations are
+transparent; three foreign calls are implementation projections with no
+installed instance. The explicit key-validation match removes the erased
+unit-callback issue without a callback model or callback premise.
+
+Local exact-source qualification passes 599 claims: 17 additions and exactly
+three reviewed statement changes from FnOnce callback arguments to the explicit
+P256Primitive dictionary, retaining the same independent functional contracts.
+The other 579 complete records are unchanged, and only the permitted foundations
+occur. Two fresh translations are byte-identical, all 14 qualification cases
+pass, and 19 external models are reviewed with zero compiled external axioms.
+Native signature tests, focused lint, name-adapter rejection tests and gateway
+semantic-closure regeneration also pass. Qualified source closure:
+`494fbe483fbf5aa946ccc33f87b1d122bb1b1c697757551866118ae02b7244e7`.
+Exact-revision hosted gates remain required. Suite/principal
+dispatch, caller unsigned-object/descriptor construction, every commitment,
+the complete verifier and whole E5/M6 remain open.

@@ -390,3 +390,21 @@ same closure. Local qualification passes 582 audited statements, all prior
 cases and two byte-identical fresh translations. Exact-revision hosted gates
 remain required. Physical allocation, caller object
 construction, every commitment and the complete E5 claim remain separate.
+
+### Native P-256 wrapper construction
+
+`Auths.Crypto.P256Native` proves the actual public native P-256 verification and
+key-validation results and independent acceptance equivalence under explicit
+point-decoder, scalar-parser and P-256/SHA-256 equation contracts. The native
+low-S and key-form algorithms have concrete total source refinements. No
+primitive law or implementation instance is installed globally. Forwarding
+mocks bind exact inputs and changed-input refusals without asserting signature
+authenticity. The monomorphic source unit contains 14 local functions, ten
+explicit foreign/standard interfaces and zero opaque Auths functions.
+
+Local exact-source qualification passes 599 statements: 17 new and three
+explicitly reviewed P-256 primitive-interface statement changes; all other 579
+records are unchanged. All 14 cases and two byte-identical fresh translations
+pass, with 19 reviewed models and zero compiled external axioms. Exact-revision
+hosted gates remain required. This does not complete dispatch, caller construction, commitment
+integration, full verification or the whole AP-SPEC-069 program.

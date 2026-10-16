@@ -284,21 +284,44 @@ pub fn verify_ed25519(
 /// Returns [`P256Error::InvalidKey`] for any other encoding, and for an x-coordinate that is not
 /// below the field modulus or has no point on the curve.
 pub fn validate_p256_key(verification_key: &[u8]) -> Result<(), P256Error> {
-    decode_p256_key(verification_key).map(|_| ())
+    match decode_p256_key(verification_key) {
+        Ok(_) => Ok(()),
+        Err(reason) => Err(reason),
+    }
 }
 
+// One explicit primitive interface keeps the suite's encoding, error ordering
+// and low-S policy in the same production algorithm used by the native adapter.
+trait P256Primitive {
+    type Key;
+    type Signature;
+    fn decode(bytes: &[u8]) -> Option<Self::Key>;
+    fn parse(bytes: &[u8; 64]) -> Option<Self::Signature>;
+    fn verify(key: &Self::Key, message: &[u8], signature: &Self::Signature) -> bool;
+}
+struct NativeP256;
+impl P256Primitive for NativeP256 {
+    type Key = P256Key;
+    type Signature = P256Signature;
+    fn decode(bytes: &[u8]) -> Option<P256Key> {
+        decode_p256_point(bytes)
+    }
+    fn parse(bytes: &[u8; 64]) -> Option<P256Signature> {
+        parse_p256_signature(bytes)
+    }
+    fn verify(key: &P256Key, message: &[u8], signature: &P256Signature) -> bool {
+        verify_p256_equation(key, message, signature)
+    }
+}
 /// Decodes the one key encoding [`validate_p256_key`] accepts.
 ///
 /// The tag and length are checked before point decoding because the SEC1 decoder also accepts
 /// the uncompressed and compact forms of the same point.
-fn decode_p256_key_with<K, D>(bytes: &[u8], decode: D) -> Result<K, P256Error>
-where
-    D: FnOnce(&[u8]) -> Option<K>,
-{
+fn decode_p256_key_with<T: P256Primitive>(bytes: &[u8]) -> Result<T::Key, P256Error> {
     if !p256_key_encoding_is_canonical(bytes) {
         return Err(P256Error::InvalidKey);
     }
-    match decode(bytes) {
+    match T::decode(bytes) {
         Some(key) => Ok(key),
         None => Err(P256Error::InvalidKey),
     }
@@ -309,7 +332,7 @@ fn decode_p256_point(bytes: &[u8]) -> Option<P256Key> {
 }
 
 fn decode_p256_key(bytes: &[u8]) -> Result<P256Key, P256Error> {
-    decode_p256_key_with(bytes, decode_p256_point)
+    decode_p256_key_with::<NativeP256>(bytes)
 }
 
 fn parse_p256_signature(bytes: &[u8; 64]) -> Option<P256Signature> {
@@ -320,31 +343,25 @@ fn verify_p256_equation(key: &P256Key, message: &[u8], signature: &P256Signature
     key.verify(message, signature).is_ok()
 }
 
-fn verify_p256_sha256_with<K, S, D, P, V>(
+fn verify_p256_sha256_with<T: P256Primitive>(
     bytes: &[u8],
     message: &[u8],
     signature: &[u8],
-    decode: D,
-    parse: P,
-    verify: V,
-) -> Result<(), P256Error>
-where
-    D: FnOnce(&[u8]) -> Option<K>,
-    P: FnOnce(&[u8; 64]) -> Option<S>,
-    V: FnOnce(&K, &[u8], &S) -> bool,
-{
-    let key = decode_p256_key_with(bytes, decode)?;
-    let signature: &[u8; 64] = match signature.try_into() {
+) -> Result<(), P256Error> {
+    let key = decode_p256_key_with::<T>(bytes)?;
+    // A fixed-size owned copy avoids region-erased borrowed array types in the
+    // monomorphic native-library extraction; the byte contract is unchanged.
+    let signature: [u8; 64] = match signature.try_into() {
         Ok(signature) => signature,
         Err(_) => return Err(P256Error::InvalidSignatureEncoding),
     };
-    let Some(parsed) = parse(signature) else {
+    let Some(parsed) = T::parse(&signature) else {
         return Err(P256Error::InvalidSignatureEncoding);
     };
-    if !p256_signature_is_low_s(signature) {
+    if !p256_signature_is_low_s(&signature) {
         return Err(P256Error::VerificationFailed);
     }
-    if verify(&key, message, &parsed) {
+    if T::verify(&key, message, &parsed) {
         Ok(())
     } else {
         Err(P256Error::VerificationFailed)
@@ -366,14 +383,7 @@ pub fn verify_p256_sha256(
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), P256Error> {
-    verify_p256_sha256_with(
-        verification_key,
-        message,
-        signature,
-        decode_p256_point,
-        parse_p256_signature,
-        verify_p256_equation,
-    )
+    verify_p256_sha256_with::<NativeP256>(verification_key, message, signature)
 }
 
 #[cfg(test)]
@@ -600,54 +610,58 @@ mod tests {
 
     #[test]
     fn p256_glue_preserves_parse_priority_and_blocks_high_s_before_equation() {
+        struct Guarded<const PARSES: bool>;
+        impl<const PARSES: bool> P256Primitive for Guarded<PARSES> {
+            type Key = ();
+            type Signature = ();
+            fn decode(_: &[u8]) -> Option<()> {
+                Some(())
+            }
+            fn parse(_: &[u8; 64]) -> Option<()> {
+                PARSES.then_some(())
+            }
+            fn verify((): &(), _: &[u8], (): &()) -> bool {
+                panic!("a refused scalar must not reach the equation")
+            }
+        }
+        struct ExactForward;
+        impl P256Primitive for ExactForward {
+            type Key = u8;
+            type Signature = u8;
+            fn decode(bytes: &[u8]) -> Option<u8> {
+                assert_eq!(bytes, &[2; 33]);
+                Some(23)
+            }
+            fn parse(bytes: &[u8; 64]) -> Option<u8> {
+                let mut expected = [0; 64];
+                expected[31] = 1;
+                expected[32..].copy_from_slice(&P256_HALF_ORDER);
+                assert_eq!(bytes, &expected);
+                Some(17)
+            }
+            fn verify(point: &u8, message: &[u8], parsed: &u8) -> bool {
+                assert_eq!(*point, 23);
+                assert_eq!(message, b"exact message");
+                assert_eq!(*parsed, 17);
+                true
+            }
+        }
         let key = [2; 33];
         let mut signature = [0; 64];
         signature[31] = 1;
         signature[32..].copy_from_slice(&P256_HALF_ORDER);
         signature[63] += 1;
         assert_eq!(
-            verify_p256_sha256_with(
-                &key,
-                b"message",
-                &signature,
-                |_| Some(()),
-                |_| Some(()),
-                |(), _, ()| panic!("high-S must not reach the equation")
-            ),
+            verify_p256_sha256_with::<Guarded<true>>(&key, b"message", &signature),
             Err(P256Error::VerificationFailed)
         );
         assert_eq!(
-            verify_p256_sha256_with(
-                &key,
-                b"message",
-                &signature,
-                |_| Some(()),
-                |_| None::<()>,
-                |(), _, ()| panic!("bad scalar must not reach the equation")
-            ),
+            verify_p256_sha256_with::<Guarded<false>>(&key, b"message", &signature),
             Err(P256Error::InvalidSignatureEncoding)
         );
         signature[63] -= 1;
         assert_eq!(
-            verify_p256_sha256_with(
-                &key,
-                b"exact message",
-                &signature,
-                |bytes| {
-                    assert_eq!(bytes, &key);
-                    Some(23u8)
-                },
-                |bytes| {
-                    assert_eq!(bytes, &signature);
-                    Some(17u8)
-                },
-                |point, message, parsed| {
-                    assert_eq!(*point, 23);
-                    assert_eq!(message, b"exact message");
-                    assert_eq!(*parsed, 17);
-                    true
-                }
-            ),
+            verify_p256_sha256_with::<ExactForward>(&key, b"exact message", &signature),
             Ok(())
         );
     }

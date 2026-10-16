@@ -30,22 +30,19 @@ theorem ed_source_accepts_iff {K D V : Type}
     decode equation decodeContract verifyContract bytes message signature]
   simp only [Result.ok.injEq, ed_result_ok, ed_accepts_iff]
 
-theorem p256_source_accepts_iff {K S D P V : Type}
-    (decoderPrimitive : core.ops.function.FnOnce D (Slice Std.U8) (Option K))
-    (parserPrimitive : core.ops.function.FnOnce P (Array Std.U8 64#usize) (Option S))
-    (verifierPrimitive : core.ops.function.FnOnce V (K × Slice Std.U8 × S) Bool)
-    (decoder : D) (parser : P) (verifier : V)
+theorem p256_source_accepts_iff {T K S : Type}
+    (primitive : P256Primitive T K S)
     (decode : List Std.U8 → Option K) (parse : List Std.U8 → Option S)
     (equation : K → List Std.U8 → S → Bool)
-    (decodeContract : ∀ bytes, decoderPrimitive.call_once decoder bytes = ok (decode bytes.val))
-    (parseContract : ∀ array, parserPrimitive.call_once parser array = ok (parse array.val))
-    (verifyContract : ∀ key message signature, verifierPrimitive.call_once verifier (key, message, signature) =
+    (decodeContract : ∀ bytes, primitive.decode bytes = ok (decode bytes.val))
+    (parseContract : ∀ array, primitive.parse array = ok (parse array.val))
+    (verifyContract : ∀ key message signature, primitive.verify key message signature =
       ok (equation key message.val signature))
     (bytes message signature : Slice Std.U8) :
-    verify_p256_sha256_with decoderPrimitive parserPrimitive verifierPrimitive bytes message signature decoder parser verifier = ok (.Ok ()) ↔
+    verify_p256_sha256_with primitive bytes message signature = ok (.Ok ()) ↔
       P256Accepts decode parse equation bytes.val message.val signature.val := by
-  rw [Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines decoderPrimitive parserPrimitive verifierPrimitive
-    decoder parser verifier decode parse equation decodeContract parseContract verifyContract bytes message signature]
+  rw [Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines primitive
+    decode parse equation decodeContract parseContract verifyContract bytes message signature]
   simp only [Result.ok.injEq, p256_result_ok, p256_accepts_iff]
 
 end Auths.Crypto.Strict.SourceAcceptance

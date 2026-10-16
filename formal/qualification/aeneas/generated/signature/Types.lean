@@ -54,4 +54,12 @@ def verify_ed25519.closure_1 := Unit
 @[reducible]
 def verify_ed25519.closure := Unit
 
+/-- Trait declaration: [auths_signature_core::P256Primitive]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 295:0-301:1 -/
+structure P256Primitive (Self : Type) (Self_Key : Type) (Self_Signature : Type)
+  where
+  decode : Slice Std.U8 → Result (Option Self_Key)
+  parse : Array Std.U8 64#usize → Result (Option Self_Signature)
+  verify : Self_Key → Slice Std.U8 → Self_Signature → Result Bool
+
 end auths_signature_core

@@ -4,7 +4,7 @@
   "crate": "auths_signature_core",
   "functions": [
     {
-      "def_id": 35,
+      "def_id": 38,
       "lean_name": "auths_signature_core.core.result.Result.ok",
       "lean_file": "qualification/aeneas/generated/signature/FunsExternal_Template.lean",
       "rust_name": "core::result::{core::result::Result<T, E>}::ok",
@@ -38,7 +38,7 @@
       "reducible": false
     },
     {
-      "def_id": 36,
+      "def_id": 39,
       "lean_name": "auths_signature_core.ed25519.Signature.from_bytes",
       "lean_file": "qualification/aeneas/generated/signature/FunsExternal_Template.lean",
       "rust_name": "ed25519::{ed25519::Signature}::from_bytes",
@@ -55,7 +55,7 @@
       "reducible": false
     },
     {
-      "def_id": 34,
+      "def_id": 37,
       "lean_name": "auths_signature_core.ed25519_dalek.verifying.VerifyingKey.from_bytes",
       "lean_file": "qualification/aeneas/generated/signature/FunsExternal_Template.lean",
       "rust_name": "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::from_bytes",
@@ -72,7 +72,7 @@
       "reducible": false
     },
     {
-      "def_id": 37,
+      "def_id": 40,
       "lean_name": "auths_signature_core.ed25519_dalek.verifying.VerifyingKey.verify_strict",
       "lean_file": "qualification/aeneas/generated/signature/FunsExternal_Template.lean",
       "rust_name": "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::verify_strict",
@@ -190,7 +190,7 @@
       "reducible": true
     },
     {
-      "def_id": 29,
+      "def_id": 30,
       "lean_name": "auths_signature_core.ed25519_same_coordinate_loop",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::ed25519_same_coordinate",
@@ -215,7 +215,7 @@
       "parent_lean_name": "auths_signature_core.ed25519_same_coordinate"
     },
     {
-      "def_id": 29,
+      "def_id": 30,
       "lean_name": "auths_signature_core.ed25519_same_coordinate",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::ed25519_same_coordinate",
@@ -283,7 +283,7 @@
       "reducible": false
     },
     {
-      "def_id": 31,
+      "def_id": 32,
       "lean_name": "auths_signature_core.decode_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey.call_once",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::decode_ed25519_key::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::decode_ed25519_key::closure}::call_once",
@@ -477,8 +477,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-signature-core/src/lib.rs",
-        "begin_line": 294,
-        "end_line": 305
+        "begin_line": 320,
+        "end_line": 328
       },
       "is_opaque": false,
       "can_fail": true,
@@ -494,8 +494,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-signature-core/src/lib.rs",
-        "begin_line": 323,
-        "end_line": 352
+        "begin_line": 346,
+        "end_line": 369
       },
       "is_opaque": false,
       "can_fail": true,
@@ -707,10 +707,23 @@
       "can_fail": false
     }
   ],
-  "trait_decls": [],
+  "trait_decls": [
+    {
+      "def_id": 2,
+      "lean_name": "auths_signature_core.P256Primitive",
+      "lean_file": "qualification/aeneas/generated/signature/Types.lean",
+      "rust_name": "auths_signature_core::P256Primitive",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 295,
+        "end_line": 301
+      }
+    }
+  ],
   "trait_impls": [
     {
-      "def_id": 12,
+      "def_id": 14,
       "lean_name": "auths_signature_core.decode_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::decode_ed25519_key::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::decode_ed25519_key::closure}",

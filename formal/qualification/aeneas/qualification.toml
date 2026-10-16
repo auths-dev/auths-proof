@@ -10,9 +10,11 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1"]
 
 source_files = [
+  "formal/Auths/Crypto/P256Primitives.lean",
+  "formal/qualification/aeneas/cases/P256.lean",
   "formal/Auths/Crypto/Sha256Primitives.lean",
   "formal/qualification/aeneas/cases/Sha256.lean",
   "formal/tools/SourceClosure.lean",
@@ -89,6 +91,14 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/p256/Types.lean",
+  "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/p256/Funs.lean",
+  "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/p256/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/p256/translation.json",
+  "formal/qualification/aeneas/generated/p256/name-normalization.json",
   "formal/qualification/aeneas/generated/sha256/Types.lean",
   "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
   "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
@@ -151,6 +161,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.P256",
   "qualification.aeneas.cases.Sha256",
   "qualification.aeneas.cases.Signature",
   "qualification.aeneas.cases.Composition",
@@ -173,6 +184,36 @@ charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[external_models]]
+id = "p256-monomorphic-export-names"
+kind = "typed-ir-name-only-adaptation"
+artifact = "formal/qualification/aeneas/generated/p256/name-normalization.json"
+rust_symbols = ["auths_signature_core::verify_p256_sha256_with", "auths_signature_core::decode_p256_key_with"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The pinned emitter cannot print Instantiated export paths. Exactly 31 foreign paths receive unique aliases; exactly two unique Auths helper specializations lose only the final name-only Instantiated element, preserving their base source identities. Original concrete names and source spans remain in the ledger. Every body, signature, generic, layout and call/type ID is checked unchanged against the complete typed JSON; the pinned Charon reader reparses the output. Canonical before/after hashes use pinned Charon pretty printing; two fresh translations and generated Lean must match byte-for-byte. No Auths function becomes opaque."
+
+[[external_models]]
+id = "p256-explicit-foreign-types"
+kind = "explicit-parameter-foreign-type-interface"
+artifact = "formal/qualification/aeneas/generated/p256/TypesExternal.lean"
+rust_symbols = ["ecdsa::verifying::VerifyingKey<p256::NistP256>", "ecdsa::Signature<p256::NistP256>", "signature::error::Error"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Foreign key/signature/error types are associated types of the explicit P256Primitives theorem parameter. There is no instance, crypto law, global axiom or opaque Auths type. Per-unit namespace qualification avoids conflating Ed25519 and P-256 implementation parameters. Exact section variables generalize only dependent types and functions; all generated Rust bodies remain unchanged."
+
+[[external_models]]
+id = "p256-explicit-calls-and-standard-results"
+kind = "explicit-foreign-parameters-and-transparent-standard-matches"
+artifact = "formal/qualification/aeneas/generated/p256/FunsExternal.lean"
+rust_symbols = ["ecdsa::VerifyingKey::from_sec1_bytes", "ecdsa::Signature::from_slice", "signature::Verifier::verify", "core::result::Result", "core::convert::TryInto<[u8;64]>", "core::slice::len"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Three actual foreign library calls are transparent projections with displayed functional-contract premises in public wrapper theorems. Monomorphic standard Result/Option/Try/control-flow cases preserve constructors and errors, fixed-array conversion copies exactly 64 source bytes iff length matches, and slice length is exact. The production key validator uses a direct result match, with no erased unit callback or callback assumption. No Auths algorithm is modeled opaquely, no implementation is installed globally, and no crypto-security or arithmetic law is asserted."
 
 [[external_models]]
 id = "sha256-monomorphic-foreign-export-names"
@@ -438,6 +479,15 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_signature_core"
+translation_json = "formal/qualification/aeneas/generated/p256/translation.json"
+local_functions = 14
+external_functions = 10
+opaque_local_functions = 0
+required_symbols = ["auths_signature_core::p256_key_encoding_is_canonical", "auths_signature_core::p256_signature_is_low_s", "auths_signature_core::p256_signature_is_low_s", "auths_signature_core::decode_p256_point", "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::decode", "auths_signature_core::decode_p256_key_with", "auths_signature_core::decode_p256_key", "auths_signature_core::validate_p256_key", "auths_signature_core::parse_p256_signature", "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::parse", "auths_signature_core::verify_p256_equation", "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::verify", "auths_signature_core::verify_p256_sha256_with", "auths_signature_core::verify_p256_sha256"]
+allowed_external_symbols = ["core::qualified_p256_fun_decls_7", "core::qualified_p256_fun_decls_27", "core::qualified_p256_fun_decls_30", "core::qualified_p256_fun_decls_24", "core::qualified_p256_fun_decls_5", "core::qualified_p256_fun_decls_6", "core::qualified_p256_fun_decls_20", "ecdsa::qualified_p256_fun_decls_23", "ecdsa::qualified_p256_fun_decls_29", "ecdsa::qualified_p256_fun_decls_26"]
 
 [[translations]]
 crate_name = "auths_codec"
@@ -963,6 +1013,16 @@ required_symbols = [
   "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean"
+count = 3
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean"
+count = 10
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean"

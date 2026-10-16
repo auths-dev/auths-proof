@@ -484,59 +484,46 @@ def verify_ed25519
     verification_key message signature () ()
 
 /-- [auths_signature_core::decode_p256_key_with]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 294:0-305:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 320:0-328:1 -/
 def decode_p256_key_with
-  {K : Type} {D : Type} (coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst :
-  core.ops.function.FnOnce D (Slice Std.U8) (Option K)) (bytes : Slice Std.U8)
-  (decode : D) :
-  Result (core.result.Result K P256Error)
+  {T : Type} {Clause0_Key : Type} {Clause0_Signature : Type} (P256PrimitiveInst
+  : P256Primitive T Clause0_Key Clause0_Signature) (bytes : Slice Std.U8) :
+  Result (core.result.Result Clause0_Key P256Error)
   := do
   let b ← p256_key_encoding_is_canonical bytes
   if b
   then
-    let o ←
-      coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst.call_once decode
-        bytes
+    let o ← P256PrimitiveInst.decode bytes
     match o with
     | none => ok (core.result.Result.Err P256Error.InvalidKey)
     | some key => ok (core.result.Result.Ok key)
   else ok (core.result.Result.Err P256Error.InvalidKey)
 
 /-- [auths_signature_core::verify_p256_sha256_with]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 323:0-352:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 346:0-369:1 -/
 def verify_p256_sha256_with
-  {K : Type} {S : Type} {D : Type} {P : Type} {V : Type}
-  (coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst :
-  core.ops.function.FnOnce D (Slice Std.U8) (Option K))
-  (coreopsfunctionFnOncePTupleShared0ArrayU864OptionInst :
-  core.ops.function.FnOnce P (Array Std.U8 64#usize) (Option S))
-  (coreopsfunctionFnOnceVTupleShared0KShared1SliceU8Shared2SBoolInst :
-  core.ops.function.FnOnce V (K × (Slice Std.U8) × S) Bool)
-  (bytes : Slice Std.U8) (message : Slice Std.U8) (signature : Slice Std.U8)
-  (decode : D) (parse : P) (verify : V) :
+  {T : Type} {Clause0_Key : Type} {Clause0_Signature : Type} (P256PrimitiveInst
+  : P256Primitive T Clause0_Key Clause0_Signature) (bytes : Slice Std.U8)
+  (message : Slice Std.U8) (signature : Slice Std.U8) :
   Result (core.result.Result Unit P256Error)
   := do
-  let r ←
-    decode_p256_key_with coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst
-      bytes decode
+  let r ← decode_p256_key_with P256PrimitiveInst bytes
   let cf ← core.result.Result.Insts.CoreOpsTry.branch r
   match cf with
   | core.ops.control_flow.ControlFlow.Continue val =>
-    let r1 ← core.array.TryFromSharedArraySlice.try_from 64#usize signature
+    let r1 ←
+      core.array.TryFromArrayCopySlice.try_from 64#usize core.marker.CopyU8
+        signature
     match r1 with
     | core.result.Result.Ok signature1 =>
-      let o ←
-        coreopsfunctionFnOncePTupleShared0ArrayU864OptionInst.call_once parse
-          signature1
+      let o ← P256PrimitiveInst.parse signature1
       match o with
       | none => ok (core.result.Result.Err P256Error.InvalidSignatureEncoding)
       | some parsed =>
         let b ← p256_signature_is_low_s signature1
         if b
         then
-          let b1 ←
-            coreopsfunctionFnOnceVTupleShared0KShared1SliceU8Shared2SBoolInst.call_once
-              verify (val, message, parsed)
+          let b1 ← P256PrimitiveInst.verify val message parsed
           if b1
           then ok (core.result.Result.Ok ())
           else ok (core.result.Result.Err P256Error.VerificationFailed)

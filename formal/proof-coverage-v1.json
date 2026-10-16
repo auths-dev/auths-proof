@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-  "inputs_sha256": "ecd02466b2cd2dedb36883d2e3a9c4921214416400c107f720671017a975f572",
+  "inputs_sha256": "7c67a63106baf67e1ea9ec094fd7cb1cd5fd47b8f7856d985b32a2a62ad567d1",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -55,7 +55,7 @@
     "core/crates/auths-registries/Cargo.toml": "sha256:590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2",
     "core/crates/auths-registries/src/lib.rs": "sha256:020bab93285f280aa2c05a67afa09ad1ca2f1e128e90e898c69bc7a7bfd16c89",
     "core/crates/auths-registries/src/template.rs": "sha256:1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4",
-    "core/crates/auths-signature-core/src/lib.rs": "sha256:dd572146a26c04caf5f75eb37955d2e922644a2bb5d284b7380cb733854d4db8",
+    "core/crates/auths-signature-core/src/lib.rs": "sha256:d8f9465b337deabf3dedc4337223913aa637a10192d6b504281f28475a13ea11",
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
     "core/crates/auths-verifier/src/approval.rs": "sha256:2826a5227945a3e0ea000584f1e1c794bec3b313b13843f4284e0e716f830d33",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
@@ -64,7 +64,7 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-    "formal/lean-assurance-audit-v1.json": "sha256:e4bc8733bc38601ec93e4aa6610e0ea370d320fa92aae1c976e9a1707e370f48",
+    "formal/lean-assurance-audit-v1.json": "sha256:f6a626ad72f279f692e35efb1ac75d1d7b8312e8342448ee48842cdc76aa0a7e",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -83,14 +83,16 @@
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:48fadbfbf052e310cd6df3fdc11e8e96785330f34144c1e471a908b7c1b21feb",
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
+    "formal/qualification/aeneas/generated/p256/Funs.lean": "sha256:d2d7d4ecaec037e905f86b66ac902103562ff38124469b1c1dbc8c099cccf29f",
+    "formal/qualification/aeneas/generated/p256/translation.json": "sha256:e2887ab5a96302d086e224c568a6c0d25eff8206f680217d80a669e6b8c7756c",
     "formal/qualification/aeneas/generated/sha256/Funs.lean": "sha256:cb4275b6ebb45a86426220940d63e13f1f460e383f1590cecb477b136dc36aba",
     "formal/qualification/aeneas/generated/sha256/translation.json": "sha256:61d59435726ec2847a7af4aa64098f32bc90e3cacaa9c50f8ed7ff406edec8ad",
-    "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:898c400755fcf63f2c96f74f955126ce88fbb6411912e377b2e4c9e5cd6d917e",
-    "formal/qualification/aeneas/generated/signature/translation.json": "sha256:8892727be102f03e19ded661ee5973d069d320f5ad08feeef5f677cd02d4b2e3",
+    "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:dfe3b399556573de8a3720f036bea1d3afda03680543657c77ab3994a81afa84",
+    "formal/qualification/aeneas/generated/signature/translation.json": "sha256:969e89692b680973f81aba927de2cc463137a84f2d0afbf30a169cf2b71dac7e",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:015c61e5fc239462640c3ed0a56018b0c4912b410e0cf333fef48488feec208b",
-    "formal/theorem-kinds-v1.toml": "sha256:f49fa938368bea41ebeb17d4498fcce960c203dabb39adc041533dd9e58f01a5",
+    "formal/qualification/aeneas/qualification.toml": "sha256:fd6bfc510d0f41d160edea872be71fbdffcaea536750bb6616a733914f70d4fb",
+    "formal/theorem-kinds-v1.toml": "sha256:e5aa8637c795649b4cd22804e6198089a68f8512d966a3f8acffa818d8f36b3e",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -273,33 +275,33 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1552,
-      "span_lines": 17209,
-      "code_lines": 17146,
+      "functions": 1555,
+      "span_lines": 17205,
+      "code_lines": 17140,
       "by_level": {
         "translated": {
-          "functions": 313,
-          "function_share": 0.2017,
-          "span_lines": 3493,
-          "span_line_share": 0.203,
-          "code_lines": 3476,
-          "code_line_share": 0.2027
+          "functions": 322,
+          "function_share": 0.2071,
+          "span_lines": 3518,
+          "span_line_share": 0.2045,
+          "code_lines": 3499,
+          "code_line_share": 0.2041
         },
         "direct": {
-          "functions": 111,
-          "function_share": 0.0715,
-          "span_lines": 1626,
-          "span_line_share": 0.0945,
-          "code_lines": 1610,
-          "code_line_share": 0.0939
+          "functions": 116,
+          "function_share": 0.0746,
+          "span_lines": 1639,
+          "span_line_share": 0.0953,
+          "code_lines": 1621,
+          "code_line_share": 0.0946
         },
         "closure": {
-          "functions": 313,
-          "function_share": 0.2017,
-          "span_lines": 3493,
-          "span_line_share": 0.203,
-          "code_lines": 3476,
-          "code_line_share": 0.2027
+          "functions": 322,
+          "function_share": 0.2071,
+          "span_lines": 3518,
+          "span_line_share": 0.2045,
+          "code_lines": 3499,
+          "code_line_share": 0.2041
         }
       }
     },
@@ -2974,7 +2976,48 @@
       }
     ]
   },
-  "translated_outside_closure": [],
+  "translated_outside_closure": [
+    {
+      "rust_name": "auths_signature_core::p256_key_encoding_is_canonical",
+      "lean_name": "AuthsNativeP256.p256_key_encoding_is_canonical",
+      "file": "core/crates/auths-signature-core/src/lib.rs",
+      "span": [
+        42,
+        47
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_signature_core::p256_signature_is_low_s",
+      "lean_name": "AuthsNativeP256.p256_signature_is_low_s",
+      "file": "core/crates/auths-signature-core/src/lib.rs",
+      "span": [
+        55,
+        69
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_signature_core::decode_p256_key_with",
+      "lean_name": "AuthsNativeP256.decode_p256_key_with",
+      "file": "core/crates/auths-signature-core/src/lib.rs",
+      "span": [
+        320,
+        328
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_signature_core::verify_p256_sha256_with",
+      "lean_name": "AuthsNativeP256.verify_p256_sha256_with",
+      "file": "core/crates/auths-signature-core/src/lib.rs",
+      "span": [
+        346,
+        369
+      ],
+      "decision_scope": false
+    }
+  ],
   "theorem_kinds": {
     "classified": {
       "Auths.Codec.Action.accepted_encoding_unique": "partial",
@@ -3080,6 +3123,22 @@
       "Auths.Crypto.NativeExamples.changed_message_is_refused": "case",
       "Auths.Crypto.NativeExamples.malformed_key_refused_without_primitive_contract": "case",
       "Auths.Crypto.NativeExamples.public_call_forwards_exact_bytes": "case",
+      "Auths.Crypto.P256Encoding.guard_refines": "exact",
+      "Auths.Crypto.P256Examples.changed_key_is_refused": "case",
+      "Auths.Crypto.P256Examples.changed_message_is_refused": "case",
+      "Auths.Crypto.P256Examples.changed_signature_is_refused": "case",
+      "Auths.Crypto.P256Examples.malformed_key_refused_without_primitive_contract": "case",
+      "Auths.Crypto.P256Examples.public_call_forwards_exact_bytes": "case",
+      "Auths.Crypto.P256LowContract.guard_refines": "exact",
+      "Auths.Crypto.P256LowContract.r_bytes_irrelevant": "exact",
+      "Auths.Crypto.P256LowScan.loop_refines": "exact",
+      "Auths.Crypto.P256Native.decode_leaf_refines": "exact",
+      "Auths.Crypto.P256Native.decode_refines": "exact",
+      "Auths.Crypto.P256Native.equation_leaf_refines": "exact",
+      "Auths.Crypto.P256Native.parse_leaf_refines": "exact",
+      "Auths.Crypto.P256Native.public_accepts_iff": "exact",
+      "Auths.Crypto.P256Native.public_validate_refines": "exact",
+      "Auths.Crypto.P256Native.public_verify_refines": "exact",
       "Auths.Crypto.RContract.guard_refines": "exact",
       "Auths.Crypto.Refinement.accepted_frame_valid": "partial",
       "Auths.Crypto.Refinement.accepted_preimages_bind_inputs": "partial",
@@ -3195,20 +3254,20 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 446,
+    "aeneas_local_definitions": 460,
     "by_kind": {
-      "function": 313,
-      "loop": 106,
+      "function": 326,
+      "loop": 107,
       "closure-shim": 9,
       "derived": 18
     },
-    "refined_direct": 113,
-    "refined_closure": 329,
-    "theorems_naming_translated_functions": 215
+    "refined_direct": 118,
+    "refined_closure": 338,
+    "theorems_naming_translated_functions": 231
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "cb8d9f4630a662542c1f744594f58cd8edfe5c57002a242e3b37ed0908397ad8",
+    "current_formal_inputs_sha256": "89bf6ae47f393d9c238bd53e39a964d4c84683b5238980a96a4f00f6a4e211fa",
     "fresh": false,
     "campaigns": {
       "s1": {

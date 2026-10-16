@@ -14,6 +14,17 @@ theorem fixed_refines (N : Std.Usize) (bytes : Slice Std.U8) :
   · have words : bytes.len ≠ N := fun h => sized (sizes.mp h)
     simp only [words, sized, _root_.dite_false]
 
+theorem owned_fixed_refines (N : Std.Usize) (bytes : Slice Std.U8) :
+    core.array.TryFromArrayCopySlice.try_from N core.marker.CopyU8 bytes =
+      ok (match fixed N bytes.val with | some array => .Ok array | none => .Err ()) := by
+  unfold core.array.TryFromArrayCopySlice.try_from fixed
+  have sizes : bytes.length = N ↔ bytes.val.length = N.val := by scalar_tac
+  by_cases sized : bytes.val.length = N.val
+  · have words : bytes.length = N := sizes.mpr sized
+    simp only [words, sized, _root_.dite_true]
+  · have words : bytes.length ≠ N := fun h => sized (sizes.mp h)
+    simp only [words, sized, _root_.dite_false]
+
 theorem fixed_value (N : Std.Usize) (bytes : List Std.U8) (array : Array Std.U8 N)
     (accepted : fixed N bytes = some array) : array.val = bytes := by
   unfold fixed at accepted
@@ -69,12 +80,11 @@ theorem decode_ed25519_refines {K D : Type}
     cases decoded : decode bytes.val <;>
       simp [exactBytes, decoded, encoded, edKey, sourceEd, sourceEdFailure, Except.bind, Bind.bind, Except.instMonad]
 
-theorem decode_p256_refines {K D : Type}
-    (primitive : core.ops.function.FnOnce D (Slice Std.U8) (Option K))
-    (decoder : D) (decode : List Std.U8 → Option K)
-    (contract : ∀ bytes, primitive.call_once decoder bytes = ok (decode bytes.val))
+theorem decode_p256_refines {T K S : Type}
+    (primitive : P256Primitive T K S) (decode : List Std.U8 → Option K)
+    (contract : ∀ bytes, primitive.decode bytes = ok (decode bytes.val))
     (bytes : Slice Std.U8) :
-    decode_p256_key_with primitive bytes decoder = ok (sourceP256 (p256Key decode bytes.val)) := by
+    decode_p256_key_with primitive bytes = ok (sourceP256 (p256Key decode bytes.val)) := by
   unfold decode_p256_key_with
   rw [Auths.Crypto.Encoding.P256.guard_refines]
   simp only [bind_tc_ok]
@@ -123,22 +133,19 @@ theorem verify_ed25519_refines {K D V : Type}
           simp [weak, allowed, checked, edVerify, encoded, decoded, fixedSignature, sized,
             sourceEd, sourceEdFailure, Except.bind, Bind.bind, Except.instMonad]
 
-theorem verify_p256_refines {K S D P V : Type}
-    (decoderPrimitive : core.ops.function.FnOnce D (Slice Std.U8) (Option K))
-    (parserPrimitive : core.ops.function.FnOnce P (Array Std.U8 64#usize) (Option S))
-    (verifierPrimitive : core.ops.function.FnOnce V (K × Slice Std.U8 × S) Bool)
-    (decoder : D) (parser : P) (verifier : V)
+theorem verify_p256_refines {T K S : Type}
+    (primitive : P256Primitive T K S)
     (decode : List Std.U8 → Option K) (parse : List Std.U8 → Option S)
     (equation : K → List Std.U8 → S → Bool)
-    (decodeContract : ∀ bytes, decoderPrimitive.call_once decoder bytes = ok (decode bytes.val))
-    (parseContract : ∀ array, parserPrimitive.call_once parser array = ok (parse array.val))
-    (verifyContract : ∀ key message signature, verifierPrimitive.call_once verifier (key, message, signature) =
+    (decodeContract : ∀ bytes, primitive.decode bytes = ok (decode bytes.val))
+    (parseContract : ∀ array, primitive.parse array = ok (parse array.val))
+    (verifyContract : ∀ key message signature, primitive.verify key message signature =
       ok (equation key message.val signature))
     (bytes message signature : Slice Std.U8) :
-    verify_p256_sha256_with decoderPrimitive parserPrimitive verifierPrimitive bytes message signature decoder parser verifier =
+    verify_p256_sha256_with primitive bytes message signature =
       ok (sourceP256 (p256Verify decode parse equation bytes.val message.val signature.val)) := by
   unfold verify_p256_sha256_with
-  rw [decode_p256_refines decoderPrimitive decoder decode decodeContract]
+  rw [decode_p256_refines primitive decode decodeContract]
   cases decoded : p256Key decode bytes.val with
   | error reason =>
     simp [sourceP256, decoded, p256Verify, Except.bind, Bind.bind, Except.instMonad,
@@ -147,7 +154,7 @@ theorem verify_p256_refines {K S D P V : Type}
       core.convert.FromSame.from]
   | ok point =>
     simp only [sourceP256, core.result.Result.Insts.CoreOpsTry.branch, bind_tc_ok]
-    rw [fixed_refines]
+    rw [owned_fixed_refines]
     cases sized : fixed 64#usize signature.val with
     | none => simp [p256Verify, decoded, fixedSignature, sized, sourceP256, sourceP256Failure, Except.bind, Bind.bind, Except.instMonad]
     | some array =>

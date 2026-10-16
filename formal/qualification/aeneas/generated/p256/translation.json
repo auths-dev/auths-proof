@@ -1,0 +1,623 @@
+{
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
+  "charon_version": "0.1.225",
+  "crate": "auths_signature_core",
+  "functions": [
+    {
+      "def_id": 7,
+      "lean_name": "AuthsNativeP256.SharedSliceU8.Insts.CoreConvertTryIntoArrayU864.try_into",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_7",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/convert/mod.rs",
+        "begin_line": 818,
+        "end_line": 818
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 27,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_fun_decls_27",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_27",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 593,
+        "end_line": 593
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 30,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_fun_decls_30",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_30",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 708,
+        "end_line": 711
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 24,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_fun_decls_24",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_24",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 708,
+        "end_line": 711
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_3.Insts.CoreOpsTry_traitTry.branch",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_5",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 2177,
+        "end_line": 2177
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 6,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_0.Insts.CoreOpsTry_traitFromResidualqualified_p256_type_decls_7.from_residual",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_6",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 2192,
+        "end_line": 2192
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 20,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_fun_decls_20",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "core::qualified_p256_fun_decls_20",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/slice/mod.rs",
+        "begin_line": 116,
+        "end_line": 116
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 23,
+      "lean_name": "AuthsNativeP256.ecdsa.qualified_p256_fun_decls_23",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "ecdsa::qualified_p256_fun_decls_23",
+      "is_local": false,
+      "source": {
+        "file": "/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecdsa-0.16.9/src/lib.rs",
+        "begin_line": 224,
+        "end_line": 224
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 29,
+      "lean_name": "AuthsNativeP256.ecdsa.qualified_p256_fun_decls_29",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "ecdsa::qualified_p256_fun_decls_29",
+      "is_local": false,
+      "source": {
+        "file": "/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecdsa-0.16.9/src/verifying.rs",
+        "begin_line": 92,
+        "end_line": 92
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 26,
+      "lean_name": "AuthsNativeP256.ecdsa.qualified_p256_type_decls_4.Insts.SignatureVerifierVerifierqualified_p256_type_decls_11.verify",
+      "lean_file": "qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+      "rust_name": "ecdsa::qualified_p256_fun_decls_26",
+      "is_local": false,
+      "source": {
+        "file": "/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecdsa-0.16.9/src/verifying.rs",
+        "begin_line": 175,
+        "end_line": 175
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 11,
+      "lean_name": "AuthsNativeP256.p256_key_encoding_is_canonical",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::p256_key_encoding_is_canonical",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 42,
+        "end_line": 47
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 9,
+      "lean_name": "AuthsNativeP256.p256_signature_is_low_s_loop",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::p256_signature_is_low_s",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 1,
+        "end_line": 69
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": true,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "AuthsNativeP256.p256_signature_is_low_s"
+    },
+    {
+      "def_id": 9,
+      "lean_name": "AuthsNativeP256.p256_signature_is_low_s",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::p256_signature_is_low_s",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 55,
+        "end_line": 69
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 21,
+      "lean_name": "AuthsNativeP256.decode_p256_point",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::decode_p256_point",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 330,
+        "end_line": 332
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 12,
+      "lean_name": "AuthsNativeP256.NativeP256.Insts.Auths_signature_coreP256Primitive.decode",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::decode",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 306,
+        "end_line": 308
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
+      "lean_name": "AuthsNativeP256.decode_p256_key_with",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::decode_p256_key_with",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 320,
+        "end_line": 328
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "AuthsNativeP256.decode_p256_key",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::decode_p256_key",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 334,
+        "end_line": 336
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "AuthsNativeP256.validate_p256_key",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::validate_p256_key",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 286,
+        "end_line": 291
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 16,
+      "lean_name": "AuthsNativeP256.parse_p256_signature",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::parse_p256_signature",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 338,
+        "end_line": 340
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 8,
+      "lean_name": "AuthsNativeP256.NativeP256.Insts.Auths_signature_coreP256Primitive.parse",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::parse",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 309,
+        "end_line": 311
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 19,
+      "lean_name": "AuthsNativeP256.verify_p256_equation",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::verify_p256_equation",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 342,
+        "end_line": 344
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 10,
+      "lean_name": "AuthsNativeP256.NativeP256.Insts.Auths_signature_coreP256Primitive.verify",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::verify",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 312,
+        "end_line": 314
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "AuthsNativeP256.verify_p256_sha256_with",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::verify_p256_sha256_with",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 346,
+        "end_line": 369
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "AuthsNativeP256.verify_p256_sha256",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::verify_p256_sha256",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 381,
+        "end_line": 387
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 4,
+      "lean_name": "AuthsNativeP256.ecdsa.qualified_p256_type_decls_4",
+      "lean_file": "qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+      "rust_name": "ecdsa::qualified_p256_type_decls_4",
+      "is_local": false,
+      "source": {
+        "file": "/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecdsa-0.16.9/src/verifying.rs",
+        "begin_line": 78,
+        "end_line": 78
+      }
+    },
+    {
+      "def_id": 11,
+      "lean_name": "AuthsNativeP256.ecdsa.qualified_p256_type_decls_11",
+      "lean_file": "qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+      "rust_name": "ecdsa::qualified_p256_type_decls_11",
+      "is_local": false,
+      "source": {
+        "file": "/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ecdsa-0.16.9/src/lib.rs",
+        "begin_line": 198,
+        "end_line": 198
+      }
+    },
+    {
+      "def_id": 15,
+      "lean_name": "AuthsNativeP256.signature.error.Error",
+      "lean_file": "qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+      "rust_name": "signature::error::Error",
+      "is_local": false,
+      "source": {
+        "file": "/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/signature-2.2.0/src/error.rs",
+        "begin_line": 26,
+        "end_line": 26
+      }
+    },
+    {
+      "def_id": 9,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_9",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_9",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    },
+    {
+      "def_id": 1,
+      "lean_name": "AuthsNativeP256.P256Error",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "auths_signature_core::P256Error",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 151,
+        "end_line": 159
+      }
+    },
+    {
+      "def_id": 7,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_7",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_7",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_6",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_6",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/ops/control_flow.rs",
+        "begin_line": 89,
+        "end_line": 89
+      }
+    },
+    {
+      "def_id": 13,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_13",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_13",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/option.rs",
+        "begin_line": 597,
+        "end_line": 597
+      }
+    },
+    {
+      "def_id": 12,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_12",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_12",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/option.rs",
+        "begin_line": 597,
+        "end_line": 597
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_3",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_3",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    },
+    {
+      "def_id": 17,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_17",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_17",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    },
+    {
+      "def_id": 14,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_14",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_14",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    },
+    {
+      "def_id": 0,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_0",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_0",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    },
+    {
+      "def_id": 16,
+      "lean_name": "AuthsNativeP256.core.qualified_p256_type_decls_16",
+      "lean_file": "qualification/aeneas/generated/p256/Types.lean",
+      "rust_name": "core::qualified_p256_type_decls_16",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 557,
+        "end_line": 557
+      }
+    }
+  ],
+  "globals": [
+    {
+      "def_id": 1,
+      "lean_name": "AuthsNativeP256.P256_KEY_LEN",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::P256_KEY_LEN",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 14,
+        "end_line": 14
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "AuthsNativeP256.P256_HALF_ORDER",
+      "lean_file": "qualification/aeneas/generated/p256/Funs.lean",
+      "rust_name": "auths_signature_core::P256_HALF_ORDER",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 50,
+        "end_line": 53
+      },
+      "can_fail": false
+    }
+  ],
+  "trait_decls": [],
+  "trait_impls": []
+}

@@ -1,3 +1,4 @@
+import Auths.Crypto.P256Examples
 import Auths.Crypto.FramingTotality
 import Auths.Crypto.CommitmentValidity
 import Auths.Crypto.CommitmentExamples
@@ -47,6 +48,23 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.P256Encoding.guard_refines,
+    `Auths.Crypto.P256LowScan.loop_refines,
+    `Auths.Crypto.P256LowContract.guard_refines,
+    `Auths.Crypto.P256LowContract.r_bytes_irrelevant,
+    `Auths.Crypto.P256Native.decode_leaf_refines,
+    `Auths.Crypto.P256Native.parse_leaf_refines,
+    `Auths.Crypto.P256Native.equation_leaf_refines,
+    `Auths.Crypto.P256Native.decode_refines,
+    `Auths.Crypto.P256Native.public_verify_refines,
+    `Auths.Crypto.P256Native.public_accepts_iff,
+    `Auths.Crypto.P256Native.public_validate_refines,
+    `Auths.Crypto.P256Examples.public_call_forwards_exact_bytes,
+    `Auths.Crypto.P256Examples.changed_message_is_refused,
+    `Auths.Crypto.P256Examples.changed_key_is_refused,
+    `Auths.Crypto.P256Examples.changed_signature_is_refused,
+    `Auths.Crypto.P256Examples.malformed_key_refused_without_primitive_contract,
+    `Auths.Crypto.P256Examples.forwarding_contract,
     `Auths.Crypto.FramingTotality.identifier_total,
     `Auths.Crypto.FramingTotality.identifier_accepts_iff,
     `Auths.Crypto.FramingTotality.identifier_refuses_iff,

@@ -2035,7 +2035,9 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
-        if declaration.name == "Auths.Crypto.NativeExamples.forwarding_contract" {
+        if declaration.name == "Auths.Crypto.NativeExamples.forwarding_contract"
+            || declaration.name == "Auths.Crypto.P256Examples.forwarding_contract"
+        {
             claim.claim_text = "The explicitly supplied forwarding mock satisfies its stated call-binding contracts.".to_owned();
             claim.scope = "Only the displayed mock implementation, decoder, signature representation and message/signature equality predicate. This is an inhabited-contract witness; it makes no claim that any cryptographic library is correct or that any signature is authentic.".to_owned();
         }
@@ -2364,6 +2366,8 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const P256_TRANSLATION: &str = "formal/qualification/aeneas/generated/p256/Funs.lean";
+
 const SHA256_TRANSLATION: &str = "formal/qualification/aeneas/generated/sha256/Funs.lean";
 
 const SIGNATURE_TRANSLATION: &str = "formal/qualification/aeneas/generated/signature/Funs.lean";
@@ -2377,16 +2381,19 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    hash_boundary_refinement_metadata(declaration)
-        .map(|metadata| {
-            (
-                metadata,
-                if declaration.starts_with("Auths.Crypto.Sha256") {
-                    SHA256_TRANSLATION
-                } else {
-                    CODEC_TRANSLATION
-                },
-            )
+    native_p256_refinement_metadata(declaration)
+        .map(|metadata| (metadata, P256_TRANSLATION))
+        .or_else(|| {
+            hash_boundary_refinement_metadata(declaration).map(|metadata| {
+                (
+                    metadata,
+                    if declaration.starts_with("Auths.Crypto.Sha256") {
+                        SHA256_TRANSLATION
+                    } else {
+                        CODEC_TRANSLATION
+                    },
+                )
+            })
         })
         .or_else(|| {
             native_signature_refinement_metadata(declaration)
@@ -2441,6 +2448,113 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn native_p256_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust Lean's kernel, the pinned Rust/Charon/Aeneas/Lean compiler boundary, permitted foundations and the inventoried transparent standard models. The native monomorphic unit preserves every body, signature, generic, layout, source span and call/type ID. Its reviewed naming ledger retains original concrete identities; only 31 foreign export aliases and two unique Auths helper name-only specialization suffixes are adapted.",
+        "Where present, the selected library point decoder, scalar parser and P-256/SHA-256 equation satisfy the exact displayed functional contracts. Foreign types and calls are explicit associated types/projections, with no default/global instance or extra axiom. These contracts contain no Auths encoding, low-S, wrapper, or desired complete suite result. The native library implementation, elliptic-curve arithmetic, constant time, signature unforgeability and hash security are not proved here.",
+        "The actual public and private Auths functions are mechanically translated, including native primitive adapters and the explicit key-validation result match. Suite/principal dispatch, caller unsigned-object/descriptor construction, every commitment, complete verification and whole AP-SPEC-069 E5/M6 remain separate obligations. Mock witnesses establish byte/call binding only and assert no authenticity.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.P256Encoding.guard_refines" => (
+            "The native P-256 unit enforces exactly the independent compressed key-form predicate.",
+            &["auths_signature_core::p256_key_encoding_is_canonical"],
+            "Every represented byte slice, with no cryptographic premise: length 33 and initial tag 2 or 3. Point recovery and curve validity remain separate foreign operations.",
+        ),
+        "Auths.Crypto.P256LowScan.loop_refines" => (
+            "The native P-256 scalar loop terminates and compares exactly the stated suffixes.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Every 64-byte array and index/remaining count summing to 32, including all array and arithmetic bounds. This is the source-linked monomorphic loop component.",
+        ),
+        "Auths.Crypto.P256LowContract.guard_refines" => (
+            "The native P-256 low-S guard returns exactly the independent secp256r1 half-order condition.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Every 64-byte form without a primitive contract. Numeric big-endian s is at most floor(n/2); scalar validity and the signature equation remain separate.",
+        ),
+        "Auths.Crypto.P256LowContract.r_bytes_irrelevant" => (
+            "The native P-256 low-S decision is independent of the r bytes.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Every pair of 64-byte forms with identical final 32 bytes. This is source input noninterference, not signature validity.",
+        ),
+        "Auths.Crypto.P256Native.decode_leaf_refines" => (
+            "The actual native P-256 point adapter forwards exactly its input and preserves the specified decoder outcome.",
+            &["auths_signature_core::decode_p256_point"],
+            "Every represented key slice and explicit P256Primitives implementation satisfying the displayed three foreign functional contracts. No Auths key guard or desired suite result occurs in those contracts.",
+        ),
+        "Auths.Crypto.P256Native.parse_leaf_refines" => (
+            "The actual native P-256 scalar adapter forwards the complete fixed-width signature bytes.",
+            &["auths_signature_core::parse_p256_signature"],
+            "Every represented 64-byte array under the displayed foreign contracts. The exact byte list reaches the selected foreign from_slice operation and its returned parse outcome is preserved.",
+        ),
+        "Auths.Crypto.P256Native.equation_leaf_refines" => (
+            "The actual native P-256 equation adapter binds the selected key, complete message and parsed signature.",
+            &["auths_signature_core::verify_p256_equation"],
+            "Every key/message/signature carrier of the explicit implementation under the displayed P-256/SHA-256 functional equation contract. No curve arithmetic or cryptographic security is proved.",
+        ),
+        "Auths.Crypto.P256Native.decode_refines" => (
+            "The actual monomorphic P-256 key path refines compressed-form validation followed by the specified native decoder.",
+            &[
+                "auths_signature_core::decode_p256_key_with",
+                "auths_signature_core::decode_p256_point",
+            ],
+            "Every represented key slice under explicit foreign contracts. The concrete form guard, exact decoder bytes, successful key and InvalidKey refusal precedence are fixed by the translated shipping source.",
+        ),
+        "Auths.Crypto.P256Native.public_verify_refines" => (
+            "The public P-256/SHA-256 verification API refines the independent complete suite result and refusal precedence.",
+            &[
+                "auths_signature_core::verify_p256_sha256",
+                "auths_signature_core::verify_p256_sha256_with",
+            ],
+            "Every represented key/message/signature slice and explicit implementation satisfying the named foreign decoder/parser/equation contracts. Covers the actual public wrapper, native adapters, compressed form, owned 64-byte copy, scalar parse, concrete numeric low-S guard and exact message. Primitive correctness, arithmetic, authenticity and dispatch remain outside this statement.",
+        ),
+        "Auths.Crypto.P256Native.public_accepts_iff" => (
+            "The actual public P-256 API accepts iff the independent P256Accepts relation holds under its explicit primitive contracts.",
+            &["auths_signature_core::verify_p256_sha256"],
+            "Every represented byte input. The relation independently requires compressed form, decoded point, exactly 64 signature bytes, parsed scalar, numeric low-S and exact-message equation. Neither source success nor the complete desired suite result is assumed.",
+        ),
+        "Auths.Crypto.P256Native.public_validate_refines" => (
+            "The public P-256 key-validation API returns exactly the independent key decision and stable error.",
+            &[
+                "auths_signature_core::validate_p256_key",
+                "auths_signature_core::decode_p256_key",
+            ],
+            "Every represented key slice under the named foreign contracts. The shipping validator now projects its result with an explicit match; no unit callback, callback assumption or modeled Auths function is used.",
+        ),
+        "Auths.Crypto.P256Examples.public_call_forwards_exact_bytes" => (
+            "The public native P-256 wrapper forwards the exact stated key, message and signature through an explicit mock.",
+            &["auths_signature_core::verify_p256_sha256"],
+            "Only the displayed forwardingPrimitive and byte forms. This is a useful inhabited-contract/call-binding witness, not a P-256 signature, curve membership or authenticity claim.",
+        ),
+        "Auths.Crypto.P256Examples.changed_message_is_refused" => (
+            "The public P-256 wrapper refuses the displayed changed message through the explicit forwarding mock.",
+            &["auths_signature_core::verify_p256_sha256"],
+            "Only the displayed changed message and explicit mock. It checks message binding, not primitive correctness or authenticity.",
+        ),
+        "Auths.Crypto.P256Examples.changed_key_is_refused" => (
+            "The public P-256 wrapper refuses the displayed changed compressed-form key through the forwarding mock.",
+            &["auths_signature_core::verify_p256_sha256"],
+            "Only the displayed changed key and explicit mock. It checks that the decoded key reaches the equation, not curve validity.",
+        ),
+        "Auths.Crypto.P256Examples.changed_signature_is_refused" => (
+            "The public P-256 wrapper refuses the displayed changed signature bytes through the forwarding mock.",
+            &["auths_signature_core::verify_p256_sha256"],
+            "Only the displayed changed low-S form and explicit mock. It checks that the parser result and complete signature bytes are retained, not cryptographic security.",
+        ),
+        "Auths.Crypto.P256Examples.malformed_key_refused_without_primitive_contract" => (
+            "The public P-256 wrapper refuses the empty key without a foreign primitive contract.",
+            &["auths_signature_core::verify_p256_sha256"],
+            "Every supplied message/signature and arbitrary explicit primitive implementation, with the exact empty key. No foreign call correctness premise is required for this early source refusal.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn framing_totality_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
@@ -2681,9 +2795,9 @@ fn native_signature_refinement_metadata(declaration: &str) -> Option<ProductionR
 
 fn strict_signature_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
     const RESIDUAL: &[&str] = &[
-        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the listed foundations and pinned transparent array/slice/range/word/FnOnce models are trusted. This signature extraction adds no custom crypto model, opaque Auths algorithm, external function record or global primitive axiom.",
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the listed foundations and pinned transparent array/slice/range/word/FnOnce models are trusted. These strict-glue claims add no opaque Auths algorithm or global primitive axiom. Native public wrappers have separately inventoried explicit foreign interfaces; standard Result/array/slice and callback-or-primitive-dictionary operations retain their named library boundary.",
         "Where present, exact total primitive call contracts are explicit theorem premises. They cover point recovery, scalar parsing and the selected exact-message signature equation; they do not cover Auths canonical, weak-point, fixed-width or low-S decisions, which are concrete proved source. The claims do not prove the primitive contracts, curve arithmetic, unforgeability or constant time.",
-        "The extracted parameterized functions are used by the native entry points. The concrete library-leaf/default-wrapper correspondence, suite/principal dispatch, caller unsigned-object construction, complete commitment integration and AP-SPEC-069 E5 as a whole remain separate obligations. No complete-verifier or authorization-to-execution claim follows from these component results.",
+        "The extracted parameterized functions are used by the native entry points. The concrete public-wrapper correspondence is a separate audited conditional result; these parameterized claims alone do not establish suite/principal dispatch, caller unsigned-object construction, complete commitment integration or AP-SPEC-069 E5 as a whole. No complete-verifier or authorization-to-execution claim follows from these component results.",
     ];
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
         "Auths.Crypto.LowScan.loop_refines" => (
