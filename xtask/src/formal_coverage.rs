@@ -982,11 +982,30 @@ type Translations = (Vec<Translated>, Vec<(String, String)>);
 // handwritten `fn` declarations. Keep them in the Lean dependency graph; do
 // not invent a separately scanned Rust function at the closure's inner span.
 fn is_generated_closure_shim(rust_name: &str) -> bool {
-    rust_name.contains("::closure<")
-        && ((rust_name.contains("{impl core::ops::function::FnMut<")
-            && rust_name.ends_with("}::call_mut"))
-            || (rust_name.contains("{impl core::ops::function::FnOnce<")
-                && rust_name.ends_with("}::call_once")))
+    let Some((owner, implementation)) = rust_name.split_once("::{impl ") else {
+        return false;
+    };
+    let Some((trait_name, receiver)) = implementation.rsplit_once(" for ") else {
+        return false;
+    };
+    let method = if trait_name.starts_with("core::ops::function::FnMut<") {
+        "}::call_mut"
+    } else if trait_name.starts_with("core::ops::function::FnOnce<") {
+        "}::call_once"
+    } else {
+        return false;
+    };
+    let Some(closure) = receiver
+        .strip_prefix(&format!("{owner}::closure"))
+        .and_then(|name| name.strip_suffix(method))
+    else {
+        return false;
+    };
+    closure.is_empty()
+        || (closure.starts_with('<') && closure.ends_with('>'))
+        || closure
+            .strip_prefix('#')
+            .is_some_and(|index| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
 }
 
 fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
@@ -3699,12 +3718,21 @@ mod closure_shim_tests {
         assert!(is_generated_closure_shim(
             "auths_composition::evaluate::{impl core::ops::function::FnOnce<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_once"
         ));
+        assert!(is_generated_closure_shim(
+            "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<Key>> for auths_signature_core::verify_ed25519::closure}::call_once"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(Key,), bool> for auths_signature_core::verify_ed25519::closure#1}::call_once"
+        ));
         for function in [
             "auths_composition::evaluate",
             "auths_composition::{auths_composition::EvaluationEvent}::outcome",
             "auths_model::{impl core::ops::function::FnMut<T> for auths_model::Handler}::call_mut",
             "auths_model::closure<T>::decide",
             "auths_model::{impl core::ops::function::FnMut<T> for auths_model::closure<T>}::verify",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::other::closure}::call_once",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closure#invalid}::call_once",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closureNamed}::call_once",
         ] {
             assert!(!is_generated_closure_shim(function), "{function}");
         }

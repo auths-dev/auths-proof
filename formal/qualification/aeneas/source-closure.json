@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "c9c3f9ef750e8cce0f39656f549dd1e8d351354434bf0416c87a9e45bfe98e35",
+  "digest": "bc6f231fa8c0594a57748ba5a52e34bdc743f15cf965cb4b19c1bb955041fbd1",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -309,7 +309,7 @@
     },
     {
       "path": "core/crates/auths-signature-core/src/lib.rs",
-      "sha256": "0e888b094b4954d4424c90817275b4fd7e3940e65a8779d90b47eb51879fa69e"
+      "sha256": "dd572146a26c04caf5f75eb37955d2e922644a2bb5d284b7380cb733854d4db8"
     },
     {
       "path": "core/crates/auths-signature/Cargo.toml",
@@ -444,6 +444,10 @@
       "sha256": "b408fb40c6432edc1facb3d8b3e9433a033f8dc73fe2e0ba5a88c972ca675021"
     },
     {
+      "path": "formal/Auths/Crypto/NativePrimitives.lean",
+      "sha256": "8d73a3205320a2306a4e1bd59121c039e8e2cc2848f63f64474a69b1d05ac601"
+    },
+    {
       "path": "formal/Auths/Support/Discriminant.lean",
       "sha256": "d0c9b2b98232238d7c5f23579114ea9146f2e8a274b5b4e06783068490cbf88c"
     },
@@ -497,7 +501,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Signature.lean",
-      "sha256": "9a4b2cc9656522b6d912901a2dba8382426aa409507eacf204a6f4200e648250"
+      "sha256": "22a78fb9f640ef2e2f24c581fdbc04a7fa4bbbcbaf8e6bcf18317dff757cf869"
     },
     {
       "path": "formal/qualification/aeneas/cases/Stores.lean",
@@ -505,7 +509,11 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "ced4848e8f9194383efc1172e05aad2e44549c5c91ed71aed4f46ac1880a9408"
+      "sha256": "ea2c130d74971b6928a10d14837b4058d0a9b060188bcbaaa20f7036e2e1ac93"
+    },
+    {
+      "path": "formal/tools/SourceClosure.lean",
+      "sha256": "1c5c6aa4abf38e31ad4f5fdaac275ecf0d651a65e97c0acf96abec12229133dc"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -893,11 +901,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "4a17df10062e92a1eb460938d35eab71b5408f269407c1d02f73d70ac93f3b43"
+      "sha256": "353c22632360ea75b04c4d11600115c4bd85b809ab89dcc41c63a0193e836326"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
-      "sha256": "99e0b3bf672afc12cee1674741b8f5565c142972355468551d647d2bc52f91d8"
+      "sha256": "6b4bb48708577e27eed13bb82d2e8212fb51bb6e288373ae9fb65f5672f66018"
     },
     {
       "path": "xtask/src/formal_mutations.rs",
@@ -905,7 +913,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "15a141c0a03146d51ab49bc9dfc1c9150fc2d39580cedae17e1148516b54ba1f"
+      "sha256": "5561d103a0bdd443e1d1c639f03c08c02d2a46085053e17057f0500196e48adf"
     },
     {
       "path": "xtask/src/fuzz.rs",

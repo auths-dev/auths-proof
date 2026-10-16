@@ -1486,6 +1486,7 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
         }
     }
     let expected_source_closure = semantic_source_closure_paths(formal_root)?;
+    let expected_closure_digest = semantic_source_closure_digest(&expected_source_closure)?;
     let mut reviewed = BTreeSet::new();
     let mut claim_ids = BTreeSet::new();
     for claim in &manifest.claims {
@@ -1581,8 +1582,8 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 claim.lean_declaration
             ));
         }
-        let closure_digest = semantic_source_closure_digest(&claim.semantic_source_closure)?;
-        if closure_digest != claim.semantic_source_closure_sha256 {
+        let closure_digest = &expected_closure_digest;
+        if *closure_digest != claim.semantic_source_closure_sha256 {
             return Err(format!(
                 "formal claim {} semantic source closure drifted: expected {}, found {closure_digest}",
                 claim.lean_declaration, claim.semantic_source_closure_sha256
@@ -1682,6 +1683,11 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
         }
     }
 
+    // All claims have the identical, independently resolved path set. Hash it
+    // once per snapshot, then reject mutation during the complete claim audit.
+    if semantic_source_closure_digest(&expected_source_closure)? != expected_closure_digest {
+        return Err("Lean semantic source closure changed during assurance audit".to_owned());
+    }
     let compiled_names: BTreeSet<_> = compiled.keys().cloned().collect();
     if reviewed != compiled_names {
         return Err(format!(
@@ -2029,6 +2035,10 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
+        if declaration.name == "Auths.Crypto.NativeExamples.forwarding_contract" {
+            claim.claim_text = "The explicitly supplied forwarding mock satisfies its stated call-binding contracts.".to_owned();
+            claim.scope = "Only the displayed mock implementation, decoder, signature representation and message/signature equality predicate. This is an inhabited-contract witness; it makes no claim that any cryptographic library is correct or that any signature is authentic.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2172,47 +2182,47 @@ fn declaration_source_path(declaration: &LeanAssuranceDeclaration) -> Result<Str
 fn semantic_source_closure_paths(formal_root: &Path) -> Result<Vec<String>, String> {
     validate_lake_dependency_worktrees(formal_root)?;
     let workspace_root = root();
-    let mut pending = vec![formal_root.join("Auths/AssuranceAudit.lean")];
+    let entry = formal_root.join("Auths/AssuranceAudit.lean");
+    let output = command_output_in(
+        "lake",
+        &[
+            "env",
+            "lean",
+            "--run",
+            "tools/SourceClosure.lean",
+            &formal_root.display().to_string(),
+            &entry.display().to_string(),
+        ],
+        formal_root,
+        None,
+    )?;
+    let dependencies: Vec<String> = serde_json::from_str(output.trim())
+        .map_err(|error| format!("invalid pinned-Lean source closure: {error}"))?;
     let mut visited = BTreeSet::new();
-    while let Some(path) = pending.pop() {
-        let path = fs::canonicalize(&path).map_err(|error| {
-            format!("could not resolve Lean source {}: {error}", path.display())
-        })?;
+    for dependency in dependencies {
+        let path = fs::canonicalize(&dependency)
+            .map_err(|error| format!("could not resolve Lean dependency {dependency}: {error}"))?;
+        if !is_repository_lean_dependency(formal_root, &path) {
+            return Err(format!(
+                "pinned-Lean source closure contains a non-repository source: {dependency}"
+            ));
+        }
         let relative = path
             .strip_prefix(&workspace_root)
             .map_err(|error| format!("Lean source escaped workspace: {error}"))?
             .to_string_lossy()
             .replace('\\', "/");
         if !visited.insert(relative) {
-            continue;
-        }
-        let formal_relative = path
-            .strip_prefix(formal_root)
-            .map_err(|error| format!("Lean source escaped formal root: {error}"))?
-            .to_string_lossy()
-            .into_owned();
-        let dependencies = command_output_in(
-            "lake",
-            &["env", "lean", "--src-deps", formal_relative.as_str()],
-            formal_root,
-            None,
-        )?;
-        for dependency in dependencies.lines().filter(|line| !line.trim().is_empty()) {
-            let candidate = PathBuf::from(dependency.trim());
-            let candidate = if candidate.is_absolute() {
-                candidate
-            } else {
-                formal_root.join(candidate)
-            };
-            let Ok(candidate) = fs::canonicalize(candidate) else {
-                continue;
-            };
-            if is_repository_lean_dependency(formal_root, &candidate) {
-                pending.push(candidate);
-            }
+            return Err(format!(
+                "pinned-Lean source closure repeats source {dependency}"
+            ));
         }
     }
+    if !visited.contains("formal/Auths/AssuranceAudit.lean") {
+        return Err("pinned-Lean source closure omits the assurance audit root".to_owned());
+    }
     for relative in [
+        "formal/tools/SourceClosure.lean",
         "formal/algebra-contract-v1.toml",
         "formal/lakefile.toml",
         "formal/lake-manifest.json",
@@ -2341,8 +2351,12 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    strict_signature_refinement_metadata(declaration)
+    native_signature_refinement_metadata(declaration)
         .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+        .or_else(|| {
+            strict_signature_refinement_metadata(declaration)
+                .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+        })
         .or_else(|| {
             signature_encoding_refinement_metadata(declaration)
                 .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
@@ -2388,6 +2402,67 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn native_signature_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust the pinned Rust/Charon/Aeneas/Lean compiler boundary, Lean kernel, allowed foundations and inventoried transparent standard models. The public Ed25519 wrapper and every Auths helper/closure body are translated. A reviewed section declaration generalizes only the explicit foreign implementation parameter and preserves every generated function body.",
+        "The foreign decoder, signature constructor and strict equation have explicit exact total functional contracts in the displayed theorem; no implementation instance, cryptographic axiom or primitive correctness is installed globally. The proof does not establish curve arithmetic, unforgeability, constant-time behavior or that the pinned libraries satisfy these contracts.",
+        "P-256 public native-wrapper binding, suite/principal dispatch, exact caller unsigned-object construction and complete commitments remain separate obligations. These component claims do not complete AP-SPEC-069 E5 or authorization-to-execution assurance. Explicit mocks supply call-binding witnesses only, never authentic signature evidence.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.Native.decode_leaf_refines" => (
+            "The actual Ed25519 library-decoding adapter returns the exact specified decoded key under its explicit primitive contract.",
+            &["auths_signature_core::decode_ed25519_point"],
+            "Every 32-byte array, explicit foreign implementation, decoder specification, signature representation and equation satisfying the displayed Ed25519Contract. This proves the adapter and Result-to-Option projection; it does not prove point recovery.",
+        ),
+        "Auths.Crypto.Native.equation_leaf_refines" => (
+            "The actual Ed25519 equation adapter constructs the specified signature and passes the exact key and message to the selected foreign verification call.",
+            &["auths_signature_core::verify_ed25519_equation"],
+            "Every implementation key, message slice and 64-byte signature under the explicit constructor and equation contracts. The exact native call sequence and Result-to-bool projection are proved; curve arithmetic, S validity, equation security and library implementation correctness remain explicit primitive obligations.",
+        ),
+        "Auths.Crypto.Native.public_verify_refines" => (
+            "The public Ed25519 verification API returns exactly the independent suite model under explicit foreign primitive contracts.",
+            &["auths_signature_core::verify_ed25519"],
+            "Every represented key/message/signature slice, including malformed inputs, under the displayed Ed25519Contract. Covers the actual public wrapper, generated closure dictionaries, concrete guards, exact byte forwarding, stable error classes and precedence, with a total result. No global primitive instance is installed.",
+        ),
+        "Auths.Crypto.Native.public_verify_accepts_iff" => (
+            "The public Ed25519 verification API succeeds iff the independent suite acceptance relation holds under explicit foreign primitive contracts.",
+            &["auths_signature_core::verify_ed25519"],
+            "Every represented key/message/signature slice and explicit implementation satisfying Ed25519Contract. The independent relation requires exact widths, canonical/non-weak key and R, decoded key and the exact-message equation. This proves both acceptance and refusal through the public wrapper, not the primitive contracts or authorization.",
+        ),
+        "Auths.Crypto.Native.public_validate_refines" => (
+            "The public Ed25519 key validator returns exactly the independent canonical point-decoding result under explicit primitive contracts.",
+            &[
+                "auths_signature_core::validate_ed25519_key",
+                "auths_signature_core::decode_ed25519_key",
+            ],
+            "Every represented key byte slice under the displayed foreign decoder contract, including typed malformed-key refusals and exact successful Unit projection. A canonical weak encoding may pass key-format validation; it cannot thereby pass strict signature verification.",
+        ),
+        "Auths.Crypto.NativeExamples.public_call_forwards_exact_bytes" => (
+            "A kernel-checked explicit mock witnesses useful exact-byte forwarding through the actual public Ed25519 API.",
+            &["auths_signature_core::verify_ed25519"],
+            "Only the displayed explicit forwardingPrimitive implementation and exact public byte forms. The mock deliberately recognizes one message/signature pair; it is no cryptographic implementation, global instance, authentic signature witness or authorization claim.",
+        ),
+        "Auths.Crypto.NativeExamples.changed_message_is_refused" => (
+            "The actual public Ed25519 wrapper refuses a changed message against an explicit exact-byte forwarding mock.",
+            &["auths_signature_core::verify_ed25519"],
+            "Only the stated changed message and explicit mock. The result detects message substitution through the real wrapper; it is call-binding evidence, not cryptographic unforgeability.",
+        ),
+        "Auths.Crypto.NativeExamples.malformed_key_refused_without_primitive_contract" => (
+            "The public Ed25519 wrapper refuses the empty key without a primitive-correctness or termination premise.",
+            &["auths_signature_core::verify_ed25519"],
+            "Every explicit foreign implementation, arbitrary message/signature slices, and the exact empty key. The concrete width refusal precedes all foreign calls. This is not a full malformed-input classification on its own.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn strict_signature_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

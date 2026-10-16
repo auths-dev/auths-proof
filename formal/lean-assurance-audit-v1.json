@@ -7,6 +7,105 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Crypto.NativeContract",
+      "name": "Auths.Crypto.Native.decode_leaf_refines",
+      "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (decode : List Aeneas.Std.U8 → Option Auths.Crypto.Ed25519Primitives.Key)\n  (signatureValue : List Aeneas.Std.U8 → Auths.Crypto.Ed25519Primitives.Signature)\n  (equation : Auths.Crypto.Ed25519Primitives.Key → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  Auths.Crypto.Native.Ed25519Contract decode signatureValue equation →\n    ∀ (bytes : Aeneas.Std.Array Aeneas.Std.U8 32#usize),\n      auths_signature_core.decode_ed25519_point bytes = Aeneas.Std.Result.ok (decode ↑bytes)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeContract",
+      "name": "Auths.Crypto.Native.equation_leaf_refines",
+      "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (decode : List Aeneas.Std.U8 → Option Auths.Crypto.Ed25519Primitives.Key)\n  (signatureValue : List Aeneas.Std.U8 → Auths.Crypto.Ed25519Primitives.Signature)\n  (equation : Auths.Crypto.Ed25519Primitives.Key → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  Auths.Crypto.Native.Ed25519Contract decode signatureValue equation →\n    ∀ (key : Auths.Crypto.Ed25519Primitives.Key) (message : Aeneas.Std.Slice Aeneas.Std.U8)\n      (bytes : Aeneas.Std.Array Aeneas.Std.U8 64#usize),\n      auths_signature_core.verify_ed25519_equation key message bytes =\n        Aeneas.Std.Result.ok (equation key ↑message ↑bytes)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeContract",
+      "name": "Auths.Crypto.Native.public_verify_refines",
+      "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (decode : List Aeneas.Std.U8 → Option Auths.Crypto.Ed25519Primitives.Key)\n  (signatureValue : List Aeneas.Std.U8 → Auths.Crypto.Ed25519Primitives.Signature)\n  (equation : Auths.Crypto.Ed25519Primitives.Key → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  Auths.Crypto.Native.Ed25519Contract decode signatureValue equation →\n    ∀ (bytes message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n      auths_signature_core.verify_ed25519 bytes message signature =\n        Aeneas.Std.Result.ok\n          (Auths.Crypto.Strict.SuiteModel.sourceEd\n            (Auths.Crypto.Strict.SuiteModel.edVerify decode equation ↑bytes ↑message ↑signature))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeContract",
+      "name": "Auths.Crypto.Native.public_verify_accepts_iff",
+      "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (decode : List Aeneas.Std.U8 → Option Auths.Crypto.Ed25519Primitives.Key)\n  (signatureValue : List Aeneas.Std.U8 → Auths.Crypto.Ed25519Primitives.Signature)\n  (equation : Auths.Crypto.Ed25519Primitives.Key → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  Auths.Crypto.Native.Ed25519Contract decode signatureValue equation →\n    ∀ (bytes message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n      auths_signature_core.verify_ed25519 bytes message signature =\n          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) ↔\n        Auths.Crypto.Strict.Acceptance.EdAccepts decode equation ↑bytes ↑message ↑signature"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeContract",
+      "name": "Auths.Crypto.Native.public_validate_refines",
+      "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (decode : List Aeneas.Std.U8 → Option Auths.Crypto.Ed25519Primitives.Key)\n  (signatureValue : List Aeneas.Std.U8 → Auths.Crypto.Ed25519Primitives.Signature)\n  (equation : Auths.Crypto.Ed25519Primitives.Key → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  Auths.Crypto.Native.Ed25519Contract decode signatureValue equation →\n    ∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      auths_signature_core.validate_ed25519_key bytes =\n        Aeneas.Std.Result.ok\n          (Auths.Crypto.Strict.SuiteModel.sourceEd\n            (Except.map (fun x => ()) (Auths.Crypto.Strict.SuiteModel.edKey decode ↑bytes)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeExamples",
+      "name": "Auths.Crypto.NativeExamples.public_call_forwards_exact_bytes",
+      "statement": "auths_signature_core.verify_ed25519 Auths.Crypto.NativeExamples.key Auths.Crypto.NativeExamples.message\n    Auths.Crypto.NativeExamples.signature =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeExamples",
+      "name": "Auths.Crypto.NativeExamples.changed_message_is_refused",
+      "statement": "auths_signature_core.verify_ed25519 Auths.Crypto.NativeExamples.key Auths.Crypto.NativeExamples.changedMessage\n    Auths.Crypto.NativeExamples.signature =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_signature_core.Ed25519Error.VerificationFailed)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeExamples",
+      "name": "Auths.Crypto.NativeExamples.malformed_key_refused_without_primitive_contract",
+      "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_signature_core.verify_ed25519 Auths.Crypto.NativeExamples.empty message signature =\n    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_signature_core.Ed25519Error.InvalidKey)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.NativeExamples",
+      "name": "Auths.Crypto.NativeExamples.forwarding_contract",
+      "statement": "Auths.Crypto.Native.Ed25519Contract (fun x => some ()) id Auths.Crypto.NativeExamples.equation"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Crypto.Strict.ByteLex",
       "name": "Auths.Crypto.ByteLex.value_bound",
       "statement": "∀ (bytes : List Aeneas.Std.U8), Auths.Crypto.ByteLex.value bytes < 256 ^ bytes.length"

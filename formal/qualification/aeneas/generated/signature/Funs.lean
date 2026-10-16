@@ -2,6 +2,7 @@
 -- [auths_signature_core]: function definitions
 import Aeneas
 import qualification.aeneas.generated.signature.Types
+import qualification.aeneas.generated.signature.FunsExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -12,6 +13,11 @@ set_option maxHeartbeats 1000000
 
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
+
+/- You can remove the following line by using the CLI option `-all-computable`: -/
+noncomputable section
+
+variable [primitives : Auths.Crypto.Ed25519Primitives]
 
 namespace auths_signature_core
 
@@ -254,6 +260,35 @@ def ed25519_signature_r_is_allowed
     else ok false
   | core.result.Result.Err _ => ok false
 
+/-- [auths_signature_core::decode_ed25519_point]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 203:0-205:1 -/
+def decode_ed25519_point
+  (bytes : Array Std.U8 32#usize) :
+  Result (Option ed25519_dalek.verifying.VerifyingKey)
+  := do
+  let r ← ed25519_dalek.verifying.VerifyingKey.from_bytes bytes
+  core.result.Result.ok r
+
+/-- [auths_signature_core::decode_ed25519_key::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::decode_ed25519_key::closure}::call_once]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 212:35-212:74 -/
+def
+  decode_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey.call_once
+  (c : decode_ed25519_key.closure) (tupled_args : Array Std.U8 32#usize) :
+  Result (Option ed25519_dalek.verifying.VerifyingKey)
+  := do
+  decode_ed25519_point tupled_args
+
+/-- Trait implementation: [auths_signature_core::decode_ed25519_key::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::decode_ed25519_key::closure}]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 212:35-212:74 -/
+@[reducible]
+def
+  decode_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey
+  : core.ops.function.FnOnce decode_ed25519_key.closure (Array Std.U8 32#usize)
+  (Option ed25519_dalek.verifying.VerifyingKey) := {
+  call_once :=
+    decode_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey.call_once
+}
+
 /-- [auths_signature_core::ed25519_key_encoding]:
     Source: 'core/crates/auths-signature-core/src/lib.rs', lines 182:0-190:1 -/
 def ed25519_key_encoding
@@ -292,8 +327,51 @@ def decode_ed25519_key_with
     core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
       K (core.convert.FromSame Ed25519Error) residual
 
+/-- [auths_signature_core::decode_ed25519_key]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 211:0-213:1 -/
+def decode_ed25519_key
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result ed25519_dalek.verifying.VerifyingKey Ed25519Error)
+  := do
+  decode_ed25519_key_with
+    decode_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey
+    bytes ()
+
+/-- [auths_signature_core::validate_ed25519_key::{impl core::ops::function::FnOnce<(ed25519_dalek::verifying::VerifyingKey,), ()> for auths_signature_core::validate_ed25519_key::closure}::call_once]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 179:45-179:51 -/
+def
+  validate_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleVerifyingKeyTuple.call_once
+  (c : validate_ed25519_key.closure)
+  (tupled_args : ed25519_dalek.verifying.VerifyingKey) :
+  Result Unit
+  := do
+  ok ()
+
+/-- Trait implementation: [auths_signature_core::validate_ed25519_key::{impl core::ops::function::FnOnce<(ed25519_dalek::verifying::VerifyingKey,), ()> for auths_signature_core::validate_ed25519_key::closure}]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 179:45-179:51 -/
+@[reducible]
+def
+  validate_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleVerifyingKeyTuple
+  : core.ops.function.FnOnce validate_ed25519_key.closure
+  ed25519_dalek.verifying.VerifyingKey Unit := {
+  call_once :=
+    validate_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleVerifyingKeyTuple.call_once
+}
+
+/-- [auths_signature_core::validate_ed25519_key]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 178:0-180:1
+    Visibility: public -/
+def validate_ed25519_key
+  (verification_key : Slice Std.U8) :
+  Result (core.result.Result Unit Ed25519Error)
+  := do
+  let r ← decode_ed25519_key verification_key
+  core.result.Result.map
+    validate_ed25519_key.closure.Insts.CoreOpsFunctionFnOnceTupleVerifyingKeyTuple
+    r ()
+
 /-- [auths_signature_core::verify_ed25519_with]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 211:0-238:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 215:0-242:1 -/
 def verify_ed25519_with
   {K : Type} {D : Type} {V : Type}
   (coreopsfunctionFnOnceDTupleShared0ArrayU832OptionInst :
@@ -337,8 +415,76 @@ def verify_ed25519_with
     core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
       Unit (core.convert.FromSame Ed25519Error) residual
 
+/-- [auths_signature_core::verify_ed25519_equation]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 244:0-247:1 -/
+def verify_ed25519_equation
+  (key : ed25519_dalek.verifying.VerifyingKey) (message : Slice Std.U8)
+  (signature : Array Std.U8 64#usize) :
+  Result Bool
+  := do
+  let s ← ed25519.Signature.from_bytes signature
+  let r ← ed25519_dalek.verifying.VerifyingKey.verify_strict key message s
+  core.result.Result.is_ok r
+
+/-- [auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ ed25519_dalek::verifying::VerifyingKey, &'_ [u8], &'_ [u8; 64usize]), bool> for auths_signature_core::verify_ed25519::closure#1}::call_once]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 271:8-271:82 -/
+def
+  verify_ed25519.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedVerifyingKeySharedSliceU8SharedArrayU864Bool.call_once
+  (c : verify_ed25519.closure_1)
+  (tupled_args : (ed25519_dalek.verifying.VerifyingKey × (Slice Std.U8) ×
+  (Array Std.U8 64#usize))) :
+  Result Bool
+  := do
+  let (key, message, signature) := tupled_args
+  verify_ed25519_equation key message signature
+
+/-- Trait implementation: [auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ ed25519_dalek::verifying::VerifyingKey, &'_ [u8], &'_ [u8; 64usize]), bool> for auths_signature_core::verify_ed25519::closure#1}]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 271:8-271:82 -/
+@[reducible]
+def
+  verify_ed25519.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedVerifyingKeySharedSliceU8SharedArrayU864Bool
+  : core.ops.function.FnOnce verify_ed25519.closure_1
+  (ed25519_dalek.verifying.VerifyingKey × (Slice Std.U8) × (Array Std.U8
+  64#usize)) Bool := {
+  call_once :=
+    verify_ed25519.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedVerifyingKeySharedSliceU8SharedArrayU864Bool.call_once
+}
+
+/-- [auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::verify_ed25519::closure}::call_once]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 270:8-270:47 -/
+def
+  verify_ed25519.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey.call_once
+  (c : verify_ed25519.closure) (tupled_args : Array Std.U8 32#usize) :
+  Result (Option ed25519_dalek.verifying.VerifyingKey)
+  := do
+  decode_ed25519_point tupled_args
+
+/-- Trait implementation: [auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::verify_ed25519::closure}]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 270:8-270:47 -/
+@[reducible]
+def
+  verify_ed25519.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey
+  : core.ops.function.FnOnce verify_ed25519.closure (Array Std.U8 32#usize)
+  (Option ed25519_dalek.verifying.VerifyingKey) := {
+  call_once :=
+    verify_ed25519.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey.call_once
+}
+
+/-- [auths_signature_core::verify_ed25519]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 261:0-273:1
+    Visibility: public -/
+def verify_ed25519
+  (verification_key : Slice Std.U8) (message : Slice Std.U8)
+  (signature : Slice Std.U8) :
+  Result (core.result.Result Unit Ed25519Error)
+  := do
+  verify_ed25519_with
+    verify_ed25519.closure.Insts.CoreOpsFunctionFnOnceTupleSharedArrayU832OptionVerifyingKey
+    verify_ed25519.closure_1.Insts.CoreOpsFunctionFnOnceTupleSharedVerifyingKeySharedSliceU8SharedArrayU864Bool
+    verification_key message signature () ()
+
 /-- [auths_signature_core::decode_p256_key_with]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 286:0-297:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 294:0-305:1 -/
 def decode_p256_key_with
   {K : Type} {D : Type} (coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst :
   core.ops.function.FnOnce D (Slice Std.U8) (Option K)) (bytes : Slice Std.U8)
@@ -357,7 +503,7 @@ def decode_p256_key_with
   else ok (core.result.Result.Err P256Error.InvalidKey)
 
 /-- [auths_signature_core::verify_p256_sha256_with]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 315:0-344:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 323:0-352:1 -/
 def verify_p256_sha256_with
   {K : Type} {S : Type} {D : Type} {P : Type} {V : Type}
   (coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst :

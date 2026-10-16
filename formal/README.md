@@ -334,3 +334,24 @@ foundations. Eight kernel examples are form/guard witnesses, not claims of
 signature authenticity. Concrete native-library/default-wrapper binding,
 suite/principal dispatch, caller preimages and complete commitments remain
 E5 obligations. Fresh qualification passes all 12 cases, native parity and two byte-identical translations with all 536 audited statements and no additional axioms. Hosted evidence remains required on the exact pushed revision.
+
+
+### Public Ed25519 binding
+
+`Auths.Crypto.NativeContract` proves the actual public verify/key-validation
+wrappers and selected library adapters, including exact results and independent
+acceptance iff. An explicit `Ed25519Primitives` parameter has three foreign
+calls; `Ed25519Contract` supplies their exact total contracts as theorem premises.
+There is no global instance or new axiom. A section-only codegen normalization
+threads this parameter through dependent generated definitions and preserves
+all Rust function bodies. Its strict regression checks byte-for-byte recovery.
+The construction inventory has 545 claims, all previous 536 records unchanged.
+`NativeExamples` supplies explicit mock call-binding and primitive-independent
+malformed-key witnesses; mock success is not signature authenticity.
+The 23-local/five-external extraction retains four anonymous closure shims.
+Fresh qualification passes all 12 cases, native parity, two byte-identical
+translations and the 545-statement audit, with thirteen reviewed external
+models and zero compiled external axioms. Exact-revision hosted gates remain
+required.
+The pinned tools still cannot qualify the P-256 public library-wrapper closure;
+its generic algorithm and concrete low-S proof remain the smaller earned claim.

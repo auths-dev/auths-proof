@@ -620,3 +620,68 @@ Exact-source qualification passes all 12 cases, native parity and two byte-ident
 The concrete library-leaf/default-wrapper correspondence, suite/principal
 dispatch, caller unsigned-object construction, complete commitment integration
 and E5 as a whole remain open, along with the other AP-SPEC-069 workstreams.
+
+
+## Public Ed25519 API and explicit foreign implementation
+
+The shipping public Ed25519 verify and key-validation entry points now have
+exact source refinements, including their selected callback dictionaries,
+library adapters and result projections. `Native.public_verify_refines`
+covers the complete result and stable refusal precedence for arbitrary
+represented byte slices. `Native.public_verify_accepts_iff` connects success
+to the independent canonical/non-weak exact-message suite relation.
+The decoded-key validator has its own exact Unit/error projection theorem.
+
+Three foreign library calls are fields of an explicit implementation parameter:
+point recovery, fixed-width signature construction and the strict equation.
+Their exact total contracts are displayed theorem premises. There is no
+default/global implementation instance, global crypto axiom, opaque Auths
+helper or rewritten Rust function body. A reviewed section declaration threads
+only that parameter through dependent generated declarations. Missing, repeated
+and already-generalized normalization inputs are rejected, and a regression
+checks exact recovery of every generated body by removing only that declaration.
+Transparent Result-to-Option and existing Result-map models handle projections.
+
+The construction audit passes 545 claims with all previous 536 full records
+unchanged and only the existing three foundations. Concrete kernel witnesses
+check exact message/signature forwarding, changed-message refusal and malformed
+key refusal before any primitive call. The explicit forwarding mock is an
+inhabited contract and call-binding witness; it establishes no cryptographic
+authenticity. Existing published native signature tuples remain separate evidence.
+
+The extraction has 23 local and five external function records. Four local
+records are compiler-generated non-generic closure call shims. They remain in
+the complete dependency/report inventory and are classified separately from
+handwritten functions, as the generic composition shims already were.
+A focused regression rejects unrelated methods, receiver mismatches and malformed
+closure names. No handwritten function is removed from a coverage denominator.
+The complete fresh qualification passes all 12 cases, native parity and two
+byte-identical translations, with all 545 compiled claims, thirteen reviewed
+external models, zero unreviewed models and zero compiled external axioms.
+Its exact source closure is
+`bc6f231fa8c0594a57748ba5a52e34bdc743f15cf965cb4b19c1bb955041fbd1`.
+Hosted evidence remains required on the exact new revision.
+
+P-256's parameterized source algorithm and concrete numeric low-S guard remain
+proved. Its public native-wrapper extraction hits a pinned Charon associated-
+type normalization failure even on the isolated library point-decoding call;
+monomorphization gets past that stage but fails in the pinned Aeneas translator.
+No failed or partially translated artifact is in the qualification inventory.
+That public binding, suite/principal dispatch, caller unsigned-object closure,
+all commitments and whole E5 remain open, as do the other full AP-SPEC-069 gates.
+
+The preceding 500-claim facade checkpoint passed every hosted main CI gate,
+including authoritative Lean, clean checking and final formal evidence:
+[CI 38875070290](https://github.com/auths-dev/auths-proof/actions/runs/38875070290).
+
+
+The assurance source resolver now uses the pinned Lean header parser and module
+resolver in one process, rather than launching Lean once per source. The
+resolved set was compared exactly against the prior 145-source result. The
+resolver implementation itself is included in the hashed source inputs, and
+the Rust caller rejects foreign/duplicate paths and a missing audit root.
+Invalid-header and outside-root construction cases fail closed. Each claim
+must still name the exact independently resolved closure and its digest; the
+audit hashes the common snapshot once and rehashes it before publishing, so a
+source change during the audit is refused. No theorem statement, source input,
+axiom check, evidence digest, or hosted gate is removed by this cost reduction.

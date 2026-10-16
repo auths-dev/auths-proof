@@ -12,6 +12,14 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Crypto.Native.decode_leaf_refines" = "exact"
+"Auths.Crypto.Native.equation_leaf_refines" = "exact"
+"Auths.Crypto.Native.public_verify_refines" = "exact"
+"Auths.Crypto.Native.public_verify_accepts_iff" = "verdict-exact"
+"Auths.Crypto.Native.public_validate_refines" = "exact"
+"Auths.Crypto.NativeExamples.public_call_forwards_exact_bytes" = "case"
+"Auths.Crypto.NativeExamples.changed_message_is_refused" = "case"
+"Auths.Crypto.NativeExamples.malformed_key_refused_without_primitive_contract" = "case"
 "Auths.Crypto.LowScan.loop_refines" = "partial"
 "Auths.Crypto.LowContract.guard_refines" = "exact"
 "Auths.Crypto.LowContract.r_bytes_irrelevant" = "partial"

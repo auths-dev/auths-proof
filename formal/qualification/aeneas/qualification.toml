@@ -10,9 +10,11 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1"]
 
 source_files = [
+  "formal/tools/SourceClosure.lean",
+  "formal/Auths/Crypto/NativePrimitives.lean",
   "core/crates/auths-signature-core/Cargo.toml",
   "core/crates/auths-signature-core/src/lib.rs",
   "formal/qualification/aeneas/cases/Signature.lean",
@@ -85,6 +87,10 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/signature/FunsExternal.lean",
   "formal/qualification/aeneas/generated/signature/Types.lean",
   "formal/qualification/aeneas/generated/signature/Funs.lean",
   "formal/qualification/aeneas/generated/signature/translation.json",
@@ -156,6 +162,26 @@ charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[external_models]]
+id = "signature-explicit-foreign-types"
+kind = "explicit-parameter-foreign-library-types"
+artifact = "formal/qualification/aeneas/generated/signature/TypesExternal.lean"
+rust_symbols = ["ed25519::Signature", "ed25519_dalek::verifying::VerifyingKey", "signature::error::Error"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Foreign types are associated types of the explicit Ed25519Primitives theorem parameter. There is no default or global instance, opaque Auths type, or axiom. These aliases do not assert any cryptographic law. The generated section generalizes only declarations depending on this implementation parameter."
+
+[[external_models]]
+id = "signature-explicit-foreign-calls"
+kind = "explicit-parameter-foreign-library-calls-and-transparent-result"
+artifact = "formal/qualification/aeneas/generated/signature/FunsExternal.lean"
+rust_symbols = ["core::result::{core::result::Result<T, E>}::ok", "core::result::{core::result::Result<T, E>}::map", "ed25519::{ed25519::Signature}::from_bytes", "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::from_bytes", "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::verify_strict"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The three selected foreign library calls are transparent projections from the explicit Ed25519Primitives parameter. Their exact functional contracts are displayed premises of public-wrapper theorems; no primitive correctness or authenticity is assumed globally. Result-to-Option is an exact transparent standard Result match; Result.map uses the existing reviewed model. Every Auths helper, closure call, wrapper, branch and payload remains mechanically translated."
 
 [[external_models]]
 id = "composition-unit-output-abi"
@@ -373,8 +399,8 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_signature_core"
 translation_json = "formal/qualification/aeneas/generated/signature/translation.json"
-local_functions = 14
-external_functions = 0
+local_functions = 23
+external_functions = 5
 opaque_local_functions = 0
 required_symbols = [
   "auths_signature_core::ed25519_point_encoding_is_canonical",
@@ -383,13 +409,28 @@ required_symbols = [
   "auths_signature_core::ed25519_same_coordinate",
   "auths_signature_core::ed25519_has_small_order_coordinate",
   "auths_signature_core::ed25519_signature_r_is_allowed",
+  "auths_signature_core::decode_ed25519_point",
+  "auths_signature_core::decode_ed25519_key::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::decode_ed25519_key::closure}::call_once",
   "auths_signature_core::ed25519_key_encoding",
   "auths_signature_core::decode_ed25519_key_with",
+  "auths_signature_core::decode_ed25519_key",
+  "auths_signature_core::validate_ed25519_key::{impl core::ops::function::FnOnce<(ed25519_dalek::verifying::VerifyingKey,), ()> for auths_signature_core::validate_ed25519_key::closure}::call_once",
+  "auths_signature_core::validate_ed25519_key",
   "auths_signature_core::verify_ed25519_with",
+  "auths_signature_core::verify_ed25519_equation",
+  "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ ed25519_dalek::verifying::VerifyingKey, &'_ [u8], &'_ [u8; 64usize]), bool> for auths_signature_core::verify_ed25519::closure#1}::call_once",
+  "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::verify_ed25519::closure}::call_once",
+  "auths_signature_core::verify_ed25519",
   "auths_signature_core::decode_p256_key_with",
   "auths_signature_core::verify_p256_sha256_with",
 ]
-allowed_external_symbols = []
+allowed_external_symbols = [
+  "core::result::{core::result::Result<T, E>}::ok",
+  "core::result::{core::result::Result<T, E>}::map",
+  "ed25519::{ed25519::Signature}::from_bytes",
+  "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::from_bytes",
+  "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::verify_strict",
+]
 
 [[translations]]
 crate_name = "auths_composition"
@@ -804,6 +845,16 @@ required_symbols = [
   "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean"
+count = 3
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean"
+count = 5
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean"

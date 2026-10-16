@@ -204,8 +204,12 @@ fn decode_ed25519_point(bytes: &[u8; 32]) -> Option<VerifyingKey> {
     VerifyingKey::from_bytes(bytes).ok()
 }
 
+#[expect(
+    clippy::redundant_closure,
+    reason = "explicit closure dictionaries are supported by the qualified Rust-to-Lean backend"
+)]
 fn decode_ed25519_key(bytes: &[u8]) -> Result<VerifyingKey, Ed25519Error> {
-    decode_ed25519_key_with(bytes, decode_ed25519_point)
+    decode_ed25519_key_with(bytes, |encoded| decode_ed25519_point(encoded))
 }
 
 fn verify_ed25519_with<K, D, V>(
@@ -250,6 +254,10 @@ fn verify_ed25519_equation(key: &VerifyingKey, message: &[u8], signature: &[u8; 
 /// # Errors
 ///
 /// Distinguishes malformed keys, malformed signature encodings, and cryptographic failure.
+#[expect(
+    clippy::redundant_closure,
+    reason = "explicit closure dictionaries are supported by the qualified Rust-to-Lean backend"
+)]
 pub fn verify_ed25519(
     verification_key: &[u8],
     message: &[u8],
@@ -259,8 +267,8 @@ pub fn verify_ed25519(
         verification_key,
         message,
         signature,
-        decode_ed25519_point,
-        verify_ed25519_equation,
+        |encoded| decode_ed25519_point(encoded),
+        |key, message, signature| verify_ed25519_equation(key, message, signature),
     )
 }
 

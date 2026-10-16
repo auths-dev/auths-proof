@@ -13,9 +13,17 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "7262100a415726f1ba0015ce22b8f4662a9b2bfd00bbeef745aa0b5054ab1573";
+    "206d13f3a2a2c479027b7f7a42c15a70f0700334b48f7c51d20bad7468261df6";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "signature-run/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
+        "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
+    ),
+    (
+        "signature-run/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
+    ),
     (
         "signature-run/qualification/aeneas/generated/signature/Types.lean",
         "formal/qualification/aeneas/generated/signature/Types.lean",
@@ -179,6 +187,8 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/signature/FunsExternal.lean",
     "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
     "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
     "formal/qualification/aeneas/generated/codec/TypesExternal.lean",
@@ -192,6 +202,10 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/signature/FunsExternal.lean",
     "formal/qualification/aeneas/generated/signature/Types.lean",
     "formal/qualification/aeneas/generated/signature/Funs.lean",
     "formal/qualification/aeneas/generated/signature/translation.json",
@@ -335,6 +349,8 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/codec/TypesExternal_Template.lean",
@@ -677,9 +693,9 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     }
     if qualification.case_modules.len() != 11
         || qualification.translations.len() != 11
-        || qualification.external_models.len() != 11
+        || qualification.external_models.len() != 13
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 7
+        || qualification.template_axioms.len() != 9
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -692,6 +708,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "signature-recursive-loops-v1",
             "composition-unit-callback-return-v1",
             "signature-qualified-discriminants-v1",
+            "signature-explicit-primitive-context-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -1130,6 +1147,14 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
+            render_signature_types_external(),
+        ),
+        (
+            "formal/qualification/aeneas/generated/signature/FunsExternal.lean",
+            render_signature_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
             render_composition_types_external(),
         ),
@@ -1173,6 +1198,42 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_signature_types_external() -> String {
+    r##"-- REVIEWED FOREIGN TYPE INTERFACE. NO GLOBAL INSTANCE OR AXIOM.
+import Auths.Crypto.NativePrimitives
+
+abbrev ed25519.Signature [P : Auths.Crypto.Ed25519Primitives] := P.Signature
+abbrev ed25519_dalek.verifying.VerifyingKey [P : Auths.Crypto.Ed25519Primitives] := P.Key
+abbrev signature.error.Error [P : Auths.Crypto.Ed25519Primitives] := P.Error
+"##
+    .to_owned()
+}
+
+fn render_signature_functions_external() -> String {
+    r##"-- REVIEWED TRANSPARENT STANDARD RESULT MODEL AND EXPLICIT FOREIGN INTERFACE.
+import qualification.aeneas.generated.signature.Types
+import qualification.aeneas.generated.codec.FunsExternal
+
+open Aeneas Aeneas.Std Result
+
+def core.result.Result.ok {T E : Type} (value : core.result.Result T E) : Result (Option T) :=
+  Aeneas.Std.Result.ok (match value with | .Ok value => some value | .Err _ => none)
+
+def ed25519.Signature.from_bytes [P : Auths.Crypto.Ed25519Primitives]
+    (bytes : Array Std.U8 64#usize) : Result ed25519.Signature := P.signatureFromBytes bytes
+
+def ed25519_dalek.verifying.VerifyingKey.from_bytes [P : Auths.Crypto.Ed25519Primitives]
+    (bytes : Array Std.U8 32#usize) :
+    Result (core.result.Result ed25519_dalek.verifying.VerifyingKey signature.error.Error) :=
+  P.decode bytes
+
+def ed25519_dalek.verifying.VerifyingKey.verify_strict [P : Auths.Crypto.Ed25519Primitives]
+    (key : ed25519_dalek.verifying.VerifyingKey) (message : Slice Std.U8)
+    (encodedSignature : ed25519.Signature) : Result (core.result.Result Unit signature.error.Error) :=
+  P.verifyStrict key message encodedSignature
+"##.to_owned()
 }
 
 fn render_composition_types_external() -> String {
@@ -2194,7 +2255,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_signature_core::verify_ed25519_with,auths_signature_core::decode_ed25519_key_with,auths_signature_core::verify_p256_sha256_with",
+            "auths_signature_core::verify_ed25519,auths_signature_core::validate_ed25519_key,auths_signature_core::verify_p256_sha256_with",
             &stable_llbc.join("auths_signature_core.llbc"),
             "core/crates/auths-signature-core/Cargo.toml",
             &[],
@@ -2460,6 +2521,7 @@ fn reproduce(
     }
     normalize_composition_discriminants(output)?;
     normalize_signature_discriminants(output)?;
+    normalize_signature_primitive_context(output)?;
     Ok(())
 }
 
@@ -2528,6 +2590,31 @@ fn normalize_signature_discriminants(output: &Path) -> Result<(), String> {
         )
         .replace("discriminant isize", "qualified_discriminant isize");
     fs::write(path, normalized).map_err(|error| format!("could not write signature types: {error}"))
+}
+
+// Generalize only the explicit foreign implementation parameter. Lean threads
+// this section variable through exactly the declarations using those foreign
+// types/calls. No generated Rust function body is changed and no instance exists.
+fn normalize_signature_primitive_context(output: &Path) -> Result<(), String> {
+    let path = output.join("signature-run/qualification/aeneas/generated/signature/Funs.lean");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read signature functions: {error}"))?;
+    fs::write(path, signature_primitive_context(&source)?)
+        .map_err(|error| format!("could not write signature functions: {error}"))
+}
+
+fn signature_primitive_context(source: &str) -> Result<String, String> {
+    let marker = "noncomputable section\n";
+    if source.matches(marker).count() != 1
+        || source.matches("namespace auths_signature_core\n").count() != 1
+        || source.contains("Auths.Crypto.Ed25519Primitives")
+    {
+        return Err("signature explicit primitive context input drifted".to_owned());
+    }
+    Ok(source.replace(
+        marker,
+        "noncomputable section\n\nvariable [primitives : Auths.Crypto.Ed25519Primitives]\n",
+    ))
 }
 
 fn charon_arguments(
@@ -3490,5 +3577,24 @@ mod unit_observer_dictionary_tests {
         assert!(normalize_unit_observer_dictionary(callback).is_err());
         assert!(normalize_unit_observer_dictionary(&format!("{source}\n{field}")).is_err());
         assert!(normalize_unit_observer_dictionary(&adapted).is_err());
+    }
+}
+
+#[cfg(test)]
+mod signature_primitive_context_tests {
+    use super::signature_primitive_context;
+
+    #[test]
+    fn explicit_primitive_parameter_preserves_every_generated_body() {
+        let marker = "noncomputable section\n";
+        let parameter = "\nvariable [primitives : Auths.Crypto.Ed25519Primitives]\n";
+        let body = "namespace auths_signature_core\ndef wrapper (bytes : Slice Std.U8) := do\n  let key ← foreign_decode bytes\n  concrete_guard_and_verify key bytes\nend auths_signature_core\n";
+        let source = format!("import Aeneas\n{marker}{body}");
+        let generalized = signature_primitive_context(&source).expect("one explicit interface");
+        assert_eq!(generalized.replace(parameter, ""), source);
+        assert!(signature_primitive_context(&generalized).is_err());
+        assert!(signature_primitive_context(body).is_err());
+        assert!(signature_primitive_context(&format!("{source}{marker}")).is_err());
+        assert!(signature_primitive_context(&format!("{source}{body}")).is_err());
     }
 }

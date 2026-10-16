@@ -1,3 +1,4 @@
+import Auths.Crypto.NativeExamples
 import Auths.Crypto.Strict.Examples
 import Auths.Composition.FacadeExamples
 import Auths.Crypto.Encoding.Examples
@@ -42,6 +43,15 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.Native.decode_leaf_refines,
+    `Auths.Crypto.Native.equation_leaf_refines,
+    `Auths.Crypto.Native.public_verify_refines,
+    `Auths.Crypto.Native.public_verify_accepts_iff,
+    `Auths.Crypto.Native.public_validate_refines,
+    `Auths.Crypto.NativeExamples.public_call_forwards_exact_bytes,
+    `Auths.Crypto.NativeExamples.changed_message_is_refused,
+    `Auths.Crypto.NativeExamples.malformed_key_refused_without_primitive_contract,
+    `Auths.Crypto.NativeExamples.forwarding_contract,
     `Auths.Crypto.ByteLex.value_bound,
     `Auths.Crypto.ByteLex.value_cons,
     `Auths.Crypto.ByteLex.le_numeric,

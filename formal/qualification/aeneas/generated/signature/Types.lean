@@ -2,6 +2,7 @@
 -- [auths_signature_core]: type definitions
 import Aeneas
 import Auths.Support.Discriminant
+import qualification.aeneas.generated.signature.TypesExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -32,5 +33,25 @@ inductive P256Error where
 | InvalidKey : P256Error
 | InvalidSignatureEncoding : P256Error
 | VerificationFailed : P256Error
+
+/-- [auths_signature_core::decode_ed25519_key::closure]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 212:35-212:74 -/
+@[reducible]
+def decode_ed25519_key.closure := Unit
+
+/-- [auths_signature_core::validate_ed25519_key::closure]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 179:45-179:51 -/
+@[reducible]
+def validate_ed25519_key.closure := Unit
+
+/-- [auths_signature_core::verify_ed25519::closure#1]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 271:8-271:82 -/
+@[reducible]
+def verify_ed25519.closure_1 := Unit
+
+/-- [auths_signature_core::verify_ed25519::closure]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 270:8-270:47 -/
+@[reducible]
+def verify_ed25519.closure := Unit
 
 end auths_signature_core
