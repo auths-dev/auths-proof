@@ -1,3 +1,4 @@
+import Auths.Verifier.TemporalExamples
 import Auths.Crypto.SuiteAdapterExamples
 import Auths.Crypto.P256Examples
 import Auths.Crypto.FramingTotality
@@ -49,6 +50,27 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.TemporalWitness.status_horizon_exact,
+    `Auths.TemporalWitness.status_horizon_accepts_iff,
+    `Auths.TemporalWitness.status_horizon_stale_refused,
+    `Auths.TemporalWitness.status_decision_accepts_iff,
+    `Auths.TemporalWitness.Status.decision_refines,
+    `Auths.TemporalWitness.assurance_loop_refines,
+    `Auths.TemporalWitness.assurance_entry_refines,
+    `Auths.TemporalWitness.successful_native_horizon_exact,
+    `Auths.TemporalWitness.native_horizon_permits_iff,
+    `Auths.TemporalWitness.assurance_permits_iff,
+    `Auths.TemporalWitness.successful_horizon_bounded,
+    `AuthsTemporalWitness.lt_default_delegates,
+    `Auths.TemporalWitness.Examples.inclusive_status_endpoint,
+    `Auths.TemporalWitness.Examples.expired_status_refused,
+    `Auths.TemporalWitness.Examples.revoked_principal_refused,
+    `Auths.TemporalWitness.Examples.revoked_grant_refused,
+    `Auths.TemporalWitness.Examples.selected_expiry_admitted,
+    `Auths.TemporalWitness.Examples.missing_requirement_refused,
+    `Auths.TemporalWitness.Examples.missing_observation_refused,
+    `Auths.TemporalWitness.Examples.unbounded_requirement_needs_no_observation,
+    `Auths.TemporalWitness.Examples.overflowing_expiry_saturates,
     `Auths.Crypto.SuiteAdapters.ed_public_refines,
     `Auths.Crypto.SuiteAdapters.ed_accepts_iff,
     `Auths.Crypto.SuiteAdapterExamples.ed_exact_fields_admitted,

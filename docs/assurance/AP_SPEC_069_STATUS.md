@@ -885,3 +885,34 @@ byte-identical translations. Qualified source closure:
 `231fa58fa3a0200c0d5914a35d613e5672096992199df9b56c33f64f20275c03`.
 Exact-revision hosted evidence remains required. These tests support the explicit primitive
 contracts and do not prove them or complete E5/M2.
+
+## Actual selected-witness expiry helpers
+
+The shipping verifier's status-decision, status-horizon and selected-assurance
+horizon helpers now refine independently defined status/expiry semantics. The
+actual loop terminates for every represented finite input. Missing requirement
+references and required observation timestamps fail closed; unbounded rules
+need no timestamp; selected deadlines use exact saturating 64-bit addition
+and their minimum. A successful native horizon admits exactly the maximum
+word bound and all selected expiries. Status endpoints are inclusive and
+principal/grant failures preserve their distinct stable classes.
+
+The native unit has four local declarations (three Rust functions and one
+loop), 14 transparent imported Auths helpers and one standard Option import.
+No Auths algorithm is opaque. A scoped, unconditional standard comparison
+adapter projects only partial_cmp; no generated function body is rewritten.
+The pure model imports no generated Rust. Nine Lean witnesses separate actual
+status calls from pure expiry examples. Five native tests use actual validated
+Rust constructors; focused lint, context rejection tests and gateway semantic
+closure regeneration pass. The construction audit has 634 claims, all 613
+previous complete records unchanged and only the permitted foundations.
+Fresh exact-source qualification passes 634 compiled claims, all 613 prior
+complete records unchanged, 16/16 cases, 22 reviewed models and zero compiled
+external axioms. Two clean translations are byte-identical. Qualified closure:
+`d0e1dba843ae5f0bba50a2b00cf8f779721756069e3bc1481feaab81d1b836d5`.
+Exact-revision hosted evidence remains required.
+
+These are expiry-only claims. Authenticity, selection by the actual assurance
+evaluator, observation-time ordering, satisfaction of every required policy,
+complete verification, other horizon intersections and the actual runtime
+consumer remain separate E2/E4/M6 obligations. No whole milestone is closed.

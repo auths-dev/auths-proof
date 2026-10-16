@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "d022691fc292a75aefd98e04efcc00f96dd97cbf9a3b20d856da4fc3c09d238a",
-  "inputs_sha256": "1d21ae63ed586d131c23dc13a35934b728853fa6f5001aed9704d6f3b7194ea2",
+  "scope_definition_sha256": "418712fe859190f99f15024d9a0d9fe11a8366819a61c9a06ca14510af831ada",
+  "inputs_sha256": "de7e634cf7c430419dcf2d5041f8872c45d156f1497a16ed7904d52de0ec2ae0",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -60,12 +60,13 @@
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
     "core/crates/auths-verifier/src/approval.rs": "sha256:2826a5227945a3e0ea000584f1e1c794bec3b313b13843f4284e0e716f830d33",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
-    "core/crates/auths-verifier/src/lib.rs": "sha256:bf3e86dcf93ab0e49d9a555c0510d592a6c3b0ef6ca17b95832ec6f190829f1a",
+    "core/crates/auths-verifier/src/lib.rs": "sha256:7d3ae3a95680018ae7d709b5fd64f1fa48ef838e3d389ee727b8087fbc4d9d50",
     "core/crates/auths-verifier/src/observation.rs": "sha256:2b43ee60e1f105d33b325914ae723f91fe191675f27a9a9c04ea812c2fe27785",
+    "core/crates/auths-verifier/src/temporal_tests.rs": "sha256:c242d8bed72936ea7437e45ab88b98b28f0d82f9f92a6f750ef8b27fa71e8fef",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
-    "formal/coverage-scope-v1.toml": "sha256:d022691fc292a75aefd98e04efcc00f96dd97cbf9a3b20d856da4fc3c09d238a",
-    "formal/lean-assurance-audit-v1.json": "sha256:bd8f307e2ff7e12000d801551c4f3d4cc9c783782b7c7aa56951c4cc014427cc",
+    "formal/coverage-scope-v1.toml": "sha256:418712fe859190f99f15024d9a0d9fe11a8366819a61c9a06ca14510af831ada",
+    "formal/lean-assurance-audit-v1.json": "sha256:f9e5e5aafc809b967f308dddc1f2758e042e2a8ffd32ad585824e46df87ed4be",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -94,8 +95,10 @@
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
     "formal/qualification/aeneas/generated/suite_adapter/Funs.lean": "sha256:431e4424062a07c09648a506a84829e55e01a2299c11d6048510e6a9f58c0777",
     "formal/qualification/aeneas/generated/suite_adapter/translation.json": "sha256:39369f27830d77d72546a57cbcf69c929259e9530dc724771ccc1408889b448d",
-    "formal/qualification/aeneas/qualification.toml": "sha256:a82979e463db674a98a7859cc6a025afa71bbcccc97b1e17d15d07b7cf50447f",
-    "formal/theorem-kinds-v1.toml": "sha256:78dcf314d5d49d42617b4fa1790798bc8efbc9e1e9270c6270e66d8d62e1ee43",
+    "formal/qualification/aeneas/generated/temporal_witness/Funs.lean": "sha256:06cd736d84902fc661860f855b9d8b85e5da6b47a18f1f87b3c2f28c4e4088af",
+    "formal/qualification/aeneas/generated/temporal_witness/translation.json": "sha256:6eb1375a0980ab93ec121219ab0896e8b268a5a5f5c777e215094b8a4763aecf",
+    "formal/qualification/aeneas/qualification.toml": "sha256:20ed2026c0d6b360435aa2a1138fbad7bb20784e38b8ad09ce2be8ac98e828c9",
+    "formal/theorem-kinds-v1.toml": "sha256:ad214d0ed4bbbd79096591a174754ced8c0ad07cbdac6e5432f7efce2c8a1285",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -135,9 +138,9 @@
   },
   "claim": {
     "decision_functions": 1044,
-    "decision_closure_functions": 124,
+    "decision_closure_functions": 127,
     "decision_code_lines": 11535,
-    "decision_closure_code_lines": 1490,
+    "decision_closure_code_lines": 1552,
     "check_sites": 82,
     "covered_check_sites": 23,
     "uncovered_components": [
@@ -163,6 +166,7 @@
       "product/policy/auths-bounded-policy"
     ],
     "translated_crates": [
+      "core/crates/auths-verifier",
       "core/crates/auths-signature",
       "core/crates/auths-signature-core",
       "core/crates/auths-composition",
@@ -201,6 +205,7 @@
       "core/crates/auths-signature-core/src/lib.rs": "crypto",
       "core/crates/auths-signature/src/lib.rs": "crypto",
       "core/crates/auths-verifier/src/causal.rs": "explanation",
+      "core/crates/auths-verifier/src/temporal_tests.rs": "test-support",
       "core/crates/auths-verifier/src/trace.rs": "explanation",
       "product/runtime/auths-lifecycle/src/codec.rs": "decoding",
       "product/runtime/auths-lifecycle/src/sealed.rs": "storage",
@@ -219,28 +224,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 124,
-          "function_share": 0.1188,
-          "span_lines": 1501,
-          "span_line_share": 0.1296,
-          "code_lines": 1490,
-          "code_line_share": 0.1292
+          "functions": 127,
+          "function_share": 0.1216,
+          "span_lines": 1563,
+          "span_line_share": 0.135,
+          "code_lines": 1552,
+          "code_line_share": 0.1345
         },
         "direct": {
-          "functions": 66,
-          "function_share": 0.0632,
-          "span_lines": 1018,
-          "span_line_share": 0.0879,
-          "code_lines": 1007,
-          "code_line_share": 0.0873
+          "functions": 69,
+          "function_share": 0.0661,
+          "span_lines": 1080,
+          "span_line_share": 0.0932,
+          "code_lines": 1069,
+          "code_line_share": 0.0927
         },
         "closure": {
-          "functions": 124,
-          "function_share": 0.1188,
-          "span_lines": 1501,
-          "span_line_share": 0.1296,
-          "code_lines": 1490,
-          "code_line_share": 0.1292
+          "functions": 127,
+          "function_share": 0.1216,
+          "span_lines": 1563,
+          "span_line_share": 0.135,
+          "code_lines": 1552,
+          "code_line_share": 0.1345
         }
       }
     },
@@ -252,61 +257,61 @@
       "code_lines": 8984,
       "by_level": {
         "translated": {
-          "functions": 100,
-          "function_share": 0.1253,
-          "span_lines": 1119,
-          "span_line_share": 0.1239,
-          "code_lines": 1108,
-          "code_line_share": 0.1233
+          "functions": 103,
+          "function_share": 0.1291,
+          "span_lines": 1181,
+          "span_line_share": 0.1308,
+          "code_lines": 1170,
+          "code_line_share": 0.1302
         },
         "direct": {
-          "functions": 51,
-          "function_share": 0.0639,
-          "span_lines": 720,
-          "span_line_share": 0.0798,
-          "code_lines": 709,
-          "code_line_share": 0.0789
+          "functions": 54,
+          "function_share": 0.0677,
+          "span_lines": 782,
+          "span_line_share": 0.0866,
+          "code_lines": 771,
+          "code_line_share": 0.0858
         },
         "closure": {
-          "functions": 100,
-          "function_share": 0.1253,
-          "span_lines": 1119,
-          "span_line_share": 0.1239,
-          "code_lines": 1108,
-          "code_line_share": 0.1233
+          "functions": 103,
+          "function_share": 0.1291,
+          "span_lines": 1181,
+          "span_line_share": 0.1308,
+          "code_lines": 1170,
+          "code_line_share": 0.1302
         }
       }
     },
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1567,
-      "span_lines": 17263,
-      "code_lines": 17198,
+      "functions": 1707,
+      "span_lines": 20817,
+      "code_lines": 20724,
       "by_level": {
         "translated": {
-          "functions": 324,
-          "function_share": 0.2068,
-          "span_lines": 3542,
-          "span_line_share": 0.2052,
-          "code_lines": 3523,
-          "code_line_share": 0.2048
+          "functions": 327,
+          "function_share": 0.1916,
+          "span_lines": 3604,
+          "span_line_share": 0.1731,
+          "code_lines": 3585,
+          "code_line_share": 0.173
         },
         "direct": {
-          "functions": 118,
-          "function_share": 0.0753,
-          "span_lines": 1663,
-          "span_line_share": 0.0963,
-          "code_lines": 1645,
-          "code_line_share": 0.0957
+          "functions": 121,
+          "function_share": 0.0709,
+          "span_lines": 1725,
+          "span_line_share": 0.0829,
+          "code_lines": 1707,
+          "code_line_share": 0.0824
         },
         "closure": {
-          "functions": 324,
-          "function_share": 0.2068,
-          "span_lines": 3542,
-          "span_line_share": 0.2052,
-          "code_lines": 3523,
-          "code_line_share": 0.2048
+          "functions": 327,
+          "function_share": 0.1916,
+          "span_lines": 3604,
+          "span_line_share": 0.1731,
+          "code_lines": 3585,
+          "code_line_share": 0.173
         }
       }
     },
@@ -318,28 +323,28 @@
       "code_lines": 14236,
       "by_level": {
         "translated": {
-          "functions": 169,
-          "function_share": 0.1479,
-          "span_lines": 1681,
-          "span_line_share": 0.1175,
-          "code_lines": 1666,
-          "code_line_share": 0.117
+          "functions": 172,
+          "function_share": 0.1505,
+          "span_lines": 1743,
+          "span_line_share": 0.1218,
+          "code_lines": 1728,
+          "code_line_share": 0.1214
         },
         "direct": {
-          "functions": 63,
-          "function_share": 0.0551,
-          "span_lines": 952,
-          "span_line_share": 0.0665,
-          "code_lines": 938,
-          "code_line_share": 0.0659
+          "functions": 66,
+          "function_share": 0.0577,
+          "span_lines": 1014,
+          "span_line_share": 0.0709,
+          "code_lines": 1000,
+          "code_line_share": 0.0702
         },
         "closure": {
-          "functions": 169,
-          "function_share": 0.1479,
-          "span_lines": 1681,
-          "span_line_share": 0.1175,
-          "code_lines": 1666,
-          "code_line_share": 0.117
+          "functions": 172,
+          "function_share": 0.1505,
+          "span_lines": 1743,
+          "span_line_share": 0.1218,
+          "code_lines": 1728,
+          "code_line_share": 0.1214
         }
       }
     },
@@ -351,28 +356,28 @@
       "code_lines": 9762,
       "by_level": {
         "translated": {
-          "functions": 94,
-          "function_share": 0.2075,
-          "span_lines": 1411,
-          "span_line_share": 0.1439,
-          "code_lines": 1400,
-          "code_line_share": 0.1434
+          "functions": 97,
+          "function_share": 0.2141,
+          "span_lines": 1473,
+          "span_line_share": 0.1502,
+          "code_lines": 1462,
+          "code_line_share": 0.1498
         },
         "direct": {
-          "functions": 53,
-          "function_share": 0.117,
-          "span_lines": 979,
-          "span_line_share": 0.0998,
-          "code_lines": 968,
-          "code_line_share": 0.0992
+          "functions": 56,
+          "function_share": 0.1236,
+          "span_lines": 1041,
+          "span_line_share": 0.1062,
+          "code_lines": 1030,
+          "code_line_share": 0.1055
         },
         "closure": {
-          "functions": 94,
-          "function_share": 0.2075,
-          "span_lines": 1411,
-          "span_line_share": 0.1439,
-          "code_lines": 1400,
-          "code_line_share": 0.1434
+          "functions": 97,
+          "function_share": 0.2141,
+          "span_lines": 1473,
+          "span_line_share": 0.1502,
+          "code_lines": 1462,
+          "code_line_share": 0.1498
         }
       }
     }
@@ -386,28 +391,28 @@
       "code_lines": 11470,
       "by_level": {
         "translated": {
-          "functions": 123,
-          "function_share": 0.1201,
-          "span_lines": 1498,
-          "span_line_share": 0.1301,
-          "code_lines": 1487,
-          "code_line_share": 0.1296
+          "functions": 126,
+          "function_share": 0.123,
+          "span_lines": 1560,
+          "span_line_share": 0.1355,
+          "code_lines": 1549,
+          "code_line_share": 0.135
         },
         "direct": {
-          "functions": 66,
-          "function_share": 0.0645,
-          "span_lines": 1018,
-          "span_line_share": 0.0884,
-          "code_lines": 1007,
-          "code_line_share": 0.0878
+          "functions": 69,
+          "function_share": 0.0674,
+          "span_lines": 1080,
+          "span_line_share": 0.0938,
+          "code_lines": 1069,
+          "code_line_share": 0.0932
         },
         "closure": {
-          "functions": 123,
-          "function_share": 0.1201,
-          "span_lines": 1498,
-          "span_line_share": 0.1301,
-          "code_lines": 1487,
-          "code_line_share": 0.1296
+          "functions": 126,
+          "function_share": 0.123,
+          "span_lines": 1560,
+          "span_line_share": 0.1355,
+          "code_lines": 1549,
+          "code_line_share": 0.135
         }
       }
     },
@@ -419,28 +424,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 124,
-          "function_share": 0.1188,
-          "span_lines": 1501,
-          "span_line_share": 0.1296,
-          "code_lines": 1490,
-          "code_line_share": 0.1292
+          "functions": 127,
+          "function_share": 0.1216,
+          "span_lines": 1563,
+          "span_line_share": 0.135,
+          "code_lines": 1552,
+          "code_line_share": 0.1345
         },
         "direct": {
-          "functions": 66,
-          "function_share": 0.0632,
-          "span_lines": 1018,
-          "span_line_share": 0.0879,
-          "code_lines": 1007,
-          "code_line_share": 0.0873
+          "functions": 69,
+          "function_share": 0.0661,
+          "span_lines": 1080,
+          "span_line_share": 0.0932,
+          "code_lines": 1069,
+          "code_line_share": 0.0927
         },
         "closure": {
-          "functions": 123,
-          "function_share": 0.1178,
-          "span_lines": 1498,
-          "span_line_share": 0.1293,
-          "code_lines": 1487,
-          "code_line_share": 0.1289
+          "functions": 126,
+          "function_share": 0.1207,
+          "span_lines": 1560,
+          "span_line_share": 0.1347,
+          "code_lines": 1549,
+          "code_line_share": 0.1343
         }
       }
     },
@@ -452,28 +457,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 124,
-          "function_share": 0.1188,
-          "span_lines": 1501,
-          "span_line_share": 0.1296,
-          "code_lines": 1490,
-          "code_line_share": 0.1292
+          "functions": 127,
+          "function_share": 0.1216,
+          "span_lines": 1563,
+          "span_line_share": 0.135,
+          "code_lines": 1552,
+          "code_line_share": 0.1345
         },
         "direct": {
-          "functions": 66,
-          "function_share": 0.0632,
-          "span_lines": 1018,
-          "span_line_share": 0.0879,
-          "code_lines": 1007,
-          "code_line_share": 0.0873
+          "functions": 69,
+          "function_share": 0.0661,
+          "span_lines": 1080,
+          "span_line_share": 0.0932,
+          "code_lines": 1069,
+          "code_line_share": 0.0927
         },
         "closure": {
-          "functions": 119,
-          "function_share": 0.114,
-          "span_lines": 1403,
-          "span_line_share": 0.1211,
-          "code_lines": 1399,
-          "code_line_share": 0.1213
+          "functions": 122,
+          "function_share": 0.1169,
+          "span_lines": 1465,
+          "span_line_share": 0.1265,
+          "code_lines": 1461,
+          "code_line_share": 0.1267
         }
       }
     },
@@ -485,28 +490,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 124,
-          "function_share": 0.1188,
-          "span_lines": 1501,
-          "span_line_share": 0.1296,
-          "code_lines": 1490,
-          "code_line_share": 0.1292
+          "functions": 127,
+          "function_share": 0.1216,
+          "span_lines": 1563,
+          "span_line_share": 0.135,
+          "code_lines": 1552,
+          "code_line_share": 0.1345
         },
         "direct": {
-          "functions": 66,
-          "function_share": 0.0632,
-          "span_lines": 1018,
-          "span_line_share": 0.0879,
-          "code_lines": 1007,
-          "code_line_share": 0.0873
+          "functions": 69,
+          "function_share": 0.0661,
+          "span_lines": 1080,
+          "span_line_share": 0.0932,
+          "code_lines": 1069,
+          "code_line_share": 0.0927
         },
         "closure": {
-          "functions": 123,
-          "function_share": 0.1178,
-          "span_lines": 1498,
-          "span_line_share": 0.1293,
-          "code_lines": 1487,
-          "code_line_share": 0.1289
+          "functions": 126,
+          "function_share": 0.1207,
+          "span_lines": 1560,
+          "span_line_share": 0.1347,
+          "code_lines": 1549,
+          "code_line_share": 0.1343
         }
       }
     }
@@ -585,9 +590,9 @@
     "core/crates/auths-verifier": {
       "decision_functions": 120,
       "decision_code_lines": 3239,
-      "translated": 0,
-      "refined_closure": 0,
-      "refined_closure_code_lines": 0
+      "translated": 3,
+      "refined_closure": 3,
+      "refined_closure_code_lines": 62
     },
     "product/policy/auths-bounded-policy": {
       "decision_functions": 108,
@@ -1562,7 +1567,7 @@
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "status_decision",
             "begin_line": 2859,
-            "refined_closure": false
+            "refined_closure": true
           },
           {
             "role": "guard",
@@ -1652,7 +1657,7 @@
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "status_decision",
             "begin_line": 2859,
-            "refined_closure": false
+            "refined_closure": true
           },
           {
             "role": "guard",
@@ -1689,7 +1694,7 @@
             "file": "core/crates/auths-verifier/src/lib.rs",
             "function": "status_decision",
             "begin_line": 2859,
-            "refined_closure": false
+            "refined_closure": true
           },
           {
             "role": "guard",
@@ -3271,25 +3276,38 @@
       "Auths.Refinement.translated_inexpressible_absent_request_is_covered": "partial",
       "Auths.Refinement.translated_rust_refines_rich_spec": "exact",
       "Auths.Rich.Mutations.profile_version_equality": "case",
+      "Auths.TemporalWitness.Examples.expired_status_refused": "case",
+      "Auths.TemporalWitness.Examples.inclusive_status_endpoint": "case",
+      "Auths.TemporalWitness.Examples.revoked_grant_refused": "case",
+      "Auths.TemporalWitness.Examples.revoked_principal_refused": "case",
+      "Auths.TemporalWitness.Status.decision_refines": "exact",
+      "Auths.TemporalWitness.assurance_entry_refines": "exact",
+      "Auths.TemporalWitness.assurance_loop_refines": "exact",
+      "Auths.TemporalWitness.native_horizon_permits_iff": "partial",
+      "Auths.TemporalWitness.status_decision_accepts_iff": "verdict-exact",
+      "Auths.TemporalWitness.status_horizon_accepts_iff": "verdict-exact",
+      "Auths.TemporalWitness.status_horizon_exact": "exact",
+      "Auths.TemporalWitness.status_horizon_stale_refused": "partial",
+      "Auths.TemporalWitness.successful_native_horizon_exact": "partial",
       "AuthsSuiteAdapters.ed25519_delegates": "partial",
       "AuthsSuiteAdapters.p256_delegates": "partial"
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 464,
+    "aeneas_local_definitions": 468,
     "by_kind": {
+      "loop": 108,
+      "function": 331,
       "closure-shim": 11,
-      "function": 328,
-      "loop": 107,
       "derived": 18
     },
-    "refined_direct": 120,
-    "refined_closure": 342,
-    "theorems_naming_translated_functions": 241
+    "refined_direct": 123,
+    "refined_closure": 345,
+    "theorems_naming_translated_functions": 254
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "00ba64f3afc3143da3c826fda579d040d594e1fc8bba34ad1054537a62840362",
+    "current_formal_inputs_sha256": "840748589b1a34cf34fbda97fa0bd4d8259a445d8ae13c1d70cb5560226a6024",
     "fresh": false,
     "campaigns": {
       "s1": {

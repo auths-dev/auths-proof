@@ -2044,6 +2044,21 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
         if [
+            "Auths.TemporalWitness.assurance_permits_iff",
+            "Auths.TemporalWitness.successful_horizon_bounded",
+            "AuthsTemporalWitness.lt_default_delegates",
+            "Auths.TemporalWitness.Examples.selected_expiry_admitted",
+            "Auths.TemporalWitness.Examples.missing_requirement_refused",
+            "Auths.TemporalWitness.Examples.missing_observation_refused",
+            "Auths.TemporalWitness.Examples.unbounded_requirement_needs_no_observation",
+            "Auths.TemporalWitness.Examples.overflowing_expiry_saturates",
+        ]
+        .contains(&declaration.name.as_str())
+        {
+            claim.claim_text = "The independent expiry/status model or exact standard dictionary bridge proves the displayed property or boundary witness.".to_owned();
+            claim.scope = "Only the displayed independent finite-list expiry semantics, explicit status-result algebra, numeric examples or unconditional partial_cmp delegation. The model has no generated-Rust import. Pure model witnesses are not claimed as native executions; native parity separately uses actual validated Rust constructors. Evidence selection, full verification and runtime consumption remain open.".to_owned();
+        }
+        if [
             "AuthsSuiteAdapters.ed_error_to_from",
             "AuthsSuiteAdapters.ed_error_from_to",
             "AuthsSuiteAdapters.p256_error_to_from",
@@ -2387,6 +2402,9 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const TEMPORAL_TRANSLATION: &str =
+    "formal/qualification/aeneas/generated/temporal_witness/Funs.lean";
+
 const SUITE_ADAPTER_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/suite_adapter/Funs.lean";
 
@@ -2405,8 +2423,12 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    suite_adapter_refinement_metadata(declaration)
-        .map(|metadata| (metadata, SUITE_ADAPTER_TRANSLATION))
+    temporal_refinement_metadata(declaration)
+        .map(|metadata| (metadata, TEMPORAL_TRANSLATION))
+        .or_else(|| {
+            suite_adapter_refinement_metadata(declaration)
+                .map(|metadata| (metadata, SUITE_ADAPTER_TRANSLATION))
+        })
         .or_else(|| {
             native_p256_refinement_metadata(declaration)
                 .map(|metadata| (metadata, P256_TRANSLATION))
@@ -2476,6 +2498,89 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn temporal_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust Lean's kernel, the pinned Rust/Charon/Aeneas/Lean compiler boundary, permitted foundations and reviewed transparent standard models. All Auths helper, getter, comparison and loop bodies in this slice are mechanically translated. The scoped PartialOrd adapter projects the actual partial_cmp field to the pinned standard body with an unconditional compiled delegation equality; no Auths algorithm is an opaque premise.",
+        "Inputs are represented bounded slices, 64-bit timestamps, explicit immutable contexts and selected records. The loop's remaining-list relation is an internal representation invariant; the entry helper establishes it without a caller premise. Totality concerns the qualified Result semantics, not wall-clock execution time, host memory or the complete verifier work bound.",
+        "These expiry-only results do not establish evidence authenticity, native evaluator selection, satisfaction of every required policy, observation-time ordering, the complete verifier, action/approval/connection horizon intersection or actual runtime/transport consumption. Those remain separate AP-SPEC-069 obligations. No physical-clock or complete E2/E4/M6 claim is introduced.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.TemporalWitness.status_horizon_exact" => (
+            "The shipping status-horizon helper returns the exact inclusive deadline or StaleStatus refusal.",
+            &["auths_verifier::status_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.status_horizon_accepts_iff" => (
+            "The shipping status-horizon helper accepts exactly its supplied current inclusive horizon.",
+            &["auths_verifier::status_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.status_horizon_stale_refused" => (
+            "The shipping status-horizon helper refuses a deadline before the supplied evaluation time.",
+            &["auths_verifier::status_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.status_decision_accepts_iff" => (
+            "The shipping status-decision helper admits exactly Active.",
+            &["auths_verifier::status_decision"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.Status.decision_refines" => (
+            "Every shipping status decision preserves the independent complete principal/grant result and stable failure class.",
+            &["auths_verifier::status_decision"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.assurance_loop_refines" => (
+            "The actual assurance-horizon loop terminates and refines the independent selected-expiry model.",
+            &["auths_verifier::assurance_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.assurance_entry_refines" => (
+            "The shipping assurance-horizon helper returns exactly the independent selected-expiry result from the maximum word bound.",
+            &["auths_verifier::assurance_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.successful_native_horizon_exact" => (
+            "A successful shipping assurance-horizon result is the exact independent selected-expiry result.",
+            &["auths_verifier::assurance_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.native_horizon_permits_iff" => (
+            "A successful shipping assurance horizon admits exactly the maximum word bound and every selected expiry.",
+            &["auths_verifier::assurance_horizon"],
+            "Every represented status/selected-assurance input and supplied time. The independent model distinguishes missing requirement/observation failures, unbounded rules, minimum selected deadlines and exact saturating 64-bit addition. Only selected records contribute. The status result distinguishes principal and grant refusals. No desired implementation result or witness-selection conclusion is assumed; this is the expiry component, not the complete verifier or driver.",
+        ),
+        "Auths.TemporalWitness.Examples.inclusive_status_endpoint" => (
+            "The shipping temporal helper has the displayed exact admitted or refused boundary witness.",
+            &["auths_verifier::status_horizon"],
+            "Only the displayed native status/time input and exact result. These witnesses have no primitive implementation contract or assumed desired outcome. The native constructor admits the represented StatusEvaluation fields. They do not establish complete authorization or I/O entry.",
+        ),
+        "Auths.TemporalWitness.Examples.expired_status_refused" => (
+            "The shipping temporal helper has the displayed exact admitted or refused boundary witness.",
+            &["auths_verifier::status_horizon"],
+            "Only the displayed native status/time input and exact result. These witnesses have no primitive implementation contract or assumed desired outcome. The native constructor admits the represented StatusEvaluation fields. They do not establish complete authorization or I/O entry.",
+        ),
+        "Auths.TemporalWitness.Examples.revoked_principal_refused" => (
+            "The shipping temporal helper has the displayed exact admitted or refused boundary witness.",
+            &["auths_verifier::status_decision"],
+            "Only the displayed native status/time input and exact result. These witnesses have no primitive implementation contract or assumed desired outcome. The native constructor admits the represented StatusEvaluation fields. They do not establish complete authorization or I/O entry.",
+        ),
+        "Auths.TemporalWitness.Examples.revoked_grant_refused" => (
+            "The shipping temporal helper has the displayed exact admitted or refused boundary witness.",
+            &["auths_verifier::status_decision"],
+            "Only the displayed native status/time input and exact result. These witnesses have no primitive implementation contract or assumed desired outcome. The native constructor admits the represented StatusEvaluation fields. They do not establish complete authorization or I/O entry.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn suite_adapter_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

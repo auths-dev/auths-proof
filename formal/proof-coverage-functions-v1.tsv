@@ -1137,7 +1137,7 @@ core/crates/auths-verifier/src/lib.rs	2345	2394	49	verify_branch	core/crates/aut
 core/crates/auths-verifier/src/lib.rs	2408	2515	105	verify_branch_from_anchor	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2519	2560	42	delegate_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2562	2586	25	evaluate_branch_assurance	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2589	2615	27	assurance_horizon	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2589	2615	27	assurance_horizon	core/crates/auths-verifier	decision	1	0	1	1	1	1	4
 core/crates/auths-verifier/src/lib.rs	2617	2625	9	action_or_first_method	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2627	2645	19	branch_chain	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2647	2663	17	control_for	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
@@ -1146,8 +1146,8 @@ core/crates/auths-verifier/src/lib.rs	2681	2707	27	evaluate_extensions	core/crat
 core/crates/auths-verifier/src/lib.rs	2718	2737	20	check_status_extensions	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2755	2802	48	check_principal_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2805	2845	41	check_grant_status	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2848	2857	10	status_horizon	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
-core/crates/auths-verifier/src/lib.rs	2859	2883	25	status_decision	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
+core/crates/auths-verifier/src/lib.rs	2848	2857	10	status_horizon	core/crates/auths-verifier	decision	1	0	1	1	1	1	5
+core/crates/auths-verifier/src/lib.rs	2859	2883	25	status_decision	core/crates/auths-verifier	decision	1	0	1	1	1	1	4
 core/crates/auths-verifier/src/lib.rs	2885	2918	34	validate_resource_constraints	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2920	2986	61	validate_budget_constraints	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/lib.rs	2988	3004	17	validate_assurance_claims	core/crates/auths-verifier	decision	1	0	1	0	0	0	0

@@ -4,13 +4,13 @@
 
 ## 1. Claim
 
-At the commit that contains this document, 124 of 1,044 decision-scope functions (11.9%) and 1,490 of 11,535 code lines (12.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
+At the commit that contains this document, 127 of 1,044 decision-scope functions (12.2%) and 1,552 of 11,535 code lines (13.5%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `1d21ae63ed586d131c23dc13a35934b728853fa6f5001aed9704d6f3b7194ea2` over the 114 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `de7e634cf7c430419dcf2d5041f8872c45d156f1497a16ed7904d52de0ec2ae0` over the 117 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `d022691fc292a75aefd98e04efcc00f96dd97cbf9a3b20d856da4fc3c09d238a`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `418712fe859190f99f15024d9a0d9fe11a8366819a61c9a06ca14510af831ada`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -45,6 +45,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `core/crates/auths-signature-core/src/lib.rs` | crypto |
 | `core/crates/auths-signature/src/lib.rs` | crypto |
 | `core/crates/auths-verifier/src/causal.rs` | explanation |
+| `core/crates/auths-verifier/src/temporal_tests.rs` | test-support |
 | `core/crates/auths-verifier/src/trace.rs` | explanation |
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
 | `product/runtime/auths-lifecycle/src/sealed.rs` | storage |
@@ -57,11 +58,11 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 
 | Scope | Functions | Translated | Refined directly | Refined closure | Code lines | Translated | Refined directly | Refined closure |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| decision | 1,044 | 124 (11.9%) | 66 (6.3%) | 124 (11.9%) | 11,535 | 1,490 (12.9%) | 1,007 (8.7%) | 1,490 (12.9%) |
-| verifier-core | 798 | 100 (12.5%) | 51 (6.4%) | 100 (12.5%) | 8,984 | 1,108 (12.3%) | 709 (7.9%) | 1,108 (12.3%) |
-| translated-crates | 1,567 | 324 (20.7%) | 118 (7.5%) | 324 (20.7%) | 17,198 | 3,523 (20.5%) | 1,645 (9.6%) | 3,523 (20.5%) |
-| verifier-closure | 1,143 | 169 (14.8%) | 63 (5.5%) | 169 (14.8%) | 14,236 | 1,666 (11.7%) | 938 (6.6%) | 1,666 (11.7%) |
-| decision-nontrivial | 453 | 94 (20.8%) | 53 (11.7%) | 94 (20.8%) | 9,762 | 1,400 (14.3%) | 968 (9.9%) | 1,400 (14.3%) |
+| decision | 1,044 | 127 (12.2%) | 69 (6.6%) | 127 (12.2%) | 11,535 | 1,552 (13.5%) | 1,069 (9.3%) | 1,552 (13.5%) |
+| verifier-core | 798 | 103 (12.9%) | 54 (6.8%) | 103 (12.9%) | 8,984 | 1,170 (13.0%) | 771 (8.6%) | 1,170 (13.0%) |
+| translated-crates | 1,707 | 327 (19.2%) | 121 (7.1%) | 327 (19.2%) | 20,724 | 3,585 (17.3%) | 1,707 (8.2%) | 3,585 (17.3%) |
+| verifier-closure | 1,143 | 172 (15.0%) | 66 (5.8%) | 172 (15.0%) | 14,236 | 1,728 (12.1%) | 1,000 (7.0%) | 1,728 (12.1%) |
+| decision-nontrivial | 453 | 97 (21.4%) | 56 (12.4%) | 97 (21.4%) | 9,762 | 1,462 (15.0%) | 1,030 (10.6%) | 1,462 (15.0%) |
 
 Decision scope by crate:
 
@@ -73,7 +74,7 @@ Decision scope by crate:
 | `core/crates/auths-composition` | 10 | 155 | 10 | 10 | 155 |
 | `core/crates/auths-model` | 547 | 3,913 | 75 | 75 | 695 |
 | `core/crates/auths-registries` | 82 | 1,224 | 0 | 0 | 0 |
-| `core/crates/auths-verifier` | 120 | 3,239 | 0 | 0 | 0 |
+| `core/crates/auths-verifier` | 120 | 3,239 | 3 | 3 | 62 |
 | `product/policy/auths-bounded-policy` | 108 | 716 | 18 | 18 | 182 |
 | `product/runtime/auths-lifecycle` | 138 | 1,835 | 6 | 6 | 200 |
 
@@ -83,11 +84,11 @@ Sensitivities of the decision-scope refined-closure figure:
 
 | Reading | Functions | Code lines |
 | --- | ---: | ---: |
-| Headline | 124 of 1,044 (11.9%) | 1,490 of 11,535 (12.9%) |
-| Without functions defined in `macro_rules!` bodies | 123 of 1,024 (12.0%) | 1,487 of 11,470 (13.0%) |
-| Closure of exact and verdict-exact theorems only | 123 of 1,044 (11.8%) | 1,487 of 11,535 (12.9%) |
-| Closure of exact theorems only | 119 of 1,044 (11.4%) | 1,399 of 11,535 (12.1%) |
-| Closure without trait-instance records | 123 of 1,044 (11.8%) | 1,487 of 11,535 (12.9%) |
+| Headline | 127 of 1,044 (12.2%) | 1,552 of 11,535 (13.5%) |
+| Without functions defined in `macro_rules!` bodies | 126 of 1,024 (12.3%) | 1,549 of 11,470 (13.5%) |
+| Closure of exact and verdict-exact theorems only | 126 of 1,044 (12.1%) | 1,549 of 11,535 (13.4%) |
+| Closure of exact theorems only | 122 of 1,044 (11.7%) | 1,461 of 11,535 (12.7%) |
+| Closure without trait-instance records | 126 of 1,044 (12.1%) | 1,549 of 11,535 (13.4%) |
 
 **Second parser.** 1024 of 1044 decision-scope function spans (98.1%) agree with an independent parse by syn over 32 files. Disagreements:
 
@@ -148,11 +149,11 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 | `branch.untrusted-root` | `untrusted-root` | `verify_branch` (refusal) | stage 3 |
 | `branch.principal-status-extension-accepted` | `critical-extension-unknown` | `check_status_extensions` (refusal), `AcceptedRegistries::accepts_critical_extension` (guard), `check_principal_status` (also) | stages 2 and 3 |
 | `branch.principal-status-extension-handler` | `unsupported-critical-extension` | `check_status_extensions` (refusal), `check_principal_status` (also) | stage 3 |
-| `branch.anchor-principal-status` | `principal-revoked` | `status_decision` (refusal), `select_principal` (guard), `check_principal_status` (also), `ExactStatusMethod::principal` (also) | stages 2 and 3 |
+| `branch.anchor-principal-status` | `principal-revoked` | `select_principal` (guard), `check_principal_status` (also), `ExactStatusMethod::principal` (also) | stages 2 and 3 |
 | `branch.grant-status-extension-accepted` | `critical-extension-unknown` | `check_status_extensions` (refusal), `AcceptedRegistries::accepts_critical_extension` (guard), `check_grant_status` (also) | stages 2 and 3 |
 | `branch.grant-status-extension-handler` | `unsupported-critical-extension` | `check_status_extensions` (refusal), `check_grant_status` (also) | stage 3 |
-| `branch.grant-status` | `grant-revoked` | `status_decision` (refusal), `select_grant` (guard), `check_grant_status` (also), `ExactStatusMethod::grant` (also) | stages 2 and 3 |
-| `branch.subject-principal-status` | `principal-revoked` | `status_decision` (refusal), `select_principal` (guard), `check_principal_status` (also), `ExactStatusMethod::principal` (also) | stages 2 and 3 |
+| `branch.grant-status` | `grant-revoked` | `select_grant` (guard), `check_grant_status` (also), `ExactStatusMethod::grant` (also) | stages 2 and 3 |
+| `branch.subject-principal-status` | `principal-revoked` | `select_principal` (guard), `check_principal_status` (also), `ExactStatusMethod::principal` (also) | stages 2 and 3 |
 | `branch.resource-matcher` | `unsupported-resource-matcher` | `validate_resource_constraints` (refusal), `ImmutableRegistries::resource_matcher` (guard) | stage 2 |
 | `branch.grant-namespace` | `resource-namespace-mismatch` | `validate_resource_constraints` (refusal), `UriNamespaceMatcher::matches` (guard) | stage 2 |
 | `branch.action-namespace` | `resource-namespace-mismatch` | `validate_resource_constraints` (refusal), `UriNamespaceMatcher::matches` (guard) | stage 2 |
@@ -191,7 +192,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `00ba64f3afc3143da3c826fda579d040d594e1fc8bba34ad1054537a62840362`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `840748589b1a34cf34fbda97fa0bd4d8259a445d8ae13c1d70cb5560226a6024`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -204,9 +205,9 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 119 exact, 10 verdict-exact, 53 partial, 59 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 123 exact, 12 verdict-exact, 56 partial, 63 case.
 
-Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 123 of 1,044 functions (11.8%) and 1,487 of 11,535 code lines (12.9%).
+Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 126 of 1,044 functions (12.1%) and 1,549 of 11,535 code lines (13.4%).
 
 The 33 theorems study 006 classified keep the kind both of its raters gave; theorems added since were classified by the agent that added them and await a second rater.
 
@@ -451,6 +452,19 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Refinement.translated_inexpressible_absent_request_is_covered` | partial |
 | `Auths.Refinement.translated_rust_refines_rich_spec` | exact |
 | `Auths.Rich.Mutations.profile_version_equality` | case |
+| `Auths.TemporalWitness.Examples.expired_status_refused` | case |
+| `Auths.TemporalWitness.Examples.inclusive_status_endpoint` | case |
+| `Auths.TemporalWitness.Examples.revoked_grant_refused` | case |
+| `Auths.TemporalWitness.Examples.revoked_principal_refused` | case |
+| `Auths.TemporalWitness.Status.decision_refines` | exact |
+| `Auths.TemporalWitness.assurance_entry_refines` | exact |
+| `Auths.TemporalWitness.assurance_loop_refines` | exact |
+| `Auths.TemporalWitness.native_horizon_permits_iff` | partial |
+| `Auths.TemporalWitness.status_decision_accepts_iff` | verdict-exact |
+| `Auths.TemporalWitness.status_horizon_accepts_iff` | verdict-exact |
+| `Auths.TemporalWitness.status_horizon_exact` | exact |
+| `Auths.TemporalWitness.status_horizon_stale_refused` | partial |
+| `Auths.TemporalWitness.successful_native_horizon_exact` | partial |
 | `AuthsSuiteAdapters.ed25519_delegates` | partial |
 | `AuthsSuiteAdapters.p256_delegates` | partial |
 

@@ -13,9 +13,25 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "4caa38b044a86b80140694abce3f1693a4c9bcb47eaf719d82c3f5122baba258";
+    "afd447a976864f46840113eb5c698f8f6fff0652b4d41f69200386d1ff232602";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "temporal_witness-run/qualification/aeneas/generated/temporal_witness/Types.lean",
+        "formal/qualification/aeneas/generated/temporal_witness/Types.lean",
+    ),
+    (
+        "temporal_witness-run/qualification/aeneas/generated/temporal_witness/Funs.lean",
+        "formal/qualification/aeneas/generated/temporal_witness/Funs.lean",
+    ),
+    (
+        "temporal_witness-run/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
+    ),
+    (
+        "temporal_witness-run/translation.json",
+        "formal/qualification/aeneas/generated/temporal_witness/translation.json",
+    ),
     (
         "suite_adapter-run/qualification/aeneas/generated/suite_adapter/Types.lean",
         "formal/qualification/aeneas/generated/suite_adapter/Types.lean",
@@ -255,6 +271,7 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
     "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
     "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
@@ -276,6 +293,11 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/temporal_witness/Types.lean",
+    "formal/qualification/aeneas/generated/temporal_witness/Funs.lean",
+    "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/temporal_witness/translation.json",
     "formal/qualification/aeneas/generated/suite_adapter/Types.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
@@ -353,6 +375,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.TemporalWitness",
     "qualification.aeneas.cases.SuiteAdapters",
     "qualification.aeneas.cases.P256",
     "qualification.aeneas.cases.Sha256",
@@ -370,6 +393,10 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "core/crates/auths-verifier/Cargo.toml",
+    "core/crates/auths-verifier/src/lib.rs",
+    "core/crates/auths-verifier/src/temporal_tests.rs",
+    "formal/qualification/aeneas/cases/TemporalWitness.lean",
     "core/fixtures/crypto/import_p256_wycheproof.py",
     "core/fixtures/crypto/p256-sha256-v1.tsv",
     "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json",
@@ -418,6 +445,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_verifier",
+        "formal/qualification/aeneas/generated/temporal_witness/translation.json",
+    ),
     (
         "auths_signature",
         "formal/qualification/aeneas/generated/suite_adapter/translation.json",
@@ -477,6 +508,7 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
@@ -976,11 +1008,11 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     if qualification.qualified_delegations != expected_qualified_delegations() {
         return Err("qualified source delegation inventory drifted".to_owned());
     }
-    if qualification.case_modules.len() != 14
-        || qualification.translations.len() != 14
-        || qualification.external_models.len() != 21
+    if qualification.case_modules.len() != 15
+        || qualification.translations.len() != 15
+        || qualification.external_models.len() != 22
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 15
+        || qualification.template_axioms.len() != 16
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -1001,6 +1033,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "p256-explicit-primitive-context-v1",
             "suite-qualified-discriminants-v1",
             "suite-explicit-linked-primitive-context-v1",
+            "temporal-qualified-discriminants-v1",
+            "temporal-recursive-loops-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -1440,6 +1474,10 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
+            render_temporal_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
             render_suite_adapter_types_external(),
         ),
@@ -1515,6 +1553,26 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_temporal_functions_external() -> String {
+    r#"import qualification.aeneas.generated.temporal_witness.Types
+import qualification.aeneas.generated.codec.FunsExternal
+open Aeneas Aeneas.Std Result
+namespace AuthsTemporalWitness
+@[trait_default]
+def core.cmp.PartialOrd.lt.default {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs)
+    (left : Self) (right : Rhs) : Result Bool :=
+  Aeneas.Std.core.cmp.PartialOrd.lt.default implementation.partial_cmp left right
+abbrev core.option.Option.ok_or := @_root_.core.option.Option.ok_or
+theorem lt_default_delegates {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs) (left : Self) (right : Rhs) :
+    core.cmp.PartialOrd.lt.default implementation left right =
+      Aeneas.Std.core.cmp.PartialOrd.lt.default implementation.partial_cmp left right := rfl
+end AuthsTemporalWitness
+"#
+    .to_owned()
 }
 
 fn render_suite_adapter_types_external() -> String {
@@ -2166,14 +2224,14 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
         }
         if matches!(
             report.crate_name.as_str(),
-            "auths_codec" | "auths_composition" | "auths_signature_core"
+            "auths_codec" | "auths_composition" | "auths_signature_core" | "auths_verifier"
         ) && report
             .functions
             .iter()
             .any(|function| function.rust_name.starts_with("auths_") && function.is_opaque)
         {
             return Err(
-                "the codec/composition/signature closure must translate every Auths constructor and helper"
+                "the codec/composition/signature/temporal closure must translate every Auths constructor and helper"
                     .to_owned(),
             );
         }
@@ -2601,6 +2659,19 @@ fn run_rust_qualification_cases(root: &Path) -> Result<(), String> {
         ],
         root,
         &[],
+    )?;
+    run_checked(
+        "cargo",
+        &[
+            "test".to_owned(),
+            "--locked".to_owned(),
+            "-p".to_owned(),
+            "auths-verifier".to_owned(),
+            "--lib".to_owned(),
+            "temporal_tests".to_owned(),
+        ],
+        root,
+        &[],
     )
 }
 
@@ -3024,6 +3095,17 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_verifier::assurance_horizon,auths_verifier::status_horizon,auths_verifier::status_decision",
+            &stable_llbc.join("auths_verifier.llbc"),
+            "core/crates/auths-verifier/Cargo.toml",
+            &["--include", "auths_model", "--include", "auths_ports"],
+        ),
+        root,
+        &[],
+    )?;
     normalize_p256_llbc_names(
         &stable_llbc.join("auths_signature_core_p256.llbc"),
         output,
@@ -3038,6 +3120,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_verifier",
         "auths_signature",
         "auths_signature_core_p256",
         "auths_codec_sha256",
@@ -3070,6 +3153,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_verifier", "temporal_witness"),
         ("auths_signature", "suite_adapter"),
         ("auths_signature_core_p256", "p256"),
         ("auths_codec_sha256", "sha256"),
@@ -3108,9 +3192,18 @@ fn reproduce(
         ];
         if matches!(
             crate_name,
-            "auths_composition" | "auths_signature_core" | "auths_signature_core_p256"
+            "auths_composition"
+                | "auths_signature_core"
+                | "auths_signature_core_p256"
+                | "auths_verifier"
         ) {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
+        }
+        if subdir == "temporal_witness" {
+            aeneas_arguments.splice(
+                0..0,
+                ["-namespace".to_owned(), "AuthsTemporalWitness".to_owned()],
+            );
         }
         if subdir == "suite_adapter" {
             aeneas_arguments.splice(
@@ -3133,6 +3226,7 @@ fn reproduce(
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_verifier",
         "auths_signature",
         "auths_signature_core_p256",
         "auths_codec_sha256",
@@ -3157,6 +3251,7 @@ fn reproduce(
     normalize_sha256_primitive_context(output)?;
     normalize_p256_context(output)?;
     normalize_suite_adapter_context(output)?;
+    normalize_temporal_context(output)?;
     Ok(())
 }
 
@@ -3547,6 +3642,52 @@ fn normalize_sha256_llbc_names(
         &output.join("sha256-run/foreign-name-normalization.json"),
         &ledger,
     )
+}
+
+fn normalize_temporal_context(output: &Path) -> Result<(), String> {
+    let path = output
+        .join("temporal_witness-run/qualification/aeneas/generated/temporal_witness/Types.lean");
+    let source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    fs::write(path, temporal_type_context(&source)?).map_err(|error| error.to_string())
+}
+fn temporal_type_context(source: &str) -> Result<String, String> {
+    if source.matches("namespace AuthsTemporalWitness\n").count() != 1
+        || source.matches("import Aeneas\n").count() != 1
+        || source.contains("qualified_discriminant")
+        || source.matches("@[discriminant isize").count() != 10
+    {
+        return Err("temporal type context input drifted".to_owned());
+    }
+    Ok(source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize"))
+}
+
+#[cfg(test)]
+mod temporal_context_tests {
+    use super::temporal_type_context;
+
+    #[test]
+    fn context_preserves_the_exact_type_bodies_and_rejects_drift() {
+        let reviewed =
+            include_str!("../../formal/qualification/aeneas/generated/temporal_witness/Types.lean");
+        let raw = reviewed
+            .replace("import Auths.Support.Discriminant\n", "")
+            .replace("qualified_discriminant isize", "discriminant isize");
+        assert_eq!(temporal_type_context(&raw).unwrap(), reviewed);
+        assert!(temporal_type_context(reviewed).is_err());
+        assert!(temporal_type_context(&format!("{raw}{raw}")).is_err());
+        assert!(
+            temporal_type_context(&raw.replacen("@[discriminant isize", "@[other isize", 1))
+                .is_err()
+        );
+        assert!(
+            temporal_type_context(&raw.replace("namespace AuthsTemporalWitness\n", "")).is_err()
+        );
+    }
 }
 
 fn normalize_suite_adapter_context(output: &Path) -> Result<(), String> {

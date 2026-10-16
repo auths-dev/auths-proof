@@ -438,3 +438,19 @@ and two byte-identical translations. Native tests, lint and both independent
 implementations pass; exact-revision hosted evidence remains required.
 This is conformance evidence for the displayed primitive contracts, not a
 proof of cryptographic arithmetic/security or completion of M2.
+
+### Native selected-witness expiry
+
+`Auths.Verifier.TemporalModel` defines status and selected-expiry semantics
+without a generated-Rust import. The native verifier helpers refine exact
+status results, inclusive deadlines and total selected-assurance expiry
+calculation, including missing metadata and saturating arithmetic. The loop
+and entry helper have complete Result refinements; successful horizons admit
+exactly all selected expiry constraints. The construction audit has 634
+claims, preserving all previous 613 complete records and the axiom policy.
+Native boundary tests, focused lint and context rejection tests pass. Fresh
+qualification passes 634 claims, 16/16 cases, 22 reviewed models, zero compiled
+external axioms and two byte-identical translations. Exact-revision hosted
+evidence remains required. Selection,
+observation-time ordering, full verification and runtime consumption remain
+separate obligations.

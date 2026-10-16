@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "231fa58fa3a0200c0d5914a35d613e5672096992199df9b56c33f64f20275c03",
+  "digest": "d0e1dba843ae5f0bba50a2b00cf8f779721756069e3bc1481feaab81d1b836d5",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "3a84d0b289952d3277d67a5e7373c9b0e28a26253e55ad79f7f4c5b76d433a69",
+      "sha256": "1112590b7949546b98c5b65b3be6b66c848ec5498b66e4df699548bf3ec5d084",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -349,11 +349,15 @@
     },
     {
       "path": "core/crates/auths-verifier/src/lib.rs",
-      "sha256": "bf3e86dcf93ab0e49d9a555c0510d592a6c3b0ef6ca17b95832ec6f190829f1a"
+      "sha256": "7d3ae3a95680018ae7d709b5fd64f1fa48ef838e3d389ee727b8087fbc4d9d50"
     },
     {
       "path": "core/crates/auths-verifier/src/observation.rs",
       "sha256": "2b43ee60e1f105d33b325914ae723f91fe191675f27a9a9c04ea812c2fe27785"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/temporal_tests.rs",
+      "sha256": "c242d8bed72936ea7437e45ab88b98b28f0d82f9f92a6f750ef8b27fa71e8fef"
     },
     {
       "path": "core/crates/auths-verifier/src/trace.rs",
@@ -560,8 +564,12 @@
       "sha256": "e567da83843387e0cdb5031c2791b9c6d4df7a3ffc65c4be4edb1e8488c99c54"
     },
     {
+      "path": "formal/qualification/aeneas/cases/TemporalWitness.lean",
+      "sha256": "777a4aa448ef5e28e9cf9f41ef94da623f342f2899351c67a0f532df42872788"
+    },
+    {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "a82979e463db674a98a7859cc6a025afa71bbcccc97b1e17d15d07b7cf50447f"
+      "sha256": "20ed2026c0d6b360435aa2a1138fbad7bb20784e38b8ad09ce2be8ac98e828c9"
     },
     {
       "path": "formal/tools/SourceClosure.lean",
@@ -953,7 +961,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "89b126d672e0739c942489f86a927dbc11b2dc7e4358864ca9d64a4664f6c7d7"
+      "sha256": "40133b5a6deefd82126f7a9425b963a4e4691259ad0bc2791409f3accf230ed6"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -965,7 +973,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "774ea2f9df412e55c174fc185cf3de0e589dccc96ec76431a22eac3d9543824c"
+      "sha256": "23f43f9da4f4be8c36514dfb52b234151d07b574593447cf30cd7da2bf25fd0b"
     },
     {
       "path": "xtask/src/fuzz.rs",
