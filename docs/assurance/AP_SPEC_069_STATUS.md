@@ -10,7 +10,7 @@ shipping-source refinement and hosted evidence gates.
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. Caller unsigned-object construction, suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
-| M3: complete verifier | In progress | The shipping inner recursive evaluator refines independent all/any/k semantics under explicit stateful callback contracts, with event-count/order and structural event-bound corollaries. Public validation and callback implementations, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. |
+| M3: complete verifier | In progress | The public observed evaluator now refines independent structural validation followed by all/any/k semantics. The source validator accepts iff the independent structural contract holds; invalid plans preserve both callback states without callback premises. Callback implementations, facade/getter coverage, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. Exact-revision hosted gates are pending for this expansion. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
@@ -413,3 +413,67 @@ The exact source closure is
 `64d845b2d6cebe06e27879dbaccda54b8425fbb29e7733e1a5f5e5c4a5737ede`.
 The exact pushed revision still requires its hosted authoritative gates.
 No E1–E5 workstream or M6 is complete on the strength of this slice.
+
+
+## Public structural validation and observed evaluation
+
+`ValidationContract.source_accepts_iff_valid` connects the actual shipping
+validator to an independent structural relation: nonempty well-formed
+operators, valid thresholds, per-node width, total depth, distinct references
+and total leaf count. Both acceptance and refusal are proved; validity is not
+defined by a successful checker call. The public source equality in
+`ValidationPublic.public_evaluator_refines` includes the actual validator and
+then the independent three-valued evaluator. Success fixes the result and both
+callback states under explicit exact callback contracts. Every structurally
+invalid plan is refused with both states unchanged, without any premise about
+the callback implementations.
+
+The returned shape retains the independently computed reference set in strict
+order and the checker's maximum-depth state. The consuming set iterator and
+vector collection loop preserve every reference. The public event bound
+requires no trusted validation-success flag: independent validity and the
+explicit protocol caps imply at most 2,048 events. It remains an event bound,
+not a claim about callback cost, physical allocations, host stack or full
+verifier work.
+
+A shared source child-validation loop removes duplicate control flow. Explicit
+collection and an explicit public error match keep the whole path visible to
+the pinned extractor and coverage scanner. The only representation changes
+remain standard-container models: the positive bounded vector delegates its
+operations to the pinned Vec, and a reviewed ordered-set contract is scoped
+to Global allocation and copied ProofRef values. The actual derived ProofRef
+comparison is proved equal to lawful lexical byte order. The library's tree
+implementation and physical allocation remain external boundaries. The
+trait-default maximum adapter follows the pinned Rust second-argument tie
+rule. No Auths validation algorithm is opaque or replaced by a model.
+
+Qualification passes 471 audited statements, all prior 435 complete records
+unchanged, all 11 qualification cases, native parity cases and two
+byte-identical clean translations. There are ten reviewed standard-library
+models, no unreviewed model and zero compiled external axioms. The only
+transitive axioms remain `propext`, `Classical.choice` and `Quot.sound`.
+The composition report has ten local and 27 imported function records; every
+Auths function in its closure is transparent. The exact source closure is
+`4040407246158f925ab3e1ca2569573196977d706975f4b8a05a785528ea7dd1`.
+
+Kernel witnesses cover useful two-leaf authorization, a three-leaf
+indeterminate threshold, duplicate references, a zero threshold, and reduced
+width/depth limits. Native cases additionally check sorted shape output,
+lower-limit refusal before callbacks and the joint hard limit. The template
+inventory now detects both same-line and split-line axiom names; a regression
+also proves that a split-line declaration is refused in a compiled bridge.
+
+The measured decision denominator remains explicit: 122/1,044 functions and
+1,478/11,535 lines, including 8/10 composition functions. Imported source
+validator refinements are audited even though the coverage definition counts
+only local translation functions; no denominator was removed to improve these
+figures. The facade and event getter still need their own extraction bridge.
+The staged verifier, registered handlers, leaf cryptography, sealed projection
+and complete resource bound remain E2 obligations. All E1–E5 workstreams and
+M6 remain open.
+
+The preceding `9c810f75` checkpoint passed every main hosted gate, including
+authoritative Lean and final formal evidence:
+[CI 38852805698](https://github.com/auths-dev/auths-proof/actions/runs/38852805698).
+This public-validation expansion still requires hosted verification on its
+exact pushed revision.

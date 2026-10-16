@@ -82,6 +82,8 @@ source_files = [
 
 generated_files = [
   "formal/qualification/aeneas/generated/composition/Types.lean",
+  "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
   "formal/qualification/aeneas/generated/composition/Funs.lean",
   "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
   "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
@@ -148,6 +150,32 @@ lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
 
 [[external_models]]
+id = "composition-ordered-set-carriers"
+kind = "transparent-standard-library-type-model"
+artifact = "formal/qualification/aeneas/generated/composition/TypesExternal.lean"
+rust_symbols = ["alloc::collections::btree::set::BTreeSet", "alloc::collections::btree::set::IntoIter"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "usize-bounded ordered sequences represent the standard ordered set and its consuming iterator. The shipping closure uses Global allocation and copied fixed-width ProofRef values only. Insertion, uniqueness, order, membership and iterator consumption are proved against the transparent model. The Rust standard-library container implementation and physical allocation remain the named library boundary. No Auths function is opaque."
+
+[[external_models]]
+id = "composition-ordered-set-operations"
+kind = "transparent-standard-library-function-model"
+artifact = "formal/qualification/aeneas/generated/composition/FunsExternal.lean"
+rust_symbols = [
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len",
+  "alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter",
+  "alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next"
+]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "new, insertion, length, consuming conversion and next satisfy ordered-set semantics for the actual Global/ProofRef call sites. The translated ProofRef comparison is proved equal to lawful lexicographic byte order; insertion returns true exactly for fresh members, preserves ordering and exact set membership, and checks the usize bound. This is a standard-container semantic contract, not a proof of tree balancing, memory allocation or runtime cost."
+
+[[external_models]]
 id = "composition-positive-bounded-vector"
 kind = "transparent-isomorphic-standard-library-type-model"
 artifact = "formal/Auths/Support/PositiveVec.lean"
@@ -155,17 +183,22 @@ rust_symbols = ["alloc::vec::Vec", "alloc::vec::{impl core::ops::deref::Deref<[T
 authority_semantics = false
 reviewed = true
 axiom = false
-scope = "A strictly positive length-indexed list with the same usize bound as the pinned Aeneas Vec. Both conversion round trips and injectivity are proved for all bounded vectors; deref delegates exactly to the pinned implementation. Only the composition extraction uses this carrier, and it uses no other vector operations. No function body or Auths algorithm is replaced."
+scope = "A strictly positive length-indexed list with the same usize bound as the pinned Aeneas Vec. Both conversion round trips and injectivity are proved for all bounded vectors; deref delegates exactly to the pinned implementation. Only the composition extraction uses this carrier, with capacity, length, emptiness and push links delegating to the pinned model or exact sequence views. Push sequence preservation is proved under the pinned usize capacity premise. No function body or Auths algorithm is replaced."
 
 [[external_models]]
 id = "composition-option-default-and-standard-links"
 kind = "transparent-standard-library-model"
 artifact = "formal/qualification/aeneas/generated/composition/FunsExternal.lean"
-rust_symbols = ["core::option::{impl core::default::Default for core::option::Option<T>}::default", "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from", "core::result::{core::result::Result<T, E>}::unwrap_or"]
+rust_symbols = [
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::option::{impl core::default::Default for core::option::Option<T>}::default",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty"
+]
 authority_semantics = false
 reviewed = true
 axiom = false
-scope = "Option::default returns None. Checked usize-to-u16 conversion and Result::unwrap_or import the already reviewed exact codec standard-library models. No Auths callback or evaluation algorithm is modeled by an opaque external."
+scope = "Option::default is None; conversion and Result operations import the existing exact codec models. The positive Vec delegates with_capacity, len and push to the pinned Vec through the proved isomorphism; is_empty views the exact element list. The trait-default Ord::max adapter follows the pinned Rust other-less-than-self branch and preserves its second-argument tie rule. Its sole source call uses Usize and the pinned lawful numeric order. No Auths callback or algorithm is modeled as an external."
 
 [[external_models]]
 id = "codec-utf8-error-erasure"
@@ -322,15 +355,31 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_composition"
 translation_json = "formal/qualification/aeneas/generated/composition/translation.json"
-local_functions = 9
-external_functions = 9
+local_functions = 10
+external_functions = 27
 opaque_local_functions = 0
 required_symbols = [
+  "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
   "core::option::{impl core::default::Default for core::option::Option<T>}::default",
   "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len",
+  "alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter",
+  "alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
   "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}::eq",
+  "auths_model::{impl core::cmp::Eq for auths_model::ProofRef}::assert_fields_are_eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp",
+  "auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}::partial_cmp",
   "auths_model::{auths_model::AuthorizationPlan}::as_ref",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk",
+  "auths_model::{auths_model::AuthorizationPlan}::validate",
   "auths_model::{auths_model::Requirement}::code_order",
   "auths_model::{auths_model::Requirement}::code_precedes",
   "auths_model::{auths_model::DenialReason}::code_order",
@@ -342,14 +391,31 @@ required_symbols = [
   "auths_composition::summary::{impl core::default::Default for auths_composition::summary::Summary}::default",
   "auths_composition::observe_aggregate",
   "auths_composition::evaluate_members",
-  "auths_composition::evaluate_node"
+  "auths_composition::evaluate_node",
+  "auths_composition::evaluate_observed"
 ]
 allowed_external_symbols = [
+  "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
   "core::option::{impl core::default::Default for core::option::Option<T>}::default",
   "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len",
+  "alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter",
+  "alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
   "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}::eq",
+  "auths_model::{impl core::cmp::Eq for auths_model::ProofRef}::assert_fields_are_eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp",
+  "auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}::partial_cmp",
   "auths_model::{auths_model::AuthorizationPlan}::as_ref",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk",
+  "auths_model::{auths_model::AuthorizationPlan}::validate",
   "auths_model::{auths_model::Requirement}::code_order",
   "auths_model::{auths_model::Requirement}::code_precedes",
   "auths_model::{auths_model::DenialReason}::code_order",
@@ -697,8 +763,13 @@ required_symbols = [
 allowed_external_symbols = []
 
 [[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean"
+count = 2
+compiled = false
+
+[[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean"
-count = 3
+count = 10
 compiled = false
 
 [[template_axioms]]

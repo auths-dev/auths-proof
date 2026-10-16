@@ -26,6 +26,28 @@ match ordering with
 | Ordering.eq => compareLists cmpOrdInst leftTail rightTail
 | ordering => ok ordering
 
+-- Public views expose the existing model for downstream proofs. Every
+-- equation below reduces to the original private implementation.
+def Array.Insts.CoreCmpOrd.compareValues {T : Type} (order : core.cmp.Ord T)
+    (left right : List T) : Result Ordering := compareLists order left right
+
+theorem Array.Insts.CoreCmpOrd.compareValues_nil_nil {T : Type} (order : core.cmp.Ord T) :
+    compareValues order [] [] = ok .eq := rfl
+
+theorem Array.Insts.CoreCmpOrd.compareValues_nil_cons {T : Type} (order : core.cmp.Ord T)
+    (head : T) (tail : List T) : compareValues order [] (head :: tail) = ok .lt := rfl
+
+theorem Array.Insts.CoreCmpOrd.compareValues_cons_nil {T : Type} (order : core.cmp.Ord T)
+    (head : T) (tail : List T) : compareValues order (head :: tail) [] = ok .gt := rfl
+
+theorem Array.Insts.CoreCmpOrd.compareValues_cons_cons {T : Type} (order : core.cmp.Ord T)
+    (left right : T) (leftTail rightTail : List T) :
+    compareValues order (left :: leftTail) (right :: rightTail) =
+      (do let ordering ← order.cmp left right
+          match ordering with
+          | .eq => compareValues order leftTail rightTail
+          | ordering => ok ordering) := rfl
+
 @[rust_fun "core::array::{core::cmp::Ord<[@T; @N]>}::cmp"]
 def Array.Insts.CoreCmpOrd.cmp
 {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T)

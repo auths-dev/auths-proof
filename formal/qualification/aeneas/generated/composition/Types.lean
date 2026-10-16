@@ -3,6 +3,7 @@
 import Aeneas
 import Auths.Support.Discriminant
 import Auths.Support.PositiveVec
+import qualification.aeneas.generated.composition.TypesExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -95,8 +96,103 @@ inductive auths_model.AuthorizationPlanRef where
   Slice auths_model.AuthorizationPlan →
   auths_model.AuthorizationPlanRef
 
+/-- [auths_model::ModelError]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5190:0-5190:19
+    Name pattern: [auths_model::ModelError]
+    Visibility: public -/
+@[qualified_discriminant isize, rust_type "auths_model::ModelError"]
+inductive auths_model.ModelError where
+| UnsupportedProtocol : auths_model.ModelError
+| InvalidBundleHeader : auths_model.ModelError
+| InvalidPrincipal : auths_model.ModelError
+| InvalidVerificationMethod : auths_model.ModelError
+| InvalidProfile : auths_model.ModelError
+| InvalidCapability : auths_model.ModelError
+| InvalidResource : auths_model.ModelError
+| InvalidAudience : auths_model.ModelError
+| InvalidAudienceSet : auths_model.ModelError
+| DuplicateAudience : auths_model.ModelError
+| InvalidMediaType : auths_model.ModelError
+| InvalidRegistryId : auths_model.ModelError
+| InvalidExtensionId : auths_model.ModelError
+| InvalidValidity : auths_model.ModelError
+| InvalidPermissionSet : auths_model.ModelError
+| DuplicatePermission : auths_model.ModelError
+| InvalidActionConstraint : auths_model.ModelError
+| DuplicateBodyDigest : auths_model.ModelError
+| InvalidCanonicalAction : auths_model.ModelError
+| InvalidExtension : auths_model.ModelError
+| DuplicateExtension : auths_model.ModelError
+| InvalidSignature : auths_model.ModelError
+| InvalidEvidence : auths_model.ModelError
+| InvalidEvidenceBinding : auths_model.ModelError
+| InvalidStatus : auths_model.ModelError
+| InvalidStatusSnapshot : auths_model.ModelError
+| InvalidAttachment : auths_model.ModelError
+| InvalidPlan : auths_model.ModelError
+| PlanLimitExceeded : auths_model.ModelError
+| InvalidAssurance : auths_model.ModelError
+| InvalidTrustAnchor : auths_model.ModelError
+| InvalidRegistrySelection : auths_model.ModelError
+| InvalidVerifierContext : auths_model.ModelError
+| DuplicateObject : auths_model.ModelError
+| CollectionLimitExceeded : auths_model.ModelError
+| InvalidObservation : auths_model.ModelError
+| InvalidObservationRequirement : auths_model.ModelError
+| InvalidObserverAnchor : auths_model.ModelError
+| InvalidBoundedPolicy : auths_model.ModelError
+| InvalidApproval : auths_model.ModelError
+| InvalidApprovalRequirement : auths_model.ModelError
+| InvalidApproverAnchor : auths_model.ModelError
+
+/-- [auths_model::VerifierLimits]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3608:0-3608:25
+    Name pattern: [auths_model::VerifierLimits]
+    Visibility: public -/
+@[rust_type "auths_model::VerifierLimits"]
+structure auths_model.VerifierLimits where
+  bundle_bytes : Std.Usize
+  action_bytes : Std.Usize
+  context_bytes : Std.Usize
+  grants : Std.Usize
+  actions : Std.Usize
+  plan_leaves : Std.Usize
+  plan_depth : Std.Usize
+  plan_branching : Std.Usize
+  evidence : Std.Usize
+  evidence_bytes : Std.Usize
+  bindings : Std.Usize
+  principal_status : Std.Usize
+  grant_status : Std.Usize
+  attachments : Std.Usize
+  attachment_bytes : Std.Usize
+  signatures : Std.Usize
+  signature_bytes : Std.Usize
+  permissions : Std.Usize
+  audiences : Std.Usize
+  extensions : Std.Usize
+  extension_bytes : Std.Usize
+  body_digests : Std.Usize
+  binding_evidence : Std.Usize
+  canonical_body_bytes : Std.Usize
+  registry_entries : Std.Usize
+  trust_anchors : Std.Usize
+  work_units : Std.U64
+  approvals : Std.Usize
+  approver_anchors : Std.Usize
+  approval_requirements : Std.Usize
+
+/-- [auths_model::PlanShape]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1966:0-1966:20
+    Name pattern: [auths_model::PlanShape]
+    Visibility: public -/
+@[rust_type "auths_model::PlanShape"]
+structure auths_model.PlanShape where
+  leaves : alloc.vec.Vec auths_model.ProofRef
+  maximum_depth : Std.Usize
+
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4909:0-4909:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4924:0-4924:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::DenialReason"]
@@ -149,7 +245,7 @@ inductive auths_model.DenialReason where
 | ApprovalThresholdNotMet : auths_model.DenialReason
 
 /-- [auths_model::Requirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5094:0-5094:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5109:0-5109:20
     Name pattern: [auths_model::Requirement]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::Requirement"]

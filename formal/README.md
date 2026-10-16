@@ -245,3 +245,33 @@ unchanged, and only the existing foundational axioms occur. The exact pushed
 revision requires its hosted authoritative gates. The inner evaluator theorem does not prove public validation,
 leaf cryptography, closed registry/stage behavior, or sealed-result projection;
 it does not complete E2 or the composed AP-SPEC-069 claim.
+
+
+### Public observed-composition refinement
+
+The production `evaluate_observed` entry point now refines independent
+structural validation followed by the recursive plan semantics. Its validator
+accepts exactly an independently valid plan under explicit protocol-sized
+limits; valid means well-formed nonempty operators and thresholds, per-node
+width, bounded depth and distinct bounded leaves. A validation result is not
+assumed. Invalid structure leaves both callback states unchanged without
+callback contracts. Successful evaluation fixes the result and both states
+under the displayed exact stateful branch/observer contracts.
+
+The source validator's set accumulation and consuming collection preserve the
+ordered reference set and computed depth state. Reviewed bounded set/iterator
+models expose that standard-library boundary and its lawful byte-order
+premise; the Rust tree and allocation implementation is not proved. Native
+positive and rejection cases mirror the kernel-checked public witnesses.
+The actual source child loop is shared, and the public result conversion is
+an explicit match. No generated Auths function body is rewritten.
+
+The expanded qualification passes 471 statements with all prior 435 records
+unchanged, all 11 cases, native parity and two identical clean translations.
+The only foundations remain `propext`, `Classical.choice` and `Quot.sound`;
+there are ten reviewed library models and zero compiled external axioms.
+Split-line axiom declarations are both counted in uncompiled templates and
+refused in compiled bridges. The full E2/M3 verifier and AP-SPEC-069 composed
+claim remain open; callback implementations, facade/getter coverage,
+registered stages, crypto, projection and complete work bounds are separate
+obligations. Hosted evidence is still required on the exact pushed revision.

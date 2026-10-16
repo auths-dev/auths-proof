@@ -1,3 +1,4 @@
+import Auths.Composition.ValidationExamples
 import Auths.Attenuation
 import Auths.Authority
 import Auths.Rich.Mutations
@@ -38,6 +39,42 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Composition.Order.reference_key_injective,
+    `Auths.Composition.Order.reference_comparison,
+    `Auths.Composition.SetModel.insert_values,
+    `Auths.Composition.SetModel.ordered_nodup,
+    `Auths.Composition.SetModel.insert_set,
+    `Auths.Composition.Collect.push_exact,
+    `Auths.Composition.Collect.collect_exact,
+    `Auths.Composition.ValidationCapacity.checker_preserves_capacity,
+    `Auths.Composition.ValidationProgress.progress_append,
+    `Auths.Composition.ValidationProgress.progress_card,
+    `Auths.Composition.ValidationProgress.checker_progress,
+    `Auths.Composition.ValidationShape.checker_shape,
+    `Auths.Composition.ValidationComplete.checker_complete,
+    `Auths.Composition.ValidationComplete.valid_is_accepted,
+    `Auths.Composition.ValidationSoundness.accepted_is_valid,
+    `Auths.Composition.ValidationSoundness.accepted_iff_valid,
+    `Auths.Composition.ValidationSoundness.operators_are_proper,
+    `Auths.Composition.ValidationSoundness.valid_has_bounded_events,
+    `Auths.Composition.ValidationLeaves.word_max_exact,
+    `Auths.Composition.ValidationLeaves.proof_leaf_exact,
+    `Auths.Composition.ValidationRefinement.walk_refines,
+    `Auths.Composition.ValidationPublic.validator_refines,
+    `Auths.Composition.ValidationPublic.public_evaluator_refines,
+    `Auths.Composition.ValidationContract.source_accepts_iff_valid,
+    `Auths.Composition.ValidationContract.valid_public_evaluator_refines,
+    `Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks,
+    `Auths.Composition.ValidationContract.public_event_bound,
+    `Auths.Composition.ValidationExamples.conjunction_valid,
+    `Auths.Composition.ValidationExamples.public_conjunction,
+    `Auths.Composition.ValidationExamples.duplicate_refused,
+    `Auths.Composition.ValidationExamples.zero_threshold_refused,
+    `Auths.Composition.ValidationExamples.empty_invalid,
+    `Auths.Composition.ValidationExamples.mixed_threshold_valid,
+    `Auths.Composition.ValidationExamples.public_threshold_indeterminate,
+    `Auths.Composition.ValidationExamples.narrow_refused,
+    `Auths.Composition.ValidationExamples.shallow_refused,
     `Auths.Composition.Bounds.node_bound,
     `Auths.Composition.Bounds.bounded_events,
     `Auths.Composition.Bounds.source_bounded_events,

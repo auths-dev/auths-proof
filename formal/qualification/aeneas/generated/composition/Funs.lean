@@ -37,6 +37,118 @@ def auths_algebra_kernel.generated.threshold_counts
     then ok auths_algebra_kernel.generated.Truth.Indeterminate
     else ok auths_algebra_kernel.generated.Truth.Denied
 
+/-- [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 246:33-246:42
+    Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq"]
+def auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq
+  (self : auths_model.Digest) (other : auths_model.Digest) : Result Bool := do
+  core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 self other
+
+/-- [auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 246:44-246:47
+    Name pattern: [auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp]
+    Visibility: public -/
+@[rust_fun "auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp"]
+def auths_model.Digest.Insts.CoreCmpOrd.cmp
+  (self : auths_model.Digest) (other : auths_model.Digest) :
+  Result Ordering
+  := do
+  Array.Insts.CoreCmpOrd.cmp core.cmp.OrdU8 self other
+
+/-- [auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}::eq]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>}::eq"]
+def auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef.eq
+  (self : auths_model.ProofRef) (other : auths_model.ProofRef) :
+  Result Bool
+  := do
+  auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq self other
+
+/-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Name pattern: [core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>"]
+def auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef : core.cmp.PartialEq
+  auths_model.ProofRef auths_model.ProofRef := {
+  eq := auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef.eq
+}
+
+/-- [auths_model::{impl core::cmp::Eq for auths_model::ProofRef}::assert_fields_are_eq]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Name pattern: [auths_model::{core::cmp::Eq<auths_model::ProofRef>}::assert_fields_are_eq]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::Eq<auths_model::ProofRef>}::assert_fields_are_eq"]
+def auths_model.ProofRef.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : auths_model.ProofRef) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::ProofRef}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Name pattern: [core::cmp::Eq<auths_model::ProofRef>] -/
+@[reducible, rust_trait_impl "core::cmp::Eq<auths_model::ProofRef>"]
+def auths_model.ProofRef.Insts.CoreCmpEq : core.cmp.Eq auths_model.ProofRef
+  := {
+  partialEqInst := auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef
+  assert_fields_are_eq :=
+    auths_model.ProofRef.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- [auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Name pattern: [auths_model::{core::cmp::Ord<auths_model::ProofRef>}::cmp]
+    Visibility: public -/
+@[rust_fun "auths_model::{core::cmp::Ord<auths_model::ProofRef>}::cmp"]
+def auths_model.ProofRef.Insts.CoreCmpOrd.cmp
+  (self : auths_model.ProofRef) (other : auths_model.ProofRef) :
+  Result Ordering
+  := do
+  auths_model.Digest.Insts.CoreCmpOrd.cmp self other
+
+/-- [auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}::partial_cmp]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>}::partial_cmp]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>}::partial_cmp"]
+def auths_model.ProofRef.Insts.CoreCmpPartialOrdProofRef.partial_cmp
+  (self : auths_model.ProofRef) (other : auths_model.ProofRef) :
+  Result (Option Ordering)
+  := do
+  let o ← auths_model.ProofRef.Insts.CoreCmpOrd.cmp self other
+  ok (some o)
+
+/-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Name pattern: [core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>"]
+def auths_model.ProofRef.Insts.CoreCmpPartialOrdProofRef : core.cmp.PartialOrd
+  auths_model.ProofRef auths_model.ProofRef := {
+  partialEqInst := auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef
+  partial_cmp :=
+    auths_model.ProofRef.Insts.CoreCmpPartialOrdProofRef.partial_cmp
+}
+
+/-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::ProofRef}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Name pattern: [core::cmp::Ord<auths_model::ProofRef>] -/
+@[reducible, rust_trait_impl "core::cmp::Ord<auths_model::ProofRef>"]
+impl_def auths_model.ProofRef.Insts.CoreCmpOrd : core.cmp.Ord
+  auths_model.ProofRef := {
+  eqInst := auths_model.ProofRef.Insts.CoreCmpEq
+  partialOrdInst := auths_model.ProofRef.Insts.CoreCmpPartialOrdProofRef
+  cmp := auths_model.ProofRef.Insts.CoreCmpOrd.cmp
+  max := core.cmp.Ord.max.default auths_model.ProofRef.Insts.CoreCmpOrd
+}
+
 /-- [auths_model::{auths_model::AuthorizationPlan}::as_ref]:
     Source: 'core/crates/auths-model/src/lib.rs', lines 1878:4-1878:52
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::as_ref]
@@ -59,8 +171,251 @@ def auths_model.AuthorizationPlan.as_ref
     let s := alloc.vec.Vec.deref members
     ok (auths_model.AuthorizationPlanRef.KOfN k s)
 
+mutual
+
+/-- [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members]: loop 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1904:12-1908:9
+    Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members] -/
+@[rust_loop, rust_fun
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members"]
+def auths_model.AuthorizationPlan.validate.walk_members_loop
+  (iter : core.slice.iter.Iter auths_model.AuthorizationPlan)
+  (depth : Std.Usize) (limits : auths_model.VerifierLimits)
+  (refs : alloc.collections.btree.set.BTreeSet auths_model.ProofRef Global)
+  (maximum_depth : Std.Usize) :
+  Result ((core.result.Result Unit auths_model.ModelError) ×
+    (alloc.collections.btree.set.BTreeSet auths_model.ProofRef Global) ×
+    Std.Usize)
+  := do
+  let (o, iter1) ← core.slice.iter.IteratorSliceIter.next iter
+  match o with
+  | none => ok (core.result.Result.Ok (), refs, maximum_depth)
+  | some member =>
+    let i ← depth + 1#usize
+    let (r, refs1, maximum_depth1) ←
+      auths_model.AuthorizationPlan.validate.walk member i limits refs
+        maximum_depth
+    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      auths_model.AuthorizationPlan.validate.walk_members_loop iter1 depth
+        limits refs1 maximum_depth1
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r1 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Unit (core.convert.FromSame auths_model.ModelError) residual
+      ok (r1, refs1, maximum_depth1)
+partial_fixpoint
+
+/-- [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1897:8-1903:35
+    Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members] -/
+@[rust_fun
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members"]
+def auths_model.AuthorizationPlan.validate.walk_members
+  (members : Slice auths_model.AuthorizationPlan) (depth : Std.Usize)
+  (limits : auths_model.VerifierLimits)
+  (refs : alloc.collections.btree.set.BTreeSet auths_model.ProofRef Global)
+  (maximum_depth : Std.Usize) :
+  Result ((core.result.Result Unit auths_model.ModelError) ×
+    (alloc.collections.btree.set.BTreeSet auths_model.ProofRef Global) ×
+    Std.Usize)
+  := do
+  let iter ←
+    SharedSlice.Insts.CoreIterTraitsCollectIntoIteratorSharedIter.into_iter
+      members
+  auths_model.AuthorizationPlan.validate.walk_members_loop iter depth limits
+    refs maximum_depth
+partial_fixpoint
+
+/-- [auths_model::{auths_model::AuthorizationPlan}::validate::walk]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1910:8-1916:35
+    Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate::walk] -/
+@[rust_fun "auths_model::{auths_model::AuthorizationPlan}::validate::walk"]
+def auths_model.AuthorizationPlan.validate.walk
+  (plan : auths_model.AuthorizationPlan) (depth : Std.Usize)
+  (limits : auths_model.VerifierLimits)
+  (refs : alloc.collections.btree.set.BTreeSet auths_model.ProofRef Global)
+  (maximum_depth : Std.Usize) :
+  Result ((core.result.Result Unit auths_model.ModelError) ×
+    (alloc.collections.btree.set.BTreeSet auths_model.ProofRef Global) ×
+    Std.Usize)
+  := do
+  if depth > limits.plan_depth
+  then
+    ok (core.result.Result.Err auths_model.ModelError.PlanLimitExceeded, refs,
+      maximum_depth)
+  else
+    let maximum_depth1 ←
+      core.cmp.Ord.max.default core.cmp.OrdUsize maximum_depth depth
+    match plan._0 with
+    | auths_model.AuthorizationPlanNode.Proof reference =>
+      let (b, refs1) ←
+        alloc.collections.btree.set.BTreeSet.insert core.core.clone.CloneGlobal
+          auths_model.ProofRef.Insts.CoreCmpOrd refs reference
+      if b
+      then
+        let i ←
+          alloc.collections.btree.set.BTreeSet.len core.core.clone.CloneGlobal
+            refs1
+        if i > limits.plan_leaves
+        then
+          ok (core.result.Result.Err auths_model.ModelError.PlanLimitExceeded,
+            refs1, maximum_depth1)
+        else ok (core.result.Result.Ok (), refs1, maximum_depth1)
+      else
+        ok (core.result.Result.Err auths_model.ModelError.PlanLimitExceeded,
+          refs1, maximum_depth1)
+    | auths_model.AuthorizationPlanNode.AllOf members =>
+      let b ← alloc.vec.Vec.is_empty Global members
+      if b
+      then
+        ok (core.result.Result.Err auths_model.ModelError.InvalidPlan, refs,
+          maximum_depth1)
+      else
+        let i := alloc.vec.Vec.len members
+        if i > limits.plan_branching
+        then
+          ok (core.result.Result.Err auths_model.ModelError.PlanLimitExceeded,
+            refs, maximum_depth1)
+        else
+          let s := alloc.vec.Vec.deref members
+          let (r, refs1, maximum_depth2) ←
+            auths_model.AuthorizationPlan.validate.walk_members s depth limits
+              refs maximum_depth1
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            ok (core.result.Result.Ok (), refs1, maximum_depth2)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r1 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                Unit (core.convert.FromSame auths_model.ModelError) residual
+            ok (r1, refs1, maximum_depth2)
+    | auths_model.AuthorizationPlanNode.AnyOf members =>
+      let b ← alloc.vec.Vec.is_empty Global members
+      if b
+      then
+        ok (core.result.Result.Err auths_model.ModelError.InvalidPlan, refs,
+          maximum_depth1)
+      else
+        let i := alloc.vec.Vec.len members
+        if i > limits.plan_branching
+        then
+          ok (core.result.Result.Err auths_model.ModelError.PlanLimitExceeded,
+            refs, maximum_depth1)
+        else
+          let s := alloc.vec.Vec.deref members
+          let (r, refs1, maximum_depth2) ←
+            auths_model.AuthorizationPlan.validate.walk_members s depth limits
+              refs maximum_depth1
+          let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+          match cf with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            ok (core.result.Result.Ok (), refs1, maximum_depth2)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r1 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                Unit (core.convert.FromSame auths_model.ModelError) residual
+            ok (r1, refs1, maximum_depth2)
+    | auths_model.AuthorizationPlanNode.KOfN k members =>
+      if k = 0#u16
+      then
+        ok (core.result.Result.Err auths_model.ModelError.InvalidPlan, refs,
+          maximum_depth1)
+      else
+        let i ← lift (core.convert.num.FromUsizeU16.from k)
+        let i1 := alloc.vec.Vec.len members
+        if i > i1
+        then
+          ok (core.result.Result.Err auths_model.ModelError.InvalidPlan, refs,
+            maximum_depth1)
+        else
+          let b ← alloc.vec.Vec.is_empty Global members
+          if b
+          then
+            ok (core.result.Result.Err auths_model.ModelError.InvalidPlan,
+              refs, maximum_depth1)
+          else
+            let i2 := alloc.vec.Vec.len members
+            if i2 > limits.plan_branching
+            then
+              ok (core.result.Result.Err
+                auths_model.ModelError.PlanLimitExceeded, refs, maximum_depth1)
+            else
+              let s := alloc.vec.Vec.deref members
+              let (r, refs1, maximum_depth2) ←
+                auths_model.AuthorizationPlan.validate.walk_members s depth
+                  limits refs maximum_depth1
+              let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+              match cf with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                ok (core.result.Result.Ok (), refs1, maximum_depth2)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r1 ←
+                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                    Unit (core.convert.FromSame auths_model.ModelError)
+                    residual
+                ok (r1, refs1, maximum_depth2)
+partial_fixpoint
+
+end
+
+/-- [auths_model::{auths_model::AuthorizationPlan}::validate]: loop 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1955:8-1957:9
+    Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "auths_model::{auths_model::AuthorizationPlan}::validate"]
+def auths_model.AuthorizationPlan.validate_loop
+  (iter : alloc.collections.btree.set.IntoIter auths_model.ProofRef Global)
+  (leaves : alloc.vec.Vec auths_model.ProofRef) :
+  Result (alloc.vec.Vec auths_model.ProofRef)
+  := do
+  let (o, iter1) ←
+    alloc.collections.btree.set.IntoIter.Insts.CoreIterTraitsIteratorIterator.next
+      core.core.clone.CloneGlobal iter
+  match o with
+  | none => ok leaves
+  | some reference =>
+    let leaves1 ← alloc.vec.Vec.push leaves reference
+    auths_model.AuthorizationPlan.validate_loop iter1 leaves1
+partial_fixpoint
+
+/-- [auths_model::{auths_model::AuthorizationPlan}::validate]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1896:4-1896:84
+    Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::AuthorizationPlan}::validate"]
+def auths_model.AuthorizationPlan.validate
+  (self : auths_model.AuthorizationPlan) (limits : auths_model.VerifierLimits)
+  :
+  Result (core.result.Result auths_model.PlanShape auths_model.ModelError)
+  := do
+  let refs ←
+    alloc.collections.btree.set.BTreeSetTGlobal.new auths_model.ProofRef
+  let (r, refs1, maximum_depth) ←
+    auths_model.AuthorizationPlan.validate.walk self 1#usize limits refs
+      0#usize
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let i ←
+      alloc.collections.btree.set.BTreeSet.len core.core.clone.CloneGlobal
+        refs1
+    let leaves := alloc.vec.Vec.with_capacity auths_model.ProofRef i
+    let iter ←
+      alloc.collections.btree.set.BTreeSet.Insts.CoreIterTraitsCollectIntoIteratorTIntoIter.into_iter
+        core.core.clone.CloneGlobal refs1
+    let leaves1 ← auths_model.AuthorizationPlan.validate_loop iter leaves
+    ok (core.result.Result.Ok { leaves := leaves1, maximum_depth })
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      auths_model.PlanShape (core.convert.FromSame auths_model.ModelError)
+      residual
+
 /-- [auths_model::{auths_model::Requirement}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4978:8-4978:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4993:8-4993:39
     Name pattern: [auths_model::{auths_model::Requirement}::code_order] -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_order"]
 def auths_model.Requirement.code_order
@@ -89,7 +444,7 @@ def auths_model.Requirement.code_order
   | auths_model.Requirement.ApprovalUnavailable => ok 0#u8
 
 /-- [auths_model::{auths_model::Requirement}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4974:8-4974:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4989:8-4989:61
     Name pattern: [auths_model::{auths_model::Requirement}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_precedes"]
@@ -102,7 +457,7 @@ def auths_model.Requirement.code_precedes
   ok (i < i1)
 
 /-- [auths_model::{auths_model::DenialReason}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4978:8-4978:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4993:8-4993:39
     Name pattern: [auths_model::{auths_model::DenialReason}::code_order] -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_order"]
 def auths_model.DenialReason.code_order
@@ -156,7 +511,7 @@ def auths_model.DenialReason.code_order
   | auths_model.DenialReason.ApprovalThresholdNotMet => ok 4#u8
 
 /-- [auths_model::{auths_model::DenialReason}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4974:8-4974:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4989:8-4989:61
     Name pattern: [auths_model::{auths_model::DenialReason}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_precedes"]
@@ -266,7 +621,7 @@ def summary.Summary.Insts.CoreDefaultDefault.default
     }
 
 /-- [auths_composition::observe_aggregate]:
-    Source: 'core/crates/auths-composition/src/lib.rs', lines 171:0-187:1 -/
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 173:0-189:1 -/
 def observe_aggregate
   {T0 : Type} (coreopsfunctionFnMutT0TupleEvaluationEventTupleInst :
   core.ops.function.FnMut T0 EvaluationEvent Unit) (observer : T0)
@@ -283,7 +638,7 @@ def observe_aggregate
 mutual
 
 /-- [auths_composition::evaluate_members]: loop 0:
-    Source: 'core/crates/auths-composition/src/lib.rs', lines 117:4-120:5 -/
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 119:4-122:5 -/
 @[rust_loop]
 def evaluate_members_loop
   {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
@@ -310,7 +665,7 @@ def evaluate_members_loop
 partial_fixpoint
 
 /-- [auths_composition::evaluate_members]:
-    Source: 'core/crates/auths-composition/src/lib.rs', lines 110:0-122:1 -/
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 112:0-124:1 -/
 def evaluate_members
   {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
   : core.ops.function.FnMut T0 auths_model.ProofRef BranchOutcome)
@@ -327,7 +682,7 @@ def evaluate_members
 partial_fixpoint
 
 /-- [auths_composition::evaluate_node]:
-    Source: 'core/crates/auths-composition/src/lib.rs', lines 124:0-169:1 -/
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 126:0-171:1 -/
 def evaluate_node
   {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
   : core.ops.function.FnMut T0 auths_model.ProofRef BranchOutcome)
@@ -385,5 +740,30 @@ def evaluate_node
 partial_fixpoint
 
 end
+
+/-- [auths_composition::evaluate_observed]:
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 99:0-110:1
+    Visibility: public -/
+def evaluate_observed
+  {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+  : core.ops.function.FnMut T0 auths_model.ProofRef BranchOutcome)
+  (coreopsfunctionFnMutT1TupleEvaluationEventTupleInst :
+  core.ops.function.FnMut T1 EvaluationEvent Unit)
+  (plan : auths_model.AuthorizationPlan) (limits : auths_model.VerifierLimits)
+  (branch : T0) (observer : T1) :
+  Result ((core.result.Result BranchOutcome auths_model.DenialReason) × T0 ×
+    T1)
+  := do
+  let r ← auths_model.AuthorizationPlan.validate plan limits
+  match r with
+  | core.result.Result.Ok _ =>
+    let (bo, branch1, observer1) ←
+      evaluate_node coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+        coreopsfunctionFnMutT1TupleEvaluationEventTupleInst plan branch
+        observer
+    ok (core.result.Result.Ok bo, branch1, observer1)
+  | core.result.Result.Err _ =>
+    ok (core.result.Result.Err
+      auths_model.DenialReason.AuthorizationPlanInvalid, branch, observer)
 
 end auths_composition

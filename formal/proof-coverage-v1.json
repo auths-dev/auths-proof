@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "83f412364ae2ca5ff8de28288b3531a897276327721b656e3228ab7ad1030cd0",
-  "inputs_sha256": "e8c3ed4bd5a2a7994c5fc2e6117470ddab215d65903312f85682f4b645a5ae5c",
+  "inputs_sha256": "a95bce6d533668a13f7e5f3e882530680c16d25c81505756e23c1ac1f1c423fc",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -37,7 +37,7 @@
     "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
     "core/crates/auths-codec/src/observation.rs": "sha256:fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149",
     "core/crates/auths-composition/Cargo.toml": "sha256:331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
-    "core/crates/auths-composition/src/lib.rs": "sha256:729387077a0b7f369185060dace694c98f50a45621ec3a801581022ce47e525b",
+    "core/crates/auths-composition/src/lib.rs": "sha256:e8a0f96ae904d831042f2284c5b8a7a8c9ccb030b4d6ac4b9912229039d4f535",
     "core/crates/auths-composition/src/oracle.rs": "sha256:423c08f866797759fce7daeeb6316f15da870052a915504cbbd8954498cf942a",
     "core/crates/auths-composition/src/summary.rs": "sha256:57ddc0376ae1182f73105147aa068d5b1e411444658f8da4ade56a5d0d4b4c6d",
     "core/crates/auths-model/Cargo.toml": "sha256:565c15302b0cc9270db1e28efa3862804846850ba933cc17aea8abcec4a65987",
@@ -45,7 +45,7 @@
     "core/crates/auths-model/src/bounded.rs": "sha256:f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9",
     "core/crates/auths-model/src/bounded_policy.rs": "sha256:306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450",
     "core/crates/auths-model/src/identifier.rs": "sha256:c8dc49cf467ee0456a447a5337ead067b7d0a80eaa6c745b469e9b837cb627b0",
-    "core/crates/auths-model/src/lib.rs": "sha256:3d95d9458a09551e8e39268bcabc8200df8da9def29c83a708aa066bec66b505",
+    "core/crates/auths-model/src/lib.rs": "sha256:696adf50f66c63d2b7845dd91729b020012b5954ef6c0c76fa2d9d6e06043281",
     "core/crates/auths-model/src/observation.rs": "sha256:0f0a8a4bd942867f168c0e411a8bca5d7f57e94065beaebe919b26b08ddd2108",
     "core/crates/auths-ports/Cargo.toml": "sha256:596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c",
     "core/crates/auths-ports/src/binding.rs": "sha256:a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d",
@@ -63,17 +63,17 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:83f412364ae2ca5ff8de28288b3531a897276327721b656e3228ab7ad1030cd0",
-    "formal/lean-assurance-audit-v1.json": "sha256:2fbaeafaca7796cca289f1df7f3a1fcc453d379dcb9d71c721e71b0c13de73bf",
+    "formal/lean-assurance-audit-v1.json": "sha256:a2052d09d568ab45e992c54161b03d254eab84d1910b299548a57475c795e4f6",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
-    "formal/qualification/aeneas/generated/authority/translation.json": "sha256:2e3113589e53ac159c9964ebc4bc98601042636fd38c3a989f3dc78df8d3eee7",
+    "formal/qualification/aeneas/generated/authority/translation.json": "sha256:f354174fb43276ed28db49805c145f6da031926d129c1861710a5dee787d8f99",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:48c64d8eb1ada860c4b4bec1ca1a4a47e35a462fff1a24c9fbd3527a9e52797c",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:447e642640c5170bcfe93d0e0d8b930c3e2a963d706ed8ce05751a1f6e66b92c",
-    "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:2ffbd2a2ee512a82387dd35af363eaea3a784b251ebe03efa06b326653cac355",
-    "formal/qualification/aeneas/generated/composition/translation.json": "sha256:9e9153aebfecac51b0203a985b20039dacf2d8df4141ca3e6d42be036a631cdd",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:311cf2b24790105fabc39a3caa7bc46eb61fb3efb8d696142d5b30758fc95f48",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:2effea96bbdb75ee3920b9c1d5402d20e66c798fda8e7851dcfa42eb0c4caff3",
+    "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:ecca9c9af47a555d5ed557a0ace1a74e565b14a41bb2a5a19c8da1d5bb98377a",
+    "formal/qualification/aeneas/generated/composition/translation.json": "sha256:e61908bf2f0d69d084eb09bde25b25f379e70fd28dcb1917148391b7c37e916b",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
@@ -84,8 +84,8 @@
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:9cb8abf78e0437f9f0a3549a8daa196111fd14679a1ef58401bb8291cb559dc7",
-    "formal/theorem-kinds-v1.toml": "sha256:38cbff2f8cd3052b2c777b8a7f7fa9fe3bc8b1b6d0a735547d385e460f4648e8",
+    "formal/qualification/aeneas/qualification.toml": "sha256:0c599635cae1673f9eb533a403451c45833a1f579bc4a8fb65b900d729e0bb81",
+    "formal/theorem-kinds-v1.toml": "sha256:73173d02b38eeb1bfe635b07b227a6cb8e8327c950c6f396f4f5c611117a541c",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -124,10 +124,10 @@
     "product/stores/auths-stores/src/lifecycle.rs": "sha256:0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
   },
   "claim": {
-    "decision_functions": 1043,
-    "decision_closure_functions": 121,
-    "decision_code_lines": 11521,
-    "decision_closure_code_lines": 1466,
+    "decision_functions": 1044,
+    "decision_closure_functions": 122,
+    "decision_code_lines": 11535,
+    "decision_closure_code_lines": 1478,
     "check_sites": 82,
     "covered_check_sites": 23,
     "uncovered_components": [
@@ -202,165 +202,165 @@
     "decision": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1043,
-      "span_lines": 11565,
-      "code_lines": 11521,
+      "functions": 1044,
+      "span_lines": 11582,
+      "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 121,
-          "function_share": 0.116,
-          "span_lines": 1477,
-          "span_line_share": 0.1277,
-          "code_lines": 1466,
-          "code_line_share": 0.1272
+          "functions": 122,
+          "function_share": 0.1169,
+          "span_lines": 1489,
+          "span_line_share": 0.1286,
+          "code_lines": 1478,
+          "code_line_share": 0.1281
         },
         "direct": {
-          "functions": 63,
-          "function_share": 0.0604,
-          "span_lines": 994,
-          "span_line_share": 0.0859,
-          "code_lines": 983,
-          "code_line_share": 0.0853
+          "functions": 64,
+          "function_share": 0.0613,
+          "span_lines": 1006,
+          "span_line_share": 0.0869,
+          "code_lines": 995,
+          "code_line_share": 0.0863
         },
         "closure": {
-          "functions": 121,
-          "function_share": 0.116,
-          "span_lines": 1477,
-          "span_line_share": 0.1277,
-          "code_lines": 1466,
-          "code_line_share": 0.1272
+          "functions": 122,
+          "function_share": 0.1169,
+          "span_lines": 1489,
+          "span_line_share": 0.1286,
+          "code_lines": 1478,
+          "code_line_share": 0.1281
         }
       }
     },
     "verifier-core": {
       "scope": "verifier-core",
       "minimum_code_lines": 0,
-      "functions": 797,
-      "span_lines": 9011,
-      "code_lines": 8970,
+      "functions": 798,
+      "span_lines": 9028,
+      "code_lines": 8984,
       "by_level": {
         "translated": {
-          "functions": 97,
-          "function_share": 0.1217,
-          "span_lines": 1095,
-          "span_line_share": 0.1215,
-          "code_lines": 1084,
-          "code_line_share": 0.1208
+          "functions": 98,
+          "function_share": 0.1228,
+          "span_lines": 1107,
+          "span_line_share": 0.1226,
+          "code_lines": 1096,
+          "code_line_share": 0.122
         },
         "direct": {
-          "functions": 48,
-          "function_share": 0.0602,
-          "span_lines": 696,
-          "span_line_share": 0.0772,
-          "code_lines": 685,
-          "code_line_share": 0.0764
+          "functions": 49,
+          "function_share": 0.0614,
+          "span_lines": 708,
+          "span_line_share": 0.0784,
+          "code_lines": 697,
+          "code_line_share": 0.0776
         },
         "closure": {
-          "functions": 97,
-          "function_share": 0.1217,
-          "span_lines": 1095,
-          "span_line_share": 0.1215,
-          "code_lines": 1084,
-          "code_line_share": 0.1208
+          "functions": 98,
+          "function_share": 0.1228,
+          "span_lines": 1107,
+          "span_line_share": 0.1226,
+          "code_lines": 1096,
+          "code_line_share": 0.122
         }
       }
     },
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1524,
-      "span_lines": 16935,
-      "code_lines": 16880,
+      "functions": 1525,
+      "span_lines": 16952,
+      "code_lines": 16894,
       "by_level": {
         "translated": {
-          "functions": 290,
-          "function_share": 0.1903,
-          "span_lines": 3233,
-          "span_line_share": 0.1909,
-          "code_lines": 3221,
-          "code_line_share": 0.1908
+          "functions": 291,
+          "function_share": 0.1908,
+          "span_lines": 3245,
+          "span_line_share": 0.1914,
+          "code_lines": 3233,
+          "code_line_share": 0.1914
         },
         "direct": {
-          "functions": 89,
-          "function_share": 0.0584,
-          "span_lines": 1369,
-          "span_line_share": 0.0808,
-          "code_lines": 1358,
-          "code_line_share": 0.0805
+          "functions": 90,
+          "function_share": 0.059,
+          "span_lines": 1381,
+          "span_line_share": 0.0815,
+          "code_lines": 1370,
+          "code_line_share": 0.0811
         },
         "closure": {
-          "functions": 290,
-          "function_share": 0.1903,
-          "span_lines": 3233,
-          "span_line_share": 0.1909,
-          "code_lines": 3221,
-          "code_line_share": 0.1908
+          "functions": 291,
+          "function_share": 0.1908,
+          "span_lines": 3245,
+          "span_line_share": 0.1914,
+          "code_lines": 3233,
+          "code_line_share": 0.1914
         }
       }
     },
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1139,
-      "span_lines": 14265,
-      "code_lines": 14197,
+      "functions": 1140,
+      "span_lines": 14282,
+      "code_lines": 14211,
       "by_level": {
         "translated": {
-          "functions": 162,
-          "function_share": 0.1422,
-          "span_lines": 1607,
-          "span_line_share": 0.1127,
-          "code_lines": 1595,
-          "code_line_share": 0.1123
+          "functions": 163,
+          "function_share": 0.143,
+          "span_lines": 1619,
+          "span_line_share": 0.1134,
+          "code_lines": 1607,
+          "code_line_share": 0.1131
         },
         "direct": {
-          "functions": 56,
-          "function_share": 0.0492,
-          "span_lines": 878,
-          "span_line_share": 0.0615,
-          "code_lines": 867,
-          "code_line_share": 0.0611
+          "functions": 57,
+          "function_share": 0.05,
+          "span_lines": 890,
+          "span_line_share": 0.0623,
+          "code_lines": 879,
+          "code_line_share": 0.0619
         },
         "closure": {
-          "functions": 162,
-          "function_share": 0.1422,
-          "span_lines": 1607,
-          "span_line_share": 0.1127,
-          "code_lines": 1595,
-          "code_line_share": 0.1123
+          "functions": 163,
+          "function_share": 0.143,
+          "span_lines": 1619,
+          "span_line_share": 0.1134,
+          "code_lines": 1607,
+          "code_line_share": 0.1131
         }
       }
     },
     "decision-nontrivial": {
       "scope": "decision",
       "minimum_code_lines": 4,
-      "functions": 452,
-      "span_lines": 9789,
-      "code_lines": 9748,
+      "functions": 453,
+      "span_lines": 9806,
+      "code_lines": 9762,
       "by_level": {
         "translated": {
-          "functions": 91,
-          "function_share": 0.2013,
-          "span_lines": 1387,
-          "span_line_share": 0.1417,
-          "code_lines": 1376,
-          "code_line_share": 0.1412
+          "functions": 92,
+          "function_share": 0.2031,
+          "span_lines": 1399,
+          "span_line_share": 0.1427,
+          "code_lines": 1388,
+          "code_line_share": 0.1422
         },
         "direct": {
-          "functions": 50,
-          "function_share": 0.1106,
-          "span_lines": 955,
-          "span_line_share": 0.0976,
-          "code_lines": 944,
-          "code_line_share": 0.0968
+          "functions": 51,
+          "function_share": 0.1126,
+          "span_lines": 967,
+          "span_line_share": 0.0986,
+          "code_lines": 956,
+          "code_line_share": 0.0979
         },
         "closure": {
-          "functions": 91,
-          "function_share": 0.2013,
-          "span_lines": 1387,
-          "span_line_share": 0.1417,
-          "code_lines": 1376,
-          "code_line_share": 0.1412
+          "functions": 92,
+          "function_share": 0.2031,
+          "span_lines": 1399,
+          "span_line_share": 0.1427,
+          "code_lines": 1388,
+          "code_line_share": 0.1422
         }
       }
     }
@@ -369,132 +369,132 @@
     "decision_without_macro_rules_functions": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1023,
-      "span_lines": 11500,
-      "code_lines": 11456,
+      "functions": 1024,
+      "span_lines": 11517,
+      "code_lines": 11470,
       "by_level": {
         "translated": {
-          "functions": 120,
-          "function_share": 0.1173,
-          "span_lines": 1474,
-          "span_line_share": 0.1282,
-          "code_lines": 1463,
-          "code_line_share": 0.1277
+          "functions": 121,
+          "function_share": 0.1182,
+          "span_lines": 1486,
+          "span_line_share": 0.129,
+          "code_lines": 1475,
+          "code_line_share": 0.1286
         },
         "direct": {
-          "functions": 63,
-          "function_share": 0.0616,
-          "span_lines": 994,
-          "span_line_share": 0.0864,
-          "code_lines": 983,
-          "code_line_share": 0.0858
+          "functions": 64,
+          "function_share": 0.0625,
+          "span_lines": 1006,
+          "span_line_share": 0.0873,
+          "code_lines": 995,
+          "code_line_share": 0.0867
         },
         "closure": {
-          "functions": 120,
-          "function_share": 0.1173,
-          "span_lines": 1474,
-          "span_line_share": 0.1282,
-          "code_lines": 1463,
-          "code_line_share": 0.1277
+          "functions": 121,
+          "function_share": 0.1182,
+          "span_lines": 1486,
+          "span_line_share": 0.129,
+          "code_lines": 1475,
+          "code_line_share": 0.1286
         }
       }
     },
     "decision_exact_or_verdict_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1043,
-      "span_lines": 11565,
-      "code_lines": 11521,
+      "functions": 1044,
+      "span_lines": 11582,
+      "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 121,
-          "function_share": 0.116,
-          "span_lines": 1477,
-          "span_line_share": 0.1277,
-          "code_lines": 1466,
-          "code_line_share": 0.1272
+          "functions": 122,
+          "function_share": 0.1169,
+          "span_lines": 1489,
+          "span_line_share": 0.1286,
+          "code_lines": 1478,
+          "code_line_share": 0.1281
         },
         "direct": {
-          "functions": 63,
-          "function_share": 0.0604,
-          "span_lines": 994,
-          "span_line_share": 0.0859,
-          "code_lines": 983,
-          "code_line_share": 0.0853
+          "functions": 64,
+          "function_share": 0.0613,
+          "span_lines": 1006,
+          "span_line_share": 0.0869,
+          "code_lines": 995,
+          "code_line_share": 0.0863
         },
         "closure": {
-          "functions": 120,
-          "function_share": 0.1151,
-          "span_lines": 1474,
-          "span_line_share": 0.1275,
-          "code_lines": 1463,
-          "code_line_share": 0.127
+          "functions": 121,
+          "function_share": 0.1159,
+          "span_lines": 1486,
+          "span_line_share": 0.1283,
+          "code_lines": 1475,
+          "code_line_share": 0.1279
         }
       }
     },
     "decision_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1043,
-      "span_lines": 11565,
-      "code_lines": 11521,
+      "functions": 1044,
+      "span_lines": 11582,
+      "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 121,
-          "function_share": 0.116,
-          "span_lines": 1477,
-          "span_line_share": 0.1277,
-          "code_lines": 1466,
-          "code_line_share": 0.1272
+          "functions": 122,
+          "function_share": 0.1169,
+          "span_lines": 1489,
+          "span_line_share": 0.1286,
+          "code_lines": 1478,
+          "code_line_share": 0.1281
         },
         "direct": {
-          "functions": 63,
-          "function_share": 0.0604,
-          "span_lines": 994,
-          "span_line_share": 0.0859,
-          "code_lines": 983,
-          "code_line_share": 0.0853
+          "functions": 64,
+          "function_share": 0.0613,
+          "span_lines": 1006,
+          "span_line_share": 0.0869,
+          "code_lines": 995,
+          "code_line_share": 0.0863
         },
         "closure": {
-          "functions": 116,
-          "function_share": 0.1112,
-          "span_lines": 1379,
-          "span_line_share": 0.1192,
-          "code_lines": 1375,
-          "code_line_share": 0.1193
+          "functions": 117,
+          "function_share": 0.1121,
+          "span_lines": 1391,
+          "span_line_share": 0.1201,
+          "code_lines": 1387,
+          "code_line_share": 0.1202
         }
       }
     },
     "decision_without_trait_instance_records": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1043,
-      "span_lines": 11565,
-      "code_lines": 11521,
+      "functions": 1044,
+      "span_lines": 11582,
+      "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 121,
-          "function_share": 0.116,
-          "span_lines": 1477,
-          "span_line_share": 0.1277,
-          "code_lines": 1466,
-          "code_line_share": 0.1272
+          "functions": 122,
+          "function_share": 0.1169,
+          "span_lines": 1489,
+          "span_line_share": 0.1286,
+          "code_lines": 1478,
+          "code_line_share": 0.1281
         },
         "direct": {
-          "functions": 63,
-          "function_share": 0.0604,
-          "span_lines": 994,
-          "span_line_share": 0.0859,
-          "code_lines": 983,
-          "code_line_share": 0.0853
+          "functions": 64,
+          "function_share": 0.0613,
+          "span_lines": 1006,
+          "span_line_share": 0.0869,
+          "code_lines": 995,
+          "code_line_share": 0.0863
         },
         "closure": {
-          "functions": 120,
-          "function_share": 0.1151,
-          "span_lines": 1474,
-          "span_line_share": 0.1275,
-          "code_lines": 1463,
-          "code_line_share": 0.127
+          "functions": 121,
+          "function_share": 0.1159,
+          "span_lines": 1486,
+          "span_line_share": 0.1283,
+          "code_lines": 1475,
+          "code_line_share": 0.1279
         }
       }
     }
@@ -530,14 +530,14 @@
     },
     "core/crates/auths-composition": {
       "decision_functions": 10,
-      "decision_code_lines": 153,
-      "translated": 7,
-      "refined_closure": 7,
-      "refined_closure_code_lines": 131
+      "decision_code_lines": 155,
+      "translated": 8,
+      "refined_closure": 8,
+      "refined_closure_code_lines": 143
     },
     "core/crates/auths-model": {
-      "decision_functions": 546,
-      "decision_code_lines": 3893,
+      "decision_functions": 547,
+      "decision_code_lines": 3913,
       "translated": 75,
       "refined_closure": 75,
       "refined_closure_code_lines": 695
@@ -601,9 +601,9 @@
   },
   "second_parser": {
     "parser": "syn 2 (full syntax tree), independent of the scanner's tokenizer",
-    "decision_functions": 1043,
+    "decision_functions": 1044,
     "decision_files": 32,
-    "agreements": 1023,
+    "agreements": 1024,
     "agreement_share": 0.9808,
     "disagreements": [
       {
@@ -691,8 +691,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "code",
         "scanner_span": [
-          4964,
-          4966
+          4979,
+          4981
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -700,8 +700,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "code_precedes",
         "scanner_span": [
-          4974,
-          4976
+          4989,
+          4991
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -709,8 +709,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "code_order",
         "scanner_span": [
-          4978,
-          4980
+          4993,
+          4995
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -1129,7 +1129,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_profile",
-            "begin_line": 4143,
+            "begin_line": 4158,
             "refined_closure": false
           }
         ]
@@ -1246,7 +1246,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4137,
+            "begin_line": 4152,
             "refined_closure": false
           }
         ]
@@ -1489,7 +1489,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4137,
+            "begin_line": 4152,
             "refined_closure": false
           },
           {
@@ -1579,7 +1579,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4137,
+            "begin_line": 4152,
             "refined_closure": false
           },
           {
@@ -1844,7 +1844,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::profile_budget_expression",
-            "begin_line": 4166,
+            "begin_line": 4181,
             "refined_closure": false
           }
         ]
@@ -2998,6 +2998,16 @@
       "Auths.Composition.Refinement.threshold_authorized_exact": "verdict-exact",
       "Auths.Composition.Refinement.threshold_exact": "exact",
       "Auths.Composition.Traversal.evaluator_refines": "exact",
+      "Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks": "partial",
+      "Auths.Composition.ValidationContract.public_event_bound": "partial",
+      "Auths.Composition.ValidationContract.valid_public_evaluator_refines": "exact",
+      "Auths.Composition.ValidationExamples.duplicate_refused": "case",
+      "Auths.Composition.ValidationExamples.narrow_refused": "case",
+      "Auths.Composition.ValidationExamples.public_conjunction": "case",
+      "Auths.Composition.ValidationExamples.public_threshold_indeterminate": "case",
+      "Auths.Composition.ValidationExamples.shallow_refused": "case",
+      "Auths.Composition.ValidationExamples.zero_threshold_refused": "case",
+      "Auths.Composition.ValidationPublic.public_evaluator_refines": "exact",
       "Auths.Composition.Work.source_event_count": "partial",
       "Auths.Composition.Work.source_leaf_order": "partial",
       "Auths.Crypto.Examples.minimal_preimage_exact": "case",
@@ -3097,19 +3107,19 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 411,
+    "aeneas_local_definitions": 412,
     "by_kind": {
-      "function": 290,
+      "function": 291,
       "derived": 18,
       "loop": 103
     },
-    "refined_direct": 89,
-    "refined_closure": 297,
-    "theorems_naming_translated_functions": 129
+    "refined_direct": 90,
+    "refined_closure": 298,
+    "theorems_naming_translated_functions": 139
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "d69e3d8cd80cf2ec145fadf5721ded6b642ec9b81390d3c8838f0717eba12391",
+    "current_formal_inputs_sha256": "0f6e4ebdd1657815e459cfb2653ae028fe802baead8ab0cb289d69359f95af00",
     "fresh": false,
     "campaigns": {
       "s1": {

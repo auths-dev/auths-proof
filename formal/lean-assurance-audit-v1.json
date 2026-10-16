@@ -7,6 +7,401 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Composition.Order",
+      "name": "Auths.Composition.Order.reference_key_injective",
+      "statement": "Function.Injective Auths.Composition.Order.referenceKey"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Order",
+      "name": "Auths.Composition.Order.reference_comparison",
+      "statement": "∀ (left right : auths_composition.auths_model.ProofRef),\n  auths_composition.auths_model.ProofRef.Insts.CoreCmpOrd.cmp left right =\n    Aeneas.Std.Result.ok\n      (List.compareLex compare (Auths.Composition.Order.referenceKey left) (Auths.Composition.Order.referenceKey right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.SetModel",
+      "name": "Auths.Composition.SetModel.insert_values",
+      "statement": "∀ (value : Auths.Composition.SetModel.Reference) (values : List Auths.Composition.SetModel.Reference),\n  List.Pairwise Auths.Composition.SetModel.Before values →\n    ∃ added updated,\n      alloc.collections.btree.set.insertValues Auths.Composition.SetModel.referenceOrder value values =\n          Aeneas.Std.Result.ok (added, updated) ∧\n        List.Pairwise Auths.Composition.SetModel.Before updated ∧\n          (∀ (item : auths_composition.auths_model.ProofRef), item ∈ updated ↔ item = value ∨ item ∈ values) ∧\n            (added = true ↔ value ∉ values) ∧ updated.length = values.length + if added = true then 1 else 0"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.SetModel",
+      "name": "Auths.Composition.SetModel.ordered_nodup",
+      "statement": "∀ (values : List Auths.Composition.SetModel.Reference),\n  List.Pairwise Auths.Composition.SetModel.Before values → values.Nodup"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.SetModel",
+      "name": "Auths.Composition.SetModel.insert_set",
+      "statement": "∀ (allocator : Aeneas.Std.core.clone.Clone Aeneas.Std.Global) (value : Auths.Composition.SetModel.Reference)\n  (state : alloc.collections.btree.set.BTreeSet Auths.Composition.SetModel.Reference Aeneas.Std.Global),\n  List.Pairwise Auths.Composition.SetModel.Before state.values →\n    state.values.length < Aeneas.Std.Usize.max →\n      ∃ added updated,\n        alloc.collections.btree.set.BTreeSet.insert allocator Auths.Composition.SetModel.referenceOrder state value =\n            Aeneas.Std.Result.ok (added, updated) ∧\n          List.Pairwise Auths.Composition.SetModel.Before updated.values ∧\n            (∀ (item : auths_composition.auths_model.ProofRef),\n                item ∈ updated.values ↔ item = value ∨ item ∈ state.values) ∧\n              (added = true ↔ value ∉ state.values) ∧\n                updated.values.length = state.values.length + if added = true then 1 else 0"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Collect",
+      "name": "Auths.Composition.Collect.push_exact",
+      "statement": "∀ (state : auths_composition.alloc.vec.Vec auths_composition.auths_model.ProofRef)\n  (value : auths_composition.auths_model.ProofRef),\n  state.size < Aeneas.Std.Usize.max →\n    Aeneas.Std.WP.spec (state.push value) fun updated => updated.elements.toList = state.elements.toList ++ [value]"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Collect",
+      "name": "Auths.Composition.Collect.collect_exact",
+      "statement": "∀ (remaining : List auths_composition.auths_model.ProofRef)\n  (iterator : alloc.collections.btree.set.IntoIter auths_composition.auths_model.ProofRef Aeneas.Std.Global)\n  (state : auths_composition.alloc.vec.Vec auths_composition.auths_model.ProofRef),\n  iterator.values = remaining →\n    state.size + remaining.length ≤ Aeneas.Std.Usize.max →\n      Aeneas.Std.WP.spec (auths_composition.auths_model.AuthorizationPlan.validate_loop iterator state) fun updated =>\n        updated.elements.toList = state.elements.toList ++ remaining"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationCapacity",
+      "name": "Auths.Composition.ValidationCapacity.checker_preserves_capacity",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationCapacity.NodeCapacity plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationProgress",
+      "name": "Auths.Composition.ValidationProgress.progress_append",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (before middle after : Finset R) (left right : List R),\n  Auths.Composition.ValidationProgress.Progress before left middle →\n    Auths.Composition.ValidationProgress.Progress middle right after →\n      Auths.Composition.ValidationProgress.Progress before (left ++ right) after"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationProgress",
+      "name": "Auths.Composition.ValidationProgress.progress_card",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (before after : Finset R) (references : List R),\n  Auths.Composition.ValidationProgress.Progress before references after → after.card = before.card + references.length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationProgress",
+      "name": "Auths.Composition.ValidationProgress.checker_progress",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationProgress.NodeProgress plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationShape",
+      "name": "Auths.Composition.ValidationShape.checker_shape",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationShape.NodeShape plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationComplete",
+      "name": "Auths.Composition.ValidationComplete.checker_complete",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationComplete.NodeComplete plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationComplete",
+      "name": "Auths.Composition.ValidationComplete.valid_is_accepted",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (limits : Auths.Composition.ValidationModel.Limits)\n  (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationModel.Valid limits plan →\n    ∃ next,\n      Auths.Composition.ValidationModel.checkPlan limits 1 plan Auths.Composition.ValidationModel.rootState =\n        Except.ok next"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationSoundness",
+      "name": "Auths.Composition.ValidationSoundness.accepted_is_valid",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (limits : Auths.Composition.ValidationModel.Limits)\n  (plan : Auths.Composition.PlanModel.Plan R) (next : Auths.Composition.ValidationModel.State R),\n  Auths.Composition.ValidationModel.checkPlan limits 1 plan Auths.Composition.ValidationModel.rootState =\n      Except.ok next →\n    Auths.Composition.ValidationModel.Valid limits plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationSoundness",
+      "name": "Auths.Composition.ValidationSoundness.accepted_iff_valid",
+      "statement": "∀ {R : Type} [inst : DecidableEq R] (limits : Auths.Composition.ValidationModel.Limits)\n  (plan : Auths.Composition.PlanModel.Plan R),\n  (∃ next,\n      Auths.Composition.ValidationModel.checkPlan limits 1 plan Auths.Composition.ValidationModel.rootState =\n        Except.ok next) ↔\n    Auths.Composition.ValidationModel.Valid limits plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationSoundness",
+      "name": "Auths.Composition.ValidationSoundness.operators_are_proper",
+      "statement": "∀ {R : Type} (limits : Auths.Composition.ValidationModel.Limits) (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationModel.operatorsValid limits plan → Auths.Composition.Bounds.proper plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationSoundness",
+      "name": "Auths.Composition.ValidationSoundness.valid_has_bounded_events",
+      "statement": "∀ {R : Type} (limits : Auths.Composition.ValidationModel.Limits) (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.ValidationModel.Valid limits plan →\n    limits.depth ≤ 16 → limits.leaves ≤ 128 → Auths.Composition.Work.nodes plan ≤ 2048"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationLeaves",
+      "name": "Auths.Composition.ValidationLeaves.word_max_exact",
+      "statement": "∀ (left right : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_composition.core.cmp.Ord.max.default Aeneas.Std.core.cmp.OrdUsize left right) fun result =>\n    ↑result = max ↑left ↑right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationLeaves",
+      "name": "Auths.Composition.ValidationLeaves.proof_leaf_exact",
+      "statement": "∀ (reference : auths_composition.auths_model.ProofRef) (depth maximum : Aeneas.Std.Usize)\n  (limits : auths_composition.auths_model.VerifierLimits)\n  (refs : alloc.collections.btree.set.BTreeSet auths_composition.auths_model.ProofRef Aeneas.Std.Global),\n  List.Pairwise Auths.Composition.SetModel.Before refs.values →\n    refs.values.length < Aeneas.Std.Usize.max →\n      Aeneas.Std.WP.spec\n        (auths_composition.auths_model.AuthorizationPlan.validate.walk\n          (auths_composition.auths_model.AuthorizationPlan.mk\n            (auths_composition.auths_model.AuthorizationPlanNode.Proof reference))\n          depth limits refs maximum)\n        fun result =>\n        Auths.Composition.ValidationLeaves.Corresponds\n          (Auths.Composition.ValidationModel.checkPlan (Auths.Composition.ValidationModel.sourceLimits limits) (↑depth)\n            (Auths.Composition.PlanModel.Plan.proof reference)\n            (Auths.Composition.ValidationLeaves.viewState refs maximum))\n          result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationRefinement",
+      "name": "Auths.Composition.ValidationRefinement.walk_refines",
+      "statement": "∀ (plan : auths_composition.auths_model.AuthorizationPlan) (limits : auths_composition.auths_model.VerifierLimits),\n  Auths.Composition.ValidationRefinement.LimitsBounded limits →\n    ∀ (depth maximum : Aeneas.Std.Usize) (refs : Auths.Composition.ValidationRefinement.NativeSet),\n      ↑depth ≤ 17 →\n        Auths.Composition.ValidationRefinement.GoodSet limits refs →\n          Aeneas.Std.WP.spec\n            (auths_composition.auths_model.AuthorizationPlan.validate.walk plan depth limits refs maximum) fun result =>\n            Auths.Composition.ValidationLeaves.Corresponds\n              (Auths.Composition.ValidationModel.checkPlan (Auths.Composition.ValidationModel.sourceLimits limits)\n                (↑depth) (Auths.Composition.PlanModel.viewPlan plan)\n                (Auths.Composition.ValidationLeaves.viewState refs maximum))\n              result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationPublic",
+      "name": "Auths.Composition.ValidationPublic.validator_refines",
+      "statement": "∀ (plan : auths_composition.auths_model.AuthorizationPlan) (limits : auths_composition.auths_model.VerifierLimits),\n  Auths.Composition.ValidationRefinement.LimitsBounded limits →\n    Aeneas.Std.WP.spec (plan.validate limits) fun result =>\n      Auths.Composition.ValidationPublic.ShapeCorresponds\n        (Auths.Composition.ValidationModel.checkPlan (Auths.Composition.ValidationModel.sourceLimits limits) 1\n          (Auths.Composition.PlanModel.viewPlan plan) Auths.Composition.ValidationModel.rootState)\n        result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationPublic",
+      "name": "Auths.Composition.ValidationPublic.public_evaluator_refines",
+      "statement": "∀ {B O : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (nativeObserver : Aeneas.Std.core.ops.function.FnMut O auths_composition.EvaluationEvent Unit)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B)\n  (modelObserver : O → Auths.Composition.PlanModel.Event auths_composition.auths_model.ProofRef → O),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    (∀ (state : O) (event : auths_composition.EvaluationEvent),\n        nativeObserver.call_mut state event =\n          Aeneas.Std.Result.ok ((), modelObserver state (Auths.Composition.PlanModel.eventView event))) →\n      ∀ (plan : auths_composition.auths_model.AuthorizationPlan)\n        (limits : auths_composition.auths_model.VerifierLimits),\n        Auths.Composition.ValidationRefinement.LimitsBounded limits →\n          ∀ (state : B) (observer : O),\n            auths_composition.evaluate_observed nativeBranch nativeObserver plan limits state observer =\n              Aeneas.Std.Result.ok\n                (Auths.Composition.ValidationPublic.evaluateChecked modelBranch modelObserver\n                  (Auths.Composition.ValidationModel.sourceLimits limits) (Auths.Composition.PlanModel.viewPlan plan)\n                  state observer)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationContract",
+      "name": "Auths.Composition.ValidationContract.source_accepts_iff_valid",
+      "statement": "∀ (plan : auths_composition.auths_model.AuthorizationPlan) (limits : auths_composition.auths_model.VerifierLimits),\n  Auths.Composition.ValidationRefinement.LimitsBounded limits →\n    ((∃ shape, plan.validate limits = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok shape)) ↔\n      Auths.Composition.ValidationModel.Valid (Auths.Composition.ValidationModel.sourceLimits limits)\n        (Auths.Composition.PlanModel.viewPlan plan))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationContract",
+      "name": "Auths.Composition.ValidationContract.valid_public_evaluator_refines",
+      "statement": "∀ {B O : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (nativeObserver : Aeneas.Std.core.ops.function.FnMut O auths_composition.EvaluationEvent Unit)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B)\n  (modelObserver : O → Auths.Composition.PlanModel.Event auths_composition.auths_model.ProofRef → O),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    (∀ (state : O) (event : auths_composition.EvaluationEvent),\n        nativeObserver.call_mut state event =\n          Aeneas.Std.Result.ok ((), modelObserver state (Auths.Composition.PlanModel.eventView event))) →\n      ∀ (plan : auths_composition.auths_model.AuthorizationPlan)\n        (limits : auths_composition.auths_model.VerifierLimits),\n        Auths.Composition.ValidationRefinement.LimitsBounded limits →\n          Auths.Composition.ValidationModel.Valid (Auths.Composition.ValidationModel.sourceLimits limits)\n              (Auths.Composition.PlanModel.viewPlan plan) →\n            ∀ (state : B) (observer : O),\n              auths_composition.evaluate_observed nativeBranch nativeObserver plan limits state observer =\n                have expected :=\n                  Auths.Composition.PlanModel.evaluate modelBranch modelObserver\n                    (Auths.Composition.PlanModel.viewPlan plan) state observer;\n                Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok expected.1, expected.2.1, expected.2.2)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationContract",
+      "name": "Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks",
+      "statement": "∀ {B O : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (nativeObserver : Aeneas.Std.core.ops.function.FnMut O auths_composition.EvaluationEvent Unit)\n  (plan : auths_composition.auths_model.AuthorizationPlan) (limits : auths_composition.auths_model.VerifierLimits),\n  Auths.Composition.ValidationRefinement.LimitsBounded limits →\n    ¬Auths.Composition.ValidationModel.Valid (Auths.Composition.ValidationModel.sourceLimits limits)\n          (Auths.Composition.PlanModel.viewPlan plan) →\n      ∀ (state : B) (observer : O),\n        auths_composition.evaluate_observed nativeBranch nativeObserver plan limits state observer =\n          Aeneas.Std.Result.ok\n            (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid,\n              state, observer)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationContract",
+      "name": "Auths.Composition.ValidationContract.public_event_bound",
+      "statement": "∀ {B : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (nativeObserver : Aeneas.Std.core.ops.function.FnMut ℕ auths_composition.EvaluationEvent Unit)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    (∀ (count : ℕ) (event : auths_composition.EvaluationEvent),\n        nativeObserver.call_mut count event = Aeneas.Std.Result.ok ((), count + 1)) →\n      ∀ (plan : auths_composition.auths_model.AuthorizationPlan)\n        (limits : auths_composition.auths_model.VerifierLimits),\n        Auths.Composition.ValidationRefinement.LimitsBounded limits →\n          Auths.Composition.ValidationModel.Valid (Auths.Composition.ValidationModel.sourceLimits limits)\n              (Auths.Composition.PlanModel.viewPlan plan) →\n            ∀ (state : B) (count : ℕ),\n              ∃ outcome next finalCount,\n                auths_composition.evaluate_observed nativeBranch nativeObserver plan limits state count =\n                    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok outcome, next, finalCount) ∧\n                  finalCount ≤ count + 2048"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.conjunction_valid",
+      "statement": "Auths.Composition.ValidationModel.Valid\n  (Auths.Composition.ValidationModel.sourceLimits Auths.Composition.ValidationExamples.limits)\n  (Auths.Composition.PlanModel.viewPlan Auths.Composition.PlanExamples.twoLeaves)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.public_conjunction",
+      "statement": "auths_composition.evaluate_observed Auths.Composition.PlanExamples.branch Auths.Composition.PlanExamples.observer\n    Auths.Composition.PlanExamples.twoLeaves Auths.Composition.ValidationExamples.limits 0 0 =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok auths_composition.BranchOutcome.Authorized, 2, 3)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.duplicate_refused",
+      "statement": "auths_composition.evaluate_observed Auths.Composition.PlanExamples.branch Auths.Composition.PlanExamples.observer\n    Auths.Composition.ValidationExamples.duplicate Auths.Composition.ValidationExamples.limits 5 9 =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid, 5, 9)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.zero_threshold_refused",
+      "statement": "auths_composition.evaluate_observed Auths.Composition.PlanExamples.mixedBranch Auths.Composition.PlanExamples.events\n    Auths.Composition.ValidationExamples.impossibleThreshold Auths.Composition.ValidationExamples.limits 4 [] =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid, 4, [])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.empty_invalid",
+      "statement": "¬Auths.Composition.ValidationModel.Valid\n    (Auths.Composition.ValidationModel.sourceLimits Auths.Composition.ValidationExamples.limits)\n    (Auths.Composition.PlanModel.viewPlan\n      (auths_composition.auths_model.AuthorizationPlan.mk\n        (auths_composition.auths_model.AuthorizationPlanNode.AnyOf\n          (auths_composition.alloc.vec.Vec.ofBase ⟨[], Auths.Composition.ValidationExamples.empty_invalid._proof_1⟩))))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.mixed_threshold_valid",
+      "statement": "Auths.Composition.ValidationModel.Valid\n  (Auths.Composition.ValidationModel.sourceLimits Auths.Composition.ValidationExamples.limits)\n  (Auths.Composition.PlanModel.viewPlan\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.KOfN 2#u16 Auths.Composition.PlanExamples.threeMembers)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.public_threshold_indeterminate",
+      "statement": "auths_composition.evaluate_observed Auths.Composition.PlanExamples.mixedBranch Auths.Composition.PlanExamples.events\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.KOfN 2#u16 Auths.Composition.PlanExamples.threeMembers))\n    Auths.Composition.ValidationExamples.limits 0 [] =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Ok\n        (auths_composition.BranchOutcome.Indeterminate\n          auths_composition.auths_model.Requirement.ExternalFactUnavailable),\n      3,\n      Auths.Composition.PlanExamples.mixedLeaves ++\n        [auths_composition.EvaluationEvent.Aggregate 3#usize 2#u16 1#usize 1#usize\n            (auths_composition.BranchOutcome.Indeterminate\n              auths_composition.auths_model.Requirement.ExternalFactUnavailable)])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.narrow_refused",
+      "statement": "auths_composition.evaluate_observed Auths.Composition.PlanExamples.branch Auths.Composition.PlanExamples.observer\n    Auths.Composition.PlanExamples.twoLeaves Auths.Composition.ValidationExamples.narrow 5 9 =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid, 5, 9)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.ValidationExamples",
+      "name": "Auths.Composition.ValidationExamples.shallow_refused",
+      "statement": "auths_composition.evaluate_observed Auths.Composition.PlanExamples.branch Auths.Composition.PlanExamples.observer\n    Auths.Composition.PlanExamples.twoLeaves Auths.Composition.ValidationExamples.shallow 5 9 =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid, 5, 9)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Composition.Bounds",
       "name": "Auths.Composition.Bounds.node_bound",
       "statement": "∀ {R : Type} (plan : Auths.Composition.PlanModel.Plan R), Auths.Composition.Bounds.NodeBound plan"

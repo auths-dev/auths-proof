@@ -1938,6 +1938,51 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 sha256: String::new(),
             });
         }
+        if [
+            "Auths.Composition.ValidationCapacity.",
+            "Auths.Composition.ValidationProgress.",
+            "Auths.Composition.ValidationShape.",
+            "Auths.Composition.ValidationComplete.",
+            "Auths.Composition.ValidationSoundness.",
+        ]
+        .iter()
+        .any(|prefix| declaration.name.starts_with(prefix))
+        {
+            claim.claim_text = format!(
+                "The independent structural plan model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated property")
+            );
+            claim.scope = "Arbitrary finite independent plans and natural limits. The validity relation is stated independently as operator/width/depth validity and distinct bounded leaves. The checker is proved sound and complete for it; progress preserves the exact set and forbids reuse. Separate public-source refinements discharge the shipping validation bridge. These are structural results, not full leaf-proof authorization or complete verifier work bounds.".to_owned();
+        }
+        if declaration.name.starts_with("Auths.Composition.SetModel.")
+            || declaration.name == "Auths.Composition.Collect.push_exact"
+            || declaration.name == "Auths.Composition.ValidationLeaves.word_max_exact"
+            || declaration.name == "Auths.Composition.Order.reference_key_injective"
+        {
+            claim.claim_text = format!(
+                "The reviewed standard-container model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated identity")
+            );
+            claim.scope = "The displayed bounded sequence/set carrier, capacity and lawful-order premises. These lemmas prove exact semantic properties of the transparent container and numeric models. They do not prove Rust standard-library allocation, balancing, runtime cost or host behavior; the compiled source bridge lists that library boundary explicitly.".to_owned();
+        }
+        if declaration
+            .name
+            .starts_with("Auths.Composition.ValidationExamples.")
+        {
+            claim.claim_text = format!(
+                "The independent structural validity contract establishes the concrete {} witness.",
+                declaration.name.rsplit('.').next().unwrap_or("stated")
+            );
+            claim.scope = "The exact finite plan and limits in the statement. Model validity/refusal lemmas support separately qualified public-source execution witnesses; no leaf-proof or cryptographic authority claim follows from structural validity alone.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2290,6 +2335,145 @@ fn qualified_refinement_metadata(
 }
 
 fn composition_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const PUBLIC_RESIDUAL: &[&str] = &[
+        "The Lean kernel, pinned Rust/Charon/Aeneas/Lean toolchain, reviewed naming and positive-vector representation, listed foundations, and explicit standard-library models are trusted. BTreeSet is a reviewed semantic container boundary for Global and copied ProofRef values with a proved lawful byte order; its tree implementation and physical allocation behavior are not proved.",
+        "Protocol limits are explicit numeric premises. Successful evaluation requires the displayed exact stateful callback contracts; invalid-plan refusal needs none. This slice covers public structural validation and composition, not callback implementations, cryptography, registry/stage composition, sealed action projection, full verifier work/stack bounds, or AP-SPEC-069 E2 as a whole.",
+    ];
+    let public: Option<(&str, &[&str], &str)> = match declaration {
+        "Auths.Composition.Order.reference_comparison" => Some((
+            "The shipping derived ProofRef comparator returns exactly lexicographic order of its byte values.",
+            &[
+                "auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp",
+                "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+            ],
+            "Every pair of fixed-width ProofRef carriers. The proof unfolds both translated derived comparators and the reviewed fixed-array comparison model; it introduces no opaque Auths ordering predicate.",
+        )),
+        "Auths.Composition.Collect.collect_exact" => Some((
+            "The shipping validation collection loop terminates and preserves the exact ordered reference sequence.",
+            &["auths_model::{auths_model::AuthorizationPlan}::validate"],
+            "Every consuming set iterator and initial positive bounded vector whose combined length fits usize. The result sequence is the initial sequence followed by every remaining iterator element. This is the collection loop, not a proof of every operation in the containing Rust function.",
+        )),
+        "Auths.Composition.ValidationLeaves.proof_leaf_exact" => Some((
+            "The shipping proof-leaf validator agrees exactly with the independent duplicate, depth and leaf-capacity decisions.",
+            &["auths_model::{auths_model::AuthorizationPlan}::validate::walk"],
+            "Every reference, word depth, maximum-depth state, limits record and ordered set with one slot of usize headroom. The postcondition fixes the exact refusal category or successful set/depth meaning. It is a leaf component result.",
+        )),
+        "Auths.Composition.ValidationRefinement.walk_refines" => Some((
+            "The complete shipping recursive plan validator refines the independent structural checker.",
+            &[
+                "auths_model::{auths_model::AuthorizationPlan}::validate::walk",
+                "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members",
+            ],
+            "Every finite represented plan, limits with leaf/branching caps at most 128 and depth cap at most 16, a current depth at most 17, and an ordered reference set within its declared leaf cap. The exact refusal reason or successful seen-reference set and maximum-depth state are preserved, including first-failure order.",
+        )),
+        "Auths.Composition.ValidationPublic.validator_refines" => Some((
+            "The public shipping validator is total and agrees with the independent checker and returned shape relation.",
+            &[
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+                "auths_model::{auths_model::AuthorizationPlan}::validate::walk",
+                "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members",
+            ],
+            "Every finite represented plan and explicit protocol-sized limits record. The validator preserves the exact refusal category; success returns an ordered vector with exactly the model reference set and computed maximum depth. The private source collection uses the actual consuming iterator; physical allocations remain the standard-library boundary.",
+        )),
+        "Auths.Composition.ValidationPublic.public_evaluator_refines" => Some((
+            "The complete public shipping composition evaluator returns exactly independent validation followed by three-valued evaluation.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+                "auths_composition::evaluate_node",
+            ],
+            "Every finite represented plan and initial callback state under protocol-sized limits. Exact total stateful callback contracts are explicit premises. Both valid and invalid structures are covered; refused plans preserve both states. Successful evaluation preserves all/any/k outcomes, source-order callbacks and postorder aggregate events.",
+        )),
+        "Auths.Composition.ValidationContract.source_accepts_iff_valid" => Some((
+            "The public shipping validator accepts exactly the independently structurally valid bounded plans.",
+            &["auths_model::{auths_model::AuthorizationPlan}::validate"],
+            "Every finite represented plan and explicit protocol-sized limits. Valid is defined without a checker result: valid nonempty operators and thresholds, per-node width, total structural depth, distinct leaves and total leaf count. The iff proves both soundness and useful acceptance; it assumes no source-validation result.",
+        )),
+        "Auths.Composition.ValidationContract.valid_public_evaluator_refines" => Some((
+            "Every independently valid bounded plan reaches the public shipping evaluator with exactly the independent result and both callback states.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+                "auths_composition::evaluate_node",
+            ],
+            "Every independently valid finite represented plan and arbitrary initial state under protocol-sized limits. The exact total native/model branch and observer call contracts are explicit; the proof discharges the actual source validator through structural validity instead of assuming validation succeeds.",
+        )),
+        "Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks" => Some((
+            "The public shipping evaluator rejects every structurally invalid plan before either callback.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "Every invalid finite represented plan, protocol-sized limits and arbitrary native callbacks and initial states. No callback correctness or totality premise is required. The result is AuthorizationPlanInvalid with both callback states unchanged.",
+        )),
+        "Auths.Composition.ValidationContract.public_event_bound" => Some((
+            "The public shipping evaluator emits at most 2048 events for every independently valid protocol-bounded plan.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+                "auths_composition::evaluate_node",
+            ],
+            "Every independently valid plan under depth at most 16 and at most 128 distinct leaves, with exact total branch and counting-observer contracts. This is a semantic event bound, not a bound on callback cost, allocation, stack or the complete verifier.",
+        )),
+        "Auths.Composition.ValidationExamples.public_conjunction" => Some((
+            "A kernel-checked public composition execution establishes the public_conjunction witness.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "The exact represented two- or three-leaf plan, declared limits and actual stateful callbacks in this statement. Positive and indeterminate results preserve every event; duplicate, threshold, width and depth refusals preserve both callback states. These witnesses do not establish leaf proof authenticity or full verifier acceptance.",
+        )),
+        "Auths.Composition.ValidationExamples.duplicate_refused" => Some((
+            "A kernel-checked public composition execution establishes the duplicate_refused witness.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "The exact represented two- or three-leaf plan, declared limits and actual stateful callbacks in this statement. Positive and indeterminate results preserve every event; duplicate, threshold, width and depth refusals preserve both callback states. These witnesses do not establish leaf proof authenticity or full verifier acceptance.",
+        )),
+        "Auths.Composition.ValidationExamples.zero_threshold_refused" => Some((
+            "A kernel-checked public composition execution establishes the zero_threshold_refused witness.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "The exact represented two- or three-leaf plan, declared limits and actual stateful callbacks in this statement. Positive and indeterminate results preserve every event; duplicate, threshold, width and depth refusals preserve both callback states. These witnesses do not establish leaf proof authenticity or full verifier acceptance.",
+        )),
+        "Auths.Composition.ValidationExamples.public_threshold_indeterminate" => Some((
+            "A kernel-checked public composition execution establishes the public_threshold_indeterminate witness.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "The exact represented two- or three-leaf plan, declared limits and actual stateful callbacks in this statement. Positive and indeterminate results preserve every event; duplicate, threshold, width and depth refusals preserve both callback states. These witnesses do not establish leaf proof authenticity or full verifier acceptance.",
+        )),
+        "Auths.Composition.ValidationExamples.narrow_refused" => Some((
+            "A kernel-checked public composition execution establishes the narrow_refused witness.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "The exact represented two- or three-leaf plan, declared limits and actual stateful callbacks in this statement. Positive and indeterminate results preserve every event; duplicate, threshold, width and depth refusals preserve both callback states. These witnesses do not establish leaf proof authenticity or full verifier acceptance.",
+        )),
+        "Auths.Composition.ValidationExamples.shallow_refused" => Some((
+            "A kernel-checked public composition execution establishes the shallow_refused witness.",
+            &[
+                "auths_composition::evaluate_observed",
+                "auths_model::{auths_model::AuthorizationPlan}::validate",
+            ],
+            "The exact represented two- or three-leaf plan, declared limits and actual stateful callbacks in this statement. Positive and indeterminate results preserve every event; duplicate, threshold, width and depth refusals preserve both callback states. These witnesses do not establish leaf proof authenticity or full verifier acceptance.",
+        )),
+        _ => None,
+    };
+    if let Some((claim_text, rust_symbols, scope)) = public {
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope,
+            residual_assumptions: PUBLIC_RESIDUAL,
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     const PLAN_RESIDUAL: &[&str] = &[
         "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed qualified discriminant names and isomorphic positive bounded-vector model, standard-library models, and listed foundational axioms are trusted. The official recursive-loop extraction flag changes no Rust semantics.",
         "The statements quantify over explicit native and model callbacks and require their exact stateful call contracts. They prove the inner plan evaluator, not the implementation of leaf verification, public plan validation, stage/registry composition, sealed result projection, full verifier work/stack bounds, or AP-SPEC-069 E2 as a whole.",

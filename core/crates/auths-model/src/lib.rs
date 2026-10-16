@@ -1894,6 +1894,19 @@ impl AuthorizationPlan {
     /// and [`ModelError::PlanLimitExceeded`] for excessive depth, excessive
     /// leaves, or repeated proof references.
     pub fn validate(&self, limits: &VerifierLimits) -> Result<PlanShape, ModelError> {
+        fn walk_members(
+            members: &[AuthorizationPlan],
+            depth: usize,
+            limits: &VerifierLimits,
+            refs: &mut BTreeSet<ProofRef>,
+            maximum_depth: &mut usize,
+        ) -> Result<(), ModelError> {
+            for member in members {
+                walk(member, depth + 1, limits, refs, maximum_depth)?;
+            }
+            Ok(())
+        }
+
         fn walk(
             plan: &AuthorizationPlan,
             depth: usize,
@@ -1918,9 +1931,7 @@ impl AuthorizationPlan {
                     if members.len() > limits.plan_branching {
                         return Err(ModelError::PlanLimitExceeded);
                     }
-                    for member in members {
-                        walk(member, depth + 1, limits, refs, maximum_depth)?;
-                    }
+                    walk_members(members, depth, limits, refs, maximum_depth)?;
                 }
                 AuthorizationPlanNode::KOfN { k, members } => {
                     if *k == 0 || usize::from(*k) > members.len() || members.is_empty() {
@@ -1929,9 +1940,7 @@ impl AuthorizationPlan {
                     if members.len() > limits.plan_branching {
                         return Err(ModelError::PlanLimitExceeded);
                     }
-                    for member in members {
-                        walk(member, depth + 1, limits, refs, maximum_depth)?;
-                    }
+                    walk_members(members, depth, limits, refs, maximum_depth)?;
                 }
             }
             Ok(())
@@ -1940,8 +1949,14 @@ impl AuthorizationPlan {
         let mut refs = BTreeSet::new();
         let mut maximum_depth = 0;
         walk(self, 1, limits, &mut refs, &mut maximum_depth)?;
+        // Keep collection visible to the pinned extractor instead of hiding
+        // it behind Iterator::collect's unsupported trait default.
+        let mut leaves = Vec::with_capacity(refs.len());
+        for reference in refs {
+            leaves.push(reference);
+        }
         Ok(PlanShape {
-            leaves: refs.into_iter().collect(),
+            leaves,
             maximum_depth,
         })
     }
@@ -5541,6 +5556,23 @@ mod tests {
             AuthorizationPlan::k_of_n(2, members(1)),
             Err(ModelError::InvalidPlan)
         );
+    }
+
+    #[test]
+    fn plan_shape_preserves_sorted_leaf_values_and_depth() {
+        let reference = |tag| ProofRef::new([tag; 32]);
+        let plan = AuthorizationPlan::all_of(vec![
+            AuthorizationPlan::proof(reference(3)),
+            AuthorizationPlan::any_of(vec![
+                AuthorizationPlan::proof(reference(2)),
+                AuthorizationPlan::proof(reference(1)),
+            ])
+            .unwrap(),
+        ])
+        .unwrap();
+        let shape = plan.validate(&VerifierLimits::hard()).unwrap();
+        assert_eq!(shape.leaves(), [reference(1), reference(2), reference(3)]);
+        assert_eq!(shape.maximum_depth(), 3);
     }
 
     #[test]

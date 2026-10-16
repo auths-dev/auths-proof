@@ -1,3 +1,4 @@
+import Auths.Composition.ValidationExamples
 import Auths.Composition.Examples
 import Auths.Composition.PlanExamples
 import Auths.Composition.Work

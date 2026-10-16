@@ -12,6 +12,16 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Composition.ValidationPublic.public_evaluator_refines" = "exact"
+"Auths.Composition.ValidationContract.valid_public_evaluator_refines" = "exact"
+"Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks" = "partial"
+"Auths.Composition.ValidationContract.public_event_bound" = "partial"
+"Auths.Composition.ValidationExamples.public_conjunction" = "case"
+"Auths.Composition.ValidationExamples.duplicate_refused" = "case"
+"Auths.Composition.ValidationExamples.zero_threshold_refused" = "case"
+"Auths.Composition.ValidationExamples.public_threshold_indeterminate" = "case"
+"Auths.Composition.ValidationExamples.narrow_refused" = "case"
+"Auths.Composition.ValidationExamples.shallow_refused" = "case"
 "Auths.Composition.Bounds.source_bounded_events" = "partial"
 "Auths.Composition.Traversal.evaluator_refines" = "exact"
 "Auths.Composition.Work.source_event_count" = "partial"

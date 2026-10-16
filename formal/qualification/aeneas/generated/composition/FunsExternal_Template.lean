@@ -15,6 +15,15 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 open auths_composition
 
+/-- [core::array::{impl core::cmp::Ord for [T; N]}::cmp]:
+    Source: '/rustc/library/core/src/array/mod.rs', lines 438:4-438:45
+    Name pattern: [core::array::{core::cmp::Ord<[@T; @N]>}::cmp]
+    Visibility: public -/
+@[rust_fun "core::array::{core::cmp::Ord<[@T; @N]>}::cmp"]
+axiom Array.Insts.CoreCmpOrd.cmp
+  {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T) :
+  Array T N → Array T N → Result Ordering
+
 /-- [core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from]:
     Source: '/rustc/library/core/src/convert/num.rs', lines 300:12-300:64
     Name pattern: [core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<u16, usize, core::num::error::TryFromIntError>}::try_from]
@@ -42,4 +51,67 @@ axiom core.option.Option.Insts.CoreDefaultDefault.default
 @[rust_fun "core::result::{core::result::Result<@T, @E>}::unwrap_or"]
 axiom core.result.Result.unwrap_or
   {T : Type} {E : Type} : core.result.Result T E → T → Result T
+
+/-- [alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new]:
+    Source: '/rustc/library/alloc/src/collections/btree/set.rs', lines 344:4-344:37
+    Name pattern: [alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<@T, alloc::alloc::Global>}::new]
+    Visibility: public -/
+@[rust_fun
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<@T, alloc::alloc::Global>}::new"]
+axiom alloc.collections.btree.set.BTreeSetTGlobal.new
+  (T : Type) : Result (alloc.collections.btree.set.BTreeSet T Global)
+
+/-- [alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert]:
+    Source: '/rustc/library/alloc/src/collections/btree/set.rs', lines 900:4-902:15
+    Name pattern: [alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<@T, @A>}::insert]
+    Visibility: public -/
+@[rust_fun
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<@T, @A>}::insert"]
+axiom alloc.collections.btree.set.BTreeSet.insert
+  {T : Type} {A : Type} (corecloneCloneInst : core.clone.Clone A)
+  (corecmpOrdInst : core.cmp.Ord T) :
+  alloc.collections.btree.set.BTreeSet T A → T → Result (Bool ×
+    (alloc.collections.btree.set.BTreeSet T A))
+
+/-- [alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len]:
+    Source: '/rustc/library/alloc/src/collections/btree/set.rs', lines 1269:4-1269:36
+    Name pattern: [alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<@T, @A>}::len]
+    Visibility: public -/
+@[rust_fun
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<@T, @A>}::len"]
+axiom alloc.collections.btree.set.BTreeSet.len
+  {T : Type} {A : Type} (corecloneCloneInst : core.clone.Clone A) :
+  alloc.collections.btree.set.BTreeSet T A → Result Std.Usize
+
+/-- [alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter]:
+    Source: '/rustc/library/alloc/src/collections/btree/set.rs', lines 1536:4-1536:40
+    Name pattern: [alloc::collections::btree::set::{core::iter::traits::collect::IntoIterator<alloc::collections::btree::set::BTreeSet<@T, @A>, @T, alloc::collections::btree::set::IntoIter<@T, @A>>}::into_iter]
+    Visibility: public -/
+@[rust_fun
+  "alloc::collections::btree::set::{core::iter::traits::collect::IntoIterator<alloc::collections::btree::set::BTreeSet<@T, @A>, @T, alloc::collections::btree::set::IntoIter<@T, @A>>}::into_iter"]
+axiom
+  alloc.collections.btree.set.BTreeSet.Insts.CoreIterTraitsCollectIntoIteratorTIntoIter.into_iter
+  {T : Type} {A : Type} (corecloneCloneInst : core.clone.Clone A) :
+  alloc.collections.btree.set.BTreeSet T A → Result
+    (alloc.collections.btree.set.IntoIter T A)
+
+/-- [alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next]:
+    Source: '/rustc/library/alloc/src/collections/btree/set.rs', lines 1816:4-1816:35
+    Name pattern: [alloc::collections::btree::set::{core::iter::traits::iterator::Iterator<alloc::collections::btree::set::IntoIter<@T, @A>, @T>}::next]
+    Visibility: public -/
+@[rust_fun
+  "alloc::collections::btree::set::{core::iter::traits::iterator::Iterator<alloc::collections::btree::set::IntoIter<@T, @A>, @T>}::next"]
+axiom
+  alloc.collections.btree.set.IntoIter.Insts.CoreIterTraitsIteratorIterator.next
+  {T : Type} {A : Type} (corecloneCloneInst : core.clone.Clone A) :
+  alloc.collections.btree.set.IntoIter T A → Result ((Option T) ×
+    (alloc.collections.btree.set.IntoIter T A))
+
+/-- [alloc::vec::{alloc::vec::Vec<T>}::is_empty]:
+    Source: '/rustc/library/alloc/src/vec/mod.rs', lines 3085:4-3085:40
+    Name pattern: [alloc::vec::{alloc::vec::Vec<@T>}::is_empty]
+    Visibility: public -/
+@[rust_fun "alloc::vec::{alloc::vec::Vec<@T>}::is_empty"]
+axiom alloc.vec.Vec.is_empty
+  {T : Type} (A : Type) : alloc.vec.Vec T → Result Bool
 

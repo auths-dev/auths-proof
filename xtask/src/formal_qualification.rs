@@ -13,12 +13,16 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "96db4f91f6e77f1108789e644158ac9a1a7c4badeecd61e0387fd4c921750d09";
+    "0df9cdd56bc010cd2b2dd95d531e4e5d3f91f3a99fbab85fb2001eb74ce8011b";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
         "composition-run/qualification/aeneas/generated/composition/Types.lean",
         "formal/qualification/aeneas/generated/composition/Types.lean",
+    ),
+    (
+        "composition-run/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
+        "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
     ),
     (
         "composition-run/qualification/aeneas/generated/composition/Funs.lean",
@@ -163,6 +167,7 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
     "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
     "formal/qualification/aeneas/generated/codec/TypesExternal.lean",
     "formal/qualification/aeneas/generated/codec/FunsExternal.lean",
@@ -176,6 +181,8 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/composition/Types.lean",
+    "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
     "formal/qualification/aeneas/generated/composition/Funs.lean",
     "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
@@ -304,6 +311,7 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/codec/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/codec/FunsExternal_Template.lean",
@@ -645,9 +653,9 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     }
     if qualification.case_modules.len() != 10
         || qualification.translations.len() != 10
-        || qualification.external_models.len() != 8
+        || qualification.external_models.len() != 10
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 6
+        || qualification.template_axioms.len() != 7
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -1095,6 +1103,10 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
+            render_composition_types_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
             render_composition_external(),
         ),
@@ -1136,75 +1148,189 @@ fn synchronize_reviewed_bridges(
     Ok(())
 }
 
+fn render_composition_types_external() -> String {
+    r##"-- REVIEWED: bounded ordered-set and consuming-iterator carriers.
+-- Only Global allocation and the translated fixed-width ProofRef order are used.
+import Aeneas
+import Auths.Support.Discriminant
+import Auths.Support.PositiveVec
+open Aeneas Aeneas.Std
+namespace alloc.collections.btree.set
+structure BTreeSet (T A : Type) where
+  values : List T
+  bound : values.length ≤ Usize.max
+structure IntoIter (T A : Type) where
+  values : List T
+  bound : values.length ≤ Usize.max
+end alloc.collections.btree.set
+"##
+    .to_owned()
+}
+
 fn render_composition_external() -> String {
-    "-- REVIEWED: Option::default is None; the two numeric/Result operations\n-- delegate to the existing exact standard-library models.\nimport qualification.aeneas.generated.composition.Types\nimport qualification.aeneas.generated.codec.FunsExternal\nopen Aeneas Aeneas.Std Result\n\ndef core.option.Option.Insts.CoreDefaultDefault.default (T : Type) : Result (Option T) := ok none\n".to_owned()
+    r##"-- REVIEWED: exact standard-container links and the pinned Rust Ord::max rule.
+-- Ordered-set models are scoped to Global + copied ProofRef values and their
+-- proved lawful order. They model set behavior, not Rust allocation or tree cost.
+import qualification.aeneas.generated.composition.Types
+import qualification.aeneas.generated.codec.FunsExternal
+open Aeneas Aeneas.Std Result
+
+namespace auths_composition.alloc.vec
+
+def Vec.with_capacity (T : Type) (capacity : Std.Usize) : Vec T :=
+  Vec.ofBase (Aeneas.Std.alloc.vec.Vec.with_capacity T capacity)
+
+def Vec.len {T : Type} (value : Vec T) : Std.Usize :=
+  Aeneas.Std.alloc.vec.Vec.len value.toBase
+
+def Vec.push {T : Type} (value : Vec T) (element : T) : Result (Vec T) := do
+  let updated ← Aeneas.Std.alloc.vec.Vec.push value.toBase element
+  ok (Vec.ofBase updated)
+
+def Vec.is_empty {T : Type} (_A : Type) (value : Vec T) : Result Bool :=
+  ok value.elements.toList.isEmpty
+
+end auths_composition.alloc.vec
+
+@[trait_default] def auths_composition.core.cmp.Ord.max.default {T : Type}
+    (order : Aeneas.Std.core.cmp.Ord T) (left right : T) : Result T := do
+  let greater ← order.partialOrdInst.lt right left
+  if greater then ok left else ok right
+
+def core.option.Option.Insts.CoreDefaultDefault.default (T : Type) : Result (Option T) := ok none
+
+namespace alloc.collections.btree.set
+
+def insertValues {T : Type} (order : core.cmp.Ord T) (value : T) :
+    List T → Result (Bool × List T)
+  | [] => ok (true, [value])
+  | head :: tail => do
+      let comparison ← order.cmp value head
+      match comparison with
+      | .lt => ok (true, value :: head :: tail)
+      | .eq => ok (false, head :: tail)
+      | .gt =>
+          let (added, remaining) ← insertValues order value tail
+          ok (added, head :: remaining)
+
+def BTreeSetTGlobal.new (T : Type) : Result (BTreeSet T Global) :=
+  ok ⟨[], by simp⟩
+
+def BTreeSet.insert {T A : Type} (_allocator : core.clone.Clone A) (order : core.cmp.Ord T)
+    (state : BTreeSet T A) (value : T) : Result (Bool × BTreeSet T A) := do
+  let (added, values) ← insertValues order value state.values
+  (if bound : values.length ≤ Usize.max then
+    ok (added, ⟨values, bound⟩)
+  else
+    fail .maximumSizeExceeded)
+
+def BTreeSet.len {T A : Type} (_allocator : core.clone.Clone A)
+    (state : BTreeSet T A) : Result Std.Usize :=
+  ok (Usize.ofNatCore state.values.length (by have bound := state.bound; scalar_tac))
+
+def BTreeSet.Insts.CoreIterTraitsCollectIntoIteratorTIntoIter.into_iter
+    {T A : Type} (_allocator : core.clone.Clone A) (state : BTreeSet T A) :
+    Result (IntoIter T A) := ok ⟨state.values, state.bound⟩
+
+def IntoIter.Insts.CoreIterTraitsIteratorIterator.next
+    {T A : Type} (_allocator : core.clone.Clone A) (state : IntoIter T A) :
+    Result (Option T × IntoIter T A) :=
+  match same : state.values with
+  | [] => ok (none, state)
+  | head :: tail => ok (some head, ⟨tail, by have bound := state.bound; rw [same] at bound; simp only [List.length_cons] at bound; omega⟩)
+
+end alloc.collections.btree.set
+"##.to_owned()
 }
 
 fn render_model_external() -> String {
-    "-- REVIEWED TRANSPARENT MODEL FOR AN AENEAS STANDARD-LIBRARY EXTERNAL.\n\
---\n\
--- Rust string equality and ordering use Lean's exact String instances,\n\
--- `String::as_bytes` uses Aeneas' exact UTF-8 `Str` conversion, and fixed\n\
--- arrays are compared lexicographically through the translated element\n\
--- `Ord` instance. This file contains no authority semantics and no axiom.\n\
-import Aeneas\n\
-import qualification.aeneas.generated.model.Types\n\
-\n\
-open Aeneas Aeneas.Std Result ControlFlow Error\n\
-\n\
-set_option linter.dupNamespace false\n\
-set_option linter.hashCommand false\n\
-set_option linter.unusedVariables false\n\
-set_option maxHeartbeats 1000000\n\
-set_option maxRecDepth 2048\n\
-\n\
-private def compareLists {T : Type} (cmpOrdInst : core.cmp.Ord T) :\n\
-    List T → List T → Result Ordering\n\
-  | [], [] => ok .eq\n\
-  | [], _ :: _ => ok .lt\n\
-  | _ :: _, [] => ok .gt\n\
-  | left :: leftTail, right :: rightTail => do\n\
-      let ordering ← cmpOrdInst.cmp left right\n\
-      match ordering with\n\
-      | Ordering.eq => compareLists cmpOrdInst leftTail rightTail\n\
-      | ordering => ok ordering\n\
-\n\
-@[rust_fun \"core::array::{core::cmp::Ord<[@T; @N]>}::cmp\"]\n\
-def Array.Insts.CoreCmpOrd.cmp\n\
-    {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T)\n\
-    (left right : Array T N) : Result Ordering :=\n\
-  compareLists cmpOrdInst left.val right.val\n\
-\n\
-@[rust_fun\n\
-  \"alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq\"]\n\
-def alloc.string.String.Insts.CoreCmpPartialEqString.eq\n\
-    (left right : String) : Result Bool :=\n\
-  ok (left == right)\n\
-\n\
-@[rust_fun \"alloc::string::{core::cmp::Ord<alloc::string::String>}::cmp\"]\n\
-def alloc.string.String.Insts.CoreCmpOrd.cmp\n\
-    (left right : String) : Result Ordering :=\n\
-  ok (compare left right)\n\
-\n\
-@[rust_fun \"alloc::string::{alloc::string::String}::as_bytes\"]\n\
-def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=\n\
-  if h : value.toByteArray.size ≤ U32.max then\n\
-    ok (Aeneas.Std.toStr value h)\n\
-  else\n\
-    fail .panic\n\
-\n\
-@[rust_fun \"core::str::{str}::len\"]\n\
-def core.str.Str.len (value : Str) : Result Std.Usize :=\n\
-  ok (Slice.len value)\n\
-\n\
-@[rust_fun \"core::str::{str}::is_empty\"]\n\
-def core.str.Str.is_empty (value : Str) : Result Bool :=\n\
-  ok value.val.isEmpty\n\
-\n\
-@[rust_fun \"core::str::{str}::as_bytes\"]\n\
-def core.str.Str.as_bytes (value : Str) : Result (Slice Std.U8) :=\n\
-  ok value\n"
-        .to_owned()
+    r##"-- REVIEWED TRANSPARENT MODEL FOR AN AENEAS STANDARD-LIBRARY EXTERNAL.
+--
+-- Rust string equality and ordering use Lean's exact String instances,
+-- `String::as_bytes` uses Aeneas' exact UTF-8 `Str` conversion, and fixed
+-- arrays are compared lexicographically through the translated element
+-- `Ord` instance. This file contains no authority semantics and no axiom.
+import Aeneas
+import qualification.aeneas.generated.model.Types
+
+open Aeneas Aeneas.Std Result ControlFlow Error
+
+set_option linter.dupNamespace false
+set_option linter.hashCommand false
+set_option linter.unusedVariables false
+set_option maxHeartbeats 1000000
+set_option maxRecDepth 2048
+
+private def compareLists {T : Type} (cmpOrdInst : core.cmp.Ord T) :
+List T → List T → Result Ordering
+| [], [] => ok .eq
+| [], _ :: _ => ok .lt
+| _ :: _, [] => ok .gt
+| left :: leftTail, right :: rightTail => do
+let ordering ← cmpOrdInst.cmp left right
+match ordering with
+| Ordering.eq => compareLists cmpOrdInst leftTail rightTail
+| ordering => ok ordering
+
+-- Public views expose the existing model for downstream proofs. Every
+-- equation below reduces to the original private implementation.
+def Array.Insts.CoreCmpOrd.compareValues {T : Type} (order : core.cmp.Ord T)
+    (left right : List T) : Result Ordering := compareLists order left right
+
+theorem Array.Insts.CoreCmpOrd.compareValues_nil_nil {T : Type} (order : core.cmp.Ord T) :
+    compareValues order [] [] = ok .eq := rfl
+
+theorem Array.Insts.CoreCmpOrd.compareValues_nil_cons {T : Type} (order : core.cmp.Ord T)
+    (head : T) (tail : List T) : compareValues order [] (head :: tail) = ok .lt := rfl
+
+theorem Array.Insts.CoreCmpOrd.compareValues_cons_nil {T : Type} (order : core.cmp.Ord T)
+    (head : T) (tail : List T) : compareValues order (head :: tail) [] = ok .gt := rfl
+
+theorem Array.Insts.CoreCmpOrd.compareValues_cons_cons {T : Type} (order : core.cmp.Ord T)
+    (left right : T) (leftTail rightTail : List T) :
+    compareValues order (left :: leftTail) (right :: rightTail) =
+      (do let ordering ← order.cmp left right
+          match ordering with
+          | .eq => compareValues order leftTail rightTail
+          | ordering => ok ordering) := rfl
+
+@[rust_fun "core::array::{core::cmp::Ord<[@T; @N]>}::cmp"]
+def Array.Insts.CoreCmpOrd.cmp
+{T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T)
+(left right : Array T N) : Result Ordering :=
+compareLists cmpOrdInst left.val right.val
+
+@[rust_fun
+"alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq"]
+def alloc.string.String.Insts.CoreCmpPartialEqString.eq
+(left right : String) : Result Bool :=
+ok (left == right)
+
+@[rust_fun "alloc::string::{core::cmp::Ord<alloc::string::String>}::cmp"]
+def alloc.string.String.Insts.CoreCmpOrd.cmp
+(left right : String) : Result Ordering :=
+ok (compare left right)
+
+@[rust_fun "alloc::string::{alloc::string::String}::as_bytes"]
+def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=
+if h : value.toByteArray.size ≤ U32.max then
+ok (Aeneas.Std.toStr value h)
+else
+fail .panic
+
+@[rust_fun "core::str::{str}::len"]
+def core.str.Str.len (value : Str) : Result Std.Usize :=
+ok (Slice.len value)
+
+@[rust_fun "core::str::{str}::is_empty"]
+def core.str.Str.is_empty (value : Str) : Result Bool :=
+ok value.val.isEmpty
+
+@[rust_fun "core::str::{str}::as_bytes"]
+def core.str.Str.as_bytes (value : Str) : Result (Slice Std.U8) :=
+ok value
+"##
+    .to_owned()
 }
 
 fn render_authority_types_external() -> String {
@@ -1364,6 +1490,15 @@ fn render_authority_functions_external(dimensions: &[String]) -> String {
     output
 }
 
+// The pinned generator starts declarations on a new line but may place a long
+// name after the keyword on the following line. Both layouts must be counted
+// and forbidden identically in compiled bridges.
+fn is_lean_axiom_declaration(line: &str) -> bool {
+    line.trim_start()
+        .strip_prefix("axiom")
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace))
+}
+
 fn validate_generated_inventory(root: &Path, qualification: &Qualification) -> Result<(), String> {
     for relative in &qualification.generated_files {
         let path = root.join(relative);
@@ -1378,11 +1513,14 @@ fn validate_generated_inventory(root: &Path, qualification: &Qualification) -> R
         {
             let source = fs::read_to_string(&path)
                 .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-            for forbidden in ["axiom ", "sorry", "admit"] {
-                if source
-                    .lines()
-                    .any(|line| line.trim_start().starts_with(forbidden))
-                {
+            for forbidden in ["axiom", "sorry", "admit"] {
+                if source.lines().any(|line| {
+                    if forbidden == "axiom" {
+                        is_lean_axiom_declaration(line)
+                    } else {
+                        line.trim_start().starts_with(forbidden)
+                    }
+                }) {
                     return Err(format!(
                         "compiled qualification artifact contains forbidden `{forbidden}`: {relative}"
                     ));
@@ -1401,7 +1539,7 @@ fn validate_generated_inventory(root: &Path, qualification: &Qualification) -> R
             .map_err(|error| format!("could not read {}: {error}", inventory.artifact))?;
         let count = source
             .lines()
-            .filter(|line| line.trim_start().starts_with("axiom "))
+            .filter(|line| is_lean_axiom_declaration(line))
             .count();
         if count != inventory.count {
             return Err(format!(
@@ -2027,7 +2165,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_composition::evaluate_node",
+            "auths_composition::evaluate_observed",
             &stable_llbc.join("auths_composition.llbc"),
             "core/crates/auths-composition/Cargo.toml",
             &[
@@ -2288,7 +2426,7 @@ fn normalize_composition_discriminants(output: &Path) -> Result<(), String> {
     let path = output.join("composition-run/qualification/aeneas/generated/composition/Types.lean");
     let source = fs::read_to_string(&path)
         .map_err(|error| format!("could not read composition types: {error}"))?;
-    if source.matches("discriminant isize").count() != 7
+    if source.matches("discriminant isize").count() != 8
         || source.matches("import Aeneas\n").count() != 1
         || source.contains("qualified_discriminant")
     {
@@ -3084,6 +3222,61 @@ def character := 's'
             "generated-changed"
         );
         fs::remove_file(path).expect("remove owned evidence fixture");
+    }
+
+    #[test]
+    fn axiom_inventory_covers_split_names_and_compiled_bridge_refusal() {
+        for source in [
+            "axiom imported : Type",
+            "axiom\n  imported : Type",
+            "  axiom\timported : Type",
+        ] {
+            assert_eq!(
+                source
+                    .lines()
+                    .filter(|line| is_lean_axiom_declaration(line))
+                    .count(),
+                1
+            );
+        }
+        for line in [
+            "-- axiom imported : Type",
+            "def axiomName := true",
+            "axiomatic_identifier",
+        ] {
+            assert!(!is_lean_axiom_declaration(line));
+        }
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root");
+        let mut qualification = load_qualification(repository).expect("current inventory");
+        let directory = tempfile::tempdir().expect("owned gate fixture");
+        qualification.generated_files = vec!["FunsExternal.lean".to_owned()];
+        qualification.template_axioms.clear();
+        fs::write(
+            directory.path().join("FunsExternal.lean"),
+            "axiom\n  unchecked : Type\n",
+        )
+        .expect("split declaration fixture");
+        let error = validate_generated_inventory(directory.path(), &qualification)
+            .expect_err("a split-name axiom must also be refused in compiled bridges");
+        assert!(error.contains("forbidden `axiom`"));
+
+        qualification.generated_files = vec!["FunsExternal_Template.lean".to_owned()];
+        qualification.template_axioms.push(TemplateAxiomInventory {
+            artifact: "FunsExternal_Template.lean".to_owned(),
+            count: 1,
+            compiled: false,
+        });
+        fs::write(
+            directory.path().join("FunsExternal_Template.lean"),
+            "axiom\n  imported : Type\n",
+        )
+        .expect("uncompiled template fixture");
+        validate_generated_inventory(directory.path(), &qualification)
+            .expect("exact template count");
+        qualification.template_axioms[0].count = 0;
+        assert!(validate_generated_inventory(directory.path(), &qualification).is_err());
     }
 
     #[test]

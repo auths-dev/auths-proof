@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "64d845b2d6cebe06e27879dbaccda54b8425fbb29e7733e1a5f5e5c4a5737ede",
+  "digest": "4040407246158f925ab3e1ca2569573196977d706975f4b8a05a785528ea7dd1",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -189,7 +189,7 @@
     },
     {
       "path": "core/crates/auths-composition/src/lib.rs",
-      "sha256": "729387077a0b7f369185060dace694c98f50a45621ec3a801581022ce47e525b"
+      "sha256": "e8a0f96ae904d831042f2284c5b8a7a8c9ccb030b4d6ac4b9912229039d4f535"
     },
     {
       "path": "core/crates/auths-composition/src/oracle.rs",
@@ -241,7 +241,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "3d95d9458a09551e8e39268bcabc8200df8da9def29c83a708aa066bec66b505"
+      "sha256": "696adf50f66c63d2b7845dd91729b020012b5954ef6c0c76fa2d9d6e06043281"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",
@@ -473,7 +473,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Composition.lean",
-      "sha256": "628573647204a5c05d23db17e2b6eff0a096b99becd297be23b6fead050b614c"
+      "sha256": "a3573d1c039bc9e8251da6aff729ec5664f58ddeea7bc4cdfb42871bc0b74aa6"
     },
     {
       "path": "formal/qualification/aeneas/cases/Connections.lean",
@@ -497,7 +497,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "9cb8abf78e0437f9f0a3549a8daa196111fd14679a1ef58401bb8291cb559dc7"
+      "sha256": "0c599635cae1673f9eb533a403451c45833a1f579bc4a8fb65b900d729e0bb81"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -885,7 +885,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "203523a62b95ebfd98ee076d76d2687fdde623826f511c13c915842f6d063b1e"
+      "sha256": "4ece2beb4ed8e94dee07d901c4b6763530668942b829ca0ccd55cb138d2d9290"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -897,7 +897,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "238a457e5cff36f868819b2062ea87d7722c352658719ecd115dd5b37ba0f461"
+      "sha256": "fed19998068cc15948fca2219b1390ed1a6792019e6a713359766ca962b12a59"
     },
     {
       "path": "xtask/src/fuzz.rs",

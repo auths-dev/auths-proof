@@ -102,8 +102,10 @@ pub fn evaluate_observed(
     branch: &mut impl FnMut(ProofRef) -> BranchOutcome,
     observer: &mut impl FnMut(EvaluationEvent),
 ) -> Result<BranchOutcome, DenialReason> {
-    plan.validate(limits)
-        .map_err(|_| DenialReason::AuthorizationPlanInvalid)?;
+    match plan.validate(limits) {
+        Ok(_) => {}
+        Err(_) => return Err(DenialReason::AuthorizationPlanInvalid),
+    }
     Ok(evaluate_node(plan, branch, observer))
 }
 
@@ -390,6 +392,32 @@ mod tests {
         assert_eq!(branches, max_leaves);
         assert_eq!(events, 1 + max_leaves * (max_depth - 1));
         assert!(events <= max_leaves * max_depth);
+    }
+
+    #[test]
+    fn lower_deployment_limits_refuse_before_any_callback() {
+        let plan = AuthorizationPlan::all_of(
+            (1..=3)
+                .map(|tag| AuthorizationPlan::proof(ProofRef::new([tag; 32])))
+                .collect(),
+        )
+        .unwrap();
+        let limits = VerifierLimits::hard()
+            .with_limit(auths_model::LimitKind::PlanBranching, 2)
+            .expect("lower deployment bound");
+        let mut branches = 0;
+        let mut events = 0;
+        let result = evaluate_observed(
+            &plan,
+            &limits,
+            &mut |_| {
+                branches += 1;
+                BranchOutcome::Authorized
+            },
+            &mut |_| events += 1,
+        );
+        assert_eq!(result, Err(DenialReason::AuthorizationPlanInvalid));
+        assert_eq!((branches, events), (0, 0));
     }
 
     fn nested_plan(seed: u64, leaves: &[u8]) -> AuthorizationPlan {
