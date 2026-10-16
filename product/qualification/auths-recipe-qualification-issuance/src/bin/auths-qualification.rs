@@ -847,9 +847,10 @@ mod tests {
                 "synthetic-certificate.json",
             ])
             .expect("base64url public key is one argument");
-            let options = match parsed.command {
-                Command::Certify(options) | Command::CertifyCommissioner(options) => options,
-                _ => panic!("expected a certificate command"),
+            let (Command::Certify(options) | Command::CertifyCommissioner(options)) =
+                parsed.command
+            else {
+                panic!("expected a certificate command");
             };
             assert_eq!(options.public_key, public_key.as_str());
         }
