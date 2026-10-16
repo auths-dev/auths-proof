@@ -416,7 +416,7 @@ def auths_model.AuthorizationPlan.validate
       residual
 
 /-- [auths_model::{auths_model::Requirement}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4993:8-4993:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5007:8-5007:39
     Name pattern: [auths_model::{auths_model::Requirement}::code_order] -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_order"]
 def auths_model.Requirement.code_order
@@ -445,7 +445,7 @@ def auths_model.Requirement.code_order
   | auths_model.Requirement.ApprovalUnavailable => ok 0#u8
 
 /-- [auths_model::{auths_model::Requirement}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4989:8-4989:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5003:8-5003:61
     Name pattern: [auths_model::{auths_model::Requirement}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_precedes"]
@@ -458,7 +458,7 @@ def auths_model.Requirement.code_precedes
   ok (i < i1)
 
 /-- [auths_model::{auths_model::DenialReason}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4993:8-4993:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5007:8-5007:39
     Name pattern: [auths_model::{auths_model::DenialReason}::code_order] -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_order"]
 def auths_model.DenialReason.code_order
@@ -512,7 +512,7 @@ def auths_model.DenialReason.code_order
   | auths_model.DenialReason.ApprovalThresholdNotMet => ok 4#u8
 
 /-- [auths_model::{auths_model::DenialReason}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4989:8-4989:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5003:8-5003:61
     Name pattern: [auths_model::{auths_model::DenialReason}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_precedes"]

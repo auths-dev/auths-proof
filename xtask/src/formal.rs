@@ -2044,6 +2044,19 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
         if [
+            "Auths.StatusSelection.byte_array_comparison",
+            "Auths.StatusSelection.native_floor_view",
+            "Auths.StatusSelection.unknown_issuer_visible",
+            "AuthsStatusSelection.lt_default_delegates",
+            "AuthsStatusSelection.gt_default_delegates",
+            "AuthsStatusSelection.max_default_delegates",
+        ]
+        .contains(&declaration.name.as_str())
+        {
+            claim.claim_text = "The displayed independent issuer-visibility law, exact first-rule representation bridge, standard byte-array model or unconditional dictionary projection holds.".to_owned();
+            claim.scope = "Only the displayed model or representation/standard-interface statement. The semantic visibility model has no generated-Rust import. These are not proofs of signature authenticity, complete selector/filter-max equivalence, anchor selection, constructor validity or full E2/M6.".to_owned();
+        }
+        if [
             "Auths.TemporalWitness.assurance_permits_iff",
             "Auths.TemporalWitness.successful_horizon_bounded",
             "AuthsTemporalWitness.lt_default_delegates",
@@ -2402,6 +2415,9 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const STATUS_SELECTION_TRANSLATION: &str =
+    "formal/qualification/aeneas/generated/status_selection/Funs.lean";
+
 const TEMPORAL_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/temporal_witness/Funs.lean";
 
@@ -2423,8 +2439,12 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    temporal_refinement_metadata(declaration)
-        .map(|metadata| (metadata, TEMPORAL_TRANSLATION))
+    status_selection_refinement_metadata(declaration)
+        .map(|metadata| (metadata, STATUS_SELECTION_TRANSLATION))
+        .or_else(|| {
+            temporal_refinement_metadata(declaration)
+                .map(|metadata| (metadata, TEMPORAL_TRANSLATION))
+        })
         .or_else(|| {
             suite_adapter_refinement_metadata(declaration)
                 .map(|metadata| (metadata, SUITE_ADAPTER_TRANSLATION))
@@ -2498,6 +2518,136 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn status_selection_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust Lean's kernel, the pinned Rust/Charon/Aeneas/Lean compiler boundary, permitted foundations and reviewed standard-library models. Every Auths helper, getter, comparison and selector body in this unit is translated with no opaque Auths algorithm. Standard dictionary adapters have unconditional compiled delegation equalities; no generated function body is rewritten.",
+        "Inputs are represented finite bounded slices and 64-bit values. The loop remaining-list relation is an internal representation invariant established at entry. Totality is in qualified Result semantics, not a full verifier work bound, physical memory, host-clock or transport guarantee.",
+        "The result-complete principal/grant selector statements here fix the view to Approver and refine an implementation-facing pure scan. Its equivalence to the independently defined filter/maximum/tie-set specification is not yet proved. Anchor views, sorted-scope binary-search membership, actual evidence authentication, registry dispatch, caller witness selection, complete verification and runtime entry/history consumption remain separate AP-SPEC-069 obligations. No whole E2/E4/M3/M6 milestone is closed.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.StatusSelection.sequence_floor_refines" => (
+            "The actual first-rule scan terminates and returns the independent first exact method/issuer rule sequence floor.",
+            &["auths_registries::status_sequence_floor"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.approver_visibility_refines" => (
+            "The actual approval-view visibility scan terminates and agrees with every matching issuer rule having universal scope.",
+            &["auths_model::status_issuer_visible"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.freshness_exact" => (
+            "The actual snapshot-required freshness helper returns Active iff observation ordering, inclusive expiry and maximum age hold.",
+            &["auths_registries::{auths_registries::ExactStatusMethod}::freshness"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.principal_loop_refines" => (
+            "The actual principal status loop terminates and preserves every field of the implementation-facing approval-view accumulator.",
+            &["auths_registries::select_principal_from_snapshot"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.principal_selector_approver_refines" => (
+            "The actual principal selector agrees with the implementation-facing approval-view scan, including all policy/header/result fields.",
+            &["auths_registries::select_principal_from_snapshot"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.principal_method_approver_refines" => (
+            "The shipping principal port method returns the exact typed approval-view scan result without a caller-supplied desired result.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.grant_loop_refines" => (
+            "The actual grant status loop terminates and preserves every field of the implementation-facing approval-view accumulator.",
+            &["auths_registries::select_grant_from_snapshot"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.grant_selector_approver_refines" => (
+            "The actual grant selector agrees with the implementation-facing approval-view scan, including all policy/header/result fields.",
+            &["auths_registries::select_grant_from_snapshot"],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.grant_method_approver_refines" => (
+            "The shipping grant port method returns the exact typed approval-view scan result without a caller-supplied desired result.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant",
+            ],
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+        ),
+        "Auths.StatusSelection.Examples.active_selected_horizon" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.revoked_selected_horizon" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.stale_selected_refused" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.rollback_despite_newer" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.newer_discards_old_stale_revocation" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.latest_ties_conservatively_revoke" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.wrong_method_refused" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.missing_uses_snapshot_window" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        "Auths.StatusSelection.Examples.unknown_issuer_refused" => (
+            "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Only the displayed concrete approval-view native port input, complete status decision and horizon. The synthetic signature carriers are shape-valid, not authenticity witnesses. Evidence authentication is a separate caller obligation; no complete authorization, constructor closure, registry dispatch or provider effect is claimed.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn temporal_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

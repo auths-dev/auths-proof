@@ -418,8 +418,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4993,
-        "end_line": 4993
+        "begin_line": 5007,
+        "end_line": 5007
       },
       "is_opaque": false,
       "can_fail": true,
@@ -435,8 +435,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4989,
-        "end_line": 4989
+        "begin_line": 5003,
+        "end_line": 5003
       },
       "is_opaque": false,
       "can_fail": true,
@@ -452,8 +452,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4993,
-        "end_line": 4993
+        "begin_line": 5007,
+        "end_line": 5007
       },
       "is_opaque": false,
       "can_fail": true,
@@ -469,8 +469,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4989,
-        "end_line": 4989
+        "begin_line": 5003,
+        "end_line": 5003
       },
       "is_opaque": false,
       "can_fail": true,
@@ -830,8 +830,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 5190,
-        "end_line": 5190
+        "begin_line": 5204,
+        "end_line": 5204
       }
     },
     {
@@ -842,8 +842,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 3608,
-        "end_line": 3608
+        "begin_line": 3622,
+        "end_line": 3622
       }
     },
     {
@@ -866,8 +866,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4924,
-        "end_line": 4924
+        "begin_line": 4938,
+        "end_line": 4938
       }
     },
     {
@@ -878,8 +878,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 5109,
-        "end_line": 5109
+        "begin_line": 5123,
+        "end_line": 5123
       }
     },
     {

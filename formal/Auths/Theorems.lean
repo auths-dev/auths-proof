@@ -1,3 +1,4 @@
+import Auths.Verifier.StatusExamples
 import Auths.Verifier.TemporalExamples
 import Auths.Crypto.SuiteAdapterExamples
 import Auths.Crypto.P256Examples
@@ -50,6 +51,30 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.StatusSelection.sequence_floor_refines,
+    `Auths.StatusSelection.approver_visibility_refines,
+    `Auths.StatusSelection.freshness_exact,
+    `Auths.StatusSelection.principal_loop_refines,
+    `Auths.StatusSelection.principal_selector_approver_refines,
+    `Auths.StatusSelection.principal_method_approver_refines,
+    `Auths.StatusSelection.grant_loop_refines,
+    `Auths.StatusSelection.grant_selector_approver_refines,
+    `Auths.StatusSelection.grant_method_approver_refines,
+    `Auths.StatusSelection.byte_array_comparison,
+    `Auths.StatusSelection.native_floor_view,
+    `Auths.StatusSelection.unknown_issuer_visible,
+    `AuthsStatusSelection.lt_default_delegates,
+    `AuthsStatusSelection.gt_default_delegates,
+    `AuthsStatusSelection.max_default_delegates,
+    `Auths.StatusSelection.Examples.active_selected_horizon,
+    `Auths.StatusSelection.Examples.revoked_selected_horizon,
+    `Auths.StatusSelection.Examples.stale_selected_refused,
+    `Auths.StatusSelection.Examples.rollback_despite_newer,
+    `Auths.StatusSelection.Examples.newer_discards_old_stale_revocation,
+    `Auths.StatusSelection.Examples.latest_ties_conservatively_revoke,
+    `Auths.StatusSelection.Examples.wrong_method_refused,
+    `Auths.StatusSelection.Examples.missing_uses_snapshot_window,
+    `Auths.StatusSelection.Examples.unknown_issuer_refused,
     `Auths.TemporalWitness.status_horizon_exact,
     `Auths.TemporalWitness.status_horizon_accepts_iff,
     `Auths.TemporalWitness.status_horizon_stale_refused,

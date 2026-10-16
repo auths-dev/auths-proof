@@ -491,34 +491,14 @@ impl StatusMethod for ExactStatusMethod {
         view: StatusView<'_>,
         evaluation_time: Timestamp,
     ) -> Result<StatusEvaluation, RegistryOperationError> {
-        let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::Active,
-                Timestamp::new(u64::MAX),
-            ));
-        };
-        if method != &self.id {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::WrongMethod,
-                evaluation_time,
-            ));
-        }
-        if snapshot.observed_at() > evaluation_time || snapshot.valid_until() < evaluation_time {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::Stale,
-                evaluation_time,
-            ));
-        }
-        let candidates: Vec<_> = snapshot
-            .statements()
-            .iter()
-            .map(auths_model::SignedPrincipalStatus::statement)
-            .filter(|statement| {
-                statement.principal() == principal
-                    && status_issuer_visible(snapshot.trust(), statement.issuer(), view)
-            })
-            .collect();
-        select_principal(policy, snapshot, &candidates, evaluation_time)
+        Ok(select_principal_from_snapshot(
+            &self.id,
+            policy,
+            snapshot,
+            principal,
+            view,
+            evaluation_time,
+        ))
     }
 
     fn grant(
@@ -529,229 +509,233 @@ impl StatusMethod for ExactStatusMethod {
         view: StatusView<'_>,
         evaluation_time: Timestamp,
     ) -> Result<StatusEvaluation, RegistryOperationError> {
-        let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::Active,
-                Timestamp::new(u64::MAX),
-            ));
-        };
-        if method != &self.id {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::WrongMethod,
-                evaluation_time,
-            ));
-        }
-        if snapshot.observed_at() > evaluation_time || snapshot.valid_until() < evaluation_time {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::Stale,
-                evaluation_time,
-            ));
-        }
-        let candidates: Vec<_> = snapshot
-            .statements()
-            .iter()
-            .map(auths_model::SignedGrantStatus::statement)
-            .filter(|statement| {
-                statement.grant_id() == grant
-                    && status_issuer_visible(snapshot.trust(), statement.issuer(), view)
-            })
-            .collect();
-        select_grant(policy, snapshot, &candidates, evaluation_time)
+        Ok(select_grant_from_snapshot(
+            &self.id,
+            policy,
+            snapshot,
+            grant,
+            view,
+            evaluation_time,
+        ))
     }
 }
 
-fn select_principal(
+// Only the first exact method/issuer rule supplies the sequence floor.
+fn status_sequence_floor(
+    rules: &[auths_model::StatusTrustRule],
+    method: &StatusMethodId,
+    issuer: &PrincipalId,
+) -> Option<u64> {
+    let mut found = None;
+    let mut position = 0;
+    while position < rules.len() && found.is_none() {
+        let rule = &rules[position];
+        if rule.method() == method && rule.issuer() == issuer {
+            found = Some(rule.sequence_floor());
+        }
+        position += 1;
+    }
+    found
+}
+
+fn select_principal_from_snapshot(
+    id: &StatusMethodId,
     policy: &StatusPolicy,
     snapshot: &PrincipalStatusSnapshot,
-    candidates: &[&auths_model::PrincipalStatusStatement],
+    principal: &PrincipalId,
+    view: StatusView<'_>,
     evaluation_time: Timestamp,
-) -> Result<StatusEvaluation, RegistryOperationError> {
-    let StatusPolicy::SnapshotRequired {
-        method, max_age, ..
-    } = policy
-    else {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::Active,
-            Timestamp::new(u64::MAX),
-        ));
+) -> StatusEvaluation {
+    let StatusPolicy::SnapshotRequired { method, max_age } = policy else {
+        return StatusEvaluation::new(StatusDecision::Active, Timestamp::new(u64::MAX));
     };
-    if candidates.is_empty() {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::Missing,
-            snapshot.valid_until(),
-        ));
+    if method != id {
+        return StatusEvaluation::new(StatusDecision::WrongMethod, evaluation_time);
     }
-    if candidates
-        .iter()
-        .all(|statement| statement.method() != method)
-    {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::WrongMethod,
-            evaluation_time,
-        ));
+    if snapshot.observed_at() > evaluation_time || snapshot.valid_until() < evaluation_time {
+        return StatusEvaluation::new(StatusDecision::Stale, evaluation_time);
     }
-    let mut trusted = Vec::new();
-    for statement in candidates
-        .iter()
-        .copied()
-        .filter(|statement| statement.method() == method)
-    {
-        let Some(rule) = snapshot
-            .trust()
-            .iter()
-            .find(|rule| rule.method() == method && rule.issuer() == statement.issuer())
-        else {
-            continue;
-        };
-        if statement.sequence() < rule.sequence_floor() {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::Rollback,
-                evaluation_time,
-            ));
+    let statements = snapshot.statements();
+    let rules = snapshot.trust();
+    let mut candidate_seen = false;
+    let mut method_seen = false;
+    let mut rollback = false;
+    let mut maximum = None;
+    let mut stale = false;
+    let mut revoked = false;
+    let mut valid_through = snapshot.valid_until();
+    let mut position = 0;
+    while position < statements.len() && !rollback {
+        let statement = statements[position].statement();
+        if statement.principal() == principal
+            && status_issuer_visible(rules, statement.issuer(), view)
+        {
+            candidate_seen = true;
+            if statement.method() == method {
+                method_seen = true;
+                if let Some(floor) = status_sequence_floor(rules, method, statement.issuer()) {
+                    let sequence = statement.sequence();
+                    if sequence < floor {
+                        rollback = true;
+                    } else {
+                        // A newer sequence discards all older status and freshness
+                        // contributions. Equal latest sequences combine conservatively.
+                        let newer = match maximum {
+                            None => true,
+                            Some(previous) => sequence > previous,
+                        };
+                        let equal = match maximum {
+                            None => false,
+                            Some(previous) => sequence == previous,
+                        };
+                        if newer {
+                            maximum = Some(sequence);
+                            stale = false;
+                            revoked = false;
+                            valid_through = snapshot.valid_until();
+                        }
+                        if newer || equal {
+                            stale = stale
+                                || ExactStatusMethod::freshness(
+                                    policy,
+                                    statement.observed_at(),
+                                    statement.valid_until(),
+                                    evaluation_time,
+                                ) == StatusDecision::Stale;
+                            revoked = revoked || statement.state() != PrincipalState::Active;
+                            valid_through =
+                                valid_through
+                                    .min(statement.valid_until())
+                                    .min(Timestamp::new(
+                                        statement.observed_at().get().saturating_add(max_age.get()),
+                                    ));
+                        }
+                    }
+                }
+            }
         }
-        trusted.push(statement);
+        position += 1;
     }
-    if trusted.is_empty() {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::UntrustedIssuer,
-            evaluation_time,
-        ));
-    }
-    let maximum = trusted
-        .iter()
-        .map(|statement| statement.sequence())
-        .max()
-        .ok_or(RegistryOperationError::InvalidInput)?;
-    let latest: Vec<_> = trusted
-        .into_iter()
-        .filter(|statement| statement.sequence() == maximum)
-        .collect();
-    if latest.iter().any(|statement| {
-        ExactStatusMethod::freshness(
-            policy,
-            statement.observed_at(),
-            statement.valid_until(),
-            evaluation_time,
-        ) == StatusDecision::Stale
-    }) {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::Stale,
-            evaluation_time,
-        ));
-    }
-    let valid_through = latest
-        .iter()
-        .fold(snapshot.valid_until(), |through, statement| {
-            through.min(statement.valid_until()).min(Timestamp::new(
-                statement.observed_at().get().saturating_add(max_age.get()),
-            ))
-        });
-    let decision = if latest
-        .iter()
-        .any(|statement| statement.state() != PrincipalState::Active)
-    {
+    let decision = if rollback {
+        StatusDecision::Rollback
+    } else if !candidate_seen {
+        StatusDecision::Missing
+    } else if !method_seen {
+        StatusDecision::WrongMethod
+    } else if maximum.is_none() {
+        StatusDecision::UntrustedIssuer
+    } else if stale {
+        StatusDecision::Stale
+    } else if revoked {
         StatusDecision::Revoked
     } else {
         StatusDecision::Active
     };
-    Ok(StatusEvaluation::new(decision, valid_through))
+    let through = match decision {
+        StatusDecision::Missing => snapshot.valid_until(),
+        StatusDecision::Active | StatusDecision::Revoked => valid_through,
+        _ => evaluation_time,
+    };
+    StatusEvaluation::new(decision, through)
 }
 
-fn select_grant(
+fn select_grant_from_snapshot(
+    id: &StatusMethodId,
     policy: &StatusPolicy,
     snapshot: &GrantStatusSnapshot,
-    candidates: &[&auths_model::GrantStatusStatement],
+    grant: GrantId,
+    view: StatusView<'_>,
     evaluation_time: Timestamp,
-) -> Result<StatusEvaluation, RegistryOperationError> {
-    let StatusPolicy::SnapshotRequired {
-        method, max_age, ..
-    } = policy
-    else {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::Active,
-            Timestamp::new(u64::MAX),
-        ));
+) -> StatusEvaluation {
+    let StatusPolicy::SnapshotRequired { method, max_age } = policy else {
+        return StatusEvaluation::new(StatusDecision::Active, Timestamp::new(u64::MAX));
     };
-    if candidates.is_empty() {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::Missing,
-            snapshot.valid_until(),
-        ));
+    if method != id {
+        return StatusEvaluation::new(StatusDecision::WrongMethod, evaluation_time);
     }
-    if candidates
-        .iter()
-        .all(|statement| statement.method() != method)
-    {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::WrongMethod,
-            evaluation_time,
-        ));
+    if snapshot.observed_at() > evaluation_time || snapshot.valid_until() < evaluation_time {
+        return StatusEvaluation::new(StatusDecision::Stale, evaluation_time);
     }
-    let mut trusted = Vec::new();
-    for statement in candidates
-        .iter()
-        .copied()
-        .filter(|statement| statement.method() == method)
-    {
-        let Some(rule) = snapshot
-            .trust()
-            .iter()
-            .find(|rule| rule.method() == method && rule.issuer() == statement.issuer())
-        else {
-            continue;
-        };
-        if statement.sequence() < rule.sequence_floor() {
-            return Ok(StatusEvaluation::new(
-                StatusDecision::Rollback,
-                evaluation_time,
-            ));
+    let statements = snapshot.statements();
+    let rules = snapshot.trust();
+    let mut candidate_seen = false;
+    let mut method_seen = false;
+    let mut rollback = false;
+    let mut maximum = None;
+    let mut stale = false;
+    let mut revoked = false;
+    let mut valid_through = snapshot.valid_until();
+    let mut position = 0;
+    while position < statements.len() && !rollback {
+        let statement = statements[position].statement();
+        if statement.grant_id() == grant && status_issuer_visible(rules, statement.issuer(), view) {
+            candidate_seen = true;
+            if statement.method() == method {
+                method_seen = true;
+                if let Some(floor) = status_sequence_floor(rules, method, statement.issuer()) {
+                    let sequence = statement.sequence();
+                    if sequence < floor {
+                        rollback = true;
+                    } else {
+                        // A newer sequence discards all older status and freshness
+                        // contributions. Equal latest sequences combine conservatively.
+                        let newer = match maximum {
+                            None => true,
+                            Some(previous) => sequence > previous,
+                        };
+                        let equal = match maximum {
+                            None => false,
+                            Some(previous) => sequence == previous,
+                        };
+                        if newer {
+                            maximum = Some(sequence);
+                            stale = false;
+                            revoked = false;
+                            valid_through = snapshot.valid_until();
+                        }
+                        if newer || equal {
+                            stale = stale
+                                || ExactStatusMethod::freshness(
+                                    policy,
+                                    statement.observed_at(),
+                                    statement.valid_until(),
+                                    evaluation_time,
+                                ) == StatusDecision::Stale;
+                            revoked = revoked || statement.state() != GrantState::Active;
+                            valid_through =
+                                valid_through
+                                    .min(statement.valid_until())
+                                    .min(Timestamp::new(
+                                        statement.observed_at().get().saturating_add(max_age.get()),
+                                    ));
+                        }
+                    }
+                }
+            }
         }
-        trusted.push(statement);
+        position += 1;
     }
-    if trusted.is_empty() {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::UntrustedIssuer,
-            evaluation_time,
-        ));
-    }
-    let maximum = trusted
-        .iter()
-        .map(|statement| statement.sequence())
-        .max()
-        .ok_or(RegistryOperationError::InvalidInput)?;
-    let latest: Vec<_> = trusted
-        .into_iter()
-        .filter(|statement| statement.sequence() == maximum)
-        .collect();
-    if latest.iter().any(|statement| {
-        ExactStatusMethod::freshness(
-            policy,
-            statement.observed_at(),
-            statement.valid_until(),
-            evaluation_time,
-        ) == StatusDecision::Stale
-    }) {
-        return Ok(StatusEvaluation::new(
-            StatusDecision::Stale,
-            evaluation_time,
-        ));
-    }
-    let valid_through = latest
-        .iter()
-        .fold(snapshot.valid_until(), |through, statement| {
-            through.min(statement.valid_until()).min(Timestamp::new(
-                statement.observed_at().get().saturating_add(max_age.get()),
-            ))
-        });
-    let decision = if latest
-        .iter()
-        .any(|statement| statement.state() != GrantState::Active)
-    {
+    let decision = if rollback {
+        StatusDecision::Rollback
+    } else if !candidate_seen {
+        StatusDecision::Missing
+    } else if !method_seen {
+        StatusDecision::WrongMethod
+    } else if maximum.is_none() {
+        StatusDecision::UntrustedIssuer
+    } else if stale {
+        StatusDecision::Stale
+    } else if revoked {
         StatusDecision::Revoked
     } else {
         StatusDecision::Active
     };
-    Ok(StatusEvaluation::new(decision, valid_through))
+    let through = match decision {
+        StatusDecision::Missing => snapshot.valid_until(),
+        StatusDecision::Active | StatusDecision::Revoked => valid_through,
+        _ => evaluation_time,
+    };
+    StatusEvaluation::new(decision, through)
 }
 
 /// Additional pure implementations supplied by downstream profile packages.
@@ -1999,3 +1983,6 @@ mod tests {
         assert!(checked > 4_000, "too few valid cases: {checked}");
     }
 }
+
+#[cfg(test)]
+mod status_selection_tests;

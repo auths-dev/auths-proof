@@ -12,6 +12,26 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+# Imported transparent Auths-model bodies remain audited source components;
+# this metric classifies only locally owned functions in each translation.
+# approver_visibility_refines therefore has no owned-function metric row.
+"Auths.StatusSelection.sequence_floor_refines" = "exact"
+"Auths.StatusSelection.freshness_exact" = "partial"
+"Auths.StatusSelection.principal_loop_refines" = "partial"
+"Auths.StatusSelection.principal_selector_approver_refines" = "partial"
+"Auths.StatusSelection.principal_method_approver_refines" = "partial"
+"Auths.StatusSelection.grant_loop_refines" = "partial"
+"Auths.StatusSelection.grant_selector_approver_refines" = "partial"
+"Auths.StatusSelection.grant_method_approver_refines" = "partial"
+"Auths.StatusSelection.Examples.active_selected_horizon" = "case"
+"Auths.StatusSelection.Examples.revoked_selected_horizon" = "case"
+"Auths.StatusSelection.Examples.stale_selected_refused" = "case"
+"Auths.StatusSelection.Examples.rollback_despite_newer" = "case"
+"Auths.StatusSelection.Examples.newer_discards_old_stale_revocation" = "case"
+"Auths.StatusSelection.Examples.latest_ties_conservatively_revoke" = "case"
+"Auths.StatusSelection.Examples.wrong_method_refused" = "case"
+"Auths.StatusSelection.Examples.missing_uses_snapshot_window" = "case"
+"Auths.StatusSelection.Examples.unknown_issuer_refused" = "case"
 "Auths.TemporalWitness.status_horizon_exact" = "exact"
 "Auths.TemporalWitness.status_horizon_accepts_iff" = "verdict-exact"
 "Auths.TemporalWitness.status_horizon_stale_refused" = "partial"

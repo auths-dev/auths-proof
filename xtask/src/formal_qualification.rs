@@ -13,9 +13,25 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "afd447a976864f46840113eb5c698f8f6fff0652b4d41f69200386d1ff232602";
+    "fa2f295ac1c1712e62863492d3cf12a30f157002b89fe5f5981cc6128688b7c8";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "status_selection-run/qualification/aeneas/generated/status_selection/Types.lean",
+        "formal/qualification/aeneas/generated/status_selection/Types.lean",
+    ),
+    (
+        "status_selection-run/qualification/aeneas/generated/status_selection/Funs.lean",
+        "formal/qualification/aeneas/generated/status_selection/Funs.lean",
+    ),
+    (
+        "status_selection-run/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
+    ),
+    (
+        "status_selection-run/translation.json",
+        "formal/qualification/aeneas/generated/status_selection/translation.json",
+    ),
     (
         "temporal_witness-run/qualification/aeneas/generated/temporal_witness/Types.lean",
         "formal/qualification/aeneas/generated/temporal_witness/Types.lean",
@@ -271,6 +287,7 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
     "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
     "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
@@ -293,6 +310,11 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/status_selection/Types.lean",
+    "formal/qualification/aeneas/generated/status_selection/Funs.lean",
+    "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/status_selection/translation.json",
     "formal/qualification/aeneas/generated/temporal_witness/Types.lean",
     "formal/qualification/aeneas/generated/temporal_witness/Funs.lean",
     "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
@@ -375,6 +397,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.StatusSelection",
     "qualification.aeneas.cases.TemporalWitness",
     "qualification.aeneas.cases.SuiteAdapters",
     "qualification.aeneas.cases.P256",
@@ -393,6 +416,10 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "core/crates/auths-registries/Cargo.toml",
+    "core/crates/auths-registries/src/lib.rs",
+    "core/crates/auths-registries/src/status_selection_tests.rs",
+    "formal/qualification/aeneas/cases/StatusSelection.lean",
     "core/crates/auths-verifier/Cargo.toml",
     "core/crates/auths-verifier/src/lib.rs",
     "core/crates/auths-verifier/src/temporal_tests.rs",
@@ -445,6 +472,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_registries",
+        "formal/qualification/aeneas/generated/status_selection/translation.json",
+    ),
     (
         "auths_verifier",
         "formal/qualification/aeneas/generated/temporal_witness/translation.json",
@@ -508,6 +539,7 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
@@ -1008,11 +1040,11 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     if qualification.qualified_delegations != expected_qualified_delegations() {
         return Err("qualified source delegation inventory drifted".to_owned());
     }
-    if qualification.case_modules.len() != 15
-        || qualification.translations.len() != 15
-        || qualification.external_models.len() != 22
+    if qualification.case_modules.len() != 16
+        || qualification.translations.len() != 16
+        || qualification.external_models.len() != 23
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 16
+        || qualification.template_axioms.len() != 17
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -1035,6 +1067,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "suite-explicit-linked-primitive-context-v1",
             "temporal-qualified-discriminants-v1",
             "temporal-recursive-loops-v1",
+            "status-selection-qualified-discriminants-v1",
+            "status-selection-recursive-loops-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -1474,6 +1508,10 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
+            render_status_selection_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
             render_temporal_functions_external(),
         ),
@@ -1553,6 +1591,86 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_status_selection_functions_external() -> String {
+    r#"import qualification.aeneas.generated.status_selection.Types
+import qualification.aeneas.generated.model.FunsExternal
+open Aeneas Aeneas.Std Result
+namespace AuthsStatusSelection
+
+@[trait_default]
+def core.cmp.PartialOrd.lt.default {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs)
+    (left : Self) (right : Rhs) : Result Bool :=
+  Aeneas.Std.core.cmp.PartialOrd.lt.default implementation.partial_cmp left right
+@[trait_default]
+def core.cmp.PartialOrd.gt.default {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs)
+    (left : Self) (right : Rhs) : Result Bool :=
+  Aeneas.Std.core.cmp.PartialOrd.gt.default implementation.partial_cmp left right
+@[trait_default]
+def core.cmp.Ord.max.default {Self : Type}
+    (implementation : Aeneas.Std.core.cmp.Ord Self) (left right : Self) : Result Self :=
+  Aeneas.Std.core.cmp.Ord.max.default implementation.partialOrdInst.lt left right
+abbrev alloc.string.String.Insts.CoreCmpPartialEqString.eq :=
+  _root_.alloc.string.String.Insts.CoreCmpPartialEqString.eq
+abbrev alloc.string.String.Insts.CoreCmpOrd.cmp :=
+  _root_.alloc.string.String.Insts.CoreCmpOrd.cmp
+
+/-- Reviewed standard-library boundary: pinned Rust binary_search_by's exact
+    size/base transition and final comparison, including unsorted inputs.
+    Fuel is initial length + 1; exhausted/invalid indexing refuses explicitly.
+    This is not an Auths algorithm or an assumption of whitelist membership. -/
+def binarySearchLoop {T : Type} (order : Aeneas.Std.core.cmp.Ord T)
+    (values : List T) (target : T) : Nat → Nat → Nat → Result (core.result.Result Nat Nat)
+  | 0, _, _ => fail .panic
+  | fuel + 1, base, size => do
+    if size > 1 then
+      let half := size / 2
+      let mid := base + half
+      match values[mid]? with
+      | none => fail .panic
+      | some value =>
+        let comparison ← order.cmp value target
+        binarySearchLoop order values target fuel
+          (if comparison = .gt then base else mid) (size - half)
+    else
+      match values[base]? with
+      | none => fail .panic
+      | some value =>
+        let comparison ← order.cmp value target
+        if comparison = .eq then ok (.Ok base)
+        else ok (.Err (base + if comparison = .lt then 1 else 0))
+
+def core.slice.Slice.binary_search {T : Type} (order : Aeneas.Std.core.cmp.Ord T)
+    (values : Slice T) (target : T) : Result (core.result.Result Std.Usize Std.Usize) := do
+  if values.val.isEmpty then ok (.Err 0#usize)
+  else
+    let result ← binarySearchLoop order values.val target (values.val.length + 1) 0 values.val.length
+    match result with
+    | .Ok index =>
+      let result ← UScalar.tryMk .Usize index
+      ok (.Ok result)
+    | .Err index =>
+      let result ← UScalar.tryMk .Usize index
+      ok (.Err result)
+theorem lt_default_delegates {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs) (left : Self) (right : Rhs) :
+    core.cmp.PartialOrd.lt.default implementation left right =
+      Aeneas.Std.core.cmp.PartialOrd.lt.default implementation.partial_cmp left right := rfl
+
+theorem gt_default_delegates {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs) (left : Self) (right : Rhs) :
+    core.cmp.PartialOrd.gt.default implementation left right =
+      Aeneas.Std.core.cmp.PartialOrd.gt.default implementation.partial_cmp left right := rfl
+
+theorem max_default_delegates {Self : Type}
+    (implementation : Aeneas.Std.core.cmp.Ord Self) (left right : Self) :
+    core.cmp.Ord.max.default implementation left right =
+      Aeneas.Std.core.cmp.Ord.max.default implementation.partialOrdInst.lt left right := rfl
+end AuthsStatusSelection
+"#.to_owned()
 }
 
 fn render_temporal_functions_external() -> String {
@@ -2224,14 +2342,18 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
         }
         if matches!(
             report.crate_name.as_str(),
-            "auths_codec" | "auths_composition" | "auths_signature_core" | "auths_verifier"
+            "auths_codec"
+                | "auths_composition"
+                | "auths_signature_core"
+                | "auths_verifier"
+                | "auths_registries"
         ) && report
             .functions
             .iter()
             .any(|function| function.rust_name.starts_with("auths_") && function.is_opaque)
         {
             return Err(
-                "the codec/composition/signature/temporal closure must translate every Auths constructor and helper"
+                "the codec/composition/signature/temporal/status closure must translate every Auths constructor and helper"
                     .to_owned(),
             );
         }
@@ -2672,6 +2794,18 @@ fn run_rust_qualification_cases(root: &Path) -> Result<(), String> {
         ],
         root,
         &[],
+    )?;
+    run_checked(
+        "cargo",
+        &[
+            "test".to_owned(),
+            "--locked".to_owned(),
+            "-p".to_owned(),
+            "auths-registries".to_owned(),
+            "--lib".to_owned(),
+        ],
+        root,
+        &[],
     )
 }
 
@@ -3106,6 +3240,17 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal,{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant",
+            &stable_llbc.join("auths_registries.llbc"),
+            "core/crates/auths-registries/Cargo.toml",
+            &["--include", "auths_model", "--include", "auths_ports"],
+        ),
+        root,
+        &[],
+    )?;
     normalize_p256_llbc_names(
         &stable_llbc.join("auths_signature_core_p256.llbc"),
         output,
@@ -3120,6 +3265,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_registries",
         "auths_verifier",
         "auths_signature",
         "auths_signature_core_p256",
@@ -3153,6 +3299,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_registries", "status_selection"),
         ("auths_verifier", "temporal_witness"),
         ("auths_signature", "suite_adapter"),
         ("auths_signature_core_p256", "p256"),
@@ -3196,8 +3343,15 @@ fn reproduce(
                 | "auths_signature_core"
                 | "auths_signature_core_p256"
                 | "auths_verifier"
+                | "auths_registries"
         ) {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
+        }
+        if subdir == "status_selection" {
+            aeneas_arguments.splice(
+                0..0,
+                ["-namespace".to_owned(), "AuthsStatusSelection".to_owned()],
+            );
         }
         if subdir == "temporal_witness" {
             aeneas_arguments.splice(
@@ -3226,6 +3380,7 @@ fn reproduce(
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_registries",
         "auths_verifier",
         "auths_signature",
         "auths_signature_core_p256",
@@ -3252,6 +3407,7 @@ fn reproduce(
     normalize_p256_context(output)?;
     normalize_suite_adapter_context(output)?;
     normalize_temporal_context(output)?;
+    normalize_status_selection_context(output)?;
     Ok(())
 }
 
@@ -3642,6 +3798,57 @@ fn normalize_sha256_llbc_names(
         &output.join("sha256-run/foreign-name-normalization.json"),
         &ledger,
     )
+}
+
+fn normalize_status_selection_context(output: &Path) -> Result<(), String> {
+    let path = output
+        .join("status_selection-run/qualification/aeneas/generated/status_selection/Types.lean");
+    let source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    fs::write(path, status_selection_type_context(&source)?).map_err(|error| error.to_string())
+}
+fn status_selection_type_context(source: &str) -> Result<String, String> {
+    if source.matches("namespace AuthsStatusSelection\n").count() != 1
+        || source.matches("import Aeneas\n").count() != 1
+        || source.contains("qualified_discriminant")
+        || source.matches("@[discriminant isize").count() != 7
+    {
+        return Err("status-selection type context input drifted".to_owned());
+    }
+    Ok(source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize"))
+}
+#[cfg(test)]
+mod status_selection_context_tests {
+    use super::status_selection_type_context;
+    #[test]
+    fn context_preserves_bodies_and_rejects_missing_repeated_or_changed_input() {
+        let reviewed =
+            include_str!("../../formal/qualification/aeneas/generated/status_selection/Types.lean");
+        let raw = reviewed
+            .replace("import Auths.Support.Discriminant\n", "")
+            .replace("qualified_discriminant isize", "discriminant isize");
+        assert_eq!(
+            status_selection_type_context(&raw).expect("reviewed context"),
+            reviewed
+        );
+        assert!(status_selection_type_context(reviewed).is_err());
+        assert!(
+            status_selection_type_context(&raw.replace("namespace AuthsStatusSelection\n", ""))
+                .is_err()
+        );
+        assert!(
+            status_selection_type_context(&raw.replacen(
+                "@[discriminant isize",
+                "@[rust_discriminant isize",
+                1
+            ))
+            .is_err()
+        );
+    }
 }
 
 fn normalize_temporal_context(output: &Path) -> Result<(), String> {

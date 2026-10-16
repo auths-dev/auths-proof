@@ -10,9 +10,13 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1"]
 
 source_files = [
+  "core/crates/auths-registries/Cargo.toml",
+  "core/crates/auths-registries/src/lib.rs",
+  "core/crates/auths-registries/src/status_selection_tests.rs",
+  "formal/qualification/aeneas/cases/StatusSelection.lean",
   "core/crates/auths-verifier/Cargo.toml",
   "core/crates/auths-verifier/src/lib.rs",
   "core/crates/auths-verifier/src/temporal_tests.rs",
@@ -109,6 +113,11 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/status_selection/Types.lean",
+  "formal/qualification/aeneas/generated/status_selection/Funs.lean",
+  "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/status_selection/translation.json",
   "formal/qualification/aeneas/generated/temporal_witness/Types.lean",
   "formal/qualification/aeneas/generated/temporal_witness/Funs.lean",
   "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
@@ -191,6 +200,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.StatusSelection",
   "qualification.aeneas.cases.TemporalWitness",
   "qualification.aeneas.cases.SuiteAdapters",
   "qualification.aeneas.cases.P256",
@@ -234,6 +244,16 @@ owner_lean_declaration = "AuthsNativeP256.verify_p256_sha256"
 bridge_artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
 bridge_lean_declaration = "AuthsSuiteAdapters.auths_signature_core.verify_p256_sha256"
 delegation_theorem = "AuthsSuiteAdapters.p256_delegates"
+
+[[external_models]]
+id = "status-selection-transparent-standard-interfaces"
+kind = "transparent-standard-binary-search-and-dictionary-projections"
+artifact = "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean"
+rust_symbols = ["core::slice::binary_search", "alloc::string::String::eq", "alloc::string::String::cmp", "core::cmp::PartialOrd::lt", "core::cmp::PartialOrd::gt", "core::cmp::Ord::max"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "String equality/ordering delegate to the existing reviewed transparent model. The binary-search model follows the pinned nightly-2026-06-01 core slice binary_search_by size/base/half loop and final comparison, with an initial length-plus-one fuel bound, checked indexing and checked usize construction. It does not replace search with membership or assume sortedness, authenticity or an Auths visibility decision; equivalence to whitelist membership on valid sorted scopes remains unproved in this checkpoint. Scoped comparison/max dictionary adapters project only the pinned standard fields and have unconditional compiled delegation equalities. Every Auths helper, comparison, getter and selector body is translated; no Auths algorithm is opaque and no generated function body changes. Published full-selector results currently fix the approval view and refine an operational scan; the independent filter/max relation and anchor views remain separate obligations."
 
 [[external_models]]
 id = "temporal-transparent-standard-interfaces"
@@ -559,6 +579,15 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_registries"
+translation_json = "formal/qualification/aeneas/generated/status_selection/translation.json"
+local_functions = 9
+external_functions = 58
+opaque_local_functions = 0
+required_symbols = ["auths_registries::{auths_registries::ExactStatusMethod}::freshness", "auths_registries::status_sequence_floor", "auths_registries::select_principal_from_snapshot", "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal", "auths_registries::select_grant_from_snapshot", "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant"]
+allowed_external_symbols = ["core::slice::{[T]}::binary_search", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "auths_model::{impl core::cmp::PartialEq<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::eq", "auths_model::{impl core::cmp::Eq for auths_model::TrustAnchorId}::assert_fields_are_eq", "auths_model::{impl core::cmp::PartialEq<auths_model::StatusMethodId> for auths_model::StatusMethodId}::eq", "auths_model::{impl core::cmp::Ord for auths_model::TrustAnchorId}::cmp", "auths_model::{impl core::cmp::PartialOrd<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::partial_cmp", "auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalId> for auths_model::PrincipalId}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::GrantId> for auths_model::GrantId}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}::eq", "auths_model::{impl core::cmp::Eq for auths_model::Timestamp}::assert_fields_are_eq", "auths_model::{impl core::cmp::Ord for auths_model::Timestamp}::cmp", "auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}::partial_cmp", "auths_model::{auths_model::Timestamp}::new", "auths_model::{auths_model::Timestamp}::get", "auths_model::{auths_model::FreshnessLimit}::get", "auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalState> for auths_model::PrincipalState}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::GrantState> for auths_model::GrantState}::eq", "auths_model::{auths_model::PrincipalStatusStatement}::method", "auths_model::{auths_model::PrincipalStatusStatement}::principal", "auths_model::{auths_model::PrincipalStatusStatement}::state", "auths_model::{auths_model::PrincipalStatusStatement}::sequence", "auths_model::{auths_model::PrincipalStatusStatement}::observed_at", "auths_model::{auths_model::PrincipalStatusStatement}::valid_until", "auths_model::{auths_model::PrincipalStatusStatement}::issuer", "auths_model::{auths_model::SignedPrincipalStatus}::statement", "auths_model::{auths_model::GrantStatusStatement}::method", "auths_model::{auths_model::GrantStatusStatement}::grant_id", "auths_model::{auths_model::GrantStatusStatement}::state", "auths_model::{auths_model::GrantStatusStatement}::sequence", "auths_model::{auths_model::GrantStatusStatement}::observed_at", "auths_model::{auths_model::GrantStatusStatement}::valid_until", "auths_model::{auths_model::GrantStatusStatement}::issuer", "auths_model::{auths_model::SignedGrantStatus}::statement", "auths_model::{auths_model::StatusScopeAnchors}::contains", "auths_model::{auths_model::TrustAnchor}::principal", "auths_model::{auths_model::TrustAnchor}::id", "auths_model::{auths_model::StatusScope}::covers", "auths_model::{auths_model::StatusTrustRule}::issuer", "auths_model::{auths_model::StatusTrustRule}::scope", "auths_model::status_issuer_in_scope", "auths_model::status_issuer_in_scope", "auths_model::status_issuer_visible", "auths_model::status_issuer_visible", "auths_model::{auths_model::StatusTrustRule}::method", "auths_model::{auths_model::StatusTrustRule}::sequence_floor", "auths_model::{auths_model::PrincipalStatusSnapshot}::observed_at", "auths_model::{auths_model::PrincipalStatusSnapshot}::valid_until", "auths_model::{auths_model::PrincipalStatusSnapshot}::statements", "auths_model::{auths_model::PrincipalStatusSnapshot}::trust", "auths_model::{auths_model::GrantStatusSnapshot}::observed_at", "auths_model::{auths_model::GrantStatusSnapshot}::valid_until", "auths_model::{auths_model::GrantStatusSnapshot}::statements", "auths_model::{auths_model::GrantStatusSnapshot}::trust", "auths_ports::{impl core::cmp::PartialEq<auths_ports::StatusDecision> for auths_ports::StatusDecision}::eq", "auths_ports::{auths_ports::StatusEvaluation}::new"]
 
 [[translations]]
 crate_name = "auths_verifier"
@@ -1111,6 +1140,11 @@ required_symbols = [
   "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean"
+count = 3
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean"

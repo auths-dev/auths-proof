@@ -97,7 +97,7 @@ inductive auths_model.AuthorizationPlanRef where
   auths_model.AuthorizationPlanRef
 
 /-- [auths_model::ModelError]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5190:0-5190:19
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5204:0-5204:19
     Name pattern: [auths_model::ModelError]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::ModelError"]
@@ -146,7 +146,7 @@ inductive auths_model.ModelError where
 | InvalidApproverAnchor : auths_model.ModelError
 
 /-- [auths_model::VerifierLimits]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3608:0-3608:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3622:0-3622:25
     Name pattern: [auths_model::VerifierLimits]
     Visibility: public -/
 @[rust_type "auths_model::VerifierLimits"]
@@ -192,7 +192,7 @@ structure auths_model.PlanShape where
   maximum_depth : Std.Usize
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4924:0-4924:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4938:0-4938:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::DenialReason"]
@@ -245,7 +245,7 @@ inductive auths_model.DenialReason where
 | ApprovalThresholdNotMet : auths_model.DenialReason
 
 /-- [auths_model::Requirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5109:0-5109:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5123:0-5123:20
     Name pattern: [auths_model::Requirement]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::Requirement"]

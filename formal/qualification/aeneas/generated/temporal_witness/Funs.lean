@@ -140,7 +140,7 @@ def auths_model.FreshnessLimit.get
   ok self
 
 /-- [auths_model::{auths_model::AssuranceClaim}::observed_at]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3216:4-3216:56
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3230:4-3230:56
     Name pattern: [auths_model::{auths_model::AssuranceClaim}::observed_at]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssuranceClaim}::observed_at"]
@@ -151,7 +151,7 @@ def auths_model.AssuranceClaim.impl.observed_at
   ok self.observed_at
 
 /-- [auths_model::{auths_model::AssuranceRequirement}::maximum_age]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3398:4-3398:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3412:4-3412:61
     Name pattern: [auths_model::{auths_model::AssuranceRequirement}::maximum_age]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssuranceRequirement}::maximum_age"]
@@ -162,7 +162,7 @@ def auths_model.AssuranceRequirement.impl.maximum_age
   ok self.maximum_age
 
 /-- [auths_model::{auths_model::AssurancePolicy}::requirements]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3432:4-3432:57
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3446:4-3446:57
     Name pattern: [auths_model::{auths_model::AssurancePolicy}::requirements]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssurancePolicy}::requirements"]
@@ -173,7 +173,7 @@ def auths_model.AssurancePolicy.impl.requirements
   ok (alloc.vec.Vec.deref self.requirements)
 
 /-- [auths_model::{auths_model::AssuranceSatisfaction}::requirement_index]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3465:4-3465:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3479:4-3479:48
     Name pattern: [auths_model::{auths_model::AssuranceSatisfaction}::requirement_index]
     Visibility: public -/
 @[rust_fun
@@ -183,7 +183,7 @@ def auths_model.AssuranceSatisfaction.impl.requirement_index
   ok self.requirement_index
 
 /-- [auths_model::{auths_model::AssuranceSatisfaction}::claim]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3477:4-3477:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3491:4-3491:48
     Name pattern: [auths_model::{auths_model::AssuranceSatisfaction}::claim]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssuranceSatisfaction}::claim"]
@@ -194,7 +194,7 @@ def auths_model.AssuranceSatisfaction.impl.claim
   ok self.claim
 
 /-- [auths_model::{auths_model::TrustedContext}::assurance_policy]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4594:4-4594:60
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4608:4-4608:60
     Name pattern: [auths_model::{auths_model::TrustedContext}::assurance_policy]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::TrustedContext}::assurance_policy"]

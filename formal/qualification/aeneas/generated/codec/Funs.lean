@@ -795,7 +795,7 @@ def auths_model.BudgetCeiling.impl.value
   ok self.value
 
 /-- [auths_model::{auths_model::DetachedAttachment}::bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2877:4-2877:32
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2891:4-2891:32
     Name pattern: [auths_model::{auths_model::DetachedAttachment}::bytes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DetachedAttachment}::bytes"]
@@ -804,7 +804,7 @@ def auths_model.DetachedAttachment.impl.bytes
   ok (alloc.vec.Vec.deref self.bytes)
 
 /-- [auths_model::{auths_model::DetachedAttachment}::digest]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2871:4-2871:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2885:4-2885:50
     Name pattern: [auths_model::{auths_model::DetachedAttachment}::digest]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DetachedAttachment}::digest"]
@@ -1071,7 +1071,7 @@ def auths_model.CanonicalAction.impl.detached_attachments
   ok (alloc.vec.Vec.deref self.detached_attachments)
 
 /-- [auths_model::{auths_model::DetachedAttachment}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2862:4-2862:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2876:4-2876:84
     Name pattern: [auths_model::{auths_model::DetachedAttachment}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DetachedAttachment}::new"]
@@ -1091,7 +1091,7 @@ def auths_model.DetachedAttachment.new
     else ok (core.result.Result.Ok { digest, bytes })
 
 /-- [auths_model::{auths_model::VerifierLimits}::hard]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3713:4-3713:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3727:4-3727:31
     Name pattern: [auths_model::{auths_model::VerifierLimits}::hard]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::VerifierLimits}::hard"]
@@ -1138,7 +1138,7 @@ def auths_model.VerifierLimits.hard : Result auths_model.VerifierLimits := do
     }
 
 /-- [auths_model::{auths_model::VerifierLimits}::get]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3804:4-3804:53
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3818:4-3818:53
     Name pattern: [auths_model::{auths_model::VerifierLimits}::get]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::VerifierLimits}::get"]
@@ -1178,7 +1178,7 @@ def auths_model.VerifierLimits.get
   | auths_model.LimitKind.ApprovalRequirements => ok self.approval_requirements
 
 /-- [auths_model::{auths_model::VerifierLimits}::validate]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3851:4-3851:52
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3865:4-3865:52
     Name pattern: [auths_model::{auths_model::VerifierLimits}::validate]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::VerifierLimits}::validate"]

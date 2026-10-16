@@ -2400,10 +2400,16 @@ pub fn status_issuer_in_scope(
     issuer: &PrincipalId,
     anchor: &TrustAnchor,
 ) -> bool {
-    trust
-        .iter()
-        .filter(|rule| rule.issuer() == issuer)
-        .all(|rule| rule.scope().covers(issuer, anchor))
+    let mut visible = true;
+    let mut position = 0;
+    while position < trust.len() && visible {
+        let rule = &trust[position];
+        if rule.issuer() == issuer {
+            visible = rule.scope().covers(issuer, anchor);
+        }
+        position += 1;
+    }
+    visible
 }
 
 /// Whose status evaluation a snapshot statement may take part in.
@@ -2428,10 +2434,18 @@ pub fn status_issuer_visible(
 ) -> bool {
     match view {
         StatusView::Anchor(anchor) => status_issuer_in_scope(trust, issuer, anchor),
-        StatusView::Approver => trust
-            .iter()
-            .filter(|rule| rule.issuer() == issuer)
-            .all(|rule| matches!(rule.scope(), StatusScope::AnyAnchor)),
+        StatusView::Approver => {
+            let mut visible = true;
+            let mut position = 0;
+            while position < trust.len() && visible {
+                let rule = &trust[position];
+                if rule.issuer() == issuer {
+                    visible = matches!(rule.scope(), StatusScope::AnyAnchor);
+                }
+                position += 1;
+            }
+            visible
+        }
     }
 }
 

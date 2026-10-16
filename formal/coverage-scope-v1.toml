@@ -13,6 +13,7 @@ schema = "auths-proof-coverage-scope/v1"
 verifier_crate = "core/crates/auths-verifier"
 decision_kernel_crates = ["product/runtime/auths-lifecycle", "product/policy/auths-bounded-policy"]
 translated_crates = [
+    "core/crates/auths-registries",
     "core/crates/auths-verifier",
     "core/crates/auths-signature",
     "core/crates/auths-signature-core",
@@ -59,6 +60,7 @@ name = "the stateful gateway store backends"
 crates = ["product/stores/auths-stores"]
 
 [files]
+"core/crates/auths-registries/src/status_selection_tests.rs" = "test-support"
 "core/crates/auths-verifier/src/temporal_tests.rs" = "test-support"
 "core/crates/auths-signature/src/lib.rs" = "crypto"
 "core/crates/auths-signature-core/src/lib.rs" = "crypto"

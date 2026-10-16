@@ -916,3 +916,32 @@ These are expiry-only claims. Authenticity, selection by the actual assurance
 evaluator, observation-time ordering, satisfaction of every required policy,
 complete verification, other horizon intersections and the actual runtime
 consumer remain separate E2/E4/M6 obligations. No whole milestone is closed.
+
+
+## Approval-view status-selection source refinement
+
+The actual principal and grant selectors now use one indexed scan each,
+without temporary collections. Shipping first-rule lookup and approval-view
+visibility refine independent list rules. Both actual public port methods
+have total Result refinements against an operational accumulator, including
+all policies, snapshot refusal order and complete decision/horizon results.
+Nine kernel-checked witnesses exercise the actual principal port. The pure
+filter/max/tie-set specification is separate; its equivalence to the scan is
+still an open obligation, as are anchor-view refinement, evidence authenticity
+and complete verifier composition.
+
+The prior algorithms remain test-only independent references. More than
+19,000 constructor-valid snapshot pairs compare both selectors in three views,
+with dedicated word-limit, saturation, rollback and latest-tie cases. Focused
+native parity, lint and generated-context rejection checks pass. The standard
+binary-search model follows the pinned standard library's size/base/half
+transitions; sorted-scope membership is not yet claimed.
+
+Fresh source qualification passes 658 compiled claims, all 634 preceding
+complete records unchanged, 17/17 cases, 23 reviewed models, zero unreviewed
+models, zero compiled external axioms and two byte-identical clean translations.
+Qualified production closure:
+`597b19ee0354614b37b9f048c7248e5684e69cf2c0d05a92a8b224a0b1172c7f`.
+The preceding 634-claim revision `e4770a2b` passed all ten hosted workflows,
+including [main CI](https://github.com/auths-dev/auths-proof/actions/runs/38931405294).
+The new source slice requires exact-revision hosted gates. E1–E5/M6 remain open.

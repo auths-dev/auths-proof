@@ -251,7 +251,7 @@ note = "Principal status statement carries an accepted critical extension, which
 [[sites]]
 site = "branch.anchor-principal-status"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "status_decision" }
-guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal" }
+guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal_from_snapshot" }
 also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_principal_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::principal" }]
 stage = "stages 2 and 3"
 note = "Trust anchor principal is revoked in the status snapshot."
@@ -274,7 +274,7 @@ note = "Grant status statement carries an accepted critical extension, which has
 [[sites]]
 site = "branch.grant-status"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "status_decision" }
-guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_grant" }
+guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_grant_from_snapshot" }
 also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_grant_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::grant" }]
 stage = "stages 2 and 3"
 note = "Grant is revoked in the grant status snapshot."
@@ -282,7 +282,7 @@ note = "Grant is revoked in the grant status snapshot."
 [[sites]]
 site = "branch.subject-principal-status"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "status_decision" }
-guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal" }
+guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal_from_snapshot" }
 also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_principal_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::principal" }]
 stage = "stages 2 and 3"
 note = "Grant subject principal is revoked in the status snapshot."

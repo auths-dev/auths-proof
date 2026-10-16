@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
-- **Status:** Implementation paused at a qualified component checkpoint,
-  16 October 2026, at the owner's request. E1–E5 and M6 remain incomplete.
-  See §13 for the saved state, evidence limits, and exact resume point. This
+- **Status:** Implementation in progress; resumed on 16 October 2026 after
+  the owner's checkpoint pause. E1–E5 and M6 remain incomplete. See §13 for
+  the saved checkpoint, evidence limits, and next implementation slice. This
   document does not itself add a proved claim.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -757,8 +757,9 @@ without claiming the other four enhancements have been completed.
 
 ## 13. Pause checkpoint and resume instructions — 16 October 2026
 
-The owner requested a pause after a coherent checkpoint. Work is paused;
-there is no scheduled continuation. The implementation is substantial but is
+The owner requested a pause after a coherent checkpoint and subsequently
+requested continuation on 16 October 2026. The following records the pause
+state; work has resumed at §13.4. The implementation is substantial but is
 **not close to completing every requirement of this spec**. No E1–E5
 workstream or M6 is declared complete. The claim count below measures audited
 component statements, not a percentage of the end-to-end security promise.
@@ -904,3 +905,53 @@ The next bounded change should:
 Resume from the committed artifacts and this list. Do not restart completed
 component proofs or describe the five enhancements as finished because the
 claim count grew. The exit gates in §10 remain authoritative.
+
+
+### 13.6 Resumption — 16 October 2026
+
+The preceding `59c56d5b` checkpoint passed the authoritative Lean replay and
+all ten hosted workflows, including main CI, translation, implementation,
+secret scanning, PostgreSQL, Stripe, isolation and SDK qualification. The
+saved corpus, temporal and documentation commits through `e4770a2b` have now
+been pushed to the existing draft PR for exact-revision hosted verification.
+The historical pending/local-only statements in §13.1 and §13.3 describe the
+pause time, not the resumed branch state.
+
+The next source slice is still status selection (§13.4). Its refactor and
+extraction experiments are construction work until their complete source,
+proof, inventory, reproducibility and hosted gates pass. The frozen old
+algorithm is retained only under `#[cfg(test)]` as a differential oracle.
+
+
+### 13.7 Approval-view status scan — 16 October 2026
+
+The bounded source cutover in §13.4 now has one allocation-free indexed scan
+per concrete principal/grant selector, plus indexed visibility and first-rule
+lookup. The superseded algorithms exist only as independent test oracles.
+More than 19,000 constructor-valid generated snapshot pairs compare complete
+results in both anchor views and the approval view; dedicated cases cover
+sequence/floor and saturating-time word limits. Focused native parity, lint,
+and generated-context rejection checks pass.
+
+The new Lean source claims establish total principal and grant port results
+against the operational accumulator for the approval view, exact first-rule
+selection and freshness, and nine actual-port positive/refusal witnesses.
+The independent filter/max/tie-set specification is present, but equivalence
+to the accumulator is **not yet proved**. Anchor-view refinement, sorted
+scope-search membership, evidence authenticity and the full verifier remain
+open. No whole enhancement or milestone is complete.
+
+Fresh construction qualification passes **658 compiled claims**, preserving
+all 634 preceding complete records, **17/17 cases**, **23 reviewed models**,
+zero unreviewed models and zero compiled external axioms. Two clean
+translations are byte-identical. Production source closure:
+`597b19ee0354614b37b9f048c7248e5684e69cf2c0d05a92a8b224a0b1172c7f`.
+Only the three permitted foundational axioms occur transitively.
+
+The preceding 634-claim revision `e4770a2b` has passed main CI and all nine
+independent hosted workflows; main run
+[38931405294](https://github.com/auths-dev/auths-proof/actions/runs/38931405294)
+completed successfully. The 658-claim source slice still needs its own hosted
+replay. Current work connects the accumulator to the independent selection
+specification, then closes the anchor-view scope-search boundary before
+connecting selection to temporal-witness construction.

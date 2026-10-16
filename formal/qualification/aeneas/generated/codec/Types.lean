@@ -51,7 +51,7 @@ def auths_model.ResourceId := String
 def auths_model.BudgetAlgebraId := String
 
 /-- [auths_model::ModelError]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5190:0-5190:19
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5204:0-5204:19
     Name pattern: [auths_model::ModelError]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::ModelError"]
@@ -141,7 +141,7 @@ structure auths_model.BudgetCeiling where
   value : Std.U64
 
 /-- [auths_model::DetachedAttachment]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2850:0-2850:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2864:0-2864:29
     Name pattern: [auths_model::DetachedAttachment]
     Visibility: public -/
 @[rust_type "auths_model::DetachedAttachment"]
@@ -170,7 +170,7 @@ structure auths_model.CanonicalAction where
 def auths_model.CanonicalAction.with_detached_attachments.closure := Unit
 
 /-- [auths_model::VerifierLimits]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3608:0-3608:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3622:0-3622:25
     Name pattern: [auths_model::VerifierLimits]
     Visibility: public -/
 @[rust_type "auths_model::VerifierLimits"]
@@ -207,7 +207,7 @@ structure auths_model.VerifierLimits where
   approval_requirements : Std.Usize
 
 /-- [auths_model::LimitKind]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3643:0-3643:18
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3657:0-3657:18
     Name pattern: [auths_model::LimitKind]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::LimitKind"]
