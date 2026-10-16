@@ -2175,7 +2175,6 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 /// claim must cite: the authority evaluators live in the authority crate's
 /// translation, the observation predicates in the model crate's, and the
 /// gateway leaves in the gateway kernel's.
-
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
