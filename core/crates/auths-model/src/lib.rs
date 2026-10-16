@@ -1849,9 +1849,24 @@ impl AuthorizationPlan {
     fn compound(mut node: AuthorizationPlanNode) -> Result<Self, ModelError> {
         match &mut node {
             AuthorizationPlanNode::Proof(_) => {}
-            AuthorizationPlanNode::AllOf(members)
-            | AuthorizationPlanNode::AnyOf(members)
-            | AuthorizationPlanNode::KOfN { members, .. } => members.sort(),
+            AuthorizationPlanNode::AllOf(members) | AuthorizationPlanNode::AnyOf(members) => {
+                if members.is_empty() {
+                    return Err(ModelError::InvalidPlan);
+                }
+                if members.len() > HARD_MAX_PLAN_BRANCHING {
+                    return Err(ModelError::PlanLimitExceeded);
+                }
+                members.sort();
+            }
+            AuthorizationPlanNode::KOfN { k, members } => {
+                if *k == 0 || usize::from(*k) > members.len() || members.is_empty() {
+                    return Err(ModelError::InvalidPlan);
+                }
+                if members.len() > HARD_MAX_PLAN_BRANCHING {
+                    return Err(ModelError::PlanLimitExceeded);
+                }
+                members.sort();
+            }
         }
         let plan = Self(node);
         plan.validate(&VerifierLimits::hard())?;
@@ -5468,6 +5483,64 @@ mod tests {
         assert!(set.attenuates(&any));
         assert!(exact.attenuates(&set));
         assert!(!set.attenuates(&exact));
+    }
+
+    #[test]
+    fn plan_constructors_enforce_branching_bound_and_error_precedence() {
+        let members = |count| {
+            (0..count)
+                .map(|index| {
+                    let mut bytes = [0; 32];
+                    bytes[..8].copy_from_slice(&u64::try_from(index).unwrap().to_be_bytes());
+                    AuthorizationPlan::proof(ProofRef::new(bytes))
+                })
+                .collect::<Vec<_>>()
+        };
+        let count = HARD_MAX_PLAN_BRANCHING;
+        let required = u16::try_from(count).unwrap();
+        for plan in [
+            AuthorizationPlan::all_of(members(count)),
+            AuthorizationPlan::any_of(members(count)),
+            AuthorizationPlan::k_of_n(required, members(count)),
+        ] {
+            let shape = plan.unwrap().validate(&VerifierLimits::hard()).unwrap();
+            assert_eq!(shape.leaves.len(), count);
+            assert_eq!(shape.maximum_depth, 2);
+        }
+        for count in [count + 1, count * 8] {
+            assert_eq!(
+                AuthorizationPlan::all_of(members(count)),
+                Err(ModelError::PlanLimitExceeded)
+            );
+            assert_eq!(
+                AuthorizationPlan::any_of(members(count)),
+                Err(ModelError::PlanLimitExceeded)
+            );
+            assert_eq!(
+                AuthorizationPlan::k_of_n(1, members(count)),
+                Err(ModelError::PlanLimitExceeded)
+            );
+            assert_eq!(
+                AuthorizationPlan::k_of_n(0, members(count)),
+                Err(ModelError::InvalidPlan)
+            );
+        }
+        assert_eq!(
+            AuthorizationPlan::all_of(Vec::new()),
+            Err(ModelError::InvalidPlan)
+        );
+        assert_eq!(
+            AuthorizationPlan::any_of(Vec::new()),
+            Err(ModelError::InvalidPlan)
+        );
+        assert_eq!(
+            AuthorizationPlan::k_of_n(1, Vec::new()),
+            Err(ModelError::InvalidPlan)
+        );
+        assert_eq!(
+            AuthorizationPlan::k_of_n(2, members(1)),
+            Err(ModelError::InvalidPlan)
+        );
     }
 
     #[test]

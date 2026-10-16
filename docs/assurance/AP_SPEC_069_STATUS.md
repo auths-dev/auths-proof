@@ -10,7 +10,7 @@ shipping-source refinement and hosted evidence gates.
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. Caller unsigned-object construction, suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
-| M3: complete verifier | In progress | Shipping child-summary updates and finalization refine an independent finite-sequence model. Complete plan validation/traversal, callbacks/events, registry/stage composition, sealed projection and E2.1–E2.5 remain. |
+| M3: complete verifier | In progress | The shipping inner recursive evaluator refines independent all/any/k semantics under explicit stateful callback contracts, with event-count/order and structural event-bound corollaries. Public validation and callback implementations, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
@@ -375,3 +375,41 @@ replay and final evidence. At `fead08c4`, hosted PostgreSQL lifecycle, recipe
 qualification, gateway isolation, both customer demos, operator package and
 Python/TypeScript package checks pass; the main formal gates are still running.
 All E1–E5 workstreams remain open.
+
+## Recursive inner-plan refinement
+
+The complete extracted inner evaluator now has a source equality with an
+independently recursive plan model for every represented finite plan. Native
+and model branch/observer contracts are explicit quantified premises; the
+statement fixes the result and both states, so a different visit order or
+missing post-order event cannot satisfy it. Source corollaries establish node
+event count and exact leaf order. The structural model proves node count is
+at most depth times leaf count for nonempty plans; explicit depth-16 and
+128-leaf bounds yield at most 2,048 source observer calls. Public validation
+correspondence, callback cost and the complete verifier bound remain open.
+
+A positive length-indexed bounded vector solves the recursive-carrier issue
+without changing the Rust plan type. Both conversions with the pinned Aeneas
+Vec round-trip, their map is injective, and deref is exact delegation. Only
+this standard container representation and discriminant instance naming are
+normalized. The official recursive-loop extraction switch leaves Auths
+function bodies untouched. The expanded report has nine local and nine
+imported function records, including the generated loop record, with zero
+opaque Auths functions and two additional transparent standard-library models.
+
+Kernel-checked two-/three-leaf witnesses cover accepted, denied and
+indeterminate outcomes and exact post-order events. Native mirrors use the
+public validating wrapper, and a joint 128-leaf/depth-16 witness checks all
+1,921 events. Constructors now reject excessive member counts before sorting,
+preserving threshold/empty-input error precedence and canonical accepted plans.
+This runtime bounds correction is source-reviewed and natively tested; no
+constructor-refinement theorem is inferred from the inner evaluator proof.
+
+Qualification passes all 435 compiled statements, all 11 modules, native
+parity cases (including the joint hard boundary), and two byte-identical
+translations. Every prior 418 declaration record is unchanged; the only
+transitive axioms remain `propext`, `Classical.choice` and `Quot.sound`.
+The exact source closure is
+`64d845b2d6cebe06e27879dbaccda54b8425fbb29e7733e1a5f5e5c4a5737ede`.
+The exact pushed revision still requires its hosted authoritative gates.
+No E1–E5 workstream or M6 is complete on the strength of this slice.

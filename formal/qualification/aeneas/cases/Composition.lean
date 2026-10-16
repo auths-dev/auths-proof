@@ -1,4 +1,7 @@
 import Auths.Composition.Examples
+import Auths.Composition.PlanExamples
+import Auths.Composition.Work
+import Auths.Composition.Bounds
 import Auths.Refinement.Production
 open Aeneas Aeneas.Std Result
 

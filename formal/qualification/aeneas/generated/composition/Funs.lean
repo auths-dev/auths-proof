@@ -2,6 +2,7 @@
 -- [auths_composition]: function definitions
 import Aeneas
 import qualification.aeneas.generated.composition.Types
+import qualification.aeneas.generated.composition.FunsExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -12,6 +13,9 @@ set_option maxHeartbeats 1000000
 
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
+
+/- You can remove the following line by using the CLI option `-all-computable`: -/
+noncomputable section
 
 namespace auths_composition
 
@@ -33,8 +37,30 @@ def auths_algebra_kernel.generated.threshold_counts
     then ok auths_algebra_kernel.generated.Truth.Indeterminate
     else ok auths_algebra_kernel.generated.Truth.Denied
 
+/-- [auths_model::{auths_model::AuthorizationPlan}::as_ref]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1878:4-1878:52
+    Name pattern: [auths_model::{auths_model::AuthorizationPlan}::as_ref]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::AuthorizationPlan}::as_ref"]
+def auths_model.AuthorizationPlan.as_ref
+  (self : auths_model.AuthorizationPlan) :
+  Result auths_model.AuthorizationPlanRef
+  := do
+  match self._0 with
+  | auths_model.AuthorizationPlanNode.Proof reference =>
+    ok (auths_model.AuthorizationPlanRef.Proof reference)
+  | auths_model.AuthorizationPlanNode.AllOf members =>
+    let s := alloc.vec.Vec.deref members
+    ok (auths_model.AuthorizationPlanRef.AllOf s)
+  | auths_model.AuthorizationPlanNode.AnyOf members =>
+    let s := alloc.vec.Vec.deref members
+    ok (auths_model.AuthorizationPlanRef.AnyOf s)
+  | auths_model.AuthorizationPlanNode.KOfN k members =>
+    let s := alloc.vec.Vec.deref members
+    ok (auths_model.AuthorizationPlanRef.KOfN k s)
+
 /-- [auths_model::{auths_model::Requirement}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4963:8-4963:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4978:8-4978:39
     Name pattern: [auths_model::{auths_model::Requirement}::code_order] -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_order"]
 def auths_model.Requirement.code_order
@@ -63,7 +89,7 @@ def auths_model.Requirement.code_order
   | auths_model.Requirement.ApprovalUnavailable => ok 0#u8
 
 /-- [auths_model::{auths_model::Requirement}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4959:8-4959:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4974:8-4974:61
     Name pattern: [auths_model::{auths_model::Requirement}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_precedes"]
@@ -76,7 +102,7 @@ def auths_model.Requirement.code_precedes
   ok (i < i1)
 
 /-- [auths_model::{auths_model::DenialReason}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4963:8-4963:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4978:8-4978:39
     Name pattern: [auths_model::{auths_model::DenialReason}::code_order] -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_order"]
 def auths_model.DenialReason.code_order
@@ -130,7 +156,7 @@ def auths_model.DenialReason.code_order
   | auths_model.DenialReason.ApprovalThresholdNotMet => ok 4#u8
 
 /-- [auths_model::{auths_model::DenialReason}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4959:8-4959:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4974:8-4974:61
     Name pattern: [auths_model::{auths_model::DenialReason}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_precedes"]
@@ -150,6 +176,38 @@ def evaluate_threshold_counts
   Result auths_algebra_kernel.generated.Truth
   := do
   auths_algebra_kernel.generated.threshold_counts k authorized indeterminate
+
+/-- [auths_composition::summary::threshold]:
+    Source: 'core/crates/auths-composition/src/summary.rs', lines 50:0-62:1 -/
+def summary.threshold
+  (state : summary.Summary) (required : Std.U16) : Result BranchOutcome := do
+  let t ←
+    evaluate_threshold_counts required state.authorized state.indeterminate
+  match t with
+  | auths_algebra_kernel.generated.Truth.Denied =>
+    match state.denial with
+    | none =>
+      ok (BranchOutcome.Denied
+        auths_model.DenialReason.AuthorizationPlanInvalid)
+    | some reason => ok (BranchOutcome.Denied reason)
+  | auths_algebra_kernel.generated.Truth.Indeterminate =>
+    match state.requirement with
+    | none =>
+      ok (BranchOutcome.Indeterminate
+        auths_model.Requirement.ExternalFactUnavailable)
+    | some requirement => ok (BranchOutcome.Indeterminate requirement)
+  | auths_algebra_kernel.generated.Truth.Authorized =>
+    ok BranchOutcome.Authorized
+
+/-- [auths_composition::summary::all]:
+    Source: 'core/crates/auths-composition/src/summary.rs', lines 40:0-48:1 -/
+def summary.all (state : summary.Summary) : Result BranchOutcome := do
+  match state.denial with
+  | none =>
+    match state.requirement with
+    | none => ok BranchOutcome.Authorized
+    | some requirement => ok (BranchOutcome.Indeterminate requirement)
+  | some reason => ok (BranchOutcome.Denied reason)
 
 /-- [auths_composition::summary::push]:
     Source: 'core/crates/auths-composition/src/summary.rs', lines 13:0-38:1 -/
@@ -189,36 +247,143 @@ def summary.push
       then ok { state with denial := (some reason) }
       else ok state
 
-/-- [auths_composition::summary::all]:
-    Source: 'core/crates/auths-composition/src/summary.rs', lines 40:0-48:1 -/
-def summary.all (state : summary.Summary) : Result BranchOutcome := do
-  match state.denial with
-  | none =>
-    match state.requirement with
-    | none => ok BranchOutcome.Authorized
-    | some requirement => ok (BranchOutcome.Indeterminate requirement)
-  | some reason => ok (BranchOutcome.Denied reason)
+/-- [auths_composition::summary::{impl core::default::Default for auths_composition::summary::Summary}::default]:
+    Source: 'core/crates/auths-composition/src/summary.rs', lines 5:29-5:36
+    Visibility: public -/
+def summary.Summary.Insts.CoreDefaultDefault.default
+  : Result summary.Summary := do
+  let o ←
+    core.option.Option.Insts.CoreDefaultDefault.default
+      auths_model.DenialReason
+  let o1 ←
+    core.option.Option.Insts.CoreDefaultDefault.default auths_model.Requirement
+  ok
+    {
+      authorized := (core.default.DefaultUsize.default),
+      indeterminate := (core.default.DefaultUsize.default),
+      denial := o,
+      requirement := o1
+    }
 
-/-- [auths_composition::summary::threshold]:
-    Source: 'core/crates/auths-composition/src/summary.rs', lines 50:0-62:1 -/
-def summary.threshold
-  (state : summary.Summary) (required : Std.U16) : Result BranchOutcome := do
-  let t ←
-    evaluate_threshold_counts required state.authorized state.indeterminate
-  match t with
-  | auths_algebra_kernel.generated.Truth.Denied =>
-    match state.denial with
-    | none =>
-      ok (BranchOutcome.Denied
-        auths_model.DenialReason.AuthorizationPlanInvalid)
-    | some reason => ok (BranchOutcome.Denied reason)
-  | auths_algebra_kernel.generated.Truth.Indeterminate =>
-    match state.requirement with
-    | none =>
-      ok (BranchOutcome.Indeterminate
-        auths_model.Requirement.ExternalFactUnavailable)
-    | some requirement => ok (BranchOutcome.Indeterminate requirement)
-  | auths_algebra_kernel.generated.Truth.Authorized =>
-    ok BranchOutcome.Authorized
+/-- [auths_composition::observe_aggregate]:
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 171:0-187:1 -/
+def observe_aggregate
+  {T0 : Type} (coreopsfunctionFnMutT0TupleEvaluationEventTupleInst :
+  core.ops.function.FnMut T0 EvaluationEvent Unit) (observer : T0)
+  (child_count : Std.Usize) (required : Std.U16) (authorized : Std.Usize)
+  (indeterminate : Std.Usize) (outcome : BranchOutcome) :
+  Result (BranchOutcome × T0)
+  := do
+  let (_, observer1) ←
+    coreopsfunctionFnMutT0TupleEvaluationEventTupleInst.call_mut observer
+      (EvaluationEvent.Aggregate child_count required authorized indeterminate
+      outcome)
+  ok (outcome, observer1)
+
+mutual
+
+/-- [auths_composition::evaluate_members]: loop 0:
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 117:4-120:5 -/
+@[rust_loop]
+def evaluate_members_loop
+  {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+  : core.ops.function.FnMut T0 auths_model.ProofRef BranchOutcome)
+  (coreopsfunctionFnMutT1TupleEvaluationEventTupleInst :
+  core.ops.function.FnMut T1 EvaluationEvent Unit)
+  (members : Slice auths_model.AuthorizationPlan) (branch : T0) (observer : T1)
+  (state : summary.Summary) (index : Std.Usize) :
+  Result (summary.Summary × T0 × T1)
+  := do
+  let i := Slice.len members
+  if index < i
+  then
+    let ap ← Slice.index_usize members index
+    let (bo, branch1, observer1) ←
+      evaluate_node coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+        coreopsfunctionFnMutT1TupleEvaluationEventTupleInst ap branch observer
+    let state1 ← summary.push state bo
+    let index1 ← index + 1#usize
+    evaluate_members_loop coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+      coreopsfunctionFnMutT1TupleEvaluationEventTupleInst members branch1
+      observer1 state1 index1
+  else ok (state, branch, observer)
+partial_fixpoint
+
+/-- [auths_composition::evaluate_members]:
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 110:0-122:1 -/
+def evaluate_members
+  {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+  : core.ops.function.FnMut T0 auths_model.ProofRef BranchOutcome)
+  (coreopsfunctionFnMutT1TupleEvaluationEventTupleInst :
+  core.ops.function.FnMut T1 EvaluationEvent Unit)
+  (members : Slice auths_model.AuthorizationPlan) (branch : T0) (observer : T1)
+  :
+  Result (summary.Summary × T0 × T1)
+  := do
+  let state ← summary.Summary.Insts.CoreDefaultDefault.default
+  evaluate_members_loop coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+    coreopsfunctionFnMutT1TupleEvaluationEventTupleInst members branch observer
+    state 0#usize
+partial_fixpoint
+
+/-- [auths_composition::evaluate_node]:
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 124:0-169:1 -/
+def evaluate_node
+  {T0 : Type} {T1 : Type} (coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+  : core.ops.function.FnMut T0 auths_model.ProofRef BranchOutcome)
+  (coreopsfunctionFnMutT1TupleEvaluationEventTupleInst :
+  core.ops.function.FnMut T1 EvaluationEvent Unit)
+  (plan : auths_model.AuthorizationPlan) (branch : T0) (observer : T1) :
+  Result (BranchOutcome × T0 × T1)
+  := do
+  let apr ← auths_model.AuthorizationPlan.as_ref plan
+  match apr with
+  | auths_model.AuthorizationPlanRef.Proof reference =>
+    let (outcome, branch1) ←
+      coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst.call_mut branch
+        reference
+    let (_, observer1) ←
+      coreopsfunctionFnMutT1TupleEvaluationEventTupleInst.call_mut observer
+        (EvaluationEvent.Proof reference outcome)
+    ok (outcome, branch1, observer1)
+  | auths_model.AuthorizationPlanRef.AllOf members =>
+    let (state, branch1, observer1) ←
+      evaluate_members coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+        coreopsfunctionFnMutT1TupleEvaluationEventTupleInst members branch
+        observer
+    let i := Slice.len members
+    let i1 := Slice.len members
+    let r ← U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i1
+    let i2 ← core.result.Result.unwrap_or r core.num.U16.MAX
+    let bo ← summary.all state
+    let (outcome, observer2) ←
+      observe_aggregate coreopsfunctionFnMutT1TupleEvaluationEventTupleInst
+        observer1 i i2 state.authorized state.indeterminate bo
+    ok (outcome, branch1, observer2)
+  | auths_model.AuthorizationPlanRef.AnyOf members =>
+    let (state, branch1, observer1) ←
+      evaluate_members coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+        coreopsfunctionFnMutT1TupleEvaluationEventTupleInst members branch
+        observer
+    let i := Slice.len members
+    let bo ← summary.threshold state 1#u16
+    let (outcome, observer2) ←
+      observe_aggregate coreopsfunctionFnMutT1TupleEvaluationEventTupleInst
+        observer1 i 1#u16 state.authorized state.indeterminate bo
+    ok (outcome, branch1, observer2)
+  | auths_model.AuthorizationPlanRef.KOfN k members =>
+    let (state, branch1, observer1) ←
+      evaluate_members coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst
+        coreopsfunctionFnMutT1TupleEvaluationEventTupleInst members branch
+        observer
+    let i := Slice.len members
+    let bo ← summary.threshold state k
+    let (outcome, observer2) ←
+      observe_aggregate coreopsfunctionFnMutT1TupleEvaluationEventTupleInst
+        observer1 i k state.authorized state.indeterminate bo
+    ok (outcome, branch1, observer2)
+partial_fixpoint
+
+end
 
 end auths_composition

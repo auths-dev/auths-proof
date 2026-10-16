@@ -200,14 +200,48 @@ threshold classification includes saturating unsigned arithmetic. Independent
 byte tables establish lexical precedence for every denial/requirement pair,
 with exhaustive native catalog/string parity and nine Lean/native witnesses.
 
-The qualified source has four local and five imported composition functions,
-without opaque Auths functions. The compiled audit has 418 declarations, all
-prior 387 records unchanged, and only the existing foundational axioms. Full
-qualification passes all 11 modules, native cases and two identical translations.
+At the child-summary checkpoint, the source had four local and five imported
+composition functions, with no opaque Auths functions. Its 418-declaration audit
+kept every prior 387 record unchanged, with only the existing foundational
+axioms. Qualification passed all 11 modules, native cases and two identical
+translations.
 The inventory records a naming-only discriminant normalization that reuses the
 pinned generator and changes only anonymous instance namespaces.
 
-This is a child-sequence refinement. Recursive plan traversal/validation,
-callback/observer correspondence, the complete staged verifier and sealed
-result projection remain AP-SPEC-069 E2 obligations. The separate full-evaluator
-prototype is not part of the qualified assurance claim.
+The following slice extends this child-sequence result to recursive traversal.
+Public plan validation, callback implementations, the complete staged verifier
+and sealed result projection remain AP-SPEC-069 E2 obligations.
+
+## Recursive inner-plan refinement
+
+`Auths.Composition.Traversal.evaluator_refines` compares the actual shipping
+inner evaluator with an independently recursive all/any/k specification for
+all finite represented plans. Its explicit contracts relate each stateful
+leaf callback and observer call to their model operations. The equality fixes
+the outcome and both final states, including every child and post-order event.
+Separate corollaries prove exact event count and leaf order. Nonempty plans
+have at most depth times leaf-count events; explicit depth-16 and 128-leaf
+premises give 2,048 events. This is a semantic-event bound, not a bound on the
+complete verifier, callback cost, allocation or host stack.
+
+The extraction uses the pinned official `-loops-to-rec` pass for composition
+and a strictly positive bounded-vector carrier. The carrier has exactly the
+pinned Vec's usize bound, both conversion round trips and injectivity are
+proved, and deref delegates to the pinned model. No generated Auths function
+body is rewritten. The reviewed external inventory additionally gives exact
+Option-default and existing numeric/Result links; external axiom templates
+are retained as uncompiled inventory artifacts.
+
+The source witnesses cover successful two-leaf conjunction, denial without
+short-circuiting, authorization without short-circuiting, and indeterminate
+and denied thresholds with exact event sequences. Native cases mirror them
+through the public validating wrapper and exercise 128 leaves at depth 16.
+The constructor rejects oversized member counts before sorting, preserving
+invalid-threshold/empty-input error precedence and the accepted canonical form.
+
+The expanded qualification passes all 435 compiled statements, all 11 modules,
+native cases and two byte-identical translations. All prior 418 records are
+unchanged, and only the existing foundational axioms occur. The exact pushed
+revision requires its hosted authoritative gates. The inner evaluator theorem does not prove public validation,
+leaf cryptography, closed registry/stage behavior, or sealed-result projection;
+it does not complete E2 or the composed AP-SPEC-069 claim.

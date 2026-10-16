@@ -2,6 +2,7 @@
 -- [auths_composition]: type definitions
 import Aeneas
 import Auths.Support.Discriminant
+import Auths.Support.PositiveVec
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -25,8 +26,77 @@ inductive auths_algebra_kernel.generated.Truth where
 | Indeterminate : auths_algebra_kernel.generated.Truth
 | Authorized : auths_algebra_kernel.generated.Truth
 
+/-- [auths_model::Digest]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 247:0-247:17
+    Name pattern: [auths_model::Digest]
+    Visibility: public -/
+@[reducible, rust_type "auths_model::Digest"]
+def auths_model.Digest := Array Std.U8 32#usize
+
+/-- [auths_model::ProofRef]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Name pattern: [auths_model::ProofRef]
+    Visibility: public -/
+@[reducible, rust_type "auths_model::ProofRef"]
+def auths_model.ProofRef := auths_model.Digest
+
+mutual
+
+/-- [auths_model::AuthorizationPlan]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1777:0-1777:28
+    Name pattern: [auths_model::AuthorizationPlan]
+    Visibility: public -/
+@[rust_type "auths_model::AuthorizationPlan"]
+inductive auths_model.AuthorizationPlan where
+| mk : auths_model.AuthorizationPlanNode → auths_model.AuthorizationPlan
+
+/-- [auths_model::AuthorizationPlanNode]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1780:0-1780:26
+    Name pattern: [auths_model::AuthorizationPlanNode] -/
+@[qualified_discriminant isize, rust_type "auths_model::AuthorizationPlanNode"]
+inductive auths_model.AuthorizationPlanNode where
+| Proof : auths_model.ProofRef → auths_model.AuthorizationPlanNode
+| AllOf :
+  alloc.vec.Vec auths_model.AuthorizationPlan →
+  auths_model.AuthorizationPlanNode
+| AnyOf :
+  alloc.vec.Vec auths_model.AuthorizationPlan →
+  auths_model.AuthorizationPlanNode
+| KOfN :
+  Std.U16 →
+  alloc.vec.Vec auths_model.AuthorizationPlan →
+  auths_model.AuthorizationPlanNode
+
+end
+
+def auths_model.AuthorizationPlan._0 (x : auths_model.AuthorizationPlan) :=
+  match x with | auths_model.AuthorizationPlan.mk x1 => x1
+
+@[simp]
+theorem auths_model.AuthorizationPlan._0._simpLemma_ (_0 :
+  auths_model.AuthorizationPlanNode) :
+  (auths_model.AuthorizationPlan.mk _0)._0 = _0 := by rfl
+
+/-- [auths_model::AuthorizationPlanRef]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1792:0-1792:33
+    Name pattern: [auths_model::AuthorizationPlanRef]
+    Visibility: public -/
+@[qualified_discriminant isize, rust_type "auths_model::AuthorizationPlanRef"]
+inductive auths_model.AuthorizationPlanRef where
+| Proof : auths_model.ProofRef → auths_model.AuthorizationPlanRef
+| AllOf :
+  Slice auths_model.AuthorizationPlan →
+  auths_model.AuthorizationPlanRef
+| AnyOf :
+  Slice auths_model.AuthorizationPlan →
+  auths_model.AuthorizationPlanRef
+| KOfN :
+  Std.U16 →
+  Slice auths_model.AuthorizationPlan →
+  auths_model.AuthorizationPlanRef
+
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4894:0-4894:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4909:0-4909:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::DenialReason"]
@@ -79,7 +149,7 @@ inductive auths_model.DenialReason where
 | ApprovalThresholdNotMet : auths_model.DenialReason
 
 /-- [auths_model::Requirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5079:0-5079:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5094:0-5094:20
     Name pattern: [auths_model::Requirement]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::Requirement"]
@@ -115,6 +185,20 @@ inductive BranchOutcome where
 | Denied : auths_model.DenialReason → BranchOutcome
 | Indeterminate : auths_model.Requirement → BranchOutcome
 | StructurallyInvalid : auths_model.DenialReason → BranchOutcome
+
+/-- [auths_composition::EvaluationEvent]
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 35:0-49:1
+    Visibility: public -/
+@[qualified_discriminant isize]
+inductive EvaluationEvent where
+| Proof : auths_model.ProofRef → BranchOutcome → EvaluationEvent
+| Aggregate :
+  Std.Usize →
+  Std.U16 →
+  Std.Usize →
+  Std.Usize →
+  BranchOutcome →
+  EvaluationEvent
 
 /-- [auths_composition::summary::Summary]
     Source: 'core/crates/auths-composition/src/summary.rs', lines 6:0-11:1 -/

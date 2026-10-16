@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "c5b0f71c97f3329a03057ec4dce7d22e0e0d095bd9c6ba7d611f228c858f44bf",
+  "digest": "64d845b2d6cebe06e27879dbaccda54b8425fbb29e7733e1a5f5e5c4a5737ede",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -189,7 +189,7 @@
     },
     {
       "path": "core/crates/auths-composition/src/lib.rs",
-      "sha256": "fb7dba92814c1e6e5e1b3f75e88a3d26f8edac94db9c07f2b5307e0e1b0f84fd"
+      "sha256": "729387077a0b7f369185060dace694c98f50a45621ec3a801581022ce47e525b"
     },
     {
       "path": "core/crates/auths-composition/src/oracle.rs",
@@ -241,7 +241,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "582c1d6d12f29fc6731ae6b78d3bafed1aa064642be2b4ca0d7d1a0f06c438db"
+      "sha256": "3d95d9458a09551e8e39268bcabc8200df8da9def29c83a708aa066bec66b505"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",
@@ -448,6 +448,10 @@
       "sha256": "d0c9b2b98232238d7c5f23579114ea9146f2e8a274b5b4e06783068490cbf88c"
     },
     {
+      "path": "formal/Auths/Support/PositiveVec.lean",
+      "sha256": "246c314719867482a10057612dc199e605e38189c67a59cf4e57a274b5ad0bb5"
+    },
+    {
       "path": "formal/algebra-contract-v1.toml",
       "sha256": "2fd14b11c08381a0c6e7cf6b8104b17ff4c243fd4ef170601f2fa8fb3765fbb6"
     },
@@ -469,7 +473,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Composition.lean",
-      "sha256": "be4a1827149c90f6f9953b44b771c021bd5f7f2c6564d75a1b882d4c73da309c"
+      "sha256": "628573647204a5c05d23db17e2b6eff0a096b99becd297be23b6fead050b614c"
     },
     {
       "path": "formal/qualification/aeneas/cases/Connections.lean",
@@ -493,7 +497,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "89fd7943a5aa87bd0e8b59a29ab6f38bf914f66161dae7176bad9e8ff051a602"
+      "sha256": "9cb8abf78e0437f9f0a3549a8daa196111fd14679a1ef58401bb8291cb559dc7"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -881,7 +885,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "8392c7a4e66846a3544e8830f562b3e9579a21106ae89a675d92634e9ce2368c"
+      "sha256": "203523a62b95ebfd98ee076d76d2687fdde623826f511c13c915842f6d063b1e"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -893,7 +897,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "ad7748f480ed687f4a4aa00116571dc1fb7f0fd183ff33c15473f41903a05f27"
+      "sha256": "238a457e5cff36f868819b2062ea87d7722c352658719ecd115dd5b37ba0f461"
     },
     {
       "path": "xtask/src/fuzz.rs",

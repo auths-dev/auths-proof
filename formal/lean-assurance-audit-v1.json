@@ -3,6 +3,185 @@
     {
       "axioms": [
         "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Bounds",
+      "name": "Auths.Composition.Bounds.node_bound",
+      "statement": "∀ {R : Type} (plan : Auths.Composition.PlanModel.Plan R), Auths.Composition.Bounds.NodeBound plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Bounds",
+      "name": "Auths.Composition.Bounds.bounded_events",
+      "statement": "∀ {R : Type} (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.Bounds.proper plan →\n    Auths.Composition.Bounds.depth plan ≤ 16 →\n      (Auths.Composition.Work.leaves plan).length ≤ 128 → Auths.Composition.Work.nodes plan ≤ 2048"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Bounds",
+      "name": "Auths.Composition.Bounds.source_bounded_events",
+      "statement": "∀ {B : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (nativeObserver : Aeneas.Std.core.ops.function.FnMut ℕ auths_composition.EvaluationEvent Unit)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    (∀ (count : ℕ) (event : auths_composition.EvaluationEvent),\n        nativeObserver.call_mut count event = Aeneas.Std.Result.ok ((), count + 1)) →\n      ∀ (plan : auths_composition.auths_model.AuthorizationPlan) (state : B) (count : ℕ),\n        Auths.Composition.Bounds.proper (Auths.Composition.PlanModel.viewPlan plan) →\n          Auths.Composition.Bounds.depth (Auths.Composition.PlanModel.viewPlan plan) ≤ 16 →\n            (Auths.Composition.Work.leaves (Auths.Composition.PlanModel.viewPlan plan)).length ≤ 128 →\n              ∃ outcome next finalCount,\n                auths_composition.evaluate_node nativeBranch nativeObserver plan state count =\n                    Aeneas.Std.Result.ok (outcome, next, finalCount) ∧\n                  finalCount ≤ count + 2048"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Support.PositiveVec",
+      "name": "auths_composition.alloc.vec.Vec.toBase_ofBase",
+      "statement": "∀ {α : Type u} (value : Aeneas.Std.alloc.vec.Vec α), (auths_composition.alloc.vec.Vec.ofBase value).toBase = value"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Support.PositiveVec",
+      "name": "auths_composition.alloc.vec.Vec.ofBase_toBase",
+      "statement": "∀ {α : Type u} (value : auths_composition.alloc.vec.Vec α), auths_composition.alloc.vec.Vec.ofBase value.toBase = value"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Support.PositiveVec",
+      "name": "auths_composition.alloc.vec.Vec.toBase_injective",
+      "statement": "∀ {α : Type u} (left right : auths_composition.alloc.vec.Vec α), left.toBase = right.toBase → left = right"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Support.PositiveVec",
+      "name": "auths_composition.alloc.vec.Vec.deref_exact",
+      "statement": "∀ {α : Type} (value : auths_composition.alloc.vec.Vec α), ↑value.deref = value.elements.toList"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Traversal",
+      "name": "Auths.Composition.Traversal.evaluator_refines",
+      "statement": "∀ {B O : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (nativeObserver : Aeneas.Std.core.ops.function.FnMut O auths_composition.EvaluationEvent Unit)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B)\n  (modelObserver : O → Auths.Composition.PlanModel.Event auths_composition.auths_model.ProofRef → O),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    (∀ (state : O) (event : auths_composition.EvaluationEvent),\n        nativeObserver.call_mut state event =\n          Aeneas.Std.Result.ok ((), modelObserver state (Auths.Composition.PlanModel.eventView event))) →\n      ∀ (plan : auths_composition.auths_model.AuthorizationPlan) (branch : B) (observer : O),\n        auths_composition.evaluate_node nativeBranch nativeObserver plan branch observer =\n          Aeneas.Std.Result.ok\n            (Auths.Composition.PlanModel.evaluate modelBranch modelObserver (Auths.Composition.PlanModel.viewPlan plan)\n              branch observer)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Work",
+      "name": "Auths.Composition.Work.event_count",
+      "statement": "∀ {R B : Type} (branch : B → R → auths_composition.BranchOutcome × B) (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.Work.NodeCountCorrect branch plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Work",
+      "name": "Auths.Composition.Work.leaf_order",
+      "statement": "∀ {R B : Type} (branch : B → R → auths_composition.BranchOutcome × B) (plan : Auths.Composition.PlanModel.Plan R),\n  Auths.Composition.Work.NodeOrderCorrect branch plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Work",
+      "name": "Auths.Composition.Work.source_event_count",
+      "statement": "∀ {B : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    ∀ (nativeObserver : Aeneas.Std.core.ops.function.FnMut ℕ auths_composition.EvaluationEvent Unit),\n      (∀ (count : ℕ) (event : auths_composition.EvaluationEvent),\n          nativeObserver.call_mut count event = Aeneas.Std.Result.ok ((), count + 1)) →\n        ∀ (plan : auths_composition.auths_model.AuthorizationPlan) (state : B) (count : ℕ),\n          ∃ outcome next,\n            auths_composition.evaluate_node nativeBranch nativeObserver plan state count =\n              Aeneas.Std.Result.ok\n                (outcome, next, count + Auths.Composition.Work.nodes (Auths.Composition.PlanModel.viewPlan plan))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Work",
+      "name": "Auths.Composition.Work.source_leaf_order",
+      "statement": "∀ {B : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    ∀\n      (nativeObserver :\n        Aeneas.Std.core.ops.function.FnMut (List auths_composition.auths_model.ProofRef)\n          auths_composition.EvaluationEvent Unit),\n      (∀ (trace : List auths_composition.auths_model.ProofRef) (event : auths_composition.EvaluationEvent),\n          nativeObserver.call_mut trace event =\n            Aeneas.Std.Result.ok\n              ((), Auths.Composition.Work.recordLeaf trace (Auths.Composition.PlanModel.eventView event))) →\n        ∀ (plan : auths_composition.auths_model.AuthorizationPlan) (state : B)\n          (trace : List auths_composition.auths_model.ProofRef),\n          ∃ outcome next,\n            auths_composition.evaluate_node nativeBranch nativeObserver plan state trace =\n              Aeneas.Std.Result.ok\n                (outcome, next, trace ++ Auths.Composition.Work.leaves (Auths.Composition.PlanModel.viewPlan plan))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.PlanExamples",
+      "name": "Auths.Composition.PlanExamples.two_leaf_conjunction",
+      "statement": "auths_composition.evaluate_node Auths.Composition.PlanExamples.branch Auths.Composition.PlanExamples.observer\n    Auths.Composition.PlanExamples.twoLeaves 0 0 =\n  Aeneas.Std.Result.ok (auths_composition.BranchOutcome.Authorized, 2, 3)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.PlanExamples",
+      "name": "Auths.Composition.PlanExamples.all_visits_after_denial",
+      "statement": "auths_composition.evaluate_node Auths.Composition.PlanExamples.mixedBranch Auths.Composition.PlanExamples.events\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.AllOf Auths.Composition.PlanExamples.threeMembers))\n    0 [] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.PermissionNotGranted, 3,\n      Auths.Composition.PlanExamples.mixedLeaves ++\n        [auths_composition.EvaluationEvent.Aggregate 3#usize 3#u16 1#usize 1#usize\n            (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.PermissionNotGranted)])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.PlanExamples",
+      "name": "Auths.Composition.PlanExamples.any_visits_after_authorization",
+      "statement": "auths_composition.evaluate_node Auths.Composition.PlanExamples.mixedBranch Auths.Composition.PlanExamples.events\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.AnyOf Auths.Composition.PlanExamples.threeMembers))\n    0 [] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Authorized, 3,\n      Auths.Composition.PlanExamples.mixedLeaves ++\n        [auths_composition.EvaluationEvent.Aggregate 3#usize 1#u16 1#usize 1#usize\n            auths_composition.BranchOutcome.Authorized])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.PlanExamples",
+      "name": "Auths.Composition.PlanExamples.threshold_indeterminate",
+      "statement": "auths_composition.evaluate_node Auths.Composition.PlanExamples.mixedBranch Auths.Composition.PlanExamples.events\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.KOfN 2#u16 Auths.Composition.PlanExamples.threeMembers))\n    0 [] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.ExternalFactUnavailable, 3,\n      Auths.Composition.PlanExamples.mixedLeaves ++\n        [auths_composition.EvaluationEvent.Aggregate 3#usize 2#u16 1#usize 1#usize\n            (auths_composition.BranchOutcome.Indeterminate\n              auths_composition.auths_model.Requirement.ExternalFactUnavailable)])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.PlanExamples",
+      "name": "Auths.Composition.PlanExamples.threshold_refused",
+      "statement": "auths_composition.evaluate_node Auths.Composition.PlanExamples.mixedBranch Auths.Composition.PlanExamples.events\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.KOfN 3#u16 Auths.Composition.PlanExamples.threeMembers))\n    0 [] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.PermissionNotGranted, 3,\n      Auths.Composition.PlanExamples.mixedLeaves ++\n        [auths_composition.EvaluationEvent.Aggregate 3#usize 3#u16 1#usize 1#usize\n            (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.PermissionNotGranted)])"
+    },
+    {
+      "axioms": [
+        "propext",
         "Quot.sound"
       ],
       "kind": "theorem",

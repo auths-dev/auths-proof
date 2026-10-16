@@ -289,6 +289,109 @@ mod tests {
         }
     }
 
+    #[test]
+    fn formal_plan_witnesses_preserve_every_callback_and_event() {
+        let reference = |tag| ProofRef::new([tag; 32]);
+        let members = || {
+            (1..=3)
+                .map(|tag| AuthorizationPlan::proof(reference(tag)))
+                .collect()
+        };
+        let denied = BranchOutcome::Denied(DenialReason::PermissionNotGranted);
+        let missing = BranchOutcome::Indeterminate(Requirement::ExternalFactUnavailable);
+        let cases = [
+            (AuthorizationPlan::all_of(members()).unwrap(), 3, denied),
+            (
+                AuthorizationPlan::any_of(members()).unwrap(),
+                1,
+                BranchOutcome::Authorized,
+            ),
+            (AuthorizationPlan::k_of_n(2, members()).unwrap(), 2, missing),
+            (AuthorizationPlan::k_of_n(3, members()).unwrap(), 3, denied),
+        ];
+        for (plan, required, expected) in cases {
+            let mut count = 0;
+            let mut events = Vec::new();
+            let actual = evaluate_observed(
+                &plan,
+                &VerifierLimits::hard(),
+                &mut |_| {
+                    let result = match count {
+                        0 => denied,
+                        1 => BranchOutcome::Authorized,
+                        _ => missing,
+                    };
+                    count += 1;
+                    result
+                },
+                &mut |event| events.push(event),
+            );
+            assert_eq!(actual, Ok(expected));
+            assert_eq!(count, 3);
+            assert_eq!(
+                events,
+                vec![
+                    EvaluationEvent::Proof {
+                        reference: reference(1),
+                        outcome: denied
+                    },
+                    EvaluationEvent::Proof {
+                        reference: reference(2),
+                        outcome: BranchOutcome::Authorized
+                    },
+                    EvaluationEvent::Proof {
+                        reference: reference(3),
+                        outcome: missing
+                    },
+                    EvaluationEvent::Aggregate {
+                        child_count: 3,
+                        required,
+                        authorized: 1,
+                        indeterminate: 1,
+                        outcome: expected,
+                    },
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn maximum_depth_and_leaf_count_visit_the_complete_plan() {
+        let limits = VerifierLimits::hard();
+        let max_depth = limits.get(auths_model::LimitKind::PlanDepth);
+        let max_leaves = limits.get(auths_model::LimitKind::PlanLeaves);
+        let members = (0..max_leaves)
+            .map(|index| {
+                let mut plan = AuthorizationPlan::proof(ProofRef::new(
+                    [u8::try_from(index).expect("hard bound fits byte"); 32],
+                ));
+                for _ in 1..max_depth - 1 {
+                    plan = AuthorizationPlan::all_of(vec![plan]).expect("single bounded child");
+                }
+                plan
+            })
+            .collect();
+        let plan = AuthorizationPlan::all_of(members).expect("joint hard boundary");
+        let shape = plan.validate(&limits).expect("hard-bound shape");
+        assert_eq!(shape.leaves().len(), max_leaves);
+        assert_eq!(shape.maximum_depth(), max_depth);
+        let mut branches = 0;
+        let mut events = 0;
+        let actual = evaluate_observed(
+            &plan,
+            &limits,
+            &mut |_| {
+                branches += 1;
+                BranchOutcome::Authorized
+            },
+            &mut |_| events += 1,
+        );
+        assert_eq!(actual, Ok(BranchOutcome::Authorized));
+        assert_eq!(branches, max_leaves);
+        assert_eq!(events, 1 + max_leaves * (max_depth - 1));
+        assert!(events <= max_leaves * max_depth);
+    }
+
     fn nested_plan(seed: u64, leaves: &[u8]) -> AuthorizationPlan {
         if leaves.len() == 1 {
             return AuthorizationPlan::proof(ProofRef::new([leaves[0]; 32]));

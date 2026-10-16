@@ -106,7 +106,7 @@ structure auths_model.ActionAuthorityView where
   terminal_grant : Option auths_model.GrantId
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4894:0-4894:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4909:0-4909:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::DenialReason"]

@@ -3,6 +3,9 @@ import Auths.Authority
 import Auths.Rich.Mutations
 import Auths.Composition
 import Auths.Composition.Examples
+import Auths.Composition.PlanExamples
+import Auths.Composition.Work
+import Auths.Composition.Bounds
 import Auths.Diversity
 import Auths.Product.Theorems
 import Auths.Product.Refinement
@@ -35,6 +38,23 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Composition.Bounds.node_bound,
+    `Auths.Composition.Bounds.bounded_events,
+    `Auths.Composition.Bounds.source_bounded_events,
+    `auths_composition.alloc.vec.Vec.toBase_ofBase,
+    `auths_composition.alloc.vec.Vec.ofBase_toBase,
+    `auths_composition.alloc.vec.Vec.toBase_injective,
+    `auths_composition.alloc.vec.Vec.deref_exact,
+    `Auths.Composition.Traversal.evaluator_refines,
+    `Auths.Composition.Work.event_count,
+    `Auths.Composition.Work.leaf_order,
+    `Auths.Composition.Work.source_event_count,
+    `Auths.Composition.Work.source_leaf_order,
+    `Auths.Composition.PlanExamples.two_leaf_conjunction,
+    `Auths.Composition.PlanExamples.all_visits_after_denial,
+    `Auths.Composition.PlanExamples.any_visits_after_authorization,
+    `Auths.Composition.PlanExamples.threshold_indeterminate,
+    `Auths.Composition.PlanExamples.threshold_refused,
     `Auths.Composition.Model.least_none_iff_empty,
     `Auths.Composition.Model.all_children_authorize_iff,
     `Auths.Composition.Model.threshold_children_authorize_iff,

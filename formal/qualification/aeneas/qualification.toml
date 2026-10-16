@@ -9,14 +9,15 @@ shipping_target = "workspace-host"
 extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
-# Only declaration metadata changes: the pinned match generator is reused verbatim.
-codegen_normalizations = ["composition-qualified-discriminants-v1"]
+# Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1"]
 
 source_files = [
   "core/crates/auths-composition/Cargo.toml",
   "core/crates/auths-composition/src/lib.rs",
   "core/crates/auths-composition/src/summary.rs",
   "formal/Auths/Support/Discriminant.lean",
+  "formal/Auths/Support/PositiveVec.lean",
   "formal/qualification/aeneas/cases/Composition.lean",
   "product/stores/auths-stores/Cargo.toml",
   "product/stores/auths-stores/src/lib.rs",
@@ -82,6 +83,8 @@ source_files = [
 generated_files = [
   "formal/qualification/aeneas/generated/composition/Types.lean",
   "formal/qualification/aeneas/generated/composition/Funs.lean",
+  "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
   "formal/qualification/aeneas/generated/composition/translation.json",
   "formal/qualification/aeneas/generated/stores/Types.lean",
   "formal/qualification/aeneas/generated/stores/Funs.lean",
@@ -143,6 +146,26 @@ charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[external_models]]
+id = "composition-positive-bounded-vector"
+kind = "transparent-isomorphic-standard-library-type-model"
+artifact = "formal/Auths/Support/PositiveVec.lean"
+rust_symbols = ["alloc::vec::Vec", "alloc::vec::{impl core::ops::deref::Deref<[T]> for alloc::vec::Vec<T>}::deref"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "A strictly positive length-indexed list with the same usize bound as the pinned Aeneas Vec. Both conversion round trips and injectivity are proved for all bounded vectors; deref delegates exactly to the pinned implementation. Only the composition extraction uses this carrier, and it uses no other vector operations. No function body or Auths algorithm is replaced."
+
+[[external_models]]
+id = "composition-option-default-and-standard-links"
+kind = "transparent-standard-library-model"
+artifact = "formal/qualification/aeneas/generated/composition/FunsExternal.lean"
+rust_symbols = ["core::option::{impl core::default::Default for core::option::Option<T>}::default", "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from", "core::result::{core::result::Result<T, E>}::unwrap_or"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Option::default returns None. Checked usize-to-u16 conversion and Result::unwrap_or import the already reviewed exact codec standard-library models. No Auths callback or evaluation algorithm is modeled by an opaque external."
 
 [[external_models]]
 id = "codec-utf8-error-erasure"
@@ -299,26 +322,38 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_composition"
 translation_json = "formal/qualification/aeneas/generated/composition/translation.json"
-local_functions = 4
-external_functions = 5
+local_functions = 9
+external_functions = 9
 opaque_local_functions = 0
 required_symbols = [
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::option::{impl core::default::Default for core::option::Option<T>}::default",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
   "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{auths_model::AuthorizationPlan}::as_ref",
   "auths_model::{auths_model::Requirement}::code_order",
   "auths_model::{auths_model::Requirement}::code_precedes",
   "auths_model::{auths_model::DenialReason}::code_order",
   "auths_model::{auths_model::DenialReason}::code_precedes",
   "auths_composition::evaluate_threshold_counts",
-  "auths_composition::summary::push",
-  "auths_composition::summary::all",
   "auths_composition::summary::threshold",
+  "auths_composition::summary::all",
+  "auths_composition::summary::push",
+  "auths_composition::summary::{impl core::default::Default for auths_composition::summary::Summary}::default",
+  "auths_composition::observe_aggregate",
+  "auths_composition::evaluate_members",
+  "auths_composition::evaluate_node"
 ]
 allowed_external_symbols = [
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::option::{impl core::default::Default for core::option::Option<T>}::default",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
   "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{auths_model::AuthorizationPlan}::as_ref",
   "auths_model::{auths_model::Requirement}::code_order",
   "auths_model::{auths_model::Requirement}::code_precedes",
   "auths_model::{auths_model::DenialReason}::code_order",
-  "auths_model::{auths_model::DenialReason}::code_precedes",
+  "auths_model::{auths_model::DenialReason}::code_precedes"
 ]
 
 [[translations]]
@@ -660,6 +695,11 @@ required_symbols = [
   "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean"
+count = 3
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/codec/TypesExternal_Template.lean"

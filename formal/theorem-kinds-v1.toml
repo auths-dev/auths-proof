@@ -12,6 +12,15 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Composition.Bounds.source_bounded_events" = "partial"
+"Auths.Composition.Traversal.evaluator_refines" = "exact"
+"Auths.Composition.Work.source_event_count" = "partial"
+"Auths.Composition.Work.source_leaf_order" = "partial"
+"Auths.Composition.PlanExamples.two_leaf_conjunction" = "case"
+"Auths.Composition.PlanExamples.all_visits_after_denial" = "case"
+"Auths.Composition.PlanExamples.any_visits_after_authorization" = "case"
+"Auths.Composition.PlanExamples.threshold_indeterminate" = "case"
+"Auths.Composition.PlanExamples.threshold_refused" = "case"
 "Auths.Composition.Refinement.push_exact" = "partial"
 "Auths.Composition.Refinement.all_exact" = "exact"
 "Auths.Composition.Refinement.threshold_exact" = "exact"

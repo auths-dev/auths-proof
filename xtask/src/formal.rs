@@ -1868,6 +1868,76 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             claim.claim_text = "The pinned Aeneas unsigned-word saturating-add model equals the minimum of the word maximum and the natural-number sum.".to_owned();
             claim.scope = "Every pair of unsigned machine-word model values on either supported width. This proves a property of the pinned standard-library model; it is not a new opaque Auths algorithm or a complete verifier theorem.".to_owned();
         }
+        if declaration
+            .name
+            .starts_with("auths_composition.alloc.vec.Vec.")
+        {
+            claim.claim_text = format!(
+                "The transparent positive bounded-vector adapter proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated identity")
+            );
+            claim.scope = "Every vector in the pinned usize-bounded carrier. Both conversion round trips, injectivity and exact deref delegation preserve all elements and their order. This is standard-container model equivalence, not an Auths authorization decision.".to_owned();
+        }
+        if matches!(
+            declaration.name.as_str(),
+            "Auths.Composition.Work.event_count" | "Auths.Composition.Work.leaf_order"
+        ) {
+            claim.claim_text = format!(
+                "The independent recursive plan model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated property")
+            );
+            claim.scope = "Every finite independent plan and arbitrary total stateful branch function. Counting events gives the node count; recording proof references gives the exact leaf order. Separate source corollaries establish the shipping evaluator connection under explicit callback contracts.".to_owned();
+        }
+        if matches!(
+            declaration.name.as_str(),
+            "Auths.Composition.Bounds.node_bound" | "Auths.Composition.Bounds.bounded_events"
+        ) {
+            claim.claim_text = format!(
+                "The independent nonempty plan model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated bound")
+            );
+            claim.scope = "All finite plans with no empty compound node. Node count is bounded by depth times leaf count; the explicit depth-16 and 128-leaf premises give 2048 events. This is a structural semantic-event bound, not a complete verifier, callback, allocation or host-stack bound.".to_owned();
+        }
+        if declaration
+            .name
+            .starts_with("Auths.Composition.PlanExamples.")
+        {
+            claim.claim_text = format!(
+                "A kernel-checked execution of the complete shipping inner plan evaluator establishes the {} witness.",
+                declaration.name.rsplit('.').next().unwrap_or("stated")
+            );
+            claim.scope = "The concrete represented two- or three-leaf plan and explicit stateful callbacks in this statement, including exact outcomes, callback counts and post-order events for all/any/k. Native tests mirror the mixed-outcome cases through the public validating wrapper. This is not a complete proof or cryptographic acceptance witness.".to_owned();
+            claim.claim_status = "qualified".to_owned();
+            claim.rust_symbols = vec!["auths_composition::evaluate_node".to_owned()];
+            claim.evidence.retain(|item| {
+                !matches!(
+                    item.kind,
+                    FormalEvidenceKind::MechanicalTranslation | FormalEvidenceKind::SourceClosure
+                )
+            });
+            claim.evidence.push(FormalEvidence {
+                kind: FormalEvidenceKind::MechanicalTranslation,
+                artifact: COMPOSITION_TRANSLATION.to_owned(),
+                sha256: String::new(),
+            });
+            claim.evidence.push(FormalEvidence {
+                kind: FormalEvidenceKind::SourceClosure,
+                artifact: "formal/qualification/aeneas/source-closure.json".to_owned(),
+                sha256: String::new(),
+            });
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2220,9 +2290,45 @@ fn qualified_refinement_metadata(
 }
 
 fn composition_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const PLAN_RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed qualified discriminant names and isomorphic positive bounded-vector model, standard-library models, and listed foundational axioms are trusted. The official recursive-loop extraction flag changes no Rust semantics.",
+        "The statements quantify over explicit native and model callbacks and require their exact stateful call contracts. They prove the inner plan evaluator, not the implementation of leaf verification, public plan validation, stage/registry composition, sealed result projection, full verifier work/stack bounds, or AP-SPEC-069 E2 as a whole.",
+    ];
+    let plan = match declaration {
+        "Auths.Composition.Traversal.evaluator_refines" => Some((
+            "The complete shipping inner plan evaluator returns exactly the independent recursive plan semantics, including final branch state and post-order observer state.",
+            "Every finite represented plan, every initial branch/observer state, and every pair of total stateful callbacks satisfying the explicit exact call contracts. All/any/k nodes evaluate all children in source order, with exact counts, diagnostics and aggregate events. This theorem also covers typed shapes that public validation refuses; it does not assert their acceptance.",
+        )),
+        "Auths.Composition.Work.source_event_count" => Some((
+            "The shipping inner evaluator terminates and invokes the counting observer exactly once per plan node.",
+            "Every finite represented plan, arbitrary initial branch state and natural observer count, under the explicit total branch and counting-observer contracts. The exact increment is the independently defined node count. This counts semantic events; it is not a bound on callback cost, host allocation, stack, or complete verifier work.",
+        )),
+        "Auths.Composition.Work.source_leaf_order" => Some((
+            "The shipping inner evaluator records exactly the plan's leaf sequence in order, preserving the supplied prefix.",
+            "Every finite represented plan and initial state, under the explicit total branch and leaf-recording observer contracts. Denied or already-authorized intermediate children do not suppress later leaves. The branch implementations and public plan validation remain separate obligations.",
+        )),
+        "Auths.Composition.Bounds.source_bounded_events" => Some((
+            "The shipping inner evaluator emits at most 2048 node events for plans satisfying the explicit nonempty, 128-leaf and depth-16 structural premises.",
+            "Every represented plan whose independently computed view has no empty compound node, at most 128 leaves and depth at most 16, under exact total branch and counting-observer contracts. The theorem checks the actual source evaluator result. Public constructor/validation correspondence and callback/stack/full-verifier cost remain outside the claim; the shape premises are not replaced by a trusted validity flag.",
+        )),
+        _ => None,
+    };
+    if let Some((claim_text, scope)) = plan {
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols: &[
+                "auths_composition::evaluate_node",
+                "auths_composition::evaluate_members",
+                "auths_composition::observe_aggregate",
+            ],
+            scope,
+            residual_assumptions: PLAN_RESIDUAL,
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     const RESIDUAL: &[&str] = &[
         "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed declaration-name normalization, the pinned standard-library models, and the listed foundational axioms are trusted.",
-        "These statements cover child-outcome accumulation and finalization. The recursive plan carrier/traversal, validation, callback and observer ordering, registry/stage composition, sealed result projection and complete verifier remain separate obligations; this slice does not complete AP-SPEC-069 E2.",
+        "These statements cover child-outcome accumulation and finalization. Recursive traversal is separately refined under explicit callback contracts. Public plan validation, callback implementations, registry/stage composition, sealed result projection and the complete verifier remain outside these summary statements; this slice does not complete AP-SPEC-069 E2.",
     ];
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
         "Auths.Composition.Refinement.push_exact" => (

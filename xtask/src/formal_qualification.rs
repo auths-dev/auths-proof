@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "1a2135d40b4e426048ed3a7a64f7fba24221b77b573e7e25a875a6bed1e4474e";
+    "96db4f91f6e77f1108789e644158ac9a1a7c4badeecd61e0387fd4c921750d09";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -23,6 +23,10 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
         "composition-run/qualification/aeneas/generated/composition/Funs.lean",
         "formal/qualification/aeneas/generated/composition/Funs.lean",
+    ),
+    (
+        "composition-run/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
     ),
     (
         "composition-run/translation.json",
@@ -159,6 +163,7 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
     "formal/qualification/aeneas/generated/codec/TypesExternal.lean",
     "formal/qualification/aeneas/generated/codec/FunsExternal.lean",
     "formal/qualification/aeneas/generated/model/FunsExternal.lean",
@@ -172,6 +177,8 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/composition/Types.lean",
     "formal/qualification/aeneas/generated/composition/Funs.lean",
+    "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
     "formal/qualification/aeneas/generated/composition/translation.json",
     "formal/qualification/aeneas/generated/stores/Types.lean",
     "formal/qualification/aeneas/generated/stores/Funs.lean",
@@ -230,6 +237,7 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
     "core/crates/auths-composition/src/lib.rs",
     "core/crates/auths-composition/src/summary.rs",
     "formal/Auths/Support/Discriminant.lean",
+    "formal/Auths/Support/PositiveVec.lean",
     "formal/qualification/aeneas/cases/Composition.lean",
     "core/crates/auths-codec/src/decode.rs",
     "core/crates/auths-codec/src/encode.rs",
@@ -296,6 +304,7 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/codec/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/codec/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean",
@@ -636,14 +645,20 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     }
     if qualification.case_modules.len() != 10
         || qualification.translations.len() != 10
-        || qualification.external_models.len() != 6
+        || qualification.external_models.len() != 8
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 5
+        || qualification.template_axioms.len() != 6
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
 
-    if qualification.codegen_normalizations != ["composition-qualified-discriminants-v1"] {
+    if qualification.codegen_normalizations
+        != [
+            "composition-qualified-discriminants-v1",
+            "composition-positive-vector-v1",
+            "composition-recursive-loops-v1",
+        ]
+    {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
     }
 
@@ -1080,6 +1095,10 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
+            render_composition_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/codec/TypesExternal.lean",
             render_codec_types_external(),
         ),
@@ -1115,6 +1134,10 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_composition_external() -> String {
+    "-- REVIEWED: Option::default is None; the two numeric/Result operations\n-- delegate to the existing exact standard-library models.\nimport qualification.aeneas.generated.composition.Types\nimport qualification.aeneas.generated.codec.FunsExternal\nopen Aeneas Aeneas.Std Result\n\ndef core.option.Option.Insts.CoreDefaultDefault.default (T : Type) : Result (Option T) := ok none\n".to_owned()
 }
 
 fn render_model_external() -> String {
@@ -2004,7 +2027,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_composition::summary::push,auths_composition::summary::all,auths_composition::summary::threshold",
+            "auths_composition::evaluate_node",
             &stable_llbc.join("auths_composition.llbc"),
             "core/crates/auths-composition/Cargo.toml",
             &[
@@ -2220,25 +2243,24 @@ fn reproduce(
                 destination.display()
             )
         })?;
-        run_checked(
-            aeneas,
-            &[
-                "-backend".to_owned(),
-                "lean".to_owned(),
-                "-split-files".to_owned(),
-                "-emit-json".to_owned(),
-                "-warnings-as-errors".to_owned(),
-                "-subdir".to_owned(),
-                format!("qualification/aeneas/generated/{subdir}"),
-                "-dest".to_owned(),
-                destination.display().to_string(),
-                llbc.join(format!("{crate_name}.llbc"))
-                    .display()
-                    .to_string(),
-            ],
-            root,
-            &[],
-        )?;
+        let mut aeneas_arguments = vec![
+            "-backend".to_owned(),
+            "lean".to_owned(),
+            "-split-files".to_owned(),
+            "-emit-json".to_owned(),
+            "-warnings-as-errors".to_owned(),
+            "-subdir".to_owned(),
+            format!("qualification/aeneas/generated/{subdir}"),
+            "-dest".to_owned(),
+            destination.display().to_string(),
+            llbc.join(format!("{crate_name}.llbc"))
+                .display()
+                .to_string(),
+        ];
+        if crate_name == "auths_composition" {
+            aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
+        }
+        run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
         "auths_composition",
@@ -2259,13 +2281,14 @@ fn reproduce(
     Ok(())
 }
 
-// Metadata-only: preserve every pinned generated datatype and match body.
-// The reviewed attribute changes anonymous instance names, not discriminants.
+// Preserve every generated constructor and function body. The two imported
+// support modules give qualified instance names and an isomorphic bounded Vec.
+// The Vec adapter proves both round trips and delegates deref to the pinned model.
 fn normalize_composition_discriminants(output: &Path) -> Result<(), String> {
     let path = output.join("composition-run/qualification/aeneas/generated/composition/Types.lean");
     let source = fs::read_to_string(&path)
         .map_err(|error| format!("could not read composition types: {error}"))?;
-    if source.matches("discriminant isize").count() != 4
+    if source.matches("discriminant isize").count() != 7
         || source.matches("import Aeneas\n").count() != 1
         || source.contains("qualified_discriminant")
     {
@@ -2274,7 +2297,7 @@ fn normalize_composition_discriminants(output: &Path) -> Result<(), String> {
     let normalized = source
         .replace(
             "import Aeneas\n",
-            "import Aeneas\nimport Auths.Support.Discriminant\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\nimport Auths.Support.PositiveVec\n",
         )
         .replace("discriminant isize", "qualified_discriminant isize");
     fs::write(path, normalized)
