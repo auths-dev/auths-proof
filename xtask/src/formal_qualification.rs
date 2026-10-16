@@ -13,9 +13,21 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "0df9cdd56bc010cd2b2dd95d531e4e5d3f91f3a99fbab85fb2001eb74ce8011b";
+    "9e60b116e869c757ef36461ee53b8ebe6708320732cd85db923b7ad5e058f723";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "signature-run/qualification/aeneas/generated/signature/Types.lean",
+        "formal/qualification/aeneas/generated/signature/Types.lean",
+    ),
+    (
+        "signature-run/qualification/aeneas/generated/signature/Funs.lean",
+        "formal/qualification/aeneas/generated/signature/Funs.lean",
+    ),
+    (
+        "signature-run/translation.json",
+        "formal/qualification/aeneas/generated/signature/translation.json",
+    ),
     (
         "composition-run/qualification/aeneas/generated/composition/Types.lean",
         "formal/qualification/aeneas/generated/composition/Types.lean",
@@ -180,6 +192,9 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/signature/Types.lean",
+    "formal/qualification/aeneas/generated/signature/Funs.lean",
+    "formal/qualification/aeneas/generated/signature/translation.json",
     "formal/qualification/aeneas/generated/composition/Types.lean",
     "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
@@ -227,6 +242,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.Signature",
     "qualification.aeneas.cases.Composition",
     "qualification.aeneas.cases.Stores",
     "qualification.aeneas.cases.Codec",
@@ -240,6 +256,9 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "core/crates/auths-signature-core/Cargo.toml",
+    "core/crates/auths-signature-core/src/lib.rs",
+    "formal/qualification/aeneas/cases/Signature.lean",
     "core/crates/auths-composition/Cargo.toml",
     "core/crates/auths-composition/src/lib.rs",
     "core/crates/auths-composition/src/summary.rs",
@@ -268,6 +287,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_signature_core",
+        "formal/qualification/aeneas/generated/signature/translation.json",
+    ),
     (
         "auths_composition",
         "formal/qualification/aeneas/generated/composition/translation.json",
@@ -651,8 +674,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 10
-        || qualification.translations.len() != 10
+    if qualification.case_modules.len() != 11
+        || qualification.translations.len() != 11
         || qualification.external_models.len() != 10
         || qualification.warning_inventory.len() != 4
         || qualification.template_axioms.len() != 7
@@ -665,6 +688,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "composition-qualified-discriminants-v1",
             "composition-positive-vector-v1",
             "composition-recursive-loops-v1",
+            "signature-recursive-loops-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -1576,14 +1600,14 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
         }
         if matches!(
             report.crate_name.as_str(),
-            "auths_codec" | "auths_composition"
+            "auths_codec" | "auths_composition" | "auths_signature_core"
         ) && report
             .functions
             .iter()
             .any(|function| function.rust_name.starts_with("auths_") && function.is_opaque)
         {
             return Err(
-                "the codec/composition closure must translate every Auths constructor and helper"
+                "the codec/composition/signature closure must translate every Auths constructor and helper"
                     .to_owned(),
             );
         }
@@ -1975,6 +1999,8 @@ fn run_rust_qualification_cases(root: &Path) -> Result<(), String> {
             "-p".to_owned(),
             "auths-composition".to_owned(),
             "-p".to_owned(),
+            "auths-signature-core".to_owned(),
+            "-p".to_owned(),
             "auths-authority".to_owned(),
             "-p".to_owned(),
             "auths-author".to_owned(),
@@ -2165,6 +2191,17 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
+            "auths_signature_core::ed25519_point_encoding_is_canonical,auths_signature_core::p256_key_encoding_is_canonical",
+            &stable_llbc.join("auths_signature_core.llbc"),
+            "core/crates/auths-signature-core/Cargo.toml",
+            &[],
+        ),
+        root,
+        &[],
+    )?;
+    run_checked(
+        charon,
+        &charon_arguments(
             "auths_composition::evaluate_observed",
             &stable_llbc.join("auths_composition.llbc"),
             "core/crates/auths-composition/Cargo.toml",
@@ -2335,6 +2372,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_signature_core",
         "auths_composition",
         "auths_stores",
         "auths_codec",
@@ -2363,6 +2401,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_signature_core", "signature"),
         ("auths_composition", "composition"),
         ("auths_stores", "stores"),
         ("auths_codec", "codec"),
@@ -2395,12 +2434,13 @@ fn reproduce(
                 .display()
                 .to_string(),
         ];
-        if crate_name == "auths_composition" {
+        if matches!(crate_name, "auths_composition" | "auths_signature_core") {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
         }
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_signature_core",
         "auths_composition",
         "auths_stores",
         "auths_codec",

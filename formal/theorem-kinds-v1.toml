@@ -12,6 +12,17 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Crypto.Encoding.Scan.loop_refines" = "partial"
+"Auths.Crypto.Encoding.RootFlags.root_flags" = "partial"
+"Auths.Crypto.Encoding.Ed25519.guard_refines" = "verdict-exact"
+"Auths.Crypto.Encoding.P256.guard_refines" = "verdict-exact"
+"Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted" = "case"
+"Auths.Crypto.Encoding.Examples.field_alias_refused" = "case"
+"Auths.Crypto.Encoding.Examples.negative_zero_refused" = "case"
+"Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted" = "case"
+"Auths.Crypto.Encoding.Examples.compressed_form_accepted" = "case"
+"Auths.Crypto.Encoding.Examples.uncompressed_tag_refused" = "case"
+"Auths.Crypto.Encoding.Examples.short_compressed_refused" = "case"
 "Auths.Composition.ValidationPublic.public_evaluator_refines" = "exact"
 "Auths.Composition.ValidationContract.valid_public_evaluator_refines" = "exact"
 "Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks" = "partial"

@@ -4,13 +4,13 @@
 
 ## 1. Claim
 
-At the commit that contains this document, 122 of 1,044 decision-scope functions (11.7%) and 1,478 of 11,535 code lines (12.8%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
+At the commit that contains this document, 122 of 1,044 decision-scope functions (11.7%) and 1,478 of 11,535 code lines (12.8%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `a95bce6d533668a13f7e5f3e882530680c16d25c81505756e23c1ac1f1c423fc` over the 104 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `05cd335a80bf6b341807d8ae18cea94d321bca8d22942c72048a6c8b4ae48e52` over the 107 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `83f412364ae2ca5ff8de28288b3531a897276327721b656e3228ab7ad1030cd0`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -42,6 +42,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `core/crates/auths-ports/src/diagnostics.rs` | interface |
 | `core/crates/auths-ports/src/lib.rs` | interface |
 | `core/crates/auths-ports/src/path.rs` | interface |
+| `core/crates/auths-signature-core/src/lib.rs` | crypto |
 | `core/crates/auths-verifier/src/causal.rs` | explanation |
 | `core/crates/auths-verifier/src/trace.rs` | explanation |
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
@@ -57,7 +58,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,044 | 122 (11.7%) | 64 (6.1%) | 122 (11.7%) | 11,535 | 1,478 (12.8%) | 995 (8.6%) | 1,478 (12.8%) |
 | verifier-core | 798 | 98 (12.3%) | 49 (6.1%) | 98 (12.3%) | 8,984 | 1,096 (12.2%) | 697 (7.8%) | 1,096 (12.2%) |
-| translated-crates | 1,525 | 291 (19.1%) | 90 (5.9%) | 291 (19.1%) | 16,894 | 3,233 (19.1%) | 1,370 (8.1%) | 3,233 (19.1%) |
+| translated-crates | 1,535 | 293 (19.1%) | 92 (6.0%) | 293 (19.1%) | 16,977 | 3,256 (19.2%) | 1,393 (8.2%) | 3,256 (19.2%) |
 | verifier-closure | 1,140 | 163 (14.3%) | 57 (5.0%) | 163 (14.3%) | 14,211 | 1,607 (11.3%) | 879 (6.2%) | 1,607 (11.3%) |
 | decision-nontrivial | 453 | 92 (20.3%) | 51 (11.3%) | 92 (20.3%) | 9,762 | 1,388 (14.2%) | 956 (9.8%) | 1,388 (14.2%) |
 
@@ -186,7 +187,7 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `0f6e4ebdd1657815e459cfb2653ae028fe802baead8ab0cb289d69359f95af00`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `b1e56b8527aa7e8d16fe41656bf9f15122f5e9c15ebd5a31ef120384ae3e6ab3`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -199,7 +200,7 @@ None: every function Aeneas translates is in the refined closure.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 80 exact, 2 verdict-exact, 34 partial, 23 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 80 exact, 4 verdict-exact, 36 partial, 30 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 121 of 1,044 functions (11.6%) and 1,475 of 11,535 code lines (12.8%).
 
@@ -252,6 +253,17 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Composition.ValidationPublic.public_evaluator_refines` | exact |
 | `Auths.Composition.Work.source_event_count` | partial |
 | `Auths.Composition.Work.source_leaf_order` | partial |
+| `Auths.Crypto.Encoding.Ed25519.guard_refines` | verdict-exact |
+| `Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted` | case |
+| `Auths.Crypto.Encoding.Examples.compressed_form_accepted` | case |
+| `Auths.Crypto.Encoding.Examples.field_alias_refused` | case |
+| `Auths.Crypto.Encoding.Examples.negative_zero_refused` | case |
+| `Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted` | case |
+| `Auths.Crypto.Encoding.Examples.short_compressed_refused` | case |
+| `Auths.Crypto.Encoding.Examples.uncompressed_tag_refused` | case |
+| `Auths.Crypto.Encoding.P256.guard_refines` | verdict-exact |
+| `Auths.Crypto.Encoding.RootFlags.root_flags` | partial |
+| `Auths.Crypto.Encoding.Scan.loop_refines` | partial |
 | `Auths.Crypto.Examples.minimal_preimage_exact` | case |
 | `Auths.Crypto.Examples.unicode_preimage_exact` | case |
 | `Auths.Crypto.Refinement.accepted_frame_valid` | partial |

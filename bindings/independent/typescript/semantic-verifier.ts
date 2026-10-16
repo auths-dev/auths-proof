@@ -5,6 +5,7 @@ import {
   createPublicKey,
   verify as cryptoVerify,
 } from "node:crypto";
+import { canonicalEd25519Encoding, strictEd25519PointEncoding } from "./ed25519-encoding.ts";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -900,7 +901,9 @@ function multikey(encoded: string): { key: Uint8Array; suite: string } {
   if (!encoded.startsWith("z")) throw new Error("unsupported multibase");
   const decoded = base58(encoded.slice(1));
   if (decoded[0] === 0xed && decoded[1] === 0x01 && decoded.length === 34) {
-    return { key: decoded.slice(2), suite: "ed25519-v1" };
+    const key = decoded.slice(2);
+    if (!canonicalEd25519Encoding(key)) throw new Error("invalid Ed25519 multikey");
+    return { key, suite: "ed25519-v1" };
   }
   if (decoded[0] === 0x80 && decoded[1] === 0x24 && decoded.length === 35) {
     const key = decoded.slice(2);
@@ -1338,7 +1341,9 @@ function p256PublicKey(raw: Uint8Array): KeyObject | undefined {
 
 function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean {
   if (suite === "ed25519-v1") {
-    return signature.length === 64 && cryptoVerify(null, message, ed25519PublicKey(key), signature);
+    return strictEd25519PointEncoding(key) && signature.length === 64 &&
+      strictEd25519PointEncoding(signature.subarray(0, 32)) &&
+      cryptoVerify(null, message, ed25519PublicKey(key), signature);
   }
   if (suite === "p256-sha256-v1") {
     if (signature.length !== 64) return false;

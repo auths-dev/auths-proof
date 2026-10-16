@@ -75,11 +75,11 @@ own test key.
   (12.8%) are translated to Lean and reached from audited theorem statements,
   and 23 of 82 kernel check sites map only to such functions. The rest of the
   decision path, including the staged verifier control flow, the composition
-  evaluator, the registry handlers, the codec, and the signature suites, is
-  tested, not proved. For K-of-N approval the proofs cover the approval count
-  and per-approver verdict functions and the requirement attenuation law, not
-  the verifier step that classifies each approval (binding, window, signature,
-  status). Figures, method, and what they do not mean:
+  evaluator, the registry handlers, and the codec, is tested, not proved. For
+  K-of-N approval the proofs cover the approval count and per-approver verdict
+  functions and the requirement attenuation law, not the verifier step that
+  classifies each approval (binding, window, signature, status). Figures,
+  method, and what they do not mean:
   [`docs/assurance/PROOF_COVERAGE.md`](docs/assurance/PROOF_COVERAGE.md).
   <!-- proof-coverage:end -->
 

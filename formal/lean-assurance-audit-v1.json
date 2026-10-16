@@ -7,6 +7,215 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Byte",
+      "name": "Auths.Crypto.Encoding.Byte.lower_seven",
+      "statement": "∀ (byte : Aeneas.Std.U8), ↑(byte &&& 127#u8) = ↑byte % 128"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Byte",
+      "name": "Auths.Crypto.Encoding.Byte.sign_bit",
+      "statement": "∀ (byte : Aeneas.Std.U8), (byte &&& 128#u8 != 0#u8) = decide (128 ≤ ↑byte)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Digits",
+      "name": "Auths.Crypto.Encoding.Digits.value_bound",
+      "statement": "∀ (digits : List ℕ), (∀ byte ∈ digits, byte < 256) → Nat.ofDigits 256 digits < 256 ^ digits.length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Digits",
+      "name": "Auths.Crypto.Encoding.Digits.maximum_iff",
+      "statement": "∀ (digits : List ℕ),\n  (∀ byte ∈ digits, byte < 256) →\n    (Nat.ofDigits 256 digits = 256 ^ digits.length - 1 ↔ digits = List.replicate digits.length 255)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Digits",
+      "name": "Auths.Crypto.Encoding.Digits.zero_iff",
+      "statement": "∀ (digits : List ℕ),\n  (∀ byte ∈ digits, byte < 256) → (Nat.ofDigits 256 digits = 0 ↔ digits = List.replicate digits.length 0)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Coordinate",
+      "name": "Auths.Crypto.Encoding.Coordinate.encoding_criterion",
+      "statement": "∀ (first upper : ℕ) (negative : Prop),\n  first < 256 →\n    upper ≤ Auths.Crypto.Encoding.Coordinate.upperMaximum →\n      (Auths.Crypto.Encoding.Coordinate.Encoding (first + 256 * upper) negative ↔\n        ¬(upper = Auths.Crypto.Encoding.Coordinate.upperMaximum ∧ 237 ≤ first) ∧\n          ¬(negative ∧ (upper = 0 ∧ first = 1 ∨ upper = Auths.Crypto.Encoding.Coordinate.upperMaximum ∧ first = 236)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Scan",
+      "name": "Auths.Crypto.Encoding.Scan.loop_refines",
+      "statement": "∀ (encoded : Aeneas.Std.Array Aeneas.Std.U8 32#usize) (remaining : ℕ)\n  (range : Aeneas.Std.core.ops.range.Range Aeneas.Std.Usize) (maximum zero : Bool),\n  ↑range.end ≤ 31 →\n    ↑range.start + remaining = ↑range.end →\n      Aeneas.Std.WP.spec (auths_signature_core.ed25519_point_encoding_is_canonical_loop range encoded maximum zero)\n        fun result =>\n        result = Auths.Crypto.Encoding.Scan.scan (List.take remaining (List.drop ↑range.start ↑encoded)) maximum zero"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Encoded",
+      "name": "Auths.Crypto.Encoding.Encoded.input_decomposes",
+      "statement": "∀ (input : Auths.Crypto.Encoding.Encoded.Input),\n  ↑input =\n    Auths.Crypto.Encoding.Encoded.first input :: Auths.Crypto.Encoding.Encoded.middle input ++\n      [Auths.Crypto.Encoding.Encoded.last input]"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Encoded",
+      "name": "Auths.Crypto.Encoding.Encoded.ordinate_frame",
+      "statement": "∀ (input : Auths.Crypto.Encoding.Encoded.Input),\n  Auths.Crypto.Encoding.Encoded.ordinate input =\n    ↑(Auths.Crypto.Encoding.Encoded.first input) + 256 * Auths.Crypto.Encoding.Encoded.upperValue input"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.RootFlags",
+      "name": "Auths.Crypto.Encoding.RootFlags.root_flags",
+      "statement": "∀ (input : Auths.Crypto.Encoding.Encoded.Input),\n  Aeneas.Std.WP.spec\n    (auths_signature_core.ed25519_point_encoding_is_canonical_loop { start := 1#usize, «end» := 31#usize } input\n      (decide (Auths.Crypto.Encoding.Encoded.last input &&& 127#u8 = 127#u8))\n      (decide (Auths.Crypto.Encoding.Encoded.last input &&& 127#u8 = 0#u8)))\n    fun result =>\n    (result.1 = true ↔ Auths.Crypto.Encoding.Encoded.upperValue input = Auths.Crypto.Encoding.Coordinate.upperMaximum) ∧\n      (result.2 = true ↔ Auths.Crypto.Encoding.Encoded.upperValue input = 0)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Ed25519",
+      "name": "Auths.Crypto.Encoding.Ed25519.guard_refines",
+      "statement": "∀ (input : Auths.Crypto.Encoding.Encoded.Input),\n  auths_signature_core.ed25519_point_encoding_is_canonical input =\n    Aeneas.Std.Result.ok (decide (Auths.Crypto.Encoding.Encoded.Encoding input))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.P256",
+      "name": "Auths.Crypto.Encoding.P256.guard_refines",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_signature_core.p256_key_encoding_is_canonical input =\n    Aeneas.Std.Result.ok (decide (Auths.Crypto.Encoding.P256.Encoding (List.map Aeneas.Std.UScalar.val ↑input)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted",
+      "statement": "auths_signature_core.ed25519_point_encoding_is_canonical Auths.Crypto.Encoding.Examples.rfcPublicKey =\n  Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.field_alias_refused",
+      "statement": "auths_signature_core.ed25519_point_encoding_is_canonical Auths.Crypto.Encoding.Examples.noncanonicalField =\n  Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.negative_zero_refused",
+      "statement": "auths_signature_core.ed25519_point_encoding_is_canonical Auths.Crypto.Encoding.Examples.negativeZero =\n  Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted",
+      "statement": "auths_signature_core.ed25519_point_encoding_is_canonical Auths.Crypto.Encoding.Examples.canonicalIdentity =\n  Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.compressed_form_accepted",
+      "statement": "auths_signature_core.p256_key_encoding_is_canonical\n    ⟨have y :=\n        have y :=\n          have y := [0#u8, 0#u8, 0#u8, 0#u8, 0#u8];\n          0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n        have y := 0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n        0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n      have y :=\n        have y := 0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n        0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n      have y := 0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n      2#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y,\n      Auths.Crypto.Encoding.Examples.compressed_form_accepted._proof_1⟩ =\n  Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.uncompressed_tag_refused",
+      "statement": "auths_signature_core.p256_key_encoding_is_canonical\n    ⟨have y :=\n        have y :=\n          have y := [0#u8, 0#u8, 0#u8, 0#u8, 0#u8];\n          0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n        have y := 0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n        0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n      have y :=\n        have y := 0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n        0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n      have y := 0#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y;\n      4#u8 :: 0#u8 :: 0#u8 :: 0#u8 :: y,\n      Auths.Crypto.Encoding.Examples.uncompressed_tag_refused._proof_1⟩ =\n  Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Encoding.Examples",
+      "name": "Auths.Crypto.Encoding.Examples.short_compressed_refused",
+      "statement": "auths_signature_core.p256_key_encoding_is_canonical\n    ⟨[2#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8,\n        0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8],\n      Auths.Crypto.Encoding.Examples.short_compressed_refused._proof_1⟩ =\n  Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Composition.Order",
       "name": "Auths.Composition.Order.reference_key_injective",
       "statement": "Function.Injective Auths.Composition.Order.referenceKey"

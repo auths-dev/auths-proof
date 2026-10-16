@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "83f412364ae2ca5ff8de28288b3531a897276327721b656e3228ab7ad1030cd0",
-  "inputs_sha256": "a95bce6d533668a13f7e5f3e882530680c16d25c81505756e23c1ac1f1c423fc",
+  "scope_definition_sha256": "2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
+  "inputs_sha256": "05cd335a80bf6b341807d8ae18cea94d321bca8d22942c72048a6c8b4ae48e52",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -55,6 +55,7 @@
     "core/crates/auths-registries/Cargo.toml": "sha256:590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2",
     "core/crates/auths-registries/src/lib.rs": "sha256:020bab93285f280aa2c05a67afa09ad1ca2f1e128e90e898c69bc7a7bfd16c89",
     "core/crates/auths-registries/src/template.rs": "sha256:1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4",
+    "core/crates/auths-signature-core/src/lib.rs": "sha256:1f3a218b5289db59c0fb8b348e7550c98013b94bb9fe65404ea7cb97d71f1b7e",
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
     "core/crates/auths-verifier/src/approval.rs": "sha256:2826a5227945a3e0ea000584f1e1c794bec3b313b13843f4284e0e716f830d33",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
@@ -62,8 +63,8 @@
     "core/crates/auths-verifier/src/observation.rs": "sha256:2b43ee60e1f105d33b325914ae723f91fe191675f27a9a9c04ea812c2fe27785",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
-    "formal/coverage-scope-v1.toml": "sha256:83f412364ae2ca5ff8de28288b3531a897276327721b656e3228ab7ad1030cd0",
-    "formal/lean-assurance-audit-v1.json": "sha256:a2052d09d568ab45e992c54161b03d254eab84d1910b299548a57475c795e4f6",
+    "formal/coverage-scope-v1.toml": "sha256:2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
+    "formal/lean-assurance-audit-v1.json": "sha256:88724aec4f6f0f36d215d656fdc5efc8c373d9ea37c9a372279b0824dba09d93",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -82,10 +83,12 @@
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:48fadbfbf052e310cd6df3fdc11e8e96785330f34144c1e471a908b7c1b21feb",
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
+    "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:2165115b3839ba363d8482e0063b8139dee7b99d172d7accb5bb168c4ce58686",
+    "formal/qualification/aeneas/generated/signature/translation.json": "sha256:a06e239387205746988b1d96ebd17f0b2d43faa5b8425c8814f8a22d00402d62",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:0c599635cae1673f9eb533a403451c45833a1f579bc4a8fb65b900d729e0bb81",
-    "formal/theorem-kinds-v1.toml": "sha256:73173d02b38eeb1bfe635b07b227a6cb8e8327c950c6f396f4f5c611117a541c",
+    "formal/qualification/aeneas/qualification.toml": "sha256:fa62177dcaa8dc8291354ce8cad02b36e89a379e4fb11fe347840c45f4db156d",
+    "formal/theorem-kinds-v1.toml": "sha256:9670544f98c7564c843ac396a245d4d508b187bd869078019666aba9fc029e78",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -134,8 +137,7 @@
       "the staged verifier control flow",
       "the composition evaluator",
       "the registry handlers",
-      "the codec",
-      "the signature suites"
+      "the codec"
     ]
   },
   "scope": {
@@ -155,6 +157,7 @@
       "product/policy/auths-bounded-policy"
     ],
     "translated_crates": [
+      "core/crates/auths-signature-core",
       "core/crates/auths-composition",
       "product/stores/auths-stores",
       "core/crates/auths-codec",
@@ -188,6 +191,7 @@
       "core/crates/auths-ports/src/diagnostics.rs": "interface",
       "core/crates/auths-ports/src/lib.rs": "interface",
       "core/crates/auths-ports/src/path.rs": "interface",
+      "core/crates/auths-signature-core/src/lib.rs": "crypto",
       "core/crates/auths-verifier/src/causal.rs": "explanation",
       "core/crates/auths-verifier/src/trace.rs": "explanation",
       "product/runtime/auths-lifecycle/src/codec.rs": "decoding",
@@ -268,33 +272,33 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1525,
-      "span_lines": 16952,
-      "code_lines": 16894,
+      "functions": 1535,
+      "span_lines": 17037,
+      "code_lines": 16977,
       "by_level": {
         "translated": {
-          "functions": 291,
-          "function_share": 0.1908,
-          "span_lines": 3245,
-          "span_line_share": 0.1914,
-          "code_lines": 3233,
-          "code_line_share": 0.1914
+          "functions": 293,
+          "function_share": 0.1909,
+          "span_lines": 3268,
+          "span_line_share": 0.1918,
+          "code_lines": 3256,
+          "code_line_share": 0.1918
         },
         "direct": {
-          "functions": 90,
-          "function_share": 0.059,
-          "span_lines": 1381,
-          "span_line_share": 0.0815,
-          "code_lines": 1370,
-          "code_line_share": 0.0811
+          "functions": 92,
+          "function_share": 0.0599,
+          "span_lines": 1404,
+          "span_line_share": 0.0824,
+          "code_lines": 1393,
+          "code_line_share": 0.0821
         },
         "closure": {
-          "functions": 291,
-          "function_share": 0.1908,
-          "span_lines": 3245,
-          "span_line_share": 0.1914,
-          "code_lines": 3233,
-          "code_line_share": 0.1914
+          "functions": 293,
+          "function_share": 0.1909,
+          "span_lines": 3268,
+          "span_line_share": 0.1918,
+          "code_lines": 3256,
+          "code_line_share": 0.1918
         }
       }
     },
@@ -552,6 +556,13 @@
     "core/crates/auths-registries": {
       "decision_functions": 82,
       "decision_code_lines": 1224,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "core/crates/auths-signature-core": {
+      "decision_functions": 0,
+      "decision_code_lines": 0,
       "translated": 0,
       "refined_closure": 0,
       "refined_closure_code_lines": 0
@@ -3010,6 +3021,17 @@
       "Auths.Composition.ValidationPublic.public_evaluator_refines": "exact",
       "Auths.Composition.Work.source_event_count": "partial",
       "Auths.Composition.Work.source_leaf_order": "partial",
+      "Auths.Crypto.Encoding.Ed25519.guard_refines": "verdict-exact",
+      "Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted": "case",
+      "Auths.Crypto.Encoding.Examples.compressed_form_accepted": "case",
+      "Auths.Crypto.Encoding.Examples.field_alias_refused": "case",
+      "Auths.Crypto.Encoding.Examples.negative_zero_refused": "case",
+      "Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted": "case",
+      "Auths.Crypto.Encoding.Examples.short_compressed_refused": "case",
+      "Auths.Crypto.Encoding.Examples.uncompressed_tag_refused": "case",
+      "Auths.Crypto.Encoding.P256.guard_refines": "verdict-exact",
+      "Auths.Crypto.Encoding.RootFlags.root_flags": "partial",
+      "Auths.Crypto.Encoding.Scan.loop_refines": "partial",
       "Auths.Crypto.Examples.minimal_preimage_exact": "case",
       "Auths.Crypto.Examples.unicode_preimage_exact": "case",
       "Auths.Crypto.Refinement.accepted_frame_valid": "partial",
@@ -3107,19 +3129,19 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 412,
+    "aeneas_local_definitions": 415,
     "by_kind": {
-      "function": 291,
-      "derived": 18,
-      "loop": 103
+      "loop": 104,
+      "function": 293,
+      "derived": 18
     },
-    "refined_direct": 90,
-    "refined_closure": 298,
-    "theorems_naming_translated_functions": 139
+    "refined_direct": 92,
+    "refined_closure": 300,
+    "theorems_naming_translated_functions": 150
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "0f6e4ebdd1657815e459cfb2653ae028fe802baead8ab0cb289d69359f95af00",
+    "current_formal_inputs_sha256": "b1e56b8527aa7e8d16fe41656bf9f15122f5e9c15ebd5a31ef120384ae3e6ab3",
     "fresh": false,
     "campaigns": {
       "s1": {

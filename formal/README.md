@@ -275,3 +275,23 @@ refused in compiled bridges. The full E2/M3 verifier and AP-SPEC-069 composed
 claim remain open; callback implementations, facade/getter coverage,
 registered stages, crypto, projection and complete work bounds are separate
 obligations. Hosted evidence is still required on the exact pushed revision.
+
+
+### Shipping signature encoding guards
+
+`Auths.Crypto.Encoding` connects the actual Ed25519 field/sign and P-256
+compressed-form guards to independent numeric/length specifications. Both
+source refinements are total on their displayed carriers. The finite byte
+scan is proved equal to the base-256 coordinate condition; no curve arithmetic
+or signature equation is implemented in the proof bridge. This additional
+extraction has three local functions, no external functions and no opaque
+Auths algorithm. It adds no primitive axiom or custom library model.
+
+The 490-statement construction audit preserves all 471 previous full records.
+Accepted/refused kernel witnesses are encoding examples, including canonical
+weak-key encodings whose signatures the native strict verifier still refuses.
+The exact-source qualification passes 12/12 cases, native parity, two
+byte-identical fresh translations and all 490 audited statements. Complete
+suite glue, caller preimages, principal binding, dispatch and commitment
+integration remain separate AP-SPEC-069 E5 obligations. Hosted evidence is
+still required on this exact revision.

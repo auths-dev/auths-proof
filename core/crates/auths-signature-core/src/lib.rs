@@ -13,6 +13,33 @@ pub const ED25519_V1: &str = "ed25519-v1";
 pub const P256_SHA256_V1: &str = "p256-sha256-v1";
 const P256_KEY_LEN: usize = 33;
 
+/// RFC 8032 field and negative-zero encoding rules; point validity is separate.
+fn ed25519_point_encoding_is_canonical(encoded: &[u8; 32]) -> bool {
+    let top = encoded[31] & 0x7f;
+    let mut all_max = top == 0x7f;
+    let mut all_zero = top == 0;
+    for index in 1..31 {
+        all_max &= encoded[index] == 0xff;
+        all_zero &= encoded[index] == 0;
+    }
+    if all_max && encoded[0] >= 0xed {
+        return false;
+    }
+    let sign = encoded[31] & 0x80 != 0;
+    if sign && ((all_zero && encoded[0] == 1) || (all_max && encoded[0] == 0xec)) {
+        return false;
+    }
+    true
+}
+
+/// The Auths P-256 compressed SEC1 form; curve-point decoding is separate.
+fn p256_key_encoding_is_canonical(encoded: &[u8]) -> bool {
+    if encoded.len() != P256_KEY_LEN {
+        return false;
+    }
+    encoded[0] == 0x02 || encoded[0] == 0x03
+}
+
 /// Failure classes shared by every Ed25519 protocol adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Ed25519Error {
@@ -66,12 +93,19 @@ impl core::error::Error for P256Error {}
 ///
 /// Rejects malformed Ed25519 verification material.
 pub fn validate_ed25519_key(verification_key: &[u8]) -> Result<(), Ed25519Error> {
+    decode_ed25519_key(verification_key).map(|_| ())
+}
+
+fn decode_ed25519_key(verification_key: &[u8]) -> Result<VerifyingKey, Ed25519Error> {
     let key_bytes: &[u8; 32] = verification_key
         .try_into()
         .map_err(|_| Ed25519Error::InvalidKey)?;
-    VerifyingKey::from_bytes(key_bytes)
-        .map(|_| ())
-        .map_err(|_| Ed25519Error::InvalidKey)
+    // The library decoder follows ZIP-215. Auths requires RFC 8032's
+    // canonical field and sign encoding before asking it to recover a point.
+    if !ed25519_point_encoding_is_canonical(key_bytes) {
+        return Err(Ed25519Error::InvalidKey);
+    }
+    VerifyingKey::from_bytes(key_bytes).map_err(|_| Ed25519Error::InvalidKey)
 }
 
 /// Verifies an Ed25519 signature with the repository's one strict implementation.
@@ -87,11 +121,7 @@ pub fn verify_ed25519(
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), Ed25519Error> {
-    validate_ed25519_key(verification_key)?;
-    let key_bytes: &[u8; 32] = verification_key
-        .try_into()
-        .map_err(|_| Ed25519Error::InvalidKey)?;
-    let key = VerifyingKey::from_bytes(key_bytes).map_err(|_| Ed25519Error::InvalidKey)?;
+    let key = decode_ed25519_key(verification_key)?;
     let signature =
         Signature::from_slice(signature).map_err(|_| Ed25519Error::InvalidSignatureEncoding)?;
     key.verify_strict(message, &signature)
@@ -118,12 +148,10 @@ pub fn validate_p256_key(verification_key: &[u8]) -> Result<(), P256Error> {
 /// The tag and length are checked before point decoding because the SEC1 decoder also accepts
 /// the uncompressed and compact forms of the same point.
 fn decode_p256_key(verification_key: &[u8]) -> Result<P256Key, P256Error> {
-    match verification_key {
-        [0x02 | 0x03, ..] if verification_key.len() == P256_KEY_LEN => {
-            P256Key::from_sec1_bytes(verification_key).map_err(|_| P256Error::InvalidKey)
-        }
-        _ => Err(P256Error::InvalidKey),
+    if !p256_key_encoding_is_canonical(verification_key) {
+        return Err(P256Error::InvalidKey);
     }
+    P256Key::from_sec1_bytes(verification_key).map_err(|_| P256Error::InvalidKey)
 }
 
 /// Verifies one fixed-width low-S P-256/SHA-256 signature.
@@ -184,6 +212,82 @@ mod tests {
         );
     }
 
+    #[test]
+    fn ed25519_rejects_noncanonical_fields_before_signature_parsing() {
+        for offset in 0u8..19 {
+            let mut key = [0xff; 32];
+            key[0] = 0xed + offset;
+            for sign in [0, 0x80] {
+                key[31] = 0x7f | sign;
+                assert!(!ed25519_point_encoding_is_canonical(&key));
+                assert_eq!(validate_ed25519_key(&key), Err(Ed25519Error::InvalidKey));
+                assert_eq!(
+                    verify_ed25519(&key, b"message", &[]),
+                    Err(Ed25519Error::InvalidKey)
+                );
+            }
+        }
+        // A permissively decodable, non-weak point demonstrates why neither
+        // a length check nor the library's low-order check supplies this rule.
+        let mut noncanonical = [0xff; 32];
+        noncanonical[0] = 0xf0; // p + 3
+        noncanonical[31] = 0x7f;
+        let decoded = VerifyingKey::from_bytes(&noncanonical).unwrap();
+        assert!(!decoded.is_weak());
+        assert_eq!(
+            validate_ed25519_key(&noncanonical),
+            Err(Ed25519Error::InvalidKey)
+        );
+    }
+
+    #[test]
+    fn ed25519_rejects_negative_zero_and_preserves_canonical_boundaries() {
+        let mut identity = [0; 32];
+        identity[0] = 1;
+        let mut order_two = [0xff; 32];
+        order_two[0] = 0xec;
+        order_two[31] = 0x7f;
+        for canonical in [identity, order_two] {
+            assert!(ed25519_point_encoding_is_canonical(&canonical));
+            assert_eq!(validate_ed25519_key(&canonical), Ok(()));
+            let mut negative_zero = canonical;
+            negative_zero[31] |= 0x80;
+            assert!(VerifyingKey::from_bytes(&negative_zero).is_ok());
+            assert_eq!(
+                validate_ed25519_key(&negative_zero),
+                Err(Ed25519Error::InvalidKey)
+            );
+            // Canonical small-order encodings remain subject to strict
+            // verification; an encoding check does not authenticate them.
+            assert_eq!(
+                verify_ed25519(&canonical, b"message", &[0; 64]),
+                Err(Ed25519Error::VerificationFailed)
+            );
+        }
+    }
+
+    #[test]
+    fn rfc8032_public_vector_one_verifies_the_exact_empty_message() {
+        let key = [
+            0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7, 0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64,
+            0x07, 0x3a, 0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25, 0xaf, 0x02, 0x1a, 0x68,
+            0xf7, 0x07, 0x51, 0x1a,
+        ];
+        let signature = [
+            0xe5, 0x56, 0x43, 0x00, 0xc3, 0x60, 0xac, 0x72, 0x90, 0x86, 0xe2, 0xcc, 0x80, 0x6e,
+            0x82, 0x8a, 0x84, 0x87, 0x7f, 0x1e, 0xb8, 0xe5, 0xd9, 0x74, 0xd8, 0x73, 0xe0, 0x65,
+            0x22, 0x49, 0x01, 0x55, 0x5f, 0xb8, 0x82, 0x15, 0x90, 0xa3, 0x3b, 0xac, 0xc6, 0x1e,
+            0x39, 0x70, 0x1c, 0xf9, 0xb4, 0x6b, 0xd2, 0x5b, 0xf5, 0xf0, 0x59, 0x5b, 0xbe, 0x24,
+            0x65, 0x51, 0x41, 0x43, 0x8e, 0x7a, 0x10, 0x0b,
+        ];
+        assert_eq!(validate_ed25519_key(&key), Ok(()));
+        assert_eq!(verify_ed25519(&key, b"", &signature), Ok(()));
+        assert_eq!(
+            verify_ed25519(&key, b"changed", &signature),
+            Err(Ed25519Error::VerificationFailed)
+        );
+    }
+
     const P256_MESSAGE: &[u8] = b"canonical message";
 
     /// A fixed P-256 key whose public point is the one its compact form `0x05 || x` decodes to.
@@ -207,6 +311,26 @@ mod tests {
         let mut encoded = vec![tag];
         encoded.extend_from_slice(rest);
         encoded
+    }
+
+    #[test]
+    fn p256_rejects_high_s_without_changing_the_signed_message() {
+        let key = compact_decodable_p256_key();
+        let signature: P256Signature = key.sign(P256_MESSAGE);
+        let low = signature.normalize_s().unwrap_or(signature);
+        let (r, s) = low.split_scalars();
+        let high = P256Signature::from_scalars(r.to_bytes(), (-s).to_bytes()).unwrap();
+        let compressed = key.verifying_key().to_encoded_point(true);
+        assert!(high.normalize_s().is_some());
+        assert!(key.verifying_key().verify(P256_MESSAGE, &high).is_ok());
+        assert_eq!(
+            verify_p256_sha256(compressed.as_bytes(), P256_MESSAGE, &low.to_bytes()),
+            Ok(())
+        );
+        assert_eq!(
+            verify_p256_sha256(compressed.as_bytes(), P256_MESSAGE, &high.to_bytes()),
+            Err(P256Error::VerificationFailed)
+        );
     }
 
     #[test]

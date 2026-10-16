@@ -10,9 +10,12 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1"]
 
 source_files = [
+  "core/crates/auths-signature-core/Cargo.toml",
+  "core/crates/auths-signature-core/src/lib.rs",
+  "formal/qualification/aeneas/cases/Signature.lean",
   "core/crates/auths-composition/Cargo.toml",
   "core/crates/auths-composition/src/lib.rs",
   "core/crates/auths-composition/src/summary.rs",
@@ -81,6 +84,9 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/signature/Types.lean",
+  "formal/qualification/aeneas/generated/signature/Funs.lean",
+  "formal/qualification/aeneas/generated/signature/translation.json",
   "formal/qualification/aeneas/generated/composition/Types.lean",
   "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
   "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
@@ -128,6 +134,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.Signature",
   "qualification.aeneas.cases.Composition",
   "qualification.aeneas.cases.Stores",
   "qualification.aeneas.cases.Codec",
@@ -351,6 +358,15 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_signature_core"
+translation_json = "formal/qualification/aeneas/generated/signature/translation.json"
+local_functions = 3
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = ["auths_signature_core::ed25519_point_encoding_is_canonical", "auths_signature_core::p256_key_encoding_is_canonical"]
+allowed_external_symbols = []
 
 [[translations]]
 crate_name = "auths_composition"

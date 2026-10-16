@@ -9,7 +9,7 @@ shipping-source refinement and hosted evidence gates.
 | --- | --- | --- |
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
-| M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. Caller unsigned-object construction, suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
+| M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. The shipping Ed25519 field/sign and P-256 compressed-form guards now have total exact refinements. Caller unsigned-object construction, complete suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
 | M3: complete verifier | In progress | The public observed evaluator now refines independent structural validation followed by all/any/k semantics. The source validator accepts iff the independent structural contract holds; invalid plans preserve both callback states without callback premises. Callback implementations, facade/getter coverage, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. Exact-revision hosted gates are pending for this expansion. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
@@ -477,3 +477,49 @@ authoritative Lean and final formal evidence:
 [CI 38852805698](https://github.com/auths-dev/auths-proof/actions/runs/38852805698).
 This public-validation expansion still requires hosted verification on its
 exact pushed revision.
+
+
+## Canonical signature-key encoding
+
+The public Ed25519 key contract requires canonical RFC 8032 field/sign form.
+The pinned library's decoder follows ZIP-215 and accepts additional encodings,
+including some non-weak points with a noncanonical field representative.
+`auths-signature-core` now checks the RFC form before library point recovery;
+key validation and signature verification share that one decoding path.
+The existing strict signature verification and P-256 low-S rules remain.
+This is a rejection-boundary correction, not evidence of a signature forgery.
+The native suite retains canonical low-order *encodings* at key validation;
+strict signature verification refuses weak keys and weak R points.
+
+`Auths.Crypto.Encoding.Ed25519.guard_refines` proves the actual source guard
+returns precisely the independent decoded-coordinate criterion for every
+32-byte array: y below 2^255-19, with the forbidden negative-zero sign choices
+excluded. The independent model uses base-256 numeric decoding; the shipping
+code scans bounded bytes. Their equivalence includes totality and in-bounds
+reads for that guard. `P256.guard_refines` proves the actual compressed-form
+check is total on every represented slice and accepts exactly length 33 with
+tag 2 or 3. Form acceptance alone makes no curve-membership claim.
+
+The guard extraction has three local function records, zero external
+function records, and zero opaque Auths functions. It requires no custom
+crypto model or axiom. Published RFC public signature data supplies native
+positive and changed-message cases. Tests distinguish the library's broader
+point decoder from Auths canonical validation, and a valid high-S P-256
+signature from the low-S form Auths accepts. Go and TypeScript independently
+implement the settled field/sign rule using integer coordinates. Their
+strict-verification filters also exclude all eight canonical low-order points;
+the crypto libraries remain responsible for point recovery and the equation.
+
+The construction build audits 490 statements, with every previous 471 full
+record unchanged and only the three allowed foundations. Seven new kernel
+witnesses cover accepted and refused encoding forms, including a canonical
+identity encoding that still grants no signature authority. The exact-source qualification passes all 12 cases, native parity and two
+byte-identical fresh translations. It audits all 490 statements with only the
+three allowed foundations, ten reviewed library models, zero unreviewed models
+and zero compiled external axioms. Its source closure is
+`dc9b524b6ba84d63d55346b0e9053fe0b489a604703b5017151d3a3f7ca81503`.
+Hosted verification remains required on the exact pushed revision. Whole-suite decoding, principal binding, dispatch, exact
+caller unsigned bytes, commitments, and composed E5 remain open.
+
+Primary contracts: [RFC 8032 section 5.1.3](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.3)
+and the pinned [dalek decoder contract](https://docs.rs/ed25519-dalek/2.2.0/ed25519_dalek/struct.VerifyingKey.html#method.from_bytes).

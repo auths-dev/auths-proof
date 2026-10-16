@@ -1,3 +1,4 @@
+import Auths.Crypto.Encoding.Examples
 import Auths.Composition.ValidationExamples
 import Auths.Attenuation
 import Auths.Authority
@@ -39,6 +40,25 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.Encoding.Byte.lower_seven,
+    `Auths.Crypto.Encoding.Byte.sign_bit,
+    `Auths.Crypto.Encoding.Digits.value_bound,
+    `Auths.Crypto.Encoding.Digits.maximum_iff,
+    `Auths.Crypto.Encoding.Digits.zero_iff,
+    `Auths.Crypto.Encoding.Coordinate.encoding_criterion,
+    `Auths.Crypto.Encoding.Scan.loop_refines,
+    `Auths.Crypto.Encoding.Encoded.input_decomposes,
+    `Auths.Crypto.Encoding.Encoded.ordinate_frame,
+    `Auths.Crypto.Encoding.RootFlags.root_flags,
+    `Auths.Crypto.Encoding.Ed25519.guard_refines,
+    `Auths.Crypto.Encoding.P256.guard_refines,
+    `Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted,
+    `Auths.Crypto.Encoding.Examples.field_alias_refused,
+    `Auths.Crypto.Encoding.Examples.negative_zero_refused,
+    `Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted,
+    `Auths.Crypto.Encoding.Examples.compressed_form_accepted,
+    `Auths.Crypto.Encoding.Examples.uncompressed_tag_refused,
+    `Auths.Crypto.Encoding.Examples.short_compressed_refused,
     `Auths.Composition.Order.reference_key_injective,
     `Auths.Composition.Order.reference_comparison,
     `Auths.Composition.SetModel.insert_values,

@@ -1983,6 +1983,17 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The exact finite plan and limits in the statement. Model validity/refusal lemmas support separately qualified public-source execution witnesses; no leaf-proof or cryptographic authority claim follows from structural validity alone.".to_owned();
         }
+        if declaration.name.starts_with("Auths.Crypto.Encoding.") {
+            claim.claim_text = format!(
+                "The independent numeric encoding model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated property")
+            );
+            claim.scope = "The displayed bytes, bounded base-256 digits, natural coordinates and sign propositions. These transparent arithmetic/representation lemmas support the separately qualified shipping encoding guards. No curve recovery, signature equation, primitive-security or complete-verifier claim follows from this helper statement.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2284,6 +2295,8 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const SIGNATURE_TRANSLATION: &str = "formal/qualification/aeneas/generated/signature/Funs.lean";
+
 const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/composition/Funs.lean";
 
 /// Qualified refinement metadata together with the generated translation the
@@ -2293,8 +2306,12 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    composition_refinement_metadata(declaration)
-        .map(|metadata| (metadata, COMPOSITION_TRANSLATION))
+    signature_encoding_refinement_metadata(declaration)
+        .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+        .or_else(|| {
+            composition_refinement_metadata(declaration)
+                .map(|metadata| (metadata, COMPOSITION_TRANSLATION))
+        })
         .or_else(|| {
             production_refinement_metadata(declaration)
                 .map(|metadata| (metadata, AUTHORITY_TRANSLATION))
@@ -2332,6 +2349,82 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn signature_encoding_refinement_metadata(
+    declaration: &str,
+) -> Option<ProductionRefinementMetadata> {
+    const ED: &str = "auths_signature_core::ed25519_point_encoding_is_canonical";
+    const P256: &str = "auths_signature_core::p256_key_encoding_is_canonical";
+    const RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the pinned array/slice/range/word models and the listed foundational axioms are trusted. This extraction has no opaque Auths function, custom external primitive model or additional axiom.",
+        "These are total encoding-form guards. Ed25519 point recovery, weak-point rejection, scalar/signature parsing and the signature equation; P-256 field/curve recovery, scalar parsing, low-S enforcement and verification; actual suite/adapter dispatch and protocol preimage selection remain separate obligations. This does not complete AP-SPEC-069 E5 or prove cryptographic security.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.Encoding.Ed25519.guard_refines" => (
+            "The shipping Ed25519 compressed-point encoding guard is total and returns exactly the independent base-256 coordinate/sign criterion.",
+            &[ED],
+            "Every represented 32-byte array. Success iff its sign-masked little-endian y-coordinate is below 2^255-19 and a set sign bit is not paired with y=1 or y=p-1. No assumption about a source guard result, curve membership, key strength, signature validity or message authenticity is made.",
+        ),
+        "Auths.Crypto.Encoding.P256.guard_refines" => (
+            "The shipping P-256 compressed SEC1 encoding guard is total and returns exactly the independent length/tag criterion.",
+            &[P256],
+            "Every represented bounded slice, including empty and malformed lengths. Success iff length is exactly 33 and the first byte is 2 or 3. Point recovery is a separate library operation; form acceptance alone does not validate a curve point.",
+        ),
+        "Auths.Crypto.Encoding.Scan.loop_refines" => (
+            "The actual shipping Ed25519 scan loop terminates and agrees with a finite left fold over exactly the remaining bytes.",
+            &[ED],
+            "Every 32-byte array, Boolean accumulator pair and translated range with start+remaining=end and end at most 31. The proof establishes all reads are in bounds and fixes the exact result; this is a loop component theorem.",
+        ),
+        "Auths.Crypto.Encoding.RootFlags.root_flags" => (
+            "The actual shipping Ed25519 scan returns flags with exact independent numeric meanings for the upper-coordinate bytes.",
+            &[ED],
+            "Every represented 32-byte array. The maximum flag iff the upper-coordinate value is 128*256^30-1, and the zero flag iff it is zero. This is the scan component, not full key or signature validation.",
+        ),
+        "Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted" => (
+            "A kernel-checked execution establishes the concrete rfc_key_encoding_accepted encoding witness.",
+            &[ED],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        "Auths.Crypto.Encoding.Examples.field_alias_refused" => (
+            "A kernel-checked execution establishes the concrete field_alias_refused encoding witness.",
+            &[ED],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        "Auths.Crypto.Encoding.Examples.negative_zero_refused" => (
+            "A kernel-checked execution establishes the concrete negative_zero_refused encoding witness.",
+            &[ED],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        "Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted" => (
+            "A kernel-checked execution establishes the concrete canonical_identity_encoding_accepted encoding witness.",
+            &[ED],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        "Auths.Crypto.Encoding.Examples.compressed_form_accepted" => (
+            "A kernel-checked execution establishes the concrete compressed_form_accepted encoding witness.",
+            &[P256],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        "Auths.Crypto.Encoding.Examples.uncompressed_tag_refused" => (
+            "A kernel-checked execution establishes the concrete uncompressed_tag_refused encoding witness.",
+            &[P256],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        "Auths.Crypto.Encoding.Examples.short_compressed_refused" => (
+            "A kernel-checked execution establishes the concrete short_compressed_refused encoding witness.",
+            &[P256],
+            "The exact represented bytes in the statement, accepted or refused by the actual shipping guard through its qualified refinement. These public encoding examples assert neither curve-point validity nor signature authorization.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn composition_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
