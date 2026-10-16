@@ -2,7 +2,7 @@
   "schema": "auths-proof-proof-coverage/v1",
   "tool": {
     "command": "cargo xtask formal coverage",
-    "version": "1"
+    "version": "2"
   },
   "revision": "the commit that contains this file",
   "reference_reproduction": {
@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "241bde8f214ea60f057b6ab4559f12f32bd3a5b6d942bdef33e460681443c0a2",
-  "inputs_sha256": "bc23f7b72a96bb27efb440622cf179de530d0ff25ecdfd9ff497c1ded528e88b",
+  "scope_definition_sha256": "73b5935edec4bb4839e8e01b743cf4636f5351c31ccdc3f87d4951066ea9a3d2",
+  "inputs_sha256": "9ec74ce8f206d5f138ef0a37bc6c5e7ce6667b9ecc6c6bf59baf0477df2aa5c9",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -30,12 +30,13 @@
     "core/crates/auths-codec/src/approval.rs": "sha256:eb0a867ab26c151f9f947090dd81b5802541e818104ac2b363634e2c8f568005",
     "core/crates/auths-codec/src/bounded_policy.rs": "sha256:5c84447f057e2bf356323c6d83cab4daf64fcce221051a0863350f414ad0fb85",
     "core/crates/auths-codec/src/cbor.rs": "sha256:03f43d462fe39a45c7ad5ef487376ce109ae359b7874ec2b0200601ad0563361",
-    "core/crates/auths-codec/src/decode.rs": "sha256:9b23c5ab3540877b19befca2a271617164c06e777747ebbeaf6e32ce30d2ce18",
+    "core/crates/auths-codec/src/decode.rs": "sha256:41b1e08a76ba4fc841c80f81994e78a23f4692eab9262604080c36bb8d1be3bd",
     "core/crates/auths-codec/src/encode.rs": "sha256:163dcb12f640eb63fbdb872e75bab1ee9e01571797cdf3a10b77cfd0b02a0c0b",
     "core/crates/auths-codec/src/error.rs": "sha256:80c1e7fdd190a0d050c69fbcde9836a4702d9b98e8effd76bc659c3d75ea8175",
     "core/crates/auths-codec/src/hash.rs": "sha256:db5e7773c8c1f6193c2494c95e3575d712c573e737ceb16b547f0f105efe1236",
     "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
     "core/crates/auths-codec/src/observation.rs": "sha256:fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149",
+    "core/crates/auths-codec/src/scope_decode_tests.rs": "sha256:61720a13ba4e2fefabcc492778348aaca5b3052e2570302de5ebc92efce12ab5",
     "core/crates/auths-composition/Cargo.toml": "sha256:331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
     "core/crates/auths-composition/src/lib.rs": "sha256:e8a0f96ae904d831042f2284c5b8a7a8c9ccb030b4d6ac4b9912229039d4f535",
     "core/crates/auths-composition/src/oracle.rs": "sha256:423c08f866797759fce7daeeb6316f15da870052a915504cbbd8954498cf942a",
@@ -44,9 +45,11 @@
     "core/crates/auths-model/src/approval.rs": "sha256:54cf44a9ef747ec21546a4086aecfb130bc7803b0d646430e6082df51e6e305f",
     "core/crates/auths-model/src/bounded.rs": "sha256:f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9",
     "core/crates/auths-model/src/bounded_policy.rs": "sha256:306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450",
-    "core/crates/auths-model/src/identifier.rs": "sha256:c8dc49cf467ee0456a447a5337ead067b7d0a80eaa6c745b469e9b837cb627b0",
-    "core/crates/auths-model/src/lib.rs": "sha256:18354191db1f3f157391ae1b6c94c6be9c8f2f4a6f6cf18fdecc97d0809a315f",
+    "core/crates/auths-model/src/identifier.rs": "sha256:fcfb49e42682de6358980e4d86ca7763bba6a9a04967a4a6022b9ca8157103de",
+    "core/crates/auths-model/src/lib.rs": "sha256:238d198437a9f4cc1ad180181d4409809071e8e92e1cc056c3b4431738ed4168",
     "core/crates/auths-model/src/observation.rs": "sha256:0f0a8a4bd942867f168c0e411a8bca5d7f57e94065beaebe919b26b08ddd2108",
+    "core/crates/auths-model/src/principal_scheme_tests.rs": "sha256:d64588a32503cd70b954c21f8582e46a20292ec918ea8e3f7278c0b99c1528c9",
+    "core/crates/auths-model/src/scope_constructor_tests.rs": "sha256:a107fce37f38b5db2d9ae5c5585b49f011f88a5120c6a72c5a141da49f698c82",
     "core/crates/auths-ports/Cargo.toml": "sha256:596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c",
     "core/crates/auths-ports/src/binding.rs": "sha256:a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d",
     "core/crates/auths-ports/src/diagnostics.rs": "sha256:aa596572503b5a65a918bb2ff38281c144ff53821ee914e9325c852828d852df",
@@ -66,42 +69,44 @@
     "core/crates/auths-verifier/src/temporal_tests.rs": "sha256:c242d8bed72936ea7437e45ab88b98b28f0d82f9f92a6f750ef8b27fa71e8fef",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:fed8e34c73ffde17881c8c8fc36bf943e7db699f042c7a0f0f3ce54afe74143c",
-    "formal/coverage-scope-v1.toml": "sha256:241bde8f214ea60f057b6ab4559f12f32bd3a5b6d942bdef33e460681443c0a2",
-    "formal/lean-assurance-audit-v1.json": "sha256:e602093ad261f2f4e36c71b94a33039d827b7d96314e2be628f4cc042adbe533",
+    "formal/coverage-scope-v1.toml": "sha256:73b5935edec4bb4839e8e01b743cf4636f5351c31ccdc3f87d4951066ea9a3d2",
+    "formal/lean-assurance-audit-v1.json": "sha256:9f0705820dea0c52608d74647a92b8df92b6dd5044214b7ad9d6529f3095ed97",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
-    "formal/qualification/aeneas/generated/authority/translation.json": "sha256:7756f7a38a1b77197ec59df1e47f98590549ec110a95b368f5f8cd26df2601a7",
+    "formal/qualification/aeneas/generated/authority/translation.json": "sha256:5a0b908ba7f82a95ba290f21a51725d40f8f08c342949c9cc234b1acae5a684a",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:815489a55a687840cb3e7eb8bcc4a7a2364a7a0c67ef111d7e538e497d6eb875",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:935902d5d4c2b886e1818ebc03caab0b1dcdf0233998fb42a169f3007a37f60f",
-    "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:8d4d266a696794d77d7f6f3a542574d18b35e25bb97bd6542c54fb75dc90988b",
-    "formal/qualification/aeneas/generated/composition/translation.json": "sha256:465b2b0ec8467616287bfc9bdf74948c9f91f0b01bbced28298dc24e152890d9",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:29964fc8295ee8dae8775b4807d25619043908d759d468c3e47f3024a4e12953",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:6fd8a876a79974627ef75f2bcf183f2e1d46cd4f7f9c6bdc6267d65024e0959b",
+    "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:85d068a17e9d5b07f1907f6f48b0868205257b410c080e582fcfc797bfcf4a9d",
+    "formal/qualification/aeneas/generated/composition/translation.json": "sha256:deb6125b39bd66978479466eb44f2e38e3c1458f48e5c606ceee3f3283000e5e",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
-    "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
-    "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:a9d551b89ca88ed72032d2e58f08d1106b83d77956d2677492452ad41312cb4a",
+    "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:5f5cf7bda7d0df672996d39934b28d7c475454d1dabfb0709f6e8414aa492b63",
+    "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:63b7505c5d6d91b8a7437fad4ac963a4b9afcac73501432d1ee4fe02e7a82cd8",
     "formal/qualification/aeneas/generated/lifecycle/Funs.lean": "sha256:817dcbb854a599fb14c89854d8023809a390f7a00e1cc70dbc7151d7b254649f",
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
-    "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:48fadbfbf052e310cd6df3fdc11e8e96785330f34144c1e471a908b7c1b21feb",
-    "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
+    "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:d44ad15b213893c401d5bb215d77ac2ab8949e4fc6eb0c4af4f1fbe9cbc96650",
+    "formal/qualification/aeneas/generated/model/translation.json": "sha256:4252f051b873e98cd1c7cbd198017bcbf23d7e7a87389616731f2271c84670b8",
     "formal/qualification/aeneas/generated/p256/Funs.lean": "sha256:d2d7d4ecaec037e905f86b66ac902103562ff38124469b1c1dbc8c099cccf29f",
     "formal/qualification/aeneas/generated/p256/translation.json": "sha256:e2887ab5a96302d086e224c568a6c0d25eff8206f680217d80a669e6b8c7756c",
-    "formal/qualification/aeneas/generated/sha256/Funs.lean": "sha256:cb4275b6ebb45a86426220940d63e13f1f460e383f1590cecb477b136dc36aba",
-    "formal/qualification/aeneas/generated/sha256/translation.json": "sha256:61d59435726ec2847a7af4aa64098f32bc90e3cacaa9c50f8ed7ff406edec8ad",
+    "formal/qualification/aeneas/generated/scope_codec/Funs.lean": "sha256:7ce527b9e194e8470f9355dba67b31ce9efbbea8bec7d9c1e6a9b58fe037abed",
+    "formal/qualification/aeneas/generated/scope_codec/translation.json": "sha256:d19dddc8ecf98120d9035f514bc8310c90fb8c197bffa8958ef34097c4411beb",
+    "formal/qualification/aeneas/generated/sha256/Funs.lean": "sha256:ac717d96e3eb922e16e6fe25f5d64076a9c3adc0a0b9be20e0966e136b81100a",
+    "formal/qualification/aeneas/generated/sha256/translation.json": "sha256:a62a2775d58fd19bb8095b8de6f7cbbae2b34bcfd94c1635bd99c9fa5c5d8a29",
     "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:dfe3b399556573de8a3720f036bea1d3afda03680543657c77ab3994a81afa84",
     "formal/qualification/aeneas/generated/signature/translation.json": "sha256:969e89692b680973f81aba927de2cc463137a84f2d0afbf30a169cf2b71dac7e",
-    "formal/qualification/aeneas/generated/status_selection/Funs.lean": "sha256:86fae2befa9fb1d610b6c0632469a7e4fa5d6f7f427868d9fae3038ae51b918c",
-    "formal/qualification/aeneas/generated/status_selection/translation.json": "sha256:a97bda8bf762aaafff3933e03e121d643c7a62294ab59def5e04349cd38a0e07",
+    "formal/qualification/aeneas/generated/status_selection/Funs.lean": "sha256:4d8bdc1fd56f6fb40c65fe1dafb925b2a13b2fd7b6069a029325b3dde732baeb",
+    "formal/qualification/aeneas/generated/status_selection/translation.json": "sha256:3e027963629d6cadc5e72c12a7e15dc9c33e743397572e5d8bbb05cf6a2c40a5",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
     "formal/qualification/aeneas/generated/suite_adapter/Funs.lean": "sha256:431e4424062a07c09648a506a84829e55e01a2299c11d6048510e6a9f58c0777",
-    "formal/qualification/aeneas/generated/suite_adapter/translation.json": "sha256:39369f27830d77d72546a57cbcf69c929259e9530dc724771ccc1408889b448d",
-    "formal/qualification/aeneas/generated/temporal_witness/Funs.lean": "sha256:2a1d088f6424ff7364b1d62b6641148b8493333bb4863ebda0d8344847a84be0",
-    "formal/qualification/aeneas/generated/temporal_witness/translation.json": "sha256:b4a4c861114d77b4e25a5de49045fff5fd762ff2610264f3175f97846213e6a1",
-    "formal/qualification/aeneas/qualification.toml": "sha256:cbf1d2b4df466844e3a9e0047c1d4649ad9a3a750c1c2115e7b1f8bdabade88d",
-    "formal/theorem-kinds-v1.toml": "sha256:e31f6906975f05d991eaa765d7b7f3e7be613ff18d581e90197251359044b652",
+    "formal/qualification/aeneas/generated/suite_adapter/translation.json": "sha256:58efad7d457adcb1808658075f5e4ef504f54398563a42a3f824e864d47557b6",
+    "formal/qualification/aeneas/generated/temporal_witness/Funs.lean": "sha256:05aad591f331d9e6c6c0f33e75f062a048d390a99b5cee4c43ce52343dc030de",
+    "formal/qualification/aeneas/generated/temporal_witness/translation.json": "sha256:068ff2fe97c4abe40ab641ca6ce6f150320da3a52513d63f025807f5ee57cd0f",
+    "formal/qualification/aeneas/qualification.toml": "sha256:32cda442d45b82a024a86844924aba32ed889487a71e8f39feca7547416a8434",
+    "formal/theorem-kinds-v1.toml": "sha256:408d96846239f8a896cfb485771d8c8d006f919e5793d230a8cf63529542be10",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -115,9 +120,11 @@
     "product/runtime/auths-connections/src/lib.rs": "sha256:79209249a0acba0e854d9937255ea0e30a9a6f8e1c2baad77ab83646d392de22",
     "product/runtime/auths-connections/src/model.rs": "sha256:de34a089cac9702acb889b7602b3e4732306c9e61029ec892582b7e02b73fc77",
     "product/runtime/auths-connections/src/registry.rs": "sha256:e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946",
-    "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:e9d65744bae273d65face4285e5d2da75c06a92ab48f7b8333d496604e31c63c",
+    "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:ba592901a463c2cd81dc434ae62f33efeccc5e13f441a0dff65d60162a588b61",
     "product/runtime/auths-gateway-kernel/src/deadline.rs": "sha256:25c96a7ef2427f54930e90cf739e6149dc21de9454f5d6d20984f0d5735cca19",
-    "product/runtime/auths-gateway-kernel/src/lib.rs": "sha256:a9c572f38ad9922024d51514484f74e9b59fd440de05edc02126cf09cbf09fa6",
+    "product/runtime/auths-gateway-kernel/src/frontier.rs": "sha256:09650383952c76180295ab471b4f9344e0714071c0f72ecd7d0e8081b447519d",
+    "product/runtime/auths-gateway-kernel/src/identity.rs": "sha256:0a4ed48f6ca074ec2d1b4cc6e8aa4bbbb7c51c6b518cb5dc6841926e8bec9ac1",
+    "product/runtime/auths-gateway-kernel/src/lib.rs": "sha256:0391faf71b7486b734087680ecf07a6fcac7264bc6267096020b5a959499e05e",
     "product/runtime/auths-gateway-kernel/src/order.rs": "sha256:e0045f877c4b7fe3860c291039853885064ddcdebba7c9b345ab65e81e646dda",
     "product/runtime/auths-gateway-kernel/src/outcome.rs": "sha256:e9785b1afe70788c89b51b18655bcd5acff7b0c8e3d12fb79c6f05a202e67e6b",
     "product/runtime/auths-gateway-kernel/src/ratio.rs": "sha256:7ace22264812e6fc1ef3a62afee402cf43494bb71ae0d3de219ad1b39d690bcb",
@@ -140,9 +147,9 @@
     "product/stores/auths-stores/src/lifecycle.rs": "sha256:0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
   },
   "claim": {
-    "decision_functions": 1045,
+    "decision_functions": 1046,
     "decision_closure_functions": 133,
-    "decision_code_lines": 11527,
+    "decision_code_lines": 11544,
     "decision_closure_code_lines": 1814,
     "check_sites": 82,
     "covered_check_sites": 23,
@@ -201,7 +208,10 @@
       "core/crates/auths-codec/src/hash.rs": "decoding",
       "core/crates/auths-codec/src/lib.rs": "decoding",
       "core/crates/auths-codec/src/observation.rs": "decoding",
+      "core/crates/auths-codec/src/scope_decode_tests.rs": "test-support",
       "core/crates/auths-composition/src/oracle.rs": "test-support",
+      "core/crates/auths-model/src/principal_scheme_tests.rs": "test-support",
+      "core/crates/auths-model/src/scope_constructor_tests.rs": "test-support",
       "core/crates/auths-ports/src/binding.rs": "interface",
       "core/crates/auths-ports/src/diagnostics.rs": "interface",
       "core/crates/auths-ports/src/lib.rs": "interface",
@@ -224,165 +234,165 @@
     "decision": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1045,
-      "span_lines": 11578,
-      "code_lines": 11527,
+      "functions": 1046,
+      "span_lines": 11595,
+      "code_lines": 11544,
       "by_level": {
         "translated": {
           "functions": 133,
-          "function_share": 0.1273,
+          "function_share": 0.1272,
           "span_lines": 1829,
-          "span_line_share": 0.158,
+          "span_line_share": 0.1577,
           "code_lines": 1814,
-          "code_line_share": 0.1574
+          "code_line_share": 0.1571
         },
         "direct": {
-          "functions": 75,
-          "function_share": 0.0718,
-          "span_lines": 1346,
-          "span_line_share": 0.1163,
-          "code_lines": 1331,
-          "code_line_share": 0.1155
+          "functions": 76,
+          "function_share": 0.0727,
+          "span_lines": 1352,
+          "span_line_share": 0.1166,
+          "code_lines": 1337,
+          "code_line_share": 0.1158
         },
         "closure": {
           "functions": 133,
-          "function_share": 0.1273,
+          "function_share": 0.1272,
           "span_lines": 1829,
-          "span_line_share": 0.158,
+          "span_line_share": 0.1577,
           "code_lines": 1814,
-          "code_line_share": 0.1574
+          "code_line_share": 0.1571
         }
       }
     },
     "verifier-core": {
       "scope": "verifier-core",
       "minimum_code_lines": 0,
-      "functions": 799,
-      "span_lines": 9024,
-      "code_lines": 8976,
+      "functions": 800,
+      "span_lines": 9041,
+      "code_lines": 8993,
       "by_level": {
         "translated": {
           "functions": 109,
-          "function_share": 0.1364,
+          "function_share": 0.1363,
           "span_lines": 1447,
-          "span_line_share": 0.1604,
+          "span_line_share": 0.16,
           "code_lines": 1432,
-          "code_line_share": 0.1595
+          "code_line_share": 0.1592
         },
         "direct": {
           "functions": 60,
-          "function_share": 0.0751,
+          "function_share": 0.075,
           "span_lines": 1048,
-          "span_line_share": 0.1161,
+          "span_line_share": 0.1159,
           "code_lines": 1033,
-          "code_line_share": 0.1151
+          "code_line_share": 0.1149
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1364,
+          "function_share": 0.1363,
           "span_lines": 1447,
-          "span_line_share": 0.1604,
+          "span_line_share": 0.16,
           "code_lines": 1432,
-          "code_line_share": 0.1595
+          "code_line_share": 0.1592
         }
       }
     },
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1790,
-      "span_lines": 22037,
-      "code_lines": 21940,
+      "functions": 1801,
+      "span_lines": 22158,
+      "code_lines": 22061,
       "by_level": {
         "translated": {
-          "functions": 333,
-          "function_share": 0.186,
-          "span_lines": 3870,
-          "span_line_share": 0.1756,
-          "code_lines": 3847,
-          "code_line_share": 0.1753
+          "functions": 345,
+          "function_share": 0.1916,
+          "span_lines": 4022,
+          "span_line_share": 0.1815,
+          "code_lines": 3999,
+          "code_line_share": 0.1813
         },
         "direct": {
-          "functions": 127,
-          "function_share": 0.0709,
-          "span_lines": 1991,
-          "span_line_share": 0.0903,
-          "code_lines": 1969,
-          "code_line_share": 0.0897
+          "functions": 139,
+          "function_share": 0.0772,
+          "span_lines": 2146,
+          "span_line_share": 0.0968,
+          "code_lines": 2124,
+          "code_line_share": 0.0963
         },
         "closure": {
-          "functions": 333,
-          "function_share": 0.186,
-          "span_lines": 3870,
-          "span_line_share": 0.1756,
-          "code_lines": 3847,
-          "code_line_share": 0.1753
+          "functions": 345,
+          "function_share": 0.1916,
+          "span_lines": 4022,
+          "span_line_share": 0.1815,
+          "code_lines": 3999,
+          "code_line_share": 0.1813
         }
       }
     },
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1144,
-      "span_lines": 14306,
-      "code_lines": 14228,
+      "functions": 1147,
+      "span_lines": 14350,
+      "code_lines": 14272,
       "by_level": {
         "translated": {
-          "functions": 178,
-          "function_share": 0.1556,
-          "span_lines": 2009,
-          "span_line_share": 0.1404,
-          "code_lines": 1990,
-          "code_line_share": 0.1399
+          "functions": 182,
+          "function_share": 0.1587,
+          "span_lines": 2084,
+          "span_line_share": 0.1452,
+          "code_lines": 2065,
+          "code_line_share": 0.1447
         },
         "direct": {
-          "functions": 72,
-          "function_share": 0.0629,
-          "span_lines": 1280,
-          "span_line_share": 0.0895,
-          "code_lines": 1262,
-          "code_line_share": 0.0887
+          "functions": 75,
+          "function_share": 0.0654,
+          "span_lines": 1352,
+          "span_line_share": 0.0942,
+          "code_lines": 1334,
+          "code_line_share": 0.0935
         },
         "closure": {
-          "functions": 178,
-          "function_share": 0.1556,
-          "span_lines": 2009,
-          "span_line_share": 0.1404,
-          "code_lines": 1990,
-          "code_line_share": 0.1399
+          "functions": 182,
+          "function_share": 0.1587,
+          "span_lines": 2084,
+          "span_line_share": 0.1452,
+          "code_lines": 2065,
+          "code_line_share": 0.1447
         }
       }
     },
     "decision-nontrivial": {
       "scope": "decision",
       "minimum_code_lines": 4,
-      "functions": 454,
-      "span_lines": 9802,
-      "code_lines": 9754,
+      "functions": 455,
+      "span_lines": 9819,
+      "code_lines": 9771,
       "by_level": {
         "translated": {
           "functions": 103,
-          "function_share": 0.2269,
+          "function_share": 0.2264,
           "span_lines": 1739,
-          "span_line_share": 0.1774,
+          "span_line_share": 0.1771,
           "code_lines": 1724,
-          "code_line_share": 0.1767
+          "code_line_share": 0.1764
         },
         "direct": {
-          "functions": 62,
-          "function_share": 0.1366,
-          "span_lines": 1307,
-          "span_line_share": 0.1333,
-          "code_lines": 1292,
-          "code_line_share": 0.1325
+          "functions": 63,
+          "function_share": 0.1385,
+          "span_lines": 1313,
+          "span_line_share": 0.1337,
+          "code_lines": 1298,
+          "code_line_share": 0.1328
         },
         "closure": {
           "functions": 103,
-          "function_share": 0.2269,
+          "function_share": 0.2264,
           "span_lines": 1739,
-          "span_line_share": 0.1774,
+          "span_line_share": 0.1771,
           "code_lines": 1724,
-          "code_line_share": 0.1767
+          "code_line_share": 0.1764
         }
       }
     }
@@ -391,132 +401,132 @@
     "decision_without_macro_rules_functions": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1025,
-      "span_lines": 11513,
-      "code_lines": 11462,
+      "functions": 1026,
+      "span_lines": 11530,
+      "code_lines": 11479,
       "by_level": {
         "translated": {
           "functions": 132,
-          "function_share": 0.1288,
+          "function_share": 0.1287,
           "span_lines": 1826,
-          "span_line_share": 0.1586,
+          "span_line_share": 0.1584,
           "code_lines": 1811,
-          "code_line_share": 0.158
+          "code_line_share": 0.1578
         },
         "direct": {
-          "functions": 75,
-          "function_share": 0.0732,
-          "span_lines": 1346,
-          "span_line_share": 0.1169,
-          "code_lines": 1331,
-          "code_line_share": 0.1161
+          "functions": 76,
+          "function_share": 0.0741,
+          "span_lines": 1352,
+          "span_line_share": 0.1173,
+          "code_lines": 1337,
+          "code_line_share": 0.1165
         },
         "closure": {
           "functions": 132,
-          "function_share": 0.1288,
+          "function_share": 0.1287,
           "span_lines": 1826,
-          "span_line_share": 0.1586,
+          "span_line_share": 0.1584,
           "code_lines": 1811,
-          "code_line_share": 0.158
+          "code_line_share": 0.1578
         }
       }
     },
     "decision_exact_or_verdict_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1045,
-      "span_lines": 11578,
-      "code_lines": 11527,
+      "functions": 1046,
+      "span_lines": 11595,
+      "code_lines": 11544,
       "by_level": {
         "translated": {
           "functions": 133,
-          "function_share": 0.1273,
+          "function_share": 0.1272,
           "span_lines": 1829,
-          "span_line_share": 0.158,
+          "span_line_share": 0.1577,
           "code_lines": 1814,
-          "code_line_share": 0.1574
+          "code_line_share": 0.1571
         },
         "direct": {
-          "functions": 75,
-          "function_share": 0.0718,
-          "span_lines": 1346,
-          "span_line_share": 0.1163,
-          "code_lines": 1331,
-          "code_line_share": 0.1155
+          "functions": 76,
+          "function_share": 0.0727,
+          "span_lines": 1352,
+          "span_line_share": 0.1166,
+          "code_lines": 1337,
+          "code_line_share": 0.1158
         },
         "closure": {
           "functions": 127,
-          "function_share": 0.1215,
+          "function_share": 0.1214,
           "span_lines": 1576,
-          "span_line_share": 0.1361,
+          "span_line_share": 0.1359,
           "code_lines": 1565,
-          "code_line_share": 0.1358
+          "code_line_share": 0.1356
         }
       }
     },
     "decision_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1045,
-      "span_lines": 11578,
-      "code_lines": 11527,
+      "functions": 1046,
+      "span_lines": 11595,
+      "code_lines": 11544,
       "by_level": {
         "translated": {
           "functions": 133,
-          "function_share": 0.1273,
+          "function_share": 0.1272,
           "span_lines": 1829,
-          "span_line_share": 0.158,
+          "span_line_share": 0.1577,
           "code_lines": 1814,
-          "code_line_share": 0.1574
+          "code_line_share": 0.1571
         },
         "direct": {
-          "functions": 75,
-          "function_share": 0.0718,
-          "span_lines": 1346,
-          "span_line_share": 0.1163,
-          "code_lines": 1331,
-          "code_line_share": 0.1155
+          "functions": 76,
+          "function_share": 0.0727,
+          "span_lines": 1352,
+          "span_line_share": 0.1166,
+          "code_lines": 1337,
+          "code_line_share": 0.1158
         },
         "closure": {
           "functions": 123,
-          "function_share": 0.1177,
+          "function_share": 0.1176,
           "span_lines": 1481,
-          "span_line_share": 0.1279,
+          "span_line_share": 0.1277,
           "code_lines": 1477,
-          "code_line_share": 0.1281
+          "code_line_share": 0.1279
         }
       }
     },
     "decision_without_trait_instance_records": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1045,
-      "span_lines": 11578,
-      "code_lines": 11527,
+      "functions": 1046,
+      "span_lines": 11595,
+      "code_lines": 11544,
       "by_level": {
         "translated": {
           "functions": 133,
-          "function_share": 0.1273,
+          "function_share": 0.1272,
           "span_lines": 1829,
-          "span_line_share": 0.158,
+          "span_line_share": 0.1577,
           "code_lines": 1814,
-          "code_line_share": 0.1574
+          "code_line_share": 0.1571
         },
         "direct": {
-          "functions": 75,
-          "function_share": 0.0718,
-          "span_lines": 1346,
-          "span_line_share": 0.1163,
-          "code_lines": 1331,
-          "code_line_share": 0.1155
+          "functions": 76,
+          "function_share": 0.0727,
+          "span_lines": 1352,
+          "span_line_share": 0.1166,
+          "code_lines": 1337,
+          "code_line_share": 0.1158
         },
         "closure": {
           "functions": 132,
-          "function_share": 0.1263,
+          "function_share": 0.1262,
           "span_lines": 1826,
-          "span_line_share": 0.1577,
+          "span_line_share": 0.1575,
           "code_lines": 1811,
-          "code_line_share": 0.1571
+          "code_line_share": 0.1569
         }
       }
     }
@@ -558,8 +568,8 @@
       "refined_closure_code_lines": 155
     },
     "core/crates/auths-model": {
-      "decision_functions": 547,
-      "decision_code_lines": 3927,
+      "decision_functions": 548,
+      "decision_code_lines": 3944,
       "translated": 75,
       "refined_closure": 75,
       "refined_closure_code_lines": 695
@@ -614,11 +624,11 @@
       "refined_closure_code_lines": 51
     },
     "product/runtime/auths-gateway-kernel": {
-      "decision_functions": 100,
-      "decision_code_lines": 1207,
-      "translated": 97,
-      "refined_closure": 97,
-      "refined_closure_code_lines": 1181
+      "decision_functions": 108,
+      "decision_code_lines": 1284,
+      "translated": 105,
+      "refined_closure": 105,
+      "refined_closure_code_lines": 1258
     },
     "product/runtime/auths-lifecycle": {
       "decision_functions": 138,
@@ -637,17 +647,17 @@
   },
   "second_parser": {
     "parser": "syn 2 (full syntax tree), independent of the scanner's tokenizer",
-    "decision_functions": 1045,
+    "decision_functions": 1046,
     "decision_files": 32,
-    "agreements": 1025,
+    "agreements": 1026,
     "agreement_share": 0.9809,
     "disagreements": [
       {
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::parse",
         "scanner_span": [
-          138,
-          143
+          131,
+          136
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -655,8 +665,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::as_str",
         "scanner_span": [
-          146,
-          148
+          139,
+          141
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -664,8 +674,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::fmt",
         "scanner_span": [
-          152,
-          154
+          145,
+          147
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -673,8 +683,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::new",
         "scanner_span": [
-          270,
-          272
+          253,
+          255
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -682,14 +692,41 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::from_digest",
         "scanner_span": [
-          275,
-          277
+          258,
+          260
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
       {
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::digest",
+        "scanner_span": [
+          263,
+          265
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::as_bytes",
+        "scanner_span": [
+          268,
+          270
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::from",
+        "scanner_span": [
+          274,
+          276
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "Digest::from",
         "scanner_span": [
           280,
           282
@@ -698,34 +735,16 @@
       },
       {
         "file": "core/crates/auths-model/src/lib.rs",
-        "function": "name::as_bytes",
-        "scanner_span": [
-          285,
-          287
-        ],
-        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
-      },
-      {
-        "file": "core/crates/auths-model/src/lib.rs",
-        "function": "name::from",
-        "scanner_span": [
-          291,
-          293
-        ],
-        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
-      },
-      {
-        "file": "core/crates/auths-model/src/lib.rs",
-        "function": "Digest::from",
-        "scanner_span": [
-          297,
-          299
-        ],
-        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
-      },
-      {
-        "file": "core/crates/auths-model/src/lib.rs",
         "function": "code",
+        "scanner_span": [
+          4983,
+          4985
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "code_precedes",
         "scanner_span": [
           4993,
           4995
@@ -734,19 +753,10 @@
       },
       {
         "file": "core/crates/auths-model/src/lib.rs",
-        "function": "code_precedes",
-        "scanner_span": [
-          5003,
-          5005
-        ],
-        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
-      },
-      {
-        "file": "core/crates/auths-model/src/lib.rs",
         "function": "code_order",
         "scanner_span": [
-          5007,
-          5009
+          4997,
+          4999
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -841,7 +851,7 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -864,7 +874,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -887,7 +897,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -903,7 +913,7 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           },
           {
@@ -954,7 +964,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -977,7 +987,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -993,14 +1003,14 @@
             "role": "refusal",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "CanonicalAction::with_detached_attachments",
-            "begin_line": 1692,
+            "begin_line": 1675,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -1016,14 +1026,14 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "ensure_complete",
-            "begin_line": 1284,
+            "begin_line": 1313,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           }
         ]
@@ -1039,7 +1049,7 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1601,
+            "begin_line": 1630,
             "refined_closure": true
           },
           {
@@ -1165,7 +1175,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_profile",
-            "begin_line": 4172,
+            "begin_line": 4162,
             "refined_closure": false
           }
         ]
@@ -1220,7 +1230,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "ValidityWindow::contains",
-            "begin_line": 404,
+            "begin_line": 387,
             "refined_closure": false
           }
         ]
@@ -1282,7 +1292,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4166,
+            "begin_line": 4156,
             "refined_closure": false
           }
         ]
@@ -1525,7 +1535,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4166,
+            "begin_line": 4156,
             "refined_closure": false
           },
           {
@@ -1615,7 +1625,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4166,
+            "begin_line": 4156,
             "refined_closure": false
           },
           {
@@ -1880,7 +1890,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::profile_budget_expression",
-            "begin_line": 4195,
+            "begin_line": 4185,
             "refined_closure": false
           }
         ]
@@ -2037,7 +2047,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "optional_grant_id_equal",
-            "begin_line": 512,
+            "begin_line": 495,
             "refined_closure": true
           }
         ]
@@ -2097,7 +2107,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "profile_ref_equal",
-            "begin_line": 477,
+            "begin_line": 460,
             "refined_closure": true
           },
           {
@@ -2127,14 +2137,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "permission_set_is_subset",
-            "begin_line": 603,
+            "begin_line": 586,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "permission_set_contains",
-            "begin_line": 589,
+            "begin_line": 572,
             "refined_closure": true
           },
           {
@@ -2164,14 +2174,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "validity_window_contains",
-            "begin_line": 434,
+            "begin_line": 417,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "inclusive_window_contains",
-            "begin_line": 422,
+            "begin_line": 405,
             "refined_closure": true
           },
           {
@@ -2201,14 +2211,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "audience_set_is_subset",
-            "begin_line": 670,
+            "begin_line": 653,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "audience_set_contains",
-            "begin_line": 656,
+            "begin_line": 639,
             "refined_closure": true
           },
           {
@@ -2238,7 +2248,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "action_constraint_attenuates",
-            "begin_line": 826,
+            "begin_line": 809,
             "refined_closure": true
           },
           {
@@ -2268,7 +2278,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "status_policy_attenuates",
-            "begin_line": 1025,
+            "begin_line": 1008,
             "refined_closure": true
           },
           {
@@ -2298,7 +2308,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "assurance_policy_id_equal",
-            "begin_line": 498,
+            "begin_line": 481,
             "refined_closure": true
           },
           {
@@ -2458,7 +2468,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "optional_grant_id_equal",
-            "begin_line": 512,
+            "begin_line": 495,
             "refined_closure": true
           }
         ]
@@ -2488,7 +2498,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "profile_ref_equal",
-            "begin_line": 477,
+            "begin_line": 460,
             "refined_closure": true
           }
         ]
@@ -2511,7 +2521,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "permission_set_contains",
-            "begin_line": 589,
+            "begin_line": 572,
             "refined_closure": true
           }
         ]
@@ -2534,14 +2544,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "validity_window_contains",
-            "begin_line": 434,
+            "begin_line": 417,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "inclusive_window_contains",
-            "begin_line": 422,
+            "begin_line": 405,
             "refined_closure": true
           }
         ]
@@ -2564,7 +2574,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "audience_set_contains",
-            "begin_line": 656,
+            "begin_line": 639,
             "refined_closure": true
           }
         ]
@@ -2587,7 +2597,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "action_constraint_allows",
-            "begin_line": 815,
+            "begin_line": 798,
             "refined_closure": true
           }
         ]
@@ -2663,7 +2673,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "principal_id_equal",
-            "begin_line": 200,
+            "begin_line": 183,
             "refined_closure": true
           }
         ]
@@ -3000,6 +3010,186 @@
   },
   "translated_outside_closure": [
     {
+      "rust_name": "auths_codec::cbor::malformed",
+      "lean_name": "AuthsScopeCodec.cbor.malformed",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        14,
+        16
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::read_tail",
+      "lean_name": "AuthsScopeCodec.cbor.read_tail",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        40,
+        62
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::read_head",
+      "lean_name": "AuthsScopeCodec.cbor.read_head",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        68,
+        92
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.head",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        158,
+        165
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.collection",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        167,
+        173
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.map",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        175,
+        177
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.array",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        179,
+        181
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.u64",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        183,
+        185
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.u8",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        195,
+        197
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.payload",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        199,
+        205
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str",
+      "lean_name": "AuthsScopeCodec.cbor.Decoder.str",
+      "file": "core/crates/auths-codec/src/cbor.rs",
+      "span": [
+        211,
+        216
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::decode::decode_error",
+      "lean_name": "AuthsScopeCodec.decode.decode_error",
+      "file": "core/crates/auths-codec/src/decode.rs",
+      "span": [
+        40,
+        42
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::decode::map",
+      "lean_name": "AuthsScopeCodec.decode.map",
+      "file": "core/crates/auths-codec/src/decode.rs",
+      "span": [
+        44,
+        50
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::error::limit_error",
+      "lean_name": "AuthsScopeCodec.error.limit_error",
+      "file": "core/crates/auths-codec/src/error.rs",
+      "span": [
+        23,
+        25
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::decode::array",
+      "lean_name": "AuthsScopeCodec.decode.array",
+      "file": "core/crates/auths-codec/src/decode.rs",
+      "span": [
+        52,
+        60
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::decode::key",
+      "lean_name": "AuthsScopeCodec.decode.key",
+      "file": "core/crates/auths-codec/src/decode.rs",
+      "span": [
+        70,
+        76
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::decode::text",
+      "lean_name": "AuthsScopeCodec.decode.text",
+      "file": "core/crates/auths-codec/src/decode.rs",
+      "span": [
+        78,
+        83
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from",
+      "lean_name": "AuthsScopeCodec.error.CodecError.Insts.CoreConvertFromModelError.from",
+      "file": "core/crates/auths-codec/src/error.rs",
+      "span": [
+        28,
+        30
+      ],
+      "decision_scope": false
+    },
+    {
       "rust_name": "auths_signature_core::p256_key_encoding_is_canonical",
       "lean_name": "AuthsNativeP256.p256_key_encoding_is_canonical",
       "file": "core/crates/auths-signature-core/src/lib.rs",
@@ -3047,7 +3237,6 @@
       "Auths.Codec.Action.decode_encode_exact": "partial",
       "Auths.Codec.Action.decoded_body_valid": "partial",
       "Auths.Codec.Action.decoded_body_within_deployment": "partial",
-      "Auths.Codec.Constructors.identifier_exact": "partial",
       "Auths.Codec.Examples.action_byte_limit_exact": "case",
       "Auths.Codec.Examples.action_byte_limit_refused": "case",
       "Auths.Codec.Examples.duplicate_key_refused": "case",
@@ -3198,7 +3387,16 @@
       "Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich": "exact",
       "Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich": "exact",
       "Auths.Lifecycle.Refinement.translated_replay_refines_rich": "exact",
+      "Auths.Lifecycle.Refinement.translated_terminal_refines_rich": "exact",
       "Auths.Lifecycle.Refinement.translated_transition_refines_rich": "exact",
+      "Auths.Product.Frontier.Refinement.candidate_exact": "exact",
+      "Auths.Product.Frontier.Refinement.observe_exact": "exact",
+      "Auths.Product.Frontier.Refinement.probe_exact": "exact",
+      "Auths.Product.Frontier.Refinement.source_work_bound": "partial",
+      "Auths.Product.Frontier.Refinement.start_exact": "exact",
+      "Auths.Product.OperationIdentity.Refinement.logical_preimage_exact": "exact",
+      "Auths.Product.OperationIdentity.Refinement.source_preimage_binds_identity": "partial",
+      "Auths.Product.OperationIdentity.Refinement.token_exact": "exact",
       "Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model": "exact",
       "Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model": "exact",
       "Auths.Product.Refinement.CollectionFence.translated_advance_refines_model": "exact",
@@ -3232,6 +3430,8 @@
       "Auths.Product.Refinement.translated_checked_sub_refines_nat": "exact",
       "Auths.Product.Refinement.translated_configuration_refines_projection": "exact",
       "Auths.Product.Refinement.translated_window_index_refines_nat": "exact",
+      "Auths.Product.SchemaIndex.Refinement.field_index_spec": "exact",
+      "Auths.Product.SchemaIndex.Refinement.field_name_equal_spec": "exact",
       "Auths.Refinement.Approval.translated_approval_counts_refines_model": "exact",
       "Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model": "exact",
       "Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model": "exact",
@@ -3281,6 +3481,24 @@
       "Auths.Refinement.translated_inexpressible_absent_request_is_covered": "partial",
       "Auths.Refinement.translated_rust_refines_rich_spec": "exact",
       "Auths.Rich.Mutations.profile_version_equality": "case",
+      "Auths.ScopeConstructor.DecodeExamples.accepts_any": "case",
+      "Auths.ScopeConstructor.DecodeExamples.accepts_listed": "case",
+      "Auths.ScopeConstructor.DecodeExamples.accepts_own": "case",
+      "Auths.ScopeConstructor.DecodeExamples.refuses_collection_limit": "case",
+      "Auths.ScopeConstructor.DecodeExamples.refuses_duplicate_list": "case",
+      "Auths.ScopeConstructor.DecodeExamples.refuses_empty_list": "case",
+      "Auths.ScopeConstructor.DecodeExamples.refuses_invalid_id": "case",
+      "Auths.ScopeConstructor.DecodeExamples.refuses_truncation": "case",
+      "Auths.ScopeConstructor.DecodeExamples.refuses_unknown_tag": "case",
+      "Auths.ScopeConstructor.DecodeExamples.sorts_unsorted_list": "case",
+      "Auths.ScopeConstructor.accepted_rule_valid": "partial",
+      "Auths.ScopeConstructor.accepted_scope_valid": "partial",
+      "Auths.ScopeConstructor.accepted_trust_valid": "partial",
+      "Auths.ScopeConstructor.constructed_grant_selection": "partial",
+      "Auths.ScopeConstructor.constructed_principal_selection": "partial",
+      "Auths.ScopeConstructor.decoded_scope_covers": "partial",
+      "Auths.ScopeConstructor.decoded_trust_grant": "partial",
+      "Auths.ScopeConstructor.decoded_trust_principal": "partial",
       "Auths.StatusSelection.AnchorExamples.other_anchor_hidden": "case",
       "Auths.StatusSelection.AnchorExamples.own_anchor_active": "case",
       "Auths.StatusSelection.Examples.active_selected_horizon": "case",
@@ -3322,20 +3540,20 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 477,
+    "aeneas_local_definitions": 516,
     "by_kind": {
-      "function": 337,
-      "loop": 111,
+      "function": 367,
+      "loop": 120,
       "closure-shim": 11,
       "derived": 18
     },
-    "refined_direct": 129,
-    "refined_closure": 351,
-    "theorems_naming_translated_functions": 277
+    "refined_direct": 141,
+    "refined_closure": 363,
+    "theorems_naming_translated_functions": 305
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "4827210d2a45aaa1a82d85d5759063b5e3d8dc11c7b55d275ab5d43fb162f5ed",
+    "current_formal_inputs_sha256": "f8c07467dc4d3b5acc17c40d0eb73546e620cf5adc5a506e3c2b9969547e110c",
     "fresh": false,
     "campaigns": {
       "s1": {

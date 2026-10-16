@@ -45,8 +45,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 200,
-        "end_line": 200
+        "begin_line": 183,
+        "end_line": 183
       },
       "is_opaque": true,
       "can_fail": true,
@@ -62,8 +62,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 434,
-        "end_line": 434
+        "begin_line": 417,
+        "end_line": 417
       },
       "is_opaque": true,
       "can_fail": true,
@@ -79,8 +79,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 477,
-        "end_line": 477
+        "begin_line": 460,
+        "end_line": 460
       },
       "is_opaque": true,
       "can_fail": true,
@@ -96,8 +96,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 484,
-        "end_line": 484
+        "begin_line": 467,
+        "end_line": 467
       },
       "is_opaque": true,
       "can_fail": true,
@@ -113,8 +113,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 498,
-        "end_line": 498
+        "begin_line": 481,
+        "end_line": 481
       },
       "is_opaque": true,
       "can_fail": true,
@@ -130,8 +130,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 512,
-        "end_line": 512
+        "begin_line": 495,
+        "end_line": 495
       },
       "is_opaque": true,
       "can_fail": true,
@@ -147,8 +147,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 589,
-        "end_line": 589
+        "begin_line": 572,
+        "end_line": 572
       },
       "is_opaque": true,
       "can_fail": true,
@@ -164,8 +164,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 603,
-        "end_line": 603
+        "begin_line": 586,
+        "end_line": 586
       },
       "is_opaque": true,
       "can_fail": true,
@@ -181,8 +181,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 656,
-        "end_line": 656
+        "begin_line": 639,
+        "end_line": 639
       },
       "is_opaque": true,
       "can_fail": true,
@@ -198,8 +198,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 670,
-        "end_line": 670
+        "begin_line": 653,
+        "end_line": 653
       },
       "is_opaque": true,
       "can_fail": true,
@@ -215,8 +215,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 815,
-        "end_line": 815
+        "begin_line": 798,
+        "end_line": 798
       },
       "is_opaque": true,
       "can_fail": true,
@@ -232,8 +232,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 826,
-        "end_line": 826
+        "begin_line": 809,
+        "end_line": 809
       },
       "is_opaque": true,
       "can_fail": true,
@@ -249,8 +249,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 895,
-        "end_line": 898
+        "begin_line": 878,
+        "end_line": 881
       },
       "is_opaque": true,
       "can_fail": true,
@@ -266,8 +266,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 963,
-        "end_line": 967
+        "begin_line": 946,
+        "end_line": 950
       },
       "is_opaque": true,
       "can_fail": true,
@@ -283,8 +283,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1025,
-        "end_line": 1025
+        "begin_line": 1008,
+        "end_line": 1008
       },
       "is_opaque": true,
       "can_fail": true,
@@ -300,8 +300,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1128,
-        "end_line": 1131
+        "begin_line": 1111,
+        "end_line": 1114
       },
       "is_opaque": true,
       "can_fail": true,
@@ -317,8 +317,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1145,
-        "end_line": 1145
+        "begin_line": 1128,
+        "end_line": 1128
       },
       "is_opaque": true,
       "can_fail": true,
@@ -334,8 +334,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1152,
-        "end_line": 1152
+        "begin_line": 1135,
+        "end_line": 1135
       },
       "is_opaque": true,
       "can_fail": true,
@@ -351,8 +351,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1159,
-        "end_line": 1159
+        "begin_line": 1142,
+        "end_line": 1142
       },
       "is_opaque": true,
       "can_fail": true,
@@ -691,8 +691,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 127,
-        "end_line": 127
+        "begin_line": 120,
+        "end_line": 120
       }
     },
     {
@@ -703,8 +703,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 127,
-        "end_line": 127
+        "begin_line": 120,
+        "end_line": 120
       }
     },
     {
@@ -715,8 +715,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 127,
-        "end_line": 127
+        "begin_line": 120,
+        "end_line": 120
       }
     },
     {
@@ -727,8 +727,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 161,
-        "end_line": 161
+        "begin_line": 154,
+        "end_line": 154
       }
     },
     {
@@ -739,8 +739,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 247,
-        "end_line": 247
+        "begin_line": 230,
+        "end_line": 230
       }
     },
     {
@@ -751,8 +751,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 266,
-        "end_line": 266
+        "begin_line": 249,
+        "end_line": 249
       }
     },
     {
@@ -763,8 +763,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 371,
-        "end_line": 371
+        "begin_line": 354,
+        "end_line": 354
       }
     },
     {
@@ -775,8 +775,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 444,
-        "end_line": 444
+        "begin_line": 427,
+        "end_line": 427
       }
     },
     {
@@ -787,8 +787,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 521,
-        "end_line": 521
+        "begin_line": 504,
+        "end_line": 504
       }
     },
     {
@@ -799,8 +799,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 552,
-        "end_line": 552
+        "begin_line": 535,
+        "end_line": 535
       }
     },
     {
@@ -811,8 +811,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 615,
-        "end_line": 615
+        "begin_line": 598,
+        "end_line": 598
       }
     },
     {
@@ -823,8 +823,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 772,
-        "end_line": 772
+        "begin_line": 755,
+        "end_line": 755
       }
     },
     {
@@ -835,8 +835,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 849,
-        "end_line": 849
+        "begin_line": 832,
+        "end_line": 832
       }
     },
     {
@@ -847,8 +847,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 944,
-        "end_line": 944
+        "begin_line": 927,
+        "end_line": 927
       }
     },
     {
@@ -859,8 +859,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1002,
-        "end_line": 1002
+        "begin_line": 985,
+        "end_line": 985
       }
     },
     {
@@ -871,8 +871,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1046,
-        "end_line": 1046
+        "begin_line": 1029,
+        "end_line": 1029
       }
     },
     {
@@ -883,8 +883,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1077,
-        "end_line": 1077
+        "begin_line": 1060,
+        "end_line": 1060
       }
     },
     {
@@ -919,8 +919,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1368,
-        "end_line": 1368
+        "begin_line": 1351,
+        "end_line": 1351
       }
     },
     {
@@ -931,8 +931,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1388,
-        "end_line": 1388
+        "begin_line": 1371,
+        "end_line": 1371
       }
     },
     {
@@ -943,8 +943,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1596,
-        "end_line": 1596
+        "begin_line": 1579,
+        "end_line": 1579
       }
     },
     {
@@ -955,8 +955,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4938,
-        "end_line": 4938
+        "begin_line": 4928,
+        "end_line": 4928
       }
     },
     {
@@ -1066,8 +1066,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1120,
-        "end_line": 1120
+        "begin_line": 1103,
+        "end_line": 1103
       }
     }
   ],

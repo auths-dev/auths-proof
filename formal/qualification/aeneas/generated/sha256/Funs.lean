@@ -22,7 +22,7 @@ variable [primitive : Auths.Crypto.Sha256Primitives]
 namespace AuthsNativeSha256
 
 /-- [auths_model::{auths_model::Digest}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 253:4-253:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 236:4-236:45
     Name pattern: [auths_model::{auths_model::Digest}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Digest}::new"]

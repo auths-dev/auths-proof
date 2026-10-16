@@ -28,14 +28,14 @@ inductive auths_algebra_kernel.generated.Truth where
 | Authorized : auths_algebra_kernel.generated.Truth
 
 /-- [auths_model::Digest]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 247:0-247:17
+    Source: 'core/crates/auths-model/src/lib.rs', lines 230:0-230:17
     Name pattern: [auths_model::Digest]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Digest"]
 def auths_model.Digest := Array Std.U8 32#usize
 
 /-- [auths_model::ProofRef]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::ProofRef]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ProofRef"]
@@ -44,7 +44,7 @@ def auths_model.ProofRef := auths_model.Digest
 mutual
 
 /-- [auths_model::AuthorizationPlan]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1777:0-1777:28
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1760:0-1760:28
     Name pattern: [auths_model::AuthorizationPlan]
     Visibility: public -/
 @[rust_type "auths_model::AuthorizationPlan"]
@@ -52,7 +52,7 @@ inductive auths_model.AuthorizationPlan where
 | mk : auths_model.AuthorizationPlanNode → auths_model.AuthorizationPlan
 
 /-- [auths_model::AuthorizationPlanNode]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1780:0-1780:26
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1763:0-1763:26
     Name pattern: [auths_model::AuthorizationPlanNode] -/
 @[qualified_discriminant isize, rust_type "auths_model::AuthorizationPlanNode"]
 inductive auths_model.AuthorizationPlanNode where
@@ -79,7 +79,7 @@ theorem auths_model.AuthorizationPlan._0._simpLemma_ (_0 :
   (auths_model.AuthorizationPlan.mk _0)._0 = _0 := by rfl
 
 /-- [auths_model::AuthorizationPlanRef]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1792:0-1792:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1775:0-1775:33
     Name pattern: [auths_model::AuthorizationPlanRef]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::AuthorizationPlanRef"]
@@ -97,7 +97,7 @@ inductive auths_model.AuthorizationPlanRef where
   auths_model.AuthorizationPlanRef
 
 /-- [auths_model::ModelError]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5204:0-5204:19
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5194:0-5194:19
     Name pattern: [auths_model::ModelError]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::ModelError"]
@@ -146,7 +146,7 @@ inductive auths_model.ModelError where
 | InvalidApproverAnchor : auths_model.ModelError
 
 /-- [auths_model::VerifierLimits]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3622:0-3622:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3612:0-3612:25
     Name pattern: [auths_model::VerifierLimits]
     Visibility: public -/
 @[rust_type "auths_model::VerifierLimits"]
@@ -183,7 +183,7 @@ structure auths_model.VerifierLimits where
   approval_requirements : Std.Usize
 
 /-- [auths_model::PlanShape]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1966:0-1966:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1949:0-1949:20
     Name pattern: [auths_model::PlanShape]
     Visibility: public -/
 @[rust_type "auths_model::PlanShape"]
@@ -192,7 +192,7 @@ structure auths_model.PlanShape where
   maximum_depth : Std.Usize
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4938:0-4938:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4928:0-4928:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::DenialReason"]
@@ -245,7 +245,7 @@ inductive auths_model.DenialReason where
 | ApprovalThresholdNotMet : auths_model.DenialReason
 
 /-- [auths_model::Requirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5123:0-5123:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5113:0-5113:20
     Name pattern: [auths_model::Requirement]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::Requirement"]

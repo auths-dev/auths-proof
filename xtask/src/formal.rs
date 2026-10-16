@@ -2447,8 +2447,29 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    status_selection_refinement_metadata(declaration)
-        .map(|metadata| (metadata, STATUS_SELECTION_TRANSLATION))
+    expanded_batch_refinement_metadata(declaration)
+        .map(|(metadata, gateway)| {
+            (
+                metadata,
+                if gateway {
+                    GATEWAY_TRANSLATION
+                } else {
+                    "formal/qualification/aeneas/generated/scope_codec/Funs.lean"
+                },
+            )
+        })
+        .or_else(|| {
+            scope_constructor_refinement_metadata(declaration).map(|metadata| {
+                (
+                    metadata,
+                    "formal/qualification/aeneas/generated/scope_codec/Funs.lean",
+                )
+            })
+        })
+        .or_else(|| {
+            status_selection_refinement_metadata(declaration)
+                .map(|metadata| (metadata, STATUS_SELECTION_TRANSLATION))
+        })
         .or_else(|| {
             temporal_refinement_metadata(declaration)
                 .map(|metadata| (metadata, TEMPORAL_TRANSLATION))
@@ -2526,6 +2547,239 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn expanded_batch_refinement_metadata(
+    declaration: &str,
+) -> Option<(ProductionRefinementMetadata, bool)> {
+    let (claim_text, rust_symbol, gateway) = match declaration {
+        "Auths.Product.Frontier.Refinement.start_exact" => (
+            "The actual slot-frontier constructor returns precisely the independent initial interval on every u64 bound.",
+            "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new",
+            true,
+        ),
+        "Auths.Product.Frontier.Refinement.probe_exact" => (
+            "The actual frontier probe terminates safely and returns exactly the independent midpoint or terminal absence on every represented source state.",
+            "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::probe",
+            true,
+        ),
+        "Auths.Product.Frontier.Refinement.observe_exact" => (
+            "The actual occupied/free-read transition terminates safely and returns exactly the independent frontier transition; no caller-provided validity or result premise is assumed.",
+            "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::observe",
+            true,
+        ),
+        "Auths.Product.Frontier.Refinement.candidate_exact" => (
+            "The actual candidate projection returns precisely the independent lower endpoint.",
+            "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::candidate",
+            true,
+        ),
+
+        "Auths.PrincipalConstructor.parse_exact" => (
+            "The actual PrincipalId constructor returns the exact accepted string or InvalidPrincipal refusal on every represented Rust string, combining Unicode character/byte bounds with the independent URI-scheme grammar; no success premise is assumed.",
+            "auths_model::{auths_model::PrincipalId}::parse",
+            false,
+        ),
+        "Auths.Product.OperationIdentity.Refinement.source_preimage_binds_identity" => (
+            "Native successful namespace validation earns unambiguous separators, so equal actual logical-operation preimages bind the exact namespace and operation bytes on the real size domain; this is not a claim of collision-free hashes.",
+            "auths_gateway_kernel::identity::logical_operation_preimage",
+            true,
+        ),
+        "Auths.PrincipalScheme.scheme_refines" => (
+            "The actual bounded ASCII principal-scheme scanner terminates and returns exactly the independent first-letter, scheme-tail, colon and nonempty-remainder grammar.",
+            "auths_model::identifier::principal_scheme_valid",
+            false,
+        ),
+        "Auths.ScopeConstructor.accepted_rule_valid" => (
+            "Every successfully decoded actual status trust rule carries a constructor-valid scope.",
+            "auths_codec::decode::status_trust_rule",
+            false,
+        ),
+        "Auths.ScopeConstructor.accepted_trust_valid" => (
+            "Every successfully decoded actual status trust collection preserves constructor-valid scopes for every rule, with no rule position excluded.",
+            "auths_codec::decode::status_trust",
+            false,
+        ),
+        "Auths.ScopeConstructor.decoded_trust_principal" => (
+            "Actual successful trust-field decoding earns every ordering invariant for the actual principal port, whose complete decision and horizon equal the independent all-view specification.",
+            "auths_codec::decode::status_trust",
+            false,
+        ),
+        "Auths.ScopeConstructor.decoded_trust_grant" => (
+            "Actual successful trust-field decoding earns every ordering invariant for the actual grant port, whose complete decision and horizon equal the independent all-view specification.",
+            "auths_codec::decode::status_trust",
+            false,
+        ),
+        "Auths.Product.SchemaIndex.Refinement.field_name_equal_spec" => (
+            "The actual field-name comparison terminates and returns exact byte equality on every represented input pair.",
+            "auths_gateway_kernel::construct::field_name_equal",
+            true,
+        ),
+        "Auths.Product.SchemaIndex.Refinement.field_index_spec" => (
+            "The actual indexed field lookup terminates and returns exactly the independent first-match schema position or absence.",
+            "auths_gateway_kernel::construct::field_index",
+            true,
+        ),
+        "Auths.Product.OperationIdentity.Refinement.logical_preimage_exact" => (
+            "The actual logical-operation preimage has the exact registered domain, validated namespace, NUL separator and logical operation bytes on the stated constructor-valid size domain.",
+            "auths_gateway_kernel::identity::logical_operation_preimage",
+            true,
+        ),
+        "Auths.Product.OperationIdentity.Refinement.token_exact" => (
+            "The actual bounded token validator terminates and returns exactly the independent ASCII first/rest grammar and byte limit.",
+            "auths_gateway_kernel::identity::valid_token",
+            true,
+        ),
+        _ => return None,
+    };
+    Some((
+        ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols: match rust_symbol {
+                "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new" => {
+                    &[
+                        "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new",
+                    ]
+                }
+                "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::probe" => {
+                    &[
+                        "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::probe",
+                    ]
+                }
+                "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::observe" => {
+                    &[
+                        "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::observe",
+                    ]
+                }
+                "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::candidate" => {
+                    &[
+                        "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::candidate",
+                    ]
+                }
+
+                "auths_model::{auths_model::PrincipalId}::parse" => {
+                    &["auths_model::{auths_model::PrincipalId}::parse"]
+                }
+                "auths_model::identifier::principal_scheme_valid" => {
+                    &["auths_model::identifier::principal_scheme_valid"]
+                }
+                "auths_codec::decode::status_trust_rule" => {
+                    &["auths_codec::decode::status_trust_rule"]
+                }
+                "auths_codec::decode::status_trust" => &["auths_codec::decode::status_trust"],
+                "auths_gateway_kernel::construct::field_name_equal" => {
+                    &["auths_gateway_kernel::construct::field_name_equal"]
+                }
+                "auths_gateway_kernel::construct::field_index" => {
+                    &["auths_gateway_kernel::construct::field_index"]
+                }
+                "auths_gateway_kernel::identity::logical_operation_preimage" => {
+                    &["auths_gateway_kernel::identity::logical_operation_preimage"]
+                }
+                "auths_gateway_kernel::identity::valid_token" => {
+                    &["auths_gateway_kernel::identity::valid_token"]
+                }
+                _ => return None,
+            },
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+            residual_assumptions: &[
+                "Trust Lean's kernel, the pinned Rust/Charon/Aeneas boundary and the inventoried transparent standard interfaces. No Auths body in the qualified unit is opaque and no generated function body is rewritten.",
+                "Decoder success premises state partial-correctness safety and earn scope invariants; they are not assumed authorization decisions or total-parser claims. The source scheme/token and field-index leaves state complete results on their displayed domains. The preimage size premises are the real namespace/operation constructor bounds; no hash injectivity or signature security is asserted.",
+                "Independent history/schema/framing models establish only their own declared semantics until source/store/compiler/driver correspondence is composed. These source components do not close complete byte decoding, canonical round trips, registry authentication, staged verification, JSON implementation correctness, complete concurrent admission, backend durability or runtime entry. Remaining E1-E5/M6 obligations remain explicit in AP-SPEC-069.",
+            ],
+            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
+        },
+        gateway,
+    ))
+}
+
+fn scope_constructor_refinement_metadata(
+    declaration: &str,
+) -> Option<ProductionRefinementMetadata> {
+    if matches!(
+        declaration,
+        "Auths.ScopeConstructor.accepted_scope_valid"
+            | "Auths.ScopeConstructor.decoded_scope_covers"
+    ) {
+        return Some(ProductionRefinementMetadata {
+            claim_text: if declaration.ends_with("decoded_scope_covers") {
+                "An actual successful scope decode earns the ordering invariant required by the actual scope-coverage function, whose complete Boolean result matches independent scope semantics. The translation-context bridge preserves each enum variant and the exact listed vector."
+            } else {
+                "Every successful actual status-scope decode returns OwnAnchor, AnyAnchor, or a nonempty, bounded, unique and ordered listed-anchor scope. The actual constructor earns the invariant on every successful listed-scope path."
+            },
+            rust_symbols: &["auths_codec::decode::status_scope"],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+            residual_assumptions: &[
+                "Trust Lean's kernel, pinned source translation and reviewed standard-library interfaces. All Auths decoder and constructor bodies are transparent; no Auths algorithm or ordering outcome is opaque.",
+                "The premise records actual successful decoding for a legitimate partial-correctness safety property. It is not a total parser, resource-bound, all-input rejection, identifier-language completeness or canonical round-trip theorem. Separate positive/refusal source witnesses guard against vacuous acceptance claims. Full verification, evidence authentication and runtime/history consumption remain open.",
+            ],
+            scope: "Source decoder success implies a structurally valid scope. Listed output invariants are earned from the actual constructor rather than assumed from a carrier type. This closes no whole E1/E2/M6 milestone.",
+        });
+    }
+    if declaration.starts_with("Auths.ScopeConstructor.DecodeExamples.") {
+        return match declaration {
+            "Auths.ScopeConstructor.DecodeExamples.sorts_unsorted_list"
+            | "Auths.ScopeConstructor.DecodeExamples.refuses_duplicate_list"
+            | "Auths.ScopeConstructor.DecodeExamples.accepts_own"
+            | "Auths.ScopeConstructor.DecodeExamples.accepts_any"
+            | "Auths.ScopeConstructor.DecodeExamples.refuses_unknown_tag"
+            | "Auths.ScopeConstructor.DecodeExamples.refuses_truncation"
+            | "Auths.ScopeConstructor.DecodeExamples.accepts_listed"
+            | "Auths.ScopeConstructor.DecodeExamples.refuses_empty_list"
+            | "Auths.ScopeConstructor.DecodeExamples.refuses_invalid_id"
+            | "Auths.ScopeConstructor.DecodeExamples.refuses_collection_limit" => {
+                Some(ProductionRefinementMetadata {
+                    claim_text: "The actual status-scope decoder returns the displayed exact typed value or refusal and final cursor on the concrete wire carrier. Own/any/tag/truncation cases quantify every represented limit configuration; listed cases exercise actual identifier parsing and constructor validation.",
+                    rust_symbols: &["auths_codec::decode::status_scope"],
+                    translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+                    residual_assumptions: &[
+                        "Trust Lean's kernel and the pinned source translation boundary with reviewed standard-library interfaces. Kernel-proved evaluation rules preserve every original operation on every input; no native_decide, platform-width axiom or opaque Auths algorithm is used.",
+                        "These are concrete positive/refusal witnesses, not complete byte-parser coverage or authorization decisions. Successful field decoding is not canonical caller acceptance, evidence authentication, full verification or runtime/history consumption.",
+                    ],
+                    scope: "Exact source decoder results and cursor for the displayed wire carriers, including valid own/any/listed, unknown tag, truncation, empty list, invalid identifier and configured collection limit.",
+                })
+            }
+            _ => None,
+        };
+    }
+    let claim_text = match declaration {
+        "Auths.ScopeConstructor.constructed_principal_selection"
+        | "Auths.ScopeConstructor.constructed_grant_selection" => {
+            "The actual constructor earns the ordering conditions for the actual principal or grant status port in every view when its constructed list is assigned to each supplied rule. The complete port result equals the independent filter/max/tie-set specification; no source-success or caller-ordering premise is assumed."
+        }
+        "Auths.ScopeConstructor.constructor_refines" => {
+            "The actual scope constructor terminates and returns exactly the complete typed result of independent nonempty, maximum-length and uniqueness validation, sorting every admitted list."
+        }
+        "Auths.ScopeConstructor.constructor_validity" => {
+            "Every successful actual construction earns ordered scope lookup, preserves exactly the original list as a permutation and enforces the 1024-element limit; every failure is the exact typed invalid-snapshot error on an inadmissible list."
+        }
+        "Auths.ScopeConstructor.constructed_lookup" => {
+            "Successful actual construction feeds the actual Auths binary-search wrapper and yields exact membership in the original list, with no caller ordering or desired-success premise."
+        }
+        "Auths.ScopeConstructor.Examples.accepts_unsorted" => {
+            "The actual scope constructor has the displayed exact sorted acceptance or typed refusal result; the oversized example quantifies every represented list exceeding the limit."
+        }
+        "Auths.ScopeConstructor.Examples.rejects_duplicate" => {
+            "The actual scope constructor has the displayed exact sorted acceptance or typed refusal result; the oversized example quantifies every represented list exceeding the limit."
+        }
+        "Auths.ScopeConstructor.Examples.rejects_empty" => {
+            "The actual scope constructor has the displayed exact sorted acceptance or typed refusal result; the oversized example quantifies every represented list exceeding the limit."
+        }
+        "Auths.ScopeConstructor.Examples.rejects_oversized" => {
+            "The actual scope constructor has the displayed exact sorted acceptance or typed refusal result; the oversized example quantifies every represented list exceeding the limit."
+        }
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols: &["auths_model::{auths_model::StatusScopeAnchors}::new"],
+        residual_assumptions: &[
+            "Trust Lean's kernel, pinned Rust/Charon/Aeneas compilation and the reviewed standard-library interface models. All Auths constructor, duplicate-loop, comparison and decoder helper bodies in this unit are transparent translated source; no desired Auths result is an opaque premise.",
+            "The ordinary-sort interface delegates to the already reviewed stable key-sort model through a pure stateless identity key. The actual String comparator law, identity-key behavior, sorted permutation, uniqueness and native binary-search membership are kernel checked. This is not a proof of Rust standard-library machine code, arbitrary stateful FnMut sorting, host allocation or physical work.",
+            "These constructor claims admit arbitrary represented finite String vectors, including invalid scope lengths and duplicates. Full identifier-constructor validity, complete byte-decoder acceptance/rejection and round trips, rule/snapshot constructor composition, evidence authentication, closed dispatch, full verification and runtime/history consumption remain E1/E2/E4/M6 obligations.",
+        ],
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        scope: "Exact constructor result and constructor-earned native lookup under reviewed standard semantics. Decoder extraction supplies the actual constructor closure but decoder correctness is not claimed by these statements. No whole E1/E2/E4/M6 milestone is closed.",
+    })
 }
 
 fn status_selection_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

@@ -5,13 +5,37 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified checkpoint — 16 October 2026
+
+The current local batch qualifies **741 compiled claims**, including all 671
+previous complete statement/constant/axiom records unchanged. Two clean full
+translations reproduce byte-identically; all 18 qualification cases pass, with
+24 reviewed external models, none unreviewed, and no compiled external axioms.
+The shipping source closure is
+`f9041056a71f53030c45a3a9e0c4208da53fc5a56d26b03466ef119e54104549`.
+
+New components cover the complete principal-ID constructor, constructor-earned
+scope ordering through trust decoding and status selection, exact schema-name
+lookup, logical-operation token/framing, and the actual frontier search methods
+with a composed 64-read bound. The shipping compiler rejects duplicate JSON
+members before source/lock decoding. Independent history models combine
+chain/count/sum bounds with durable claims, crashes, lost acknowledgements and
+one-use ownership; actual backend/driver correspondence remains separate.
+
+The affected native crates pass 327 library tests (26 existing gateway tests
+remain ignored). Coverage's six checks include byte-identical historical
+reproduction and compiled-constant handling of method notation. Coverage v2
+reports 133/1046 decision functions and 1814/11544 decision code lines in the
+refined closure, and 23/82 check sites. Exact-revision hosted gates remain
+pending; no complete E1–E5 or M6 milestone is claimed.
+
 | Milestone | State | Evidence / remaining work |
 | --- | --- | --- |
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. The shipping Ed25519 field/sign and P-256 compressed-form guards now have total exact refinements. Caller unsigned-object construction, complete suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
 | M3: complete verifier | In progress | The public observed evaluator now refines independent structural validation followed by all/any/k semantics. The source validator accepts iff the independent structural contract holds; invalid plans preserve both callback states without callback premises. The ordinary facade and event accessor are now also refined. Callback implementations, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. Exact-revision hosted gates are pending for this expansion. |
-| M4: mapping and driver | Pending | E3.1–E3.5. |
+| M4: mapping and driver | In progress | Exact source field-name lookup and an independent named/positional projection relation are proved; duplicate source/lock JSON members are refused. Full source compiler, sealed projection and driver-to-I/O correspondence remain E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
 

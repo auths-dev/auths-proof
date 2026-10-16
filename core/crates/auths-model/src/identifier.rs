@@ -56,6 +56,40 @@ pub(crate) fn bounded_identifier_valid(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !contains_forbidden_identifier(value.as_bytes())
 }
 
+#[allow(
+    clippy::manual_range_contains,
+    reason = "The qualified classifier keeps ASCII ranges as transparent scalar comparisons."
+)]
+fn principal_scheme_byte_valid(byte: u8) -> bool {
+    (b'a' <= byte && byte <= b'z')
+        || (b'0' <= byte && byte <= b'9')
+        || byte == b'+'
+        || byte == b'-'
+        || byte == b'.'
+}
+
+/// Recognizes the lowercase ASCII URI scheme and a nonempty remainder.
+/// Callers separately enforce the identifier's byte bound and character rules.
+pub(crate) fn principal_scheme_valid(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() < 3 || !(b'a' <= bytes[0] && bytes[0] <= b'z') {
+        return false;
+    }
+    let mut position = 1;
+    let mut valid = true;
+    let mut found = false;
+    while position < bytes.len() && valid && !found {
+        let byte = bytes[position];
+        if byte == b':' {
+            found = true;
+        } else {
+            valid = principal_scheme_byte_valid(byte);
+        }
+        position += 1;
+    }
+    valid && found && position < bytes.len()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{bounded_identifier_valid, contains_forbidden_identifier};

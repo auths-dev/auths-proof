@@ -154,6 +154,13 @@ structure deadline.EntryBound where
   not_after : Std.U64
   inclusive : Bool
 
+/-- [auths_gateway_kernel::frontier::FrontierSearch]
+    Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 7:0-10:1
+    Visibility: public -/
+structure frontier.FrontierSearch where
+  lower : Std.U64
+  upper : Std.U64
+
 /-- [auths_gateway_kernel::order::Mode]
     Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 34:0-41:1
     Visibility: public -/

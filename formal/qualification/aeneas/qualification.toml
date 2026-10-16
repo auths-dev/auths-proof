@@ -10,9 +10,20 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1"]
+codegen_normalizations = ["scope-codec-qualified-discriminants-v1", "scope-codec-recursive-loops-v1", "composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1"]
 
 source_files = [
+    "product/runtime/auths-gateway-kernel/src/frontier.rs",
+  "product/runtime/auths-gateway-kernel/src/identity.rs",
+  "product/runtime/auths-gateway/src/recipe.rs",
+  "product/runtime/auths-gateway/src/recipe/lower.rs",
+  "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+  "product/runtime/auths-gateway/src/recipe/tests.rs",
+  "product/runtime/auths-gateway/src/store.rs",
+  "core/crates/auths-model/src/principal_scheme_tests.rs",
+  "core/crates/auths-model/src/scope_constructor_tests.rs",
+  "core/crates/auths-codec/src/scope_decode_tests.rs",
+  "formal/qualification/aeneas/cases/ScopeCodec.lean",
   "core/crates/auths-registries/Cargo.toml",
   "core/crates/auths-registries/src/lib.rs",
   "core/crates/auths-registries/src/status_selection_tests.rs",
@@ -113,6 +124,13 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/scope_codec/Types.lean",
+  "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/scope_codec/Funs.lean",
+  "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/scope_codec/translation.json",
   "formal/qualification/aeneas/generated/status_selection/Types.lean",
   "formal/qualification/aeneas/generated/status_selection/Funs.lean",
   "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
@@ -200,6 +218,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.ScopeCodec",
   "qualification.aeneas.cases.StatusSelection",
   "qualification.aeneas.cases.TemporalWitness",
   "qualification.aeneas.cases.SuiteAdapters",
@@ -244,6 +263,16 @@ owner_lean_declaration = "AuthsNativeP256.verify_p256_sha256"
 bridge_artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
 bridge_lean_declaration = "AuthsSuiteAdapters.auths_signature_core.verify_p256_sha256"
 delegation_theorem = "AuthsSuiteAdapters.p256_delegates"
+
+[[external_models]]
+id = "scope-codec-transparent-standard-interfaces"
+kind = "transparent-standard-identity-sort-and-range-interface"
+artifact = "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean"
+rust_symbols = ["alloc::slice::{[T]}::sort", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from", "alloc::vec::{alloc::vec::Vec<T>}::is_empty", "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from", "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from", "core::ops::range::{core::ops::range::RangeInclusive<Idx>}::contains", "core::option::Option::Some", "core::option::{core::option::Option<T>}::ok_or", "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq", "core::result::{core::result::Result<T, E>}::map", "core::result::{core::result::Result<T, E>}::map_err", "core::result::{core::result::Result<T, E>}::unwrap_or", "core::str::converts::from_utf8", "core::str::{str}::as_bytes", "core::str::{str}::is_empty", "core::str::{str}::len"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Checked conversions, Option/Result, UTF-8 and string operations delegate to previously reviewed standard interfaces. Ordinary sorting delegates to the reviewed stable key-sort model with a pure stateless identity key; concrete identity behavior, actual String comparator laws, sorted permutation and constructor validity are proved, not assumed. This is no model of arbitrary stateful FnMut sorting and no proof of Rust standard-library machine code or physical allocation/work. RangeInclusive.contains follows the pinned short-circuit start <= item and item <= end dictionary calls. TypesExternal reuses the existing exact error carrier; no Auths type or algorithm is replaced. Only the four discriminant instance names in Types are qualified; every generated function body is unchanged. Complete byte-decoder correctness and full verification/runtime composition remain open."
 
 [[external_models]]
 id = "status-selection-transparent-standard-interfaces"
@@ -579,6 +608,15 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_codec"
+translation_json = "formal/qualification/aeneas/generated/scope_codec/translation.json"
+local_functions = 25
+external_functions = 37
+opaque_local_functions = 0
+required_symbols = ["auths_codec::cbor::malformed", "auths_codec::cbor::read_head", "auths_codec::cbor::read_tail", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8", "auths_codec::decode::array", "auths_codec::decode::decode_error", "auths_codec::decode::key", "auths_codec::decode::map", "auths_codec::decode::status_scope", "auths_codec::decode::status_scope_anchor", "auths_codec::decode::status_trust", "auths_codec::decode::status_trust_rule", "auths_codec::decode::text", "auths_codec::error::limit_error", "auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from"]
+allowed_external_symbols = ["alloc::slice::{[T]}::sort", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from", "alloc::vec::{alloc::vec::Vec<T>}::is_empty", "auths_model::identifier::bounded_identifier_valid", "auths_model::identifier::contains_forbidden_identifier", "auths_model::identifier::forbidden_identifier_at", "auths_model::identifier::forbidden_three_byte_prefix", "auths_model::identifier::principal_scheme_byte_valid", "auths_model::identifier::principal_scheme_valid", "auths_model::{auths_model::PrincipalId}::parse", "auths_model::{auths_model::StatusMethodId}::parse", "auths_model::{auths_model::StatusScopeAnchors}::new", "auths_model::{auths_model::StatusTrustRule}::new", "auths_model::{auths_model::TrustAnchorId}::parse", "auths_model::{auths_model::VerifierLimits}::get", "auths_model::{impl core::cmp::Eq for auths_model::TrustAnchorId}::assert_fields_are_eq", "auths_model::{impl core::cmp::Ord for auths_model::TrustAnchorId}::cmp", "auths_model::{impl core::cmp::PartialEq<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::eq", "auths_model::{impl core::cmp::PartialOrd<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::partial_cmp", "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from", "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from", "core::ops::range::{core::ops::range::RangeInclusive<Idx>}::contains", "core::option::Option::Some", "core::option::{core::option::Option<T>}::ok_or", "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq", "core::result::{core::result::Result<T, E>}::map", "core::result::{core::result::Result<T, E>}::map_err", "core::result::{core::result::Result<T, E>}::unwrap_or", "core::str::converts::from_utf8", "core::str::{str}::as_bytes", "core::str::{str}::is_empty", "core::str::{str}::len"]
 
 [[translations]]
 crate_name = "auths_registries"
@@ -1101,29 +1139,10 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_gateway_kernel"
 translation_json = "formal/qualification/aeneas/generated/gateway/translation.json"
-local_functions = 125
+local_functions = 139
 external_functions = 0
 opaque_local_functions = 0
-required_symbols = [
-  "auths_gateway_kernel::deadline::entry_time_allows",
-  "auths_gateway_kernel::deadline::intersect_entry_bounds",
-  "auths_gateway_kernel::recovery::recovery_capability",
-  "auths_gateway_kernel::construct::construct_write",
-  "auths_gateway_kernel::construct::construct_action_read",
-  "auths_gateway_kernel::construct::construct_credential_read",
-  "auths_gateway_kernel::construct::build_url",
-  "auths_gateway_kernel::construct::build_body",
-  "auths_gateway_kernel::construct::action_headers",
-  "auths_gateway_kernel::construct::scope_value_valid",
-  "auths_gateway_kernel::order::start",
-  "auths_gateway_kernel::order::next_step",
-  "auths_gateway_kernel::order::after_ceiling",
-  "auths_gateway_kernel::transition::valid_transition",
-  "auths_gateway_kernel::transition::consistent",
-  "auths_gateway_kernel::transition::stage_transition_allowed",
-  "auths_gateway_kernel::ratio::relative_basis",
-  "auths_gateway_kernel::ratio::relative_ceiling_admits",
-]
+required_symbols = ["auths_gateway_kernel::construct::account_bytes_valid", "auths_gateway_kernel::construct::account_scope_header", "auths_gateway_kernel::construct::action_headers", "auths_gateway_kernel::construct::append_bytes", "auths_gateway_kernel::construct::append_form_byte", "auths_gateway_kernel::construct::append_form_encoded", "auths_gateway_kernel::construct::append_form_piece", "auths_gateway_kernel::construct::append_form_pieces", "auths_gateway_kernel::construct::append_json_argument", "auths_gateway_kernel::construct::append_json_byte", "auths_gateway_kernel::construct::append_json_escaped", "auths_gateway_kernel::construct::append_json_piece", "auths_gateway_kernel::construct::append_json_pieces", "auths_gateway_kernel::construct::append_json_string", "auths_gateway_kernel::construct::append_path_byte", "auths_gateway_kernel::construct::append_path_encoded", "auths_gateway_kernel::construct::append_percent", "auths_gateway_kernel::construct::append_segment", "auths_gateway_kernel::construct::append_segments", "auths_gateway_kernel::construct::append_version_headers", "auths_gateway_kernel::construct::build_body", "auths_gateway_kernel::construct::build_url", "auths_gateway_kernel::construct::construct_action_read", "auths_gateway_kernel::construct::construct_credential_read", "auths_gateway_kernel::construct::construct_write", "auths_gateway_kernel::construct::copy_bytes", "auths_gateway_kernel::construct::copy_header", "auths_gateway_kernel::construct::field_index", "auths_gateway_kernel::construct::field_name_equal", "auths_gateway_kernel::construct::fixed_url", "auths_gateway_kernel::construct::form_piece_valid", "auths_gateway_kernel::construct::form_pieces_valid", "auths_gateway_kernel::construct::hex_lower", "auths_gateway_kernel::construct::hex_upper", "auths_gateway_kernel::construct::is_account_byte", "auths_gateway_kernel::construct::is_alphanumeric", "auths_gateway_kernel::construct::is_form_literal", "auths_gateway_kernel::construct::is_path_literal", "auths_gateway_kernel::construct::json_piece_valid", "auths_gateway_kernel::construct::json_pieces_valid", "auths_gateway_kernel::construct::path_error", "auths_gateway_kernel::construct::scope_value_valid", "auths_gateway_kernel::construct::segment_error", "auths_gateway_kernel::construct::segment_value_valid", "auths_gateway_kernel::deadline::entry_time_allows", "auths_gateway_kernel::deadline::intersect_entry_bounds", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::candidate", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::observe", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::probe", "auths_gateway_kernel::identity::logical_operation_preimage", "auths_gateway_kernel::identity::valid_token", "auths_gateway_kernel::order::after_account", "auths_gateway_kernel::order::after_admission", "auths_gateway_kernel::order::after_ceiling", "auths_gateway_kernel::order::after_claim", "auths_gateway_kernel::order::after_credentials", "auths_gateway_kernel::order::after_denied", "auths_gateway_kernel::order::after_pre_entry", "auths_gateway_kernel::order::after_prefix", "auths_gateway_kernel::order::after_read_back", "auths_gateway_kernel::order::after_reads", "auths_gateway_kernel::order::after_response", "auths_gateway_kernel::order::after_write", "auths_gateway_kernel::order::ceiling_from", "auths_gateway_kernel::order::denied_from", "auths_gateway_kernel::order::entry_step", "auths_gateway_kernel::order::go", "auths_gateway_kernel::order::halt", "auths_gateway_kernel::order::lease_failed", "auths_gateway_kernel::order::lease_step", "auths_gateway_kernel::order::next_step", "auths_gateway_kernel::order::not_entered", "auths_gateway_kernel::order::pre_claim", "auths_gateway_kernel::order::pre_claim_step", "auths_gateway_kernel::order::pre_entry_from", "auths_gateway_kernel::order::start", "auths_gateway_kernel::order::stop", "auths_gateway_kernel::ratio::relative_basis", "auths_gateway_kernel::ratio::relative_ceiling_admits", "auths_gateway_kernel::recovery::provider_link", "auths_gateway_kernel::recovery::recovery_capability", "auths_gateway_kernel::recovery::recovery_class", "auths_gateway_kernel::recovery::unknown_resolution", "auths_gateway_kernel::transition::absent", "auths_gateway_kernel::transition::adds_pre_entry", "auths_gateway_kernel::transition::adds_response", "auths_gateway_kernel::transition::checkpoint_valid", "auths_gateway_kernel::transition::consistent", "auths_gateway_kernel::transition::has_link", "auths_gateway_kernel::transition::has_reading", "auths_gateway_kernel::transition::link_equal", "auths_gateway_kernel::transition::observed_stage", "auths_gateway_kernel::transition::permits_response", "auths_gateway_kernel::transition::plan_kept", "auths_gateway_kernel::transition::pre_entry_kept", "auths_gateway_kernel::transition::provider_stage", "auths_gateway_kernel::transition::refusal_stage", "auths_gateway_kernel::transition::requires_response", "auths_gateway_kernel::transition::resolves_unknown", "auths_gateway_kernel::transition::response_kept", "auths_gateway_kernel::transition::same_bytes", "auths_gateway_kernel::transition::same_bytes_from", "auths_gateway_kernel::transition::stage_transition_allowed", "auths_gateway_kernel::transition::valid_transition"]
 allowed_external_symbols = []
 
 [[translations]]
@@ -1140,6 +1159,16 @@ required_symbols = [
   "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean"
+count = 18
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean"

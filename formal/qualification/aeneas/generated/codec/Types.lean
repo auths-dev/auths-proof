@@ -16,42 +16,42 @@ set_option maxRecDepth 2048
 namespace auths_codec
 
 /-- [auths_model::MediaType]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::MediaType]
     Visibility: public -/
 @[reducible, rust_type "auths_model::MediaType"]
 def auths_model.MediaType := String
 
 /-- [auths_model::ProfileId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ProfileId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ProfileId"]
 def auths_model.ProfileId := String
 
 /-- [auths_model::CapabilityId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::CapabilityId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::CapabilityId"]
 def auths_model.CapabilityId := String
 
 /-- [auths_model::ResourceId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ResourceId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ResourceId"]
 def auths_model.ResourceId := String
 
 /-- [auths_model::BudgetAlgebraId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::BudgetAlgebraId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::BudgetAlgebraId"]
 def auths_model.BudgetAlgebraId := String
 
 /-- [auths_model::ModelError]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5204:0-5204:19
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5194:0-5194:19
     Name pattern: [auths_model::ModelError]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::ModelError"]
@@ -100,21 +100,21 @@ inductive auths_model.ModelError where
 | InvalidApproverAnchor : auths_model.ModelError
 
 /-- [auths_model::Digest]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 247:0-247:17
+    Source: 'core/crates/auths-model/src/lib.rs', lines 230:0-230:17
     Name pattern: [auths_model::Digest]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Digest"]
 def auths_model.Digest := Array Std.U8 32#usize
 
 /-- [auths_model::AttachmentDigest]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::AttachmentDigest]
     Visibility: public -/
 @[reducible, rust_type "auths_model::AttachmentDigest"]
 def auths_model.AttachmentDigest := auths_model.Digest
 
 /-- [auths_model::ProfileRef]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 444:0-444:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 427:0-427:21
     Name pattern: [auths_model::ProfileRef]
     Visibility: public -/
 @[rust_type "auths_model::ProfileRef"]
@@ -123,7 +123,7 @@ structure auths_model.ProfileRef where
   version : Std.U16
 
 /-- [auths_model::Permission]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 521:0-521:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 504:0-504:21
     Name pattern: [auths_model::Permission]
     Visibility: public -/
 @[rust_type "auths_model::Permission"]
@@ -132,7 +132,7 @@ structure auths_model.Permission where
   resource : auths_model.ResourceId
 
 /-- [auths_model::BudgetCeiling]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 849:0-849:24
+    Source: 'core/crates/auths-model/src/lib.rs', lines 832:0-832:24
     Name pattern: [auths_model::BudgetCeiling]
     Visibility: public -/
 @[rust_type "auths_model::BudgetCeiling"]
@@ -141,7 +141,7 @@ structure auths_model.BudgetCeiling where
   value : Std.U64
 
 /-- [auths_model::DetachedAttachment]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2864:0-2864:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2854:0-2854:29
     Name pattern: [auths_model::DetachedAttachment]
     Visibility: public -/
 @[rust_type "auths_model::DetachedAttachment"]
@@ -150,7 +150,7 @@ structure auths_model.DetachedAttachment where
   bytes : alloc.vec.Vec Std.U8
 
 /-- [auths_model::CanonicalAction]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1630:0-1630:26
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1613:0-1613:26
     Name pattern: [auths_model::CanonicalAction]
     Visibility: public -/
 @[rust_type "auths_model::CanonicalAction"]
@@ -163,14 +163,14 @@ structure auths_model.CanonicalAction where
   detached_attachments : alloc.vec.Vec auths_model.DetachedAttachment
 
 /-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1684:32-1684:44
     Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure] -/
 @[reducible, rust_type
   "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure"]
 def auths_model.CanonicalAction.with_detached_attachments.closure := Unit
 
 /-- [auths_model::VerifierLimits]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3622:0-3622:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3612:0-3612:25
     Name pattern: [auths_model::VerifierLimits]
     Visibility: public -/
 @[rust_type "auths_model::VerifierLimits"]
@@ -207,7 +207,7 @@ structure auths_model.VerifierLimits where
   approval_requirements : Std.Usize
 
 /-- [auths_model::LimitKind]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3657:0-3657:18
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3647:0-3647:18
     Name pattern: [auths_model::LimitKind]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::LimitKind"]
@@ -291,7 +291,7 @@ inductive error.CodecError where
 | Model : auths_model.ModelError → error.CodecError
 
 /-- [auths_codec::decode::AttachmentBatch]
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1542:0-1546:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1571:0-1575:1 -/
 structure decode.AttachmentBatch where
   attachments : alloc.vec.Vec auths_model.DetachedAttachment
   attachment_bytes : Std.Usize

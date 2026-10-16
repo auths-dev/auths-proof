@@ -421,7 +421,7 @@ def auths_model.HARD_MAX_APPROVER_ANCHORS : Std.Usize := 32#usize
 def auths_model.HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS : Std.Usize := 4#usize
 
 /-- [auths_model::{auths_model::MediaType}::parse]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Source: 'core/crates/auths-model/src/lib.rs', lines 131:12-131:65
     Name pattern: [auths_model::{auths_model::MediaType}::parse]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::MediaType}::parse"]
@@ -437,7 +437,7 @@ def auths_model.MediaType.parse
   else ok (core.result.Result.Err auths_model.ModelError.InvalidMediaType)
 
 /-- [auths_model::{auths_model::ProfileId}::parse]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Source: 'core/crates/auths-model/src/lib.rs', lines 131:12-131:65
     Name pattern: [auths_model::{auths_model::ProfileId}::parse]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ProfileId}::parse"]
@@ -453,7 +453,7 @@ def auths_model.ProfileId.parse
   else ok (core.result.Result.Err auths_model.ModelError.InvalidProfile)
 
 /-- [auths_model::{auths_model::CapabilityId}::parse]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Source: 'core/crates/auths-model/src/lib.rs', lines 131:12-131:65
     Name pattern: [auths_model::{auths_model::CapabilityId}::parse]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CapabilityId}::parse"]
@@ -469,7 +469,7 @@ def auths_model.CapabilityId.parse
   else ok (core.result.Result.Err auths_model.ModelError.InvalidCapability)
 
 /-- [auths_model::{auths_model::ResourceId}::parse]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Source: 'core/crates/auths-model/src/lib.rs', lines 131:12-131:65
     Name pattern: [auths_model::{auths_model::ResourceId}::parse]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ResourceId}::parse"]
@@ -485,7 +485,7 @@ def auths_model.ResourceId.parse
   else ok (core.result.Result.Err auths_model.ModelError.InvalidResource)
 
 /-- [auths_model::{auths_model::BudgetAlgebraId}::parse]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Source: 'core/crates/auths-model/src/lib.rs', lines 131:12-131:65
     Name pattern: [auths_model::{auths_model::BudgetAlgebraId}::parse]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::BudgetAlgebraId}::parse"]
@@ -502,7 +502,7 @@ def auths_model.BudgetAlgebraId.parse
   else ok (core.result.Result.Err auths_model.ModelError.InvalidRegistryId)
 
 /-- [auths_model::{auths_model::MediaType}::as_str]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Source: 'core/crates/auths-model/src/lib.rs', lines 139:12-139:40
     Name pattern: [auths_model::{auths_model::MediaType}::as_str]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::MediaType}::as_str"]
@@ -511,7 +511,7 @@ def auths_model.MediaType.as_str
   alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
 
 /-- [auths_model::{auths_model::ProfileId}::as_str]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Source: 'core/crates/auths-model/src/lib.rs', lines 139:12-139:40
     Name pattern: [auths_model::{auths_model::ProfileId}::as_str]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ProfileId}::as_str"]
@@ -520,7 +520,7 @@ def auths_model.ProfileId.as_str
   alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
 
 /-- [auths_model::{auths_model::CapabilityId}::as_str]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Source: 'core/crates/auths-model/src/lib.rs', lines 139:12-139:40
     Name pattern: [auths_model::{auths_model::CapabilityId}::as_str]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CapabilityId}::as_str"]
@@ -529,7 +529,7 @@ def auths_model.CapabilityId.as_str
   alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
 
 /-- [auths_model::{auths_model::ResourceId}::as_str]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Source: 'core/crates/auths-model/src/lib.rs', lines 139:12-139:40
     Name pattern: [auths_model::{auths_model::ResourceId}::as_str]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ResourceId}::as_str"]
@@ -538,7 +538,7 @@ def auths_model.ResourceId.as_str
   alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
 
 /-- [auths_model::{auths_model::BudgetAlgebraId}::as_str]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Source: 'core/crates/auths-model/src/lib.rs', lines 139:12-139:40
     Name pattern: [auths_model::{auths_model::BudgetAlgebraId}::as_str]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::BudgetAlgebraId}::as_str"]
@@ -547,7 +547,7 @@ def auths_model.BudgetAlgebraId.as_str
   alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 246:33-246:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 229:33-229:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -557,7 +557,7 @@ def auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq
   core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 self other
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 246:44-246:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 229:44-229:47
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp"]
@@ -568,7 +568,7 @@ def auths_model.Digest.Insts.CoreCmpOrd.cmp
   Array.Insts.CoreCmpOrd.cmp core.cmp.OrdU8 self other
 
 /-- [auths_model::{auths_model::Digest}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 253:4-253:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 236:4-236:45
     Name pattern: [auths_model::{auths_model::Digest}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Digest}::new"]
@@ -577,7 +577,7 @@ def auths_model.Digest.new
   ok bytes
 
 /-- [auths_model::{auths_model::Digest}::as_bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 258:4-258:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 241:4-241:45
     Name pattern: [auths_model::{auths_model::Digest}::as_bytes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Digest}::as_bytes"]
@@ -586,7 +586,7 @@ def auths_model.Digest.as_bytes
   ok self
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:41-248:50
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -599,7 +599,7 @@ def auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest.eq
   auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq self other
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:41-248:50
     Name pattern: [core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>"]
@@ -612,7 +612,7 @@ impl_def auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest :
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:37-248:39
     Name pattern: [auths_model::{core::cmp::Eq<auths_model::AttachmentDigest>}::assert_fields_are_eq]
     Visibility: public -/
 @[rust_fun
@@ -622,7 +622,7 @@ def auths_model.AttachmentDigest.Insts.CoreCmpEq.assert_fields_are_eq
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:37-248:39
     Name pattern: [core::cmp::Eq<auths_model::AttachmentDigest>] -/
 @[reducible, rust_trait_impl "core::cmp::Eq<auths_model::AttachmentDigest>"]
 def auths_model.AttachmentDigest.Insts.CoreCmpEq : core.cmp.Eq
@@ -634,7 +634,7 @@ def auths_model.AttachmentDigest.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:52-248:55
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::AttachmentDigest>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::AttachmentDigest>}::cmp"]
@@ -646,7 +646,7 @@ def auths_model.AttachmentDigest.Insts.CoreCmpOrd.cmp
   auths_model.Digest.Insts.CoreCmpOrd.cmp self other
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:57-248:67
     Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>}::partial_cmp]
     Visibility: public -/
 @[rust_fun
@@ -661,7 +661,7 @@ def
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:57-248:67
     Name pattern: [core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>"]
@@ -675,7 +675,7 @@ def auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest :
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:52-248:55
     Name pattern: [core::cmp::Ord<auths_model::AttachmentDigest>] -/
 @[reducible, rust_trait_impl "core::cmp::Ord<auths_model::AttachmentDigest>"]
 def auths_model.AttachmentDigest.Insts.CoreCmpOrd : core.cmp.Ord
@@ -687,7 +687,7 @@ def auths_model.AttachmentDigest.Insts.CoreCmpOrd : core.cmp.Ord
 }
 
 /-- [auths_model::{auths_model::AttachmentDigest}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 270:12-270:53
+    Source: 'core/crates/auths-model/src/lib.rs', lines 253:12-253:53
     Name pattern: [auths_model::{auths_model::AttachmentDigest}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AttachmentDigest}::new"]
@@ -697,7 +697,7 @@ def auths_model.AttachmentDigest.new
   ok d
 
 /-- [auths_model::{auths_model::AttachmentDigest}::as_bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 285:12-285:53
+    Source: 'core/crates/auths-model/src/lib.rs', lines 268:12-268:53
     Name pattern: [auths_model::{auths_model::AttachmentDigest}::as_bytes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AttachmentDigest}::as_bytes"]
@@ -706,7 +706,7 @@ def auths_model.AttachmentDigest.as_bytes
   auths_model.Digest.as_bytes self
 
 /-- [auths_model::{auths_model::ProfileRef}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 456:4-456:71
+    Source: 'core/crates/auths-model/src/lib.rs', lines 439:4-439:71
     Name pattern: [auths_model::{auths_model::ProfileRef}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ProfileRef}::new"]
@@ -719,7 +719,7 @@ def auths_model.ProfileRef.new
   else ok (core.result.Result.Ok { id, version })
 
 /-- [auths_model::{auths_model::ProfileRef}::id]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 464:4-464:40
+    Source: 'core/crates/auths-model/src/lib.rs', lines 447:4-447:40
     Name pattern: [auths_model::{auths_model::ProfileRef}::id]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ProfileRef}::id"]
@@ -728,7 +728,7 @@ def auths_model.ProfileRef.impl.id
   ok self.id
 
 /-- [auths_model::{auths_model::ProfileRef}::version]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 469:4-469:38
+    Source: 'core/crates/auths-model/src/lib.rs', lines 452:4-452:38
     Name pattern: [auths_model::{auths_model::ProfileRef}::version]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::ProfileRef}::version"]
@@ -737,7 +737,7 @@ def auths_model.ProfileRef.impl.version
   ok self.version
 
 /-- [auths_model::{auths_model::Permission}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 528:4-528:76
+    Source: 'core/crates/auths-model/src/lib.rs', lines 511:4-511:76
     Name pattern: [auths_model::{auths_model::Permission}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Permission}::new"]
@@ -748,7 +748,7 @@ def auths_model.Permission.new
   ok { capability, resource }
 
 /-- [auths_model::{auths_model::Permission}::capability]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 536:4-536:51
+    Source: 'core/crates/auths-model/src/lib.rs', lines 519:4-519:51
     Name pattern: [auths_model::{auths_model::Permission}::capability]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Permission}::capability"]
@@ -757,7 +757,7 @@ def auths_model.Permission.impl.capability
   ok self.capability
 
 /-- [auths_model::{auths_model::Permission}::resource]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 541:4-541:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 524:4-524:47
     Name pattern: [auths_model::{auths_model::Permission}::resource]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Permission}::resource"]
@@ -766,7 +766,7 @@ def auths_model.Permission.impl.resource
   ok self.resource
 
 /-- [auths_model::{auths_model::BudgetCeiling}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 856:4-856:66
+    Source: 'core/crates/auths-model/src/lib.rs', lines 839:4-839:66
     Name pattern: [auths_model::{auths_model::BudgetCeiling}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::BudgetCeiling}::new"]
@@ -777,7 +777,7 @@ def auths_model.BudgetCeiling.new
   ok { algebra, value }
 
 /-- [auths_model::{auths_model::BudgetCeiling}::algebra]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 861:4-861:51
+    Source: 'core/crates/auths-model/src/lib.rs', lines 844:4-844:51
     Name pattern: [auths_model::{auths_model::BudgetCeiling}::algebra]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::BudgetCeiling}::algebra"]
@@ -786,7 +786,7 @@ def auths_model.BudgetCeiling.impl.algebra
   ok self.algebra
 
 /-- [auths_model::{auths_model::BudgetCeiling}::value]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 866:4-866:36
+    Source: 'core/crates/auths-model/src/lib.rs', lines 849:4-849:36
     Name pattern: [auths_model::{auths_model::BudgetCeiling}::value]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::BudgetCeiling}::value"]
@@ -795,7 +795,7 @@ def auths_model.BudgetCeiling.impl.value
   ok self.value
 
 /-- [auths_model::{auths_model::DetachedAttachment}::bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2891:4-2891:32
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2881:4-2881:32
     Name pattern: [auths_model::{auths_model::DetachedAttachment}::bytes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DetachedAttachment}::bytes"]
@@ -804,7 +804,7 @@ def auths_model.DetachedAttachment.impl.bytes
   ok (alloc.vec.Vec.deref self.bytes)
 
 /-- [auths_model::{auths_model::DetachedAttachment}::digest]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2885:4-2885:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2875:4-2875:50
     Name pattern: [auths_model::{auths_model::DetachedAttachment}::digest]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DetachedAttachment}::digest"]
@@ -815,7 +815,7 @@ def auths_model.DetachedAttachment.impl.digest
   ok self.digest
 
 /-- [auths_model::canonical_attachments_valid]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1642:4-1656:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1625:4-1639:1
     Name pattern: [auths_model::canonical_attachments_valid] -/
 @[rust_loop_body, rust_fun "auths_model::canonical_attachments_valid"]
 def auths_model.canonical_attachments_valid_loop.body
@@ -866,7 +866,7 @@ def auths_model.canonical_attachments_valid_loop.body
   else ok (done true)
 
 /-- [auths_model::canonical_attachments_valid]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1642:4-1656:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1625:4-1639:1
     Name pattern: [auths_model::canonical_attachments_valid] -/
 @[rust_loop, rust_fun "auths_model::canonical_attachments_valid"]
 def auths_model.canonical_attachments_valid_loop
@@ -880,7 +880,7 @@ def auths_model.canonical_attachments_valid_loop
     (index, total)
 
 /-- [auths_model::canonical_attachments_valid]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1639:0-1639:74
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1622:0-1622:74
     Name pattern: [auths_model::canonical_attachments_valid] -/
 @[reducible, rust_fun "auths_model::canonical_attachments_valid"]
 def auths_model.canonical_attachments_valid
@@ -888,7 +888,7 @@ def auths_model.canonical_attachments_valid
   auths_model.canonical_attachments_valid_loop attachments 0#usize 0#usize
 
 /-- [auths_model::{auths_model::CanonicalAction}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1665:4-1671:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1648:4-1654:33
     Name pattern: [auths_model::{auths_model::CanonicalAction}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::new"]
@@ -922,7 +922,7 @@ def auths_model.CanonicalAction.new
         })
 
 /-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_mut]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1684:32-1684:44
     Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_mut] -/
 @[rust_fun
   "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_mut"]
@@ -937,7 +937,7 @@ def
   ok (ad, c)
 
 /-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_once]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1684:32-1684:44
     Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_once] -/
 @[rust_fun
   "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_once"]
@@ -953,7 +953,7 @@ def
   ok ad
 
 /-- Trait implementation: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1684:32-1684:44
     Name pattern: [core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>] -/
 @[reducible, rust_trait_impl
   "core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>"]
@@ -967,7 +967,7 @@ def
 }
 
 /-- Trait implementation: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1684:32-1684:44
     Name pattern: [core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>] -/
 @[reducible, rust_trait_impl
   "core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>"]
@@ -983,7 +983,7 @@ def
 }
 
 /-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1692:4-1695:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1675:4-1678:33
     Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments]
     Visibility: public -/
 @[rust_fun
@@ -1013,7 +1013,7 @@ def auths_model.CanonicalAction.with_detached_attachments
     else ok (core.result.Result.Err auths_model.ModelError.InvalidAttachment)
 
 /-- [auths_model::{auths_model::CanonicalAction}::profile]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1713:4-1713:46
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1696:4-1696:46
     Name pattern: [auths_model::{auths_model::CanonicalAction}::profile]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::profile"]
@@ -1022,7 +1022,7 @@ def auths_model.CanonicalAction.impl.profile
   ok self.profile
 
 /-- [auths_model::{auths_model::CanonicalAction}::media_type]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1719:4-1719:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1702:4-1702:48
     Name pattern: [auths_model::{auths_model::CanonicalAction}::media_type]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::media_type"]
@@ -1031,7 +1031,7 @@ def auths_model.CanonicalAction.impl.media_type
   ok self.media_type
 
 /-- [auths_model::{auths_model::CanonicalAction}::body]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1725:4-1725:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1708:4-1708:31
     Name pattern: [auths_model::{auths_model::CanonicalAction}::body]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::body"]
@@ -1040,7 +1040,7 @@ def auths_model.CanonicalAction.impl.body
   ok (alloc.vec.Vec.deref self.body)
 
 /-- [auths_model::{auths_model::CanonicalAction}::permission]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1731:4-1731:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1714:4-1714:49
     Name pattern: [auths_model::{auths_model::CanonicalAction}::permission]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::permission"]
@@ -1049,7 +1049,7 @@ def auths_model.CanonicalAction.impl.permission
   ok self.permission
 
 /-- [auths_model::{auths_model::CanonicalAction}::requested_budget]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1737:4-1737:66
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1720:4-1720:66
     Name pattern: [auths_model::{auths_model::CanonicalAction}::requested_budget]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::requested_budget"]
@@ -1060,7 +1060,7 @@ def auths_model.CanonicalAction.impl.requested_budget
   core.option.Option.as_ref self.requested_budget
 
 /-- [auths_model::{auths_model::CanonicalAction}::detached_attachments]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1743:4-1743:63
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1726:4-1726:63
     Name pattern: [auths_model::{auths_model::CanonicalAction}::detached_attachments]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::CanonicalAction}::detached_attachments"]
@@ -1071,7 +1071,7 @@ def auths_model.CanonicalAction.impl.detached_attachments
   ok (alloc.vec.Vec.deref self.detached_attachments)
 
 /-- [auths_model::{auths_model::DetachedAttachment}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2876:4-2876:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2866:4-2866:84
     Name pattern: [auths_model::{auths_model::DetachedAttachment}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DetachedAttachment}::new"]
@@ -1091,7 +1091,7 @@ def auths_model.DetachedAttachment.new
     else ok (core.result.Result.Ok { digest, bytes })
 
 /-- [auths_model::{auths_model::VerifierLimits}::hard]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3727:4-3727:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3717:4-3717:31
     Name pattern: [auths_model::{auths_model::VerifierLimits}::hard]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::VerifierLimits}::hard"]
@@ -1138,7 +1138,7 @@ def auths_model.VerifierLimits.hard : Result auths_model.VerifierLimits := do
     }
 
 /-- [auths_model::{auths_model::VerifierLimits}::get]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3818:4-3818:53
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3808:4-3808:53
     Name pattern: [auths_model::{auths_model::VerifierLimits}::get]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::VerifierLimits}::get"]
@@ -1178,7 +1178,7 @@ def auths_model.VerifierLimits.get
   | auths_model.LimitKind.ApprovalRequirements => ok self.approval_requirements
 
 /-- [auths_model::{auths_model::VerifierLimits}::validate]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3865:4-3865:52
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3855:4-3855:52
     Name pattern: [auths_model::{auths_model::VerifierLimits}::validate]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::VerifierLimits}::validate"]
@@ -2494,7 +2494,7 @@ def decode.optional_budget
     ok (r1, decoder)
 
 /-- [auths_codec::decode::ensure_complete]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1284:0-1290:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1313:0-1319:1 -/
 def decode.ensure_complete
   (decoder : cbor.Decoder) (input : Slice Std.U8) :
   Result (core.result.Result Unit error.CodecError)
@@ -2514,7 +2514,7 @@ def error.CodecError.Insts.CoreConvertFromModelError : core.convert.From
 }
 
 /-- [auths_codec::decode::attachment_batch_step]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1548:0-1575:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1577:0-1604:1 -/
 def decode.attachment_batch_step
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
   (state : core.result.Result decode.AttachmentBatch error.CodecError) :
@@ -2609,7 +2609,7 @@ def decode.attachment_batch_step
       decode.AttachmentBatch (core.convert.FromSame error.CodecError) residual
 
 /-- [auths_codec::decode::attachment_batch]: loop body 0:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1588:4-1591:5 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1617:4-1620:5 -/
 @[rust_loop_body]
 def decode.attachment_batch_loop.body
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
@@ -2627,7 +2627,7 @@ def decode.attachment_batch_loop.body
   else ok (done state)
 
 /-- [auths_codec::decode::attachment_batch]: loop 0:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1588:4-1591:5 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1617:4-1620:5 -/
 @[rust_loop]
 def decode.attachment_batch_loop
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
@@ -2641,7 +2641,7 @@ def decode.attachment_batch_loop
     (remaining, state)
 
 /-- [auths_codec::decode::attachment_batch]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1577:0-1593:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1606:0-1622:1 -/
 def decode.attachment_batch
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
   (position : Std.Usize) (remaining : Std.Usize) :
@@ -3194,7 +3194,7 @@ def encode.encode_canonical_action
       (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError) residual
 
 /-- [auths_codec::decode::decode_canonical_action]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1601:0-1639:1
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1630:0-1668:1
     Visibility: public -/
 def decode.decode_canonical_action
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits) :

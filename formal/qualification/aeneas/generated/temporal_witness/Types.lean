@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 namespace AuthsTemporalWitness
 
 /-- [auths_model::PrincipalId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 161:0-161:22
+    Source: 'core/crates/auths-model/src/lib.rs', lines 154:0-154:22
     Name pattern: [auths_model::PrincipalId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::PrincipalId"]
@@ -32,21 +32,21 @@ structure auths_model.approval.ApprovalRequirement where
   threshold : Std.U16
 
 /-- [auths_model::FreshnessLimit]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 977:0-977:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 960:0-960:25
     Name pattern: [auths_model::FreshnessLimit]
     Visibility: public -/
 @[reducible, rust_type "auths_model::FreshnessLimit"]
 def auths_model.FreshnessLimit := Std.U64
 
 /-- [auths_model::StatusMethodId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::StatusMethodId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::StatusMethodId"]
 def auths_model.StatusMethodId := String
 
 /-- [auths_model::StatusPolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1002:0-1002:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 985:0-985:21
     Name pattern: [auths_model::StatusPolicy]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::StatusPolicy"]
@@ -58,14 +58,14 @@ inductive auths_model.StatusPolicy where
   auths_model.StatusPolicy
 
 /-- [auths_model::Timestamp]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 356:0-356:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 339:0-339:20
     Name pattern: [auths_model::Timestamp]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Timestamp"]
 def auths_model.Timestamp := Std.U64
 
 /-- [auths_model::ValidityWindow]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 371:0-371:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 354:0-354:25
     Name pattern: [auths_model::ValidityWindow]
     Visibility: public -/
 @[rust_type "auths_model::ValidityWindow"]
@@ -74,7 +74,7 @@ structure auths_model.ValidityWindow where
   expires_at : auths_model.Timestamp
 
 /-- [auths_model::PrincipalMethodId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::PrincipalMethodId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::PrincipalMethodId"]
@@ -107,210 +107,210 @@ def auths_model.bounded.BoundedSet (T : Type) (MAX : Std.Usize) :=
 def auths_model.ProtocolVersion := Std.U16
 
 /-- [auths_model::Audience]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::Audience]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Audience"]
 def auths_model.Audience := String
 
 /-- [auths_model::ResourceMatcherId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ResourceMatcherId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ResourceMatcherId"]
 def auths_model.ResourceMatcherId := String
 
 /-- [auths_model::ProfilePolicyId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ProfilePolicyId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ProfilePolicyId"]
 def auths_model.ProfilePolicyId := String
 
 /-- [auths_model::ChannelBindingId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ChannelBindingId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ChannelBindingId"]
 def auths_model.ChannelBindingId := String
 
 /-- [auths_model::AssuranceClaimId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::AssuranceClaimId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::AssuranceClaimId"]
 def auths_model.AssuranceClaimId := String
 
 /-- [auths_model::ClaimParameterId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ClaimParameterId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ClaimParameterId"]
 def auths_model.ClaimParameterId := String
 
 /-- [auths_model::EvidenceSourceId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::EvidenceSourceId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::EvidenceSourceId"]
 def auths_model.EvidenceSourceId := String
 
 /-- [auths_model::AdapterId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::AdapterId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::AdapterId"]
 def auths_model.AdapterId := String
 
 /-- [auths_model::AssurancePolicyId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::AssurancePolicyId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::AssurancePolicyId"]
 def auths_model.AssurancePolicyId := String
 
 /-- [auths_model::TrustAnchorId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::TrustAnchorId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::TrustAnchorId"]
 def auths_model.TrustAnchorId := String
 
 /-- [auths_model::ResourceId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ResourceId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ResourceId"]
 def auths_model.ResourceId := String
 
 /-- [auths_model::SignatureSuiteId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::SignatureSuiteId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::SignatureSuiteId"]
 def auths_model.SignatureSuiteId := String
 
 /-- [auths_model::EvidenceTypeId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::EvidenceTypeId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::EvidenceTypeId"]
 def auths_model.EvidenceTypeId := String
 
 /-- [auths_model::AssuranceImplicationId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::AssuranceImplicationId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::AssuranceImplicationId"]
 def auths_model.AssuranceImplicationId := String
 
 /-- [auths_model::BudgetAlgebraId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::BudgetAlgebraId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::BudgetAlgebraId"]
 def auths_model.BudgetAlgebraId := String
 
 /-- [auths_model::ExtensionId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ExtensionId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ExtensionId"]
 def auths_model.ExtensionId := String
 
 /-- [auths_model::observation::ObserverAnchorId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::observation::ObserverAnchorId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::observation::ObserverAnchorId"]
 def auths_model.observation.ObserverAnchorId := String
 
 /-- [auths_model::observation::ObservationSchemaId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::observation::ObservationSchemaId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::observation::ObservationSchemaId"]
 def auths_model.observation.ObservationSchemaId := String
 
 /-- [auths_model::ProfileId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::ProfileId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::ProfileId"]
 def auths_model.ProfileId := String
 
 /-- [auths_model::CapabilityId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::CapabilityId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::CapabilityId"]
 def auths_model.CapabilityId := String
 
 /-- [auths_model::VerificationMethod]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::VerificationMethod]
     Visibility: public -/
 @[reducible, rust_type "auths_model::VerificationMethod"]
 def auths_model.VerificationMethod := String
 
 /-- [auths_model::Digest]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 247:0-247:17
+    Source: 'core/crates/auths-model/src/lib.rs', lines 230:0-230:17
     Name pattern: [auths_model::Digest]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Digest"]
 def auths_model.Digest := Array Std.U8 32#usize
 
 /-- [auths_model::EvidenceId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::EvidenceId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::EvidenceId"]
 def auths_model.EvidenceId := auths_model.Digest
 
 /-- [auths_model::VerifierConfigurationId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::VerifierConfigurationId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::VerifierConfigurationId"]
 def auths_model.VerifierConfigurationId := auths_model.Digest
 
 /-- [auths_model::PlanId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::PlanId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::PlanId"]
 def auths_model.PlanId := auths_model.Digest
 
 /-- [auths_model::RegistryManifestId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::RegistryManifestId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::RegistryManifestId"]
 def auths_model.RegistryManifestId := auths_model.Digest
 
 /-- [auths_model::StatusSnapshotId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::StatusSnapshotId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::StatusSnapshotId"]
 def auths_model.StatusSnapshotId := auths_model.Digest
 
 /-- [auths_model::GrantId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 266:8-266:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:8-249:33
     Name pattern: [auths_model::GrantId]
     Visibility: public -/
 @[reducible, rust_type "auths_model::GrantId"]
 def auths_model.GrantId := auths_model.Digest
 
 /-- [auths_model::Challenge]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 325:0-325:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 308:0-308:20
     Name pattern: [auths_model::Challenge]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Challenge"]
 def auths_model.Challenge := Array Std.U8 32#usize
 
 /-- [auths_model::ProfileRef]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 444:0-444:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 427:0-427:21
     Name pattern: [auths_model::ProfileRef]
     Visibility: public -/
 @[rust_type "auths_model::ProfileRef"]
@@ -319,7 +319,7 @@ structure auths_model.ProfileRef where
   version : Std.U16
 
 /-- [auths_model::Permission]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 521:0-521:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 504:0-504:21
     Name pattern: [auths_model::Permission]
     Visibility: public -/
 @[rust_type "auths_model::Permission"]
@@ -328,7 +328,7 @@ structure auths_model.Permission where
   resource : auths_model.ResourceId
 
 /-- [auths_model::PermissionSet]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 552:0-552:24
+    Source: 'core/crates/auths-model/src/lib.rs', lines 535:0-535:24
     Name pattern: [auths_model::PermissionSet]
     Visibility: public -/
 @[reducible, rust_type "auths_model::PermissionSet"]
@@ -336,7 +336,7 @@ def auths_model.PermissionSet :=
   auths_model.bounded.BoundedSet auths_model.Permission 1024#usize
 
 /-- [auths_model::AudienceSet]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 615:0-615:22
+    Source: 'core/crates/auths-model/src/lib.rs', lines 598:0-598:22
     Name pattern: [auths_model::AudienceSet]
     Visibility: public -/
 @[reducible, rust_type "auths_model::AudienceSet"]
@@ -344,7 +344,7 @@ def auths_model.AudienceSet :=
   auths_model.bounded.BoundedSet auths_model.Audience 256#usize
 
 /-- [auths_model::BudgetCeiling]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 849:0-849:24
+    Source: 'core/crates/auths-model/src/lib.rs', lines 832:0-832:24
     Name pattern: [auths_model::BudgetCeiling]
     Visibility: public -/
 @[rust_type "auths_model::BudgetCeiling"]
@@ -353,7 +353,7 @@ structure auths_model.BudgetCeiling where
   value : Std.U64
 
 /-- [auths_model::CriticalExtension]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1046:0-1046:28
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1029:0-1029:28
     Name pattern: [auths_model::CriticalExtension]
     Visibility: public -/
 @[rust_type "auths_model::CriticalExtension"]
@@ -362,7 +362,7 @@ structure auths_model.CriticalExtension where
   bytes : alloc.vec.Vec Std.U8
 
 /-- [auths_model::CriticalExtensions]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1077:0-1077:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1060:0-1060:29
     Name pattern: [auths_model::CriticalExtensions]
     Visibility: public -/
 @[reducible, rust_type "auths_model::CriticalExtensions"]
@@ -370,7 +370,7 @@ def auths_model.CriticalExtensions :=
   alloc.vec.Vec auths_model.CriticalExtension
 
 /-- [auths_model::SignatureDescriptor]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1164:0-1164:30
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1147:0-1147:30
     Name pattern: [auths_model::SignatureDescriptor]
     Visibility: public -/
 @[rust_type "auths_model::SignatureDescriptor"]
@@ -380,14 +380,14 @@ structure auths_model.SignatureDescriptor where
   suite : auths_model.SignatureSuiteId
 
 /-- [auths_model::SignatureBytes]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1201:0-1201:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1184:0-1184:25
     Name pattern: [auths_model::SignatureBytes]
     Visibility: public -/
 @[reducible, rust_type "auths_model::SignatureBytes"]
 def auths_model.SignatureBytes := alloc.vec.Vec Std.U8
 
 /-- [auths_model::SignatureEnvelope]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1224:0-1224:28
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1207:0-1207:28
     Name pattern: [auths_model::SignatureEnvelope]
     Visibility: public -/
 @[rust_type "auths_model::SignatureEnvelope"]
@@ -396,7 +396,7 @@ structure auths_model.SignatureEnvelope where
   signature : auths_model.SignatureBytes
 
 /-- [auths_model::PrincipalState]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2080:0-2080:23
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2063:0-2063:23
     Name pattern: [auths_model::PrincipalState]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::PrincipalState"]
@@ -406,7 +406,7 @@ inductive auths_model.PrincipalState where
 | Superseded : auths_model.PrincipalState
 
 /-- [auths_model::GrantState]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2087:0-2087:19
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2070:0-2070:19
     Name pattern: [auths_model::GrantState]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::GrantState"]
@@ -416,7 +416,7 @@ inductive auths_model.GrantState where
 | Superseded : auths_model.GrantState
 
 /-- [auths_model::PrincipalStatusStatement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2102:0-2102:35
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2085:0-2085:35
     Name pattern: [auths_model::PrincipalStatusStatement]
     Visibility: public -/
 @[rust_type "auths_model::PrincipalStatusStatement"]
@@ -432,7 +432,7 @@ structure auths_model.PrincipalStatusStatement where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::SignedPrincipalStatus]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2188:0-2188:32
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2171:0-2171:32
     Name pattern: [auths_model::SignedPrincipalStatus]
     Visibility: public -/
 @[rust_type "auths_model::SignedPrincipalStatus"]
@@ -441,7 +441,7 @@ structure auths_model.SignedPrincipalStatus where
   signature : auths_model.SignatureEnvelope
 
 /-- [auths_model::GrantStatusStatement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2217:0-2217:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2200:0-2200:31
     Name pattern: [auths_model::GrantStatusStatement]
     Visibility: public -/
 @[rust_type "auths_model::GrantStatusStatement"]
@@ -457,7 +457,7 @@ structure auths_model.GrantStatusStatement where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::SignedGrantStatus]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2303:0-2303:28
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2286:0-2286:28
     Name pattern: [auths_model::SignedGrantStatus]
     Visibility: public -/
 @[rust_type "auths_model::SignedGrantStatus"]
@@ -466,14 +466,14 @@ structure auths_model.SignedGrantStatus where
   signature : auths_model.SignatureEnvelope
 
 /-- [auths_model::StatusScopeAnchors]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2328:0-2328:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2311:0-2311:29
     Name pattern: [auths_model::StatusScopeAnchors]
     Visibility: public -/
 @[reducible, rust_type "auths_model::StatusScopeAnchors"]
 def auths_model.StatusScopeAnchors := alloc.vec.Vec auths_model.TrustAnchorId
 
 /-- [auths_model::StatusScope]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2368:0-2368:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2358:0-2358:20
     Name pattern: [auths_model::StatusScope]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::StatusScope"]
@@ -483,7 +483,7 @@ inductive auths_model.StatusScope where
 | AnyAnchor : auths_model.StatusScope
 
 /-- [auths_model::StatusTrustRule]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2455:0-2455:26
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2445:0-2445:26
     Name pattern: [auths_model::StatusTrustRule]
     Visibility: public -/
 @[rust_type "auths_model::StatusTrustRule"]
@@ -494,7 +494,7 @@ structure auths_model.StatusTrustRule where
   scope : auths_model.StatusScope
 
 /-- [auths_model::PrincipalStatusSnapshot]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2506:0-2506:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2496:0-2496:34
     Name pattern: [auths_model::PrincipalStatusSnapshot]
     Visibility: public -/
 @[rust_type "auths_model::PrincipalStatusSnapshot"]
@@ -507,7 +507,7 @@ structure auths_model.PrincipalStatusSnapshot where
   trust : alloc.vec.Vec auths_model.StatusTrustRule
 
 /-- [auths_model::GrantStatusSnapshot]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2644:0-2644:30
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2634:0-2634:30
     Name pattern: [auths_model::GrantStatusSnapshot]
     Visibility: public -/
 @[rust_type "auths_model::GrantStatusSnapshot"]
@@ -520,7 +520,7 @@ structure auths_model.GrantStatusSnapshot where
   trust : alloc.vec.Vec auths_model.StatusTrustRule
 
 /-- [auths_model::CompositionRequirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2942:0-2942:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2932:0-2932:33
     Name pattern: [auths_model::CompositionRequirement]
     Visibility: public -/
 @[rust_type "auths_model::CompositionRequirement"]
@@ -531,7 +531,7 @@ structure auths_model.CompositionRequirement where
   minimum_distinct_roots : Std.U16
 
 /-- [auths_model::ParticipantRole]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3164:0-3164:24
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3154:0-3154:24
     Name pattern: [auths_model::ParticipantRole]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::ParticipantRole"]
@@ -542,7 +542,7 @@ inductive auths_model.ParticipantRole where
 | ExternalIssuer : auths_model.ParticipantRole
 
 /-- [auths_model::AssuranceQuantifier]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3174:0-3174:28
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3164:0-3164:28
     Name pattern: [auths_model::AssuranceQuantifier]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::AssuranceQuantifier"]
@@ -551,7 +551,7 @@ inductive auths_model.AssuranceQuantifier where
 | Every : auths_model.AssuranceQuantifier
 
 /-- [auths_model::AssuranceClaim]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3182:0-3182:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3172:0-3172:25
     Name pattern: [auths_model::AssuranceClaim]
     Visibility: public -/
 @[rust_type "auths_model::AssuranceClaim"]
@@ -563,7 +563,7 @@ structure auths_model.AssuranceClaim where
   source : auths_model.EvidenceSourceId
 
 /-- [auths_model::AssuranceRequirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3308:0-3308:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3298:0-3298:31
     Name pattern: [auths_model::AssuranceRequirement]
     Visibility: public -/
 @[rust_type "auths_model::AssuranceRequirement"]
@@ -579,7 +579,7 @@ structure auths_model.AssuranceRequirement where
   maximum_age : Option auths_model.FreshnessLimit
 
 /-- [auths_model::AssurancePolicy]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3418:0-3418:26
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3408:0-3408:26
     Name pattern: [auths_model::AssurancePolicy]
     Visibility: public -/
 @[rust_type "auths_model::AssurancePolicy"]
@@ -588,7 +588,7 @@ structure auths_model.AssurancePolicy where
   requirements : alloc.vec.Vec auths_model.AssuranceRequirement
 
 /-- [auths_model::AssuranceSatisfaction]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3453:0-3453:32
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3443:0-3443:32
     Name pattern: [auths_model::AssuranceSatisfaction]
     Visibility: public -/
 @[rust_type "auths_model::AssuranceSatisfaction"]
@@ -599,7 +599,7 @@ structure auths_model.AssuranceSatisfaction where
   evidence : alloc.vec.Vec auths_model.EvidenceId
 
 /-- [auths_model::TrustAnchor]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3503:0-3503:22
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3493:0-3493:22
     Name pattern: [auths_model::TrustAnchor]
     Visibility: public -/
 @[rust_type "auths_model::TrustAnchor"]
@@ -618,7 +618,7 @@ structure auths_model.TrustAnchor where
   status_policy : auths_model.StatusPolicy
 
 /-- [auths_model::VerifierLimits]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3622:0-3622:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3612:0-3612:25
     Name pattern: [auths_model::VerifierLimits]
     Visibility: public -/
 @[rust_type "auths_model::VerifierLimits"]
@@ -655,7 +655,7 @@ structure auths_model.VerifierLimits where
   approval_requirements : Std.Usize
 
 /-- [auths_model::AcceptedRegistries]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3924:0-3924:29
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3914:0-3914:29
     Name pattern: [auths_model::AcceptedRegistries]
     Visibility: public -/
 @[rust_type "auths_model::AcceptedRegistries"]
@@ -689,7 +689,7 @@ structure auths_model.observation.ObserverAnchor where
   validity : auths_model.ValidityWindow
 
 /-- [auths_model::TrustedContext]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4245:0-4245:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4235:0-4235:25
     Name pattern: [auths_model::TrustedContext]
     Visibility: public -/
 @[rust_type "auths_model::TrustedContext"]
@@ -714,7 +714,7 @@ structure auths_model.TrustedContext where
     auths_model.approval.ApprovalRequirement
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4938:0-4938:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4928:0-4928:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::DenialReason"]
@@ -767,7 +767,7 @@ inductive auths_model.DenialReason where
 | ApprovalThresholdNotMet : auths_model.DenialReason
 
 /-- [auths_model::Requirement]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5123:0-5123:20
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5113:0-5113:20
     Name pattern: [auths_model::Requirement]
     Visibility: public -/
 @[qualified_discriminant isize, rust_type "auths_model::Requirement"]

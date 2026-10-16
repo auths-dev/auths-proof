@@ -1020,3 +1020,314 @@ Reject oversized constructor lists before sorting. Keep accepted values,
 canonical ordering, stable errors and binary-search membership unchanged.
 Then prove constructor validity and connect it to these conditional all-view
 statements. Full E1–E5/M6 completion still follows §10 and §13.5.
+
+### 13.10 Constructor-earned scope validity — 16 October 2026 (in progress)
+
+The next source slice is implemented and its general Lean statements compile:
+
+- `StatusScopeAnchors::new` rejects empty or oversized lists before sorting,
+  sorts admitted carriers, and checks adjacent duplicates with a bounded indexed
+  loop. The public API, sorted result and typed refusal remain the same.
+- The scope field decoder uses an indexed collection loop with the same first
+  error and cursor behavior. Independent test-only former implementations
+  compare complete constructor results and decoder results/cursors, including
+  randomized inputs, all tag bytes, truncated prefixes and limit boundaries.
+- The actual constructor has an unconditional, total, result-complete refinement
+  against nonempty/maximum-length/uniqueness validation and sorted permutation.
+  Success earns the ordering used by actual binary-search membership. The
+  constructor also supplies all-view principal/grant selector invariants when
+  its constructed list is assigned to each supplied trust rule.
+- Every successful actual scope decode earns structural scope validity. A
+  fieldwise bridge between translations of the same Rust enum feeds that
+  invariant into the actual native scope-coverage function, whose result equals
+  the independent scope semantics.
+- Kernel-checked decoder examples cover own/any/listed acceptance, unknown tags,
+  truncation, empty listed scopes, invalid identifiers and collection limits.
+  Multi-element sorted/refusal witnesses are being completed.
+
+New `scope_codec` extraction starts at the actual shipping field decoder and
+includes model bodies. Its inventory is 21 local/30 foreign function records;
+all Auths bodies are transparent. Only four generated discriminant instance
+names change. Standard interfaces reuse reviewed UTF-8, result/option,
+conversion, comparison and stable key-sort models; ordinary sorting uses a
+proved stateless identity key and concrete String comparison laws. This is not
+an assurance claim about Rust standard-library machine code, arbitrary stateful
+sorting callbacks, physical allocation or physical work.
+
+The first 19 new statements compiled with only the permitted three foundations;
+all prior 671 full compiled audit records remained unchanged. The fresh
+qualification and final count/digests for this source slice remain pending.
+Hosted CI is deliberately deferred while implementation continues, as requested.
+
+Remaining within this slice: finish the multi-element witnesses, review the
+complete statements and constants, reproduce both fresh translations, update
+assurance evidence/coverage/freeze, then continue toward decoder totality and
+complete canonical acceptance/rejection/round trips. Partial decoder safety
+uses an actual successful-decode premise; it does not assume an authorization
+result. Identifier-language completeness, per-rule/snapshot constructors,
+evidence authentication, closed registry dispatch, full staged verification
+and runtime/history consumption remain open. No whole E1–E5/M6 milestone is
+closed by this slice.
+
+
+### 13.11 Implementation-first continuation — 16 October 2026
+
+Per the user's direction, broad translation/build qualification is deferred
+until the remaining implementation batch is written. The 692-statement scope
+slice compiled and its prior 671 records were unchanged; the fresh reproducer
+completed two translations and started the Lean build before being deliberately
+interrupted. It is not a qualified checkpoint. The assurance manifests,
+coverage/freeze, gateway source checksums and final hosted evidence must be
+regenerated and reviewed together after coding; do not reuse stale evidence.
+
+The next batch cuts principal URI-scheme parsing over to a bounded byte scan
+with an independent character oracle, extends status-trust decoding to an
+indexed collection loop, and carries decoder-earned scope validity through
+actual per-rule decoding and the complete trust-rule collection. Its source
+translation root will be expanded from `status_scope` to `status_trust`.
+The independent principal grammar/model is already written. No whole E1–E5/M6
+completion is claimed; the remaining checklist is still §10 and §13.5.
+
+
+Implementation-first batch written (not yet checked):
+
+- Shipping `PrincipalId::parse` uses bounded identifier validation plus the
+  ASCII scheme scanner before copying accepted strings; Unicode and adversarial
+  scheme/capacity tests retain the former character-based parser as an oracle.
+- Shipping status-trust decoding uses one rule helper and an indexed collection
+  loop with first-error preservation. Its test oracle retains former control
+  flow and former scope decoding, comparing exact results and cursors.
+- `PrincipalSchemeModel` defines an independent first-letter/tail/remainder
+  grammar and proves its Boolean evaluator equivalent. `PrincipalScheme`
+  connects byte leaves, the bounded source loop and entry point to that grammar.
+- `ScopeTrustSafety`, `ScopeTrustCollection` and `ScopeTrustSelectors` carry
+  scope validity from actual per-rule decoding through the entire successful
+  trust collection into both actual all-view status ports. These are source
+  safety/composition obligations, with evidence authentication still separate.
+
+Translation inventory counts and generated artifacts for the expanded
+`status_trust` root are intentionally pending the final translation/check phase.
+The new batch is not registered as achieved assurance until that phase passes.
+
+The next E4 reference batch is also written in
+`formal/Auths/Product/AdmissionHistory.lean` and `AdmissionOwnership.lean`.
+It models arbitrary finite worker interleavings, duplicate-debit aggregation,
+monotone collection fences, retained historical capacity, committed-but-lost
+acknowledgements, process crashes, read-only recovery and one-use entry.
+The stated invariants cover historical capacity and unique operation entry.
+These modules await the final checking pass and source/store correspondence;
+they do not yet establish the complete shipping admission or connection/driver
+claims. No new public assurance claim is registered from unchecked modules.
+
+The gateway claim API documentation now matches the PostgreSQL/store contract:
+a returned storage error grants no execution handle, but may follow a committed
+batch whose acknowledgement was lost. It no longer promises that every error
+implies nothing was stored. Retries keep the same logical identity. The new
+history model explicitly distinguishes this committed/no-handle outcome.
+
+`AdmissionExamples.lean` adds executable-model witness statements for available
+capacity, commit-before-lost-acknowledgement, refused replay ownership changes,
+shared capacity exhaustion, no crash refunds, collection followed by an earlier
+cutoff, and one-use entry. These are written and awaiting the deferred check
+phase alongside their general history invariants and source-binding work.
+
+E3 field-binding implementation is being included in the same coding batch.
+The shipping recipe compiler now resolves names through the extractable
+`auths-gateway-kernel::construct::field_index` leaf. It snapshots schema names
+once in BTreeMap key order, preserving the existing verified-argument order.
+The leaf uses exact byte equality and first-match indexed lookup; a test-only
+iterator oracle covers duplicate, absent, empty, case-distinct and arbitrary
+byte names. The independent named/positional correspondence model and actual
+leaf refinement are next; full JSON/source/lock/driver correspondence remains
+outside this component until separately composed and checked.
+
+E3 source/lock ambiguity is now rejected by the shipping compiler before typed
+parsing: duplicate decoded member names at any nesting depth, including escaped
+spellings, produce the existing invalid-source/invalid-lock classification.
+Previously a nested map could collapse duplicate names before validation.
+The input byte bounds and serde_json recursion limit remain in force; valid
+source/lock bytes retain their existing typed interpretation and digest.
+The strict parser and its nested/escaped/trailing/depth cases are written and
+await the final test pass. This strengthens the runtime boundary; it is not a
+new claim that serde_json or canonicalization has been formally verified.
+
+`SchemaIndex.lean` and `Refinement/SchemaIndex.lean` now contain the written
+named-field grammar, exact first-match position, named/positional alignment,
+undeclared-field refusal, preserved field rendering and actual indexed-leaf
+refinement obligations. The gateway extraction roots now include `field_index`.
+As with the rest of this implementation-first batch, generated symbol shapes,
+proof elaboration, inventories, checksums and native/hosted checks are deferred
+to the final pass; these files are not yet achieved assurance evidence.
+
+E4/E5 logical identity now has shipping extractable leaves in the gateway
+kernel. Namespace/operation token validation delegates to the exact bounded
+ASCII byte scan; the gateway key hashes the leaf's explicit domain/namespace/
+NUL/operation preimage. Validated wire behavior and digest framing are preserved.
+No challenge, actor, recipe or case version enters the logical identity.
+Independent token and framing oracles accompany the cutover. Token validity,
+NUL-free separation and preimage-injectivity proofs are being written; hash
+security remains an explicitly separate cryptographic contract.
+
+`OperationIdentity.lean` and `Refinement/OperationIdentity.lean` now contain the
+written independent token grammar, token-implies-NUL-free property, first-NUL
+separator argument, exact preimage injectivity on validated namespace bytes,
+and shipping token/preimage leaf refinements. The actual operation-key caller
+now has an independent former incremental-hash oracle, including maximum
+namespace/operation lengths. New caller/parser source files are explicitly
+included in the source-closure inventory. This inventories their bytes without
+pretending that hashing the source proves compiler/driver correspondence.
+
+
+### 13.12 Batch implementation and verification — 16 October 2026
+
+Following the request to code larger batches and defer full qualification,
+the expanded implementation was written first and checked together. The full
+Lean build passes for the initial expanded batch (721 inventoried statements),
+and its compiled audit preserves all 671 previous declaration records exactly.
+All compiled dependencies use only the three permitted foundational axioms;
+there are no new opaque Auths algorithm assumptions or admitted proof terms.
+This is compilation/audit evidence, not a completed translation qualification.
+
+The affected native crates pass 325 library tests: 39 codec, 42 model, 22 gateway
+kernel, and 222 gateway (26 gateway tests retain their existing ignored status).
+The gateway tests were rerun with local socket access after the restricted
+sandbox refused their listeners. New differential cases include every Unicode
+scalar for principal IDs, exact status-trust result/cursor parity, exhaustive
+one/two-byte token validation, field lookup, unchanged logical-operation key
+framing, and nested/escaped duplicate JSON members. The duplicate-member
+correction is exercised through both real source and profile-lock compilation.
+The expanded xtask builds; affected-crate linting passes after preserving the
+extractable scalar classifier with a narrowly documented style-lint allowance.
+
+The next composition batch also connects the complete PrincipalId constructor
+to the existing Unicode and new scheme policies, and connects native namespace
+validation and native preimage production to exact namespace/operation binding.
+It strengthens the lost-acknowledgement model statement to grant no handle in
+any well-formed fresh-claim state, and includes the pre-commit-failure/retry and
+terminal-refusal-without-capacity examples. These additions undergo the same
+compiled statement audit before updating the reviewed inventory digest.
+
+Remaining qualification work includes regenerating the final changed-source
+translations, two reproducible complete translations, checksum/freeze and
+coverage updates, compiled statement/constant review, and exact-revision hosted
+gates. Do not interpret a count of compiled component claims as completion of
+E1–E5 or M6. The remaining work in §13.5 still applies, especially complete
+object decoding, authenticated verifier/registry composition, full compiler and
+I/O correspondence, and actual reservation/backend refinement of the history
+model. The existing runtime capabilities are not being declared absent.
+
+
+### 13.13 Composed bounded-claim reference history
+
+`BoundedClaimHistory.lean` combines the existing chain/count/ceiling/partition-
+sum evaluator with durable claims and one-use worker handles for one fixed
+window. Every arrival may carry a different chain and capacities: this removes
+the fixed per-counter capacity limitation of the earlier small reference.
+Lost acknowledgements still charge the admitted chain; crashes and read-only
+recovery retain charges; occupied logical identities cannot charge again;
+collection closes that window against subsequent admissions. The model uses
+an atomic admission/claim step and retains historical charges separately from
+physical slot deletion. It does not assume that the shipping reservation
+protocol has already been proved to linearize to that step.
+
+The finite-history invariant simultaneously preserves per-link count limits,
+ceiling/count spending bounds, partition sum limits and one-use claim
+ownership. Two kernel-checked concrete histories show useful delegation after
+a lost acknowledgement, shared root capacity exhaustion, and read-only
+recovery refusing to reissue the lost handle while the acknowledged delegate
+can enter exactly once. This is independent model/composition evidence,
+linked to the already proved bounded-policy semantics. Actual counter
+derivation, frontier/conflict retry, claim-batch/backend linearization and
+driver entry correspondence still require source proofs under §13.5.
+
+The final changed-source scope and gateway units have also been re-extracted
+and translated strictly from the current Rust. Their executable Lean bodies
+are unchanged from the bodies used for the expanded proofs; only generated
+source-location comments change. There are 62 scope-unit functions (25 local,
+37 foreign) and 135 gateway functions, with zero opaque Auths bodies in either.
+This focused comparison is not the required two full translation
+reproductions or an exact-revision hosted qualification result.
+
+
+### 13.14 Concurrent frontier source batch
+
+The actual store `frontier` loop now delegates its interval decisions to
+`auths-gateway-kernel::frontier::FrontierSearch` while retaining each storage
+read and error at the runtime boundary. The independent model proves shrinking
+intervals and termination within 64 read transitions over the entire u64 bound,
+for arbitrary answers. With an append-only occupied-prefix contract, stale
+reads produce a candidate at most the latest frontier; a successful atomic
+insertion at a still-free candidate therefore inserts at exactly that frontier.
+This is the concurrency argument needed before composing conflict retries and
+claim/slot batching, rather than assuming a stable snapshot during search.
+
+The new pure methods have strict transparent translations in the expanded
+139-function gateway unit. Native comparisons cover every prefix up to 256,
+every sparse 16-slot map, exact previous-loop read order, full-width bounds,
+and changing monotone prefixes. The shipping loop uses the same probe, read
+and observation order. The formal source-method bridges and their composed
+answer-trace work bound are being checked as a batch. The trace is proof-owned;
+the complete runtime read/transaction correspondence remains an E4 obligation.
+The shared store's existing collection/admission fence is retained.
+
+
+The frontier source-method bridges now compile on every represented source
+state, including arithmetic safety. The proof-owned composition of actual Rust
+methods also establishes the 64-read bound. The kernel's 24 library tests pass,
+as do the gateway's 222 library tests after the shipping store refactor (26
+retain their existing ignored status); affected-crate linting passes. The
+expanded main inventory and final transitive axiom review are checked next.
+The gateway source boundary is 139 local functions, zero external functions,
+with the four new methods explicitly inventoried and no opaque Auths bodies.
+Full translation reproduction and exact-revision hosted gates remain deferred.
+
+
+### 13.15 Compiled statement identities in coverage
+
+The full batch build and compiled audit pass at 741 declarations, preserving
+all 671 previous complete records and allowing only the three established
+foundational axioms. Full qualification caught a reporting defect: method dot
+notation in Lean's displayed statements could hide the translated function's
+qualified name. Coverage version 2 therefore uses the compiler's canonical
+statement constants for live theorem mentions, and refuses live audits that
+omit them. Historical study fixtures retain their original text scanner and
+must still reproduce byte-identically. A regression also prevents printed
+function-name text without a corresponding compiled constant from creating a
+coverage edge.
+
+Canonical identities add the actual lifecycle terminal-method claim and the
+new composed status/frontier statements to the proper classifications. The
+codec identifier helper's imported copy is no longer credited as a directly
+named locally owned function merely because a suffix resembles the owner's
+name. Its assurance source claim and transparent translation remain intact;
+the owning model function retains its own audited refinements. This follows
+the existing ownership rule, without adding denominator rows for imports or
+relabelling the source claim as a model. Qualification and publication are
+rerun after this reporting correction; E1–E5/M6 remain scoped as above.
+
+
+### 13.16 Qualified 741-claim checkpoint
+
+The complete batched qualification now passes after the coverage correction:
+741 compiled/audited statements, all 671 previous complete records unchanged,
+18/18 qualification cases, 24 reviewed external models, zero unreviewed models,
+zero compiled external axioms and two byte-identical clean full translations.
+Reviewed statement inventory:
+`adba8d153e4bb16ed387ba05c9f102a36650a6a7e4e0e899180935726ad34852`.
+Shipping source closure:
+`f9041056a71f53030c45a3a9e0c4208da53fc5a56d26b03466ef119e54104549`.
+Closed qualification boundary:
+`89cbb9637b4ac2abe8d319601c55f89a69723633f9f1eae4a78a29ef549fd0f4`.
+Affected native library tests: 327 passed; 26 gateway tests remain ignored.
+Coverage regression/historical checks: 6 passed. Affected-crate linting and the
+xtask build pass. Coverage v2 records 133/1046 decision functions,
+1814/11544 decision code lines and 23/82 check sites in their declared scopes.
+
+This saves the implementation-first batch; it does not finish §13.5 or any
+whole E1–E5/M6 milestone. Exact-revision hosted gates remain required. The next
+counter/slot commitment-framing slice is prepared separately: its independent
+byte-framing injectivity model compiles, prototype byte-parity tests pass, and
+its actual Rust prototype translates after replacing unsupported nested borrows
+with fixed-field composition. It has not yet been cut over into production or
+added to this qualified inventory. Continue with that source/primitive bridge,
+then actual counter derivation and reservation/backend correspondence.

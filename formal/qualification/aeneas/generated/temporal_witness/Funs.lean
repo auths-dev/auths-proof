@@ -20,7 +20,7 @@ noncomputable section
 namespace AuthsTemporalWitness
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:33-355:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:33-338:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Timestamp, auths_model::Timestamp>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -32,7 +32,7 @@ def auths_model.Timestamp.Insts.CoreCmpPartialEqTimestamp.eq
   ok (self = other)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:33-355:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:33-338:42
     Name pattern: [core::cmp::PartialEq<auths_model::Timestamp, auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::Timestamp, auths_model::Timestamp>"]
@@ -42,7 +42,7 @@ def auths_model.Timestamp.Insts.CoreCmpPartialEqTimestamp : core.cmp.PartialEq
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::Timestamp}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:29-355:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:29-338:31
     Name pattern: [auths_model::{core::cmp::Eq<auths_model::Timestamp>}::assert_fields_are_eq]
     Visibility: public -/
 @[rust_fun
@@ -52,7 +52,7 @@ def auths_model.Timestamp.Insts.CoreCmpEq.assert_fields_are_eq
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:29-355:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:29-338:31
     Name pattern: [core::cmp::Eq<auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl "core::cmp::Eq<auths_model::Timestamp>"]
 def auths_model.Timestamp.Insts.CoreCmpEq : core.cmp.Eq auths_model.Timestamp
@@ -63,7 +63,7 @@ def auths_model.Timestamp.Insts.CoreCmpEq : core.cmp.Eq auths_model.Timestamp
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::Timestamp}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:44-355:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:44-338:47
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::Timestamp>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::Timestamp>}::cmp"]
@@ -74,7 +74,7 @@ def auths_model.Timestamp.Insts.CoreCmpOrd.cmp
   ok (core.cmp.impls.OrdU64.cmp self other)
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:49-355:59
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:49-338:59
     Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::Timestamp, auths_model::Timestamp>}::partial_cmp]
     Visibility: public -/
 @[rust_fun
@@ -87,7 +87,7 @@ def auths_model.Timestamp.Insts.CoreCmpPartialOrdTimestamp.partial_cmp
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:49-355:59
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:49-338:59
     Name pattern: [core::cmp::PartialOrd<auths_model::Timestamp, auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialOrd<auths_model::Timestamp, auths_model::Timestamp>"]
@@ -101,7 +101,7 @@ impl_def auths_model.Timestamp.Insts.CoreCmpPartialOrdTimestamp :
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:44-355:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:44-338:47
     Name pattern: [core::cmp::Ord<auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl "core::cmp::Ord<auths_model::Timestamp>"]
 impl_def auths_model.Timestamp.Insts.CoreCmpOrd : core.cmp.Ord
@@ -113,7 +113,7 @@ impl_def auths_model.Timestamp.Insts.CoreCmpOrd : core.cmp.Ord
 }
 
 /-- [auths_model::{auths_model::Timestamp}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 360:4-360:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 343:4-343:42
     Name pattern: [auths_model::{auths_model::Timestamp}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Timestamp}::new"]
@@ -122,7 +122,7 @@ def auths_model.Timestamp.new
   ok seconds
 
 /-- [auths_model::{auths_model::Timestamp}::get]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 365:4-365:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 348:4-348:33
     Name pattern: [auths_model::{auths_model::Timestamp}::get]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Timestamp}::get"]
@@ -131,7 +131,7 @@ def auths_model.Timestamp.get
   ok self
 
 /-- [auths_model::{auths_model::FreshnessLimit}::get]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 995:4-995:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 978:4-978:33
     Name pattern: [auths_model::{auths_model::FreshnessLimit}::get]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::FreshnessLimit}::get"]
@@ -140,7 +140,7 @@ def auths_model.FreshnessLimit.get
   ok self
 
 /-- [auths_model::{auths_model::AssuranceClaim}::observed_at]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3230:4-3230:56
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3220:4-3220:56
     Name pattern: [auths_model::{auths_model::AssuranceClaim}::observed_at]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssuranceClaim}::observed_at"]
@@ -151,7 +151,7 @@ def auths_model.AssuranceClaim.impl.observed_at
   ok self.observed_at
 
 /-- [auths_model::{auths_model::AssuranceRequirement}::maximum_age]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3412:4-3412:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3402:4-3402:61
     Name pattern: [auths_model::{auths_model::AssuranceRequirement}::maximum_age]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssuranceRequirement}::maximum_age"]
@@ -162,7 +162,7 @@ def auths_model.AssuranceRequirement.impl.maximum_age
   ok self.maximum_age
 
 /-- [auths_model::{auths_model::AssurancePolicy}::requirements]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3446:4-3446:57
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3436:4-3436:57
     Name pattern: [auths_model::{auths_model::AssurancePolicy}::requirements]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssurancePolicy}::requirements"]
@@ -173,7 +173,7 @@ def auths_model.AssurancePolicy.impl.requirements
   ok (alloc.vec.Vec.deref self.requirements)
 
 /-- [auths_model::{auths_model::AssuranceSatisfaction}::requirement_index]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3479:4-3479:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3469:4-3469:48
     Name pattern: [auths_model::{auths_model::AssuranceSatisfaction}::requirement_index]
     Visibility: public -/
 @[rust_fun
@@ -183,7 +183,7 @@ def auths_model.AssuranceSatisfaction.impl.requirement_index
   ok self.requirement_index
 
 /-- [auths_model::{auths_model::AssuranceSatisfaction}::claim]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3491:4-3491:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3481:4-3481:48
     Name pattern: [auths_model::{auths_model::AssuranceSatisfaction}::claim]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AssuranceSatisfaction}::claim"]
@@ -194,7 +194,7 @@ def auths_model.AssuranceSatisfaction.impl.claim
   ok self.claim
 
 /-- [auths_model::{auths_model::TrustedContext}::assurance_policy]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4608:4-4608:60
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4598:4-4598:60
     Name pattern: [auths_model::{auths_model::TrustedContext}::assurance_policy]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::TrustedContext}::assurance_policy"]

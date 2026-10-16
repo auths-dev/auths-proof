@@ -20,7 +20,7 @@ noncomputable section
 namespace AuthsStatusSelection
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:35-126:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:35-119:44
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::TrustAnchorId, auths_model::TrustAnchorId>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -32,7 +32,7 @@ def auths_model.TrustAnchorId.Insts.CoreCmpPartialEqTrustAnchorId.eq
   alloc.string.String.Insts.CoreCmpPartialEqString.eq self other
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:35-126:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:35-119:44
     Name pattern: [core::cmp::PartialEq<auths_model::TrustAnchorId, auths_model::TrustAnchorId>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::TrustAnchorId, auths_model::TrustAnchorId>"]
@@ -44,7 +44,7 @@ impl_def auths_model.TrustAnchorId.Insts.CoreCmpPartialEqTrustAnchorId :
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::TrustAnchorId}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:31-126:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:31-119:33
     Name pattern: [auths_model::{core::cmp::Eq<auths_model::TrustAnchorId>}::assert_fields_are_eq]
     Visibility: public -/
 @[rust_fun
@@ -54,7 +54,7 @@ def auths_model.TrustAnchorId.Insts.CoreCmpEq.assert_fields_are_eq
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::TrustAnchorId}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:31-126:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:31-119:33
     Name pattern: [core::cmp::Eq<auths_model::TrustAnchorId>] -/
 @[reducible, rust_trait_impl "core::cmp::Eq<auths_model::TrustAnchorId>"]
 def auths_model.TrustAnchorId.Insts.CoreCmpEq : core.cmp.Eq
@@ -66,7 +66,7 @@ def auths_model.TrustAnchorId.Insts.CoreCmpEq : core.cmp.Eq
 }
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::StatusMethodId> for auths_model::StatusMethodId}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:35-126:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:35-119:44
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::StatusMethodId, auths_model::StatusMethodId>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -78,7 +78,7 @@ def auths_model.StatusMethodId.Insts.CoreCmpPartialEqStatusMethodId.eq
   alloc.string.String.Insts.CoreCmpPartialEqString.eq self other
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::StatusMethodId> for auths_model::StatusMethodId}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:35-126:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:35-119:44
     Name pattern: [core::cmp::PartialEq<auths_model::StatusMethodId, auths_model::StatusMethodId>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::StatusMethodId, auths_model::StatusMethodId>"]
@@ -90,7 +90,7 @@ impl_def auths_model.StatusMethodId.Insts.CoreCmpPartialEqStatusMethodId :
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::TrustAnchorId}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:46-126:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:46-119:49
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::TrustAnchorId>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::TrustAnchorId>}::cmp"]
@@ -101,7 +101,7 @@ def auths_model.TrustAnchorId.Insts.CoreCmpOrd.cmp
   alloc.string.String.Insts.CoreCmpOrd.cmp self other
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:51-126:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:51-119:61
     Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::TrustAnchorId, auths_model::TrustAnchorId>}::partial_cmp]
     Visibility: public -/
 @[rust_fun
@@ -114,7 +114,7 @@ def auths_model.TrustAnchorId.Insts.CoreCmpPartialOrdTrustAnchorId.partial_cmp
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:51-126:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:51-119:61
     Name pattern: [core::cmp::PartialOrd<auths_model::TrustAnchorId, auths_model::TrustAnchorId>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialOrd<auths_model::TrustAnchorId, auths_model::TrustAnchorId>"]
@@ -131,7 +131,7 @@ impl_def auths_model.TrustAnchorId.Insts.CoreCmpPartialOrdTrustAnchorId :
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::TrustAnchorId}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 126:46-126:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 119:46-119:49
     Name pattern: [core::cmp::Ord<auths_model::TrustAnchorId>] -/
 @[reducible, rust_trait_impl "core::cmp::Ord<auths_model::TrustAnchorId>"]
 impl_def auths_model.TrustAnchorId.Insts.CoreCmpOrd : core.cmp.Ord
@@ -145,7 +145,7 @@ impl_def auths_model.TrustAnchorId.Insts.CoreCmpOrd : core.cmp.Ord
 }
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalId> for auths_model::PrincipalId}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 160:27-160:36
+    Source: 'core/crates/auths-model/src/lib.rs', lines 153:27-153:36
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::PrincipalId, auths_model::PrincipalId>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -157,7 +157,7 @@ def auths_model.PrincipalId.Insts.CoreCmpPartialEqPrincipalId.eq
   alloc.string.String.Insts.CoreCmpPartialEqString.eq self other
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalId> for auths_model::PrincipalId}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 160:27-160:36
+    Source: 'core/crates/auths-model/src/lib.rs', lines 153:27-153:36
     Name pattern: [core::cmp::PartialEq<auths_model::PrincipalId, auths_model::PrincipalId>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::PrincipalId, auths_model::PrincipalId>"]
@@ -169,7 +169,7 @@ impl_def auths_model.PrincipalId.Insts.CoreCmpPartialEqPrincipalId :
 }
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 246:33-246:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 229:33-229:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -179,7 +179,7 @@ def auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq
   core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 self other
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::GrantId> for auths_model::GrantId}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:41-248:50
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::GrantId, auths_model::GrantId>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -191,7 +191,7 @@ def auths_model.GrantId.Insts.CoreCmpPartialEqGrantId.eq
   auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq self other
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:33-355:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:33-338:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Timestamp, auths_model::Timestamp>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -203,7 +203,7 @@ def auths_model.Timestamp.Insts.CoreCmpPartialEqTimestamp.eq
   ok (self = other)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:33-355:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:33-338:42
     Name pattern: [core::cmp::PartialEq<auths_model::Timestamp, auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::Timestamp, auths_model::Timestamp>"]
@@ -215,7 +215,7 @@ impl_def auths_model.Timestamp.Insts.CoreCmpPartialEqTimestamp :
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::Timestamp}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:29-355:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:29-338:31
     Name pattern: [auths_model::{core::cmp::Eq<auths_model::Timestamp>}::assert_fields_are_eq]
     Visibility: public -/
 @[rust_fun
@@ -225,7 +225,7 @@ def auths_model.Timestamp.Insts.CoreCmpEq.assert_fields_are_eq
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:29-355:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:29-338:31
     Name pattern: [core::cmp::Eq<auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl "core::cmp::Eq<auths_model::Timestamp>"]
 def auths_model.Timestamp.Insts.CoreCmpEq : core.cmp.Eq auths_model.Timestamp
@@ -236,7 +236,7 @@ def auths_model.Timestamp.Insts.CoreCmpEq : core.cmp.Eq auths_model.Timestamp
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::Timestamp}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:44-355:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:44-338:47
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::Timestamp>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::Timestamp>}::cmp"]
@@ -247,7 +247,7 @@ def auths_model.Timestamp.Insts.CoreCmpOrd.cmp
   ok (core.cmp.impls.OrdU64.cmp self other)
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:49-355:59
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:49-338:59
     Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::Timestamp, auths_model::Timestamp>}::partial_cmp]
     Visibility: public -/
 @[rust_fun
@@ -260,7 +260,7 @@ def auths_model.Timestamp.Insts.CoreCmpPartialOrdTimestamp.partial_cmp
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:49-355:59
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:49-338:59
     Name pattern: [core::cmp::PartialOrd<auths_model::Timestamp, auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialOrd<auths_model::Timestamp, auths_model::Timestamp>"]
@@ -276,7 +276,7 @@ impl_def auths_model.Timestamp.Insts.CoreCmpPartialOrdTimestamp :
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::Timestamp}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 355:44-355:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 338:44-338:47
     Name pattern: [core::cmp::Ord<auths_model::Timestamp>] -/
 @[reducible, rust_trait_impl "core::cmp::Ord<auths_model::Timestamp>"]
 impl_def auths_model.Timestamp.Insts.CoreCmpOrd : core.cmp.Ord
@@ -288,7 +288,7 @@ impl_def auths_model.Timestamp.Insts.CoreCmpOrd : core.cmp.Ord
 }
 
 /-- [auths_model::{auths_model::Timestamp}::new]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 360:4-360:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 343:4-343:42
     Name pattern: [auths_model::{auths_model::Timestamp}::new]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Timestamp}::new"]
@@ -297,7 +297,7 @@ def auths_model.Timestamp.new
   ok seconds
 
 /-- [auths_model::{auths_model::Timestamp}::get]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 365:4-365:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 348:4-348:33
     Name pattern: [auths_model::{auths_model::Timestamp}::get]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Timestamp}::get"]
@@ -306,7 +306,7 @@ def auths_model.Timestamp.get
   ok self
 
 /-- [auths_model::{auths_model::FreshnessLimit}::get]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 995:4-995:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 978:4-978:33
     Name pattern: [auths_model::{auths_model::FreshnessLimit}::get]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::FreshnessLimit}::get"]
@@ -315,7 +315,7 @@ def auths_model.FreshnessLimit.get
   ok self
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalState> for auths_model::PrincipalState}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2079:33-2079:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2062:33-2062:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::PrincipalState, auths_model::PrincipalState>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -329,7 +329,7 @@ def auths_model.PrincipalState.Insts.CoreCmpPartialEqPrincipalState.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalState> for auths_model::PrincipalState}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2079:33-2079:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2062:33-2062:42
     Name pattern: [core::cmp::PartialEq<auths_model::PrincipalState, auths_model::PrincipalState>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::PrincipalState, auths_model::PrincipalState>"]
@@ -341,7 +341,7 @@ impl_def auths_model.PrincipalState.Insts.CoreCmpPartialEqPrincipalState :
 }
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::GrantState> for auths_model::GrantState}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2086:33-2086:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2069:33-2069:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::GrantState, auths_model::GrantState>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -355,7 +355,7 @@ def auths_model.GrantState.Insts.CoreCmpPartialEqGrantState.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::GrantState> for auths_model::GrantState}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2086:33-2086:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2069:33-2069:42
     Name pattern: [core::cmp::PartialEq<auths_model::GrantState, auths_model::GrantState>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::GrantState, auths_model::GrantState>"]
@@ -367,7 +367,7 @@ impl_def auths_model.GrantState.Insts.CoreCmpPartialEqGrantState :
 }
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::method]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2154:4-2154:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2137:4-2137:49
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::method]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::method"]
@@ -378,7 +378,7 @@ def auths_model.PrincipalStatusStatement.impl.method
   ok self.method
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::principal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2158:4-2158:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2141:4-2141:49
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::principal]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::principal"]
@@ -389,7 +389,7 @@ def auths_model.PrincipalStatusStatement.impl.principal
   ok self.principal
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::state]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2162:4-2162:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2145:4-2145:47
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::state]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::state"]
@@ -400,7 +400,7 @@ def auths_model.PrincipalStatusStatement.impl.state
   ok self.state
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::sequence]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2166:4-2166:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2149:4-2149:39
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::sequence]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::sequence"]
@@ -409,7 +409,7 @@ def auths_model.PrincipalStatusStatement.impl.sequence
   ok self.sequence
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::observed_at]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2170:4-2170:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2153:4-2153:48
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::observed_at]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::observed_at"]
@@ -420,7 +420,7 @@ def auths_model.PrincipalStatusStatement.impl.observed_at
   ok self.observed_at
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::valid_until]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2174:4-2174:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2157:4-2157:48
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::valid_until]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::valid_until"]
@@ -431,7 +431,7 @@ def auths_model.PrincipalStatusStatement.impl.valid_until
   ok self.valid_until
 
 /-- [auths_model::{auths_model::PrincipalStatusStatement}::issuer]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2178:4-2178:46
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2161:4-2161:46
     Name pattern: [auths_model::{auths_model::PrincipalStatusStatement}::issuer]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusStatement}::issuer"]
@@ -442,7 +442,7 @@ def auths_model.PrincipalStatusStatement.impl.issuer
   ok self.issuer
 
 /-- [auths_model::{auths_model::SignedPrincipalStatus}::statement]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2202:4-2202:62
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2185:4-2185:62
     Name pattern: [auths_model::{auths_model::SignedPrincipalStatus}::statement]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::SignedPrincipalStatus}::statement"]
@@ -453,7 +453,7 @@ def auths_model.SignedPrincipalStatus.impl.statement
   ok self.statement
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::method]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2269:4-2269:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2252:4-2252:49
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::method]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::method"]
@@ -464,7 +464,7 @@ def auths_model.GrantStatusStatement.impl.method
   ok self.method
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::grant_id]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2273:4-2273:43
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2256:4-2256:43
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::grant_id]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::grant_id"]
@@ -473,7 +473,7 @@ def auths_model.GrantStatusStatement.impl.grant_id
   ok self.grant_id
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::state]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2277:4-2277:43
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2260:4-2260:43
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::state]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::state"]
@@ -484,7 +484,7 @@ def auths_model.GrantStatusStatement.impl.state
   ok self.state
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::sequence]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2281:4-2281:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2264:4-2264:39
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::sequence]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::sequence"]
@@ -493,7 +493,7 @@ def auths_model.GrantStatusStatement.impl.sequence
   ok self.sequence
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::observed_at]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2285:4-2285:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2268:4-2268:48
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::observed_at]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::observed_at"]
@@ -504,7 +504,7 @@ def auths_model.GrantStatusStatement.impl.observed_at
   ok self.observed_at
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::valid_until]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2289:4-2289:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2272:4-2272:48
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::valid_until]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::valid_until"]
@@ -515,7 +515,7 @@ def auths_model.GrantStatusStatement.impl.valid_until
   ok self.valid_until
 
 /-- [auths_model::{auths_model::GrantStatusStatement}::issuer]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2293:4-2293:46
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2276:4-2276:46
     Name pattern: [auths_model::{auths_model::GrantStatusStatement}::issuer]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusStatement}::issuer"]
@@ -526,7 +526,7 @@ def auths_model.GrantStatusStatement.impl.issuer
   ok self.issuer
 
 /-- [auths_model::{auths_model::SignedGrantStatus}::statement]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2317:4-2317:58
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2300:4-2300:58
     Name pattern: [auths_model::{auths_model::SignedGrantStatus}::statement]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::SignedGrantStatus}::statement"]
@@ -537,7 +537,7 @@ def auths_model.SignedGrantStatus.impl.statement
   ok self.statement
 
 /-- [auths_model::{auths_model::StatusScopeAnchors}::contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2356:4-2356:58
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2346:4-2346:58
     Name pattern: [auths_model::{auths_model::StatusScopeAnchors}::contains]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::StatusScopeAnchors}::contains"]
@@ -553,7 +553,7 @@ def auths_model.StatusScopeAnchors.contains
   core.result.Result.is_ok r
 
 /-- [auths_model::{auths_model::TrustAnchor}::principal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3575:4-3575:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3565:4-3565:49
     Name pattern: [auths_model::{auths_model::TrustAnchor}::principal]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::TrustAnchor}::principal"]
@@ -562,7 +562,7 @@ def auths_model.TrustAnchor.impl.principal
   ok self.principal
 
 /-- [auths_model::{auths_model::TrustAnchor}::id]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 3571:4-3571:44
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3561:4-3561:44
     Name pattern: [auths_model::{auths_model::TrustAnchor}::id]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::TrustAnchor}::id"]
@@ -571,7 +571,7 @@ def auths_model.TrustAnchor.impl.id
   ok self.id
 
 /-- [auths_model::{auths_model::StatusScope}::covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2380:4-2380:76
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2370:4-2370:76
     Name pattern: [auths_model::{auths_model::StatusScope}::covers]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::StatusScope}::covers"]
@@ -590,7 +590,7 @@ def auths_model.StatusScope.covers
   | auths_model.StatusScope.AnyAnchor => ok true
 
 /-- [auths_model::{auths_model::StatusTrustRule}::issuer]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2493:4-2493:46
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2483:4-2483:46
     Name pattern: [auths_model::{auths_model::StatusTrustRule}::issuer]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::StatusTrustRule}::issuer"]
@@ -599,7 +599,7 @@ def auths_model.StatusTrustRule.impl.issuer
   ok self.issuer
 
 /-- [auths_model::{auths_model::StatusTrustRule}::scope]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2481:4-2481:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2471:4-2471:45
     Name pattern: [auths_model::{auths_model::StatusTrustRule}::scope]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::StatusTrustRule}::scope"]
@@ -608,7 +608,7 @@ def auths_model.StatusTrustRule.impl.scope
   ok self.scope
 
 /-- [auths_model::status_issuer_in_scope]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2405:4-2411:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2395:4-2401:5
     Name pattern: [auths_model::status_issuer_in_scope]
     Visibility: public -/
 @[rust_loop, rust_fun "auths_model::status_issuer_in_scope"]
@@ -642,7 +642,7 @@ def auths_model.status_issuer_in_scope_loop
 partial_fixpoint
 
 /-- [auths_model::status_issuer_in_scope]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2398:0-2402:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2388:0-2392:9
     Name pattern: [auths_model::status_issuer_in_scope]
     Visibility: public -/
 @[reducible, rust_fun "auths_model::status_issuer_in_scope"]
@@ -654,7 +654,7 @@ def auths_model.status_issuer_in_scope
   auths_model.status_issuer_in_scope_loop trust issuer anchor true 0#usize
 
 /-- [auths_model::status_issuer_visible]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2440:12-2446:13
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2430:12-2436:13
     Name pattern: [auths_model::status_issuer_visible]
     Visibility: public -/
 @[rust_loop, rust_fun "auths_model::status_issuer_visible"]
@@ -689,7 +689,7 @@ def auths_model.status_issuer_visible_loop
 partial_fixpoint
 
 /-- [auths_model::status_issuer_visible]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2430:0-2434:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2420:0-2424:9
     Name pattern: [auths_model::status_issuer_visible]
     Visibility: public -/
 @[rust_fun "auths_model::status_issuer_visible"]
@@ -705,7 +705,7 @@ def auths_model.status_issuer_visible
     auths_model.status_issuer_visible_loop trust issuer true 0#usize
 
 /-- [auths_model::{auths_model::StatusTrustRule}::method]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2487:4-2487:49
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2477:4-2477:49
     Name pattern: [auths_model::{auths_model::StatusTrustRule}::method]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::StatusTrustRule}::method"]
@@ -716,7 +716,7 @@ def auths_model.StatusTrustRule.impl.method
   ok self.method
 
 /-- [auths_model::{auths_model::StatusTrustRule}::sequence_floor]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2499:4-2499:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2489:4-2489:45
     Name pattern: [auths_model::{auths_model::StatusTrustRule}::sequence_floor]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::StatusTrustRule}::sequence_floor"]
@@ -725,7 +725,7 @@ def auths_model.StatusTrustRule.impl.sequence_floor
   ok self.sequence_floor
 
 /-- [auths_model::{auths_model::PrincipalStatusSnapshot}::observed_at]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2613:4-2613:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2603:4-2603:48
     Name pattern: [auths_model::{auths_model::PrincipalStatusSnapshot}::observed_at]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusSnapshot}::observed_at"]
@@ -736,7 +736,7 @@ def auths_model.PrincipalStatusSnapshot.impl.observed_at
   ok self.observed_at
 
 /-- [auths_model::{auths_model::PrincipalStatusSnapshot}::valid_until]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2619:4-2619:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2609:4-2609:48
     Name pattern: [auths_model::{auths_model::PrincipalStatusSnapshot}::valid_until]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusSnapshot}::valid_until"]
@@ -747,7 +747,7 @@ def auths_model.PrincipalStatusSnapshot.impl.valid_until
   ok self.valid_until
 
 /-- [auths_model::{auths_model::PrincipalStatusSnapshot}::statements]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2625:4-2625:56
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2615:4-2615:56
     Name pattern: [auths_model::{auths_model::PrincipalStatusSnapshot}::statements]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusSnapshot}::statements"]
@@ -758,7 +758,7 @@ def auths_model.PrincipalStatusSnapshot.impl.statements
   ok (alloc.vec.Vec.deref self.statements)
 
 /-- [auths_model::{auths_model::PrincipalStatusSnapshot}::trust]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2637:4-2637:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2627:4-2627:45
     Name pattern: [auths_model::{auths_model::PrincipalStatusSnapshot}::trust]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::PrincipalStatusSnapshot}::trust"]
@@ -769,7 +769,7 @@ def auths_model.PrincipalStatusSnapshot.impl.trust
   ok (alloc.vec.Vec.deref self.trust)
 
 /-- [auths_model::{auths_model::GrantStatusSnapshot}::observed_at]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2748:4-2748:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2738:4-2738:48
     Name pattern: [auths_model::{auths_model::GrantStatusSnapshot}::observed_at]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusSnapshot}::observed_at"]
@@ -778,7 +778,7 @@ def auths_model.GrantStatusSnapshot.impl.observed_at
   ok self.observed_at
 
 /-- [auths_model::{auths_model::GrantStatusSnapshot}::valid_until]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2754:4-2754:48
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2744:4-2744:48
     Name pattern: [auths_model::{auths_model::GrantStatusSnapshot}::valid_until]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusSnapshot}::valid_until"]
@@ -787,7 +787,7 @@ def auths_model.GrantStatusSnapshot.impl.valid_until
   ok self.valid_until
 
 /-- [auths_model::{auths_model::GrantStatusSnapshot}::statements]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2760:4-2760:52
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2750:4-2750:52
     Name pattern: [auths_model::{auths_model::GrantStatusSnapshot}::statements]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusSnapshot}::statements"]
@@ -798,7 +798,7 @@ def auths_model.GrantStatusSnapshot.impl.statements
   ok (alloc.vec.Vec.deref self.statements)
 
 /-- [auths_model::{auths_model::GrantStatusSnapshot}::trust]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 2772:4-2772:45
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2762:4-2762:45
     Name pattern: [auths_model::{auths_model::GrantStatusSnapshot}::trust]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::GrantStatusSnapshot}::trust"]

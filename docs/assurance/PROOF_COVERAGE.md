@@ -4,13 +4,13 @@
 
 ## 1. Claim
 
-At the commit that contains this document, 133 of 1,045 decision-scope functions (12.7%) and 1,814 of 11,527 code lines (15.7%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
+At the commit that contains this document, 133 of 1,046 decision-scope functions (12.7%) and 1,814 of 11,544 code lines (15.7%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `bc23f7b72a96bb27efb440622cf179de530d0ff25ecdfd9ff497c1ded528e88b` over the 120 files listed in `formal/proof-coverage-v1.json`.
-- Tool: `cargo xtask formal coverage`, version 1.
+- Measurement inputs: sha256 `9ec74ce8f206d5f138ef0a37bc6c5e7ce6667b9ecc6c6bf59baf0477df2aa5c9` over the 127 files listed in `formal/proof-coverage-v1.json`.
+- Tool: `cargo xtask formal coverage`, version 2.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `241bde8f214ea60f057b6ab4559f12f32bd3a5b6d942bdef33e460681443c0a2`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `73b5935edec4bb4839e8e01b743cf4636f5351c31ccdc3f87d4951066ea9a3d2`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -37,7 +37,10 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `core/crates/auths-codec/src/hash.rs` | decoding |
 | `core/crates/auths-codec/src/lib.rs` | decoding |
 | `core/crates/auths-codec/src/observation.rs` | decoding |
+| `core/crates/auths-codec/src/scope_decode_tests.rs` | test-support |
 | `core/crates/auths-composition/src/oracle.rs` | test-support |
+| `core/crates/auths-model/src/principal_scheme_tests.rs` | test-support |
+| `core/crates/auths-model/src/scope_constructor_tests.rs` | test-support |
 | `core/crates/auths-ports/src/binding.rs` | interface |
 | `core/crates/auths-ports/src/diagnostics.rs` | interface |
 | `core/crates/auths-ports/src/lib.rs` | interface |
@@ -59,11 +62,11 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 
 | Scope | Functions | Translated | Refined directly | Refined closure | Code lines | Translated | Refined directly | Refined closure |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| decision | 1,045 | 133 (12.7%) | 75 (7.2%) | 133 (12.7%) | 11,527 | 1,814 (15.7%) | 1,331 (11.5%) | 1,814 (15.7%) |
-| verifier-core | 799 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,976 | 1,432 (16.0%) | 1,033 (11.5%) | 1,432 (16.0%) |
-| translated-crates | 1,790 | 333 (18.6%) | 127 (7.1%) | 333 (18.6%) | 21,940 | 3,847 (17.5%) | 1,969 (9.0%) | 3,847 (17.5%) |
-| verifier-closure | 1,144 | 178 (15.6%) | 72 (6.3%) | 178 (15.6%) | 14,228 | 1,990 (14.0%) | 1,262 (8.9%) | 1,990 (14.0%) |
-| decision-nontrivial | 454 | 103 (22.7%) | 62 (13.7%) | 103 (22.7%) | 9,754 | 1,724 (17.7%) | 1,292 (13.2%) | 1,724 (17.7%) |
+| decision | 1,046 | 133 (12.7%) | 76 (7.3%) | 133 (12.7%) | 11,544 | 1,814 (15.7%) | 1,337 (11.6%) | 1,814 (15.7%) |
+| verifier-core | 800 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,993 | 1,432 (15.9%) | 1,033 (11.5%) | 1,432 (15.9%) |
+| translated-crates | 1,801 | 345 (19.2%) | 139 (7.7%) | 345 (19.2%) | 22,061 | 3,999 (18.1%) | 2,124 (9.6%) | 3,999 (18.1%) |
+| verifier-closure | 1,147 | 182 (15.9%) | 75 (6.5%) | 182 (15.9%) | 14,272 | 2,065 (14.5%) | 1,334 (9.3%) | 2,065 (14.5%) |
+| decision-nontrivial | 455 | 103 (22.6%) | 63 (13.8%) | 103 (22.6%) | 9,771 | 1,724 (17.6%) | 1,298 (13.3%) | 1,724 (17.6%) |
 
 Decision scope by crate:
 
@@ -73,7 +76,7 @@ Decision scope by crate:
 | `core/crates/auths-assurance` | 3 | 89 | 0 | 0 | 0 |
 | `core/crates/auths-authority` | 21 | 341 | 13 | 13 | 241 |
 | `core/crates/auths-composition` | 10 | 155 | 10 | 10 | 155 |
-| `core/crates/auths-model` | 547 | 3,927 | 75 | 75 | 695 |
+| `core/crates/auths-model` | 548 | 3,944 | 75 | 75 | 695 |
 | `core/crates/auths-registries` | 83 | 1,202 | 6 | 6 | 262 |
 | `core/crates/auths-verifier` | 120 | 3,239 | 3 | 3 | 62 |
 | `product/policy/auths-bounded-policy` | 108 | 716 | 18 | 18 | 182 |
@@ -85,26 +88,26 @@ Sensitivities of the decision-scope refined-closure figure:
 
 | Reading | Functions | Code lines |
 | --- | ---: | ---: |
-| Headline | 133 of 1,045 (12.7%) | 1,814 of 11,527 (15.7%) |
-| Without functions defined in `macro_rules!` bodies | 132 of 1,025 (12.9%) | 1,811 of 11,462 (15.8%) |
-| Closure of exact and verdict-exact theorems only | 127 of 1,045 (12.2%) | 1,565 of 11,527 (13.6%) |
-| Closure of exact theorems only | 123 of 1,045 (11.8%) | 1,477 of 11,527 (12.8%) |
-| Closure without trait-instance records | 132 of 1,045 (12.6%) | 1,811 of 11,527 (15.7%) |
+| Headline | 133 of 1,046 (12.7%) | 1,814 of 11,544 (15.7%) |
+| Without functions defined in `macro_rules!` bodies | 132 of 1,026 (12.9%) | 1,811 of 11,479 (15.8%) |
+| Closure of exact and verdict-exact theorems only | 127 of 1,046 (12.1%) | 1,565 of 11,544 (13.6%) |
+| Closure of exact theorems only | 123 of 1,046 (11.8%) | 1,477 of 11,544 (12.8%) |
+| Closure without trait-instance records | 132 of 1,046 (12.6%) | 1,811 of 11,544 (15.7%) |
 
-**Second parser.** 1025 of 1045 decision-scope function spans (98.1%) agree with an independent parse by syn over 32 files. Disagreements:
+**Second parser.** 1026 of 1046 decision-scope function spans (98.1%) agree with an independent parse by syn over 32 files. Disagreements:
 
-- `core/crates/auths-model/src/lib.rs` `name::parse` (lines 138-143): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::as_str` (lines 146-148): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::fmt` (lines 152-154): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::new` (lines 270-272): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::from_digest` (lines 275-277): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::digest` (lines 280-282): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::as_bytes` (lines 285-287): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::from` (lines 291-293): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `Digest::from` (lines 297-299): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `code` (lines 4993-4995): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `code_precedes` (lines 5003-5005): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `code_order` (lines 5007-5009): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::parse` (lines 131-136): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::as_str` (lines 139-141): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::fmt` (lines 145-147): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::new` (lines 253-255): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::from_digest` (lines 258-260): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::digest` (lines 263-265): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::as_bytes` (lines 268-270): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::from` (lines 274-276): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `Digest::from` (lines 280-282): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `code` (lines 4983-4985): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `code_precedes` (lines 4993-4995): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `code_order` (lines 4997-4999): inside a macro_rules! body (syn parses it as a token tree).
 - `product/policy/auths-bounded-policy/src/identifier.rs` `name::parse` (lines 69-72): inside a macro_rules! body (syn parses it as a token tree).
 - `product/policy/auths-bounded-policy/src/identifier.rs` `name::as_str` (lines 76-78): inside a macro_rules! body (syn parses it as a token tree).
 - `product/runtime/auths-lifecycle/src/digest.rs` `name::from_bytes` (lines 28-30): inside a macro_rules! body (syn parses it as a token tree).
@@ -184,6 +187,24 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 5. Translated functions outside the refined closure
 
+- `auths_codec::cbor::malformed` (`core/crates/auths-codec/src/cbor.rs`, lines 14-16)
+- `auths_codec::cbor::read_tail` (`core/crates/auths-codec/src/cbor.rs`, lines 40-62)
+- `auths_codec::cbor::read_head` (`core/crates/auths-codec/src/cbor.rs`, lines 68-92)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head` (`core/crates/auths-codec/src/cbor.rs`, lines 158-165)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection` (`core/crates/auths-codec/src/cbor.rs`, lines 167-173)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map` (`core/crates/auths-codec/src/cbor.rs`, lines 175-177)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array` (`core/crates/auths-codec/src/cbor.rs`, lines 179-181)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64` (`core/crates/auths-codec/src/cbor.rs`, lines 183-185)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8` (`core/crates/auths-codec/src/cbor.rs`, lines 195-197)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload` (`core/crates/auths-codec/src/cbor.rs`, lines 199-205)
+- `auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str` (`core/crates/auths-codec/src/cbor.rs`, lines 211-216)
+- `auths_codec::decode::decode_error` (`core/crates/auths-codec/src/decode.rs`, lines 40-42)
+- `auths_codec::decode::map` (`core/crates/auths-codec/src/decode.rs`, lines 44-50)
+- `auths_codec::error::limit_error` (`core/crates/auths-codec/src/error.rs`, lines 23-25)
+- `auths_codec::decode::array` (`core/crates/auths-codec/src/decode.rs`, lines 52-60)
+- `auths_codec::decode::key` (`core/crates/auths-codec/src/decode.rs`, lines 70-76)
+- `auths_codec::decode::text` (`core/crates/auths-codec/src/decode.rs`, lines 78-83)
+- `auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from` (`core/crates/auths-codec/src/error.rs`, lines 28-30)
 - `auths_signature_core::p256_key_encoding_is_canonical` (`core/crates/auths-signature-core/src/lib.rs`, lines 42-47)
 - `auths_signature_core::p256_signature_is_low_s` (`core/crates/auths-signature-core/src/lib.rs`, lines 55-69)
 - `auths_signature_core::decode_p256_key_with` (`core/crates/auths-signature-core/src/lib.rs`, lines 320-328)
@@ -193,7 +214,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `4827210d2a45aaa1a82d85d5759063b5e3d8dc11c7b55d275ab5d43fb162f5ed`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `f8c07467dc4d3b5acc17c40d0eb73546e620cf5adc5a506e3c2b9969547e110c`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -206,9 +227,9 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 124 exact, 12 verdict-exact, 67 partial, 74 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 133 exact, 12 verdict-exact, 76 partial, 84 case.
 
-Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 127 of 1,045 functions (12.2%) and 1,565 of 11,527 code lines (13.6%).
+Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 127 of 1,046 functions (12.1%) and 1,565 of 11,544 code lines (13.6%).
 
 The 33 theorems study 006 classified keep the kind both of its raters gave; theorems added since were classified by the agent that added them and await a second rater.
 
@@ -219,7 +240,6 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Codec.Action.decode_encode_exact` | partial |
 | `Auths.Codec.Action.decoded_body_valid` | partial |
 | `Auths.Codec.Action.decoded_body_within_deployment` | partial |
-| `Auths.Codec.Constructors.identifier_exact` | partial |
 | `Auths.Codec.Examples.action_byte_limit_exact` | case |
 | `Auths.Codec.Examples.action_byte_limit_refused` | case |
 | `Auths.Codec.Examples.duplicate_key_refused` | case |
@@ -370,7 +390,16 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_replay_refines_rich` | exact |
+| `Auths.Lifecycle.Refinement.translated_terminal_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_transition_refines_rich` | exact |
+| `Auths.Product.Frontier.Refinement.candidate_exact` | exact |
+| `Auths.Product.Frontier.Refinement.observe_exact` | exact |
+| `Auths.Product.Frontier.Refinement.probe_exact` | exact |
+| `Auths.Product.Frontier.Refinement.source_work_bound` | partial |
+| `Auths.Product.Frontier.Refinement.start_exact` | exact |
+| `Auths.Product.OperationIdentity.Refinement.logical_preimage_exact` | exact |
+| `Auths.Product.OperationIdentity.Refinement.source_preimage_binds_identity` | partial |
+| `Auths.Product.OperationIdentity.Refinement.token_exact` | exact |
 | `Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model` | exact |
 | `Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model` | exact |
 | `Auths.Product.Refinement.CollectionFence.translated_advance_refines_model` | exact |
@@ -404,6 +433,8 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Product.Refinement.translated_checked_sub_refines_nat` | exact |
 | `Auths.Product.Refinement.translated_configuration_refines_projection` | exact |
 | `Auths.Product.Refinement.translated_window_index_refines_nat` | exact |
+| `Auths.Product.SchemaIndex.Refinement.field_index_spec` | exact |
+| `Auths.Product.SchemaIndex.Refinement.field_name_equal_spec` | exact |
 | `Auths.Refinement.Approval.translated_approval_counts_refines_model` | exact |
 | `Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model` | exact |
 | `Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model` | exact |
@@ -453,6 +484,24 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Refinement.translated_inexpressible_absent_request_is_covered` | partial |
 | `Auths.Refinement.translated_rust_refines_rich_spec` | exact |
 | `Auths.Rich.Mutations.profile_version_equality` | case |
+| `Auths.ScopeConstructor.DecodeExamples.accepts_any` | case |
+| `Auths.ScopeConstructor.DecodeExamples.accepts_listed` | case |
+| `Auths.ScopeConstructor.DecodeExamples.accepts_own` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_collection_limit` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_duplicate_list` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_empty_list` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_invalid_id` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_truncation` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_unknown_tag` | case |
+| `Auths.ScopeConstructor.DecodeExamples.sorts_unsorted_list` | case |
+| `Auths.ScopeConstructor.accepted_rule_valid` | partial |
+| `Auths.ScopeConstructor.accepted_scope_valid` | partial |
+| `Auths.ScopeConstructor.accepted_trust_valid` | partial |
+| `Auths.ScopeConstructor.constructed_grant_selection` | partial |
+| `Auths.ScopeConstructor.constructed_principal_selection` | partial |
+| `Auths.ScopeConstructor.decoded_scope_covers` | partial |
+| `Auths.ScopeConstructor.decoded_trust_grant` | partial |
+| `Auths.ScopeConstructor.decoded_trust_principal` | partial |
 | `Auths.StatusSelection.AnchorExamples.other_anchor_hidden` | case |
 | `Auths.StatusSelection.AnchorExamples.own_anchor_active` | case |
 | `Auths.StatusSelection.Examples.active_selected_horizon` | case |

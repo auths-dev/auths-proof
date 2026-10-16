@@ -864,12 +864,11 @@ impl GatewayAttemptKey {
     /// Derives the key of `operation_id` in `namespace`.
     #[must_use]
     pub fn for_operation(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> Self {
-        let mut hash = Sha256::new();
-        hash.update(b"auths.gateway-logical-operation/1\0");
-        hash.update(namespace.as_str().as_bytes());
-        hash.update([0]);
-        hash.update(operation_id.as_str().as_bytes());
-        Self(hash.finalize().into())
+        let preimage = auths_gateway_kernel::identity::logical_operation_preimage(
+            namespace.as_str().as_bytes(),
+            operation_id.as_str().as_bytes(),
+        );
+        Self(Sha256::digest(preimage).into())
     }
 
     /// Uses `bytes`, a key derived under another record kind's hash domain.
@@ -2222,7 +2221,8 @@ fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
 const COUNT_SLOT_SCHEMA: &str = "auths.gateway-bounded-count/2";
 const SUM_SLOT_SCHEMA: &str = "auths.gateway-bounded-sum/1";
 /// A claim that keeps losing slot races gives up after this many rounds and
-/// stores nothing.
+/// grants no execution handle. Storage may have committed before reporting
+/// an error; retries must retain the same logical operation identity.
 const MAX_CLAIM_ROUNDS: usize = 32;
 
 /// Slot record `auths.gateway-bounded-count/2`.
@@ -2288,17 +2288,13 @@ fn frontier(
     bound: u64,
     slot_key: fn(&[u8; 32], u64) -> [u8; 32],
 ) -> Result<u64, GatewayAttemptError> {
-    let (mut low, mut high) = (0_u64, bound);
-    while low < high {
-        let middle = low + (high - low) / 2;
-        let key = GatewayAttemptKey(slot_key(counter, middle));
-        if store.load(kind, &key)?.is_some() {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
+    let mut search = auths_gateway_kernel::frontier::FrontierSearch::new(bound);
+    while let Some(slot) = search.probe() {
+        let key = GatewayAttemptKey(slot_key(counter, slot));
+        let occupied = store.load(kind, &key)?.is_some();
+        search = search.observe(occupied);
     }
-    Ok(low)
+    Ok(search.candidate())
 }
 
 /// The cumulative sum stored in slot `slot` of sum counter `counter`. An
@@ -2546,7 +2542,10 @@ impl GatewayAttempts {
     /// Slots are never released, and a replay consumes none.
     ///
     /// # Errors
-    /// An existing claim is `Replay`; a store failure stores nothing.
+    /// An existing claim is `Replay`. A store error grants no execution
+    /// handle and may follow a committed batch with a lost acknowledgement.
+    /// Retrying preserves the logical operation identity and cannot reclaim
+    /// ownership of a batch that already committed.
     pub(crate) async fn claim_bounded(
         &self,
         request: &ClosedProviderRequest,
@@ -2579,5 +2578,40 @@ impl GatewayAttempts {
             Reserved::Exhausted(code) => BoundedClaim::Exhausted(code),
             Reserved::Contended => BoundedClaim::Contended,
         })
+    }
+}
+
+#[cfg(test)]
+mod logical_identity_framing_tests {
+    use super::*;
+
+    #[test]
+    fn extracted_preimage_preserves_operation_keys() {
+        let maximum_namespace = "n".repeat(64);
+        let maximum_operation = "o".repeat(128);
+        for namespace in [
+            "operator",
+            "stripe-receivables-test",
+            maximum_namespace.as_str(),
+        ] {
+            for operation in [
+                "payment-1",
+                "allocation-pi_example",
+                maximum_operation.as_str(),
+            ] {
+                let parsed_namespace = OperatorNamespace::parse(namespace).unwrap();
+                let parsed_operation = LogicalOperationId::parse(operation).unwrap();
+                let mut reference = Sha256::new();
+                reference.update(b"auths.gateway-logical-operation/1\0");
+                reference.update(namespace.as_bytes());
+                reference.update([0]);
+                reference.update(operation.as_bytes());
+                let expected: [u8; 32] = reference.finalize().into();
+                assert_eq!(
+                    GatewayAttemptKey::for_operation(&parsed_namespace, &parsed_operation),
+                    GatewayAttemptKey(expected)
+                );
+            }
+        }
     }
 }

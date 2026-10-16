@@ -13,9 +13,29 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "6f763a28e2aa4e21376575549d05d9722d7c9f085d19fc6913277a6b9e20e30c";
+    "89cbb9637b4ac2abe8d319601c55f89a69723633f9f1eae4a78a29ef549fd0f4";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "scope_codec-run/qualification/aeneas/generated/scope_codec/Types.lean",
+        "formal/qualification/aeneas/generated/scope_codec/Types.lean",
+    ),
+    (
+        "scope_codec-run/qualification/aeneas/generated/scope_codec/Funs.lean",
+        "formal/qualification/aeneas/generated/scope_codec/Funs.lean",
+    ),
+    (
+        "scope_codec-run/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
+        "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
+    ),
+    (
+        "scope_codec-run/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean",
+    ),
+    (
+        "scope_codec-run/translation.json",
+        "formal/qualification/aeneas/generated/scope_codec/translation.json",
+    ),
     (
         "status_selection-run/qualification/aeneas/generated/status_selection/Types.lean",
         "formal/qualification/aeneas/generated/status_selection/Types.lean",
@@ -287,6 +307,8 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean",
     "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
     "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
@@ -310,6 +332,13 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/scope_codec/Types.lean",
+    "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/scope_codec/Funs.lean",
+    "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/scope_codec/translation.json",
     "formal/qualification/aeneas/generated/status_selection/Types.lean",
     "formal/qualification/aeneas/generated/status_selection/Funs.lean",
     "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
@@ -397,6 +426,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.ScopeCodec",
     "qualification.aeneas.cases.StatusSelection",
     "qualification.aeneas.cases.TemporalWitness",
     "qualification.aeneas.cases.SuiteAdapters",
@@ -416,6 +446,17 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "product/runtime/auths-gateway-kernel/src/frontier.rs",
+    "product/runtime/auths-gateway-kernel/src/identity.rs",
+    "product/runtime/auths-gateway/src/recipe.rs",
+    "product/runtime/auths-gateway/src/recipe/lower.rs",
+    "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+    "product/runtime/auths-gateway/src/recipe/tests.rs",
+    "product/runtime/auths-gateway/src/store.rs",
+    "core/crates/auths-model/src/principal_scheme_tests.rs",
+    "core/crates/auths-model/src/scope_constructor_tests.rs",
+    "core/crates/auths-codec/src/scope_decode_tests.rs",
+    "formal/qualification/aeneas/cases/ScopeCodec.lean",
     "core/crates/auths-registries/Cargo.toml",
     "core/crates/auths-registries/src/lib.rs",
     "core/crates/auths-registries/src/status_selection_tests.rs",
@@ -472,6 +513,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_codec",
+        "formal/qualification/aeneas/generated/scope_codec/translation.json",
+    ),
     (
         "auths_registries",
         "formal/qualification/aeneas/generated/status_selection/translation.json",
@@ -539,6 +584,8 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
@@ -1040,17 +1087,19 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     if qualification.qualified_delegations != expected_qualified_delegations() {
         return Err("qualified source delegation inventory drifted".to_owned());
     }
-    if qualification.case_modules.len() != 16
-        || qualification.translations.len() != 16
-        || qualification.external_models.len() != 23
+    if qualification.case_modules.len() != 17
+        || qualification.translations.len() != 17
+        || qualification.external_models.len() != 24
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 17
+        || qualification.template_axioms.len() != 19
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
 
     if qualification.codegen_normalizations
         != [
+            "scope-codec-qualified-discriminants-v1",
+            "scope-codec-recursive-loops-v1",
             "composition-qualified-discriminants-v1",
             "composition-positive-vector-v1",
             "composition-recursive-loops-v1",
@@ -1507,6 +1556,14 @@ fn synchronize_reviewed_bridges(
     update: bool,
 ) -> Result<(), String> {
     for (relative, expected) in [
+        (
+            "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
+            render_scope_codec_types_external(),
+        ),
+        (
+            "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean",
+            render_scope_codec_functions_external(),
+        ),
         (
             "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
             render_status_selection_functions_external(),
@@ -3036,6 +3093,17 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_codec::decode::status_trust",
+            &stable_llbc.join("auths_scope_codec.llbc"),
+            "core/crates/auths-codec/Cargo.toml",
+            &["--include", "auths_model"],
+        ),
+        root,
+        &[],
+    )?;
     let model_starts = [
         "auths_model::identifier::bounded_identifier_valid",
         "auths_model::inclusive_window_contains",
@@ -3150,7 +3218,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
+            "auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
             &stable_llbc.join("auths_gateway_kernel.llbc"),
             "product/runtime/auths-gateway-kernel/Cargo.toml",
             &[],
@@ -3265,6 +3333,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_scope_codec",
         "auths_registries",
         "auths_verifier",
         "auths_signature",
@@ -3299,6 +3368,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_scope_codec", "scope_codec"),
         ("auths_registries", "status_selection"),
         ("auths_verifier", "temporal_witness"),
         ("auths_signature", "suite_adapter"),
@@ -3339,13 +3409,20 @@ fn reproduce(
         ];
         if matches!(
             crate_name,
-            "auths_composition"
+            "auths_scope_codec"
+                | "auths_composition"
                 | "auths_signature_core"
                 | "auths_signature_core_p256"
                 | "auths_verifier"
                 | "auths_registries"
         ) {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
+        }
+        if subdir == "scope_codec" {
+            aeneas_arguments.splice(
+                0..0,
+                ["-namespace".to_owned(), "AuthsScopeCodec".to_owned()],
+            );
         }
         if subdir == "status_selection" {
             aeneas_arguments.splice(
@@ -3380,6 +3457,7 @@ fn reproduce(
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_scope_codec",
         "auths_registries",
         "auths_verifier",
         "auths_signature",
@@ -3407,6 +3485,7 @@ fn reproduce(
     normalize_p256_context(output)?;
     normalize_suite_adapter_context(output)?;
     normalize_temporal_context(output)?;
+    normalize_scope_codec_context(output)?;
     normalize_status_selection_context(output)?;
     Ok(())
 }
@@ -3798,6 +3877,53 @@ fn normalize_sha256_llbc_names(
         &output.join("sha256-run/foreign-name-normalization.json"),
         &ledger,
     )
+}
+
+fn normalize_scope_codec_context(output: &Path) -> Result<(), String> {
+    let path = output.join("scope_codec-run/qualification/aeneas/generated/scope_codec/Types.lean");
+    let source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    fs::write(path, scope_codec_type_context(&source)?).map_err(|error| error.to_string())
+}
+fn scope_codec_type_context(source: &str) -> Result<String, String> {
+    if source.matches("namespace AuthsScopeCodec\n").count() != 1
+        || source.matches("import Aeneas\n").count() != 1
+        || source.contains("qualified_discriminant")
+        || source.matches("@[discriminant isize").count() != 4
+    {
+        return Err("scope-codec type context input drifted".to_owned());
+    }
+    Ok(source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize"))
+}
+#[cfg(test)]
+mod scope_codec_context_tests {
+    use super::scope_codec_type_context;
+    #[test]
+    fn context_preserves_bodies_and_rejects_missing_repeated_or_changed_input() {
+        let reviewed =
+            include_str!("../../formal/qualification/aeneas/generated/scope_codec/Types.lean");
+        let raw = reviewed
+            .replace("import Auths.Support.Discriminant\n", "")
+            .replace("qualified_discriminant isize", "discriminant isize");
+        assert_eq!(
+            scope_codec_type_context(&raw).expect("reviewed context"),
+            reviewed
+        );
+        assert!(scope_codec_type_context(reviewed).is_err());
+        assert!(scope_codec_type_context(&raw.replace("namespace AuthsScopeCodec\n", "")).is_err());
+        assert!(
+            scope_codec_type_context(&raw.replacen(
+                "@[discriminant isize",
+                "@[rust_discriminant isize",
+                1
+            ))
+            .is_err()
+        );
+    }
 }
 
 fn normalize_status_selection_context(output: &Path) -> Result<(), String> {
@@ -4427,7 +4553,8 @@ def alloc.vec.Vec.as_slice {T : Type} (A : Type) (value : alloc.vec.Vec T) : Res
 def alloc.vec.Vec.is_empty {T : Type} (A : Type) (value : alloc.vec.Vec T) : Result Bool :=
   ok value.val.isEmpty
 
--- The sole extracted call uses a stateless Unit closure for the digest key.
+-- The action call uses a stateless Unit closure for the digest key; the
+-- scope constructor reuses this model with a stateless identity key.
 -- This sorting model is sound only after proving purity and total-order laws
 -- for that concrete callback; it is not an arbitrary FnMut Rust algorithm model.
 private def insertKey {T K F : Type} (key : core.ops.function.FnMut F T K)
@@ -4471,6 +4598,53 @@ def core.option.Option.and_then {T U F : Type}
   match value with
   | none => ok none
   | some value => callback.call_once function value
+
+-- Public equations expose the existing reviewed key-sort model without
+-- duplicating or changing its algorithm. Downstream ordinary sorting uses
+-- only the stateless identity key and earns its comparison laws separately.
+namespace Auths.Codec.StdModel
+
+def insertKeyValues {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (item : T) (items : List T) :=
+  insertKey key order callback item items
+
+theorem insertKeyValues_nil {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (item : T) :
+    insertKeyValues key order callback item [] = ok ⟨[item], rfl⟩ := rfl
+
+theorem insertKeyValues_cons {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (item first : T) (rest : List T) :
+    insertKeyValues key order callback item (first :: rest) =
+      (do let (left, _) ← key.call_mut callback item
+          let (right, _) ← key.call_mut callback first
+          let comparison ← order.cmp left right
+          if comparison = .gt then
+            let inserted ← insertKeyValues key order callback item rest
+            ok ⟨first :: inserted.val, by simp [inserted.property]⟩
+          else ok ⟨item :: first :: rest, rfl⟩) := rfl
+
+def sortKeyValues {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (items : List T) :=
+  sortKey key order callback items
+
+theorem sortKeyValues_nil {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) :
+    sortKeyValues key order callback [] = ok ⟨[], rfl⟩ := rfl
+
+theorem sortKeyValues_cons {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (first : T) (rest : List T) :
+    sortKeyValues key order callback (first :: rest) =
+      (do let sorted ← sortKeyValues key order callback rest
+          let inserted ← insertKeyValues key order callback first sorted.val
+          ok ⟨inserted.val, by simp [inserted.property, sorted.property]⟩) := rfl
+
+theorem sort_by_key_values {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (input : Slice T) (callback : F) :
+    _root_.alloc.slice.Slice.sort_by_key key order input callback =
+      (do let output ← sortKeyValues key order callback input.val
+          ok ⟨output.val, by rw [output.property]; exact input.property⟩) := rfl
+
+end Auths.Codec.StdModel
 "##
     .to_owned()
 }
@@ -5313,4 +5487,52 @@ mod qualified_delegation_tests {
         assert!(suite_adapter_context(&format!("{source}{source}"), false).is_err());
         assert!(suite_adapter_context("def unreviewed := alternate", false).is_err());
     }
+}
+
+fn render_scope_codec_types_external() -> String {
+    r##"import qualification.aeneas.generated.codec.TypesExternal
+"##
+    .to_owned()
+}
+
+fn render_scope_codec_functions_external() -> String {
+    r##"import qualification.aeneas.generated.scope_codec.Types
+import qualification.aeneas.generated.codec.FunsExternal
+open Aeneas Aeneas.Std Result
+namespace AuthsScopeCodec
+abbrev Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from := _root_.Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from
+abbrev U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from := _root_.U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from
+abbrev core.option.Option.Some := @_root_.core.option.Option.Some
+abbrev core.option.Option.ok_or := @_root_.core.option.Option.ok_or
+abbrev core.option.Option.Insts.CoreCmpPartialEqOption.eq := @_root_.core.option.Option.Insts.CoreCmpPartialEqOption.eq
+abbrev core.result.Result.map := @_root_.core.result.Result.map
+abbrev core.result.Result.map_err := @_root_.core.result.Result.map_err
+abbrev core.str.converts.from_utf8 := _root_.core.str.converts.from_utf8
+abbrev core.str.Str.len := _root_.core.str.Str.len
+abbrev core.str.Str.is_empty := _root_.core.str.Str.is_empty
+abbrev core.str.Str.as_bytes := _root_.core.str.Str.as_bytes
+abbrev alloc.string.String.Insts.CoreCmpPartialEqString.eq := _root_.alloc.string.String.Insts.CoreCmpPartialEqString.eq
+abbrev alloc.string.String.Insts.CoreCmpOrd.cmp := _root_.alloc.string.String.Insts.CoreCmpOrd.cmp
+abbrev alloc.string.String.Insts.CoreConvertFromShared0Str.from := _root_.alloc.string.String.Insts.CoreConvertFromShared0Str.from
+abbrev alloc.vec.Vec.is_empty := @_root_.alloc.vec.Vec.is_empty
+
+def identityKey {T : Type} : core.ops.function.FnMut Unit T T := {
+  FnOnceInst := { call_once := fun _ value => ok value }
+  call_mut := fun _ value => ok (value, ())
+}
+
+/-- Ordinary sorting delegates to the previously reviewed stable key-sort
+    model using a pure, stateless identity key. String comparison laws and
+    totality are earned separately for the actual native Ord dictionary. -/
+def alloc.slice.Slice.sort {T : Type} (order : core.cmp.Ord T) (values : Slice T) : Result (Slice T) :=
+  _root_.alloc.slice.Slice.sort_by_key identityKey order values ()
+
+def core.ops.range.RangeInclusive.contains {Idx U : Type}
+    (_indexOrder : core.cmp.PartialOrd Idx Idx) (lowerOrder : core.cmp.PartialOrd Idx U)
+    (upperOrder : core.cmp.PartialOrd U Idx) (range : core.ops.range.RangeInclusive Idx) (item : U) : Result Bool := do
+  let lower ← lowerOrder.le range.start item
+  if lower then upperOrder.le item range.end else ok false
+abbrev core.result.Result.unwrap_or := @_root_.core.result.Result.unwrap_or
+end AuthsScopeCodec
+"##.to_owned()
 }

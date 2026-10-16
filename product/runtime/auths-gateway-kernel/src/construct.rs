@@ -1048,3 +1048,73 @@ mod tests {
         );
     }
 }
+
+/// Exact byte equality used when binding a source field name to its schema.
+#[must_use]
+pub fn field_name_equal(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut position = 0;
+    let mut equal = true;
+    while position < left.len() && equal {
+        equal = left[position] == right[position];
+        position += 1;
+    }
+    equal
+}
+
+/// Returns the first exact field-name position. The compiler supplies the
+/// unique schema names in the same order as verified argument projection.
+#[must_use]
+pub fn field_index(names: &[Vec<u8>], wanted: &[u8]) -> Option<usize> {
+    let mut position = 0;
+    let mut found = None;
+    while position < names.len() && found.is_none() {
+        if field_name_equal(&names[position], wanted) {
+            found = Some(position);
+        }
+        position += 1;
+    }
+    found
+}
+
+#[cfg(test)]
+mod field_binding_tests {
+    use super::{field_index, field_name_equal};
+    use alloc::vec;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn exact_field_binding_agrees_with_independent_iterator_oracle() {
+        let alphabet: &[&[u8]] = &[
+            b"",
+            b"id",
+            b"invoice_id",
+            b"payment_id",
+            b"ID",
+            &[0],
+            &[255],
+        ];
+        for length in 0..=5 {
+            for seed in 0..512_usize {
+                let mut word = seed;
+                let mut names = Vec::new();
+                for _ in 0..length {
+                    names.push(alphabet[word % alphabet.len()].to_vec());
+                    word /= alphabet.len();
+                }
+                for wanted in alphabet {
+                    let expected = names.iter().position(|name| name.as_slice() == *wanted);
+                    assert_eq!(field_index(&names, wanted), expected);
+                }
+            }
+        }
+        assert_eq!(field_index(&[vec![1], vec![2], vec![1]], &[1]), Some(0));
+        for left in alphabet {
+            for right in alphabet {
+                assert_eq!(field_name_equal(left, right), left == right);
+            }
+        }
+    }
+}

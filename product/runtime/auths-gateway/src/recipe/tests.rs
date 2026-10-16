@@ -1360,3 +1360,22 @@ proptest::proptest! {
         }
     }
 }
+
+#[test]
+fn compiler_refuses_duplicate_members_in_source_and_profile_lock() {
+    let (recipe, lock) = fixture("airtable");
+    let source_text = std::str::from_utf8(recipe).unwrap();
+    let source_value: Value = serde_json::from_slice(recipe).unwrap();
+    let service = serde_json::to_string(&source_value["service"]).unwrap();
+    let duplicate_source = source_text.replacen('{', &format!("{{\"service\":{service},"), 1);
+    assert_eq!(
+        CompiledRecipe::compile(duplicate_source.as_bytes(), lock).unwrap_err(),
+        GatewayRecipeError::InvalidSource
+    );
+    let lock_text = std::str::from_utf8(lock).unwrap();
+    let duplicate_lock = lock_text.replacen('{', "{\"service\":\"duplicate\",", 1);
+    assert_eq!(
+        CompiledRecipe::compile(recipe, duplicate_lock.as_bytes()).unwrap_err(),
+        GatewayRecipeError::InvalidProfileLock
+    );
+}

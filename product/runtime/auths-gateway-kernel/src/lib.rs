@@ -19,8 +19,12 @@ extern crate alloc;
 
 pub mod construct;
 pub mod deadline;
+pub mod identity;
 pub mod order;
 pub mod outcome;
 pub mod ratio;
 pub mod recovery;
 pub mod transition;
+
+/// Bounded slot-prefix search decisions; storage remains in the runtime.
+pub mod frontier;

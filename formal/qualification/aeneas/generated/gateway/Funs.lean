@@ -1286,6 +1286,102 @@ def construct.construct_credential_read
       body := (alloc.vec.Vec.new Std.U8)
     }
 
+/-- [auths_gateway_kernel::construct::field_name_equal]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/construct.rs', lines 1060:4-1063:5
+    Visibility: public -/
+@[rust_loop_body]
+def construct.field_name_equal_loop.body
+  (left : Slice Std.U8) (right : Slice Std.U8) (position : Std.Usize)
+  (equal : Bool) :
+  Result (ControlFlow (Std.Usize × Bool) Bool)
+  := do
+  let i := Slice.len left
+  if position < i
+  then
+    if equal
+    then
+      let i1 ← Slice.index_usize left position
+      let i2 ← Slice.index_usize right position
+      let position1 ← position + 1#usize
+      ok (cont (position1, i1 = i2))
+    else ok (done false)
+  else ok (done equal)
+
+/-- [auths_gateway_kernel::construct::field_name_equal]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/construct.rs', lines 1060:4-1063:5
+    Visibility: public -/
+@[rust_loop]
+def construct.field_name_equal_loop
+  (left : Slice Std.U8) (right : Slice Std.U8) (position : Std.Usize)
+  (equal : Bool) :
+  Result Bool
+  := do
+  loop
+    (fun (position1, equal1) => construct.field_name_equal_loop.body left right
+      position1 equal1)
+    (position, equal)
+
+/-- [auths_gateway_kernel::construct::field_name_equal]:
+    Source: 'product/runtime/auths-gateway-kernel/src/construct.rs', lines 1054:0-1065:1
+    Visibility: public -/
+def construct.field_name_equal
+  (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
+  let i := Slice.len left
+  let i1 := Slice.len right
+  if i != i1
+  then ok false
+  else construct.field_name_equal_loop left right 0#usize true
+
+/-- [auths_gateway_kernel::construct::field_index]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/construct.rs', lines 1073:4-1078:5
+    Visibility: public -/
+@[rust_loop_body]
+def construct.field_index_loop.body
+  (names : Slice (alloc.vec.Vec Std.U8)) (wanted : Slice Std.U8)
+  (position : Std.Usize) (found : Option Std.Usize) :
+  Result (ControlFlow (Std.Usize × (Option Std.Usize)) (Option Std.Usize))
+  := do
+  let i := Slice.len names
+  if position < i
+  then
+    let b := core.option.Option.is_none found
+    if b
+    then
+      let v ← Slice.index_usize names position
+      let s := alloc.vec.Vec.deref v
+      let b1 ← construct.field_name_equal s wanted
+      let found1 ← if b1
+                     then ok (some position)
+                     else ok found
+      let position1 ← position + 1#usize
+      ok (cont (position1, found1))
+    else ok (done found)
+  else ok (done found)
+
+/-- [auths_gateway_kernel::construct::field_index]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/construct.rs', lines 1073:4-1078:5
+    Visibility: public -/
+@[rust_loop]
+def construct.field_index_loop
+  (names : Slice (alloc.vec.Vec Std.U8)) (wanted : Slice Std.U8)
+  (position : Std.Usize) (found : Option Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun (position1, found1) => construct.field_index_loop.body names wanted
+      position1 found1)
+    (position, found)
+
+/-- [auths_gateway_kernel::construct::field_index]:
+    Source: 'product/runtime/auths-gateway-kernel/src/construct.rs', lines 1070:0-1080:1
+    Visibility: public -/
+@[reducible]
+def construct.field_index
+  (names : Slice (alloc.vec.Vec Std.U8)) (wanted : Slice Std.U8) :
+  Result (Option Std.Usize)
+  := do
+  construct.field_index_loop names wanted 0#usize none
+
 /-- [auths_gateway_kernel::deadline::intersect_entry_bounds]:
     Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 15:0-24:1
     Visibility: public -/
@@ -1317,6 +1413,128 @@ def deadline.entry_time_allows
          then ok bound.inclusive
          else ok false
   else ok false
+
+/-- [auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new]:
+    Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 16:4-21:5
+    Visibility: public -/
+def frontier.FrontierSearch.new
+  (bound : Std.U64) : Result frontier.FrontierSearch := do
+  ok { lower := 0#u64, upper := bound }
+
+/-- [auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::probe]:
+    Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 26:4-32:5
+    Visibility: public -/
+def frontier.FrontierSearch.probe
+  (self : frontier.FrontierSearch) : Result (Option Std.U64) := do
+  if self.lower < self.upper
+  then
+    let i ← self.upper - self.lower
+    let i1 ← i / 2#u64
+    let i2 ← self.lower + i1
+    ok (some i2)
+  else ok none
+
+/-- [auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::observe]:
+    Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 37:4-54:5
+    Visibility: public -/
+def frontier.FrontierSearch.observe
+  (self : frontier.FrontierSearch) (occupied : Bool) :
+  Result frontier.FrontierSearch
+  := do
+  let o ← frontier.FrontierSearch.probe self
+  match o with
+  | none => ok self
+  | some middle =>
+    if occupied
+    then let i ← middle + 1#u64
+         ok { self with lower := i }
+    else ok { self with upper := middle }
+
+/-- [auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::candidate]:
+    Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 59:4-61:5
+    Visibility: public -/
+def frontier.FrontierSearch.candidate
+  (self : frontier.FrontierSearch) : Result Std.U64 := do
+  ok self.lower
+
+/-- [auths_gateway_kernel::identity::valid_token]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/identity.rs', lines 17:4-22:5
+    Visibility: public -/
+@[rust_loop_body]
+def identity.valid_token_loop.body
+  (value : Slice Std.U8) (position : Std.Usize) (valid : Bool) :
+  Result (ControlFlow (Std.Usize × Bool) Bool)
+  := do
+  let i := Slice.len value
+  if position < i
+  then
+    if valid
+    then
+      let byte ← Slice.index_usize value position
+      let b ← construct.is_alphanumeric byte
+      let valid1 ←
+        if b
+        then ok true
+        else
+          if position > 0#usize
+          then
+            if byte = 46#u8
+            then ok true
+            else if byte = 95#u8
+                 then ok true
+                 else ok (byte = 45#u8)
+          else ok false
+      let position1 ← position + 1#usize
+      ok (cont (position1, valid1))
+    else ok (done false)
+  else ok (done valid)
+
+/-- [auths_gateway_kernel::identity::valid_token]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/identity.rs', lines 17:4-22:5
+    Visibility: public -/
+@[rust_loop]
+def identity.valid_token_loop
+  (value : Slice Std.U8) (position : Std.Usize) (valid : Bool) :
+  Result Bool
+  := do
+  loop
+    (fun (position1, valid1) => identity.valid_token_loop.body value position1
+      valid1)
+    (position, valid)
+
+/-- [auths_gateway_kernel::identity::valid_token]:
+    Source: 'product/runtime/auths-gateway-kernel/src/identity.rs', lines 11:0-24:1
+    Visibility: public -/
+def identity.valid_token
+  (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
+  let b ← core.slice.Slice.is_empty value
+  if b
+  then ok false
+  else
+    let i := Slice.len value
+    if i > maximum
+    then ok false
+    else identity.valid_token_loop value 0#usize true
+
+/-- [auths_gateway_kernel::identity::logical_operation_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/identity.rs', lines 30:0-35:1
+    Visibility: public -/
+def identity.logical_operation_preimage
+  (namespace1 : Slice Std.U8) (operation : Slice Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 34#usize [
+        97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8,
+        101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 108#u8, 111#u8, 103#u8, 105#u8,
+        99#u8, 97#u8, 108#u8, 45#u8, 111#u8, 112#u8, 101#u8, 114#u8, 97#u8,
+        116#u8, 105#u8, 111#u8, 110#u8, 47#u8, 49#u8, 0#u8
+        ]))
+  let output ← construct.copy_bytes s
+  let output1 ← construct.append_bytes output namespace1
+  let output2 ← alloc.vec.Vec.push output1 0#u8
+  construct.append_bytes output2 operation
 
 /-- [auths_gateway_kernel::order::start]:
     Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 387:0-393:1

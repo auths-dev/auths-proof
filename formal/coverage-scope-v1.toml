@@ -60,6 +60,11 @@ name = "the stateful gateway store backends"
 crates = ["product/stores/auths-stores"]
 
 [files]
+"product/runtime/auths-gateway-kernel/src/identity.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/frontier.rs" = "decision"
+"core/crates/auths-model/src/principal_scheme_tests.rs" = "test-support"
+"core/crates/auths-model/src/scope_constructor_tests.rs" = "test-support"
+"core/crates/auths-codec/src/scope_decode_tests.rs" = "test-support"
 "core/crates/auths-registries/src/status_selection_tests.rs" = "test-support"
 "core/crates/auths-verifier/src/temporal_tests.rs" = "test-support"
 "core/crates/auths-signature/src/lib.rs" = "crypto"

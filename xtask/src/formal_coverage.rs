@@ -4,16 +4,18 @@
 //!
 //! The scanner and the metrics are a port of study 006's reference scanner
 //! (`analysis/proof_coverage.py` in auths-research), with its definitions
-//! unchanged: what a function is, when it is translated, refined directly, or
+//! unchanged for historical fixtures: what a function is, when it is translated, refined directly, or
 //! in the refined closure (trait-instance records included), the two weights,
 //! and the five scopes. `reproduces_the_study_at_its_pinned_commit` holds the
 //! port to byte-identical output on the vendored inputs of the study's commit.
+//! Live version 2 uses canonical compiled statement constants for theorem
+//! mentions, so dot notation and pretty-printing cannot hide or invent edges.
 
 use crate::*;
 use std::cell::RefCell;
 use std::io::Read as _;
 
-pub(crate) const TOOL_VERSION: &str = "1";
+pub(crate) const TOOL_VERSION: &str = "2";
 pub(crate) const PIN: &str = "8bf2970c68ef01302a70b52861ecc256cf1bb06a";
 const QUALIFICATION: &str = "formal/qualification/aeneas/qualification.toml";
 pub(crate) const SCOPE_PATH: &str = "formal/coverage-scope-v1.toml";
@@ -1204,6 +1206,10 @@ fn lean_call_graph(
 pub(crate) struct AuditDeclaration {
     pub(crate) name: String,
     pub(crate) statement: String,
+    /// Canonical constants from Lean's compiled statement expression. Historic
+    /// study fixtures predate this field and retain their original scanner.
+    #[serde(default)]
+    pub(crate) statement_constants: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1227,12 +1233,22 @@ fn statement_mentions(
     let mut mentions: Vec<(String, Vec<String>)> = Vec::new();
     for declaration in &audit.declarations {
         let mut found = BTreeSet::new();
-        for identifier in lean_identifiers(&declaration.statement) {
-            let parts: Vec<&str> = identifier.split('.').collect();
-            for offset in 0..parts.len() {
-                if namespaces.contains(parts[offset]) {
-                    for name in resolve(&parts[offset..].join("."), &known, instances) {
-                        found.insert(owners[&name].clone());
+        if let Some(constants) = &declaration.statement_constants {
+            // Pretty printing may turn `Type.method value` into `value.method`.
+            // Only the compiled expression establishes the constant's identity.
+            for constant in constants {
+                for name in resolve(constant, &known, instances) {
+                    found.insert(owners[&name].clone());
+                }
+            }
+        } else {
+            for identifier in lean_identifiers(&declaration.statement) {
+                let parts: Vec<&str> = identifier.split('.').collect();
+                for offset in 0..parts.len() {
+                    if namespaces.contains(parts[offset]) {
+                        for name in resolve(&parts[offset..].join("."), &known, instances) {
+                            found.insert(owners[&name].clone());
+                        }
                     }
                 }
             }
@@ -2409,6 +2425,17 @@ pub(crate) fn publish(root: &Path) -> Result<Published, String> {
     let scope_text = tree.read(SCOPE_PATH)?;
     let scope = ScopeDefinition::parse(&scope_text)?;
     let audit_text = tree.read(AUDIT_PATH)?;
+    let compiled_audit: Audit = serde_json::from_str(&audit_text)
+        .map_err(|error| format!("invalid {AUDIT_PATH}: {error}"))?;
+    if compiled_audit
+        .declarations
+        .iter()
+        .any(|declaration| declaration.statement_constants.is_none())
+    {
+        return Err(format!(
+            "{AUDIT_PATH} live coverage requires canonical compiled statement constants; regenerate the assurance audit"
+        ));
+    }
     let measurement = measure(&tree, scope, &audit_text)?;
     if !measurement.scope.every_file_listed {
         return Err(format!("{SCOPE_PATH} must give every scoped file a role"));
@@ -3689,12 +3716,48 @@ mod tests {
         let audit = Audit { declarations: vec![AuditDeclaration {
             name: "both_statements".to_owned(),
             statement: "AuthsNativeSha256.hash.raw_sha256 bytes = auths_codec.hash.signing_preimage bytes".to_owned(),
+            statement_constants: None,
         }]};
         let mentions = statement_mentions(&audit, &translated, true);
         assert_eq!(mentions.len(), 2);
         for (_, claims) in mentions {
             assert_eq!(claims, vec!["both_statements"]);
         }
+    }
+
+    #[test]
+    fn compiled_constants_recognize_dot_notation_without_accepting_printed_spoofs() {
+        let translated = vec![Translated {
+            rust_name: "auths_kernel::{Search}::probe".to_owned(),
+            lean_name: "auths_kernel.Search.probe".to_owned(),
+            crate_name: "auths_kernel".to_owned(),
+            file: "source.rs".to_owned(),
+            begin_line: 1,
+            end_line: 1,
+            kind: "function",
+            funs_path: "native/Funs.lean".to_owned(),
+        }];
+        let audit = Audit {
+            declarations: vec![
+                AuditDeclaration {
+                    name: "dot_notation".to_owned(),
+                    statement: "state.probe = result".to_owned(),
+                    statement_constants: Some(vec!["auths_kernel.Search.probe".to_owned()]),
+                },
+                AuditDeclaration {
+                    name: "printed_spoof".to_owned(),
+                    statement: "auths_kernel.Search.probe = auths_kernel.Search.probe".to_owned(),
+                    statement_constants: Some(Vec::new()),
+                },
+            ],
+        };
+        assert_eq!(
+            statement_mentions(&audit, &translated, true),
+            vec![(
+                "auths_kernel.Search.probe".to_owned(),
+                vec!["dot_notation".to_owned()]
+            )]
+        );
     }
 
     fn pin_measurement() -> (Measurement, BTreeMap<String, Vec<u8>>) {

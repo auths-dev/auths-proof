@@ -1,3 +1,4 @@
+import Auths.Product.Frontier.Refinement
 import Auths.Product.Refinement.EntryDeadline
 import qualification.aeneas.generated.gateway.Funs
 
@@ -104,3 +105,9 @@ example : deadline.intersect_entry_bounds ⟨18446744073709551615#u64, true⟩
     ⟨18446744073709551615#u64, false⟩ = ok ⟨18446744073709551615#u64, false⟩ := rfl
 
 end qualification.aeneas.cases
+
+#check Auths.Product.Frontier.Refinement.start_exact
+#check Auths.Product.Frontier.Refinement.probe_exact
+#check Auths.Product.Frontier.Refinement.observe_exact
+#check Auths.Product.Frontier.Refinement.candidate_exact
+#check Auths.Product.Frontier.Refinement.source_work_bound

@@ -110,13 +110,6 @@ impl ProtocolVersion {
     }
 }
 
-fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<String, ModelError> {
-    if !identifier::bounded_identifier_valid(value, maximum) {
-        return Err(error);
-    }
-    Ok(String::from(value))
-}
-
 fn byte_slices_equal(left: &[u8], right: &[u8]) -> bool {
     left == right
 }
@@ -169,22 +162,12 @@ impl PrincipalId {
     /// its byte bound, contains whitespace/control characters, lacks a URI
     /// scheme, or uses a non-canonical scheme.
     pub fn parse(value: &str) -> Result<Self, ModelError> {
-        let parsed = parse_bounded(value, 512, ModelError::InvalidPrincipal)?;
-        let (scheme, remainder) = parsed.split_once(':').ok_or(ModelError::InvalidPrincipal)?;
-        let mut characters = scheme.chars();
-        if remainder.is_empty()
-            || !characters
-                .next()
-                .is_some_and(|character| character.is_ascii_lowercase())
-            || !characters.all(|character| {
-                character.is_ascii_lowercase()
-                    || character.is_ascii_digit()
-                    || matches!(character, '+' | '-' | '.')
-            })
+        if !identifier::bounded_identifier_valid(value, 512)
+            || !identifier::principal_scheme_valid(value)
         {
             return Err(ModelError::InvalidPrincipal);
         }
-        Ok(Self(parsed))
+        Ok(Self(String::from(value)))
     }
 
     /// Returns the canonical principal identifier.
@@ -2335,14 +2318,21 @@ impl StatusScopeAnchors {
     /// Returns [`ModelError::InvalidStatusSnapshot`] for an empty list, a
     /// repeated identifier, or more than [`HARD_MAX_TRUST_ANCHORS`] entries.
     pub fn new(mut anchors: Vec<TrustAnchorId>) -> Result<Self, ModelError> {
-        anchors.sort();
-        if anchors.is_empty()
-            || anchors.len() > HARD_MAX_TRUST_ANCHORS
-            || anchors.windows(2).any(|window| window[0] == window[1])
-        {
+        if anchors.is_empty() || anchors.len() > HARD_MAX_TRUST_ANCHORS {
             return Err(ModelError::InvalidStatusSnapshot);
         }
-        Ok(Self(anchors))
+        anchors.sort();
+        let mut position = 1;
+        let mut repeated = false;
+        while position < anchors.len() && !repeated {
+            repeated = anchors[position - 1] == anchors[position];
+            position += 1;
+        }
+        if repeated {
+            Err(ModelError::InvalidStatusSnapshot)
+        } else {
+            Ok(Self(anchors))
+        }
     }
 
     /// Returns the identifiers in ascending order.
@@ -6314,3 +6304,11 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "scope_constructor_tests.rs"]
+mod scope_constructor_tests;
+
+#[cfg(test)]
+#[path = "principal_scheme_tests.rs"]
+mod principal_scheme_tests;

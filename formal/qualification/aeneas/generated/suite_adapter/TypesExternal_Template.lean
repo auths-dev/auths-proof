@@ -14,7 +14,7 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 
 /-- [auths_model::SignatureSuiteId]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 127:8-127:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 120:8-120:33
     Name pattern: [auths_model::SignatureSuiteId]
     Visibility: public -/
 @[rust_type "auths_model::SignatureSuiteId"]

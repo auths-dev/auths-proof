@@ -76,7 +76,8 @@ def alloc.vec.Vec.as_slice {T : Type} (A : Type) (value : alloc.vec.Vec T) : Res
 def alloc.vec.Vec.is_empty {T : Type} (A : Type) (value : alloc.vec.Vec T) : Result Bool :=
   ok value.val.isEmpty
 
--- The sole extracted call uses a stateless Unit closure for the digest key.
+-- The action call uses a stateless Unit closure for the digest key; the
+-- scope constructor reuses this model with a stateless identity key.
 -- This sorting model is sound only after proving purity and total-order laws
 -- for that concrete callback; it is not an arbitrary FnMut Rust algorithm model.
 private def insertKey {T K F : Type} (key : core.ops.function.FnMut F T K)
@@ -120,3 +121,50 @@ def core.option.Option.and_then {T U F : Type}
   match value with
   | none => ok none
   | some value => callback.call_once function value
+
+-- Public equations expose the existing reviewed key-sort model without
+-- duplicating or changing its algorithm. Downstream ordinary sorting uses
+-- only the stateless identity key and earns its comparison laws separately.
+namespace Auths.Codec.StdModel
+
+def insertKeyValues {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (item : T) (items : List T) :=
+  insertKey key order callback item items
+
+theorem insertKeyValues_nil {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (item : T) :
+    insertKeyValues key order callback item [] = ok ⟨[item], rfl⟩ := rfl
+
+theorem insertKeyValues_cons {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (item first : T) (rest : List T) :
+    insertKeyValues key order callback item (first :: rest) =
+      (do let (left, _) ← key.call_mut callback item
+          let (right, _) ← key.call_mut callback first
+          let comparison ← order.cmp left right
+          if comparison = .gt then
+            let inserted ← insertKeyValues key order callback item rest
+            ok ⟨first :: inserted.val, by simp [inserted.property]⟩
+          else ok ⟨item :: first :: rest, rfl⟩) := rfl
+
+def sortKeyValues {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (items : List T) :=
+  sortKey key order callback items
+
+theorem sortKeyValues_nil {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) :
+    sortKeyValues key order callback [] = ok ⟨[], rfl⟩ := rfl
+
+theorem sortKeyValues_cons {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (callback : F) (first : T) (rest : List T) :
+    sortKeyValues key order callback (first :: rest) =
+      (do let sorted ← sortKeyValues key order callback rest
+          let inserted ← insertKeyValues key order callback first sorted.val
+          ok ⟨inserted.val, by simp [inserted.property, sorted.property]⟩) := rfl
+
+theorem sort_by_key_values {T K F : Type} (key : core.ops.function.FnMut F T K)
+    (order : core.cmp.Ord K) (input : Slice T) (callback : F) :
+    _root_.alloc.slice.Slice.sort_by_key key order input callback =
+      (do let output ← sortKeyValues key order callback input.val
+          ok ⟨output.val, by rw [output.property]; exact input.property⟩) := rfl
+
+end Auths.Codec.StdModel

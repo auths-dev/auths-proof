@@ -1035,19 +1035,35 @@ fn status_trust(
 ) -> Result<Vec<StatusTrustRule>, CodecError> {
     let length = array(decoder, limits.get(LimitKind::RegistryEntries))?;
     let mut rules = Vec::with_capacity(length);
-    for _ in 0..length {
-        map(decoder, 4)?;
-        key(decoder, 0)?;
-        let method = parse_text!(decoder, StatusMethodId)?;
-        key(decoder, 1)?;
-        let issuer = parse_text!(decoder, PrincipalId)?;
-        key(decoder, 2)?;
-        let sequence_floor = decoder.u64().map_err(decode_error)?;
-        key(decoder, 3)?;
-        let scope = status_scope(decoder, limits)?;
-        rules.push(StatusTrustRule::new(method, issuer, sequence_floor, scope));
+    let mut position = 0;
+    let mut failure = None;
+    while position < length && failure.is_none() {
+        match status_trust_rule(decoder, limits) {
+            Ok(rule) => rules.push(rule),
+            Err(error) => failure = Some(error),
+        }
+        position += 1;
     }
-    Ok(rules)
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(rules),
+    }
+}
+
+fn status_trust_rule(
+    decoder: &mut V1Decoder<'_>,
+    limits: &VerifierLimits,
+) -> Result<StatusTrustRule, CodecError> {
+    map(decoder, 4)?;
+    key(decoder, 0)?;
+    let method = parse_text!(decoder, StatusMethodId)?;
+    key(decoder, 1)?;
+    let issuer = parse_text!(decoder, PrincipalId)?;
+    key(decoder, 2)?;
+    let sequence_floor = decoder.u64().map_err(decode_error)?;
+    key(decoder, 3)?;
+    let scope = status_scope(decoder, limits)?;
+    Ok(StatusTrustRule::new(method, issuer, sequence_floor, scope))
 }
 
 /// Reads `{0: 0}` (own), `{0: 1, 1: [ids]}` (listed anchors), or `{0: 2}`
@@ -1072,14 +1088,27 @@ fn status_scope(
             key(decoder, 1)?;
             let length = array(decoder, limits.get(LimitKind::TrustAnchors))?;
             let mut anchors = Vec::with_capacity(length);
-            for _ in 0..length {
-                anchors.push(parse_text!(decoder, TrustAnchorId)?);
+            let mut position = 0;
+            let mut failure = None;
+            while position < length && failure.is_none() {
+                match status_scope_anchor(decoder) {
+                    Ok(anchor) => anchors.push(anchor),
+                    Err(error) => failure = Some(error),
+                }
+                position += 1;
             }
-            Ok(StatusScope::Anchors(StatusScopeAnchors::new(anchors)?))
+            match failure {
+                Some(error) => Err(error),
+                None => Ok(StatusScope::Anchors(StatusScopeAnchors::new(anchors)?)),
+            }
         }
         (2, 1) => Ok(StatusScope::AnyAnchor),
         _ => Err(CodecError::Malformed),
     }
+}
+
+fn status_scope_anchor(decoder: &mut V1Decoder<'_>) -> Result<TrustAnchorId, CodecError> {
+    parse_text!(decoder, TrustAnchorId)
 }
 
 fn principal_snapshot(
@@ -2511,3 +2540,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "scope_decode_tests.rs"]
+mod scope_decode_tests;

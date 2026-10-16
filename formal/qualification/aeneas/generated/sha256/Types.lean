@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 namespace AuthsNativeSha256
 
 /-- [auths_model::Digest]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 247:0-247:17
+    Source: 'core/crates/auths-model/src/lib.rs', lines 230:0-230:17
     Name pattern: [auths_model::Digest]
     Visibility: public -/
 @[reducible, rust_type "auths_model::Digest"]

@@ -45,7 +45,7 @@ structure auths_algebra_kernel.RootLinkage (Identity : Type) where
   grant_issuer : Identity
 
 /-- Trait declaration: [auths_model::CriticalExtensionLaws]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1120:0-1120:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1103:0-1103:31
     Name pattern: [auths_model::CriticalExtensionLaws]
     Visibility: public -/
 @[rust_trait "auths_model::CriticalExtensionLaws"]
@@ -54,7 +54,7 @@ structure auths_model.CriticalExtensionLaws (Self : Type) where
     Option (Slice Std.U8) → Result Bool
 
 /-- [auths_model::GrantAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1368:0-1368:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1351:0-1351:33
     Name pattern: [auths_model::GrantAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::GrantAuthorityView"]
@@ -74,7 +74,7 @@ structure auths_model.GrantAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ScopeAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1388:0-1388:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1371:0-1371:33
     Name pattern: [auths_model::ScopeAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ScopeAuthorityView"]
@@ -91,7 +91,7 @@ structure auths_model.ScopeAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ActionAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1596:0-1596:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1579:0-1579:34
     Name pattern: [auths_model::ActionAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ActionAuthorityView"]
@@ -106,7 +106,7 @@ structure auths_model.ActionAuthorityView where
   terminal_grant : Option auths_model.GrantId
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4938:0-4938:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4928:0-4928:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::DenialReason"]

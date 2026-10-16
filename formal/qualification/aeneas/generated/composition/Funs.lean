@@ -39,7 +39,7 @@ def auths_algebra_kernel.generated.threshold_counts
     else ok auths_algebra_kernel.generated.Truth.Denied
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 246:33-246:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 229:33-229:42
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -49,7 +49,7 @@ def auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq
   core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 self other
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 246:44-246:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 229:44-229:47
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp"]
@@ -60,7 +60,7 @@ def auths_model.Digest.Insts.CoreCmpOrd.cmp
   Array.Insts.CoreCmpOrd.cmp core.cmp.OrdU8 self other
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:41-248:50
     Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -72,7 +72,7 @@ def auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef.eq
   auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq self other
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:41-248:50
     Name pattern: [core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialEq<auths_model::ProofRef, auths_model::ProofRef>"]
@@ -82,7 +82,7 @@ def auths_model.ProofRef.Insts.CoreCmpPartialEqProofRef : core.cmp.PartialEq
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::ProofRef}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:37-248:39
     Name pattern: [auths_model::{core::cmp::Eq<auths_model::ProofRef>}::assert_fields_are_eq]
     Visibility: public -/
 @[rust_fun
@@ -92,7 +92,7 @@ def auths_model.ProofRef.Insts.CoreCmpEq.assert_fields_are_eq
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::ProofRef}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:37-248:39
     Name pattern: [core::cmp::Eq<auths_model::ProofRef>] -/
 @[reducible, rust_trait_impl "core::cmp::Eq<auths_model::ProofRef>"]
 def auths_model.ProofRef.Insts.CoreCmpEq : core.cmp.Eq auths_model.ProofRef
@@ -103,7 +103,7 @@ def auths_model.ProofRef.Insts.CoreCmpEq : core.cmp.Eq auths_model.ProofRef
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:52-248:55
     Name pattern: [auths_model::{core::cmp::Ord<auths_model::ProofRef>}::cmp]
     Visibility: public -/
 @[rust_fun "auths_model::{core::cmp::Ord<auths_model::ProofRef>}::cmp"]
@@ -114,7 +114,7 @@ def auths_model.ProofRef.Insts.CoreCmpOrd.cmp
   auths_model.Digest.Insts.CoreCmpOrd.cmp self other
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:57-248:67
     Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>}::partial_cmp]
     Visibility: public -/
 @[rust_fun
@@ -127,7 +127,7 @@ def auths_model.ProofRef.Insts.CoreCmpPartialOrdProofRef.partial_cmp
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:57-248:67
     Name pattern: [core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>] -/
 @[reducible, rust_trait_impl
   "core::cmp::PartialOrd<auths_model::ProofRef, auths_model::ProofRef>"]
@@ -139,7 +139,7 @@ def auths_model.ProofRef.Insts.CoreCmpPartialOrdProofRef : core.cmp.PartialOrd
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::ProofRef}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Source: 'core/crates/auths-model/src/lib.rs', lines 248:52-248:55
     Name pattern: [core::cmp::Ord<auths_model::ProofRef>] -/
 @[reducible, rust_trait_impl "core::cmp::Ord<auths_model::ProofRef>"]
 impl_def auths_model.ProofRef.Insts.CoreCmpOrd : core.cmp.Ord
@@ -151,7 +151,7 @@ impl_def auths_model.ProofRef.Insts.CoreCmpOrd : core.cmp.Ord
 }
 
 /-- [auths_model::{auths_model::AuthorizationPlan}::as_ref]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1878:4-1878:52
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1861:4-1861:52
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::as_ref]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AuthorizationPlan}::as_ref"]
@@ -175,7 +175,7 @@ def auths_model.AuthorizationPlan.as_ref
 mutual
 
 /-- [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1904:12-1908:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1887:12-1891:9
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members] -/
 @[rust_loop, rust_fun
   "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members"]
@@ -209,7 +209,7 @@ def auths_model.AuthorizationPlan.validate.walk_members_loop
 partial_fixpoint
 
 /-- [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1897:8-1903:35
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1880:8-1886:35
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate::walk_members] -/
 @[rust_fun
   "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members"]
@@ -230,7 +230,7 @@ def auths_model.AuthorizationPlan.validate.walk_members
 partial_fixpoint
 
 /-- [auths_model::{auths_model::AuthorizationPlan}::validate::walk]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1910:8-1916:35
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1893:8-1899:35
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate::walk] -/
 @[rust_fun "auths_model::{auths_model::AuthorizationPlan}::validate::walk"]
 def auths_model.AuthorizationPlan.validate.walk
@@ -363,7 +363,7 @@ partial_fixpoint
 end
 
 /-- [auths_model::{auths_model::AuthorizationPlan}::validate]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1955:8-1957:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1938:8-1940:9
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -384,7 +384,7 @@ def auths_model.AuthorizationPlan.validate_loop
 partial_fixpoint
 
 /-- [auths_model::{auths_model::AuthorizationPlan}::validate]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1896:4-1896:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1879:4-1879:84
     Name pattern: [auths_model::{auths_model::AuthorizationPlan}::validate]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::AuthorizationPlan}::validate"]
@@ -416,7 +416,7 @@ def auths_model.AuthorizationPlan.validate
       residual
 
 /-- [auths_model::{auths_model::Requirement}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5007:8-5007:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4997:8-4997:39
     Name pattern: [auths_model::{auths_model::Requirement}::code_order] -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_order"]
 def auths_model.Requirement.code_order
@@ -445,7 +445,7 @@ def auths_model.Requirement.code_order
   | auths_model.Requirement.ApprovalUnavailable => ok 0#u8
 
 /-- [auths_model::{auths_model::Requirement}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5003:8-5003:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4993:8-4993:61
     Name pattern: [auths_model::{auths_model::Requirement}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::Requirement}::code_precedes"]
@@ -458,7 +458,7 @@ def auths_model.Requirement.code_precedes
   ok (i < i1)
 
 /-- [auths_model::{auths_model::DenialReason}::code_order]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5007:8-5007:39
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4997:8-4997:39
     Name pattern: [auths_model::{auths_model::DenialReason}::code_order] -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_order"]
 def auths_model.DenialReason.code_order
@@ -512,7 +512,7 @@ def auths_model.DenialReason.code_order
   | auths_model.DenialReason.ApprovalThresholdNotMet => ok 4#u8
 
 /-- [auths_model::{auths_model::DenialReason}::code_precedes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5003:8-5003:61
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4993:8-4993:61
     Name pattern: [auths_model::{auths_model::DenialReason}::code_precedes]
     Visibility: public -/
 @[rust_fun "auths_model::{auths_model::DenialReason}::code_precedes"]
