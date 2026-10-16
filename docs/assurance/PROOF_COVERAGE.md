@@ -7,7 +7,7 @@
 At the commit that contains this document, 133 of 1,045 decision-scope functions (12.7%) and 1,814 of 11,527 code lines (15.7%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `7438f6c55da6d044b7fb26fbed072b417db82a3ad0be0c245126ea1a9d58584c` over the 120 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `bc23f7b72a96bb27efb440622cf179de530d0ff25ecdfd9ff497c1ded528e88b` over the 120 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `241bde8f214ea60f057b6ab4559f12f32bd3a5b6d942bdef33e460681443c0a2`. Figures computed under a different role table are not comparable.
@@ -193,7 +193,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `ae65747a01135e20b619395646fba95705a60038b1b50cf2a62c8a577c65a60f`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `4827210d2a45aaa1a82d85d5759063b5e3d8dc11c7b55d275ab5d43fb162f5ed`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -206,7 +206,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 124 exact, 12 verdict-exact, 65 partial, 72 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 124 exact, 12 verdict-exact, 67 partial, 74 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 127 of 1,045 functions (12.2%) and 1,565 of 11,527 code lines (13.6%).
 
@@ -453,6 +453,8 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Refinement.translated_inexpressible_absent_request_is_covered` | partial |
 | `Auths.Refinement.translated_rust_refines_rich_spec` | exact |
 | `Auths.Rich.Mutations.profile_version_equality` | case |
+| `Auths.StatusSelection.AnchorExamples.other_anchor_hidden` | case |
+| `Auths.StatusSelection.AnchorExamples.own_anchor_active` | case |
 | `Auths.StatusSelection.Examples.active_selected_horizon` | case |
 | `Auths.StatusSelection.Examples.latest_ties_conservatively_revoke` | case |
 | `Auths.StatusSelection.Examples.missing_uses_snapshot_window` | case |
@@ -464,10 +466,12 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.StatusSelection.Examples.wrong_method_refused` | case |
 | `Auths.StatusSelection.freshness_exact` | partial |
 | `Auths.StatusSelection.grant_loop_refines` | partial |
+| `Auths.StatusSelection.grant_method_all_views` | partial |
 | `Auths.StatusSelection.grant_method_approver_independent` | partial |
 | `Auths.StatusSelection.grant_method_approver_refines` | partial |
 | `Auths.StatusSelection.grant_selector_approver_refines` | partial |
 | `Auths.StatusSelection.principal_loop_refines` | partial |
+| `Auths.StatusSelection.principal_method_all_views` | partial |
 | `Auths.StatusSelection.principal_method_approver_independent` | partial |
 | `Auths.StatusSelection.principal_method_approver_refines` | partial |
 | `Auths.StatusSelection.principal_selector_approver_refines` | partial |

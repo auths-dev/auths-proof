@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "678c19c1155869c45fed1cb7e849c147bca5bde0e07df567f413487335ab6669",
+  "digest": "0e96ae702036cbe01af7fe60060ac560482b17fc4f473bb24e653ca35a6b5b60",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -561,7 +561,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/StatusSelection.lean",
-      "sha256": "aab552c496a4c97dc2a4eedb3c5663787d3bcf6a25c8642ba22e72b397b1ef94"
+      "sha256": "4338ad7661a6a6617aef295397a1f7bbb192e2ab5488465f076880fec38b6faa"
     },
     {
       "path": "formal/qualification/aeneas/cases/Stores.lean",
@@ -577,7 +577,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "9856e7e907981b9844f9b1654bca02a13261f07a887c0eec183b500d988f9a7e"
+      "sha256": "cbf1d2b4df466844e3a9e0047c1d4649ad9a3a750c1c2115e7b1f8bdabade88d"
     },
     {
       "path": "formal/tools/SourceClosure.lean",
@@ -969,7 +969,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "72565265dfef057d23c379419a077b842f317ebacf918c453162ef8f7e035140"
+      "sha256": "2cb10b2fe2485bc306c2ee662c836aa2b2f0242e7bc0a2a1418396cb0385fc99"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -981,7 +981,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "c8094b2e06b5b4418a5edf117359d705ecbf39b31e9fc117dc01863b7e941b00"
+      "sha256": "653a15b6ee063ab54bf050ac211e28f2231a003f0e7a08eb74c6aa276e10ccdb"
     },
     {
       "path": "xtask/src/fuzz.rs",

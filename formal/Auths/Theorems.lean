@@ -1,3 +1,4 @@
+import Auths.Verifier.StatusAnchorExamples
 import Auths.Verifier.StatusSemantics
 import Auths.Verifier.StatusExamples
 import Auths.Verifier.TemporalExamples
@@ -52,6 +53,16 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.StatusSelection.Search.search_loop,
+    `Auths.StatusSelection.Search.scope_contains,
+    `Auths.StatusSelection.visibility_refines,
+    `Auths.StatusSelection.principal_method_all_views,
+    `Auths.StatusSelection.grant_method_all_views,
+    `Auths.StatusSelection.AnchorExamples.first_listed_anchor,
+    `Auths.StatusSelection.AnchorExamples.last_listed_anchor,
+    `Auths.StatusSelection.AnchorExamples.unlisted_anchor_refused,
+    `Auths.StatusSelection.AnchorExamples.own_anchor_active,
+    `Auths.StatusSelection.AnchorExamples.other_anchor_hidden,
     `Auths.StatusSelection.Algebra.evaluateScan_eq_evaluate,
     `Auths.StatusSelection.principal_method_approver_independent,
     `Auths.StatusSelection.grant_method_approver_independent,

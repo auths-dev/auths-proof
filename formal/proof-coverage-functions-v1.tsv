@@ -964,8 +964,8 @@ core/crates/auths-registries/src/lib.rs	453	470	18	ExactStatusMethod::freshness	
 core/crates/auths-registries/src/lib.rs	474	476	3	ExactStatusMethod::id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/lib.rs	478	480	3	ExactStatusMethod::configuration_id	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/lib.rs	482	484	3	ExactStatusMethod::maximum_work_units	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/lib.rs	486	502	17	ExactStatusMethod::principal	core/crates/auths-registries	decision	1	0	1	1	1	1	11
-core/crates/auths-registries/src/lib.rs	504	520	17	ExactStatusMethod::grant	core/crates/auths-registries	decision	1	0	1	1	1	1	2
+core/crates/auths-registries/src/lib.rs	486	502	17	ExactStatusMethod::principal	core/crates/auths-registries	decision	1	0	1	1	1	1	14
+core/crates/auths-registries/src/lib.rs	504	520	17	ExactStatusMethod::grant	core/crates/auths-registries	decision	1	0	1	1	1	1	3
 core/crates/auths-registries/src/lib.rs	524	539	16	status_sequence_floor	core/crates/auths-registries	decision	1	0	1	1	1	1	1
 core/crates/auths-registries/src/lib.rs	541	640	98	select_principal_from_snapshot	core/crates/auths-registries	decision	1	0	1	1	1	1	2
 core/crates/auths-registries/src/lib.rs	642	739	96	select_grant_from_snapshot	core/crates/auths-registries	decision	1	0	1	1	1	1	2

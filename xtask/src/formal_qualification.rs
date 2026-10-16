@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "c3d4b182c8c26415faa93854c39ccdc22d59773ac6f9a5877cc4135353ca5405";
+    "6f763a28e2aa4e21376575549d05d9722d7c9f085d19fc6913277a6b9e20e30c";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (

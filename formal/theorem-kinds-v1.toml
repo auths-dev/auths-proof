@@ -12,6 +12,10 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.StatusSelection.principal_method_all_views" = "partial"
+"Auths.StatusSelection.grant_method_all_views" = "partial"
+"Auths.StatusSelection.AnchorExamples.own_anchor_active" = "case"
+"Auths.StatusSelection.AnchorExamples.other_anchor_hidden" = "case"
 "Auths.StatusSelection.principal_method_approver_independent" = "partial"
 "Auths.StatusSelection.grant_method_approver_independent" = "partial"
 # Imported transparent Auths-model bodies remain audited source components;

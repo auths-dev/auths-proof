@@ -985,3 +985,38 @@ scope binary search, then full verifier evidence authentication/dispatch and
 selection-to-temporal-witness composition. The pure all-view equivalence does
 not itself prove that the native anchor-view calls realize that model. E1–E5
 and M6 remain open under §10 and the remaining-program table in §13.5.
+
+
+### 13.9 All-view status source results — 16 October 2026
+
+Both actual port methods now refine the independent specification in every
+view, under the ordered listed-scope representation invariant. The actual
+Auths lookup wrapper returns exact membership; its transparent pinned-standard
+binary-search model has a kernel-checked terminating interval/membership proof
+and bounded result index. Source visibility covers own, listed and universal
+scopes. The unrestricted represented-input approval-view claims remain intact.
+
+Five new cases cover first/last listed anchors, absent membership, active
+status through the issuer own anchor, and hidden status through a different
+anchor. The final two quantify over unrelated anchor fields. Their synthetic
+status evidence proves selection behavior, not authenticity.
+
+Fresh qualification passes **671 compiled claims**, all 661 preceding complete
+records unchanged, **17/17 cases**, **23 reviewed models**, zero unreviewed
+models and zero compiled external axioms. Two fresh translations match exactly.
+Production closure:
+`0e96ae702036cbe01af7fe60060ac560482b17fc4f473bb24e653ca35a6b5b60`.
+Only permitted foundations occur. Exact-revision hosted gates remain required.
+The preceding 661-claim revision is in hosted verification at main run
+[38944751348](https://github.com/auths-dev/auths-proof/actions/runs/38944751348).
+
+The next source slice derives ordered-scope validity from the actual
+constructor/decoder. A disposable extraction of the current scope decoder
+reached the constructor but was refused for early loop returns and the
+constructor's windows/any iterator; no failed artifact is admitted. Prepare a
+direct bounded loop cutover, independently comparing complete constructor
+results and decoder result/cursor behavior against test-only former code.
+Reject oversized constructor lists before sorting. Keep accepted values,
+canonical ordering, stable errors and binary-search membership unchanged.
+Then prove constructor validity and connect it to these conditional all-view
+statements. Full E1–E5/M6 completion still follows §10 and §13.5.

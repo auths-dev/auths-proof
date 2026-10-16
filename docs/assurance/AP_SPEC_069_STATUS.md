@@ -976,3 +976,32 @@ still described the differential test file before its final lint cleanup.
 The generated artifact is refreshed in this checkpoint; its focused native
 check must pass again. No gate or checksum input is excluded to accommodate
 the change. Other hosted results for that revision remain separately recorded.
+
+
+## All-view status source refinement on ordered scopes
+
+The actual principal and grant ports now refine the independent status
+specification in every view. The proof includes the existing binary-search
+lookup: its reviewed pinned-standard model terminates, preserves membership
+through each interval reduction, and returns a bounded index; the actual Auths
+contains wrapper returns exact list membership. Actual visibility then agrees
+with the per-issuer OwnAnchor, listed-anchor and AnyAnchor rules.
+
+The all-view statements require ordered listed-anchor scopes. This is a
+legitimate representation invariant, not a desired-result premise; derivation
+from the actual sorting/validation constructor remains open. Approval-view
+statements retain their earlier unrestricted represented-input contracts.
+Five new cases check first/last listed anchors, an absent anchor, active status
+through the issuer own anchor and hidden status through another anchor. The
+last two quantify over unrelated anchor fields and assert selection only;
+their synthetic evidence is not an authentication witness.
+
+Fresh exact-source qualification passes 671 claims, all 661 preceding complete
+records unchanged, 17/17 cases, 23 reviewed models, zero unreviewed models and
+zero compiled external axioms. Two clean translations are byte-identical.
+Production closure:
+`0e96ae702036cbe01af7fe60060ac560482b17fc4f473bb24e653ca35a6b5b60`.
+Only the three permitted foundational axioms occur. Exact-revision hosted
+verification remains required. Constructor validity, evidence authenticity,
+closed dispatch, full verifier composition and runtime/history consumption
+remain separate E1/E2/E4/M6 obligations.

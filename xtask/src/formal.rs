@@ -2043,6 +2043,10 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
+        if declaration.name == "Auths.StatusSelection.Search.search_loop" {
+            claim.claim_text = "The transparent pinned standard-search model terminates on a positive, bounded sorted interval with sufficient fuel; its exact success Boolean is target membership in that interval and its returned index stays within the interval endpoint.".to_owned();
+            claim.scope = "Reviewed standard-library model proof for arbitrary finite String lists under a genuine ordering invariant, index bounds and sufficient fuel. It proves no Rust standard-library machine code or sorting constructor. Actual Auths contains/visibility/port source binding is earned by separate audited statements; evidence authenticity, constructor validity and complete E2/M6 remain open.".to_owned();
+        }
         if declaration.name == "Auths.StatusSelection.Algebra.evaluateScan_eq_evaluate" {
             claim.claim_text = "For every finite input, subject equality operation, view and policy, the operational accumulator equals the independent filter/max/tie-set status specification, including the complete decision and horizon.".to_owned();
             claim.scope = "Pure semantic equivalence without an input-validity or desired-result premise. The proof uses attained maxima, complete tie sets, associative record combination and exact minimum horizons. This module imports no generated Rust. Native source binding is earned only by separately audited port statements; anchor-view source correspondence, evidence authenticity and full E2/M6 remain open.".to_owned();
@@ -2528,9 +2532,63 @@ fn status_selection_refinement_metadata(declaration: &str) -> Option<ProductionR
     const RESIDUAL: &[&str] = &[
         "Trust Lean's kernel, the pinned Rust/Charon/Aeneas/Lean compiler boundary, permitted foundations and reviewed standard-library models. Every Auths helper, getter, comparison and selector body in this unit is translated with no opaque Auths algorithm. Standard dictionary adapters have unconditional compiled delegation equalities; no generated function body is rewritten.",
         "Inputs are represented finite bounded slices and 64-bit values. The loop remaining-list relation is an internal representation invariant established at entry. Totality is in qualified Result semantics, not a full verifier work bound, physical memory, host-clock or transport guarantee.",
-        "The result-complete principal/grant selector statements here fix the view to Approver and refine an implementation-facing pure scan. The separately audited semantic bridge relates that scan to the independent filter/maximum/tie-set specification. Anchor views, sorted-scope binary-search membership, actual evidence authentication, registry dispatch, caller witness selection, complete verification and runtime entry/history consumption remain separate AP-SPEC-069 obligations. No whole E2/E4/M3/M6 milestone is closed.",
+        "Operational approval-view claims retain their original boundary. The separate semantic bridge proves filter/max/tie-set adequacy. All-view source claims additionally require ordered listed-anchor scopes, and their examples discharge that condition. Derivation of that representation invariant from the actual constructor, evidence authentication, registry dispatch, caller witness selection, complete verification and runtime entry/history consumption remain separate AP-SPEC-069 obligations. No whole E2/E4/M3/M6 milestone is closed.",
     ];
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.StatusSelection.Search.scope_contains" => (
+            "The actual listed-anchor contains wrapper terminates and returns exact list membership on an ordered represented scope.",
+            &["auths_model::{auths_model::StatusScopeAnchors}::contains"],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.visibility_refines" => (
+            "The actual issuer visibility function terminates and matches the independent per-issuer scope rules in every view on ordered listed scopes.",
+            &["auths_model::status_issuer_visible"],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.principal_method_all_views" => (
+            "The actual principal port terminates and returns the independent filter/max/tie-set decision and horizon in every view on ordered listed scopes.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.grant_method_all_views" => (
+            "The actual grant port terminates and returns the independent filter/max/tie-set decision and horizon in every view on ordered listed scopes.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant",
+            ],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.AnchorExamples.first_listed_anchor" => (
+            "The actual sorted-scope lookup has the displayed exact present or absent result on the concrete two-anchor carrier.",
+            &["auths_model::{auths_model::StatusScopeAnchors}::contains"],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.AnchorExamples.last_listed_anchor" => (
+            "The actual sorted-scope lookup has the displayed exact present or absent result on the concrete two-anchor carrier.",
+            &["auths_model::{auths_model::StatusScopeAnchors}::contains"],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.AnchorExamples.unlisted_anchor_refused" => (
+            "The actual sorted-scope lookup has the displayed exact present or absent result on the concrete two-anchor carrier.",
+            &["auths_model::{auths_model::StatusScopeAnchors}::contains"],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.AnchorExamples.own_anchor_active" => (
+            "The actual principal port admits active status through its issuer own anchor and hides that same evidence from a different anchor, with the displayed exact horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+        "Auths.StatusSelection.AnchorExamples.other_anchor_hidden" => (
+            "The actual principal port admits active status through its issuer own anchor and hides that same evidence from a different anchor, with the displayed exact horizon.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "The displayed source contract or concrete witness. General all-view results require the legitimate ordered-scope representation invariant, not an assumed source result; this checkpoint does not yet derive that invariant from the actual sorting/validation constructor. Standard search follows the pinned size/base/half transitions and has a kernel-checked total membership proof on ordered scopes. Evidence authenticity, complete constructor closure, closed dispatch, full verification and runtime/history consumption remain separate E1/E2/E4/M6 obligations. Synthetic evidence carriers in examples assert selection, not authenticity.",
+        ),
+
         "Auths.StatusSelection.principal_method_approver_independent" => (
             "The actual principal approval-view port terminates and returns the exact independent filter/max/tie-set decision and horizon, without a source-success premise.",
             &[
