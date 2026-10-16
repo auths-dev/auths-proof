@@ -76,7 +76,7 @@ pub const MAX_LISTED_VALUES: usize = 16;
 /// Longest listed value, in bytes.
 pub const MAX_LISTED_VALUE_BYTES: usize = 64;
 /// Largest number of bounded links one authorized branch may carry.
-pub const MAX_BOUNDED_LINKS: usize = 16;
+pub const MAX_BOUNDED_LINKS: usize = auths_gateway_kernel::reservation_batch::MAX_COUNTERS_PER_KIND;
 
 const MAX_POLICY_BYTES: usize = auths_model::MAX_BOUNDED_POLICY_BYTES;
 
@@ -817,15 +817,14 @@ fn chain_counters(
         .filter_map(|(link, partition)| {
             let limit = link.policy.sum_limit?;
             let count = count_counter_key(namespace, &link.subject, window_seconds, index);
-            let slots = counts
-                .iter()
-                .find(|counter| counter.key == count)
-                .map_or(0, |counter| counter.capacity);
-            Some(SumCounter {
-                key: sum_counter_key(namespace, &link.subject, partition, window_seconds, index),
-                capacity: limit,
-                slots,
-            })
+            Some(
+                auths_gateway_kernel::counter_aggregation::linked_sum_contribution(
+                    &counts,
+                    &count,
+                    sum_counter_key(namespace, &link.subject, partition, window_seconds, index),
+                    limit,
+                ),
+            )
         })
         .collect();
     let mut sums = auths_gateway_kernel::counter_aggregation::aggregate_sum(&sum_contributions);

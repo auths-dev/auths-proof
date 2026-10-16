@@ -14,12 +14,13 @@ declaration name, statement, transitive axiom set, source closure, and required
 evidence. This prevents a renamed, weakened, deleted, or `sorry`-backed theorem
 from satisfying the repository gate through a textual look-alike.
 
-The latest qualified development checkpoint has 798 compiled claims, 18/18
+The latest qualified development checkpoint has 832 compiled claims, 18/18
 qualification cases, 25 reviewed external models and two byte-identical full
-translation reproductions. Its latest batch connects shipping count/sum
-aggregation and checked conflict retries to independent models, after exact
-counter/slot framing, principal/scope construction, field/identity binding,
-finite claim/budget histories and frontier-search proofs. See the
+translation reproductions. Its latest batch proves complete claim/count/sum construction,
+exact decoded cumulative-record validation, count-to-sum slot coupling and
+complete ordered reservation admission, including earned vector shapes and
+sum overflow safety. Earlier components cover framing, principal/scope
+construction, field/identity binding, admission histories and frontier search. See the
 [implementation ledger](../docs/assurance/AP_SPEC_069_STATUS.md) for exact scope
 and remaining work. Hosted evidence on the pushed revision remains required.
 

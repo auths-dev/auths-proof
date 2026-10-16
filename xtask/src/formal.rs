@@ -2553,6 +2553,72 @@ fn expanded_batch_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, bool)> {
     let (claim_text, rust_symbol, gateway) = match declaration {
+        "Auths.Product.CounterAggregation.Refinement.count_capacity_spec" => (
+            "The complete actual count-capacity lookup is total and returns exactly the independent first-key capacity, with zero for an absent key, on every represented input including duplicate keys.",
+            "auths_gateway_kernel::counter_aggregation::count_capacity",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.linked_sum_contribution_exact" => (
+            "The actual sum contribution receives exactly the count-key lookup capacity as its slot bound while retaining its own sum ID and capacity. Both IDs are explicit inputs; their authenticated derivation is separate.",
+            "auths_gateway_kernel::counter_aggregation::linked_sum_contribution",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum" => (
+            "Composing the actual count aggregation and linked sum constructor earns the exact independent per-key minimum as the sum slot bound on the admitted sixteen-link domain. Input uniqueness and a precomputed minimum are not assumed; caller ID derivation remains separate.",
+            "auths_gateway_kernel::counter_aggregation::linked_sum_contribution",
+            true,
+        ),
+        "Auths.Product.SlotRecord.Refinement.counter_hex_matches_spec" => (
+            "The complete actual lowercase counter-hex comparison returns exactly the independent full-length digit-pair identity predicate on every represented input; no canonicality or successful comparison is assumed.",
+            "auths_gateway_kernel::slot_record::counter_hex_matches",
+            true,
+        ),
+        "Auths.Product.SlotRecord.Refinement.validate_cumulative_exact" => (
+            "The complete actual decoded cumulative-slot validator is total and returns exactly the independent schema/counter/slot/delta relation on every represented input. JSON parsing and storage integrity remain separate.",
+            "auths_gateway_kernel::slot_record::validate_cumulative",
+            true,
+        ),
+        "Auths.Product.SlotRecord.Refinement.source_accepted_binds_record" => (
+            "Every accepted actual decoded cumulative record binds the exact schema bytes, canonical lowercase counter ID, requested slot and delta bounded by the returned cumulative value; no accepted identity is assumed.",
+            "auths_gateway_kernel::slot_record::validate_cumulative",
+            true,
+        ),
+        "Auths.Product.SlotRecord.Refinement.source_invalid_record_refused" => (
+            "Every actual decoded record outside the independent exact identity and numeric relation returns None. Malformed storage bytes and backend semantics remain separate boundaries.",
+            "auths_gateway_kernel::slot_record::validate_cumulative",
+            true,
+        ),
+        "Auths.Product.SlotBatch.Refinement.count_loop_exact" => (
+            "The actual count-slot construction loop appends exactly every counter/frontier pair in input order on its checked size/alignment domain. This scoped helper result does not alone claim complete construction.",
+            "auths_gateway_kernel::reservation_batch::build_batch",
+            true,
+        ),
+        "Auths.Product.SlotBatch.Refinement.sum_loop_exact" => (
+            "The actual sum-slot construction loop appends exactly the independent sum descriptions, or returns no batch on overflow after any prefix, on its checked size/alignment domain.",
+            "auths_gateway_kernel::reservation_batch::build_batch",
+            true,
+        ),
+        "Auths.Product.SlotBatch.Refinement.build_exact" => (
+            "The complete actual slot-batch constructor is total on every represented input and returns exactly the independent claim/count/sum descriptions, rejecting shape/cardinality mismatches and cumulative overflow without any desired-result or length precondition.",
+            "auths_gateway_kernel::reservation_batch::build_batch",
+            true,
+        ),
+        "Auths.Product.SlotBatch.Refinement.source_claim_first" => (
+            "Every successful actual batch begins with the exact logical-operation claim key; no claim-first result is assumed.",
+            "auths_gateway_kernel::reservation_batch::build_batch",
+            true,
+        ),
+        "Auths.Product.SlotBatch.Refinement.source_complete_entry_count" => (
+            "Every successful actual batch contains exactly one claim and all required count/sum entries, with at most 33 descriptions; malformed vector shapes cannot silently truncate the reservation.",
+            "auths_gateway_kernel::reservation_batch::build_batch",
+            true,
+        ),
+        "Auths.Product.SlotBatch.Refinement.source_invalid_shape_refused" => (
+            "Every actual batch construction with an invalid length/cardinality shape returns None. It creates no partial descriptor batch; execution authority and actual backend atomicity are separate.",
+            "auths_gateway_kernel::reservation_batch::build_batch",
+            true,
+        ),
+
         "Auths.Product.ReservationRetry.Refinement.retry_target_exact" => (
             "The actual batch-conflict interpreter returns exactly the independent claim/count/sum retry plan on every represented input, including invalid indices, missing parallel arrays and counter overflow; no bounds or successful result are assumed.",
             "auths_gateway_kernel::reservation_retry::retry_target",
@@ -2847,6 +2913,30 @@ fn expanded_batch_refinement_metadata(
                 "auths_gateway_kernel::reservation_retry::retry_target" => {
                     &["auths_gateway_kernel::reservation_retry::retry_target"]
                 }
+                "auths_gateway_kernel::counter_aggregation::count_capacity" => {
+                    &["auths_gateway_kernel::counter_aggregation::count_capacity"]
+                }
+                "auths_gateway_kernel::counter_aggregation::linked_sum_contribution" => {
+                    if declaration
+                        == "Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum"
+                    {
+                        &[
+                            "auths_gateway_kernel::counter_aggregation::aggregate",
+                            "auths_gateway_kernel::counter_aggregation::linked_sum_contribution",
+                        ]
+                    } else {
+                        &["auths_gateway_kernel::counter_aggregation::linked_sum_contribution"]
+                    }
+                }
+                "auths_gateway_kernel::slot_record::counter_hex_matches" => {
+                    &["auths_gateway_kernel::slot_record::counter_hex_matches"]
+                }
+                "auths_gateway_kernel::slot_record::validate_cumulative" => {
+                    &["auths_gateway_kernel::slot_record::validate_cumulative"]
+                }
+                "auths_gateway_kernel::reservation_batch::build_batch" => {
+                    &["auths_gateway_kernel::reservation_batch::build_batch"]
+                }
                 _ => return None,
             },
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
@@ -2855,7 +2945,7 @@ fn expanded_batch_refinement_metadata(
                 "Decoder success premises state partial-correctness safety and earn scope invariants; they are not assumed authorization decisions or total-parser claims. The source scheme/token and field-index leaves state complete results on their displayed domains. Preimage size premises state the displayed production caller bounds. Counter and slot builders match pre-hash bytes; hashing callers have native parity evidence and SHA-256 security remains a separate primitive contract. No hash injectivity or signature security is asserted.",
                 "Independent history/schema/framing models establish only their own declared semantics until source/store/compiler/driver correspondence is composed. These source components do not close complete byte decoding, canonical round trips, registry authentication, staged verification, JSON implementation correctness, complete concurrent admission, backend durability or runtime entry. Remaining E1-E5/M6 obligations remain explicit in AP-SPEC-069.",
             ],
-            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. Count and sum aggregation cover every contribution, first-key capacity minima, unique IDs and preservation of the first sum slot bound. They do not yet prove the authenticated caller mapping or count/sum coupling. Retry claims cover exact conflict interpretation, guarded indices, checked arithmetic and read-before-advance planning; actual cumulative-record decoding, complete claim-batch assembly and backend/caller linearization remain separate. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
+            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. Count and sum aggregation cover every contribution, first-key capacity minima, unique IDs and preservation of the first sum slot bound. They do not yet prove the authenticated caller mapping or count/sum coupling. Retry claims cover exact conflict interpretation, guarded indices, checked arithmetic and read-before-advance planning; actual cumulative-record decoding, canonical record serialization, whole caller/driver assembly and backend/caller linearization remain separate. Batch-description claims cover actual bounded complete construction, claim-first order and cumulative-overflow refusal. Native byte parity supports the shipping serialization and decoded cumulative-reader cutovers. Decoded-record identity and numeric checks are source-proved; complete serde/caller correspondence remains open. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
         },
         gateway,
     ))
@@ -4477,6 +4567,36 @@ fn bounded_policy_refinement_metadata(declaration: &str) -> Option<ProductionRef
         &str,
         &'static [&'static str],
     ) = match declaration {
+        "Auths.Product.ReservationAdmission.Refinement.reservation_admission_exact" => (
+            "The complete actual reservation guard returns exactly the independent ordered decision over all count frontiers, sum-slot frontiers and cumulative sums, including malformed vector shapes and checked-word overflow.",
+            &["auths_bounded_policy::kernel::reservation_admission"],
+            "Every six u64 slices and one u64 amount; window-refusal additionally states its explicit independent exhaustion condition. This decides admission only; storage insertion and ownership remain separate.",
+            CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.ReservationAdmission.Refinement.source_admission_earns_bounds" => (
+            "Every actual Admit result earns all count and sum-slot strict bounds and every cumulative sum bound through complete pairwise relations; those bounds are not premises of the source theorem.",
+            &["auths_bounded_policy::kernel::reservation_admission"],
+            "Every six u64 slices and one u64 amount; window-refusal additionally states its explicit independent exhaustion condition. This decides admission only; storage insertion and ownership remain separate.",
+            CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.ReservationAdmission.Refinement.source_window_refusal_precedes_sum" => (
+            "The actual reservation guard preserves window-exhaustion precedence whenever any count or sum-slot pair lacks room, regardless of every sum input.",
+            &["auths_bounded_policy::kernel::reservation_admission"],
+            "Every six u64 slices and one u64 amount; window-refusal additionally states its explicit independent exhaustion condition. This decides admission only; storage insertion and ownership remain separate.",
+            CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.ReservationAdmission.Refinement.source_admitted_has_complete_vectors" => (
+            "Every actual Admit result earns all three frontier/capacity and total/capacity length equalities, so partial vector zips cannot create admission.",
+            &["auths_bounded_policy::kernel::reservation_admission"],
+            "Every six u64 slices and one u64 amount; window-refusal additionally states its explicit independent exhaustion condition. This decides admission only; storage insertion and ownership remain separate.",
+            CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.ReservationAdmission.Refinement.source_admitted_sums_do_not_overflow" => (
+            "Every actual Admit result earns that every cumulative total plus the requested amount fits u64. This follows from complete sum-capacity checks and the represented capacity words, not an assumed no-overflow condition.",
+            &["auths_bounded_policy::kernel::reservation_admission"],
+            "Every six u64 slices and one u64 amount; window-refusal additionally states its explicit independent exhaustion condition. This decides admission only; storage insertion and ownership remain separate.",
+            CHAIN_RESIDUAL,
+        ),
         "Auths.Product.Refinement.translated_chain_counts_admit_refines_model" => (
             "The mechanically translated count leaf returns exactly the model's count part of chain admission: every distinct counter of the fixed window below its capacity.",
             &["auths_bounded_policy::kernel::chain_counts_admit"],

@@ -5,6 +5,56 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified reservation checkpoint — 17 October 2026
+
+The latest batch qualifies **832 compiled claims**, with all 798 complete
+records from the previous pushed checkpoint unchanged. Both clean full
+translations reproduce byte-identically; all 18 qualification cases pass.
+There are 25 reviewed external models, none unreviewed, and no compiled
+external axioms. Production source closure:
+`1a07b71048278076845fd283106a674087d05a89d4bd2dd3560c2f17dd99dce5`.
+
+Shipping code now consumes the proved complete claim/count/sum builder, exact
+decoded cumulative-record validator, shared count-to-sum slot lookup and complete
+ordered reservation decision. Successful admission earns every count/slot/sum
+bound, all parallel-vector lengths and overflow-safe sums. Native tests cover
+all 289 aligned batch layouts, 486 decoded record combinations with independent
+success/refusal counts, and 139,968 ordered admission combinations.
+
+The full Lean build and 229 active gateway, 38 kernel and 24 bounded-policy
+library tests pass, as do affected-target/xtask linting and final store aggregate
+scenarios. Existing ignored gateway tests remain 26. Coverage v3 reports
+134/1047 decision functions, 1833/11563 code lines and 23/82 check sites;
+the historical study still reproduces byte-identically.
+
+Full authenticated caller mapping, backend linearization and runtime/history
+correspondence remain open, as do the rest of E1–E5/M6 and exact-revision hosted
+evidence. The next connection-entry membership component is a private prototype,
+not qualified shipping code. See spec §§13.20–13.23 and the remaining-program
+table in §13.5.
+
+## Qualified complete slot-batch checkpoint — 16 October 2026
+
+The latest batch qualifies **809 compiled claims**, with all 798 previous
+complete declaration records unchanged. Both clean full translations reproduce
+byte-identically; all 18 qualification cases pass, with 25 reviewed external
+models, none unreviewed, and no compiled external axioms. Source closure:
+`339d80930b9e3b5cb85900bd15713284f49802820a7225c7d44afa5792a43d9e`.
+
+Shipping reservation assembly consumes the proved complete builder: exactly one
+claim first, every count and sum slot, and at most 33 entries on success.
+Mismatched vectors, excessive cardinalities and cumulative overflow fail closed.
+All 227 active gateway tests, 35 kernel tests and affected-target clippy pass.
+A frozen shipping constructor oracle checks canonical bytes, keys and expiries
+for all 289 aligned layouts. Coverage version 3 fixes numbered-loop
+classification using explicit translation metadata; all seven regression checks
+pass and the historical study remains byte-identical.
+
+The next component validates decoded cumulative records. JSON parsing, backend
+linearization, authenticated caller mapping, count/sum coupling and full
+runtime/history composition remain separate obligations. Whole E1–E5/M6
+completion and exact-revision hosted evidence remain open. See spec §13.20.
+
 ## Qualified aggregation/retry checkpoint — 16 October 2026
 
 The latest batch qualifies **798 compiled claims**, with all 757 previous
@@ -27,9 +77,8 @@ to the preceding implementation. The decision-scope coverage measurement remains
 recorded in its separate translation inventory. Exact-revision hosted evidence
 remains required; no whole E1–E5/M6 milestone is complete.
 
-Checked claim/slot batch construction is the next prepared component. Its
-prototype remains outside shipping code until the complete model/source proof
-and native correspondence are ready. Full authenticated caller mapping,
+The subsequent complete slot-batch checkpoint above supersedes the prepared
+prototype status recorded at this aggregation/retry checkpoint. Full authenticated caller mapping,
 count/sum coupling, backend linearization, cumulative-record decoding and
 runtime/history composition remain open. See spec §§13.18–13.20.
 

@@ -8,14 +8,15 @@
 //! in the refined closure (trait-instance records included), the two weights,
 //! and the five scopes. `reproduces_the_study_at_its_pinned_commit` holds the
 //! port to byte-identical output on the vendored inputs of the study's commit.
-//! Live version 2 uses canonical compiled statement constants for theorem
-//! mentions, so dot notation and pretty-printing cannot hide or invent edges.
+//! Live version 3 uses compiled statement constants for theorem mentions and
+//! explicit translator metadata for numbered loops. Dot notation and pretty
+//! printing cannot hide or invent edges; loop wrappers retain their real kind.
 
 use crate::*;
 use std::cell::RefCell;
 use std::io::Read as _;
 
-pub(crate) const TOOL_VERSION: &str = "2";
+pub(crate) const TOOL_VERSION: &str = "3";
 pub(crate) const PIN: &str = "8bf2970c68ef01302a70b52861ecc256cf1bb06a";
 const QUALIFICATION: &str = "formal/qualification/aeneas/qualification.toml";
 pub(crate) const SCOPE_PATH: &str = "formal/coverage-scope-v1.toml";
@@ -1018,6 +1019,17 @@ fn is_generated_closure_shim(rust_name: &str) -> bool {
             .is_some_and(|index| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
 }
 
+// Aeneas numbers multiple loops (`_loop0`, `_loop1`); names alone do not
+// identify their wrapper functions. Older fixture reports retain the fallback.
+fn is_translated_loop(item: &Value, lean_name: &str) -> bool {
+    if item.get("loop").is_some_and(Value::is_object) {
+        return true;
+    }
+    let pieces: Vec<&str> = lean_name.rsplitn(3, '.').collect();
+    let second_last = if pieces.len() >= 2 { pieces[1] } else { "" };
+    second_last.contains("_loop") || lean_name.ends_with("_loop")
+}
+
 fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
     let qualification: QualificationTranslations = toml::from_str(&tree.read(QUALIFICATION)?)
         .map_err(|error| format!("invalid {QUALIFICATION}: {error}"))?;
@@ -1076,9 +1088,7 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 .map_err(|error| error.to_string())?;
             let end_line = usize::try_from(source["end_line"].as_u64().ok_or("no end_line")?)
                 .map_err(|error| error.to_string())?;
-            let pieces: Vec<&str> = lean_name.rsplitn(3, '.').collect();
-            let second_last = if pieces.len() >= 2 { pieces[1] } else { "" };
-            let kind = if second_last.contains("_loop") || lean_name.ends_with("_loop") {
+            let kind = if is_translated_loop(item, lean_name) {
                 "loop"
             } else if is_generated_closure_shim(rust_name) {
                 "closure-shim"
@@ -3674,6 +3684,31 @@ pub(crate) fn formal_coverage(update: bool) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn explicit_loop_metadata_recognizes_numbered_wrappers_and_bodies() {
+        let metadata = serde_json::json!({"loop": {"id": 1, "pos": [1], "is_body": false}});
+        assert!(super::is_translated_loop(
+            &metadata,
+            "sample.build_batch_loop0"
+        ));
+        assert!(super::is_translated_loop(
+            &metadata,
+            "sample.build_batch_loop1"
+        ));
+        assert!(super::is_translated_loop(
+            &metadata,
+            "sample.build_batch_loop1.body"
+        ));
+        assert!(!super::is_translated_loop(
+            &serde_json::json!({}),
+            "sample.build_batch"
+        ));
+        assert!(super::is_translated_loop(
+            &serde_json::json!({}),
+            "sample.old_loop"
+        ));
+    }
+
     use super::*;
 
     #[test]

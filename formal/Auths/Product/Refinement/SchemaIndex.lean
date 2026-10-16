@@ -10,51 +10,7 @@ set_option maxRecDepth 4096
 /-- Exact byte identity, with no string normalization or case folding. -/
 @[step] theorem field_name_equal_spec (left right : Slice Std.U8) :
     construct.field_name_equal left right ⦃ result => result = decide (left.val = right.val) ⦄ := by
-  unfold construct.field_name_equal
-  dsimp only
-  by_cases lengths : left.val.length = right.val.length
-  · have sameLen : left.len = right.len := by scalar_tac
-    simp only [sameLen, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-    unfold construct.field_name_equal_loop
-    apply loop.spec_decr_nat
-      (measure := fun state => left.val.length - state.1.val)
-      (inv := fun state => state.1.val ≤ left.val.length ∧
-        (state.2 = true ↔ left.val.take state.1.val = right.val.take state.1.val))
-    · rintro ⟨position, equal⟩ ⟨within, processed⟩
-      unfold construct.field_name_equal_loop.body
-      dsimp only
-      split <;> rename_i remaining
-      · split <;> rename_i running
-        · have inside : position.val < left.val.length := by simpa using remaining
-          have rightInside : position.val < right.val.length := by omega
-          step as ⟨leftByte, leftAt⟩
-          step as ⟨rightByte, rightAt⟩
-          step as ⟨next, nextValue⟩
-          refine ⟨by omega, ?_, by omega⟩
-          have before := processed.mp running
-          rw [nextValue, List.take_succ_eq_append_getElem inside,
-            List.take_succ_eq_append_getElem rightInside]
-          simp only [← leftAt, ← rightAt, before, List.append_cancel_left_eq,
-            List.cons.injEq, and_true, decide_eq_true_eq]
-        · simp only [spec_ok]
-          have different : left.val ≠ right.val := by
-            intro same
-            have := processed.mpr (by rw [same])
-            contradiction
-          simp [different]
-      · simp only [spec_ok]
-        have atEnd : left.val.length ≤ position.val := by simpa using remaining
-        have completed : left.val.take position.val = left.val := List.take_of_length_le atEnd
-        have rightCompleted : right.val.take position.val = right.val := List.take_of_length_le (by omega)
-        simp only [completed, rightCompleted] at processed
-        exact Bool.eq_iff_iff.mpr (by simpa using processed)
-    · exact ⟨by simp, by simp⟩
-  · have nativeDifferent : left.len ≠ right.len := by
-      intro same
-      apply lengths
-      simpa only [Slice.len_val, Slice.length] using congrArg UScalar.val same
-    have different : left.val ≠ right.val := fun same => lengths (congrArg List.length same)
-    simp [nativeDifferent, different]
+  exact Auths.Product.Refinement.ByteIdentity.field_name_equal_exact left right
 
 def namesView (names : Slice (alloc.vec.Vec Std.U8)) : List SchemaIndex.Name :=
   names.val.map (fun fieldName => fieldName.val.map (·.val))

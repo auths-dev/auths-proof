@@ -34,22 +34,31 @@ inductive kernel.CeilingCountCode where
 | AboveCeiling : kernel.CeilingCountCode
 | WindowExhausted : kernel.CeilingCountCode
 
+/-- [auths_bounded_policy::kernel::ReservationCode]
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 178:0-185:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.ReservationCode where
+| Admit : kernel.ReservationCode
+| WindowExhausted : kernel.ReservationCode
+| SumExhausted : kernel.ReservationCode
+
 /-- [auths_bounded_policy::kernel::ValueList]
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 178:0-183:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 214:0-219:1
     Visibility: public -/
 structure kernel.ValueList where
   argument : alloc.vec.Vec Std.U8
   values : alloc.vec.Vec (alloc.vec.Vec Std.U8)
 
 /-- [auths_bounded_policy::kernel::SumBound]
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 187:0-193:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 223:0-229:1
     Visibility: public -/
 structure kernel.SumBound where
   limit : Std.U64
   partition : Option kernel.ValueList
 
 /-- [auths_bounded_policy::kernel::PolicyMembers]
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 197:0-210:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 233:0-246:1
     Visibility: public -/
 structure kernel.PolicyMembers where
   argument : alloc.vec.Vec Std.U8

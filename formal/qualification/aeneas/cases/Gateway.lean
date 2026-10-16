@@ -1,3 +1,5 @@
+import Auths.Product.SlotRecordRefinement
+import Auths.Product.SlotBatchRefinement
 import Auths.Product.ReservationRetryRefinement
 import Auths.Product.SumAggregationRefinement
 import Auths.Product.CounterAggregationRefinement
@@ -143,3 +145,48 @@ end qualification.aeneas.cases
 #check Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay
 #check Auths.Product.ReservationRetry.Refinement.source_count_progress_safe
 #check Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe
+
+#check Auths.Product.SlotBatch.Refinement.count_loop_exact
+#check Auths.Product.SlotBatch.Refinement.sum_loop_exact
+#check Auths.Product.SlotBatch.Refinement.build_exact
+#check Auths.Product.SlotBatch.Refinement.source_claim_first
+#check Auths.Product.SlotBatch.Refinement.source_complete_entry_count
+#check Auths.Product.SlotBatch.Refinement.source_invalid_shape_refused
+
+#check Auths.Product.SlotRecord.Refinement.counter_hex_matches_spec
+#check Auths.Product.SlotRecord.Refinement.validate_cumulative_exact
+#check Auths.Product.SlotRecord.Refinement.source_accepted_binds_record
+#check Auths.Product.SlotRecord.Refinement.source_invalid_record_refused
+
+#check Auths.Product.CounterAggregation.Refinement.count_capacity_spec
+#check Auths.Product.CounterAggregation.Refinement.linked_sum_contribution_exact
+#check Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum
+
+
+namespace qualification.aeneas.cases.CumulativeRecord
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_gateway_kernel
+open Auths.Product.SlotRecord.Refinement
+-- A real source-path success witness: accepting useful cumulative state is
+-- proved alongside the all-input refusal theorem, not left to vacuity.
+private def sumSchema : Slice Std.U8 := ⟨[97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8, 101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 98#u8, 111#u8, 117#u8, 110#u8, 100#u8, 101#u8, 100#u8, 45#u8, 115#u8, 117#u8, 109#u8, 47#u8, 49#u8], by simp; scalar_tac⟩
+private def zeroCounter : Array Std.U8 32#usize := ⟨List.replicate 32 0#u8, by simp⟩
+private def zeroHex : Slice Std.U8 := ⟨List.replicate 64 48#u8, by simp; scalar_tac⟩
+example :
+    slot_record.validate_cumulative sumSchema sumSchema zeroHex zeroCounter 5#u64 ⟨5#u64, 3#u64, 7#u64⟩
+      ⦃ actual => actual = some 7#u64 ⦄ := by
+  step with validate_cumulative_exact as ⟨actual, exactMeaning⟩
+  have modelValue : Auths.Product.SlotRecord.validate (bytes sumSchema.val) (bytes sumSchema.val) (List.replicate 64 48) (List.replicate 32 0)
+      5 ⟨5, 3, 7⟩ = some 7 := by decide
+  change actual.map UScalar.val = Auths.Product.SlotRecord.validate (bytes sumSchema.val) (bytes sumSchema.val) (List.replicate 64 48)
+    (List.replicate 32 0) 5 ⟨5, 3, 7⟩ at exactMeaning
+  have mapped : actual.map UScalar.val = some 7 := exactMeaning.trans modelValue
+  cases actual with
+  | none => simp at mapped
+  | some value =>
+    simp only [Option.map_some, Option.some.injEq] at mapped
+    congr 1
+    scalar_tac
+
+end qualification.aeneas.cases.CumulativeRecord

@@ -1358,20 +1358,156 @@ The shipping reservation loop now consumes a pure, total conflict interpreter. A
 The sum-slot availability check now reuses the already proved chain-count predicate, including its exact vector-length check, rather than relying on a truncating zip. Existing admitted inputs retain their previous behavior. Native boundary tests cover batch ordering, missing vectors, invalid/maximum indices and word limits. The complete model/source retry refinement and replay/progress corollaries compile in the full Lean build. The complete combined batch passes the qualification recorded in §13.18. This does not yet close store linearization, cumulative-record decoding, claim-batch construction or full driver/history correspondence.
 
 
-### 13.20 Complete slot-batch construction — prepared next component
+### 13.20 Complete slot-batch construction — shipping cutover in progress
 
-The current shipping constructor pairs count/sum metadata and frontiers using
-zip. Its callers currently supply matching vectors; the next source cut makes
-that invariant explicit and checked. A private pure-kernel prototype rejects
+The preceding shipping constructor paired count/sum metadata and frontiers using
+zip. Its callers supply matching vectors; the new source cut makes that
+invariant explicit and checked. A pure kernel constructor rejects
 mismatched lengths, per-kind cardinalities above 16 and cumulative overflow,
 then describes exactly one claim first, every count slot and every sum slot in
-the order interpreted by the retry primitive. Both native boundary/parity tests
-pass and the prototype translates without opaque Auths code. An independent
-model establishes claim-first ordering, complete entry count and at most 33
-entries on success; final source-loop correspondence is being written.
+the order interpreted by the retry primitive. Both native boundary tests pass and the prototype translates without opaque
+Auths code. The independent model establishes claim-first ordering, complete
+entry count and at most 33 entries on success. The complete all-input source
+constructor proof and both source loops compile, including a checked bridge
+from the tail-recursive sum model to the independent list specification.
 
-This prototype has not yet replaced shipping claim-batch assembly. Its outputs
+Shipping claim-batch assembly now consumes these complete descriptions to build
+counter metadata and every canonical claim/slot record. The per-kind bound is
+shared with the gateway chain limit. Its outputs
 are record descriptions, not authorization or execution capabilities. The
-upcoming cutover must retain the existing canonical record fields, counter
-metadata, slot keys, expiries and all-or-none store insertion, and still needs
-complete source/compiled review, native parity and final qualification.
+cutover must retain the existing canonical record fields, counter
+metadata, slot keys, expiries and all-or-none store insertion, and has passed
+complete source/compiled review, native parity and final qualification. The
+preceding complete shipping constructor is retained only as a frozen native
+test oracle; mismatched-vector tests require a Corrupt refusal.
+
+
+The slot-batch cutover's complete Lean build passes with **809 compiled claims**,
+including all 798 preceding complete declaration records unchanged and no new
+axioms. The 11 new reviewed statements include both actual source loops, a
+checked operational-to-independent sum bridge, the complete all-input builder,
+claim-first ordering, exact complete entry count and malformed-shape refusal.
+All 227 active gateway tests, 35 kernel tests and affected-target clippy pass.
+The complete shipping parity oracle covers all 289 aligned count/sum layouts,
+checking canonical record bytes, every slot key and expiry. Mismatched vectors
+must return Corrupt. An extraction experiment showed the idiomatic question-mark
+form introduces two additional ordinary Try/FromResidual interfaces; the
+explicit Some/None branch is retained with a narrowly documented lint allowance
+so this component adds no external translation interface. Final qualification
+replay passes as recorded below.
+
+
+The coverage publication check exposed a tooling defect: numbered generated
+loop wrappers were classified as whole Rust functions by a suffix heuristic.
+Coverage tool version 3 consumes the translator's explicit loop metadata and
+retains the historical fallback. All seven focused regression checks pass and
+the pinned study still reproduces byte-identically. The published primary
+measurement remains 133/1046 functions, 1814/11544 lines and 23/82 check sites;
+no denominator or source claim was weakened to bypass the check.
+
+
+The final slot-batch qualification passes: **809 compiled/audited claims**, all
+798 preceding complete declaration records unchanged, **18/18 cases**, **25
+reviewed models**, none unreviewed, no compiled external axioms, and two clean
+full translations reproduced byte-identically. Source closure:
+`339d80930b9e3b5cb85900bd15713284f49802820a7225c7d44afa5792a43d9e`.
+Statement review: `ap-spec-069-complete-slot-batch-2026-10-16`; inventory digest:
+`34b188789792dec4d1f15d74dc1e4f6900c2a78d5df6ef2e5184ec28aa1f68b4`;
+boundary contract:
+`fe1d1bedb6696b3346517bd2de9771cd6a5fac12586d897f71edfb410ef2be02`.
+Actual backend atomicity, JSON decoding, authenticated caller mapping and full
+runtime/history correspondence remain separate obligations. The next source
+component validates the decoded cumulative sum-slot projection against the
+exact schema, counter ID, slot and delta/cumulative relation. No complete
+E1–E5/M6 milestone or exact-revision hosted evidence is claimed.
+
+
+### 13.21 Decoded cumulative records and count/sum coupling — implementation batch
+
+The shipping cumulative reader now calls a pure translated validator after its
+existing storage lookup and strict serde decoding. The validator checks exact
+schema bytes, the complete canonical lowercase encoding of the 32-byte counter,
+the requested slot, and delta no larger than the returned cumulative total.
+The independent model proves byte-domain counter-encoding injectivity. The
+complete actual comparison loop and validator have all-input source proofs,
+with accepted-record identity/numeric binding and invalid-record refusal.
+JSON parsing, authenticated storage, append-only histories and backend
+linearization remain separate obligations.
+
+The count/sum coupling now uses an actual pure first-key capacity lookup and a
+linked sum-contribution constructor. Their exact source refinements compose
+with the actual count aggregator: a sum contribution's slot bound is earned
+from the shared count-key minimum, without assuming input uniqueness or a
+precomputed minimum. Both IDs remain explicit inputs; complete authenticated
+ID derivation and the full caller graph remain open.
+
+The new proofs compile individually. The complete batch build/audit and final
+clean replay pass as recorded in §13.23. Native checks pass: 229 active gateway tests,
+38 kernel tests and affected-target/xtask linting; 26 existing ignored gateway
+tests remain unchanged. The shipping cumulative-reader parity oracle checks
+486 decoded combinations through the actual file-store lookup and serde path,
+plus missing/malformed/duplicate-field/word-boundary cases. Kernel tests cover
+all 256 repeated counter byte values and every encoded digit mutation. A real
+source success witness qualifies a valid cumulative record. Shared byte-equality
+and hex-digit proofs were extracted into a minimal proof module; existing
+public theorem statements are preserved. No new external interface or opaque
+Auths function was introduced by either source cutover.
+
+
+### 13.22 Complete ordered reservation decision — implementation batch
+
+The shipping reservation loop now consumes one pure decision in the existing
+bounded-policy kernel. The function combines every count frontier, every sum-slot
+frontier and every cumulative sum, preserving window-exhaustion precedence and
+the existing stable refusal codes. It neither inserts records nor grants handles.
+Its independent specification uses complete pairwise relations over lists,
+which earn matching lengths and every applicable numeric bound. The source
+proof composes the existing exact count/sum leaves with the complete new guard;
+no admission Boolean or desired result is an input premise.
+
+Native parity covers 139,968 combinations of vector shapes, zero/one/u64-max
+values and amounts, with 24 bounded-policy library tests passing. Source proofs
+also connect Admit to complete vector shapes and u64-safe cumulative additions.
+Full batch compilation, statement review, final native replay and qualification
+pass as recorded in §13.23. Actual caller identity derivation, backend linearization
+and full runtime/history composition remain open as described in §13.5.
+
+
+### 13.23 Qualified reservation checkpoint — 17 October 2026
+
+The batched implementation qualifies **832 compiled/audited claims**, preserving
+all 798 complete declaration records from the previous pushed checkpoint (and
+all 821 from the intermediate cumulative/coupling audit). All **18/18 cases**
+pass; two clean full translations reproduce byte-identically. There are **25
+reviewed external models**, none unreviewed, and zero compiled external axioms.
+The new claims retain only the three established foundational axioms.
+
+Production source closure:
+`1a07b71048278076845fd283106a674087d05a89d4bd2dd3560c2f17dd99dce5`.
+Statement review: `ap-spec-069-complete-reservation-admission-2026-10-17`;
+inventory digest:
+`2993b22fef971e4247d9fa1eaec1fa4a2bc5a1cbd1f0efa949ee7dd4e95b50ef`;
+closed boundary:
+`5c0656e2e8da9949ea2fce62426a19d378ed11a53954b9caeb468391009dd156`.
+
+Native validation: **229 active gateway**, **38 gateway-kernel** and **24
+bounded-policy** library tests pass; 26 existing ignored gateway tests are
+unchanged. Affected-target and xtask linting pass. The final capacity-view
+refactor computes named count/sum/slot limits once per reservation, retaining
+them across retries; the final store aggregate scenarios pass. The decoded
+reader's test fixtures use the real expiry envelope and independently require
+18 successful cases and 468 refusals, preventing parity from passing vacuously
+at the outer file decoder. Every malformed-record mutation starts from an
+accepted complete record. Source qualification includes useful acceptance and
+refusal witnesses. Historical study reproduction remains byte-identical;
+coverage v3 measures 134/1047 decision functions, 1833/11563 code lines and
+23/82 check sites in the declared scopes.
+
+These results complete the source components in §§13.20–13.22. They do not
+complete the whole §13.5/E1–E5/M6 program. Authenticated caller mapping, actual
+backend/linearization correspondence, full runtime/history composition and
+exact-revision hosted evidence remain open. Connection-entry workload/profile
+membership is prepared separately as a private prototype; it has not yet been
+cut over into shipping code or included in this qualified inventory. Continue
+from that component and the remaining-program table without redoing these
+completed proofs or waiting for GitHub CI during implementation.

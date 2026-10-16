@@ -94,6 +94,37 @@ theorem contribute_absent (counters : List Counter) (key : Key) (capacity : Nat)
       simpa [SchemaIndex.position, different] using absent
     simp [contribute, different, ih tailAbsent]
 
+/-- Indexed first-match selection and recursive lookup agree, including duplicates. -/
+theorem lookup_at (counters : List Counter) (key : Key) (index : Nat) (entry : Counter)
+    (found : SchemaIndex.position (counters.map Counter.key) key = some index)
+    (atIndex : counters[index]? = some entry) : lookup counters key = some entry.capacity := by
+  induction counters generalizing index with
+  | nil => simp at atIndex
+  | cons first rest ih =>
+    by_cases selected : first.key = key
+    · simp [SchemaIndex.position, selected] at found
+      subst index
+      simp at atIndex
+      subst entry
+      simp [lookup, selected]
+    · cases index with
+      | zero => simp [SchemaIndex.position, selected] at found
+      | succ index =>
+        have tailFound : SchemaIndex.position (rest.map Counter.key) key = some index := by
+          simpa [SchemaIndex.position, selected] using found
+        have tailAt : rest[index]? = some entry := by simpa using atIndex
+        simpa [lookup, selected] using ih index tailFound tailAt
+
+theorem lookup_absent (counters : List Counter) (key : Key)
+    (absent : SchemaIndex.position (counters.map Counter.key) key = none) : lookup counters key = none := by
+  induction counters with
+  | nil => rfl
+  | cons first rest ih =>
+    have different : first.key ≠ key := by intro same; simp [SchemaIndex.position, same] at absent
+    have tailAbsent : SchemaIndex.position (rest.map Counter.key) key = none := by
+      simpa [SchemaIndex.position, different] using absent
+    simp [lookup, different, ih tailAbsent]
+
 /-- Arbitrary finite contributions always share a key's smallest limit. -/
 def aggregate : List Counter → List Counter → List Counter
   | state, [] => state

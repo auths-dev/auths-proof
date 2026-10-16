@@ -1,3 +1,6 @@
+import Auths.Product.ReservationAdmissionRefinement
+import Auths.Product.SlotRecordRefinement
+import Auths.Product.SlotBatchRefinement
 import Auths.Product.ReservationRetryRefinement
 import Auths.Product.SumAggregationRefinement
 import Auths.Product.CounterAggregationRefinement
@@ -867,7 +870,41 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.ReservationRetry.count_progress_exact,
     `Auths.Product.ReservationRetry.sum_progress_exact,
     `Auths.Product.ReservationRetry.count_available,
-    `Auths.Product.ReservationRetry.sum_available
+    `Auths.Product.ReservationRetry.sum_available,
+    `Auths.Product.SlotBatch.Refinement.count_loop_exact,
+    `Auths.Product.SlotBatch.Refinement.sum_loop_exact,
+    `Auths.Product.SlotBatch.Refinement.build_exact,
+    `Auths.Product.SlotBatch.Refinement.source_claim_first,
+    `Auths.Product.SlotBatch.Refinement.source_complete_entry_count,
+    `Auths.Product.SlotBatch.Refinement.source_invalid_shape_refused,
+    `Auths.Product.SlotBatch.sum_entries_length,
+    `Auths.Product.SlotBatch.first_is_claim,
+    `Auths.Product.SlotBatch.exact_entry_count,
+    `Auths.Product.SlotBatch.invalid_shape_refused,
+    `Auths.Product.SlotBatch.Refinement.native_sums_refines,
+    `Auths.Product.SlotRecord.Refinement.counter_hex_matches_spec,
+    `Auths.Product.SlotRecord.Refinement.validate_cumulative_exact,
+    `Auths.Product.SlotRecord.Refinement.source_accepted_binds_record,
+    `Auths.Product.SlotRecord.Refinement.source_invalid_record_refused,
+    `Auths.Product.SlotRecord.accepted_iff,
+    `Auths.Product.SlotRecord.accepted_binds_slot,
+    `Auths.Product.SlotRecord.hex_matches_injective,
+    `Auths.Product.CounterAggregation.lookup_at,
+    `Auths.Product.CounterAggregation.lookup_absent,
+    `Auths.Product.CounterAggregation.Refinement.count_capacity_spec,
+    `Auths.Product.CounterAggregation.Refinement.linked_sum_contribution_exact,
+    `Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum,
+    `Auths.Product.ReservationAdmission.Refinement.reservation_admission_exact,
+    `Auths.Product.ReservationAdmission.Refinement.source_admission_earns_bounds,
+    `Auths.Product.ReservationAdmission.Refinement.source_window_refusal_precedes_sum,
+    `Auths.Product.ReservationAdmission.Refinement.source_admitted_has_complete_vectors,
+    `Auths.Product.ReservationAdmission.Refinement.source_admitted_sums_do_not_overflow,
+    `Auths.Product.ReservationAdmission.counts_admit_iff,
+    `Auths.Product.ReservationAdmission.sums_admit_iff,
+    `Auths.Product.ReservationAdmission.admitted_iff,
+    `Auths.Product.ReservationAdmission.admitted_shapes,
+    `Auths.Product.ReservationAdmission.window_refusal_precedes_sum,
+    `Auths.Product.ReservationAdmission.admitted_sum_at
   ]
 
 end Auths

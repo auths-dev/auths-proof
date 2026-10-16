@@ -37,3 +37,9 @@ pub mod counter_aggregation;
 
 /// Checked conflict retries for claim/count/sum reservation batches.
 pub mod reservation_retry;
+
+/// Complete checked claim/count/sum descriptions before record serialization.
+pub mod reservation_batch;
+
+/// Exact identity and numeric validation of decoded cumulative slot records.
+pub mod slot_record;

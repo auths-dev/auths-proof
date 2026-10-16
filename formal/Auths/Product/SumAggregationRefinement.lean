@@ -157,4 +157,33 @@ theorem source_sum_aggregate_capacities (contributions : Slice counter_aggregati
   intro actual exactResult key
   rw [exactResult]
   exact CounterAggregation.sum_aggregate_capacities _ key
+/-- Every sum contribution receives the exact shared count counter's slot bound. -/
+@[step] theorem linked_sum_contribution_exact (counts : Slice counter_aggregation.CounterCapacity)
+    (countKey sumKey : Array Std.U8 32#usize) (capacity : Std.U64) :
+    counter_aggregation.linked_sum_contribution counts countKey sumKey capacity ⦃ actual =>
+      sumView actual = ⟨sumKey.val.map (·.val), capacity.val,
+        (CounterAggregation.lookup (counts.val.map counterView) (countKey.val.map (·.val))).getD 0⟩ ⦄ := by
+  unfold counter_aggregation.linked_sum_contribution
+  step with count_capacity_spec as ⟨slots, slotMeaning⟩
+  simp [sumView, slotMeaning]
+
+/-- Composing the actual count aggregator and sum constructor earns the minimum;
+    it does not assume a precomputed minimum or uniqueness of input keys. -/
+theorem source_sum_slots_share_count_minimum (incoming : Slice counter_aggregation.CounterCapacity)
+    (countKey sumKey : Array Std.U8 32#usize) (capacity : Std.U64) (bounded : incoming.val.length ≤ 16) :
+    (do
+      let counts ← counter_aggregation.aggregate incoming
+      counter_aggregation.linked_sum_contribution (alloc.vec.Vec.deref counts) countKey sumKey capacity) ⦃ actual =>
+      sumView actual = ⟨sumKey.val.map (·.val), capacity.val,
+        (CounterAggregation.specification (fun _ => none) (incoming.val.map counterView)
+          (countKey.val.map (·.val))).getD 0⟩ ⦄ := by
+  step with aggregate_spec as ⟨counts, countMeaning⟩
+  step with linked_sum_contribution_exact as ⟨actual, exactMeaning⟩
+  have lookupMeaning : CounterAggregation.lookup (counts.val.map counterView) (countKey.val.map (·.val)) =
+      CounterAggregation.specification (fun _ => none) (incoming.val.map counterView) (countKey.val.map (·.val)) := by
+    change CounterAggregation.lookup (countersView counts) _ = _
+    rw [countMeaning, CounterAggregation.aggregate_exact]
+    rfl
+  simpa [alloc.vec.Vec.deref, lookupMeaning] using exactMeaning
+
 end Auths.Product.CounterAggregation.Refinement

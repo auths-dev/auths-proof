@@ -71,8 +71,8 @@ own test key.
   verifiers agree on a shared corpus of test vectors.
 - **Proof coverage, measured.**
   <!-- proof-coverage:begin -->
-  133 of 1,046 decision-scope functions (12.7%) and 1,814 of 11,544 code lines
-  (15.7%) are translated to Lean and reached from audited theorem statements,
+  134 of 1,047 decision-scope functions (12.8%) and 1,833 of 11,563 code lines
+  (15.9%) are translated to Lean and reached from audited theorem statements,
   and 23 of 82 kernel check sites map only to such functions. The rest of the
   decision path, including the staged verifier control flow, the registry
   handlers, and the codec, is tested, not proved. For K-of-N approval the proofs

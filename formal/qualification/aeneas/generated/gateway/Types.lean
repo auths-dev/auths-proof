@@ -155,7 +155,7 @@ structure counter_aggregation.CounterCapacity where
   capacity : Std.U64
 
 /-- [auths_gateway_kernel::counter_aggregation::SumCapacity]
-    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 168:0-175:1
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 223:0-230:1
     Visibility: public -/
 structure counter_aggregation.SumCapacity where
   key : Array Std.U8 32#usize
@@ -464,6 +464,20 @@ structure recovery.RecoveryCapability where
   pre_entry_reread : Bool
   write_is_conditional : Bool
 
+/-- [auths_gateway_kernel::reservation_batch::SlotEntry]
+    Source: 'product/runtime/auths-gateway-kernel/src/reservation_batch.rs', lines 11:0-23:1
+    Visibility: public -/
+@[discriminant isize]
+inductive reservation_batch.SlotEntry where
+| Claim : Array Std.U8 32#usize → reservation_batch.SlotEntry
+| Count : Array Std.U8 32#usize → Std.U64 → reservation_batch.SlotEntry
+| Sum :
+  Array Std.U8 32#usize →
+  Std.U64 →
+  Std.U64 →
+  Std.U64 →
+  reservation_batch.SlotEntry
+
 /-- [auths_gateway_kernel::reservation_retry::RetryTarget]
     Source: 'product/runtime/auths-gateway-kernel/src/reservation_retry.rs', lines 5:0-18:1
     Visibility: public -/
@@ -473,6 +487,14 @@ inductive reservation_retry.RetryTarget where
 | Count : Std.Usize → Std.U64 → reservation_retry.RetryTarget
 | Sum : Std.Usize → Std.U64 → Std.U64 → reservation_retry.RetryTarget
 | Corrupt : reservation_retry.RetryTarget
+
+/-- [auths_gateway_kernel::slot_record::SumValues]
+    Source: 'product/runtime/auths-gateway-kernel/src/slot_record.rs', lines 7:0-14:1
+    Visibility: public -/
+structure slot_record.SumValues where
+  slot : Std.U64
+  amount : Std.U64
+  cumulative : Std.U64
 
 /-- [auths_gateway_kernel::transition::Stage]
     Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 19:0-32:1

@@ -210,4 +210,31 @@ theorem source_aggregate_capacities (contributions : Slice counter_aggregation.C
   rw [exactResult, CounterAggregation.aggregate_exact]
   rfl
 
+/-- Sum-slot bounds read exactly the first count-key capacity, with zero for absence. -/
+@[step] theorem count_capacity_spec (counters : Slice counter_aggregation.CounterCapacity)
+    (key : Array Std.U8 32#usize) :
+    counter_aggregation.count_capacity counters key ⦃ actual =>
+      actual.val = (CounterAggregation.lookup (counters.val.map counterView) (key.val.map (·.val))).getD 0 ⦄ := by
+  unfold counter_aggregation.count_capacity
+  step with counter_position_spec as ⟨position, positionMeaning⟩
+  have positioned : position.map UScalar.val =
+      SchemaIndex.position ((counters.val.map counterView).map Counter.key) (key.val.map (·.val)) := by
+    simpa [counterKeys, counterView, List.map_map, Function.comp_def] using positionMeaning
+  cases position with
+  | none =>
+    simp only [spec_ok]
+    rw [CounterAggregation.lookup_absent _ _ positioned.symm]
+    rfl
+  | some index =>
+    simp only [Option.map_some] at positioned
+    have keyAt := SchemaIndex.position_points_to_name _ _ index.val positioned.symm
+    have inside : index.val < counters.val.length := by
+      have lengthBound := (List.getElem?_eq_some_iff.mp keyAt).1
+      simpa using lengthBound
+    step as ⟨entry, entryAt⟩
+    have modelAt : (counters.val.map counterView)[index.val]? = some (counterView entry) := by
+      simp [List.getElem?_map, List.getElem?_eq_getElem inside, entryAt]
+    rw [CounterAggregation.lookup_at _ _ _ _ positioned.symm modelAt]
+    rfl
+
 end Auths.Product.CounterAggregation.Refinement

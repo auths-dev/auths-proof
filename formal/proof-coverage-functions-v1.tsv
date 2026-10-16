@@ -1265,14 +1265,15 @@ product/policy/auths-bounded-policy/src/kernel.rs	108	123	16	ceiling_count_tight
 product/policy/auths-bounded-policy/src/kernel.rs	128	130	3	window_index	product/policy/auths-bounded-policy	decision	1	0	1	1	1	1	1
 product/policy/auths-bounded-policy/src/kernel.rs	137	149	13	chain_counts_admit	product/policy/auths-bounded-policy	decision	1	0	1	1	1	1	1
 product/policy/auths-bounded-policy/src/kernel.rs	157	174	18	chain_sums_admit	product/policy/auths-bounded-policy	decision	1	0	1	1	1	1	1
-product/policy/auths-bounded-policy/src/kernel.rs	214	226	13	bytes_equal	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	230	239	10	values_contain	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	243	252	10	values_subset	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	256	258	3	values_narrow	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	267	278	12	partition_narrows	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	284	295	12	sum_tightens	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	300	308	9	scope_tightens	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
-product/policy/auths-bounded-policy/src/kernel.rs	314	332	19	argument_policy_tightens	product/policy/auths-bounded-policy	decision	1	0	1	1	1	1	1
+product/policy/auths-bounded-policy/src/kernel.rs	192	210	19	reservation_admission	product/policy/auths-bounded-policy	decision	1	0	1	1	1	1	5
+product/policy/auths-bounded-policy/src/kernel.rs	250	262	13	bytes_equal	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	266	275	10	values_contain	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	279	288	10	values_subset	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	292	294	3	values_narrow	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	303	314	12	partition_narrows	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	320	331	12	sum_tightens	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	336	344	9	scope_tightens	product/policy/auths-bounded-policy	decision	1	0	1	1	0	1	0
+product/policy/auths-bounded-policy/src/kernel.rs	350	368	19	argument_policy_tightens	product/policy/auths-bounded-policy	decision	1	0	1	1	1	1	1
 product/policy/auths-bounded-policy/src/lib.rs	75	77	3	CommitmentDigest::new	product/policy/auths-bounded-policy	decision	1	0	1	0	0	0	0
 product/policy/auths-bounded-policy/src/lib.rs	81	83	3	CommitmentDigest::as_bytes	product/policy/auths-bounded-policy	decision	1	0	1	0	0	0	0
 product/policy/auths-bounded-policy/src/lib.rs	93	95	3	VerifierTime::from_unix_seconds	product/policy/auths-bounded-policy	decision	1	0	1	0	0	0	0
@@ -1492,11 +1493,13 @@ product/runtime/auths-gateway-kernel/src/construct.rs	1054	1065	12	field_name_eq
 product/runtime/auths-gateway-kernel/src/construct.rs	1070	1080	11	field_index	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	17	26	10	counter_equal	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	30	39	10	counter_position	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
-product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	44	58	15	contribute	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
-product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	64	73	10	aggregate	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	3
-product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	179	188	10	sum_position	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
-product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	193	212	20	contribute_sum	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
-product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	217	231	15	aggregate_sum	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	3
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	44	49	6	count_capacity	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	54	65	12	linked_sum_contribution	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	70	84	15	contribute	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	90	99	10	aggregate	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	4
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	234	243	10	sum_position	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	248	267	20	contribute_sum	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_aggregation.rs	272	286	15	aggregate_sum	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	3
 product/runtime/auths-gateway-kernel/src/counter_preimages.rs	6	8	3	append_word	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/counter_preimages.rs	10	14	5	append_component	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/counter_preimages.rs	16	19	4	append_coordinates	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
@@ -1547,7 +1550,10 @@ product/runtime/auths-gateway-kernel/src/recovery.rs	98	104	7	provider_link	prod
 product/runtime/auths-gateway-kernel/src/recovery.rs	108	122	15	recovery_class	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
 product/runtime/auths-gateway-kernel/src/recovery.rs	126	133	8	unknown_resolution	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
 product/runtime/auths-gateway-kernel/src/recovery.rs	139	151	13	recovery_capability	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/reservation_batch.rs	33	75	43	build_batch	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	6
 product/runtime/auths-gateway-kernel/src/reservation_retry.rs	24	54	31	retry_target	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	4
+product/runtime/auths-gateway-kernel/src/slot_record.rs	18	33	16	counter_hex_matches	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/slot_record.rs	40	56	17	validate_cumulative	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	3
 product/runtime/auths-gateway-kernel/src/transition.rs	89	91	3	absent	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
 product/runtime/auths-gateway-kernel/src/transition.rs	95	104	10	same_bytes_from	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
 product/runtime/auths-gateway-kernel/src/transition.rs	108	114	7	same_bytes	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0

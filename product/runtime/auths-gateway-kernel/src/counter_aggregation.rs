@@ -38,6 +38,32 @@ pub fn counter_position(counters: &[CounterCapacity], key: &[u8; 32]) -> Option<
     None
 }
 
+/// The first exact count counter's capacity, or zero when absent. An absent
+/// link therefore grants no sum slots. Counter IDs are public identifiers.
+#[must_use]
+pub fn count_capacity(counters: &[CounterCapacity], key: &[u8; 32]) -> u64 {
+    match counter_position(counters, key) {
+        Some(index) => counters[index].capacity,
+        None => 0,
+    }
+}
+
+/// Builds one sum contribution using the shared count counter's actual
+/// minimum as its slot bound. Callers derive both IDs from the same link.
+#[must_use]
+pub fn linked_sum_contribution(
+    counts: &[CounterCapacity],
+    count_key: &[u8; 32],
+    sum_key: [u8; 32],
+    capacity: u64,
+) -> SumCapacity {
+    SumCapacity {
+        key: sum_key,
+        capacity,
+        slots: count_capacity(counts, count_key),
+    }
+}
+
 /// Adds one contribution to the same shared counter. This function never
 /// increases an existing capacity or appends a second copy of an existing ID.
 #[must_use]
@@ -75,6 +101,35 @@ pub fn aggregate(contributions: &[CounterCapacity]) -> Vec<CounterCapacity> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn linked_sum_slots_use_the_exact_shared_count_capacity() {
+        let key = [7; 32];
+        let contributions = [
+            CounterCapacity {
+                key,
+                capacity: u64::MAX,
+            },
+            CounterCapacity {
+                key: [8; 32],
+                capacity: 19,
+            },
+            CounterCapacity { key, capacity: 3 },
+        ];
+        let counts = aggregate(&contributions);
+        let sum = linked_sum_contribution(&counts, &key, [9; 32], 700);
+        assert_eq!(
+            sum,
+            SumCapacity {
+                key: [9; 32],
+                capacity: 700,
+                slots: 3
+            }
+        );
+        assert_eq!(count_capacity(&counts, &[10; 32]), 0);
+        assert_eq!(count_capacity(&[], &key), 0);
+        assert_eq!(count_capacity(&contributions, &key), u64::MAX);
+    }
 
     fn original(
         mut counters: Vec<CounterCapacity>,

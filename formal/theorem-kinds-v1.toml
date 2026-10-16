@@ -12,6 +12,28 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.ReservationAdmission.Refinement.reservation_admission_exact" = "exact"
+"Auths.Product.ReservationAdmission.Refinement.source_admission_earns_bounds" = "partial"
+"Auths.Product.ReservationAdmission.Refinement.source_window_refusal_precedes_sum" = "partial"
+"Auths.Product.ReservationAdmission.Refinement.source_admitted_has_complete_vectors" = "partial"
+"Auths.Product.ReservationAdmission.Refinement.source_admitted_sums_do_not_overflow" = "partial"
+
+"Auths.Product.CounterAggregation.Refinement.count_capacity_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.linked_sum_contribution_exact" = "exact"
+"Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum" = "exact"
+
+"Auths.Product.SlotRecord.Refinement.counter_hex_matches_spec" = "exact"
+"Auths.Product.SlotRecord.Refinement.validate_cumulative_exact" = "exact"
+"Auths.Product.SlotRecord.Refinement.source_accepted_binds_record" = "partial"
+"Auths.Product.SlotRecord.Refinement.source_invalid_record_refused" = "partial"
+
+"Auths.Product.SlotBatch.Refinement.count_loop_exact" = "exact"
+"Auths.Product.SlotBatch.Refinement.sum_loop_exact" = "exact"
+"Auths.Product.SlotBatch.Refinement.build_exact" = "exact"
+"Auths.Product.SlotBatch.Refinement.source_claim_first" = "partial"
+"Auths.Product.SlotBatch.Refinement.source_complete_entry_count" = "partial"
+"Auths.Product.SlotBatch.Refinement.source_invalid_shape_refused" = "partial"
+
 "Auths.Product.ReservationRetry.Refinement.retry_target_exact" = "exact"
 "Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay" = "partial"
 "Auths.Product.ReservationRetry.Refinement.source_count_progress_safe" = "partial"
