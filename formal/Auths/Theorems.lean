@@ -1,3 +1,4 @@
+import Auths.Product.ConnectionEntryRefinement
 import Auths.Product.ReservationAdmissionRefinement
 import Auths.Product.SlotRecordRefinement
 import Auths.Product.SlotBatchRefinement
@@ -904,7 +905,13 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.ReservationAdmission.admitted_iff,
     `Auths.Product.ReservationAdmission.admitted_shapes,
     `Auths.Product.ReservationAdmission.window_refusal_precedes_sum,
-    `Auths.Product.ReservationAdmission.admitted_sum_at
+    `Auths.Product.ReservationAdmission.admitted_sum_at,
+    `Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact,
+    `Auths.Product.ConnectionEntry.Refinement.entry_allows_exact,
+    `Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile,
+    `Auths.Product.ConnectionEntry.Refinement.source_disabled_refused,
+    `Auths.Product.ConnectionEntry.Refinement.source_revoked_refused,
+    `Auths.Product.ConnectionEntry.admitted_binds_all
   ]
 
 end Auths

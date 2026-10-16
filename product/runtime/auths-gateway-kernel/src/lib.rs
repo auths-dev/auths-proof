@@ -43,3 +43,6 @@ pub mod reservation_batch;
 
 /// Exact identity and numeric validation of decoded cumulative slot records.
 pub mod slot_record;
+
+/// Exact active-state, workload and profile/version checks for connection entry.
+pub mod entry_authorization;

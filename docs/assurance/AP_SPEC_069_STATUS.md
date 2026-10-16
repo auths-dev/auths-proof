@@ -5,6 +5,27 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified connection-entry checkpoint — 17 October 2026
+
+The latest batch qualifies **838 compiled claims**, preserving all 832 previous
+complete declaration records. Two clean full translations reproduce
+byte-identically; all 18 qualification cases pass, with 25 reviewed models,
+none unreviewed, and no compiled external axioms. Shipping source closure:
+`dbdeafb8829de25fd97cdee75384bf275314efc725134b4fb388e1681a72a141`.
+
+The runtime consumes exact source-proved active-state, workload-membership and
+full profile identifier/version checks, plus the existing proved exact-byte
+primitive for reload comparison. Native parity checks 1,728 constructor-valid
+record queries (126 permitted, 1,602 refused) and every canonical byte mutation.
+The full Lean build, 231 active gateway tests, 39 kernel tests and affected-target/
+xtask linting pass. Existing ignored gateway tests remain 26. Source qualification
+checks useful acceptance, disablement and profile-version mismatch witnesses.
+
+Complete record decoding, record-to-projection correspondence, reload/lease/write
+association and full E4.6 runtime composition remain open, as does the rest of
+§13.5/E1–E5/M6 and exact-revision hosted evidence. Constructor byte predicates
+are the next privately prepared component. See spec §13.24.
+
 ## Qualified reservation checkpoint — 17 October 2026
 
 The latest batch qualifies **832 compiled claims**, with all 798 complete

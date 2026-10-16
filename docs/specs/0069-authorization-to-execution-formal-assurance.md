@@ -1511,3 +1511,51 @@ membership is prepared separately as a private prototype; it has not yet been
 cut over into shipping code or included in this qualified inventory. Continue
 from that component and the remaining-program table without redoing these
 completed proofs or waiting for GitHub CI during implementation.
+
+
+### 13.24 Connection-entry membership — implementation batch
+
+The shipping connection-entry check now calls a pure predicate over explicit
+administrative state, workload bytes and full profile identifier/version pairs.
+Both list scans have exact source refinements; a positive result earns active
+state and both exact memberships. Disabled and revoked inputs always refuse,
+including when their lists contain the request. The runtime's unchanged-record
+comparison now consumes the previously proved exact-byte equality primitive.
+
+The native adapter preserves the preceding full expression on 1,728 queries
+against constructor-valid connection records: 126 positive and 1,602 negative
+cases cover all states, workload case differences, absent identifiers and
+profile-version mismatches. Every byte mutation of a canonical loaded record
+changes the reload comparison. Projection allocations are bounded by the
+connection constructor's existing workload/profile limits. Source qualification
+includes useful positive, disabled and version-mismatch witnesses. This batch
+also moves the reservation-loop comment back onto its intended function.
+
+Complete qualification passes as recorded below. The record-to-projection mapping, complete
+record decoder, actual reload/lease/write association and full E4.6 runtime
+composition remain separate obligations. This predicate supplies necessary
+entry checks, not an execution handle. The remaining §13.5 program and hosted
+exact-revision gates are unchanged.
+
+
+The final connection-entry batch qualifies **838 compiled/audited claims**,
+with all 832 preceding complete declaration records unchanged and no new axioms.
+The full 3,510-job Lean build, 18/18 qualification cases and two byte-identical
+clean full translations pass. The inventory remains 25 reviewed models, none
+unreviewed, with zero compiled external axioms. Native checks pass: 231 active
+gateway tests, 39 kernel tests and affected-target/xtask linting; the existing
+26 ignored gateway tests remain unchanged. The earlier 24 bounded-policy tests
+are unchanged by this component. The semantic-closure manifest explicitly
+includes the new kernel file and all earlier extracted modules.
+
+Shipping source closure:
+`dbdeafb8829de25fd97cdee75384bf275314efc725134b4fb388e1681a72a141`.
+Statement review: `ap-spec-069-connection-entry-membership-2026-10-17`;
+inventory digest:
+`6b5d83e724e9cc0fc1eb6875881fe8e20f91df46e60176164b3311fd601e7eff`;
+boundary:
+`327f3b20152464c5d7e9d6d6295cdb47c576b24a1a00fd88c12d7414ac82a6ed`.
+Coverage remains 134/1047 decision functions, 1833/11563 code lines and 23/82
+check sites, with byte-identical historical reproduction. Hosted evidence and
+the whole E1–E5/M6 program remain open. Constructor byte predicates are prepared
+privately for the next component; they are not yet qualified shipping code.

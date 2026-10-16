@@ -2452,11 +2452,6 @@ fn claim_batch(
     Ok((record, stored, entries))
 }
 
-/// Finds each counter's frontier, then inserts the claim and one slot per
-/// count and sum counter in one all-or-none batch. A full counter stores
-/// the claim alone as `not-entered`; a lost race advances that counter and
-/// retries, at most [`MAX_CLAIM_ROUNDS`] times. The count and sum checks are
-/// the translated leaves `chain_counts_admit` and `chain_sums_admit`.
 /// Parallel capacity views for the pure reservation decision. Compute them
 /// once per reservation, retaining them across every slot-conflict retry.
 struct ReservationLimits {
@@ -2477,6 +2472,11 @@ fn reservation_limits(bound: &crate::bounds::BoundAdmission) -> ReservationLimit
     }
 }
 
+/// Finds each counter's frontier, then inserts the claim and one slot per
+/// count and sum counter in one all-or-none batch. A full counter stores
+/// the claim alone as `not-entered`; a lost race advances that counter and
+/// retries, at most [`MAX_CLAIM_ROUNDS`] times. The count and sum checks are
+/// combined by the translated complete `reservation_admission` decision.
 fn reserve_with_claim(
     store: &dyn GatewayAttemptStore,
     key: GatewayAttemptKey,

@@ -63,7 +63,7 @@ impl LoadedConnection {
     /// Whether `other` holds exactly the same stored bytes.
     #[must_use]
     pub fn unchanged(&self, other: &Self) -> bool {
-        self.bytes == other.bytes
+        auths_gateway_kernel::construct::field_name_equal(&self.bytes, &other.bytes)
     }
 }
 
@@ -392,12 +392,36 @@ pub fn authorizes_entry(
     workload_id: &str,
     profile: &auths_connections::ConnectionProfile,
 ) -> bool {
-    record.state() == ConnectionState::Active
-        && record
-            .allowed_workloads()
-            .iter()
-            .any(|allowed| allowed == workload_id)
-        && record.allowed_profiles().contains(profile)
+    use auths_gateway_kernel::entry_authorization::{EntryProfile, EntryState, entry_allows};
+    let state = match record.state() {
+        ConnectionState::Active => EntryState::Active,
+        ConnectionState::Disabled => EntryState::Disabled,
+        ConnectionState::Revoked => EntryState::Revoked,
+    };
+    let workloads: Vec<Vec<u8>> = record
+        .allowed_workloads()
+        .iter()
+        .map(|name| name.as_bytes().to_vec())
+        .collect();
+    let profiles: Vec<EntryProfile> = record
+        .allowed_profiles()
+        .iter()
+        .map(|allowed| EntryProfile {
+            id: allowed.id().as_str().as_bytes().to_vec(),
+            version: allowed.version(),
+        })
+        .collect();
+    let requested = EntryProfile {
+        id: profile.id().as_str().as_bytes().to_vec(),
+        version: profile.version(),
+    };
+    entry_allows(
+        state,
+        &workloads,
+        &profiles,
+        workload_id.as_bytes(),
+        &requested,
+    )
 }
 
 async fn blocking<T: Send + 'static>(
@@ -416,6 +440,139 @@ async fn blocking<T: Send + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry_record(
+        state: ConnectionState,
+        workloads: Vec<String>,
+        profiles: Vec<auths_connections::ConnectionProfile>,
+    ) -> ConnectionRecord {
+        ConnectionRecord::new(
+            ProviderKind::parse("stripe").expect("provider"),
+            ConnectionAlias::parse("billing").expect("alias"),
+            ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").expect("connection"),
+            auths_connections::SemanticId::parse("auths.stripe.connection/1").expect("contract"),
+            auths_connections::SemanticId::parse("auths.stripe.connection-descriptor/1")
+                .expect("schema"),
+            b"descriptor".to_vec(),
+            [2; 32],
+            [3; 32],
+            NonZeroU64::new(1).expect("generation"),
+            state,
+            workloads,
+            profiles,
+            10,
+            10,
+            (state == ConnectionState::Revoked).then_some(10),
+        )
+        .expect("valid record")
+    }
+
+    #[test]
+    fn entry_authorization_preserves_complete_record_membership() {
+        use auths_connections::ConnectionProfile;
+        let names = ["Worker", "worker", "worker-b"];
+        let mut profiles: Vec<_> = ["auths.test.a", "auths.test.b", "auths.test.c"]
+            .into_iter()
+            .flat_map(|id| {
+                [1, 2].map(|version| {
+                    ConnectionProfile::new(
+                        auths_connections::SemanticId::parse(id).expect("profile id"),
+                        version,
+                    )
+                    .expect("profile")
+                })
+            })
+            .collect();
+        profiles.sort();
+        let mut requested = profiles.clone();
+        requested.push(
+            ConnectionProfile::new(
+                auths_connections::SemanticId::parse("auths.test.unknown").expect("id"),
+                1,
+            )
+            .expect("profile"),
+        );
+        requested.push(
+            ConnectionProfile::new(
+                auths_connections::SemanticId::parse("auths.test.a").expect("id"),
+                u16::MAX,
+            )
+            .expect("profile"),
+        );
+        let mut accepted = 0;
+        let mut refused = 0;
+        for state in [
+            ConnectionState::Active,
+            ConnectionState::Disabled,
+            ConnectionState::Revoked,
+        ] {
+            for workload_count in 1..=names.len() {
+                for profile_count in 1..=profiles.len() {
+                    let record = entry_record(
+                        state,
+                        names[..workload_count]
+                            .iter()
+                            .map(|name| (*name).to_owned())
+                            .collect(),
+                        profiles[..profile_count].to_vec(),
+                    );
+                    for workload in ["Worker", "worker", "worker-b", "unlisted"] {
+                        for profile in &requested {
+                            // Frozen preceding expression, evaluated on a constructor-valid record.
+                            let expected = record.state() == ConnectionState::Active
+                                && record
+                                    .allowed_workloads()
+                                    .iter()
+                                    .any(|allowed| allowed == workload)
+                                && record.allowed_profiles().contains(profile);
+                            assert_eq!(authorizes_entry(&record, workload, profile), expected);
+                            if expected {
+                                accepted += 1;
+                            } else {
+                                refused += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!((accepted, refused), (126, 1602));
+    }
+
+    #[test]
+    fn loaded_record_comparison_preserves_exact_byte_identity() {
+        let profile = auths_connections::ConnectionProfile::new(
+            auths_connections::SemanticId::parse("auths.test.a").expect("profile id"),
+            1,
+        )
+        .expect("profile");
+        let record = entry_record(
+            ConnectionState::Active,
+            vec!["worker".to_owned()],
+            vec![profile],
+        );
+        let bytes = record.to_canonical_cbor().expect("canonical");
+        let loaded = LoadedConnection {
+            record: record.clone(),
+            bytes: bytes.clone(),
+        };
+        assert!(loaded.unchanged(&loaded));
+        for index in 0..bytes.len() {
+            let mut changed = bytes.clone();
+            changed[index] ^= 1;
+            let other = LoadedConnection {
+                record: record.clone(),
+                bytes: changed,
+            };
+            assert_eq!(loaded.unchanged(&other), loaded.bytes == other.bytes);
+            assert!(!loaded.unchanged(&other));
+        }
+        let truncated = LoadedConnection {
+            record,
+            bytes: bytes[..bytes.len() - 1].to_vec(),
+        };
+        assert!(!loaded.unchanged(&truncated));
+    }
 
     #[test]
     fn the_key_separates_provider_and_alias() {

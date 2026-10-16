@@ -169,6 +169,22 @@ structure deadline.EntryBound where
   not_after : Std.U64
   inclusive : Bool
 
+/-- [auths_gateway_kernel::entry_authorization::EntryState]
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 9:0-16:1
+    Visibility: public -/
+@[discriminant isize]
+inductive entry_authorization.EntryState where
+| Active : entry_authorization.EntryState
+| Disabled : entry_authorization.EntryState
+| Revoked : entry_authorization.EntryState
+
+/-- [auths_gateway_kernel::entry_authorization::EntryProfile]
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 20:0-25:1
+    Visibility: public -/
+structure entry_authorization.EntryProfile where
+  id : alloc.vec.Vec Std.U8
+  version : Std.U16
+
 /-- [auths_gateway_kernel::frontier::FrontierSearch]
     Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 7:0-10:1
     Visibility: public -/

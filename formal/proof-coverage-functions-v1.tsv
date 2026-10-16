@@ -1510,6 +1510,8 @@ product/runtime/auths-gateway-kernel/src/counter_preimages.rs	67	69	3	count_slot
 product/runtime/auths-gateway-kernel/src/counter_preimages.rs	74	76	3	sum_slot_preimage	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/deadline.rs	15	24	10	intersect_entry_bounds	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/deadline.rs	29	31	3	entry_time_allows	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
+product/runtime/auths-gateway-kernel/src/entry_authorization.rs	30	40	11	profile_allowed	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/entry_authorization.rs	45	60	16	entry_allows	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	4
 product/runtime/auths-gateway-kernel/src/frontier.rs	16	21	6	FrontierSearch::new	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
 product/runtime/auths-gateway-kernel/src/frontier.rs	26	32	7	FrontierSearch::probe	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
 product/runtime/auths-gateway-kernel/src/frontier.rs	37	54	18	FrontierSearch::observe	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1

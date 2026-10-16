@@ -24549,6 +24549,183 @@
         "Auths.Product.ReservationAdmission.decideReservation",
         "Auths.Product.ReservationAdmission.Code.admit"
       ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionEntryRefinement",
+      "name": "Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact",
+      "statement": "∀ (profiles : Aeneas.Std.Slice auths_gateway_kernel.entry_authorization.EntryProfile)\n  (requested : auths_gateway_kernel.entry_authorization.EntryProfile),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.entry_authorization.profile_allowed profiles requested) fun actual =>\n    actual =\n      decide\n        (Auths.Product.ConnectionEntry.Refinement.profileView requested ∈\n          Auths.Product.ConnectionEntry.Refinement.profilesView profiles)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "instBEqOfDecidableEq",
+        "instLawfulBEq",
+        "Decidable.decide",
+        "List.instDecidableMemOfLawfulBEq",
+        "List.instMembership",
+        "Membership.mem",
+        "Aeneas.Std.Slice",
+        "auths_gateway_kernel.entry_authorization.EntryProfile",
+        "auths_gateway_kernel.entry_authorization.profile_allowed",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionEntry.Profile",
+        "Auths.Product.ConnectionEntry.instDecidableEqProfile",
+        "Auths.Product.ConnectionEntry.Refinement.profileView",
+        "Auths.Product.ConnectionEntry.Refinement.profilesView"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionEntryRefinement",
+      "name": "Auths.Product.ConnectionEntry.Refinement.entry_allows_exact",
+      "statement": "∀ (state : auths_gateway_kernel.entry_authorization.EntryState)\n  (workloads : Aeneas.Std.Slice (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8))\n  (profiles : Aeneas.Std.Slice auths_gateway_kernel.entry_authorization.EntryProfile)\n  (workload : Aeneas.Std.Slice Aeneas.Std.U8) (profile : auths_gateway_kernel.entry_authorization.EntryProfile),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.entry_authorization.entry_allows state workloads profiles workload profile)\n    fun actual =>\n    actual =\n      Auths.Product.ConnectionEntry.allows (Auths.Product.ConnectionEntry.Refinement.stateView state)\n        (Auths.Product.SchemaIndex.Refinement.namesView workloads)\n        (Auths.Product.ConnectionEntry.Refinement.profilesView profiles)\n        (Auths.Product.ConnectionEntry.Refinement.bytes ↑workload)\n        (Auths.Product.ConnectionEntry.Refinement.profileView profile)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "LE.le",
+        "List.length",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "auths_gateway_kernel.entry_authorization.EntryProfile",
+        "auths_gateway_kernel.entry_authorization.EntryState",
+        "auths_gateway_kernel.entry_authorization.entry_allows",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionEntry.allows",
+        "Aeneas.Std.alloc.vec.Vec",
+        "Auths.Product.ConnectionEntry.Refinement.bytes",
+        "Auths.Product.ConnectionEntry.Refinement.profileView",
+        "Auths.Product.ConnectionEntry.Refinement.profilesView",
+        "Auths.Product.ConnectionEntry.Refinement.stateView",
+        "Auths.Product.SchemaIndex.Refinement.namesView"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionEntryRefinement",
+      "name": "Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile",
+      "statement": "∀ (state : auths_gateway_kernel.entry_authorization.EntryState)\n  (workloads : Aeneas.Std.Slice (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8))\n  (profiles : Aeneas.Std.Slice auths_gateway_kernel.entry_authorization.EntryProfile)\n  (workload : Aeneas.Std.Slice Aeneas.Std.U8) (profile : auths_gateway_kernel.entry_authorization.EntryProfile),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.entry_authorization.entry_allows state workloads profiles workload profile)\n    fun actual =>\n    actual = true →\n      Auths.Product.ConnectionEntry.Refinement.stateView state = Auths.Product.ConnectionEntry.State.active ∧\n        Auths.Product.ConnectionEntry.Refinement.bytes ↑workload ∈\n            Auths.Product.SchemaIndex.Refinement.namesView workloads ∧\n          Auths.Product.ConnectionEntry.Refinement.profileView profile ∈\n            Auths.Product.ConnectionEntry.Refinement.profilesView profiles",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "List.instMembership",
+        "List.length",
+        "Membership.mem",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "auths_gateway_kernel.entry_authorization.EntryProfile",
+        "auths_gateway_kernel.entry_authorization.EntryState",
+        "auths_gateway_kernel.entry_authorization.entry_allows",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionEntry.Profile",
+        "Auths.Product.ConnectionEntry.State",
+        "Auths.Product.SchemaIndex.Name",
+        "Aeneas.Std.alloc.vec.Vec",
+        "Auths.Product.ConnectionEntry.Refinement.bytes",
+        "Auths.Product.ConnectionEntry.Refinement.profileView",
+        "Auths.Product.ConnectionEntry.Refinement.profilesView",
+        "Auths.Product.ConnectionEntry.Refinement.stateView",
+        "Auths.Product.ConnectionEntry.State.active",
+        "Auths.Product.SchemaIndex.Refinement.namesView"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionEntryRefinement",
+      "name": "Auths.Product.ConnectionEntry.Refinement.source_disabled_refused",
+      "statement": "∀ (workloads : Aeneas.Std.Slice (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8))\n  (profiles : Aeneas.Std.Slice auths_gateway_kernel.entry_authorization.EntryProfile)\n  (workload : Aeneas.Std.Slice Aeneas.Std.U8) (profile : auths_gateway_kernel.entry_authorization.EntryProfile),\n  Aeneas.Std.WP.spec\n    (auths_gateway_kernel.entry_authorization.entry_allows auths_gateway_kernel.entry_authorization.EntryState.Disabled\n      workloads profiles workload profile)\n    fun actual => actual = false",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Bool.false",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "auths_gateway_kernel.entry_authorization.EntryProfile",
+        "auths_gateway_kernel.entry_authorization.entry_allows",
+        "Aeneas.Std.WP.spec",
+        "auths_gateway_kernel.entry_authorization.EntryState.Disabled",
+        "Aeneas.Std.alloc.vec.Vec"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionEntryRefinement",
+      "name": "Auths.Product.ConnectionEntry.Refinement.source_revoked_refused",
+      "statement": "∀ (workloads : Aeneas.Std.Slice (Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8))\n  (profiles : Aeneas.Std.Slice auths_gateway_kernel.entry_authorization.EntryProfile)\n  (workload : Aeneas.Std.Slice Aeneas.Std.U8) (profile : auths_gateway_kernel.entry_authorization.EntryProfile),\n  Aeneas.Std.WP.spec\n    (auths_gateway_kernel.entry_authorization.entry_allows auths_gateway_kernel.entry_authorization.EntryState.Revoked\n      workloads profiles workload profile)\n    fun actual => actual = false",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Bool.false",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "auths_gateway_kernel.entry_authorization.EntryProfile",
+        "auths_gateway_kernel.entry_authorization.entry_allows",
+        "Aeneas.Std.WP.spec",
+        "auths_gateway_kernel.entry_authorization.EntryState.Revoked",
+        "Aeneas.Std.alloc.vec.Vec"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionEntry",
+      "name": "Auths.Product.ConnectionEntry.admitted_binds_all",
+      "statement": "∀ (state : Auths.Product.ConnectionEntry.State) (workloads : List (List ℕ))\n  (profiles : List Auths.Product.ConnectionEntry.Profile) (workload : List ℕ)\n  (profile : Auths.Product.ConnectionEntry.Profile),\n  Auths.Product.ConnectionEntry.allows state workloads profiles workload profile = true →\n    state = Auths.Product.ConnectionEntry.State.active ∧ workload ∈ workloads ∧ profile ∈ profiles",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Bool.true",
+        "List.instMembership",
+        "Membership.mem",
+        "Auths.Product.ConnectionEntry.Profile",
+        "Auths.Product.ConnectionEntry.State",
+        "Auths.Product.ConnectionEntry.allows",
+        "Auths.Product.ConnectionEntry.State.active"
+      ]
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

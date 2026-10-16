@@ -12,6 +12,12 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact" = "exact"
+"Auths.Product.ConnectionEntry.Refinement.entry_allows_exact" = "exact"
+"Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile" = "partial"
+"Auths.Product.ConnectionEntry.Refinement.source_disabled_refused" = "partial"
+"Auths.Product.ConnectionEntry.Refinement.source_revoked_refused" = "partial"
+
 "Auths.Product.ReservationAdmission.Refinement.reservation_admission_exact" = "exact"
 "Auths.Product.ReservationAdmission.Refinement.source_admission_earns_bounds" = "partial"
 "Auths.Product.ReservationAdmission.Refinement.source_window_refusal_precedes_sum" = "partial"

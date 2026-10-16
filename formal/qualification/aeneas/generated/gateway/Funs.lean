@@ -1847,6 +1847,76 @@ def deadline.entry_time_allows
          else ok false
   else ok false
 
+/-- [auths_gateway_kernel::entry_authorization::profile_allowed]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 32:4-40:1
+    Visibility: public -/
+@[rust_loop_body]
+def entry_authorization.profile_allowed_loop.body
+  (allowed : Slice entry_authorization.EntryProfile)
+  (requested : entry_authorization.EntryProfile) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len allowed
+  if index < i
+  then
+    let profile ← Slice.index_usize allowed index
+    if profile.version = requested.version
+    then
+      let s := alloc.vec.Vec.deref profile.id
+      let s1 := alloc.vec.Vec.deref requested.id
+      let b ← construct.field_name_equal s s1
+      if b
+      then ok (done true)
+      else let index1 ← index + 1#usize
+           ok (cont index1)
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done false)
+
+/-- [auths_gateway_kernel::entry_authorization::profile_allowed]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 32:4-40:1
+    Visibility: public -/
+@[rust_loop]
+def entry_authorization.profile_allowed_loop
+  (allowed : Slice entry_authorization.EntryProfile)
+  (requested : entry_authorization.EntryProfile) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => entry_authorization.profile_allowed_loop.body allowed
+      requested index1)
+    index
+
+/-- [auths_gateway_kernel::entry_authorization::profile_allowed]:
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 30:0-40:1
+    Visibility: public -/
+@[reducible]
+def entry_authorization.profile_allowed
+  (allowed : Slice entry_authorization.EntryProfile)
+  (requested : entry_authorization.EntryProfile) :
+  Result Bool
+  := do
+  entry_authorization.profile_allowed_loop allowed requested 0#usize
+
+/-- [auths_gateway_kernel::entry_authorization::entry_allows]:
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 45:0-60:1
+    Visibility: public -/
+def entry_authorization.entry_allows
+  (state : entry_authorization.EntryState)
+  (workloads : Slice (alloc.vec.Vec Std.U8))
+  (profiles : Slice entry_authorization.EntryProfile) (workload : Slice Std.U8)
+  (profile : entry_authorization.EntryProfile) :
+  Result Bool
+  := do
+  match state with
+  | entry_authorization.EntryState.Active =>
+    let o ← construct.field_index workloads workload
+    match o with
+    | none => ok false
+    | some _ => entry_authorization.profile_allowed profiles profile
+  | entry_authorization.EntryState.Disabled => ok false
+  | entry_authorization.EntryState.Revoked => ok false
+
 /-- [auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new]:
     Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 16:4-21:5
     Visibility: public -/

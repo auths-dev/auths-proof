@@ -1,3 +1,4 @@
+import Auths.Product.ConnectionEntryRefinement
 import Auths.Product.SlotRecordRefinement
 import Auths.Product.SlotBatchRefinement
 import Auths.Product.ReservationRetryRefinement
@@ -190,3 +191,42 @@ example :
     scalar_tac
 
 end qualification.aeneas.cases.CumulativeRecord
+
+#check Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact
+#check Auths.Product.ConnectionEntry.Refinement.entry_allows_exact
+#check Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile
+#check Auths.Product.ConnectionEntry.Refinement.source_disabled_refused
+#check Auths.Product.ConnectionEntry.Refinement.source_revoked_refused
+
+namespace qualification.aeneas.cases.ConnectionEntry
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_gateway_kernel
+open Auths.Product.ConnectionEntry.Refinement
+private def identifier : alloc.vec.Vec U8 := ⟨[97#u8], by simp; scalar_tac⟩
+private def workload : Slice U8 := alloc.vec.Vec.deref identifier
+private def workloads : Slice (alloc.vec.Vec U8) := ⟨[identifier], by simp; scalar_tac⟩
+private def profile : entry_authorization.EntryProfile := ⟨identifier, 1#u16⟩
+private def profiles : Slice entry_authorization.EntryProfile := ⟨[profile], by simp; scalar_tac⟩
+
+-- Matching nonempty workload and full profile/version fields really permit.
+example : entry_authorization.entry_allows .Active workloads profiles workload profile
+    ⦃ actual => actual = true ⦄ := by
+  step with entry_allows_exact as ⟨actual, exactMeaning⟩
+  change actual = Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 1⟩ at exactMeaning
+  have model : Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 1⟩ = true := by decide
+  exact exactMeaning.trans model
+
+-- The same otherwise-admissible record cannot authorize after disablement.
+example : entry_authorization.entry_allows .Disabled workloads profiles workload profile
+    ⦃ actual => actual = false ⦄ := by
+  exact source_disabled_refused workloads profiles workload profile
+
+-- An equal profile identifier at another version is a refusal.
+example : entry_authorization.entry_allows .Active workloads profiles workload ⟨identifier, 2#u16⟩
+    ⦃ actual => actual = false ⦄ := by
+  step with entry_allows_exact as ⟨actual, exactMeaning⟩
+  change actual = Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 2⟩ at exactMeaning
+  have model : Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 2⟩ = false := by decide
+  exact exactMeaning.trans model
+end qualification.aeneas.cases.ConnectionEntry

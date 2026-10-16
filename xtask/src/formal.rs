@@ -2553,6 +2553,33 @@ fn expanded_batch_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, bool)> {
     let (claim_text, rust_symbol, gateway) = match declaration {
+        "Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact" => (
+            "The complete actual profile-membership loop returns exactly membership of the full identifier-byte/version pair for every represented list and requested profile. Neither membership nor valid record construction is assumed.",
+            "auths_gateway_kernel::entry_authorization::profile_allowed",
+            true,
+        ),
+        "Auths.Product.ConnectionEntry.Refinement.entry_allows_exact" => (
+            "The complete actual connection-entry predicate returns exactly the independent conjunction of active state, exact workload membership and exact profile identifier/version membership, with no desired-result Boolean premise.",
+            "auths_gateway_kernel::entry_authorization::entry_allows",
+            true,
+        ),
+        "Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile" => {
+            (
+                "Every actual positive connection-entry result earns active state and exact workload and profile/version membership. Credential leases, shared-record reloads, byte-to-record decoding and execution entry remain separate.",
+                "auths_gateway_kernel::entry_authorization::entry_allows",
+                true,
+            )
+        }
+        "Auths.Product.ConnectionEntry.Refinement.source_disabled_refused" => (
+            "The actual connection-entry predicate refuses every disabled state for all workload/profile lists and requests, even if both memberships hold.",
+            "auths_gateway_kernel::entry_authorization::entry_allows",
+            true,
+        ),
+        "Auths.Product.ConnectionEntry.Refinement.source_revoked_refused" => (
+            "The actual connection-entry predicate refuses every revoked state for all workload/profile lists and requests, even if both memberships hold.",
+            "auths_gateway_kernel::entry_authorization::entry_allows",
+            true,
+        ),
         "Auths.Product.CounterAggregation.Refinement.count_capacity_spec" => (
             "The complete actual count-capacity lookup is total and returns exactly the independent first-key capacity, with zero for an absent key, on every represented input including duplicate keys.",
             "auths_gateway_kernel::counter_aggregation::count_capacity",
@@ -2913,6 +2940,12 @@ fn expanded_batch_refinement_metadata(
                 "auths_gateway_kernel::reservation_retry::retry_target" => {
                     &["auths_gateway_kernel::reservation_retry::retry_target"]
                 }
+                "auths_gateway_kernel::entry_authorization::profile_allowed" => {
+                    &["auths_gateway_kernel::entry_authorization::profile_allowed"]
+                }
+                "auths_gateway_kernel::entry_authorization::entry_allows" => {
+                    &["auths_gateway_kernel::entry_authorization::entry_allows"]
+                }
                 "auths_gateway_kernel::counter_aggregation::count_capacity" => {
                     &["auths_gateway_kernel::counter_aggregation::count_capacity"]
                 }
@@ -2945,7 +2978,7 @@ fn expanded_batch_refinement_metadata(
                 "Decoder success premises state partial-correctness safety and earn scope invariants; they are not assumed authorization decisions or total-parser claims. The source scheme/token and field-index leaves state complete results on their displayed domains. Preimage size premises state the displayed production caller bounds. Counter and slot builders match pre-hash bytes; hashing callers have native parity evidence and SHA-256 security remains a separate primitive contract. No hash injectivity or signature security is asserted.",
                 "Independent history/schema/framing models establish only their own declared semantics until source/store/compiler/driver correspondence is composed. These source components do not close complete byte decoding, canonical round trips, registry authentication, staged verification, JSON implementation correctness, complete concurrent admission, backend durability or runtime entry. Remaining E1-E5/M6 obligations remain explicit in AP-SPEC-069.",
             ],
-            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. Count and sum aggregation cover every contribution, first-key capacity minima, unique IDs and preservation of the first sum slot bound. They do not yet prove the authenticated caller mapping or count/sum coupling. Retry claims cover exact conflict interpretation, guarded indices, checked arithmetic and read-before-advance planning; actual cumulative-record decoding, canonical record serialization, whole caller/driver assembly and backend/caller linearization remain separate. Batch-description claims cover actual bounded complete construction, claim-first order and cumulative-overflow refusal. Native byte parity supports the shipping serialization and decoded cumulative-reader cutovers. Decoded-record identity and numeric checks are source-proved; complete serde/caller correspondence remains open. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
+            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. Count and sum aggregation cover every contribution, first-key capacity minima, unique IDs and preservation of the first sum slot bound. They do not yet prove the authenticated caller mapping or count/sum coupling. Retry claims cover exact conflict interpretation, guarded indices, checked arithmetic and read-before-advance planning; actual cumulative-record decoding, canonical record serialization, whole caller/driver assembly and backend/caller linearization remain separate. Batch-description claims cover actual bounded complete construction, claim-first order and cumulative-overflow refusal. Native byte parity supports the shipping serialization and decoded cumulative-reader cutovers. Decoded-record identity and numeric checks are source-proved; complete serde/caller correspondence remains open. Connection entry source claims cover explicit state/workload/profile projections; the runtime projection, complete record decoder, reload and lease/write correspondence remain separate. Native constructor-valid record parity supports that projection, and the reload byte comparator consumes the existing exact-byte primitive. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
         },
         gateway,
     ))
