@@ -955,3 +955,33 @@ completed successfully. The 658-claim source slice still needs its own hosted
 replay. Current work connects the accumulator to the independent selection
 specification, then closes the anchor-view scope-search boundary before
 connecting selection to temporal-witness construction.
+
+
+### 13.8 Independent status semantics — 16 October 2026
+
+The semantic gap in §13.7 is now closed for the approval-view source path.
+The pure accumulator equals the independent candidate/method/trust filters,
+maximum-sequence tie-set specification and complete decision/horizon result
+for every finite input, every view and every policy, without an input-validity
+or desired-result premise. Both actual principal and grant approval-view port
+methods compose with that theorem. The proof earns maximum attainment and
+complete tie handling; stale or revoked latest evidence cannot be dropped by
+scan order. The semantic proof modules import no generated Rust.
+
+Fresh source qualification passes **661 compiled claims**, with all 658 prior
+complete records unchanged, **17/17 cases**, **23 reviewed models**, zero
+unreviewed models, zero compiled external axioms and two byte-identical clean
+translations. Qualified production closure:
+`678c19c1155869c45fed1cb7e849c147bca5bde0e07df567f413487335ab6669`.
+The compiled audit uses only the permitted foundations.
+
+Hosted checking of the preceding `85bc1e0f` found a stale gateway checksum for
+the differential test file after its final lint cleanup. Refresh the generated
+artifact and require the focused checksum check and exact-revision hosted
+replay. Keep the checksum's complete input boundary intact.
+
+Continue with anchor-view source visibility, including the actual sorted
+scope binary search, then full verifier evidence authentication/dispatch and
+selection-to-temporal-witness composition. The pure all-view equivalence does
+not itself prove that the native anchor-view calls realize that model. E1–E5
+and M6 remain open under §10 and the remaining-program table in §13.5.

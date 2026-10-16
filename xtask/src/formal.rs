@@ -2043,6 +2043,10 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
+        if declaration.name == "Auths.StatusSelection.Algebra.evaluateScan_eq_evaluate" {
+            claim.claim_text = "For every finite input, subject equality operation, view and policy, the operational accumulator equals the independent filter/max/tie-set status specification, including the complete decision and horizon.".to_owned();
+            claim.scope = "Pure semantic equivalence without an input-validity or desired-result premise. The proof uses attained maxima, complete tie sets, associative record combination and exact minimum horizons. This module imports no generated Rust. Native source binding is earned only by separately audited port statements; anchor-view source correspondence, evidence authenticity and full E2/M6 remain open.".to_owned();
+        }
         if [
             "Auths.StatusSelection.byte_array_comparison",
             "Auths.StatusSelection.native_floor_view",
@@ -2524,57 +2528,72 @@ fn status_selection_refinement_metadata(declaration: &str) -> Option<ProductionR
     const RESIDUAL: &[&str] = &[
         "Trust Lean's kernel, the pinned Rust/Charon/Aeneas/Lean compiler boundary, permitted foundations and reviewed standard-library models. Every Auths helper, getter, comparison and selector body in this unit is translated with no opaque Auths algorithm. Standard dictionary adapters have unconditional compiled delegation equalities; no generated function body is rewritten.",
         "Inputs are represented finite bounded slices and 64-bit values. The loop remaining-list relation is an internal representation invariant established at entry. Totality is in qualified Result semantics, not a full verifier work bound, physical memory, host-clock or transport guarantee.",
-        "The result-complete principal/grant selector statements here fix the view to Approver and refine an implementation-facing pure scan. Its equivalence to the independently defined filter/maximum/tie-set specification is not yet proved. Anchor views, sorted-scope binary-search membership, actual evidence authentication, registry dispatch, caller witness selection, complete verification and runtime entry/history consumption remain separate AP-SPEC-069 obligations. No whole E2/E4/M3/M6 milestone is closed.",
+        "The result-complete principal/grant selector statements here fix the view to Approver and refine an implementation-facing pure scan. The separately audited semantic bridge relates that scan to the independent filter/maximum/tie-set specification. Anchor views, sorted-scope binary-search membership, actual evidence authentication, registry dispatch, caller witness selection, complete verification and runtime entry/history consumption remain separate AP-SPEC-069 obligations. No whole E2/E4/M3/M6 milestone is closed.",
     ];
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.StatusSelection.principal_method_approver_independent" => (
+            "The actual principal approval-view port terminates and returns the exact independent filter/max/tie-set decision and horizon, without a source-success premise.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
+            ],
+            "Every represented input and policy in the approval view. The independent model filters candidates, exact methods and trusted issuers, refuses any rollback, and uses the complete maximum-sequence tie set. Its kernel-checked operational equivalence has no validity or desired-result premise. Anchor-view source refinement, evidence authentication, registry dispatch and complete verifier/runtime consumption remain open.",
+        ),
+        "Auths.StatusSelection.grant_method_approver_independent" => (
+            "The actual grant approval-view port terminates and returns the exact independent filter/max/tie-set decision and horizon, without a source-success premise.",
+            &[
+                "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant",
+            ],
+            "Every represented input and policy in the approval view. The independent model filters candidates, exact methods and trusted issuers, refuses any rollback, and uses the complete maximum-sequence tie set. Its kernel-checked operational equivalence has no validity or desired-result premise. Anchor-view source refinement, evidence authentication, registry dispatch and complete verifier/runtime consumption remain open.",
+        ),
+
         "Auths.StatusSelection.sequence_floor_refines" => (
             "The actual first-rule scan terminates and returns the independent first exact method/issuer rule sequence floor.",
             &["auths_registries::status_sequence_floor"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.approver_visibility_refines" => (
             "The actual approval-view visibility scan terminates and agrees with every matching issuer rule having universal scope.",
             &["auths_model::status_issuer_visible"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.freshness_exact" => (
             "The actual snapshot-required freshness helper returns Active iff observation ordering, inclusive expiry and maximum age hold.",
             &["auths_registries::{auths_registries::ExactStatusMethod}::freshness"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.principal_loop_refines" => (
             "The actual principal status loop terminates and preserves every field of the implementation-facing approval-view accumulator.",
             &["auths_registries::select_principal_from_snapshot"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.principal_selector_approver_refines" => (
             "The actual principal selector agrees with the implementation-facing approval-view scan, including all policy/header/result fields.",
             &["auths_registries::select_principal_from_snapshot"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.principal_method_approver_refines" => (
             "The shipping principal port method returns the exact typed approval-view scan result without a caller-supplied desired result.",
             &[
                 "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal",
             ],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.grant_loop_refines" => (
             "The actual grant status loop terminates and preserves every field of the implementation-facing approval-view accumulator.",
             &["auths_registries::select_grant_from_snapshot"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.grant_selector_approver_refines" => (
             "The actual grant selector agrees with the implementation-facing approval-view scan, including all policy/header/result fields.",
             &["auths_registries::select_grant_from_snapshot"],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.grant_method_approver_refines" => (
             "The shipping grant port method returns the exact typed approval-view scan result without a caller-supplied desired result.",
             &[
                 "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant",
             ],
-            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. The independent declarative filter/max specification is defined separately and its equivalence is unearned. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
+            "Only each displayed component contract: exact first matching rule for arbitrary finite rule lists, approval-view visibility, snapshot-required freshness, or every field of the terminating approval-view operational scan. These operational statements alone do not assert declarative adequacy; the separate semantic bridge proves it without an input validity premise. No desired source result, authenticated-evidence conclusion or complete verifier outcome is a premise. These partial-family statements cannot satisfy the spec's complete E2 gates.",
         ),
         "Auths.StatusSelection.Examples.active_selected_horizon" => (
             "The actual pure principal selector has the displayed exact accepted/refused decision and horizon.",

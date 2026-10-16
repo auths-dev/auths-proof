@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 416,
+  "freezeVersion": 417,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -214,7 +214,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 88,
+      "version": 89,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -222,7 +222,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "c40bd937b495940e44bea5705ea385b7fa8193955bff3847be768ffe872d7ff1"
+      "sha256": "9be6358a0bd22f58bdbe4c1d69f2c9a524a9f7bc0faede6e714fc0b1525ea178"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml",
-      "version": 35,
+      "version": 36,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,11 +246,11 @@
       "owners": [
         "formal/qualification/aeneas/qualification.toml"
       ],
-      "sha256": "8737712434bcb2e9aa59c2ab606ce2126297c0fe0015b7ead6c5e3ba645ba39b"
+      "sha256": "1528e6d1165b69e352fa4d711c724174b3ea04ecaf6e75d80a90087e892364d5"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 127,
+      "version": 128,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -258,7 +258,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "021444ca0499c8bef6c333ccb6b975199c8ba2c225d85d7a653c8d65f4e2fe65"
+      "sha256": "9abe1a6e7def4a368a7fd61df80acf21bdf41ba1178897a65800184fd50d6f27"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -1023,7 +1023,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 416,
+      "version": 417,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1116,7 +1116,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "3d6ae3657ad10c03d610185003a0bfd2f93b920ecff8cca1451eb29874c918fe"
+      "sha256": "a8011988d42e0dd4dfc29ebc06770a336958dbf3ddb6614d9100c11b0634763a"
     }
   ]
 }

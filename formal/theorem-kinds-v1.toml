@@ -12,6 +12,8 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.StatusSelection.principal_method_approver_independent" = "partial"
+"Auths.StatusSelection.grant_method_approver_independent" = "partial"
 # Imported transparent Auths-model bodies remain audited source components;
 # this metric classifies only locally owned functions in each translation.
 # approver_visibility_refines therefore has no owned-function metric row.

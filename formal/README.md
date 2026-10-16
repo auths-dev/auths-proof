@@ -483,3 +483,34 @@ Qualified production closure:
 The preceding 634-claim revision `e4770a2b` passed all ten hosted workflows,
 including [main CI](https://github.com/auths-dev/auths-proof/actions/runs/38931405294).
 The new source slice requires exact-revision hosted gates. E1–E5/M6 remain open.
+
+
+## Independent status-selection adequacy
+
+The operational accumulator now equals the independent filter/max/tie-set
+specification for every finite input, subject equality operation, view and
+policy, without an input-validity or source-success premise. The proof earns
+an attained maximum, preserves every highest-sequence tie, treats rollback
+as absorbing, and connects exact minimum horizons to the independent fold.
+Its semantic modules import no generated Rust.
+
+Both actual principal and grant approval-view port methods now refine that
+independent specification, returning the exact decision and horizon. This
+closes the scan-versus-specification gap recorded in the preceding checkpoint.
+Anchor-view source refinement, evidence authentication, closed dispatch and
+complete verifier/runtime consumption remain open. No whole E2/E4/M6
+milestone is complete.
+
+Fresh qualification passes 661 compiled claims, all 658 preceding complete
+records unchanged, 17/17 cases, 23 reviewed models, zero unreviewed models,
+zero compiled external axioms and two byte-identical fresh translations.
+Qualified production closure:
+`678c19c1155869c45fed1cb7e849c147bca5bde0e07df567f413487335ab6669`.
+Only the permitted foundational axioms occur. Exact-revision hosted gates
+remain required.
+
+Hosted implementation checking of `85bc1e0f` found that the gateway checksum
+still described the differential test file before its final lint cleanup.
+The generated artifact is refreshed in this checkpoint; its focused native
+check must pass again. No gate or checksum input is excluded to accommodate
+the change. Other hosted results for that revision remain separately recorded.

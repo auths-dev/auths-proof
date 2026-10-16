@@ -1,3 +1,4 @@
+import Auths.Verifier.StatusSemantics
 import Auths.Verifier.StatusExamples
 import Auths.Verifier.TemporalExamples
 import Auths.Crypto.SuiteAdapterExamples
@@ -51,6 +52,9 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.StatusSelection.Algebra.evaluateScan_eq_evaluate,
+    `Auths.StatusSelection.principal_method_approver_independent,
+    `Auths.StatusSelection.grant_method_approver_independent,
     `Auths.StatusSelection.sequence_floor_refines,
     `Auths.StatusSelection.approver_visibility_refines,
     `Auths.StatusSelection.freshness_exact,
