@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "cb3d1bff851332bd0f01c207b6b551a99c276beb4d0cc3022190b8db49593a4b";
+    "cae0940641d0ad3ad51cebd5e091ce76771f6c67561ee40486e6045abb11471d";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -455,6 +455,8 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "product/runtime/auths-gateway-kernel/src/reservation_retry.rs",
+    "product/runtime/auths-gateway-kernel/src/counter_aggregation.rs",
     "product/runtime/auths-gateway-kernel/src/counter_preimages.rs",
     "product/runtime/auths-gateway/src/bounds.rs",
     "product/runtime/auths-gateway-kernel/src/frontier.rs",
@@ -3260,7 +3262,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_gateway_kernel::counter_preimages::count_counter_preimage,auths_gateway_kernel::counter_preimages::sum_counter_preimage,auths_gateway_kernel::counter_preimages::count_slot_preimage,auths_gateway_kernel::counter_preimages::sum_slot_preimage,auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
+            "auths_gateway_kernel::reservation_retry::retry_target,auths_gateway_kernel::counter_aggregation::aggregate_sum,auths_gateway_kernel::counter_aggregation::aggregate,auths_gateway_kernel::counter_preimages::count_counter_preimage,auths_gateway_kernel::counter_preimages::sum_counter_preimage,auths_gateway_kernel::counter_preimages::count_slot_preimage,auths_gateway_kernel::counter_preimages::sum_slot_preimage,auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
             &stable_llbc.join("auths_gateway_kernel.llbc"),
             "product/runtime/auths-gateway-kernel/Cargo.toml",
             &[],

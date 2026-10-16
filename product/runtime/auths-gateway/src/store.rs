@@ -2490,11 +2490,9 @@ fn reserve_with_claim(
         .map(|counter| counter.capacity)
         .collect();
     let sum_capacities: Vec<u64> = bound.sums.iter().map(|counter| counter.capacity).collect();
+    let sum_slot_capacities: Vec<u64> = bound.sums.iter().map(|counter| counter.slots).collect();
     for _ in 0..MAX_CLAIM_ROUNDS {
-        let sum_slots_left = sums
-            .iter()
-            .zip(&bound.sums)
-            .all(|(slot, counter)| *slot < counter.slots);
+        let sum_slots_left = chain_counts_admit(&sums, &sum_slot_capacities);
         if !chain_counts_admit(&counts, &count_capacities) || !sum_slots_left {
             return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
         }
@@ -2512,22 +2510,31 @@ fn reserve_with_claim(
                     record: Box::new(record),
                 });
             }
-            GatewayInsert::Exists { index: 0 } => return Err(GatewayAttemptError::Replay),
             GatewayInsert::Exists { index } => {
-                let position = index - 1;
-                if let Some(slot) = counts.get_mut(position) {
-                    *slot += 1;
-                } else {
-                    let position = position - counts.len();
-                    let (Some(slot), Some(total), Some(counter)) = (
-                        sums.get_mut(position),
-                        totals.get_mut(position),
-                        bound.sums.get(position),
-                    ) else {
-                        return Err(GatewayAttemptError::Corrupt);
-                    };
-                    *total = cumulative(store, &counter.key, *slot)?;
-                    *slot += 1;
+                use auths_gateway_kernel::reservation_retry::{RetryTarget, retry_target};
+                match retry_target(index, &counts, &sums, totals.len(), bound.sums.len()) {
+                    RetryTarget::Replay => return Err(GatewayAttemptError::Replay),
+                    RetryTarget::Corrupt => return Err(GatewayAttemptError::Corrupt),
+                    RetryTarget::Count { position, next } => {
+                        *counts
+                            .get_mut(position)
+                            .ok_or(GatewayAttemptError::Corrupt)? = next;
+                    }
+                    RetryTarget::Sum {
+                        position,
+                        read_slot,
+                        next,
+                    } => {
+                        let counter = bound
+                            .sums
+                            .get(position)
+                            .ok_or(GatewayAttemptError::Corrupt)?;
+                        let total = cumulative(store, &counter.key, read_slot)?;
+                        *totals
+                            .get_mut(position)
+                            .ok_or(GatewayAttemptError::Corrupt)? = total;
+                        *sums.get_mut(position).ok_or(GatewayAttemptError::Corrupt)? = next;
+                    }
                 }
             }
         }

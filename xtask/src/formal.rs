@@ -2553,6 +2553,84 @@ fn expanded_batch_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, bool)> {
     let (claim_text, rust_symbol, gateway) = match declaration {
+        "Auths.Product.ReservationRetry.Refinement.retry_target_exact" => (
+            "The actual batch-conflict interpreter returns exactly the independent claim/count/sum retry plan on every represented input, including invalid indices, missing parallel arrays and counter overflow; no bounds or successful result are assumed.",
+            "auths_gateway_kernel::reservation_retry::retry_target",
+            true,
+        ),
+        "Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay" => (
+            "Every conflict on the actual logical claim entry returns Replay for all frontier and metadata inputs; it never becomes a count/sum retry.",
+            "auths_gateway_kernel::reservation_retry::retry_target",
+            true,
+        ),
+        "Auths.Product.ReservationRetry.Refinement.source_count_progress_safe" => (
+            "Every actual count retry points to the exact conflicting count entry, advances exactly one and remains within the u64 word domain.",
+            "auths_gateway_kernel::reservation_retry::retry_target",
+            true,
+        ),
+        "Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe" => (
+            "Every actual sum retry points to the exact conflicting sum entry and existing slot, checks all parallel array bounds, and advances exactly one within the u64 word domain.",
+            "auths_gateway_kernel::reservation_retry::retry_target",
+            true,
+        ),
+
+        "Auths.Product.CounterAggregation.Refinement.sum_position_spec" => (
+            "The actual sum-counter first-position lookup terminates and returns the exact first matching public ID or absence on every represented slice.",
+            "auths_gateway_kernel::counter_aggregation::sum_position",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.contribute_sum_spec" => (
+            "The actual sum contribution update returns exactly the independent minimum-capacity update while retaining the first slot bound; no successful result or uniqueness premise is assumed.",
+            "auths_gateway_kernel::counter_aggregation::contribute_sum",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec" => (
+            "The complete actual sum-aggregation loop returns exactly the independent finite contribution fold, including first slot bounds, on the admitted gateway chain size domain.",
+            "auths_gateway_kernel::counter_aggregation::aggregate_sum",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique" => (
+            "Every actual complete sum aggregation earns unique shared counter IDs from its own empty initial state.",
+            "auths_gateway_kernel::counter_aggregation::aggregate_sum",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities" => (
+            "Every actual complete sum aggregation returns the exact independent pointwise minimum capacity for every shared ID. Retention of the first slot bound is established separately by the complete result; authenticated caller coupling and atomic runtime admission remain open.",
+            "auths_gateway_kernel::counter_aggregation::aggregate_sum",
+            true,
+        ),
+
+        "Auths.Product.CounterAggregation.Refinement.counter_equal_spec" => (
+            "The actual public counter-ID comparator returns exactly byte identity for every pair of typed 32-byte IDs.",
+            "auths_gateway_kernel::counter_aggregation::counter_equal",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.counter_position_spec" => (
+            "The actual first-position lookup terminates and returns the exact first key position or absence on every represented counter slice.",
+            "auths_gateway_kernel::counter_aggregation::counter_position",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.contribute_spec" => (
+            "The actual contribution update returns exactly the independent first-key minimum-capacity update under the displayed allocation bound, without a uniqueness or desired-result premise.",
+            "auths_gateway_kernel::counter_aggregation::contribute",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.aggregate_spec" => (
+            "The complete actual aggregation loop returns the independent finite contribution fold on the admitted gateway chain size domain.",
+            "auths_gateway_kernel::counter_aggregation::aggregate",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.source_aggregate_unique" => (
+            "Every complete native aggregation earns unique counter IDs from its actual empty initial state; no caller-supplied uniqueness invariant is assumed.",
+            "auths_gateway_kernel::counter_aggregation::aggregate",
+            true,
+        ),
+        "Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities" => (
+            "Every complete native aggregation returns exactly the independent pointwise minimum-capacity update for every shared counter ID; later contributions cannot multiply an ancestor budget.",
+            "auths_gateway_kernel::counter_aggregation::aggregate",
+            true,
+        ),
+
         "Auths.Product.CounterFrames.Refinement.word_exact" => (
             "The actual framing helper appends the exact eight-byte big-endian u64 word within the displayed allocation bound.",
             "auths_gateway_kernel::counter_preimages::append_word",
@@ -2745,6 +2823,30 @@ fn expanded_batch_refinement_metadata(
                 "auths_gateway_kernel::counter_preimages::sum_slot_preimage" => {
                     &["auths_gateway_kernel::counter_preimages::sum_slot_preimage"]
                 }
+                "auths_gateway_kernel::counter_aggregation::counter_equal" => {
+                    &["auths_gateway_kernel::counter_aggregation::counter_equal"]
+                }
+                "auths_gateway_kernel::counter_aggregation::counter_position" => {
+                    &["auths_gateway_kernel::counter_aggregation::counter_position"]
+                }
+                "auths_gateway_kernel::counter_aggregation::contribute" => {
+                    &["auths_gateway_kernel::counter_aggregation::contribute"]
+                }
+                "auths_gateway_kernel::counter_aggregation::aggregate" => {
+                    &["auths_gateway_kernel::counter_aggregation::aggregate"]
+                }
+                "auths_gateway_kernel::counter_aggregation::sum_position" => {
+                    &["auths_gateway_kernel::counter_aggregation::sum_position"]
+                }
+                "auths_gateway_kernel::counter_aggregation::contribute_sum" => {
+                    &["auths_gateway_kernel::counter_aggregation::contribute_sum"]
+                }
+                "auths_gateway_kernel::counter_aggregation::aggregate_sum" => {
+                    &["auths_gateway_kernel::counter_aggregation::aggregate_sum"]
+                }
+                "auths_gateway_kernel::reservation_retry::retry_target" => {
+                    &["auths_gateway_kernel::reservation_retry::retry_target"]
+                }
                 _ => return None,
             },
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
@@ -2753,7 +2855,7 @@ fn expanded_batch_refinement_metadata(
                 "Decoder success premises state partial-correctness safety and earn scope invariants; they are not assumed authorization decisions or total-parser claims. The source scheme/token and field-index leaves state complete results on their displayed domains. Preimage size premises state the displayed production caller bounds. Counter and slot builders match pre-hash bytes; hashing callers have native parity evidence and SHA-256 security remains a separate primitive contract. No hash injectivity or signature security is asserted.",
                 "Independent history/schema/framing models establish only their own declared semantics until source/store/compiler/driver correspondence is composed. These source components do not close complete byte decoding, canonical round trips, registry authentication, staged verification, JSON implementation correctness, complete concurrent admission, backend durability or runtime entry. Remaining E1-E5/M6 obligations remain explicit in AP-SPEC-069.",
             ],
-            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
+            scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. Count and sum aggregation cover every contribution, first-key capacity minima, unique IDs and preservation of the first sum slot bound. They do not yet prove the authenticated caller mapping or count/sum coupling. Retry claims cover exact conflict interpretation, guarded indices, checked arithmetic and read-before-advance planning; actual cumulative-record decoding, complete claim-batch assembly and backend/caller linearization remain separate. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",
         },
         gateway,
     ))

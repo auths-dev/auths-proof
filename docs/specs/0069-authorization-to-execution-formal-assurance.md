@@ -1340,3 +1340,38 @@ The production counter/slot hashing callers now consume pure kernel builders for
 The complete Lean build passes with 16 new inventoried results: exact source framing helpers and all four public builders, source-output identity binding for count/sum, independent counter/slot framing injectivity, and explicit framing-size bounds. Count and sum frames are at most 774 and 844 bytes on the production size domain. Hash equality is not assumed to imply preimage equality. The two existing standard checked-conversion/Result definitions were moved unchanged into a minimal shared bridge so gateway proofs do not import unrelated string/sort models.
 
 The final audit qualifies **757 claims**, with all 741 previous complete declaration records unchanged, no unexpected axioms, **25 reviewed models**, zero unreviewed/compiled external axioms, **18/18 cases**, and **two byte-identical clean full translations**. Source closure: `8701bdf464825fa990591db6833a3b35dc58806769a80520651dcade26968222`. Statement review: `ap-spec-069-counter-slot-framing-2026-10-16`; inventory digest: `2709ec4fbc2601760e0937ff445a361dcb4b99fb866ea5ca3b573293858fab3d`; boundary contract: `cb3d1bff851332bd0f01c207b6b551a99c276beb4d0cc3022190b8db49593a4b`. All 224 active gateway tests and 26 kernel tests pass; the 26 existing ignored gateway tests are unchanged. Hosted exact-revision evidence remains required. Counter aggregation and runtime/backend correspondence remain open; a separate keyed-minimum aggregation prototype is prepared and is not part of this checkpoint.
+
+
+### 13.18 Count and sum aggregation — qualified in the 798-claim checkpoint
+
+The actual count-counter derivation now computes its existing namespace/subject/window keys and consumes a pure kernel aggregator. Source proofs cover exact public 32-byte ID equality, first-match lookup, first-key capacity tightening, and the complete contribution loop on the admitted 16-link domain. The complete Lean build passes with these results included. The actual loop earns unique IDs from its own empty state and matches an independent pointwise minimum-capacity specification for every key, without assuming a caller-provided uniqueness invariant or desired result.
+
+Native parity compares the complete shipping chain derivation—including sorted count/sum records and sum slot bounds—to the frozen preceding implementation across repeated subjects, limits, partitions, partial zip inputs and extreme window coordinates. All 225 active gateway tests and the count kernel tests pass. The final combined count/sum/retry run passes 225 active gateway tests and 33 kernel tests. Literal formatting and checked test-index conversions corrected the focused lint findings; affected-target clippy now passes.
+
+Sum aggregation now uses the same source-proved minimum-capacity semantics and explicitly retains the first count-slot bound. Both actual source loops and their global uniqueness/capacity corollaries compile in the complete Lean build. The combined final qualification passes with **798 compiled claims**, all 757 preceding complete declaration records unchanged, 25 reviewed models, zero unreviewed/compiled external axioms, 18/18 cases and two byte-identical clean full translations. Source closure: `d75d2be54aeef9a943fb35736ead1ff024ffe838c11565c10f9ef647b99193c4`. Statement review: `ap-spec-069-counter-aggregation-retries-2026-10-16`; inventory digest: `ebf3c737a69822f3d0ead1c0d656565c1af5138cf47b7fcc2a05784f4e7a0a17`; boundary contract: `cae0940641d0ad3ad51cebd5e091ce76771f6c67561ee40486e6045abb11471d`. Hosted exact-revision evidence remains required. The caller's authenticated-chain-to-contribution mapping, count/sum coupling, atomic store admission and full runtime/history composition remain separate E4 obligations.
+
+
+### 13.19 Reservation retry interpretation — qualified in the 798-claim checkpoint
+
+The shipping reservation loop now consumes a pure, total conflict interpreter. A conflict on entry zero is always Replay. Count conflicts advance exactly the identified count frontier. Sum conflicts read the exact conflicting slot before advancing, and validate the sum frontier, total and counter vector positions. Checked additions turn a corrupt maximal frontier into a typed Corrupt error instead of relying on an implicit arithmetic precondition. These branches grant no execution handle; the existing atomic-insert success remains the sole successful reservation path.
+
+The sum-slot availability check now reuses the already proved chain-count predicate, including its exact vector-length check, rather than relying on a truncating zip. Existing admitted inputs retain their previous behavior. Native boundary tests cover batch ordering, missing vectors, invalid/maximum indices and word limits. The complete model/source retry refinement and replay/progress corollaries compile in the full Lean build. The complete combined batch passes the qualification recorded in §13.18. This does not yet close store linearization, cumulative-record decoding, claim-batch construction or full driver/history correspondence.
+
+
+### 13.20 Complete slot-batch construction — prepared next component
+
+The current shipping constructor pairs count/sum metadata and frontiers using
+zip. Its callers currently supply matching vectors; the next source cut makes
+that invariant explicit and checked. A private pure-kernel prototype rejects
+mismatched lengths, per-kind cardinalities above 16 and cumulative overflow,
+then describes exactly one claim first, every count slot and every sum slot in
+the order interpreted by the retry primitive. Both native boundary/parity tests
+pass and the prototype translates without opaque Auths code. An independent
+model establishes claim-first ordering, complete entry count and at most 33
+entries on success; final source-loop correspondence is being written.
+
+This prototype has not yet replaced shipping claim-batch assembly. Its outputs
+are record descriptions, not authorization or execution capabilities. The
+upcoming cutover must retain the existing canonical record fields, counter
+metadata, slot keys, expiries and all-or-none store insertion, and still needs
+complete source/compiled review, native parity and final qualification.

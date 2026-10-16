@@ -1386,6 +1386,287 @@ def construct.field_index
   := do
   construct.field_index_loop names wanted 0#usize none
 
+/-- [auths_gateway_kernel::counter_aggregation::counter_equal]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 19:4-26:1
+    Visibility: public -/
+@[rust_loop_body]
+def counter_aggregation.counter_equal_loop.body
+  (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize)
+  (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  if index < 32#usize
+  then
+    let i ← Array.index_usize left index
+    let i1 ← Array.index_usize right index
+    if i != i1
+    then ok (done false)
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done true)
+
+/-- [auths_gateway_kernel::counter_aggregation::counter_equal]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 19:4-26:1
+    Visibility: public -/
+@[rust_loop]
+def counter_aggregation.counter_equal_loop
+  (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize)
+  (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => counter_aggregation.counter_equal_loop.body left right
+      index1)
+    index
+
+/-- [auths_gateway_kernel::counter_aggregation::counter_equal]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 17:0-26:1
+    Visibility: public -/
+@[reducible]
+def counter_aggregation.counter_equal
+  (left : Array Std.U8 32#usize) (right : Array Std.U8 32#usize) :
+  Result Bool
+  := do
+  counter_aggregation.counter_equal_loop left right 0#usize
+
+/-- [auths_gateway_kernel::counter_aggregation::counter_position]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 32:4-39:1
+    Visibility: public -/
+@[rust_loop_body]
+def counter_aggregation.counter_position_loop.body
+  (counters : Slice counter_aggregation.CounterCapacity)
+  (key : Array Std.U8 32#usize) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize (Option Std.Usize))
+  := do
+  let i := Slice.len counters
+  if index < i
+  then
+    let cc ← Slice.index_usize counters index
+    let b ← counter_aggregation.counter_equal cc.key key
+    if b
+    then ok (done (some index))
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done none)
+
+/-- [auths_gateway_kernel::counter_aggregation::counter_position]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 32:4-39:1
+    Visibility: public -/
+@[rust_loop]
+def counter_aggregation.counter_position_loop
+  (counters : Slice counter_aggregation.CounterCapacity)
+  (key : Array Std.U8 32#usize) (index : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun index1 => counter_aggregation.counter_position_loop.body counters key
+      index1)
+    index
+
+/-- [auths_gateway_kernel::counter_aggregation::counter_position]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 30:0-39:1
+    Visibility: public -/
+@[reducible]
+def counter_aggregation.counter_position
+  (counters : Slice counter_aggregation.CounterCapacity)
+  (key : Array Std.U8 32#usize) :
+  Result (Option Std.Usize)
+  := do
+  counter_aggregation.counter_position_loop counters key 0#usize
+
+/-- [auths_gateway_kernel::counter_aggregation::contribute]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 44:0-58:1
+    Visibility: public -/
+def counter_aggregation.contribute
+  (counters : alloc.vec.Vec counter_aggregation.CounterCapacity)
+  (key : Array Std.U8 32#usize) (capacity : Std.U64) :
+  Result (alloc.vec.Vec counter_aggregation.CounterCapacity)
+  := do
+  let s := alloc.vec.Vec.deref counters
+  let o ← counter_aggregation.counter_position s key
+  match o with
+  | none =>
+    alloc.vec.Vec.push counters ({ key, capacity } :
+      counter_aggregation.CounterCapacity)
+  | some index =>
+    let cc ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        counter_aggregation.CounterCapacity) counters index
+    if capacity < cc.capacity
+    then
+      let (cc1, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          counter_aggregation.CounterCapacity) counters index
+      ok (index_mut_back { cc1 with capacity })
+    else ok counters
+
+/-- [auths_gateway_kernel::counter_aggregation::aggregate]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 67:4-71:5
+    Visibility: public -/
+@[rust_loop_body]
+def counter_aggregation.aggregate_loop.body
+  (contributions : Slice counter_aggregation.CounterCapacity)
+  (counters : alloc.vec.Vec counter_aggregation.CounterCapacity)
+  (index : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec counter_aggregation.CounterCapacity) ×
+    Std.Usize) (alloc.vec.Vec counter_aggregation.CounterCapacity))
+  := do
+  let i := Slice.len contributions
+  if index < i
+  then
+    let contribution ← Slice.index_usize contributions index
+    let counters1 ←
+      counter_aggregation.contribute counters contribution.key
+        contribution.capacity
+    let index1 ← index + 1#usize
+    ok (cont (counters1, index1))
+  else ok (done counters)
+
+/-- [auths_gateway_kernel::counter_aggregation::aggregate]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 67:4-71:5
+    Visibility: public -/
+@[rust_loop]
+def counter_aggregation.aggregate_loop
+  (contributions : Slice counter_aggregation.CounterCapacity)
+  (counters : alloc.vec.Vec counter_aggregation.CounterCapacity)
+  (index : Std.Usize) :
+  Result (alloc.vec.Vec counter_aggregation.CounterCapacity)
+  := do
+  loop
+    (fun (counters1, index1) => counter_aggregation.aggregate_loop.body
+      contributions counters1 index1)
+    (counters, index)
+
+/-- [auths_gateway_kernel::counter_aggregation::aggregate]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 64:0-73:1
+    Visibility: public -/
+@[reducible]
+def counter_aggregation.aggregate
+  (contributions : Slice counter_aggregation.CounterCapacity) :
+  Result (alloc.vec.Vec counter_aggregation.CounterCapacity)
+  := do
+  counter_aggregation.aggregate_loop contributions (alloc.vec.Vec.new
+    counter_aggregation.CounterCapacity) 0#usize
+
+/-- [auths_gateway_kernel::counter_aggregation::sum_position]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 181:4-188:1
+    Visibility: public -/
+@[rust_loop_body]
+def counter_aggregation.sum_position_loop.body
+  (counters : Slice counter_aggregation.SumCapacity)
+  (key : Array Std.U8 32#usize) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize (Option Std.Usize))
+  := do
+  let i := Slice.len counters
+  if index < i
+  then
+    let sc ← Slice.index_usize counters index
+    let b ← counter_aggregation.counter_equal sc.key key
+    if b
+    then ok (done (some index))
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done none)
+
+/-- [auths_gateway_kernel::counter_aggregation::sum_position]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 181:4-188:1
+    Visibility: public -/
+@[rust_loop]
+def counter_aggregation.sum_position_loop
+  (counters : Slice counter_aggregation.SumCapacity)
+  (key : Array Std.U8 32#usize) (index : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun index1 => counter_aggregation.sum_position_loop.body counters key
+      index1)
+    index
+
+/-- [auths_gateway_kernel::counter_aggregation::sum_position]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 179:0-188:1
+    Visibility: public -/
+@[reducible]
+def counter_aggregation.sum_position
+  (counters : Slice counter_aggregation.SumCapacity)
+  (key : Array Std.U8 32#usize) :
+  Result (Option Std.Usize)
+  := do
+  counter_aggregation.sum_position_loop counters key 0#usize
+
+/-- [auths_gateway_kernel::counter_aggregation::contribute_sum]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 193:0-212:1
+    Visibility: public -/
+def counter_aggregation.contribute_sum
+  (counters : alloc.vec.Vec counter_aggregation.SumCapacity)
+  (key : Array Std.U8 32#usize) (capacity : Std.U64) (slots : Std.U64) :
+  Result (alloc.vec.Vec counter_aggregation.SumCapacity)
+  := do
+  let s := alloc.vec.Vec.deref counters
+  let o ← counter_aggregation.sum_position s key
+  match o with
+  | none =>
+    alloc.vec.Vec.push counters ({ key, capacity, slots } :
+      counter_aggregation.SumCapacity)
+  | some index =>
+    let sc ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        counter_aggregation.SumCapacity) counters index
+    if capacity < sc.capacity
+    then
+      let (sc1, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          counter_aggregation.SumCapacity) counters index
+      ok (index_mut_back { sc1 with capacity })
+    else ok counters
+
+/-- [auths_gateway_kernel::counter_aggregation::aggregate_sum]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 220:4-229:5
+    Visibility: public -/
+@[rust_loop_body]
+def counter_aggregation.aggregate_sum_loop.body
+  (contributions : Slice counter_aggregation.SumCapacity)
+  (counters : alloc.vec.Vec counter_aggregation.SumCapacity)
+  (index : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec counter_aggregation.SumCapacity) ×
+    Std.Usize) (alloc.vec.Vec counter_aggregation.SumCapacity))
+  := do
+  let i := Slice.len contributions
+  if index < i
+  then
+    let contribution ← Slice.index_usize contributions index
+    let counters1 ←
+      counter_aggregation.contribute_sum counters contribution.key
+        contribution.capacity contribution.slots
+    let index1 ← index + 1#usize
+    ok (cont (counters1, index1))
+  else ok (done counters)
+
+/-- [auths_gateway_kernel::counter_aggregation::aggregate_sum]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 220:4-229:5
+    Visibility: public -/
+@[rust_loop]
+def counter_aggregation.aggregate_sum_loop
+  (contributions : Slice counter_aggregation.SumCapacity)
+  (counters : alloc.vec.Vec counter_aggregation.SumCapacity)
+  (index : Std.Usize) :
+  Result (alloc.vec.Vec counter_aggregation.SumCapacity)
+  := do
+  loop
+    (fun (counters1, index1) => counter_aggregation.aggregate_sum_loop.body
+      contributions counters1 index1)
+    (counters, index)
+
+/-- [auths_gateway_kernel::counter_aggregation::aggregate_sum]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 217:0-231:1
+    Visibility: public -/
+@[reducible]
+def counter_aggregation.aggregate_sum
+  (contributions : Slice counter_aggregation.SumCapacity) :
+  Result (alloc.vec.Vec counter_aggregation.SumCapacity)
+  := do
+  counter_aggregation.aggregate_sum_loop contributions (alloc.vec.Vec.new
+    counter_aggregation.SumCapacity) 0#usize
+
 /-- [auths_gateway_kernel::counter_preimages::append_word]:
     Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 6:0-8:1 -/
 def counter_preimages.append_word
@@ -2686,6 +2967,46 @@ def recovery.recovery_capability
       pre_entry_reread := declarations.pre_entry,
       write_is_conditional := false
     }
+
+/-- [auths_gateway_kernel::reservation_retry::retry_target]:
+    Source: 'product/runtime/auths-gateway-kernel/src/reservation_retry.rs', lines 24:0-54:1
+    Visibility: public -/
+def reservation_retry.retry_target
+  (index : Std.Usize) (counts : Slice Std.U64) (sums : Slice Std.U64)
+  (totals_len : Std.Usize) (sum_counters_len : Std.Usize) :
+  Result reservation_retry.RetryTarget
+  := do
+  if index = 0#usize
+  then ok reservation_retry.RetryTarget.Replay
+  else
+    let position ← index - 1#usize
+    let i := Slice.len counts
+    if position < i
+    then
+      let i1 ← Slice.index_usize counts position
+      let o ← lift (U64.checked_add i1 1#u64)
+      match o with
+      | none => ok reservation_retry.RetryTarget.Corrupt
+      | some next => ok (reservation_retry.RetryTarget.Count position next)
+    else
+      let i1 := Slice.len counts
+      let position1 ← position - i1
+      let i2 := Slice.len sums
+      if position1 >= i2
+      then ok reservation_retry.RetryTarget.Corrupt
+      else
+        if position1 >= totals_len
+        then ok reservation_retry.RetryTarget.Corrupt
+        else
+          if position1 >= sum_counters_len
+          then ok reservation_retry.RetryTarget.Corrupt
+          else
+            let read_slot ← Slice.index_usize sums position1
+            let o ← lift (U64.checked_add read_slot 1#u64)
+            match o with
+            | none => ok reservation_retry.RetryTarget.Corrupt
+            | some next =>
+              ok (reservation_retry.RetryTarget.Sum position1 read_slot next)
 
 /-- [auths_gateway_kernel::transition::absent]:
     Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 89:0-91:1

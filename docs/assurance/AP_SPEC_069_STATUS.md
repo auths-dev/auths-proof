@@ -5,6 +5,34 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified aggregation/retry checkpoint — 16 October 2026
+
+The latest batch qualifies **798 compiled claims**, with all 757 previous
+complete declaration records unchanged. Both clean full translations reproduce
+byte-identically; all 18 qualification cases pass. The inventory has 25 reviewed
+external models, none unreviewed, and no compiled external axioms. Source closure:
+`d75d2be54aeef9a943fb35736ead1ff024ffe838c11565c10f9ef647b99193c4`.
+
+Shipping count/sum counter derivation consumes the actual proved aggregators.
+The source loops earn unique IDs and minimum per-ID capacities on the admitted
+16-link domain; sum updates retain the first count-slot bound. Reservation retries
+consume a total checked interpreter for claim/count/sum conflicts, including
+malformed indices, parallel-array bounds and word overflow. The slot-availability
+guard now uses the already proved length-checking count predicate.
+
+The complete Lean build, 225 active gateway tests, 33 kernel tests and affected
+Rust clippy pass. Native parity compares complete sorted count/sum/slot results
+to the preceding implementation. The decision-scope coverage measurement remains
+133/1046 functions, 1814/11544 lines and 23/82 check sites; gateway additions are
+recorded in its separate translation inventory. Exact-revision hosted evidence
+remains required; no whole E1–E5/M6 milestone is complete.
+
+Checked claim/slot batch construction is the next prepared component. Its
+prototype remains outside shipping code until the complete model/source proof
+and native correspondence are ready. Full authenticated caller mapping,
+count/sum coupling, backend linearization, cumulative-record decoding and
+runtime/history composition remain open. See spec §§13.18–13.20.
+
 ## Qualified counter/slot checkpoint — 16 October 2026
 
 The current batch qualifies **757 compiled claims**. All 741 previous complete

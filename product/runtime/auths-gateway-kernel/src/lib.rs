@@ -31,3 +31,9 @@ pub mod frontier;
 
 /// Exact bounded-counter and slot commitment bytes; hashing stays in the runtime.
 pub mod counter_preimages;
+
+/// Shared keyed minimum-capacity aggregation; no actor or process identity is added.
+pub mod counter_aggregation;
+
+/// Checked conflict retries for claim/count/sum reservation batches.
+pub mod reservation_retry;

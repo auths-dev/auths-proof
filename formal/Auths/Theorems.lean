@@ -1,3 +1,6 @@
+import Auths.Product.ReservationRetryRefinement
+import Auths.Product.SumAggregationRefinement
+import Auths.Product.CounterAggregationRefinement
 import Auths.Product.CounterRefinement
 import Auths.Product.Frontier.Refinement
 import Auths.Product.BoundedClaimHistory
@@ -823,7 +826,48 @@ def theoremInventory : List Lean.Name :=
     `Auths.Refinement.Approval.translated_principal_ids_subset_refines_model,
     `Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model,
     `Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model,
-    `Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model
+    `Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model,
+    `Auths.Product.CounterAggregation.Refinement.counter_equal_spec,
+    `Auths.Product.CounterAggregation.Refinement.counter_position_spec,
+    `Auths.Product.CounterAggregation.Refinement.contribute_spec,
+    `Auths.Product.CounterAggregation.Refinement.aggregate_spec,
+    `Auths.Product.CounterAggregation.Refinement.source_aggregate_unique,
+    `Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities,
+    `Auths.Product.CounterAggregation.lookup_contribute,
+    `Auths.Product.CounterAggregation.contribute_keys,
+    `Auths.Product.CounterAggregation.contribute_unique,
+    `Auths.Product.CounterAggregation.contribute_at,
+    `Auths.Product.CounterAggregation.contribute_absent,
+    `Auths.Product.CounterAggregation.aggregate_exact,
+    `Auths.Product.CounterAggregation.aggregate_unique,
+    `Auths.Product.CounterAggregation.contribute_length_le,
+    `Auths.Product.CounterAggregation.aggregate_append,
+    `Auths.Product.CounterAggregation.aggregate_snoc,
+    `Auths.Product.CounterAggregation.aggregate_length_le,
+    `Auths.Product.CounterAggregation.Refinement.sum_position_spec,
+    `Auths.Product.CounterAggregation.Refinement.contribute_sum_spec,
+    `Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec,
+    `Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique,
+    `Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities,
+    `Auths.Product.CounterAggregation.sum_contribution_projection,
+    `Auths.Product.CounterAggregation.sum_aggregate_projection,
+    `Auths.Product.CounterAggregation.sum_aggregate_unique,
+    `Auths.Product.CounterAggregation.sum_aggregate_capacities,
+    `Auths.Product.CounterAggregation.sum_contribute_length_le,
+    `Auths.Product.CounterAggregation.sum_aggregate_append,
+    `Auths.Product.CounterAggregation.sum_aggregate_snoc,
+    `Auths.Product.CounterAggregation.first_slots_preserved,
+    `Auths.Product.CounterAggregation.sum_contribute_at,
+    `Auths.Product.CounterAggregation.sum_contribute_absent,
+    `Auths.Product.ReservationRetry.Refinement.retry_target_exact,
+    `Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay,
+    `Auths.Product.ReservationRetry.Refinement.source_count_progress_safe,
+    `Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe,
+    `Auths.Product.ReservationRetry.existing_claim_is_replay,
+    `Auths.Product.ReservationRetry.count_progress_exact,
+    `Auths.Product.ReservationRetry.sum_progress_exact,
+    `Auths.Product.ReservationRetry.count_available,
+    `Auths.Product.ReservationRetry.sum_available
   ]
 
 end Auths

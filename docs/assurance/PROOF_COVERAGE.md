@@ -7,10 +7,10 @@
 At the commit that contains this document, 133 of 1,046 decision-scope functions (12.7%) and 1,814 of 11,544 code lines (15.7%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `64e25dbac558e7e501439b826692be3ec0b65226449f22e524ecee08b6a74e2a` over the 128 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `1deaace699902672c56a8f375b4dfb2445ac038f2be003f74cdd66ce66bb1a79` over the 130 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 2.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `b1dca378fb7215cb0d0983af50540a6063565dc9e40abc166a871c57492283c3`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `ce38e617cdc98d93aef6df3576305146cb4fde34bbaaf3928809c2aec0ee1b01`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -64,7 +64,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,046 | 133 (12.7%) | 76 (7.3%) | 133 (12.7%) | 11,544 | 1,814 (15.7%) | 1,337 (11.6%) | 1,814 (15.7%) |
 | verifier-core | 800 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,993 | 1,432 (15.9%) | 1,033 (11.5%) | 1,432 (15.9%) |
-| translated-crates | 1,809 | 353 (19.5%) | 146 (8.1%) | 353 (19.5%) | 22,111 | 4,049 (18.3%) | 2,170 (9.8%) | 4,049 (18.3%) |
+| translated-crates | 1,817 | 361 (19.9%) | 154 (8.5%) | 361 (19.9%) | 22,232 | 4,170 (18.8%) | 2,291 (10.3%) | 4,170 (18.8%) |
 | verifier-closure | 1,147 | 182 (15.9%) | 75 (6.5%) | 182 (15.9%) | 14,272 | 2,065 (14.5%) | 1,334 (9.3%) | 2,065 (14.5%) |
 | decision-nontrivial | 455 | 103 (22.6%) | 63 (13.8%) | 103 (22.6%) | 9,771 | 1,724 (17.6%) | 1,298 (13.3%) | 1,724 (17.6%) |
 
@@ -214,7 +214,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `28de0fce379b75de8eb7f46216f56e130c2f23c5d85ae0a9fce8d1624b057b5f`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `037d97176fcb991a2f4ed106c97deffc60b6a257342582b51762c99c83084c03`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -227,7 +227,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 140 exact, 12 verdict-exact, 78 partial, 84 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 148 exact, 12 verdict-exact, 85 partial, 84 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 127 of 1,046 functions (12.1%) and 1,565 of 11,544 code lines (13.6%).
 
@@ -392,6 +392,17 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Lifecycle.Refinement.translated_replay_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_terminal_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_transition_refines_rich` | exact |
+| `Auths.Product.CounterAggregation.Refinement.aggregate_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.contribute_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.contribute_sum_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.counter_equal_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.counter_position_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_aggregate_unique` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique` | partial |
+| `Auths.Product.CounterAggregation.Refinement.sum_position_spec` | exact |
 | `Auths.Product.CounterFrames.Refinement.component_exact` | exact |
 | `Auths.Product.CounterFrames.Refinement.coordinates_exact` | exact |
 | `Auths.Product.CounterFrames.Refinement.count_exact` | exact |
@@ -442,6 +453,10 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Product.Refinement.translated_checked_sub_refines_nat` | exact |
 | `Auths.Product.Refinement.translated_configuration_refines_projection` | exact |
 | `Auths.Product.Refinement.translated_window_index_refines_nat` | exact |
+| `Auths.Product.ReservationRetry.Refinement.retry_target_exact` | exact |
+| `Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay` | partial |
+| `Auths.Product.ReservationRetry.Refinement.source_count_progress_safe` | partial |
+| `Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe` | partial |
 | `Auths.Product.SchemaIndex.Refinement.field_index_spec` | exact |
 | `Auths.Product.SchemaIndex.Refinement.field_name_equal_spec` | exact |
 | `Auths.Refinement.Approval.translated_approval_counts_refines_model` | exact |

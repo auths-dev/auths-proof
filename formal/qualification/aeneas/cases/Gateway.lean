@@ -1,3 +1,6 @@
+import Auths.Product.ReservationRetryRefinement
+import Auths.Product.SumAggregationRefinement
+import Auths.Product.CounterAggregationRefinement
 import Auths.Product.CounterRefinement
 import Auths.Product.Frontier.Refinement
 import Auths.Product.Refinement.EntryDeadline
@@ -122,3 +125,21 @@ end qualification.aeneas.cases
 #check Auths.Product.CounterFrames.Refinement.sum_slot_exact
 #check Auths.Product.CounterFrames.Refinement.count_source_binds_inputs
 #check Auths.Product.CounterFrames.Refinement.sum_source_binds_inputs
+
+#check Auths.Product.CounterAggregation.Refinement.counter_equal_spec
+#check Auths.Product.CounterAggregation.Refinement.counter_position_spec
+#check Auths.Product.CounterAggregation.Refinement.contribute_spec
+#check Auths.Product.CounterAggregation.Refinement.aggregate_spec
+#check Auths.Product.CounterAggregation.Refinement.source_aggregate_unique
+#check Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities
+
+#check Auths.Product.CounterAggregation.Refinement.sum_position_spec
+#check Auths.Product.CounterAggregation.Refinement.contribute_sum_spec
+#check Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec
+#check Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique
+#check Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities
+
+#check Auths.Product.ReservationRetry.Refinement.retry_target_exact
+#check Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay
+#check Auths.Product.ReservationRetry.Refinement.source_count_progress_safe
+#check Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe

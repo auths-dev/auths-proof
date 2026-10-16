@@ -147,6 +147,21 @@ inductive construct.ConstructError where
 | HeaderValue : construct.ConstructError
 | BodySize : construct.ConstructError
 
+/-- [auths_gateway_kernel::counter_aggregation::CounterCapacity]
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 8:0-13:1
+    Visibility: public -/
+structure counter_aggregation.CounterCapacity where
+  key : Array Std.U8 32#usize
+  capacity : Std.U64
+
+/-- [auths_gateway_kernel::counter_aggregation::SumCapacity]
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 168:0-175:1
+    Visibility: public -/
+structure counter_aggregation.SumCapacity where
+  key : Array Std.U8 32#usize
+  capacity : Std.U64
+  slots : Std.U64
+
 /-- [auths_gateway_kernel::deadline::EntryBound]
     Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 6:0-11:1
     Visibility: public -/
@@ -448,6 +463,16 @@ structure recovery.RecoveryCapability where
   lost_claim_reentry : recovery.LostClaimReentry
   pre_entry_reread : Bool
   write_is_conditional : Bool
+
+/-- [auths_gateway_kernel::reservation_retry::RetryTarget]
+    Source: 'product/runtime/auths-gateway-kernel/src/reservation_retry.rs', lines 5:0-18:1
+    Visibility: public -/
+@[discriminant isize]
+inductive reservation_retry.RetryTarget where
+| Replay : reservation_retry.RetryTarget
+| Count : Std.Usize → Std.U64 → reservation_retry.RetryTarget
+| Sum : Std.Usize → Std.U64 → Std.U64 → reservation_retry.RetryTarget
+| Corrupt : reservation_retry.RetryTarget
 
 /-- [auths_gateway_kernel::transition::Stage]
     Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 19:0-32:1

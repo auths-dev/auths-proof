@@ -12,6 +12,24 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.ReservationRetry.Refinement.retry_target_exact" = "exact"
+"Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay" = "partial"
+"Auths.Product.ReservationRetry.Refinement.source_count_progress_safe" = "partial"
+"Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe" = "partial"
+
+"Auths.Product.CounterAggregation.Refinement.sum_position_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.contribute_sum_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique" = "partial"
+"Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities" = "partial"
+
+"Auths.Product.CounterAggregation.Refinement.counter_equal_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.counter_position_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.contribute_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.aggregate_spec" = "exact"
+"Auths.Product.CounterAggregation.Refinement.source_aggregate_unique" = "partial"
+"Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities" = "partial"
+
 "Auths.Product.CounterFrames.Refinement.word_exact" = "exact"
 "Auths.Product.CounterFrames.Refinement.component_exact" = "exact"
 "Auths.Product.CounterFrames.Refinement.coordinates_exact" = "exact"
