@@ -7,6 +7,72 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentValidity",
+      "name": "Auths.Crypto.CommitmentValidity.application_accepted_frame_valid",
+      "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage domain payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (Auths.Crypto.CommitmentRefinement.applicationFrame domain payload).Valid"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentValidity",
+      "name": "Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.identifier_preimage kind payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (Auths.Crypto.CommitmentRefinement.identifierFrame kind payload).Valid"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentValidity",
+      "name": "Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind",
+      "statement": "∀ (leftDomain rightDomain : Aeneas.Std.Str) (leftPayload rightPayload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (leftOutput rightOutput : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage leftDomain leftPayload =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok leftOutput) →\n    auths_codec.hash.commitment_preimage rightDomain rightPayload =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok rightOutput) →\n      ↑leftOutput = ↑rightOutput → leftDomain = rightDomain ∧ leftPayload = rightPayload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentValidity",
+      "name": "Auths.Crypto.CommitmentValidity.accepted_identifier_inputs_bind",
+      "statement": "∀ (leftKind rightKind : auths_codec.hash.IdentifierType) (leftPayload rightPayload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (leftOutput rightOutput : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.identifier_preimage leftKind leftPayload =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok leftOutput) →\n    auths_codec.hash.identifier_preimage rightKind rightPayload =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok rightOutput) →\n      ↑leftOutput = ↑rightOutput → leftKind = rightKind ∧ leftPayload = rightPayload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentValidity",
+      "name": "Auths.Crypto.CommitmentValidity.application_output_length",
+      "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage domain payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (↑output).length = 28 + (↑domain).length + (↑payload).length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentValidity",
+      "name": "Auths.Crypto.CommitmentValidity.identifier_output_length",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.identifier_preimage kind payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (↑output).length = 20 + (↑payload).length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Crypto.BufferAllocation",
       "name": "Auths.Crypto.BufferAllocation.buffer_refines",
       "statement": "∀ (capacity : Aeneas.Std.Usize),\n  auths_codec.hash.preimage_buffer capacity =\n    Aeneas.Std.Result.ok\n      (if Auths.Crypto.BufferAllocation.Fits capacity then\n        Aeneas.Std.core.result.Result.Ok (Aeneas.Std.alloc.vec.Vec.new Aeneas.Std.U8)\n      else Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded)"

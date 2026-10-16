@@ -2450,6 +2450,37 @@ fn hash_boundary_refinement_metadata(declaration: &str) -> Option<ProductionRefi
         "Where present, exact total digest/output contracts are displayed theorem premises. This does not establish the SHA-256 algorithm or output-library implementation, collision resistance, preimage resistance, caller unsigned-object construction, every commitment, all-input framing totality or complete AP-SPEC-069 E5. Mock examples establish call binding only.",
     ];
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.CommitmentValidity.application_accepted_frame_valid" => (
+            "Every accepted shipping application preimage supplies the independent valid-frame premises.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented domain, payload and accepted result: nonempty domain at most 128 bytes, 64-bit payload length and valid byte carriers. Acceptance alone establishes these premises; no caller-supplied validity flag is trusted.",
+        ),
+        "Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid" => (
+            "Every accepted shipping identifier preimage supplies the independent valid-frame premises.",
+            &["auths_codec::hash::identifier_preimage"],
+            "Every registered identifier tag, represented payload and accepted result. The tag is within its two-byte range, the payload length fits eight bytes, and every frame byte is valid.",
+        ),
+        "Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind" => (
+            "Equal accepted shipping application preimages bind exactly the same domain and payload.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every pair of represented domains, payloads and accepted outputs. Equality is at the complete preimage-byte level and implies equality of both original inputs, with no separately assumed frame-validity premise. This does not assert hash injectivity or collision resistance.",
+        ),
+        "Auths.Crypto.CommitmentValidity.accepted_identifier_inputs_bind" => (
+            "Equal accepted shipping identifier preimages bind exactly the same registered tag and payload.",
+            &["auths_codec::hash::identifier_preimage"],
+            "All nine registered tags and every pair of represented payloads and accepted outputs. Equality is at the complete preimage-byte level and implies equality of both original inputs. This does not assert hash injectivity or collision resistance.",
+        ),
+        "Auths.Crypto.CommitmentValidity.application_output_length" => (
+            "Every accepted shipping application preimage has the exact framed output length.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every accepted result: output length equals 28 plus the UTF-8 domain byte length plus payload length. This is a successful-result length theorem, not an all-input allocation/work or physical-memory guarantee.",
+        ),
+        "Auths.Crypto.CommitmentValidity.identifier_output_length" => (
+            "Every accepted shipping identifier preimage has the exact framed output length.",
+            &["auths_codec::hash::identifier_preimage"],
+            "Every registered tag and accepted result: output length equals 20 plus payload length. This is a successful-result length theorem, not an all-input allocation/work or physical-memory guarantee.",
+        ),
+
         "Auths.Crypto.BufferAllocation.buffer_refines" => (
             "The shipping preimage buffer guard returns exactly the signed-capacity decision and an empty buffer or typed limit refusal.",
             &["auths_codec::hash::preimage_buffer"],

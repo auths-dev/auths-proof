@@ -1,3 +1,4 @@
+import Auths.Crypto.CommitmentValidity
 import Auths.Crypto.CommitmentExamples
 import Auths.Crypto.Sha256Examples
 import Auths.Crypto.NativeExamples
@@ -45,6 +46,12 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.CommitmentValidity.application_accepted_frame_valid,
+    `Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid,
+    `Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind,
+    `Auths.Crypto.CommitmentValidity.accepted_identifier_inputs_bind,
+    `Auths.Crypto.CommitmentValidity.application_output_length,
+    `Auths.Crypto.CommitmentValidity.identifier_output_length,
     `Auths.Crypto.BufferAllocation.buffer_refines,
     `Auths.Crypto.BufferAllocation.accepted_empty,
     `Auths.Crypto.BufferAllocation.accepted_capacity_fits,

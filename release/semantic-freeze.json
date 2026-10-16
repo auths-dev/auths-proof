@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 409,
+  "freezeVersion": 410,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 53,
+      "version": 54,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -202,7 +202,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 81,
+      "version": 82,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -210,7 +210,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "ae7bcb097ce5260dea7441ba04725c1f0e5ce2bdd6edabed915106738b6eecfe"
+      "sha256": "fada7c7b2c11d17a8c0278efc0c96837a370fd03aac815e65b50d367d71e9187"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 120,
+      "version": 121,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "6ab071e739d220de91139653cf51e2ba0443c8f52db8fc524c8b504678364de6"
+      "sha256": "16048631b1d4614398d8d12735691c4888d1d48f81b65c339de988bb83e4ecb7"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 142,
+      "version": 143,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 135,
+      "version": 136,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 409,
+      "version": 410,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1104,7 +1104,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "c462329d0c3e9c8a5cf8df96e9d29481da611c356d7edd5229ce00b64be5eae5"
+      "sha256": "444c3c956fea3563706a2e25f94badd5159c1c3bc243d38f0262d80fe1a24370"
     }
   ]
 }

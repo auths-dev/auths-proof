@@ -7,7 +7,7 @@
 At the commit that contains this document, 124 of 1,044 decision-scope functions (11.9%) and 1,490 of 11,535 code lines (12.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `df2ed26971866c29c6a040ac85e86466a94790c8410c9eb68db9a2fbb6125eb1` over the 109 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `2308b162f3e3b31ee4b0a8a262329c2505ce1bf809e5aa6047ebf8c9f55e9bd7` over the 109 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30`. Figures computed under a different role table are not comparable.
@@ -187,7 +187,7 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `d67a7742e3433e7d0f5ffadbe1859264c79af096f18f0de97c6a58cb300c373e`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `36d11e3c537cf4322abaa84f1e170f4a9aca82c9bc80e3d8285db77906e176ca`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -200,7 +200,7 @@ None: every function Aeneas translates is in the refined closure.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 99 exact, 7 verdict-exact, 44 partial, 50 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 99 exact, 7 verdict-exact, 50 partial, 50 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 123 of 1,044 functions (11.8%) and 1,487 of 11,535 code lines (12.9%).
 
@@ -270,6 +270,12 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Crypto.CommitmentExamples.oversized_domain_refused` | case |
 | `Auths.Crypto.CommitmentRefinement.application_preimage_exact` | partial |
 | `Auths.Crypto.CommitmentRefinement.identifier_preimage_exact` | partial |
+| `Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind` | partial |
+| `Auths.Crypto.CommitmentValidity.accepted_identifier_inputs_bind` | partial |
+| `Auths.Crypto.CommitmentValidity.application_accepted_frame_valid` | partial |
+| `Auths.Crypto.CommitmentValidity.application_output_length` | partial |
+| `Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid` | partial |
+| `Auths.Crypto.CommitmentValidity.identifier_output_length` | partial |
 | `Auths.Crypto.CoordinateContract.guard_refines` | exact |
 | `Auths.Crypto.CoordinateScan.loop_refines` | partial |
 | `Auths.Crypto.Encoding.Ed25519.guard_refines` | verdict-exact |

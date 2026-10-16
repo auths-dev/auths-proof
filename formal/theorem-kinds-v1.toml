@@ -12,6 +12,12 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Crypto.CommitmentValidity.application_accepted_frame_valid" = "partial"
+"Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid" = "partial"
+"Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind" = "partial"
+"Auths.Crypto.CommitmentValidity.accepted_identifier_inputs_bind" = "partial"
+"Auths.Crypto.CommitmentValidity.application_output_length" = "partial"
+"Auths.Crypto.CommitmentValidity.identifier_output_length" = "partial"
 "Auths.Crypto.BufferAllocation.buffer_refines" = "exact"
 "Auths.Crypto.BufferAllocation.accepted_empty" = "partial"
 "Auths.Crypto.BufferAllocation.accepted_capacity_fits" = "partial"

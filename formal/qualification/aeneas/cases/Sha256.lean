@@ -1,3 +1,4 @@
+import Auths.Crypto.CommitmentValidity
 import Auths.Crypto.Sha256Examples
 
 -- Explicit foreign digest/output contracts; concrete witnesses check forwarding,

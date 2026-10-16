@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "c84be514413fea52bd330d905ac5d2b3e23c93d8695215bf0e86dc27c2553ba4",
+  "digest": "57d8e7d80c72736d88c803642ef4bae8833974d6d5fc4844379d30f748669c43",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -505,7 +505,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Sha256.lean",
-      "sha256": "d4d097bc4fc29f42ed1d08aa77941f437ffa604570a418554a57afc11665e46e"
+      "sha256": "acddc0024d81b1bde40c3b4b01ea1c533431848800900ff93d97d6ff03ede0fd"
     },
     {
       "path": "formal/qualification/aeneas/cases/Signature.lean",
@@ -909,7 +909,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "d6b31b22f91eddaeed226aed6801dd6b2059d10976311751be38b1b6d9700629"
+      "sha256": "c4bb2b5e7e3515b5f293291b7799bd040358f6e292c3abf60e4aff35f2f2d8db"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
