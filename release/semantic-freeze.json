@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 413,
+  "freezeVersion": 414,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -153,6 +153,18 @@
       "sha256": "9229bee508acde9e58b7932cdedb500586f9171f3f855f3af0eb959f08decb3e"
     },
     {
+      "id": "auths.frozen-bytes/core/fixtures/crypto",
+      "version": 1,
+      "classification": "frozen-bytes",
+      "categories": [
+        "canonical-generated-evidence"
+      ],
+      "owners": [
+        "core/fixtures/crypto"
+      ],
+      "sha256": "611803916b1ce333c6cfb7e77770a0efc65b35dc6bc0f6ca028b4772cfe70b0d"
+    },
+    {
       "id": "auths.frozen-bytes/core/fixtures/identity/v1/vectors.json",
       "version": 1,
       "classification": "frozen-bytes",
@@ -202,7 +214,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 85,
+      "version": 86,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -210,7 +222,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "af0eac9f12fc1b829087b922a9cd7dfd53fc5ba1f75a275fdfbe233343631f97"
+      "sha256": "94b4e2a8bf55cacdfccfef4dcc1f345a0aa6fdf51ff46b04567bebcd785ae691"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -226,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml",
-      "version": 32,
+      "version": 33,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -234,11 +246,11 @@
       "owners": [
         "formal/qualification/aeneas/qualification.toml"
       ],
-      "sha256": "0392a5bd6ae1cc15036257235b967784b9f944e9e6a7d3355173ef239879b98d"
+      "sha256": "0f91c861b5b1b1fda31afacb78bb22a417deb060bcfb1290ff52e8a14bdbb276"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 124,
+      "version": 125,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +258,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "7357b20198343719d8aafdde667e9cf28062ef81ab4ae8bb2d53e3ff70a9e25e"
+      "sha256": "cd92463f848a2cef6329ab78aa61ccffa378a9ff5762db90c307edfd5af80241"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -1011,7 +1023,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 413,
+      "version": 414,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1104,7 +1116,7 @@
         "xtask/src/release_launch.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "4c27c90cbc239bd602d7e3648db94c323947dd83570d7b21f5b3fbe34f793133"
+      "sha256": "3b86ac71620b5d5b36245a85283acb70f04712dc6ec0901f928b6e00943941a0"
     }
   ]
 }

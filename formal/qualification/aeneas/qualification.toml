@@ -13,6 +13,15 @@ required_compiled_external_axioms = 0
 codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1"]
 
 source_files = [
+  "core/fixtures/crypto/import_p256_wycheproof.py",
+  "core/fixtures/crypto/p256-sha256-v1.tsv",
+  "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json",
+  "core/fixtures/crypto/README.md",
+  "core/crates/auths-signature/tests/p256_corpus.rs",
+  "bindings/independent/typescript/p256-corpus.test.ts",
+  "bindings/independent/go/auths/p256_corpus_test.go",
+  "bindings/independent/typescript/semantic-verifier.ts",
+  "xtask/src/checks.rs",
   "core/crates/auths-signature/Cargo.toml",
   "core/crates/auths-signature/src/lib.rs",
   "core/crates/auths-ports/Cargo.toml",

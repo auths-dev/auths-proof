@@ -865,3 +865,23 @@ are byte-identical. Qualified source closure:
 Exact-revision hosted evidence remains required for this expansion. Suite
 constructors, IDs, registry selection, key/principal binding, caller object
 construction, remaining commitments, and complete E5/M6 remain open.
+
+## Independent P-256 conformance corpus
+
+The pinned public Wycheproof P-256/SHA-256 P1363 corpus is now vendored and
+adapted deterministically to the registered Auths compressed-point/low-S
+policy. All 262 upstream cases are retained. The shared corpus has 653 cases,
+including 173 admitted signatures over 98 distinct public keys, high-S twins,
+changed messages, malformed points/scalars/widths and refusal-priority checks.
+The original source hash is required by the offline byte-for-byte generator.
+Rust checks the actual native API, key validation and suite-adapter error
+mapping. The independent Go and TypeScript implementations consume the same
+corpus. Native qualification and hosted bindings conformance include these
+checks; the corpus and adapters are bound into the exact source/release
+inventories. Native tests, focused Rust lint and independent Go/TypeScript cases pass.
+Fresh source qualification passes 613 unchanged complete audit records,
+15/15 cases, 21 reviewed models, zero compiled external axioms and two
+byte-identical translations. Qualified source closure:
+`231fa58fa3a0200c0d5914a35d613e5672096992199df9b56c33f64f20275c03`.
+Exact-revision hosted evidence remains required. These tests support the explicit primitive
+contracts and do not prove them or complete E5/M2.

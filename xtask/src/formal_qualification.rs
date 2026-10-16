@@ -370,6 +370,15 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "core/fixtures/crypto/import_p256_wycheproof.py",
+    "core/fixtures/crypto/p256-sha256-v1.tsv",
+    "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json",
+    "core/fixtures/crypto/README.md",
+    "core/crates/auths-signature/tests/p256_corpus.rs",
+    "bindings/independent/typescript/p256-corpus.test.ts",
+    "bindings/independent/go/auths/p256_corpus_test.go",
+    "bindings/independent/typescript/semantic-verifier.ts",
+    "xtask/src/checks.rs",
     "core/crates/auths-signature/Cargo.toml",
     "core/crates/auths-signature/src/lib.rs",
     "core/crates/auths-ports/Cargo.toml",
@@ -2562,6 +2571,16 @@ fn build_qualification_cases(root: &Path, qualification: &Qualification) -> Resu
 
 fn run_rust_qualification_cases(root: &Path) -> Result<(), String> {
     run_checked(
+        "python3",
+        &[
+            "core/fixtures/crypto/import_p256_wycheproof.py".to_owned(),
+            "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json".to_owned(),
+            "core/fixtures/crypto/p256-sha256-v1.tsv".to_owned(),
+        ],
+        root,
+        &[],
+    )?;
+    run_checked(
         "cargo",
         &[
             "test".to_owned(),
@@ -2573,6 +2592,8 @@ fn run_rust_qualification_cases(root: &Path) -> Result<(), String> {
             "auths-composition".to_owned(),
             "-p".to_owned(),
             "auths-signature-core".to_owned(),
+            "-p".to_owned(),
+            "auths-signature".to_owned(),
             "-p".to_owned(),
             "auths-authority".to_owned(),
             "-p".to_owned(),

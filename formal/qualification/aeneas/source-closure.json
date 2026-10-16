@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "17a0056b33dcb6769fe574e62f8cf3a6422e208b56c6b9a041b94e946827c7cc",
+  "digest": "231fa58fa3a0200c0d5914a35d613e5672096992199df9b56c33f64f20275c03",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -14,6 +14,18 @@
     {
       "path": "Cargo.toml",
       "sha256": "2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d"
+    },
+    {
+      "path": "bindings/independent/go/auths/p256_corpus_test.go",
+      "sha256": "72b7daff20df43d920f9fdd31f616d4b6ef5053c98448efe153c3469da226845"
+    },
+    {
+      "path": "bindings/independent/typescript/p256-corpus.test.ts",
+      "sha256": "76482387905f1a9f4e4e38e9b94074e9f2f156aaf99ad014cbd5580bb31922b1"
+    },
+    {
+      "path": "bindings/independent/typescript/semantic-verifier.ts",
+      "sha256": "76006567974f717da4e46f7d96dd06ee35ef58f83f7844c6298259f5aa2b0d91"
     },
     {
       "path": "core/adapters/auths-did-keri/Cargo.toml",
@@ -320,6 +332,10 @@
       "sha256": "b3d9ac4cc3ba0797b9e1c09f2d6ac05089b25dac4e285a5af28c0165b33d925b"
     },
     {
+      "path": "core/crates/auths-signature/tests/p256_corpus.rs",
+      "sha256": "c707b21495f32dc1192033b24fdd56aa46f79f968f069ced84d442fa03ca5234"
+    },
+    {
       "path": "core/crates/auths-verifier/Cargo.toml",
       "sha256": "c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f"
     },
@@ -354,6 +370,22 @@
     {
       "path": "core/crates/auths-verifier/tests/portable_conformance.rs",
       "sha256": "06130c2b403eca87a3be3edeab5395e80db96c87faa5d14c2878a78250fe958e"
+    },
+    {
+      "path": "core/fixtures/crypto/README.md",
+      "sha256": "d03594fddca61115ec52405a8c604b33f37dde2b848392206c50e3ecba634d87"
+    },
+    {
+      "path": "core/fixtures/crypto/import_p256_wycheproof.py",
+      "sha256": "d0162fa1e8045d5b42e7af82227c0e83e683b604b628421b286579a5df5c9ace"
+    },
+    {
+      "path": "core/fixtures/crypto/p256-sha256-v1.tsv",
+      "sha256": "52ca4cb96b873e9f6ead20abcb3e7fc78e795f746bae88ed6a9f18b68ffd256f"
+    },
+    {
+      "path": "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json",
+      "sha256": "c60de693930e386c3a5472d08081623ef8504decc54b38ac01ec6b2a2575c986"
     },
     {
       "path": "core/testkit/auths-testkit/Cargo.toml",
@@ -529,7 +561,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "e386d2c42868f60bd39d7775b0b10c1fbee3e3f9148ba40574dcbe6930ee20c9"
+      "sha256": "a82979e463db674a98a7859cc6a025afa71bbcccc97b1e17d15d07b7cf50447f"
     },
     {
       "path": "formal/tools/SourceClosure.lean",
@@ -897,7 +929,7 @@
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "07a90023f117fb4773584bfae252018ea408243e3f05bd4ded2fc1439c1e7ff1"
+      "sha256": "7440763f146f138bda0d1f591f9af1555bc7760d792a962435f3e1830c861232"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -933,7 +965,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "49d085df844bd4742e0d7c11b9f9ca2582e507918af5aeb5017a8874f25a03de"
+      "sha256": "774ea2f9df412e55c174fc185cf3de0e589dccc96ec76431a22eac3d9543824c"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -997,7 +1029,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "c57617cd19351f71e145974e9c134717ce3d9e816510a8a03c922746b66bb9b0"
+      "sha256": "697005576d88fd595e9efeb9ca67465ac45f71beb5636a144741b7c54444eeb3"
     },
     {
       "path": "xtask/src/stripe.rs",

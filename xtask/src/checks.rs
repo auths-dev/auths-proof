@@ -181,6 +181,7 @@ pub(crate) fn bindings_conformance() -> Result<(), String> {
             "--experimental-strip-types",
             "--test",
             "bindings/independent/typescript/ed25519-encoding.test.ts",
+            "bindings/independent/typescript/p256-corpus.test.ts",
         ],
         &root(),
         None,

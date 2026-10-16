@@ -1339,7 +1339,7 @@ function p256PublicKey(raw: Uint8Array): KeyObject | undefined {
   }
 }
 
-function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean {
+export function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean {
   if (suite === "ed25519-v1") {
     return strictEd25519PointEncoding(key) && signature.length === 64 &&
       strictEd25519PointEncoding(signature.subarray(0, 32)) &&

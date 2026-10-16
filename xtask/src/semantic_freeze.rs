@@ -942,6 +942,7 @@ fn frozen_byte_inventories() -> Result<Vec<(String, String)>, String> {
         "core/fixtures/v1/manifest.json".to_owned(),
         "core/formal-vectors/v1/manifest.json".to_owned(),
         "core/fixtures/identity/v1/vectors.json".to_owned(),
+        "core/fixtures/crypto".to_owned(),
         "bindings/wasm/auths-proof-wasm/identity-abi-v1.json".to_owned(),
         "formal/assurance-manifest-v1.toml".to_owned(),
         "formal/qualification/aeneas/generated".to_owned(),

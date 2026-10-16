@@ -423,3 +423,18 @@ claims. Focused qualification rejection tests pass. Fresh qualification passes
 613 claims, 15/15 cases, 21 reviewed models, zero compiled external axioms and
 two byte-identical translations. Exact-revision hosted gates remain required. Constructors, registry dispatch,
 principal binding, caller preimages and complete E5 remain separate obligations.
+
+### Shared independent P-256 vectors
+
+The complete pinned Wycheproof P1363/SHA-256 input is vendored under
+`core/fixtures/crypto`, with an offline hash-pinned adapter that retains every
+upstream case and makes Auths low-S policy explicit. A shared 653-case corpus
+checks 173 accepted signatures across 98 distinct keys, scalar/point/width
+errors, high-S twins and exact-message refusal. Rust checks the native and
+suite-port results; Go and TypeScript supply independent verdicts. The source
+and release inventories bind the corpus and adapters. Fresh qualification
+passes 613 unchanged complete audit records, 15/15 cases, 21 reviewed models
+and two byte-identical translations. Native tests, lint and both independent
+implementations pass; exact-revision hosted evidence remains required.
+This is conformance evidence for the displayed primitive contracts, not a
+proof of cryptographic arithmetic/security or completion of M2.
