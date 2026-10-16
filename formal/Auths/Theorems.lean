@@ -1,3 +1,4 @@
+import Auths.Crypto.SuiteAdapterExamples
 import Auths.Crypto.P256Examples
 import Auths.Crypto.FramingTotality
 import Auths.Crypto.CommitmentValidity
@@ -48,6 +49,20 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.SuiteAdapters.ed_public_refines,
+    `Auths.Crypto.SuiteAdapters.ed_accepts_iff,
+    `Auths.Crypto.SuiteAdapterExamples.ed_exact_fields_admitted,
+    `Auths.Crypto.SuiteAdapterExamples.ed_changed_message_refused,
+    `Auths.Crypto.SuiteAdapters.p256_public_refines,
+    `Auths.Crypto.SuiteAdapters.p256_accepts_iff,
+    `Auths.Crypto.SuiteAdapterExamples.p256_exact_fields_admitted,
+    `Auths.Crypto.SuiteAdapterExamples.p256_changed_message_refused,
+    `AuthsSuiteAdapters.ed_error_to_from,
+    `AuthsSuiteAdapters.ed_error_from_to,
+    `AuthsSuiteAdapters.p256_error_to_from,
+    `AuthsSuiteAdapters.p256_error_from_to,
+    `AuthsSuiteAdapters.ed25519_delegates,
+    `AuthsSuiteAdapters.p256_delegates,
     `Auths.Crypto.P256Encoding.guard_refines,
     `Auths.Crypto.P256LowScan.loop_refines,
     `Auths.Crypto.P256LowContract.guard_refines,

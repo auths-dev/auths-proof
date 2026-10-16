@@ -10,9 +10,14 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1"]
 
 source_files = [
+  "core/crates/auths-signature/Cargo.toml",
+  "core/crates/auths-signature/src/lib.rs",
+  "core/crates/auths-ports/Cargo.toml",
+  "core/crates/auths-ports/src/lib.rs",
+  "formal/qualification/aeneas/cases/SuiteAdapters.lean",
   "formal/Auths/Crypto/P256Primitives.lean",
   "formal/qualification/aeneas/cases/P256.lean",
   "formal/Auths/Crypto/Sha256Primitives.lean",
@@ -91,6 +96,13 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/suite_adapter/Types.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/Funs.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/translation.json",
   "formal/qualification/aeneas/generated/p256/Types.lean",
   "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
   "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
@@ -161,6 +173,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.SuiteAdapters",
   "qualification.aeneas.cases.P256",
   "qualification.aeneas.cases.Sha256",
   "qualification.aeneas.cases.Signature",
@@ -184,6 +197,44 @@ charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[qualified_delegations]]
+importer_translation_json = "formal/qualification/aeneas/generated/suite_adapter/translation.json"
+rust_symbol = "auths_signature_core::verify_ed25519"
+owner_translation_json = "formal/qualification/aeneas/generated/signature/translation.json"
+owner_lean_declaration = "auths_signature_core.verify_ed25519"
+bridge_artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
+bridge_lean_declaration = "AuthsSuiteAdapters.auths_signature_core.verify_ed25519"
+delegation_theorem = "AuthsSuiteAdapters.ed25519_delegates"
+
+[[qualified_delegations]]
+importer_translation_json = "formal/qualification/aeneas/generated/suite_adapter/translation.json"
+rust_symbol = "auths_signature_core::verify_p256_sha256"
+owner_translation_json = "formal/qualification/aeneas/generated/p256/translation.json"
+owner_lean_declaration = "AuthsNativeP256.verify_p256_sha256"
+bridge_artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
+bridge_lean_declaration = "AuthsSuiteAdapters.auths_signature_core.verify_p256_sha256"
+delegation_theorem = "AuthsSuiteAdapters.p256_delegates"
+
+[[external_models]]
+id = "suite-private-id-carrier"
+kind = "transparent-observational-string-carrier"
+artifact = "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean"
+rust_symbols = ["auths_model::SignatureSuiteId"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The private suite-ID newtype is represented by its bounded byte/string carrier. The proved verify methods do not inspect self.id, so their statements quantify over the broader represented carrier. No constructor validity, canonical suite ID, configured registry membership or runtime selection follows from this representation."
+
+[[external_models]]
+id = "suite-qualified-native-delegation"
+kind = "transparent-qualified-firstparty-function-delegation-and-error-isomorphism"
+artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
+rust_symbols = ["auths_signature_core::verify_ed25519", "auths_signature_core::verify_p256_sha256", "core::result::Result::map_err"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The two imported Auths calls delegate directly to their mechanically translated, qualified owning public functions with unchanged key/message/signature slices. Exhaustive error-constructor reboxing has both inverse proofs; standard map_err uses the existing transparent model and the translated error callbacks. The closed qualified_delegations table checks each importing and owning Rust/Lean identity, requires a transparent local owner, and requires both exact owner and bridge constants in a compiled delegation theorem. There is no opaque assumed Auths algorithm, new crypto instance/law, desired-result premise or callback assumption."
 
 [[external_models]]
 id = "p256-monomorphic-export-names"
@@ -479,6 +530,15 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_signature"
+translation_json = "formal/qualification/aeneas/generated/suite_adapter/translation.json"
+local_functions = 4
+external_functions = 3
+opaque_local_functions = 0
+required_symbols = ["auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::Ed25519Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_once", "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify", "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::P256Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once", "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify"]
+allowed_external_symbols = ["core::result::{core::result::Result<T, E>}::map_err", "auths_signature_core::verify_ed25519", "auths_signature_core::verify_p256_sha256"]
 
 [[translations]]
 crate_name = "auths_signature_core"
@@ -1013,6 +1073,16 @@ required_symbols = [
   "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean"
+count = 3
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean"

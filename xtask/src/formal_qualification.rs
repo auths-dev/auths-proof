@@ -13,9 +13,29 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "27fe5f124bb9a393a9c188307de6c7206ac3776dd0bfdb1206034c3fab20c50a";
+    "4caa38b044a86b80140694abce3f1693a4c9bcb47eaf719d82c3f5122baba258";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "suite_adapter-run/qualification/aeneas/generated/suite_adapter/Types.lean",
+        "formal/qualification/aeneas/generated/suite_adapter/Types.lean",
+    ),
+    (
+        "suite_adapter-run/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+        "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+    ),
+    (
+        "suite_adapter-run/qualification/aeneas/generated/suite_adapter/Funs.lean",
+        "formal/qualification/aeneas/generated/suite_adapter/Funs.lean",
+    ),
+    (
+        "suite_adapter-run/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+    ),
+    (
+        "suite_adapter-run/translation.json",
+        "formal/qualification/aeneas/generated/suite_adapter/translation.json",
+    ),
     (
         "p256-run/qualification/aeneas/generated/p256/Types.lean",
         "formal/qualification/aeneas/generated/p256/Types.lean",
@@ -235,6 +255,8 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
     "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
     "formal/qualification/aeneas/generated/p256/FunsExternal.lean",
     "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
@@ -254,6 +276,13 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/suite_adapter/Types.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/Funs.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/translation.json",
     "formal/qualification/aeneas/generated/p256/Types.lean",
     "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
@@ -324,6 +353,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.SuiteAdapters",
     "qualification.aeneas.cases.P256",
     "qualification.aeneas.cases.Sha256",
     "qualification.aeneas.cases.Signature",
@@ -340,6 +370,11 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "core/crates/auths-signature/Cargo.toml",
+    "core/crates/auths-signature/src/lib.rs",
+    "core/crates/auths-ports/Cargo.toml",
+    "core/crates/auths-ports/src/lib.rs",
+    "formal/qualification/aeneas/cases/SuiteAdapters.lean",
     "formal/Auths/Crypto/P256Primitives.lean",
     "formal/qualification/aeneas/cases/P256.lean",
     "core/crates/auths-signature-core/Cargo.toml",
@@ -374,6 +409,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_signature",
+        "formal/qualification/aeneas/generated/suite_adapter/translation.json",
+    ),
     (
         "auths_signature_core",
         "formal/qualification/aeneas/generated/p256/translation.json",
@@ -429,6 +468,8 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
@@ -467,6 +508,153 @@ struct Qualification {
     warning_inventory: Vec<WarningInventory>,
     translations: Vec<TranslationExpectation>,
     template_axioms: Vec<TemplateAxiomInventory>,
+    qualified_delegations: Vec<QualifiedDelegation>,
+}
+
+#[derive(Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct QualifiedDelegation {
+    importer_translation_json: String,
+    rust_symbol: String,
+    owner_translation_json: String,
+    owner_lean_declaration: String,
+    bridge_artifact: String,
+    bridge_lean_declaration: String,
+    delegation_theorem: String,
+}
+
+fn expected_qualified_delegations() -> Vec<QualifiedDelegation> {
+    vec![
+        QualifiedDelegation {
+            importer_translation_json:
+                "formal/qualification/aeneas/generated/suite_adapter/translation.json".to_owned(),
+            rust_symbol: "auths_signature_core::verify_ed25519".to_owned(),
+            owner_translation_json:
+                "formal/qualification/aeneas/generated/signature/translation.json".to_owned(),
+            owner_lean_declaration: "auths_signature_core.verify_ed25519".to_owned(),
+            bridge_artifact:
+                "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean".to_owned(),
+            bridge_lean_declaration: "AuthsSuiteAdapters.auths_signature_core.verify_ed25519"
+                .to_owned(),
+            delegation_theorem: "AuthsSuiteAdapters.ed25519_delegates".to_owned(),
+        },
+        QualifiedDelegation {
+            importer_translation_json:
+                "formal/qualification/aeneas/generated/suite_adapter/translation.json".to_owned(),
+            rust_symbol: "auths_signature_core::verify_p256_sha256".to_owned(),
+            owner_translation_json: "formal/qualification/aeneas/generated/p256/translation.json"
+                .to_owned(),
+            owner_lean_declaration: "AuthsNativeP256.verify_p256_sha256".to_owned(),
+            bridge_artifact:
+                "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean".to_owned(),
+            bridge_lean_declaration: "AuthsSuiteAdapters.auths_signature_core.verify_p256_sha256"
+                .to_owned(),
+            delegation_theorem: "AuthsSuiteAdapters.p256_delegates".to_owned(),
+        },
+    ]
+}
+
+fn delegation_endpoints_match(
+    imported: &TranslationFunction,
+    owned: &TranslationFunction,
+    link: &QualifiedDelegation,
+) -> bool {
+    imported.rust_name == link.rust_symbol
+        && !imported.is_local
+        && imported.is_opaque
+        && imported.lean_name == link.bridge_lean_declaration
+        && owned.rust_name == link.rust_symbol
+        && owned.is_local
+        && !owned.is_opaque
+        && owned.lean_name == link.owner_lean_declaration
+}
+
+fn delegation_statement_matches(declaration: &Value, link: &QualifiedDelegation) -> bool {
+    let Some(constants) = declaration["statement_constants"].as_array() else {
+        return false;
+    };
+    declaration["name"] == link.delegation_theorem
+        && declaration["kind"] == "theorem"
+        && constants
+            .iter()
+            .any(|name| name.as_str() == Some(link.owner_lean_declaration.as_str()))
+        && constants
+            .iter()
+            .any(|name| name.as_str() == Some(link.bridge_lean_declaration.as_str()))
+        && declaration["axioms"].as_array().is_some_and(|axioms| {
+            axioms.iter().all(|axiom| {
+                matches!(
+                    axiom.as_str(),
+                    Some("propext" | "Classical.choice" | "Quot.sound")
+                )
+            })
+        })
+}
+
+fn validate_qualified_delegations(
+    root: &Path,
+    qualification: &Qualification,
+) -> Result<(), String> {
+    let audit: Value = serde_json::from_slice(
+        &fs::read(root.join("formal/lean-assurance-audit-v1.json"))
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let declarations = audit["declarations"]
+        .as_array()
+        .ok_or("compiled delegation audit has no declarations")?;
+    for link in &qualification.qualified_delegations {
+        let load = |path: &str| -> Result<TranslationReport, String> {
+            if !qualification
+                .translations
+                .iter()
+                .any(|translation| translation.translation_json == path)
+            {
+                return Err(format!(
+                    "qualified delegation references an unqualified unit {path}"
+                ));
+            }
+            serde_json::from_slice(&fs::read(root.join(path)).map_err(|error| error.to_string())?)
+                .map_err(|error| error.to_string())
+        };
+        let importer = load(&link.importer_translation_json)?;
+        let imported = importer
+            .functions
+            .iter()
+            .find(|function| function.rust_name == link.rust_symbol)
+            .ok_or("qualified delegation import is absent")?;
+        if imported.is_local
+            || !imported.is_opaque
+            || imported.lean_name != link.bridge_lean_declaration
+        {
+            return Err("qualified delegation import identity or boundary drifted".to_owned());
+        }
+        let owner = load(&link.owner_translation_json)?;
+        let owned = owner
+            .functions
+            .iter()
+            .find(|function| function.rust_name == link.rust_symbol)
+            .ok_or("qualified delegation owner is absent")?;
+        if !delegation_endpoints_match(imported, owned, link) {
+            return Err(
+                "qualified delegation must resolve to the actual transparent local owner"
+                    .to_owned(),
+            );
+        }
+        if !REVIEWED_BRIDGE_ARTIFACTS.contains(&link.bridge_artifact.as_str()) {
+            return Err(
+                "qualified delegation bridge is not a reviewed compiled artifact".to_owned(),
+            );
+        }
+        let declaration = declarations
+            .iter()
+            .find(|row| row["name"] == link.delegation_theorem)
+            .ok_or("qualified delegation theorem is absent from the compiled audit")?;
+        if !delegation_statement_matches(declaration, link) {
+            return Err("qualified delegation lacks both exact kernel constant references or exceeds the axiom policy".to_owned());
+        }
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -535,6 +723,7 @@ struct TranslationReport {
 #[derive(Deserialize)]
 struct TranslationFunction {
     rust_name: String,
+    lean_name: String,
     is_local: bool,
     is_opaque: bool,
 }
@@ -775,11 +964,14 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 13
-        || qualification.translations.len() != 13
-        || qualification.external_models.len() != 19
+    if qualification.qualified_delegations != expected_qualified_delegations() {
+        return Err("qualified source delegation inventory drifted".to_owned());
+    }
+    if qualification.case_modules.len() != 14
+        || qualification.translations.len() != 14
+        || qualification.external_models.len() != 21
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 13
+        || qualification.template_axioms.len() != 15
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -798,6 +990,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "p256-monomorphic-export-names-v1",
             "p256-qualified-discriminants-v1",
             "p256-explicit-primitive-context-v1",
+            "suite-qualified-discriminants-v1",
+            "suite-explicit-linked-primitive-context-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -958,6 +1152,7 @@ fn qualification_boundary_contract_sha256(qualification: &Qualification) -> Stri
         "warning_inventory": warnings,
         "template_axioms": templates,
         "codegen_normalizations": qualification.codegen_normalizations,
+        "qualified_delegations": qualification.qualified_delegations,
     }))
     .expect("in-memory qualification contract serializes");
     hex::encode(Sha256::digest(bytes))
@@ -1236,6 +1431,14 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
+            render_suite_adapter_types_external(),
+        ),
+        (
+            "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
+            render_suite_adapter_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
             render_p256_types_external(),
         ),
@@ -1303,6 +1506,98 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_suite_adapter_types_external() -> String {
+    r#"-- REVIEWED STRING CARRIER FOR THE UNINSPECTED PRIVATE SUITE-ID FIELD.
+-- The verified methods never read it; constructor/registry validity is separate.
+import Aeneas
+namespace AuthsSuiteAdapters
+abbrev auths_model.SignatureSuiteId := Aeneas.Std.Str
+end AuthsSuiteAdapters
+"#
+    .to_owned()
+}
+
+fn render_suite_adapter_functions_external() -> String {
+    r#"-- EXACT DELEGATION TO QUALIFIED OWNING RUST UNITS, WITH EXHAUSTIVE ERROR REBOXING.
+-- No Auths algorithm or crypto operation is assumed as an opaque function.
+import qualification.aeneas.generated.suite_adapter.Types
+import qualification.aeneas.generated.signature.Funs
+import qualification.aeneas.generated.p256.Funs
+import qualification.aeneas.generated.codec.FunsExternal
+open Aeneas Aeneas.Std Result
+namespace AuthsSuiteAdapters
+
+abbrev core.result.Result.map_err := @_root_.core.result.Result.map_err
+
+def fromEdError : _root_.auths_signature_core.Ed25519Error → auths_signature_core.Ed25519Error
+  | .InvalidKey => .InvalidKey
+  | .InvalidSignatureEncoding => .InvalidSignatureEncoding
+  | .VerificationFailed => .VerificationFailed
+
+def toEdError : auths_signature_core.Ed25519Error → _root_.auths_signature_core.Ed25519Error
+  | .InvalidKey => .InvalidKey
+  | .InvalidSignatureEncoding => .InvalidSignatureEncoding
+  | .VerificationFailed => .VerificationFailed
+
+def fromP256Error : AuthsNativeP256.P256Error → auths_signature_core.P256Error
+  | .InvalidKey => .InvalidKey
+  | .InvalidSignatureEncoding => .InvalidSignatureEncoding
+  | .VerificationFailed => .VerificationFailed
+
+def toP256Error : auths_signature_core.P256Error → AuthsNativeP256.P256Error
+  | .InvalidKey => .InvalidKey
+  | .InvalidSignatureEncoding => .InvalidSignatureEncoding
+  | .VerificationFailed => .VerificationFailed
+
+def edResult : Aeneas.Std.core.result.Result Unit _root_.auths_signature_core.Ed25519Error →
+    Aeneas.Std.core.result.Result Unit auths_signature_core.Ed25519Error
+  | .Ok value => .Ok value | .Err reason => .Err (fromEdError reason)
+
+def p256Result : AuthsNativeP256.core.qualified_p256_type_decls_0 →
+    Aeneas.Std.core.result.Result Unit auths_signature_core.P256Error
+  | .Ok value => .Ok value | .Err reason => .Err (fromP256Error reason)
+
+def auths_signature_core.verify_ed25519 [P : Auths.Crypto.Ed25519Primitives]
+    (key message signature : Slice Std.U8) :
+    Result (Aeneas.Std.core.result.Result Unit auths_signature_core.Ed25519Error) := do
+  let result ← _root_.auths_signature_core.verify_ed25519 (primitives := P) key message signature
+  ok (edResult result)
+
+def auths_signature_core.verify_p256_sha256 [P : Auths.Crypto.P256Primitives]
+    (key message signature : Slice Std.U8) :
+    Result (Aeneas.Std.core.result.Result Unit auths_signature_core.P256Error) := do
+  let result ← AuthsNativeP256.verify_p256_sha256 (primitive := P) key message signature
+  ok (p256Result result)
+
+-- Both conversions are isomorphisms on the complete error domains.
+theorem ed_error_to_from (reason : _root_.auths_signature_core.Ed25519Error) :
+    toEdError (fromEdError reason) = reason := by cases reason <;> rfl
+
+theorem ed_error_from_to (reason : auths_signature_core.Ed25519Error) :
+    fromEdError (toEdError reason) = reason := by cases reason <;> rfl
+
+theorem p256_error_to_from (reason : AuthsNativeP256.P256Error) :
+    toP256Error (fromP256Error reason) = reason := by cases reason <;> rfl
+
+theorem p256_error_from_to (reason : auths_signature_core.P256Error) :
+    fromP256Error (toP256Error reason) = reason := by cases reason <;> rfl
+
+theorem ed25519_delegates [P : Auths.Crypto.Ed25519Primitives]
+    (key message signature : Slice Std.U8) :
+    auths_signature_core.verify_ed25519 (P := P) key message signature =
+      (do let result ← _root_.auths_signature_core.verify_ed25519 (primitives := P) key message signature
+          ok (edResult result)) := rfl
+
+theorem p256_delegates [P : Auths.Crypto.P256Primitives]
+    (key message signature : Slice Std.U8) :
+    auths_signature_core.verify_p256_sha256 (P := P) key message signature =
+      (do let result ← AuthsNativeP256.verify_p256_sha256 (primitive := P) key message signature
+          ok (p256Result result)) := rfl
+
+end AuthsSuiteAdapters
+"#.to_owned()
 }
 
 fn render_p256_types_external() -> String {
@@ -1873,6 +2168,21 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
                     .to_owned(),
             );
         }
+        if report.crate_name == "auths_signature"
+            && report.functions.iter().any(|function| {
+                function.rust_name.starts_with("auths_")
+                    && function.is_opaque
+                    && !qualification.qualified_delegations.iter().any(|link| {
+                        link.importer_translation_json == expected.translation_json
+                            && link.rust_symbol == function.rust_name
+                    })
+            })
+        {
+            return Err(
+                "suite adapter contains an Auths import without an exact qualified owner"
+                    .to_owned(),
+            );
+        }
         let local = report
             .functions
             .iter()
@@ -1924,6 +2234,7 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
             ));
         }
     }
+    validate_qualified_delegations(root, qualification)?;
     Ok(())
 }
 
@@ -2681,6 +2992,17 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify,{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify",
+            &stable_llbc.join("auths_signature.llbc"),
+            "core/crates/auths-signature/Cargo.toml",
+            &["--include", "auths_ports"],
+        ),
+        root,
+        &[],
+    )?;
     normalize_p256_llbc_names(
         &stable_llbc.join("auths_signature_core_p256.llbc"),
         output,
@@ -2695,6 +3017,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_signature",
         "auths_signature_core_p256",
         "auths_codec_sha256",
         "auths_signature_core",
@@ -2726,6 +3049,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_signature", "suite_adapter"),
         ("auths_signature_core_p256", "p256"),
         ("auths_codec_sha256", "sha256"),
         ("auths_signature_core", "signature"),
@@ -2767,6 +3091,12 @@ fn reproduce(
         ) {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
         }
+        if subdir == "suite_adapter" {
+            aeneas_arguments.splice(
+                0..0,
+                ["-namespace".to_owned(), "AuthsSuiteAdapters".to_owned()],
+            );
+        }
         if subdir == "p256" {
             aeneas_arguments.splice(
                 0..0,
@@ -2782,6 +3112,7 @@ fn reproduce(
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_signature",
         "auths_signature_core_p256",
         "auths_codec_sha256",
         "auths_signature_core",
@@ -2804,6 +3135,7 @@ fn reproduce(
     normalize_signature_primitive_context(output)?;
     normalize_sha256_primitive_context(output)?;
     normalize_p256_context(output)?;
+    normalize_suite_adapter_context(output)?;
     Ok(())
 }
 
@@ -3194,6 +3526,42 @@ fn normalize_sha256_llbc_names(
         &output.join("sha256-run/foreign-name-normalization.json"),
         &ledger,
     )
+}
+
+fn normalize_suite_adapter_context(output: &Path) -> Result<(), String> {
+    let directory = output.join("suite_adapter-run/qualification/aeneas/generated/suite_adapter");
+    for file in ["Types.lean", "Funs.lean"] {
+        let path = directory.join(file);
+        let source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, suite_adapter_context(&source, file == "Types.lean")?)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+fn suite_adapter_context(source: &str, types: bool) -> Result<String, String> {
+    if source.matches("namespace AuthsSuiteAdapters\n").count() != 1
+        || source.contains("variable [edPrimitive")
+        || source.contains("variable [p256Primitive")
+        || source.contains("qualified_discriminant")
+    {
+        return Err("suite adapter context input drifted".to_owned());
+    }
+    if types {
+        if source.matches("import Aeneas\n").count() != 1 {
+            return Err("suite adapter type import drifted".to_owned());
+        }
+        Ok(source
+            .replace(
+                "import Aeneas\n",
+                "import Aeneas\nimport Auths.Support.Discriminant\n",
+            )
+            .replace("discriminant isize", "qualified_discriminant isize"))
+    } else {
+        if source.matches("noncomputable section\n").count() != 1 {
+            return Err("suite adapter section drifted".to_owned());
+        }
+        Ok(source.replace("noncomputable section\n", "noncomputable section\n\nvariable [edPrimitive : Auths.Crypto.Ed25519Primitives]\nvariable [p256Primitive : Auths.Crypto.P256Primitives]\n"))
+    }
 }
 
 fn normalize_p256_context(output: &Path) -> Result<(), String> {
@@ -4509,5 +4877,71 @@ mod p256_export_name_tests {
             types
         );
         assert!(p256_context(&normalized, true).is_err());
+    }
+}
+
+#[cfg(test)]
+mod qualified_delegation_tests {
+    use super::{
+        TranslationFunction, delegation_endpoints_match, delegation_statement_matches,
+        expected_qualified_delegations, suite_adapter_context,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn printed_owner_name_cannot_replace_the_actual_kernel_reference() {
+        let link = expected_qualified_delegations().remove(0);
+        let mut declaration = json!({"name": link.delegation_theorem, "kind": "theorem",
+            "statement": format!("{} = {}", link.bridge_lean_declaration, link.owner_lean_declaration),
+            "statement_constants": [link.bridge_lean_declaration], "axioms": ["propext"]});
+        assert!(!delegation_statement_matches(&declaration, &link));
+        declaration["statement_constants"] =
+            json!([link.bridge_lean_declaration, link.owner_lean_declaration]);
+        assert!(delegation_statement_matches(&declaration, &link));
+        declaration["axioms"] = json!(["propext", "sorryAx"]);
+        assert!(!delegation_statement_matches(&declaration, &link));
+        declaration["axioms"] = json!([]);
+        declaration["kind"] = json!("axiom");
+        assert!(!delegation_statement_matches(&declaration, &link));
+    }
+
+    #[test]
+    fn an_opaque_foreign_or_wrong_owner_cannot_close_the_import() {
+        let link = expected_qualified_delegations().remove(0);
+        let imported = TranslationFunction {
+            rust_name: link.rust_symbol.clone(),
+            lean_name: link.bridge_lean_declaration.clone(),
+            is_local: false,
+            is_opaque: true,
+        };
+        let mut owned = TranslationFunction {
+            rust_name: link.rust_symbol.clone(),
+            lean_name: link.owner_lean_declaration.clone(),
+            is_local: true,
+            is_opaque: false,
+        };
+        assert!(delegation_endpoints_match(&imported, &owned, &link));
+        owned.is_opaque = true;
+        assert!(!delegation_endpoints_match(&imported, &owned, &link));
+        owned.is_opaque = false;
+        owned.is_local = false;
+        assert!(!delegation_endpoints_match(&imported, &owned, &link));
+        owned.is_local = true;
+        owned.rust_name = "auths_signature_core::another_verifier".to_owned();
+        assert!(!delegation_endpoints_match(&imported, &owned, &link));
+        owned.rust_name.clone_from(&link.rust_symbol);
+        owned.lean_name = "Unqualified.always_accept".to_owned();
+        assert!(!delegation_endpoints_match(&imported, &owned, &link));
+    }
+
+    #[test]
+    fn context_does_not_change_any_generated_adapter_body() {
+        let source = "noncomputable section\nnamespace AuthsSuiteAdapters\ndef adapter := actual_fields_and_callback\nend AuthsSuiteAdapters\n";
+        let parameter = "\nvariable [edPrimitive : Auths.Crypto.Ed25519Primitives]\nvariable [p256Primitive : Auths.Crypto.P256Primitives]\n";
+        let normalized = suite_adapter_context(source, false).expect("one context");
+        assert_eq!(normalized.replace(parameter, ""), source);
+        assert!(suite_adapter_context(&normalized, false).is_err());
+        assert!(suite_adapter_context(&format!("{source}{source}"), false).is_err());
+        assert!(suite_adapter_context("def unreviewed := alternate", false).is_err());
     }
 }

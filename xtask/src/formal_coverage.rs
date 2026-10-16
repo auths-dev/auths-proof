@@ -982,15 +982,16 @@ type Translations = (Vec<Translated>, Vec<(String, String)>);
 // handwritten `fn` declarations. Keep them in the Lean dependency graph; do
 // not invent a separately scanned Rust function at the closure's inner span.
 fn is_generated_closure_shim(rust_name: &str) -> bool {
-    let Some((owner, implementation)) = rust_name.split_once("::{impl ") else {
+    let Some((owner, implementation)) = rust_name.split_once("::{impl core::ops::function::")
+    else {
         return false;
     };
-    let Some((trait_name, receiver)) = implementation.rsplit_once(" for ") else {
+    let Some((trait_name, receiver)) = implementation.split_once(" for ") else {
         return false;
     };
-    let method = if trait_name.starts_with("core::ops::function::FnMut<") {
+    let method = if trait_name.starts_with("FnMut<") {
         "}::call_mut"
-    } else if trait_name.starts_with("core::ops::function::FnOnce<") {
+    } else if trait_name.starts_with("FnOnce<") {
         "}::call_once"
     } else {
         return false;
@@ -3796,7 +3797,18 @@ mod closure_shim_tests {
         assert!(is_generated_closure_shim(
             "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}::call_once"
         ));
+        // A closure's owner may itself be a handwritten trait method. Its
+        // `for` and `impl` segments must not be mistaken for the closure shim.
+        assert!(is_generated_closure_shim(
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::Ed25519Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_once"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::P256Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once"
+        ));
         for function in [
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<T> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once",
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<T> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_mut",
             "auths_composition::evaluate",
             "auths_composition::{auths_composition::EvaluationEvent}::outcome",
             "auths_model::{impl core::ops::function::FnMut<T> for auths_model::Handler}::call_mut",

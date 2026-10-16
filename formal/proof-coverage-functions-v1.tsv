@@ -1017,7 +1017,7 @@ core/crates/auths-signature-core/src/lib.rs	203	205	3	decode_ed25519_point	core/
 core/crates/auths-signature-core/src/lib.rs	211	213	3	decode_ed25519_key	core/crates/auths-signature-core	crypto	0	0		1	0	1	0
 core/crates/auths-signature-core/src/lib.rs	215	242	28	verify_ed25519_with	core/crates/auths-signature-core	crypto	0	0		1	1	1	2
 core/crates/auths-signature-core/src/lib.rs	244	247	4	verify_ed25519_equation	core/crates/auths-signature-core	crypto	0	0		1	1	1	1
-core/crates/auths-signature-core/src/lib.rs	261	273	13	verify_ed25519	core/crates/auths-signature-core	crypto	0	0		1	1	1	5
+core/crates/auths-signature-core/src/lib.rs	261	273	13	verify_ed25519	core/crates/auths-signature-core	crypto	0	0		1	1	1	6
 core/crates/auths-signature-core/src/lib.rs	286	291	6	validate_p256_key	core/crates/auths-signature-core	crypto	0	0		1	1	1	1
 core/crates/auths-signature-core/src/lib.rs	306	308	3	NativeP256::decode	core/crates/auths-signature-core	crypto	0	0		1	0	1	0
 core/crates/auths-signature-core/src/lib.rs	309	311	3	NativeP256::parse	core/crates/auths-signature-core	crypto	0	0		1	0	1	0
@@ -1028,7 +1028,19 @@ core/crates/auths-signature-core/src/lib.rs	334	336	3	decode_p256_key	core/crate
 core/crates/auths-signature-core/src/lib.rs	338	340	3	parse_p256_signature	core/crates/auths-signature-core	crypto	0	0		1	1	1	1
 core/crates/auths-signature-core/src/lib.rs	342	344	3	verify_p256_equation	core/crates/auths-signature-core	crypto	0	0		1	1	1	1
 core/crates/auths-signature-core/src/lib.rs	346	369	22	verify_p256_sha256_with	core/crates/auths-signature-core	crypto	0	0		1	1	1	2
-core/crates/auths-signature-core/src/lib.rs	381	387	7	verify_p256_sha256	core/crates/auths-signature-core	crypto	0	0		1	1	1	7
+core/crates/auths-signature-core/src/lib.rs	381	387	7	verify_p256_sha256	core/crates/auths-signature-core	crypto	0	0		1	1	1	8
+core/crates/auths-signature/src/lib.rs	26	30	5	Ed25519Suite::new	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	34	36	3	Ed25519Suite::id	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	38	40	3	Ed25519Suite::configuration_id	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	42	44	3	Ed25519Suite::validate_key	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	46	57	12	Ed25519Suite::verify	core/crates/auths-signature	crypto	0	0		1	1	1	4
+core/crates/auths-signature/src/lib.rs	59	61	3	Ed25519Suite::work_units	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	76	80	5	P256Sha256Suite::new	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	84	86	3	P256Sha256Suite::id	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	88	90	3	P256Sha256Suite::configuration_id	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	92	94	3	P256Sha256Suite::validate_key	core/crates/auths-signature	crypto	0	0		0	0	0	0
+core/crates/auths-signature/src/lib.rs	96	107	12	P256Sha256Suite::verify	core/crates/auths-signature	crypto	0	0		1	1	1	4
+core/crates/auths-signature/src/lib.rs	109	111	3	P256Sha256Suite::work_units	core/crates/auths-signature	crypto	0	0		0	0	0	0
 core/crates/auths-verifier/src/approval.rs	72	78	7	limit_or_malformed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/approval.rs	82	107	26	chain_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/approval.rs	110	120	11	context_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0

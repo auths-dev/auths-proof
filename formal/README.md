@@ -408,3 +408,18 @@ records are unchanged. All 14 cases and two byte-identical fresh translations
 pass, with 19 reviewed models and zero compiled external axioms. Exact-revision
 hosted gates remain required. This does not complete dispatch, caller construction, commitment
 integration, full verification or the whole AP-SPEC-069 program.
+
+### Linked suite verification adapters
+
+The shipping Ed25519 and P-256 suite verification methods refine the independent
+suite result and acceptance models through exact field forwarding and error
+conversion. Each imported core call has a checked link to its transparent
+qualified native owner and a compiled delegation equality. Kernel statement
+constants, including implicit implementation instances, are now included in
+the reviewed audit digest. The construction audit has 613 claims; all 599
+previous readable statement texts and axiom sets are unchanged. Positive and
+changed-message witnesses use explicit forwarding mocks without authenticity
+claims. Focused qualification rejection tests pass. Fresh qualification passes
+613 claims, 15/15 cases, 21 reviewed models, zero compiled external axioms and
+two byte-identical translations. Exact-revision hosted gates remain required. Constructors, registry dispatch,
+principal binding, caller preimages and complete E5 remain separate obligations.

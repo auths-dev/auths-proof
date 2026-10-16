@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "494fbe483fbf5aa946ccc33f87b1d122bb1b1c697757551866118ae02b7244e7",
+  "digest": "17a0056b33dcb6769fe574e62f8cf3a6422e208b56c6b9a041b94e946827c7cc",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "cc4523a0b1e36e2f8b290cb697a50f25ef22198a268bf77476cadf00ccde814f",
+      "sha256": "3a84d0b289952d3277d67a5e7373c9b0e28a26253e55ad79f7f4c5b76d433a69",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -524,8 +524,12 @@
       "sha256": "7cb57dba378673e1ad581380d738d35978fd0ee97c5d5a62af4190f9938167ee"
     },
     {
+      "path": "formal/qualification/aeneas/cases/SuiteAdapters.lean",
+      "sha256": "e567da83843387e0cdb5031c2791b9c6d4df7a3ffc65c4be4edb1e8488c99c54"
+    },
+    {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "fd6bfc510d0f41d160edea872be71fbdffcaea536750bb6616a733914f70d4fb"
+      "sha256": "e386d2c42868f60bd39d7775b0b10c1fbee3e3f9148ba40574dcbe6930ee20c9"
     },
     {
       "path": "formal/tools/SourceClosure.lean",
@@ -917,11 +921,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "1bae60019fed66bb87b35dc0957beeb9761dff0daf77789b366dec75cc516244"
+      "sha256": "89b126d672e0739c942489f86a927dbc11b2dc7e4358864ca9d64a4664f6c7d7"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
-      "sha256": "d3e574897f2fccdf2340a134ee270578b123fc663d326d19b54312b1b7a750e7"
+      "sha256": "b57f0d4259c63201b6e752ad5340d315ef9697237e620d3e0065d267b5825ecc"
     },
     {
       "path": "xtask/src/formal_mutations.rs",
@@ -929,7 +933,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "bb325a7f778dd9e480995c7579acd9b6ba6d52f21203b722dbd7ecad97a6f4e9"
+      "sha256": "49d085df844bd4742e0d7c11b9f9ca2582e507918af5aeb5017a8874f25a03de"
     },
     {
       "path": "xtask/src/fuzz.rs",

@@ -839,3 +839,29 @@ semantic-closure regeneration also pass. Qualified source closure:
 Exact-revision hosted gates remain required. Suite/principal
 dispatch, caller unsigned-object/descriptor construction, every commitment,
 the complete verifier and whole E5/M6 remain open.
+
+## Qualified suite verification adapters
+
+The actual Ed25519 and P-256 SignatureSuite verification methods now refine
+the independent suite results and acceptance predicates, including all three
+input fields and exhaustive port-error mapping. Their two imported core calls
+delegate directly to the previously qualified public native implementations.
+A closed owner-link inventory requires exact Rust/Lean identities, transparent
+local owners, and compiled delegation theorems mentioning both exact constants.
+The compiled statement audit now records kernel constant references, including
+implicit implementation instances, and binds these to the reviewed digest.
+Readable statement text cannot substitute for a missing owner reference.
+
+Four explicit-mock witnesses cover exact input acceptance and changed-message
+refusal; these demonstrate forwarding, not authentic cryptographic signatures.
+All previous 599 readable statement texts, modules, kinds and axiom sets are
+unchanged; the new constant-reference metadata is added to every audit record.
+The construction audit has 613 claims, with only the permitted foundations.
+Focused owner-link, digest-rejection and nested closure-scanner tests pass.
+Fresh exact-source qualification passes all 613 audited claims, 15/15 cases,
+21 reviewed models and zero compiled external axioms. Two clean translations
+are byte-identical. Qualified source closure:
+`17a0056b33dcb6769fe574e62f8cf3a6422e208b56c6b9a041b94e946827c7cc`.
+Exact-revision hosted evidence remains required for this expansion. Suite
+constructors, IDs, registry selection, key/principal binding, caller object
+construction, remaining commitments, and complete E5/M6 remain open.

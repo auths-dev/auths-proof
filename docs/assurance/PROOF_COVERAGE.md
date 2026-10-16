@@ -7,10 +7,10 @@
 At the commit that contains this document, 124 of 1,044 decision-scope functions (11.9%) and 1,490 of 11,535 code lines (12.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `7c67a63106baf67e1ea9ec094fd7cb1cd5fd47b8f7856d985b32a2a62ad567d1` over the 111 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `58fe1cb4e62db669ba50a6a34d96f0d7f7d82e68429e2cdc66af3ced8689fae6` over the 114 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `d022691fc292a75aefd98e04efcc00f96dd97cbf9a3b20d856da4fc3c09d238a`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -43,6 +43,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `core/crates/auths-ports/src/lib.rs` | interface |
 | `core/crates/auths-ports/src/path.rs` | interface |
 | `core/crates/auths-signature-core/src/lib.rs` | crypto |
+| `core/crates/auths-signature/src/lib.rs` | crypto |
 | `core/crates/auths-verifier/src/causal.rs` | explanation |
 | `core/crates/auths-verifier/src/trace.rs` | explanation |
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
@@ -58,7 +59,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,044 | 124 (11.9%) | 66 (6.3%) | 124 (11.9%) | 11,535 | 1,490 (12.9%) | 1,007 (8.7%) | 1,490 (12.9%) |
 | verifier-core | 798 | 100 (12.5%) | 51 (6.4%) | 100 (12.5%) | 8,984 | 1,108 (12.3%) | 709 (7.9%) | 1,108 (12.3%) |
-| translated-crates | 1,555 | 322 (20.7%) | 116 (7.5%) | 322 (20.7%) | 17,140 | 3,499 (20.4%) | 1,621 (9.5%) | 3,499 (20.4%) |
+| translated-crates | 1,567 | 324 (20.7%) | 118 (7.5%) | 324 (20.7%) | 17,198 | 3,523 (20.5%) | 1,645 (9.6%) | 3,523 (20.5%) |
 | verifier-closure | 1,143 | 169 (14.8%) | 63 (5.5%) | 169 (14.8%) | 14,236 | 1,666 (11.7%) | 938 (6.6%) | 1,666 (11.7%) |
 | decision-nontrivial | 453 | 94 (20.8%) | 53 (11.7%) | 94 (20.8%) | 9,762 | 1,400 (14.3%) | 968 (9.9%) | 1,400 (14.3%) |
 
@@ -190,7 +191,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `89bf6ae47f393d9c238bd53e39a964d4c84683b5238980a96a4f00f6a4e211fa`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `00ba64f3afc3143da3c826fda579d040d594e1fc8bba34ad1054537a62840362`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -203,7 +204,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 119 exact, 7 verdict-exact, 50 partial, 55 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 119 exact, 10 verdict-exact, 53 partial, 59 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 123 of 1,044 functions (11.8%) and 1,487 of 11,535 code lines (12.9%).
 
@@ -321,13 +322,13 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Crypto.P256Examples.malformed_key_refused_without_primitive_contract` | case |
 | `Auths.Crypto.P256Examples.public_call_forwards_exact_bytes` | case |
 | `Auths.Crypto.P256LowContract.guard_refines` | exact |
-| `Auths.Crypto.P256LowContract.r_bytes_irrelevant` | exact |
+| `Auths.Crypto.P256LowContract.r_bytes_irrelevant` | partial |
 | `Auths.Crypto.P256LowScan.loop_refines` | exact |
 | `Auths.Crypto.P256Native.decode_leaf_refines` | exact |
 | `Auths.Crypto.P256Native.decode_refines` | exact |
 | `Auths.Crypto.P256Native.equation_leaf_refines` | exact |
 | `Auths.Crypto.P256Native.parse_leaf_refines` | exact |
-| `Auths.Crypto.P256Native.public_accepts_iff` | exact |
+| `Auths.Crypto.P256Native.public_accepts_iff` | verdict-exact |
 | `Auths.Crypto.P256Native.public_validate_refines` | exact |
 | `Auths.Crypto.P256Native.public_verify_refines` | exact |
 | `Auths.Crypto.RContract.guard_refines` | exact |
@@ -355,6 +356,14 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Crypto.Strict.SuiteRefinement.key_encoding_refines` | exact |
 | `Auths.Crypto.Strict.SuiteRefinement.verify_ed25519_refines` | exact |
 | `Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines` | exact |
+| `Auths.Crypto.SuiteAdapterExamples.ed_changed_message_refused` | case |
+| `Auths.Crypto.SuiteAdapterExamples.ed_exact_fields_admitted` | case |
+| `Auths.Crypto.SuiteAdapterExamples.p256_changed_message_refused` | case |
+| `Auths.Crypto.SuiteAdapterExamples.p256_exact_fields_admitted` | case |
+| `Auths.Crypto.SuiteAdapters.ed_accepts_iff` | verdict-exact |
+| `Auths.Crypto.SuiteAdapters.ed_public_refines` | exact |
+| `Auths.Crypto.SuiteAdapters.p256_accepts_iff` | verdict-exact |
+| `Auths.Crypto.SuiteAdapters.p256_public_refines` | exact |
 | `Auths.Crypto.WeakContract.guard_refines` | exact |
 | `Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich` | exact |
@@ -442,6 +451,8 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Refinement.translated_inexpressible_absent_request_is_covered` | partial |
 | `Auths.Refinement.translated_rust_refines_rich_spec` | exact |
 | `Auths.Rich.Mutations.profile_version_equality` | case |
+| `AuthsSuiteAdapters.ed25519_delegates` | partial |
+| `AuthsSuiteAdapters.p256_delegates` | partial |
 
 ## 8. Trusted base
 

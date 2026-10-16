@@ -1374,6 +1374,7 @@ pub(crate) struct LeanAssuranceDeclaration {
     kind: String,
     statement: String,
     axioms: Vec<String>,
+    statement_constants: Vec<String>,
 }
 
 fn lean_statement_inventory_sha256(audit: &LeanAssuranceAudit) -> String {
@@ -1394,6 +1395,13 @@ fn lean_statement_inventory_sha256(audit: &LeanAssuranceAudit) -> String {
         }
         for axiom in axioms {
             digest.update(axiom.as_bytes());
+            digest.update([0]);
+        }
+        let mut constants = declaration.statement_constants.clone();
+        constants.sort();
+        digest.update([0xfe]);
+        for constant in constants {
+            digest.update(constant.as_bytes());
             digest.update([0]);
         }
         digest.update([0xff]);
@@ -2035,6 +2043,19 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
         }
+        if [
+            "AuthsSuiteAdapters.ed_error_to_from",
+            "AuthsSuiteAdapters.ed_error_from_to",
+            "AuthsSuiteAdapters.p256_error_to_from",
+            "AuthsSuiteAdapters.p256_error_from_to",
+            "AuthsSuiteAdapters.ed25519_delegates",
+            "AuthsSuiteAdapters.p256_delegates",
+        ]
+        .contains(&declaration.name.as_str())
+        {
+            claim.claim_text = "The compiled suite component bridge proves exact delegation or a complete error-constructor isomorphism.".to_owned();
+            claim.scope = "Exactly the displayed owning function, importing binding and exhaustive three-constructor error conversions. Delegation is unconditional apart from the explicit foreign implementation parameter; the native owning algorithms remain transparent and separately proved. These bridge results introduce no assumed Auths algorithm, primitive law, constructor/registry validity or complete E5 claim.".to_owned();
+        }
         if declaration.name == "Auths.Crypto.NativeExamples.forwarding_contract"
             || declaration.name == "Auths.Crypto.P256Examples.forwarding_contract"
         {
@@ -2366,6 +2387,9 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const SUITE_ADAPTER_TRANSLATION: &str =
+    "formal/qualification/aeneas/generated/suite_adapter/Funs.lean";
+
 const P256_TRANSLATION: &str = "formal/qualification/aeneas/generated/p256/Funs.lean";
 
 const SHA256_TRANSLATION: &str = "formal/qualification/aeneas/generated/sha256/Funs.lean";
@@ -2381,8 +2405,12 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    native_p256_refinement_metadata(declaration)
-        .map(|metadata| (metadata, P256_TRANSLATION))
+    suite_adapter_refinement_metadata(declaration)
+        .map(|metadata| (metadata, SUITE_ADAPTER_TRANSLATION))
+        .or_else(|| {
+            native_p256_refinement_metadata(declaration)
+                .map(|metadata| (metadata, P256_TRANSLATION))
+        })
         .or_else(|| {
             hash_boundary_refinement_metadata(declaration).map(|metadata| {
                 (
@@ -2448,6 +2476,80 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn suite_adapter_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust the pinned Rust/Charon/Aeneas/Lean compiler boundary, Lean kernel, permitted foundations and inventoried transparent standard models. The suite adapter's Auths imports are exact delegations to transparent qualified local owners, with exhaustive error reboxing and inverse proofs. The closed owner table checks Rust/Lean identities and actual kernel statement constants; no opaque firstparty algorithm is assumed.",
+        "The displayed primitive contracts remain the exact foreign decoder/parser/equation conditions of the owning native APIs. No implementation instance, cryptographic axiom, library correctness, curve arithmetic, unforgeability or constant-time claim is introduced. Mock witnesses check call and field binding only.",
+        "These methods do not inspect their private suite-ID field. Its represented byte carrier is broader than constructor-valid runtime values, so these results do not establish constructor validity, canonical/installed IDs, registry selection, principal binding, caller unsigned-object/descriptor construction, complete verification, every commitment or whole E5/M6.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.SuiteAdapters.ed_public_refines" => (
+            "The actual Ed25519 suite adapter forwards exact input fields to the qualified owning API and preserves the independent complete result.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+            ],
+            "Every represented suite instance and SignatureInput under the displayed primitive contracts. Key, complete signing preimage and signature are projected from the exact named input fields; all three core refusal classes map to the correct port errors. Self.id is not inspected by this method; constructor validity, installed suite identity and registry selection are separate obligations.",
+        ),
+        "Auths.Crypto.SuiteAdapters.ed_accepts_iff" => (
+            "The actual Ed25519 suite adapter accepts iff the independent accepted-input relation holds.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+            ],
+            "Every represented suite/input under the displayed primitive contracts. This composes source field projection and exact error conversion with the mechanically translated owning public API. No opaque Auths algorithm or desired suite result is a premise. Constructor and registry-selection validity, principal binding, caller preimage construction and whole E5 remain separate.",
+        ),
+        "Auths.Crypto.SuiteAdapterExamples.ed_exact_fields_admitted" => (
+            "The actual Ed25519 adapter retains the concrete exact fields on a useful admitted path.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+            ],
+            "Only the displayed explicit forwarding mock, literal constructor-compatible private-ID carrier and input bytes. These are field/call-binding witnesses, not authentic signatures, constructor/registry refinement, primitive correctness or authorization claims.",
+        ),
+        "Auths.Crypto.SuiteAdapterExamples.ed_changed_message_refused" => (
+            "The actual Ed25519 adapter refuses the displayed changed signing preimage with the correct port error.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+            ],
+            "Only the displayed explicit forwarding mock, literal constructor-compatible private-ID carrier and input bytes. These are field/call-binding witnesses, not authentic signatures, constructor/registry refinement, primitive correctness or authorization claims.",
+        ),
+        "Auths.Crypto.SuiteAdapters.p256_public_refines" => (
+            "The actual P-256/SHA-256 suite adapter forwards exact input fields to the qualified owning API and preserves the independent complete result.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify",
+            ],
+            "Every represented suite instance and SignatureInput under the displayed primitive contracts. Key, complete signing preimage and signature are projected from the exact named input fields; all three core refusal classes map to the correct port errors. Self.id is not inspected by this method; constructor validity, installed suite identity and registry selection are separate obligations.",
+        ),
+        "Auths.Crypto.SuiteAdapters.p256_accepts_iff" => (
+            "The actual P-256/SHA-256 suite adapter accepts iff the independent accepted-input relation holds.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify",
+            ],
+            "Every represented suite/input under the displayed primitive contracts. This composes source field projection and exact error conversion with the mechanically translated owning public API. No opaque Auths algorithm or desired suite result is a premise. Constructor and registry-selection validity, principal binding, caller preimage construction and whole E5 remain separate.",
+        ),
+        "Auths.Crypto.SuiteAdapterExamples.p256_exact_fields_admitted" => (
+            "The actual P-256/SHA-256 adapter retains the concrete exact fields on a useful admitted path.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify",
+            ],
+            "Only the displayed explicit forwarding mock, literal constructor-compatible private-ID carrier and input bytes. These are field/call-binding witnesses, not authentic signatures, constructor/registry refinement, primitive correctness or authorization claims.",
+        ),
+        "Auths.Crypto.SuiteAdapterExamples.p256_changed_message_refused" => (
+            "The actual P-256/SHA-256 adapter refuses the displayed changed signing preimage with the correct port error.",
+            &[
+                "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify",
+            ],
+            "Only the displayed explicit forwarding mock, literal constructor-compatible private-ID carrier and input bytes. These are field/call-binding witnesses, not authentic signatures, constructor/registry refinement, primitive correctness or authorization claims.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn native_p256_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
@@ -4184,6 +4286,7 @@ mod phase_ordering {
                         kind: "theorem".to_owned(),
                         statement: "True".to_owned(),
                         axioms: Vec::new(),
+                        statement_constants: Vec::new(),
                     },
                 )
             })
@@ -4764,11 +4867,16 @@ mod phase_ordering {
                 kind: "theorem".to_owned(),
                 statement: statement.to_owned(),
                 axioms: Vec::new(),
+                statement_constants: vec!["Fixture.StrongBoundary".to_owned()],
             }],
         };
         let strong = lean_statement_inventory_sha256(&audit("StrongBoundary input"));
         let weakened = lean_statement_inventory_sha256(&audit("True"));
         assert_ne!(strong, weakened);
+        let mut changed_implicit = audit("StrongBoundary input");
+        changed_implicit.declarations[0].statement_constants =
+            vec!["Fixture.AlwaysAccept".to_owned()];
+        assert_ne!(strong, lean_statement_inventory_sha256(&changed_implicit));
 
         let source = include_str!("formal.rs");
         let synchronizer = source
