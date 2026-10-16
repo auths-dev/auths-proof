@@ -377,3 +377,16 @@ hosted gates remain required.
 Successful-output exactness is a component claim: general framing totality,
 all admitted-input completeness, callers' unsigned-object encoding, every
 commitment and complete E5 remain separate obligations.
+
+### Complete shared-framer bounds
+
+`Auths.Crypto.FramingTotality` relates every represented input of the actual
+signing/application/identifier framers to independent numeric domains. Its
+nine source claims establish termination in the qualified Result semantics,
+acceptance iff the domain holds, and exactly `LimitExceeded` otherwise.
+Previous exact-byte, validity, length and input-binding results remain in the
+same closure. Local qualification passes 582 audited statements, all prior
+573 complete records unchanged, with only the permitted foundations, 13/13
+cases and two byte-identical fresh translations. Exact-revision hosted gates
+remain required. Physical allocation, caller object
+construction, every commitment and the complete E5 claim remain separate.

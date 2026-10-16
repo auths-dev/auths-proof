@@ -12,6 +12,15 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Crypto.FramingTotality.identifier_total" = "exact"
+"Auths.Crypto.FramingTotality.identifier_accepts_iff" = "exact"
+"Auths.Crypto.FramingTotality.identifier_refuses_iff" = "exact"
+"Auths.Crypto.FramingTotality.application_total" = "exact"
+"Auths.Crypto.FramingTotality.application_accepts_iff" = "exact"
+"Auths.Crypto.FramingTotality.application_refuses_iff" = "exact"
+"Auths.Crypto.FramingTotality.signing_total" = "exact"
+"Auths.Crypto.FramingTotality.signing_accepts_iff" = "exact"
+"Auths.Crypto.FramingTotality.signing_refuses_iff" = "exact"
 "Auths.Crypto.CommitmentValidity.application_accepted_frame_valid" = "partial"
 "Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid" = "partial"
 "Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind" = "partial"

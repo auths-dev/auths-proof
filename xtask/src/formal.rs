@@ -2443,7 +2443,73 @@ fn qualified_refinement_metadata(
         })
 }
 
+fn framing_totality_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust the pinned Rust/Charon/Aeneas/Lean compiler boundary, Lean kernel, permitted foundations, and inventoried transparent standard-library models. Physical memory availability, allocation failure/abort and allocator implementation remain the named host/library boundary; totality is over the qualified Result semantics, not a guarantee of available physical memory.",
+        "The admissible domain is stated independently with numeric byte/word-length and signed/unsigned allocation limits. Neither an accepted-result flag nor the desired source result is a premise. All branches, checked arithmetic, scalar conversions and append lengths are related to the mechanically translated shipping framer.",
+        "These framing claims establish no cryptographic primitive correctness or security, caller unsigned-object/descriptor construction, all protocol-object codecs, all commitment call sites, provider meaning or complete AP-SPEC-069 E5. Successful preimage exactness and input binding are separate audited results in the same closure.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.FramingTotality.identifier_total" => (
+            "The shipping identifier framer terminates on every represented input and classifies success versus typed LimitExceeded against independent numeric bounds.",
+            &["auths_codec::hash::identifier_preimage"],
+            "All nine registered tags, every represented payload and actual 32/64-bit capacity bounds: eight-byte payload length and total frame length 20 plus payload fitting both unsigned and signed pointer-size limits.",
+        ),
+        "Auths.Crypto.FramingTotality.identifier_accepts_iff" => (
+            "The shipping identifier framer admits exactly the independent numeric domain; no deny-all implementation satisfies this equivalence.",
+            &["auths_codec::hash::identifier_preimage"],
+            "All nine registered tags, every represented payload and actual 32/64-bit capacity bounds: eight-byte payload length and total frame length 20 plus payload fitting both unsigned and signed pointer-size limits.",
+        ),
+        "Auths.Crypto.FramingTotality.identifier_refuses_iff" => (
+            "The shipping identifier framer returns LimitExceeded exactly outside the independent numeric domain.",
+            &["auths_codec::hash::identifier_preimage"],
+            "All nine registered tags, every represented payload and actual 32/64-bit capacity bounds: eight-byte payload length and total frame length 20 plus payload fitting both unsigned and signed pointer-size limits.",
+        ),
+        "Auths.Crypto.FramingTotality.application_total" => (
+            "The shipping application framer terminates on every represented input and classifies success versus typed LimitExceeded against independent numeric bounds.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented UTF-8 domain/payload: nonempty domain at most 128 bytes, eight-byte payload length and total frame length 28 plus domain/payload fitting unsigned and signed pointer-size limits.",
+        ),
+        "Auths.Crypto.FramingTotality.application_accepts_iff" => (
+            "The shipping application framer admits exactly the independent numeric domain; no deny-all implementation satisfies this equivalence.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented UTF-8 domain/payload: nonempty domain at most 128 bytes, eight-byte payload length and total frame length 28 plus domain/payload fitting unsigned and signed pointer-size limits.",
+        ),
+        "Auths.Crypto.FramingTotality.application_refuses_iff" => (
+            "The shipping application framer returns LimitExceeded exactly outside the independent numeric domain.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented UTF-8 domain/payload: nonempty domain at most 128 bytes, eight-byte payload length and total frame length 28 plus domain/payload fitting unsigned and signed pointer-size limits.",
+        ),
+        "Auths.Crypto.FramingTotality.signing_total" => (
+            "The shipping signing framer terminates on every represented input and classifies success versus typed LimitExceeded against independent numeric bounds.",
+            &["auths_codec::hash::signing_preimage"],
+            "All six signing tags, every profile/version/payload: two-byte profile length, eight-byte payload length and total frame length 21 plus profile/payload fitting unsigned and signed pointer-size limits. Empty profiles are admitted where these bounds permit them; object-specific caller policy remains separate.",
+        ),
+        "Auths.Crypto.FramingTotality.signing_accepts_iff" => (
+            "The shipping signing framer admits exactly the independent numeric domain; no deny-all implementation satisfies this equivalence.",
+            &["auths_codec::hash::signing_preimage"],
+            "All six signing tags, every profile/version/payload: two-byte profile length, eight-byte payload length and total frame length 21 plus profile/payload fitting unsigned and signed pointer-size limits. Empty profiles are admitted where these bounds permit them; object-specific caller policy remains separate.",
+        ),
+        "Auths.Crypto.FramingTotality.signing_refuses_iff" => (
+            "The shipping signing framer returns LimitExceeded exactly outside the independent numeric domain.",
+            &["auths_codec::hash::signing_preimage"],
+            "All six signing tags, every profile/version/payload: two-byte profile length, eight-byte payload length and total frame length 21 plus profile/payload fitting unsigned and signed pointer-size limits. Empty profiles are admitted where these bounds permit them; object-specific caller policy remains separate.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
+}
+
 fn hash_boundary_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    if let Some(metadata) = framing_totality_refinement_metadata(declaration) {
+        return Some(metadata);
+    }
     const RESIDUAL: &[&str] = &[
         "Trust the pinned Rust/Charon/Aeneas/Lean compiler boundary, Lean kernel, permitted foundations and listed transparent standard models. Vec capacity is abstract: physical allocation, OS memory availability and allocator correctness remain outside the claim. The concrete signed-capacity guard is translated before allocation.",
         "The SHA-256 unit monomorphizes the actual source without semantic cfg changes. Eleven exact foreign export-name paths and cache copies are normalized; a ledger retains their original identities. Every Auths name and every body, signature, generic, layout, source span and call/type ID is checked unchanged. The two selected foreign calls are explicit implementation projections; no global instance, crypto axiom or opaque Auths algorithm is introduced.",

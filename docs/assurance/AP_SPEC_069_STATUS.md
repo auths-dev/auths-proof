@@ -768,3 +768,31 @@ Exact-revision hosted gates remain required. These are
 preimage-byte properties. They assert no SHA-256 injectivity or cryptographic
 security, and do not yet establish all-input totality, general acceptance,
 caller unsigned-object construction, every commitment or complete E5.
+
+## Complete bounds classification for the three shared framers
+
+The actual signing, application-commitment and content-identifier framers now
+have all-input totality in the qualified Result semantics. Each accepts iff
+its independent numeric domain holds, and returns exactly `LimitExceeded`
+iff that domain does not hold. The domains retain exact UTF-8 byte lengths,
+protocol word widths, checked unsigned capacity and the actual signed
+pointer-size allocation ceiling. Empty signing profiles remain admitted;
+application commitment domains must be nonempty and at most 128 bytes.
+
+Together with the previous successful-byte, valid-frame, exact-length and
+input-binding results, this closes the shared framer's complete bounds/result
+classification. The proofs inspect every translated branch and append bound.
+They introduce no implementation premise that assumes successful framing.
+Physical allocator behavior and memory availability remain explicit standard
+library/host contracts, rather than a claim that arbitrary memory exists.
+
+Local exact-source qualification passes 582 claims. All prior 573 complete
+statement records are unchanged; the nine additions use only the existing
+foundations. Two fresh translations are byte-identical, all 13 qualification
+cases pass, and 16 external models are reviewed with zero compiled external
+axioms. Source closure:
+`0daa0c0f1cb323def162abff2add05fbcb94433b88aee7ef5804082ec58ae087`.
+Exact-revision hosted gates remain required.
+Caller unsigned-object and descriptor construction, all commitment call sites,
+P-256 public native-library integration, the remaining complete-object codec
+and complete E5 remain open. No whole AP-SPEC-069 milestone is declared done.

@@ -7,6 +7,105 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.identifier_total",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType) (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  Aeneas.Std.WP.spec (auths_codec.hash.identifier_preimage kind payload) fun result =>\n    Auths.Crypto.FramingTotality.IdentifierResult payload result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.identifier_accepts_iff",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType) (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  (∃ output,\n      auths_codec.hash.identifier_preimage kind payload =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output)) ↔\n    Auths.Crypto.FramingTotality.IdentifierAdmissible payload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.identifier_refuses_iff",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType) (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_codec.hash.identifier_preimage kind payload =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded) ↔\n    ¬Auths.Crypto.FramingTotality.IdentifierAdmissible payload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.application_total",
+      "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  Aeneas.Std.WP.spec (auths_codec.hash.commitment_preimage domain payload) fun result =>\n    Auths.Crypto.FramingTotality.ApplicationResult domain payload result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.application_accepts_iff",
+      "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  (∃ output,\n      auths_codec.hash.commitment_preimage domain payload =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output)) ↔\n    Auths.Crypto.FramingTotality.ApplicationAdmissible domain payload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.application_refuses_iff",
+      "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage domain payload =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded) ↔\n    ¬Auths.Crypto.FramingTotality.ApplicationAdmissible domain payload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.signing_total",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  Aeneas.Std.WP.spec (auths_codec.hash.signing_preimage kind profile version payload) fun result =>\n    Auths.Crypto.FramingTotality.SigningResult profile payload result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.signing_accepts_iff",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  (∃ output,\n      auths_codec.hash.signing_preimage kind profile version payload =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output)) ↔\n    Auths.Crypto.FramingTotality.SigningAdmissible profile payload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.FramingTotality",
+      "name": "Auths.Crypto.FramingTotality.signing_refuses_iff",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (payload : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_codec.hash.signing_preimage kind profile version payload =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded) ↔\n    ¬Auths.Crypto.FramingTotality.SigningAdmissible profile payload"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Crypto.CommitmentValidity",
       "name": "Auths.Crypto.CommitmentValidity.application_accepted_frame_valid",
       "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage domain payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (Auths.Crypto.CommitmentRefinement.applicationFrame domain payload).Valid"

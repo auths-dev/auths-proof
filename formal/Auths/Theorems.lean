@@ -1,3 +1,4 @@
+import Auths.Crypto.FramingTotality
 import Auths.Crypto.CommitmentValidity
 import Auths.Crypto.CommitmentExamples
 import Auths.Crypto.Sha256Examples
@@ -46,6 +47,15 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.FramingTotality.identifier_total,
+    `Auths.Crypto.FramingTotality.identifier_accepts_iff,
+    `Auths.Crypto.FramingTotality.identifier_refuses_iff,
+    `Auths.Crypto.FramingTotality.application_total,
+    `Auths.Crypto.FramingTotality.application_accepts_iff,
+    `Auths.Crypto.FramingTotality.application_refuses_iff,
+    `Auths.Crypto.FramingTotality.signing_total,
+    `Auths.Crypto.FramingTotality.signing_accepts_iff,
+    `Auths.Crypto.FramingTotality.signing_refuses_iff,
     `Auths.Crypto.CommitmentValidity.application_accepted_frame_valid,
     `Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid,
     `Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind,

@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-  "inputs_sha256": "2308b162f3e3b31ee4b0a8a262329c2505ce1bf809e5aa6047ebf8c9f55e9bd7",
+  "inputs_sha256": "ecd02466b2cd2dedb36883d2e3a9c4921214416400c107f720671017a975f572",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -64,7 +64,7 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-    "formal/lean-assurance-audit-v1.json": "sha256:6b5467abf6372607417208578b0b552afd249f40a6735f33436994cb1038c2fe",
+    "formal/lean-assurance-audit-v1.json": "sha256:e4bc8733bc38601ec93e4aa6610e0ea370d320fa92aae1c976e9a1707e370f48",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -90,7 +90,7 @@
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
     "formal/qualification/aeneas/qualification.toml": "sha256:015c61e5fc239462640c3ed0a56018b0c4912b410e0cf333fef48488feec208b",
-    "formal/theorem-kinds-v1.toml": "sha256:f8deb1eaa5e44965420214569727fd1b35bcfa305ed045e189a64fb9b628d364",
+    "formal/theorem-kinds-v1.toml": "sha256:f49fa938368bea41ebeb17d4498fcce960c203dabb39adc041533dd9e58f01a5",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -3060,6 +3060,15 @@
       "Auths.Crypto.Encoding.Scan.loop_refines": "partial",
       "Auths.Crypto.Examples.minimal_preimage_exact": "case",
       "Auths.Crypto.Examples.unicode_preimage_exact": "case",
+      "Auths.Crypto.FramingTotality.application_accepts_iff": "exact",
+      "Auths.Crypto.FramingTotality.application_refuses_iff": "exact",
+      "Auths.Crypto.FramingTotality.application_total": "exact",
+      "Auths.Crypto.FramingTotality.identifier_accepts_iff": "exact",
+      "Auths.Crypto.FramingTotality.identifier_refuses_iff": "exact",
+      "Auths.Crypto.FramingTotality.identifier_total": "exact",
+      "Auths.Crypto.FramingTotality.signing_accepts_iff": "exact",
+      "Auths.Crypto.FramingTotality.signing_refuses_iff": "exact",
+      "Auths.Crypto.FramingTotality.signing_total": "exact",
       "Auths.Crypto.LowContract.guard_refines": "exact",
       "Auths.Crypto.LowContract.r_bytes_irrelevant": "partial",
       "Auths.Crypto.LowScan.loop_refines": "partial",
@@ -3195,11 +3204,11 @@
     },
     "refined_direct": 113,
     "refined_closure": 329,
-    "theorems_naming_translated_functions": 206
+    "theorems_naming_translated_functions": 215
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "36d11e3c537cf4322abaa84f1e170f4a9aca82c9bc80e3d8285db77906e176ca",
+    "current_formal_inputs_sha256": "cb8d9f4630a662542c1f744594f58cd8edfe5c57002a242e3b37ed0908397ad8",
     "fresh": false,
     "campaigns": {
       "s1": {
