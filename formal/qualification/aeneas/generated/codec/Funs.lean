@@ -3466,8 +3466,266 @@ def decode.decode_canonical_action
 def hash.SIGNING_PREFIX : Slice Std.U8 :=
   Array.to_slice (Array.make 5#usize [ 65#u8, 85#u8, 84#u8, 72#u8, 83#u8 ])
 
+/-- [auths_codec::hash::COMMITMENT_PREFIX]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 24:0-24:53 -/
+@[global_simps, irreducible]
+def hash.COMMITMENT_PREFIX : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 16#usize [
+      65#u8, 85#u8, 84#u8, 72#u8, 83#u8, 45#u8, 67#u8, 79#u8, 77#u8, 77#u8,
+      73#u8, 84#u8, 77#u8, 69#u8, 78#u8, 84#u8
+      ])
+
+/-- [auths_codec::hash::MAX_COMMITMENT_DOMAIN_BYTES]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 25:0-25:47 -/
+@[global_simps, irreducible]
+def hash.MAX_COMMITMENT_DOMAIN_BYTES : Std.Usize := 128#usize
+
+/-- [auths_codec::hash::IDENTIFIER_PREFIX]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 26:0-26:45 -/
+@[global_simps, irreducible]
+def hash.IDENTIFIER_PREFIX : Slice Std.U8 :=
+  Array.to_slice
+    (Array.make 8#usize [
+      65#u8, 85#u8, 84#u8, 72#u8, 83#u8, 45#u8, 73#u8, 68#u8
+      ])
+
+/-- [auths_codec::hash::preimage_buffer]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 69:0-75:1 -/
+def hash.preimage_buffer
+  (capacity : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec Std.U8) error.CodecError)
+  := do
+  let r ←
+    Isize.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from capacity
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+      error.CodecError) r (error.limit_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let v := alloc.vec.Vec.with_capacity Std.U8 capacity
+    ok (core.result.Result.Ok v)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError) residual
+
+/-- [auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}::call_once]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 88:18-88:58 -/
+def
+  hash.commitment_preimage.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize.call_once
+  (c : hash.commitment_preimage.closure_1) (tupled_args : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i := Slice.len c
+  ok (Usize.checked_add tupled_args i)
+
+/-- Trait implementation: [auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 88:18-88:58 -/
+@[reducible]
+def
+  hash.commitment_preimage.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize
+  : core.ops.function.FnOnce hash.commitment_preimage.closure_1 Std.Usize
+  (Option Std.Usize) := {
+  call_once :=
+    hash.commitment_preimage.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize.call_once
+}
+
+/-- [auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure<'_0>}::call_once]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 87:18-87:61 -/
+def
+  hash.commitment_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize.call_once
+  (c : hash.commitment_preimage.closure) (tupled_args : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i := Slice.len c
+  ok (Usize.checked_add tupled_args i)
+
+/-- Trait implementation: [auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure<'_0>}]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 87:18-87:61 -/
+@[reducible]
+def
+  hash.commitment_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize
+  : core.ops.function.FnOnce hash.commitment_preimage.closure Std.Usize (Option
+  Std.Usize) := {
+  call_once :=
+    hash.commitment_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize.call_once
+}
+
+/-- [auths_codec::hash::commitment_preimage]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 77:0-98:1 -/
+def hash.commitment_preimage
+  (domain : Str) (canonical : Slice Std.U8) :
+  Result (core.result.Result (alloc.vec.Vec Std.U8) error.CodecError)
+  := do
+  let domain_bytes ← core.str.Str.as_bytes domain
+  let b ← core.slice.Slice.is_empty domain_bytes
+  if b
+  then ok (core.result.Result.Err error.CodecError.LimitExceeded)
+  else
+    let i := Slice.len domain_bytes
+    if i > hash.MAX_COMMITMENT_DOMAIN_BYTES
+    then ok (core.result.Result.Err error.CodecError.LimitExceeded)
+    else
+      let i1 := Slice.len domain_bytes
+      let r ← U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i1
+      let r1 ←
+        core.result.Result.map_err (BuiltinFnOnce
+          core.num.error.TryFromIntError error.CodecError) r
+          (error.limit_error)
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let i2 := Slice.len canonical
+        let r2 ← U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i2
+        let r3 ←
+          core.result.Result.map_err (BuiltinFnOnce
+            core.num.error.TryFromIntError error.CodecError) r2
+            (error.limit_error)
+        let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf1 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          let i3 := Slice.len hash.COMMITMENT_PREFIX
+          let i4 ← 2#usize + 2#usize
+          let i5 ← i4 + 8#usize
+          let o ← lift (Usize.checked_add i3 i5)
+          let o1 ←
+            core.option.Option.and_then
+              hash.commitment_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize
+              o domain_bytes
+          let o2 ←
+            core.option.Option.and_then
+              hash.commitment_preimage.closure_1.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize
+              o1 canonical
+          let r4 ← core.option.Option.ok_or o2 error.CodecError.LimitExceeded
+          let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf2 with
+          | core.ops.control_flow.ControlFlow.Continue val2 =>
+            let r5 ← hash.preimage_buffer val2
+            let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf3 with
+            | core.ops.control_flow.ControlFlow.Continue val3 =>
+              let val4 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val3
+                  hash.COMMITMENT_PREFIX
+              let a ← lift (core.num.U16.to_be_bytes auths_model.PROTOCOL_V1)
+              let s ← lift (Array.to_slice a)
+              let val5 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val4 s
+              let a1 ← lift (core.num.U16.to_be_bytes val)
+              let s1 ← lift (Array.to_slice a1)
+              let val6 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val5 s1
+              let val7 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val6
+                  domain_bytes
+              let a2 ← lift (core.num.U64.to_be_bytes val1)
+              let s2 ← lift (Array.to_slice a2)
+              let val8 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val7 s2
+              let val9 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val8
+                  canonical
+              ok (core.result.Result.Ok val9)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+                residual
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+              residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+            residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+          residual
+
+/-- [auths_codec::hash::identifier_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::identifier_preimage::closure<'_0>}::call_once]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 125:18-125:58 -/
+def
+  hash.identifier_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize.call_once
+  (c : hash.identifier_preimage.closure) (tupled_args : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i := Slice.len c
+  ok (Usize.checked_add tupled_args i)
+
+/-- Trait implementation: [auths_codec::hash::identifier_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::identifier_preimage::closure<'_0>}]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 125:18-125:58 -/
+@[reducible]
+def
+  hash.identifier_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize
+  : core.ops.function.FnOnce hash.identifier_preimage.closure Std.Usize (Option
+  Std.Usize) := {
+  call_once :=
+    hash.identifier_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize.call_once
+}
+
+/-- [auths_codec::hash::identifier_preimage]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 117:0-134:1 -/
+def hash.identifier_preimage
+  (identifier_type : hash.IdentifierType) (canonical : Slice Std.U8) :
+  Result (core.result.Result (alloc.vec.Vec Std.U8) error.CodecError)
+  := do
+  let i := Slice.len canonical
+  let r ← U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+      error.CodecError) r (error.limit_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let i1 := Slice.len hash.IDENTIFIER_PREFIX
+    let i2 ← 2#usize + 2#usize
+    let i3 ← i2 + 8#usize
+    let o ← lift (Usize.checked_add i1 i3)
+    let o1 ←
+      core.option.Option.and_then
+        hash.identifier_preimage.closure.Insts.CoreOpsFunctionFnOnceTupleUsizeOptionUsize
+        o canonical
+    let r2 ← core.option.Option.ok_or o1 error.CodecError.LimitExceeded
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let r3 ← hash.preimage_buffer val1
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r3
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let val3 ←
+          alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val2
+            hash.IDENTIFIER_PREFIX
+        let a ← lift (core.num.U16.to_be_bytes auths_model.PROTOCOL_V1)
+        let s ← lift (Array.to_slice a)
+        let val4 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val3 s
+        let identifier_type1 := read_discriminant identifier_type
+        let i4 ← lift (IScalar.hcast .U16 identifier_type1)
+        let a1 ← lift (core.num.U16.to_be_bytes i4)
+        let s1 ← lift (Array.to_slice a1)
+        let val5 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val4 s1
+        let a2 ← lift (core.num.U64.to_be_bytes val)
+        let s2 ← lift (Array.to_slice a2)
+        let val6 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val5 s2
+        let val7 ←
+          alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val6 canonical
+        ok (core.result.Result.Ok val7)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+          residual
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+        residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError) residual
+
 /-- [auths_codec::hash::signing_preimage]:
-    Source: 'core/crates/auths-codec/src/hash.rs', lines 105:0-134:1 -/
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 136:0-165:1 -/
 def hash.signing_preimage
   (object_type : hash.ObjectType) (profile_id : Str)
   (profile_version : Std.U16) (canonical_signing_object : Slice Std.U8) :
@@ -3510,39 +3768,46 @@ def hash.signing_preimage
           let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r6
           match cf4 with
           | core.ops.control_flow.ControlFlow.Continue val4 =>
-            let output := alloc.vec.Vec.with_capacity Std.U8 val4
-            let output1 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output
-                hash.SIGNING_PREFIX
-            let a ← lift (core.num.U16.to_be_bytes auths_model.PROTOCOL_V1)
-            let s ← lift (Array.to_slice a)
-            let output2 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output1 s
-            let object_type1 := read_discriminant object_type
-            let i8 ← lift (IScalar.hcast .U16 object_type1)
-            let a1 ← lift (core.num.U16.to_be_bytes i8)
-            let s1 ← lift (Array.to_slice a1)
-            let output3 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output2 s1
-            let a2 ← lift (core.num.U16.to_be_bytes val)
-            let s2 ← lift (Array.to_slice a2)
-            let output4 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output3 s2
-            let s3 ← core.str.Str.as_bytes profile_id
-            let output5 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output4 s3
-            let a3 ← lift (core.num.U16.to_be_bytes profile_version)
-            let s4 ← lift (Array.to_slice a3)
-            let output6 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output5 s4
-            let a4 ← lift (core.num.U64.to_be_bytes val1)
-            let s5 ← lift (Array.to_slice a4)
-            let output7 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output6 s5
-            let output8 ←
-              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output7
-                canonical_signing_object
-            ok (core.result.Result.Ok output8)
+            let r7 ← hash.preimage_buffer val4
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r7
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val5 =>
+              let val6 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val5
+                  hash.SIGNING_PREFIX
+              let a ← lift (core.num.U16.to_be_bytes auths_model.PROTOCOL_V1)
+              let s ← lift (Array.to_slice a)
+              let val7 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val6 s
+              let object_type1 := read_discriminant object_type
+              let i8 ← lift (IScalar.hcast .U16 object_type1)
+              let a1 ← lift (core.num.U16.to_be_bytes i8)
+              let s1 ← lift (Array.to_slice a1)
+              let val8 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val7 s1
+              let a2 ← lift (core.num.U16.to_be_bytes val)
+              let s2 ← lift (Array.to_slice a2)
+              let val9 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val8 s2
+              let s3 ← core.str.Str.as_bytes profile_id
+              let val10 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val9 s3
+              let a3 ← lift (core.num.U16.to_be_bytes profile_version)
+              let s4 ← lift (Array.to_slice a3)
+              let val11 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val10 s4
+              let a4 ← lift (core.num.U64.to_be_bytes val1)
+              let s5 ← lift (Array.to_slice a4)
+              let val12 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val11 s5
+              let val13 ←
+                alloc.vec.Vec.extend_from_slice core.clone.CloneU8 val12
+                  canonical_signing_object
+              ok (core.result.Result.Ok val13)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+                residual
           | core.ops.control_flow.ControlFlow.Break residual =>
             core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
               (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)

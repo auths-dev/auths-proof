@@ -12,6 +12,18 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Crypto.BufferAllocation.buffer_refines" = "exact"
+"Auths.Crypto.BufferAllocation.accepted_empty" = "partial"
+"Auths.Crypto.BufferAllocation.accepted_capacity_fits" = "partial"
+"Auths.Crypto.CommitmentRefinement.application_preimage_exact" = "partial"
+"Auths.Crypto.CommitmentRefinement.identifier_preimage_exact" = "partial"
+"Auths.Crypto.Sha256Native.raw_hash_refines" = "exact"
+"Auths.Crypto.CommitmentExamples.empty_domain_refused" = "case"
+"Auths.Crypto.CommitmentExamples.oversized_domain_refused" = "case"
+"Auths.Crypto.CommitmentExamples.application_sample_admitted" = "case"
+"Auths.Crypto.CommitmentExamples.every_identifier_tag_admitted" = "case"
+"Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest" = "case"
+"Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest" = "case"
 "Auths.Crypto.Native.decode_leaf_refines" = "exact"
 "Auths.Crypto.Native.equation_leaf_refines" = "exact"
 "Auths.Crypto.Native.public_verify_refines" = "exact"

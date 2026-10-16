@@ -355,3 +355,25 @@ models and zero compiled external axioms. Exact-revision hosted gates remain
 required.
 The pinned tools still cannot qualify the P-256 public library-wrapper closure;
 its generic algorithm and concrete low-S proof remain the smaller earned claim.
+
+
+### One-shot SHA-256 and commitment framing
+
+The locally qualified inventory has 567 statements. New source results cover the
+signed-capacity allocation guard, exact successful application/identifier
+preimages, and the native one-shot hash wrapper under explicit foreign digest
+and output-conversion contracts. Independent frame relations prove lengths,
+unambiguity and domain separation; kernel witnesses supply useful admitted
+frames and early refusals. All previous 545 statement records are unchanged.
+
+The extra monomorphic codec unit keeps its actual Rust crate identity. A
+strict foreign-name adapter works around the pinned emitter's inability to
+print Instantiated paths. It retains original names in a generated ledger and
+checks every Auths name, body, signature, generic, layout, source span and
+call/type ID unchanged. The two explicit foreign operations add no global
+instance or crypto axiom. Local qualification passes two byte-identical fresh
+translations, 13/13 cases and the complete statement/axiom audit. Exact-revision
+hosted gates remain required.
+Successful-output exactness is a component claim: general framing totality,
+all admitted-input completeness, callers' unsigned-object encoding, every
+commitment and complete E5 remain separate obligations.

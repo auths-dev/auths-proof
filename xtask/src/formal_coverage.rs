@@ -1001,9 +1001,16 @@ fn is_generated_closure_shim(rust_name: &str) -> bool {
     else {
         return false;
     };
-    closure.is_empty()
-        || (closure.starts_with('<') && closure.ends_with('>'))
-        || closure
+    let ordinal = if let Some((ordinal, arguments)) = closure.split_once('<') {
+        if !arguments.ends_with('>') {
+            return false;
+        }
+        ordinal
+    } else {
+        closure
+    };
+    ordinal.is_empty()
+        || ordinal
             .strip_prefix('#')
             .is_some_and(|index| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
 }
@@ -1021,11 +1028,6 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
             .ok_or_else(|| format!("{} names no crate", entry.translation_json))?
             .to_owned();
         let funs_path = format!("{}/Funs.lean", parent_directory(&entry.translation_json));
-        if let Some(existing) = funs_files.iter_mut().find(|(name, _)| *name == crate_name) {
-            existing.1.clone_from(&funs_path);
-        } else {
-            funs_files.push((crate_name.clone(), funs_path.clone()));
-        }
         let local: Vec<&Value> = document["functions"]
             .as_array()
             .ok_or_else(|| format!("{} lists no functions", entry.translation_json))?
@@ -1038,6 +1040,25 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 entry.local_functions,
                 local.len()
             ));
+        }
+        let namespace = local
+            .first()
+            .and_then(|item| item["lean_name"].as_str())
+            .and_then(|name| name.split('.').next())
+            .filter(|name| !name.is_empty())
+            .ok_or("translation has no local Lean namespace")?;
+        if local.iter().any(|item| {
+            item["lean_name"]
+                .as_str()
+                .and_then(|name| name.split('.').next())
+                != Some(namespace)
+        }) {
+            return Err("one translation unit names inconsistent Lean namespaces".to_owned());
+        }
+        // One Rust crate may have several independently qualified extraction
+        // units. Preserve every function file and its actual Lean namespace.
+        if !funs_files.iter().any(|(_, path)| *path == funs_path) {
+            funs_files.push((namespace.to_owned(), funs_path.clone()));
         }
         for item in local {
             let lean_name = item["lean_name"]
@@ -1138,12 +1159,12 @@ fn lean_call_graph(
         }
     }
     let known: BTreeSet<String> = owners.keys().cloned().collect();
-    let crates: BTreeSet<&str> = translated
+    let namespaces: BTreeSet<&str> = translated
         .iter()
-        .map(|item| item.crate_name.as_str())
+        .filter_map(|item| item.lean_name.split('.').next())
         .collect();
     let mut edges: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for (crate_name, funs_path) in funs_files {
+    for (lean_namespace, funs_path) in funs_files {
         let text: Vec<char> = tree.read(funs_path)?.chars().collect();
         let docs = lean_doc_rust_names(&text);
         for (position, (start, name)) in docs.iter().enumerate() {
@@ -1158,10 +1179,10 @@ fn lean_call_graph(
             let body = text_of(block, definition_end, block.len());
             for identifier in lean_identifiers(&body) {
                 let head = identifier.split('.').next().unwrap_or("");
-                let candidate = if crates.contains(head) {
+                let candidate = if namespaces.contains(head) {
                     identifier.clone()
                 } else {
-                    format!("{crate_name}.{identifier}")
+                    format!("{lean_namespace}.{identifier}")
                 };
                 for callee in resolve(&candidate, &known, instances) {
                     let callee_owner = &owners[&callee];
@@ -1198,9 +1219,9 @@ fn statement_mentions(
 ) -> Vec<(String, Vec<String>)> {
     let owners = owner_of(translated);
     let known: BTreeSet<String> = owners.keys().cloned().collect();
-    let crates: BTreeSet<&str> = translated
+    let namespaces: BTreeSet<&str> = translated
         .iter()
-        .map(|item| item.crate_name.as_str())
+        .filter_map(|item| item.lean_name.split('.').next())
         .collect();
     let mut mentions: Vec<(String, Vec<String>)> = Vec::new();
     for declaration in &audit.declarations {
@@ -1208,7 +1229,7 @@ fn statement_mentions(
         for identifier in lean_identifiers(&declaration.statement) {
             let parts: Vec<&str> = identifier.split('.').collect();
             for offset in 0..parts.len() {
-                if crates.contains(parts[offset]) {
+                if namespaces.contains(parts[offset]) {
                     for name in resolve(&parts[offset..].join("."), &known, instances) {
                         found.insert(owners[&name].clone());
                     }
@@ -3627,6 +3648,54 @@ pub(crate) fn formal_coverage(update: bool) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn two_units_of_one_rust_crate_keep_both_lean_namespaces_and_function_files() {
+        let directory = tempfile::tempdir().expect("temporary input tree");
+        let manifest = directory.path().join(QUALIFICATION);
+        fs::create_dir_all(manifest.parent().expect("manifest parent"))
+            .expect("manifest directory");
+        fs::write(&manifest, "[[translations]]\ntranslation_json = \"native/translation.json\"\nlocal_functions = 1\n\n[[translations]]\ntranslation_json = \"codec/translation.json\"\nlocal_functions = 1\n")
+            .expect("two extraction units");
+        for (unit, namespace, function) in [
+            ("native", "AuthsNativeSha256", "raw_sha256"),
+            ("codec", "auths_codec", "signing_preimage"),
+        ] {
+            fs::create_dir_all(directory.path().join(unit)).expect("unit directory");
+            let report = json!({"crate": "auths_codec", "functions": [{
+                "rust_name": format!("auths_codec::hash::{function}"),
+                "lean_name": format!("{namespace}.hash.{function}"),
+                "is_local": true, "is_opaque": false,
+                "source": {"file": "source.rs", "begin_line": 1, "end_line": 2},
+            }]});
+            fs::write(
+                directory.path().join(unit).join("translation.json"),
+                report.to_string(),
+            )
+            .expect("translation report");
+        }
+        let tree = WorkTree::new(directory.path().to_owned());
+        let (translated, files) = load_translations(&tree).expect("both qualified units");
+        assert_eq!(
+            files,
+            vec![
+                (
+                    "AuthsNativeSha256".to_owned(),
+                    "native/Funs.lean".to_owned()
+                ),
+                ("auths_codec".to_owned(), "codec/Funs.lean".to_owned()),
+            ]
+        );
+        let audit = Audit { declarations: vec![AuditDeclaration {
+            name: "both_statements".to_owned(),
+            statement: "AuthsNativeSha256.hash.raw_sha256 bytes = auths_codec.hash.signing_preimage bytes".to_owned(),
+        }]};
+        let mentions = statement_mentions(&audit, &translated, true);
+        assert_eq!(mentions.len(), 2);
+        for (_, claims) in mentions {
+            assert_eq!(claims, vec!["both_statements"]);
+        }
+    }
+
     fn pin_measurement() -> (Measurement, BTreeMap<String, Vec<u8>>) {
         let (tree, reference) = ArchiveTree::open(
             &root().join(PIN_FIXTURE),
@@ -3724,6 +3793,9 @@ mod closure_shim_tests {
         assert!(is_generated_closure_shim(
             "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(Key,), bool> for auths_signature_core::verify_ed25519::closure#1}::call_once"
         ));
+        assert!(is_generated_closure_shim(
+            "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}::call_once"
+        ));
         for function in [
             "auths_composition::evaluate",
             "auths_composition::{auths_composition::EvaluationEvent}::outcome",
@@ -3733,6 +3805,7 @@ mod closure_shim_tests {
             "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::other::closure}::call_once",
             "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closure#invalid}::call_once",
             "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closureNamed}::call_once",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closure#invalid<T>}::call_once",
         ] {
             assert!(!is_generated_closure_shim(function), "{function}");
         }

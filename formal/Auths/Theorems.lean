@@ -1,3 +1,5 @@
+import Auths.Crypto.CommitmentExamples
+import Auths.Crypto.Sha256Examples
 import Auths.Crypto.NativeExamples
 import Auths.Crypto.Strict.Examples
 import Auths.Composition.FacadeExamples
@@ -43,6 +45,28 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.BufferAllocation.buffer_refines,
+    `Auths.Crypto.BufferAllocation.accepted_empty,
+    `Auths.Crypto.BufferAllocation.accepted_capacity_fits,
+    `Auths.Crypto.CommitmentRefinement.application_preimage_exact,
+    `Auths.Crypto.CommitmentRefinement.identifier_preimage_exact,
+    `Auths.Crypto.Sha256Native.raw_hash_refines,
+    `Auths.Crypto.CommitmentExamples.empty_domain_refused,
+    `Auths.Crypto.CommitmentExamples.oversized_domain_refused,
+    `Auths.Crypto.CommitmentExamples.application_sample_admitted,
+    `Auths.Crypto.CommitmentExamples.every_identifier_tag_admitted,
+    `Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest,
+    `Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest,
+    `Auths.Crypto.BufferAllocation.signed_bounds_iff,
+    `Auths.Crypto.CommitmentFrames.application_length,
+    `Auths.Crypto.CommitmentFrames.identifier_length,
+    `Auths.Crypto.CommitmentFrames.application_unambiguous,
+    `Auths.Crypto.CommitmentFrames.identifier_unambiguous,
+    `Auths.Crypto.CommitmentFrames.application_identifier_separate,
+    `Auths.Crypto.CommitmentFrames.signing_application_separate,
+    `Auths.Crypto.CommitmentFrames.signing_identifier_separate,
+    `Auths.Crypto.CommitmentRefinement.identifier_tag_word,
+    `Auths.Crypto.Sha256Examples.forwarding_contract,
     `Auths.Crypto.Native.decode_leaf_refines,
     `Auths.Crypto.Native.equation_leaf_refines,
     `Auths.Crypto.Native.public_verify_refines,

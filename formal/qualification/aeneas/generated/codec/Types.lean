@@ -308,4 +308,33 @@ inductive hash.ObjectType where
 | Observation : hash.ObjectType
 | Approval : hash.ObjectType
 
+/-- [auths_codec::hash::IdentifierType]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 39:0-49:1 -/
+@[discriminant isize [1,2,3,4,5,6,9,11,12]]
+inductive hash.IdentifierType where
+| Grant : hash.IdentifierType
+| Action : hash.IdentifierType
+| Plan : hash.IdentifierType
+| Evidence : hash.IdentifierType
+| PrincipalStatus : hash.IdentifierType
+| GrantStatus : hash.IdentifierType
+| Context : hash.IdentifierType
+| ObservationRequirement : hash.IdentifierType
+| ApprovalRequirement : hash.IdentifierType
+
+/-- [auths_codec::hash::commitment_preimage::closure#1]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 88:18-88:58 -/
+@[reducible]
+def hash.commitment_preimage.closure_1 := Slice Std.U8
+
+/-- [auths_codec::hash::commitment_preimage::closure]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 87:18-87:61 -/
+@[reducible]
+def hash.commitment_preimage.closure := Slice Std.U8
+
+/-- [auths_codec::hash::identifier_preimage::closure]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 125:18-125:58 -/
+@[reducible]
+def hash.identifier_preimage.closure := Slice Std.U8
+
 end auths_codec

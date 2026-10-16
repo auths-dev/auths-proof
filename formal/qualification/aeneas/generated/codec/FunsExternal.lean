@@ -106,3 +106,17 @@ def alloc.slice.Slice.sort_by_key {T K F : Type}
     (input : Slice T) (callback : F) : Result (Slice T) := do
   let output ← sortKey key order callback input.val
   ok ⟨output.val, by rw [output.property]; exact input.property⟩
+
+-- A fallible pointer-sized signed conversion, exactly as Rust TryFrom specifies.
+def Isize.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :
+    Result (core.result.Result Std.Isize core.num.error.TryFromIntError) :=
+  ok (match IScalar.tryMkOpt .Isize value.val with
+    | some signed => .Ok signed
+    | none => .Err ())
+
+def core.option.Option.and_then {T U F : Type}
+    (callback : core.ops.function.FnOnce F T (Option U)) (value : Option T) (function : F) :
+    Result (Option U) :=
+  match value with
+  | none => ok none
+  | some value => callback.call_once function value

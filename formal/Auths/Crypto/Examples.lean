@@ -19,7 +19,7 @@ theorem minimal_preimage_exact : hash.signing_preimage .Grant
     (toStr "t" (by change 1 ≤ U32.max; scalar_tac)) 1#u16
     (⟨[1#u8], by scalar_tac⟩ : Slice Std.U8) = ok (.Ok minimalPreimage) := by
   unfold hash.signing_preimage
-  simp only [Auths.Crypto.Refinement.object_tag]
+  simp only [Auths.Crypto.Refinement.object_tag, BufferAllocation.buffer_conservative_model]
   cbv
 
 def unicodePreimage : alloc.vec.Vec Std.U8 := ⟨[
@@ -32,7 +32,7 @@ theorem unicode_preimage_exact : hash.signing_preimage .Approval
     (toStr "λ" (by change 2 ≤ U32.max; scalar_tac)) 65535#u16
     (⟨[1#u8], by scalar_tac⟩ : Slice Std.U8) = ok (.Ok unicodePreimage) := by
   unfold hash.signing_preimage
-  simp only [Auths.Crypto.Refinement.object_tag]
+  simp only [Auths.Crypto.Refinement.object_tag, BufferAllocation.buffer_conservative_model]
   cbv
 
 end Auths.Crypto.Examples

@@ -2,12 +2,14 @@ import qualification.aeneas.generated.codec.Funs
 import Auths.Codec.Evaluation
 import Auths.Crypto.Endian
 import Auths.Crypto.Framing
+import Auths.Crypto.BufferAllocation
 import Mathlib.Tactic.CasesM
 open Aeneas Aeneas.Std Result
 open Aeneas.Std.WP
 open auths_codec
 open Auths.Crypto.Endian
 set_option maxHeartbeats 2000000
+set_option maxRecDepth 4096
 namespace Auths.Crypto.Refinement
 
 @[cbv_eval] theorem object_tag (kind : hash.ObjectType) :
@@ -121,6 +123,7 @@ theorem signing_preimage_exact (kind : hash.ObjectType) (profile : Str)
     (accepted : hash.signing_preimage kind profile version statement = ok (.Ok output)) :
     output.val.map (·.val) = Auths.Crypto.Framing.encode (inputFrame kind profile version statement) := by
   unfold hash.signing_preimage at accepted
+  simp only [Auths.Crypto.BufferAllocation.buffer_refines] at accepted
   simp only [core.str.Str.len, core.str.Str.as_bytes,
     U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from,
     U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from,
@@ -138,6 +141,7 @@ theorem signing_preimage_exact (kind : hash.ObjectType) (profile : Str)
     | contradiction
   all_goals subst output
   all_goals casesm* core.result.Result (UScalar _) _
+  all_goals split_ifs at *
   all_goals simp_all only [lift, core.result.Result.Insts.CoreOpsTry.branch,
     Result.ok.injEq, core.result.Result.Ok.injEq,
     core.ops.control_flow.ControlFlow.Continue.injEq, reduceCtorEq]
@@ -156,6 +160,7 @@ theorem accepted_frame_valid (kind : hash.ObjectType) (profile : Str)
     (accepted : hash.signing_preimage kind profile version statement = ok (.Ok output)) :
     (inputFrame kind profile version statement).Valid := by
   unfold hash.signing_preimage at accepted
+  simp only [Auths.Crypto.BufferAllocation.buffer_refines] at accepted
   simp only [core.str.Str.len, core.str.Str.as_bytes,
     U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from,
     U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from,
@@ -255,5 +260,3 @@ theorem profile_limit_refused (kind : hash.ObjectType) (profile : Str)
 
 
 end Auths.Crypto.Refinement
-
-

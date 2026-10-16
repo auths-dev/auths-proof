@@ -10,9 +10,11 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1"]
 
 source_files = [
+  "formal/Auths/Crypto/Sha256Primitives.lean",
+  "formal/qualification/aeneas/cases/Sha256.lean",
   "formal/tools/SourceClosure.lean",
   "formal/Auths/Crypto/NativePrimitives.lean",
   "core/crates/auths-signature-core/Cargo.toml",
@@ -87,6 +89,14 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/sha256/Types.lean",
+  "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/sha256/Funs.lean",
+  "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/sha256/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/sha256/translation.json",
+  "formal/qualification/aeneas/generated/sha256/foreign-name-normalization.json",
   "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
   "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
   "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
@@ -141,6 +151,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.Sha256",
   "qualification.aeneas.cases.Signature",
   "qualification.aeneas.cases.Composition",
   "qualification.aeneas.cases.Stores",
@@ -162,6 +173,36 @@ charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[external_models]]
+id = "sha256-monomorphic-foreign-export-names"
+kind = "metadata-only-foreign-name-aliases"
+artifact = "formal/qualification/aeneas/generated/sha256/foreign-name-normalization.json"
+rust_symbols = ["sha2::Sha256::digest", "core::convert::Into<[u8;32]>::into", "generic_array::GenericArray<u8,U32>"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The pinned emitter cannot print foreign Instantiated path elements. Eleven exact foreign declaration-name paths and their metadata cache copies receive unique export aliases. The ledger retains original names, concrete instantiation metadata and source spans. Its before/after hashes use the pinned Charon canonical printer because short-name cache order and hash-cons memo references are nondeterministic; two fresh canonical translations and generated Lean files must still match byte-for-byte. Every Auths name, all declaration fields other than those foreign names, all bodies, signatures, layouts, generics and call/type IDs are checked unchanged. No foreign function is made transparent and no Auths algorithm is replaced. Normalized foreign rust_name values in this unit are export aliases whose exact original identities are this ledger, not new Rust source symbols."
+
+[[external_models]]
+id = "sha256-explicit-output-interface"
+kind = "explicit-parameter-foreign-output-type"
+artifact = "formal/qualification/aeneas/generated/sha256/TypesExternal.lean"
+rust_symbols = ["generic_array::GenericArray<u8,U32>"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The selected foreign output is an associated type of the explicit Sha256Primitives parameter. No instance, layout identity or cryptographic law is asserted globally. The output conversion remains an explicit selected primitive call, not an assumed identity."
+
+[[external_models]]
+id = "sha256-explicit-one-shot-calls"
+kind = "explicit-parameter-foreign-digest-and-output-conversion"
+artifact = "formal/qualification/aeneas/generated/sha256/FunsExternal.lean"
+rust_symbols = ["digest::qualified_sha256_fun_decls_1", "core::qualified_sha256_fun_decls_2"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The two metadata-name aliases map to the exact original foreign one-shot digest and selected Into<[u8;32]> conversion in the ledger. Transparent projections use explicit implementation parameters. Their functional SHA-256/output contracts are theorem premises. No streaming operation, global crypto axiom, global implementation instance or opaque Auths algorithm is added."
 
 [[external_models]]
 id = "signature-explicit-foreign-types"
@@ -259,6 +300,8 @@ id = "codec-standard-values-and-utf8"
 kind = "transparent-standard-library-model"
 artifact = "formal/qualification/aeneas/generated/codec/FunsExternal.lean"
 rust_symbols = [
+  "core::option::{core::option::Option<T>}::and_then",
+  "core::convert::num::{impl core::convert::TryFrom<usize> for isize}::try_from",
   "alloc::slice::{[T]}::sort_by_key",
   "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from",
   "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
@@ -285,7 +328,7 @@ rust_symbols = [
 authority_semantics = false
 reviewed = true
 axiom = false
-scope = "Checked unsigned conversions, Option/Result combinators, exact UTF-8 validation and string copying, and Vec projections. The sorting model applies to the sole extracted Unit digest-key closure, whose exact stateless behavior is proved by Auths.Codec.Action.attachment_key_stateless, and the lawful lexicographic digest order; it is not a model of arbitrary stateful FnMut callbacks. The imported array/borrowed-string operations use the separately inventoried standard-ordering-and-bytes model."
+scope = "Fallible usize-to-isize uses the pinned exact signed-bound constructor and returns typed failure outside its range. Option.and_then dispatches exactly on Some/None and calls the selected FnOnce once. Checked unsigned conversions, Option/Result combinators, exact UTF-8 validation and string copying, and Vec projections. The sorting model applies to the sole extracted Unit digest-key closure, whose exact stateless behavior is proved by Auths.Codec.Action.attachment_key_stateless, and the lawful lexicographic digest order; it is not a model of arbitrary stateful FnMut callbacks. The imported array/borrowed-string operations use the separately inventoried standard-ordering-and-bytes model."
 
 [[external_models]]
 id = "aeneas-standard-ordering-and-bytes"
@@ -395,6 +438,21 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_codec"
+translation_json = "formal/qualification/aeneas/generated/sha256/translation.json"
+local_functions = 1
+external_functions = 3
+opaque_local_functions = 0
+required_symbols = [
+  "auths_codec::hash::raw_sha256",
+]
+allowed_external_symbols = [
+  "core::qualified_sha256_fun_decls_2",
+  "digest::qualified_sha256_fun_decls_1",
+  "auths_model::{auths_model::Digest}::new",
+]
 
 [[translations]]
 crate_name = "auths_signature_core"
@@ -521,98 +579,158 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_codec"
 translation_json = "formal/qualification/aeneas/generated/codec/translation.json"
-local_functions = 74
-external_functions = 76
+local_functions = 80
+external_functions = 78
 opaque_local_functions = 0
 required_symbols = [
   "auths_codec::cbor::malformed",
-  "auths_codec::decode::decode_error",
-  "auths_codec::error::limit_error",
-  "auths_codec::cbor::read_head",
+  "auths_codec::cbor::{impl core::cmp::PartialEq<auths_codec::cbor::Type> for auths_codec::cbor::Type}::eq",
   "auths_codec::cbor::read_tail",
-  "auths_codec::cbor::encode_head",
+  "auths_codec::cbor::read_head",
   "auths_codec::cbor::append_tail",
-  "auths_codec::decode::decode_canonical_action",
-  "auths_codec::hash::signing_preimage",
-  "auths_codec::decode::attachment_batch",
+  "auths_codec::cbor::encode_head",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::new",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::at",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::position",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u16",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::bytes",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::null",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::datatype",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::new",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::into_writer",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::head",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::map",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::array",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::u64",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::u16",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::u8",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::payload",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::bytes",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::str",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::null",
+  "auths_codec::decode::decode_error",
+  "auths_codec::decode::map",
+  "auths_codec::error::limit_error",
+  "auths_codec::decode::array",
+  "auths_codec::decode::key",
+  "auths_codec::decode::text",
+  "auths_codec::decode::bounded_bytes",
+  "auths_codec::decode::digest_bytes",
+  "auths_codec::decode::is_null",
+  "auths_codec::decode::null",
+  "auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from",
+  "auths_codec::decode::profile_ref",
+  "auths_codec::decode::permission",
+  "auths_codec::decode::budget",
+  "auths_codec::decode::optional_budget",
+  "auths_codec::decode::ensure_complete",
   "auths_codec::decode::attachment_batch_step",
+  "auths_codec::decode::attachment_batch",
+  "auths_codec::encode::encode_error",
+  "auths_codec::encode::bytes",
+  "auths_codec::encode::key",
+  "auths_codec::encode::map",
+  "auths_codec::encode::encode_canonical_attachment",
+  "auths_codec::encode::text",
+  "auths_codec::encode::encode_budget",
+  "auths_codec::encode::encode_optional_budget",
+  "auths_codec::encode::encode_permission",
+  "auths_codec::encode::encode_profile_ref",
+  "auths_codec::encode::length",
+  "auths_codec::encode::array",
   "auths_codec::encode::encode_canonical_action",
-  "auths_model::identifier::bounded_identifier_valid",
-  "auths_model::canonical_attachments_valid",
+  "auths_codec::decode::decode_canonical_action",
+  "auths_codec::hash::preimage_buffer",
+  "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}::call_once",
+  "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure<'_0>}::call_once",
+  "auths_codec::hash::commitment_preimage",
+  "auths_codec::hash::identifier_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::identifier_preimage::closure<'_0>}::call_once",
+  "auths_codec::hash::identifier_preimage",
+  "auths_codec::hash::signing_preimage",
 ]
 allowed_external_symbols = [
-  "alloc::slice::{[T]}::sort_by_key",
-  "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from",
-  "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
-  "alloc::vec::{alloc::vec::Vec<T>}::as_slice",
-  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
-  "auths_model::canonical_attachments_valid",
-  "auths_model::identifier::bounded_identifier_valid",
-  "auths_model::identifier::contains_forbidden_identifier",
-  "auths_model::identifier::forbidden_identifier_at",
-  "auths_model::identifier::forbidden_three_byte_prefix",
-  "auths_model::{auths_model::AttachmentDigest}::as_bytes",
-  "auths_model::{auths_model::AttachmentDigest}::new",
-  "auths_model::{auths_model::BudgetAlgebraId}::as_str",
-  "auths_model::{auths_model::BudgetAlgebraId}::parse",
-  "auths_model::{auths_model::BudgetCeiling}::algebra",
-  "auths_model::{auths_model::BudgetCeiling}::new",
-  "auths_model::{auths_model::BudgetCeiling}::value",
-  "auths_model::{auths_model::CanonicalAction}::body",
-  "auths_model::{auths_model::CanonicalAction}::detached_attachments",
-  "auths_model::{auths_model::CanonicalAction}::media_type",
-  "auths_model::{auths_model::CanonicalAction}::new",
-  "auths_model::{auths_model::CanonicalAction}::permission",
-  "auths_model::{auths_model::CanonicalAction}::profile",
-  "auths_model::{auths_model::CanonicalAction}::requested_budget",
-  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments",
-  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_mut",
-  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_once",
-  "auths_model::{auths_model::CapabilityId}::as_str",
-  "auths_model::{auths_model::CapabilityId}::parse",
-  "auths_model::{auths_model::DetachedAttachment}::bytes",
-  "auths_model::{auths_model::DetachedAttachment}::digest",
-  "auths_model::{auths_model::DetachedAttachment}::new",
-  "auths_model::{auths_model::Digest}::as_bytes",
-  "auths_model::{auths_model::Digest}::new",
-  "auths_model::{auths_model::MediaType}::as_str",
-  "auths_model::{auths_model::MediaType}::parse",
-  "auths_model::{auths_model::Permission}::capability",
-  "auths_model::{auths_model::Permission}::new",
-  "auths_model::{auths_model::Permission}::resource",
-  "auths_model::{auths_model::ProfileId}::as_str",
-  "auths_model::{auths_model::ProfileId}::parse",
-  "auths_model::{auths_model::ProfileRef}::id",
-  "auths_model::{auths_model::ProfileRef}::new",
-  "auths_model::{auths_model::ProfileRef}::version",
-  "auths_model::{auths_model::ResourceId}::as_str",
-  "auths_model::{auths_model::ResourceId}::parse",
-  "auths_model::{auths_model::VerifierLimits}::get",
-  "auths_model::{auths_model::VerifierLimits}::hard",
-  "auths_model::{auths_model::VerifierLimits}::validate",
-  "auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}::assert_fields_are_eq",
-  "auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}::cmp",
-  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
-  "auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::eq",
-  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
-  "auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::partial_cmp",
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
-  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from",
-  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
-  "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
   "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for isize}::try_from",
   "core::option::Option::Some",
   "core::option::{core::option::Option<T>}::as_ref",
   "core::option::{core::option::Option<T>}::ok_or",
+  "core::option::{core::option::Option<T>}::and_then",
   "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq",
   "core::result::{core::result::Result<T, E>}::map",
   "core::result::{core::result::Result<T, E>}::map_err",
   "core::result::{core::result::Result<T, E>}::unwrap_or",
   "core::str::converts::from_utf8",
-  "core::str::{str}::as_bytes",
-  "core::str::{str}::is_empty",
   "core::str::{str}::len",
+  "core::str::{str}::is_empty",
+  "core::str::{str}::as_bytes",
+  "alloc::slice::{[T]}::sort_by_key",
+  "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
+  "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from",
+  "alloc::vec::{alloc::vec::Vec<T>}::as_slice",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
+  "auths_model::identifier::forbidden_three_byte_prefix",
+  "auths_model::identifier::forbidden_identifier_at",
+  "auths_model::identifier::contains_forbidden_identifier",
+  "auths_model::identifier::bounded_identifier_valid",
+  "auths_model::{auths_model::MediaType}::parse",
+  "auths_model::{auths_model::ProfileId}::parse",
+  "auths_model::{auths_model::CapabilityId}::parse",
+  "auths_model::{auths_model::ResourceId}::parse",
+  "auths_model::{auths_model::BudgetAlgebraId}::parse",
+  "auths_model::{auths_model::MediaType}::as_str",
+  "auths_model::{auths_model::ProfileId}::as_str",
+  "auths_model::{auths_model::CapabilityId}::as_str",
+  "auths_model::{auths_model::ResourceId}::as_str",
+  "auths_model::{auths_model::BudgetAlgebraId}::as_str",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+  "auths_model::{auths_model::Digest}::new",
+  "auths_model::{auths_model::Digest}::as_bytes",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::eq",
+  "auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}::assert_fields_are_eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}::cmp",
+  "auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::partial_cmp",
+  "auths_model::{auths_model::AttachmentDigest}::new",
+  "auths_model::{auths_model::AttachmentDigest}::as_bytes",
+  "auths_model::{auths_model::ProfileRef}::new",
+  "auths_model::{auths_model::ProfileRef}::id",
+  "auths_model::{auths_model::ProfileRef}::version",
+  "auths_model::{auths_model::Permission}::new",
+  "auths_model::{auths_model::Permission}::capability",
+  "auths_model::{auths_model::Permission}::resource",
+  "auths_model::{auths_model::BudgetCeiling}::new",
+  "auths_model::{auths_model::BudgetCeiling}::algebra",
+  "auths_model::{auths_model::BudgetCeiling}::value",
+  "auths_model::{auths_model::DetachedAttachment}::bytes",
+  "auths_model::{auths_model::DetachedAttachment}::digest",
+  "auths_model::canonical_attachments_valid",
+  "auths_model::{auths_model::CanonicalAction}::new",
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_mut",
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_once",
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments",
+  "auths_model::{auths_model::CanonicalAction}::profile",
+  "auths_model::{auths_model::CanonicalAction}::media_type",
+  "auths_model::{auths_model::CanonicalAction}::body",
+  "auths_model::{auths_model::CanonicalAction}::permission",
+  "auths_model::{auths_model::CanonicalAction}::requested_budget",
+  "auths_model::{auths_model::CanonicalAction}::detached_attachments",
+  "auths_model::{auths_model::DetachedAttachment}::new",
+  "auths_model::{auths_model::VerifierLimits}::hard",
+  "auths_model::{auths_model::VerifierLimits}::get",
+  "auths_model::{auths_model::VerifierLimits}::validate",
 ]
 
 [[translations]]
@@ -847,6 +965,16 @@ required_symbols = [
 allowed_external_symbols = []
 
 [[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean"
+count = 2
+compiled = false
+
+[[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean"
 count = 3
 compiled = false
@@ -873,7 +1001,7 @@ compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/codec/FunsExternal_Template.lean"
-count = 22
+count = 24
 compiled = false
 
 [[template_axioms]]

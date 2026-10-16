@@ -7,6 +7,238 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Crypto.BufferAllocation",
+      "name": "Auths.Crypto.BufferAllocation.buffer_refines",
+      "statement": "∀ (capacity : Aeneas.Std.Usize),\n  auths_codec.hash.preimage_buffer capacity =\n    Aeneas.Std.Result.ok\n      (if Auths.Crypto.BufferAllocation.Fits capacity then\n        Aeneas.Std.core.result.Result.Ok (Aeneas.Std.alloc.vec.Vec.new Aeneas.Std.U8)\n      else Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.BufferAllocation",
+      "name": "Auths.Crypto.BufferAllocation.accepted_empty",
+      "statement": "∀ (capacity : Aeneas.Std.Usize) (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.preimage_buffer capacity = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    ↑output = []"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.BufferAllocation",
+      "name": "Auths.Crypto.BufferAllocation.accepted_capacity_fits",
+      "statement": "∀ (capacity : Aeneas.Std.Usize) (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.preimage_buffer capacity = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    Auths.Crypto.BufferAllocation.Fits capacity"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentRefinement",
+      "name": "Auths.Crypto.CommitmentRefinement.application_preimage_exact",
+      "statement": "∀ (domain : Aeneas.Std.Str) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage domain payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    List.map Aeneas.Std.UScalar.val ↑output =\n      Auths.Crypto.CommitmentFrames.application (Auths.Crypto.CommitmentRefinement.applicationFrame domain payload)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentRefinement",
+      "name": "Auths.Crypto.CommitmentRefinement.identifier_preimage_exact",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType) (payload : Aeneas.Std.Slice Aeneas.Std.U8)\n  (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.identifier_preimage kind payload = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    List.map Aeneas.Std.UScalar.val ↑output =\n      Auths.Crypto.CommitmentFrames.identifier (Auths.Crypto.CommitmentRefinement.identifierFrame kind payload)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Sha256Native",
+      "name": "Auths.Crypto.Sha256Native.raw_hash_refines",
+      "statement": "∀ [P : Auths.Crypto.Sha256Primitives] (sha256 : List Aeneas.Std.U8 → Aeneas.Std.Array Aeneas.Std.U8 32#usize),\n  Auths.Crypto.Sha256Native.Contract sha256 →\n    ∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      AuthsNativeSha256.hash.raw_sha256 bytes = Aeneas.Std.Result.ok (sha256 ↑bytes)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentExamples",
+      "name": "Auths.Crypto.CommitmentExamples.empty_domain_refused",
+      "statement": "∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage Auths.Crypto.CommitmentExamples.emptyDomain bytes =\n    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentExamples",
+      "name": "Auths.Crypto.CommitmentExamples.oversized_domain_refused",
+      "statement": "∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_codec.hash.commitment_preimage Auths.Crypto.CommitmentExamples.tooLongDomain bytes =\n    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentExamples",
+      "name": "Auths.Crypto.CommitmentExamples.application_sample_admitted",
+      "statement": "∃ output,\n  auths_codec.hash.commitment_preimage Auths.Crypto.CommitmentExamples.sampleDomain\n      Auths.Crypto.CommitmentExamples.payload =\n    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentExamples",
+      "name": "Auths.Crypto.CommitmentExamples.every_identifier_tag_admitted",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType),\n  ∃ output,\n    auths_codec.hash.identifier_preimage kind Auths.Crypto.CommitmentExamples.payload =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Sha256Examples",
+      "name": "Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest",
+      "statement": "AuthsNativeSha256.hash.raw_sha256 ⟨[42#u8], Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest._proof_1⟩ =\n  Aeneas.Std.Result.ok (Aeneas.Std.Array.repeat 32#usize 42#u8)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Sha256Examples",
+      "name": "Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest",
+      "statement": "AuthsNativeSha256.hash.raw_sha256\n    ⟨[43#u8], Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest._proof_1⟩ =\n  Aeneas.Std.Result.ok (Aeneas.Std.Array.repeat 32#usize 43#u8)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.BufferAllocation",
+      "name": "Auths.Crypto.BufferAllocation.signed_bounds_iff",
+      "statement": "∀ (capacity : Aeneas.Std.Usize),\n  Aeneas.Std.IScalar.inBounds Aeneas.Std.IScalarTy.Isize ↑↑capacity ↔ Auths.Crypto.BufferAllocation.Fits capacity"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.application_length",
+      "statement": "∀ (frame : Auths.Crypto.CommitmentFrames.Application),\n  (Auths.Crypto.CommitmentFrames.application frame).length = 28 + frame.domain.length + frame.payload.length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.identifier_length",
+      "statement": "∀ (frame : Auths.Crypto.CommitmentFrames.Identifier),\n  (Auths.Crypto.CommitmentFrames.identifier frame).length = 20 + frame.payload.length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.application_unambiguous",
+      "statement": "∀ (left right : Auths.Crypto.CommitmentFrames.Application),\n  left.Valid →\n    right.Valid →\n      Auths.Crypto.CommitmentFrames.application left = Auths.Crypto.CommitmentFrames.application right → left = right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.identifier_unambiguous",
+      "statement": "∀ (left right : Auths.Crypto.CommitmentFrames.Identifier),\n  left.Valid →\n    right.Valid →\n      Auths.Crypto.CommitmentFrames.identifier left = Auths.Crypto.CommitmentFrames.identifier right → left = right"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.application_identifier_separate",
+      "statement": "∀ (left : Auths.Crypto.CommitmentFrames.Application) (right : Auths.Crypto.CommitmentFrames.Identifier),\n  Auths.Crypto.CommitmentFrames.application left ≠ Auths.Crypto.CommitmentFrames.identifier right"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.signing_application_separate",
+      "statement": "∀ (left : Auths.Crypto.Framing.Frame) (right : Auths.Crypto.CommitmentFrames.Application),\n  Auths.Crypto.Framing.encode left ≠ Auths.Crypto.CommitmentFrames.application right"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentFrames",
+      "name": "Auths.Crypto.CommitmentFrames.signing_identifier_separate",
+      "statement": "∀ (left : Auths.Crypto.Framing.Frame) (right : Auths.Crypto.CommitmentFrames.Identifier),\n  Auths.Crypto.Framing.encode left ≠ Auths.Crypto.CommitmentFrames.identifier right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.CommitmentRefinement",
+      "name": "Auths.Crypto.CommitmentRefinement.identifier_tag_word",
+      "statement": "∀ (kind : auths_codec.hash.IdentifierType),\n  Aeneas.Std.IScalar.hcast Aeneas.Std.UScalarTy.U16 (Aeneas.Std.read_discriminant kind) =\n    match kind with\n    | auths_codec.hash.IdentifierType.Grant => 1#u16\n    | auths_codec.hash.IdentifierType.Action => 2#u16\n    | auths_codec.hash.IdentifierType.Plan => 3#u16\n    | auths_codec.hash.IdentifierType.Evidence => 4#u16\n    | auths_codec.hash.IdentifierType.PrincipalStatus => 5#u16\n    | auths_codec.hash.IdentifierType.GrantStatus => 6#u16\n    | auths_codec.hash.IdentifierType.Context => 9#u16\n    | auths_codec.hash.IdentifierType.ObservationRequirement => 11#u16\n    | auths_codec.hash.IdentifierType.ApprovalRequirement => 12#u16"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Sha256Examples",
+      "name": "Auths.Crypto.Sha256Examples.forwarding_contract",
+      "statement": "Auths.Crypto.Sha256Native.Contract Auths.Crypto.Sha256Examples.echo"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Crypto.NativeContract",
       "name": "Auths.Crypto.Native.decode_leaf_refines",
       "statement": "∀ [P : Auths.Crypto.Ed25519Primitives] (decode : List Aeneas.Std.U8 → Option Auths.Crypto.Ed25519Primitives.Key)\n  (signatureValue : List Aeneas.Std.U8 → Auths.Crypto.Ed25519Primitives.Signature)\n  (equation : Auths.Crypto.Ed25519Primitives.Key → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  Auths.Crypto.Native.Ed25519Contract decode signatureValue equation →\n    ∀ (bytes : Aeneas.Std.Array Aeneas.Std.U8 32#usize),\n      auths_signature_core.decode_ed25519_point bytes = Aeneas.Std.Result.ok (decode ↑bytes)"

@@ -49,9 +49,7 @@ enum IdentifierType {
 }
 
 fn raw_sha256(value: &[u8]) -> Digest {
-    let mut hasher = Sha256::new();
-    hasher.update(value);
-    Digest::new(hasher.finalize().into())
+    Digest::new(Sha256::digest(value).into())
 }
 
 /// Commits to already-canonical bytes under an explicit application domain.
@@ -65,20 +63,38 @@ fn raw_sha256(value: &[u8]) -> Digest {
 ///
 /// Returns an error when the domain or payload exceeds protocol limits.
 pub fn domain_commitment(domain: &str, canonical: &[u8]) -> Result<Digest, CodecError> {
+    Ok(raw_sha256(&commitment_preimage(domain, canonical)?))
+}
+
+fn preimage_buffer(capacity: usize) -> Result<Vec<u8>, CodecError> {
+    // Vec's representable capacity is at most isize::MAX, even when the
+    // checked unsigned sum fits usize. Allocation failure remains the same
+    // standard-library/host boundary as the existing canonical encoders.
+    let _ = isize::try_from(capacity).map_err(crate::error::limit_error)?;
+    Ok(Vec::with_capacity(capacity))
+}
+
+fn commitment_preimage(domain: &str, canonical: &[u8]) -> Result<Vec<u8>, CodecError> {
     let domain_bytes = domain.as_bytes();
     if domain_bytes.is_empty() || domain_bytes.len() > MAX_COMMITMENT_DOMAIN_BYTES {
         return Err(CodecError::LimitExceeded);
     }
-    let domain_length = u16::try_from(domain_bytes.len()).map_err(|_| CodecError::LimitExceeded)?;
-    let payload_length = u64::try_from(canonical.len()).map_err(|_| CodecError::LimitExceeded)?;
-    let mut hasher = Sha256::new();
-    hasher.update(COMMITMENT_PREFIX);
-    hasher.update(PROTOCOL_V1.to_be_bytes());
-    hasher.update(domain_length.to_be_bytes());
-    hasher.update(domain_bytes);
-    hasher.update(payload_length.to_be_bytes());
-    hasher.update(canonical);
-    Ok(Digest::new(hasher.finalize().into()))
+    let domain_length = u16::try_from(domain_bytes.len()).map_err(crate::error::limit_error)?;
+    let payload_length = u64::try_from(canonical.len()).map_err(crate::error::limit_error)?;
+    let capacity = COMMITMENT_PREFIX
+        .len()
+        .checked_add(2 + 2 + 8)
+        .and_then(|size| size.checked_add(domain_bytes.len()))
+        .and_then(|size| size.checked_add(canonical.len()))
+        .ok_or(CodecError::LimitExceeded)?;
+    let mut output = preimage_buffer(capacity)?;
+    output.extend_from_slice(COMMITMENT_PREFIX);
+    output.extend_from_slice(&PROTOCOL_V1.to_be_bytes());
+    output.extend_from_slice(&domain_length.to_be_bytes());
+    output.extend_from_slice(domain_bytes);
+    output.extend_from_slice(&payload_length.to_be_bytes());
+    output.extend_from_slice(canonical);
+    Ok(output)
 }
 
 /// Returns the transaction binding for one external signing preimage.
@@ -92,14 +108,29 @@ pub fn transaction_binding(signing_preimage: &[u8]) -> Digest {
 }
 
 fn domain_hash(identifier_type: IdentifierType, canonical: &[u8]) -> Result<Digest, CodecError> {
-    let canonical_length = u64::try_from(canonical.len()).map_err(|_| CodecError::LimitExceeded)?;
-    let mut hasher = Sha256::new();
-    hasher.update(IDENTIFIER_PREFIX);
-    hasher.update(PROTOCOL_V1.to_be_bytes());
-    hasher.update((identifier_type as u16).to_be_bytes());
-    hasher.update(canonical_length.to_be_bytes());
-    hasher.update(canonical);
-    Ok(Digest::new(hasher.finalize().into()))
+    Ok(raw_sha256(&identifier_preimage(
+        identifier_type,
+        canonical,
+    )?))
+}
+
+fn identifier_preimage(
+    identifier_type: IdentifierType,
+    canonical: &[u8],
+) -> Result<Vec<u8>, CodecError> {
+    let canonical_length = u64::try_from(canonical.len()).map_err(crate::error::limit_error)?;
+    let capacity = IDENTIFIER_PREFIX
+        .len()
+        .checked_add(2 + 2 + 8)
+        .and_then(|size| size.checked_add(canonical.len()))
+        .ok_or(CodecError::LimitExceeded)?;
+    let mut output = preimage_buffer(capacity)?;
+    output.extend_from_slice(IDENTIFIER_PREFIX);
+    output.extend_from_slice(&PROTOCOL_V1.to_be_bytes());
+    output.extend_from_slice(&(identifier_type as u16).to_be_bytes());
+    output.extend_from_slice(&canonical_length.to_be_bytes());
+    output.extend_from_slice(canonical);
+    Ok(output)
 }
 
 fn signing_preimage(
@@ -121,7 +152,7 @@ fn signing_preimage(
     let capacity = capacity
         .checked_add(canonical_signing_object.len())
         .ok_or(CodecError::LimitExceeded)?;
-    let mut output = Vec::with_capacity(capacity);
+    let mut output = preimage_buffer(capacity)?;
     output.extend_from_slice(SIGNING_PREFIX);
     output.extend_from_slice(&PROTOCOL_V1.to_be_bytes());
     output.extend_from_slice(&(object_type as u16).to_be_bytes());
@@ -447,6 +478,20 @@ mod tests {
         ]
     }
 
+    fn identifier_types() -> [IdentifierType; 9] {
+        [
+            IdentifierType::Grant,
+            IdentifierType::Action,
+            IdentifierType::Plan,
+            IdentifierType::Evidence,
+            IdentifierType::PrincipalStatus,
+            IdentifierType::GrantStatus,
+            IdentifierType::Context,
+            IdentifierType::ObservationRequirement,
+            IdentifierType::ApprovalRequirement,
+        ]
+    }
+
     proptest! {
         #[test]
         fn signing_frame_preserves_bytes_and_errors(
@@ -458,6 +503,66 @@ mod tests {
                     signing_preimage_reference(kind, &profile, version, &statement));
             }
         }
+
+        #[test]
+        fn one_shot_hashes_preserve_independent_streaming_transcripts(
+            domain in any::<String>(),
+            payload in proptest::collection::vec(any::<u8>(), 0..4096),
+        ) {
+            if domain.is_empty() || domain.len() > 128 {
+                prop_assert_eq!(domain_commitment(&domain, &payload), Err(CodecError::LimitExceeded));
+            } else {
+                let mut reference = Sha256::new();
+                reference.update(b"AUTHS-COMMITMENT");
+                reference.update(1_u16.to_be_bytes());
+                reference.update(u16::try_from(domain.len()).unwrap().to_be_bytes());
+                reference.update(domain.as_bytes());
+                reference.update(u64::try_from(payload.len()).unwrap().to_be_bytes());
+                reference.update(&payload);
+                prop_assert_eq!(domain_commitment(&domain, &payload),
+                    Ok(Digest::new(reference.finalize().into())));
+            }
+            for kind in identifier_types() {
+                let mut reference = Sha256::new();
+                reference.update(b"AUTHS-ID");
+                reference.update(1_u16.to_be_bytes());
+                reference.update((kind as u16).to_be_bytes());
+                reference.update(u64::try_from(payload.len()).unwrap().to_be_bytes());
+                reference.update(&payload);
+                prop_assert_eq!(domain_hash(kind, &payload),
+                    Ok(Digest::new(reference.finalize().into())));
+            }
+        }
+    }
+
+    #[test]
+    fn commitment_domain_bound_counts_utf8_bytes() {
+        for (domain, accepted) in [
+            (String::new(), false),
+            ("a".repeat(128), true),
+            ("a".repeat(129), false),
+            ("λ".repeat(64), true),
+            ("λ".repeat(64) + "a", false),
+        ] {
+            let actual = commitment_preimage(&domain, &[0, 255]);
+            if accepted {
+                assert_eq!(actual.as_ref().map(Vec::len), Ok(28 + domain.len() + 2));
+            } else {
+                assert_eq!(actual, Err(CodecError::LimitExceeded));
+            }
+        }
+    }
+
+    #[test]
+    fn preimage_capacity_refuses_before_unrepresentable_allocation() {
+        let first_unrepresentable = usize::try_from(isize::MAX).unwrap() + 1;
+        assert_eq!(
+            preimage_buffer(first_unrepresentable),
+            Err(CodecError::LimitExceeded)
+        );
+        assert_eq!(preimage_buffer(usize::MAX), Err(CodecError::LimitExceeded));
+        assert_eq!(preimage_buffer(0), Ok(Vec::new()));
+        assert_eq!(preimage_buffer(32), Ok(Vec::new()));
     }
 
     #[test]

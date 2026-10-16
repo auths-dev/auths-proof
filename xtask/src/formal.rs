@@ -2039,6 +2039,30 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             claim.claim_text = "The explicitly supplied forwarding mock satisfies its stated call-binding contracts.".to_owned();
             claim.scope = "Only the displayed mock implementation, decoder, signature representation and message/signature equality predicate. This is an inhabited-contract witness; it makes no claim that any cryptographic library is correct or that any signature is authentic.".to_owned();
         }
+        if [
+            "Auths.Crypto.BufferAllocation.signed_bounds_iff",
+            "Auths.Crypto.CommitmentFrames.application_length",
+            "Auths.Crypto.CommitmentFrames.identifier_length",
+            "Auths.Crypto.CommitmentFrames.application_unambiguous",
+            "Auths.Crypto.CommitmentFrames.identifier_unambiguous",
+            "Auths.Crypto.CommitmentFrames.application_identifier_separate",
+            "Auths.Crypto.CommitmentFrames.signing_application_separate",
+            "Auths.Crypto.CommitmentFrames.signing_identifier_separate",
+            "Auths.Crypto.CommitmentRefinement.identifier_tag_word",
+            "Auths.Crypto.Sha256Examples.forwarding_contract",
+        ]
+        .contains(&declaration.name.as_str())
+        {
+            claim.claim_text = format!(
+                "The independent commitment/representation model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the displayed property")
+            );
+            claim.scope = "Exactly the displayed finite byte lists, valid frame relations, scalar representation or explicit mock contract. Length framing binds equal inputs at the byte level and separates signing/application/identifier domains. This is model/representation evidence; it does not establish hash injectivity, cryptographic security, native library correctness, caller integration or complete E5.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2340,6 +2364,8 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const SHA256_TRANSLATION: &str = "formal/qualification/aeneas/generated/sha256/Funs.lean";
+
 const SIGNATURE_TRANSLATION: &str = "formal/qualification/aeneas/generated/signature/Funs.lean";
 
 const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/composition/Funs.lean";
@@ -2351,8 +2377,21 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    native_signature_refinement_metadata(declaration)
-        .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+    hash_boundary_refinement_metadata(declaration)
+        .map(|metadata| {
+            (
+                metadata,
+                if declaration.starts_with("Auths.Crypto.Sha256") {
+                    SHA256_TRANSLATION
+                } else {
+                    CODEC_TRANSLATION
+                },
+            )
+        })
+        .or_else(|| {
+            native_signature_refinement_metadata(declaration)
+                .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+        })
         .or_else(|| {
             strict_signature_refinement_metadata(declaration)
                 .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
@@ -2402,6 +2441,84 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn hash_boundary_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Trust the pinned Rust/Charon/Aeneas/Lean compiler boundary, Lean kernel, permitted foundations and listed transparent standard models. Vec capacity is abstract: physical allocation, OS memory availability and allocator correctness remain outside the claim. The concrete signed-capacity guard is translated before allocation.",
+        "The SHA-256 unit monomorphizes the actual source without semantic cfg changes. Eleven exact foreign export-name paths and cache copies are normalized; a ledger retains their original identities. Every Auths name and every body, signature, generic, layout, source span and call/type ID is checked unchanged. The two selected foreign calls are explicit implementation projections; no global instance, crypto axiom or opaque Auths algorithm is introduced.",
+        "Where present, exact total digest/output contracts are displayed theorem premises. This does not establish the SHA-256 algorithm or output-library implementation, collision resistance, preimage resistance, caller unsigned-object construction, every commitment, all-input framing totality or complete AP-SPEC-069 E5. Mock examples establish call binding only.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.BufferAllocation.buffer_refines" => (
+            "The shipping preimage buffer guard returns exactly the signed-capacity decision and an empty buffer or typed limit refusal.",
+            &["auths_codec::hash::preimage_buffer"],
+            "Every represented usize capacity. Admission is equivalent to fitting the signed pointer-size maximum before Vec allocation. This proves the abstract allocation request guard/result, not physical allocation success, memory exhaustion handling or the standard allocator implementation.",
+        ),
+        "Auths.Crypto.BufferAllocation.accepted_empty" => (
+            "A successful shipping preimage buffer starts with no bytes.",
+            &["auths_codec::hash::preimage_buffer"],
+            "Every represented capacity and accepted buffer. This is a successful-result projection used by exact framing proofs, not a whole-function resource bound.",
+        ),
+        "Auths.Crypto.BufferAllocation.accepted_capacity_fits" => (
+            "A successful shipping preimage buffer request fits the signed pointer-size capacity range.",
+            &["auths_codec::hash::preimage_buffer"],
+            "Every represented capacity and successful result. A usize sum alone is insufficient; the actual signed conversion has succeeded before the standard allocator is called.",
+        ),
+        "Auths.Crypto.CommitmentRefinement.application_preimage_exact" => (
+            "Every successful shipping application-commitment preimage contains exactly the independent prefix, protocol, domain and payload frames.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented domain/payload slice and successful result. Includes exact big-endian widths, length framing and all domain/payload bytes. This is successful-output exactness; it does not establish complete totality, all admissible-input acceptance, caller canonicalization, business meaning or hash collision resistance.",
+        ),
+        "Auths.Crypto.CommitmentRefinement.identifier_preimage_exact" => (
+            "Every successful shipping content-identifier preimage contains exactly its independent registered tag and payload frame.",
+            &["auths_codec::hash::identifier_preimage"],
+            "Every represented payload, successful output and all nine registered identifier tags. Includes the fixed identifier prefix, protocol, exact tag, 64-bit payload length and complete payload bytes. Caller unsigned-object encoding and complete totality remain separate obligations.",
+        ),
+        "Auths.Crypto.Sha256Native.raw_hash_refines" => (
+            "The shipping native one-shot SHA-256 wrapper forwards exactly its supplied bytes and returns the specified fixed-width digest under explicit foreign contracts.",
+            &["auths_codec::hash::raw_sha256"],
+            "Every represented input slice and explicit Sha256Primitives implementation satisfying the displayed Contract for the supplied SHA-256 specification function. Covers the actual digest call, selected Into<[u8;32]> conversion and translated Digest constructor. Primitive functional correctness and output conversion remain explicit premises; collision resistance, preimage resistance, caller integration and complete E5 are not proved.",
+        ),
+        "Auths.Crypto.CommitmentExamples.empty_domain_refused" => (
+            "The actual application framing rejects the empty domain for arbitrary payloads.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented payload and the exact empty domain. No allocator or cryptographic primitive correctness premise is used.",
+        ),
+        "Auths.Crypto.CommitmentExamples.oversized_domain_refused" => (
+            "The actual application framing rejects the displayed 129-byte domain for arbitrary payloads.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Every represented payload and the exact oversized ASCII domain. This is a concrete refusal witness, not the complete domain-bound classification.",
+        ),
+        "Auths.Crypto.CommitmentExamples.application_sample_admitted" => (
+            "A concrete useful application frame is accepted by the actual shipping source.",
+            &["auths_codec::hash::commitment_preimage"],
+            "Only the displayed demo domain and two payload bytes. This prevents a deny-all implementation from satisfying the successful-output theorem; it is not an authorization or hash-security claim.",
+        ),
+        "Auths.Crypto.CommitmentExamples.every_identifier_tag_admitted" => (
+            "Every registered identifier tag accepts the concrete payload through the actual shipping framing source.",
+            &["auths_codec::hash::identifier_preimage"],
+            "All nine registered tags and the exact displayed two-byte payload. This is a family of useful acceptance witnesses, not general encoding/decoding or hash-security completeness.",
+        ),
+        "Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest" => (
+            "The actual native hash wrapper forwards the stated input through an explicit byte-echo mock.",
+            &["auths_codec::hash::raw_sha256"],
+            "Only the displayed explicit forwardingPrimitive, exact input and repeated output. The mock is not SHA-256, no global instance is installed, and no cryptographic correctness or security is claimed.",
+        ),
+        "Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest" => (
+            "The actual native hash wrapper forwards a changed input to the selected explicit byte-echo mock.",
+            &["auths_codec::hash::raw_sha256"],
+            "Only the displayed changed input and explicit mock. It witnesses exact input forwarding and retained output conversion, not hash collision resistance or primitive correctness.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn native_signature_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

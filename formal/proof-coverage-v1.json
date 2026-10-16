@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-  "inputs_sha256": "f94529d9eb8a9ad67bb3b52dce616349a38b795978cac38475940db05331ee7b",
+  "inputs_sha256": "df2ed26971866c29c6a040ac85e86466a94790c8410c9eb68db9a2fbb6125eb1",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -33,7 +33,7 @@
     "core/crates/auths-codec/src/decode.rs": "sha256:9b23c5ab3540877b19befca2a271617164c06e777747ebbeaf6e32ce30d2ce18",
     "core/crates/auths-codec/src/encode.rs": "sha256:163dcb12f640eb63fbdb872e75bab1ee9e01571797cdf3a10b77cfd0b02a0c0b",
     "core/crates/auths-codec/src/error.rs": "sha256:80c1e7fdd190a0d050c69fbcde9836a4702d9b98e8effd76bc659c3d75ea8175",
-    "core/crates/auths-codec/src/hash.rs": "sha256:33a2ad9e865d3af6739a4f248773ba41f3364b1ae315ea8ec5b860cb1386051e",
+    "core/crates/auths-codec/src/hash.rs": "sha256:db5e7773c8c1f6193c2494c95e3575d712c573e737ceb16b547f0f105efe1236",
     "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
     "core/crates/auths-codec/src/observation.rs": "sha256:fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149",
     "core/crates/auths-composition/Cargo.toml": "sha256:331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
@@ -64,15 +64,15 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-    "formal/lean-assurance-audit-v1.json": "sha256:64c5b888e00351983571b379523c180a20cdaff4dd42a6d7d73cf009bef48607",
+    "formal/lean-assurance-audit-v1.json": "sha256:bbc200490181575d4489bb293efa485904b1f0666b0a001b4497fde4c963f281",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
     "formal/qualification/aeneas/generated/authority/translation.json": "sha256:f354174fb43276ed28db49805c145f6da031926d129c1861710a5dee787d8f99",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:311cf2b24790105fabc39a3caa7bc46eb61fb3efb8d696142d5b30758fc95f48",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:2effea96bbdb75ee3920b9c1d5402d20e66c798fda8e7851dcfa42eb0c4caff3",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:c3d56a8ca3ec8f57784d28cee905514efd42429ba0cf3c862cb6434b8742a3c4",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:3a4afb1a77d885048a9840dfcfb0793a2b7dc60b83a371ade5aeb602cb6b089a",
     "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:779faa8458cefaf60a680bab591dbf09414fcc3b145cdc168693fa5d1a6cb3bc",
     "formal/qualification/aeneas/generated/composition/translation.json": "sha256:1f54f440de17133288d202ee605285c210c8fe47ede43fdded9c28481290dc50",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
@@ -83,12 +83,14 @@
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:48fadbfbf052e310cd6df3fdc11e8e96785330f34144c1e471a908b7c1b21feb",
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
+    "formal/qualification/aeneas/generated/sha256/Funs.lean": "sha256:cb4275b6ebb45a86426220940d63e13f1f460e383f1590cecb477b136dc36aba",
+    "formal/qualification/aeneas/generated/sha256/translation.json": "sha256:61d59435726ec2847a7af4aa64098f32bc90e3cacaa9c50f8ed7ff406edec8ad",
     "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:898c400755fcf63f2c96f74f955126ce88fbb6411912e377b2e4c9e5cd6d917e",
     "formal/qualification/aeneas/generated/signature/translation.json": "sha256:8892727be102f03e19ded661ee5973d069d320f5ad08feeef5f677cd02d4b2e3",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:ea2c130d74971b6928a10d14837b4058d0a9b060188bcbaaa20f7036e2e1ac93",
-    "formal/theorem-kinds-v1.toml": "sha256:50ff902c118171dedffdb05828339812d1c489074aa2e81d3e0a2ce048280edc",
+    "formal/qualification/aeneas/qualification.toml": "sha256:015c61e5fc239462640c3ed0a56018b0c4912b410e0cf333fef48488feec208b",
+    "formal/theorem-kinds-v1.toml": "sha256:91567409497f7517c24a35efc21073fbd0a0e7abfb98cc58582bac102d764687",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -271,66 +273,66 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1549,
-      "span_lines": 17181,
-      "code_lines": 17121,
+      "functions": 1552,
+      "span_lines": 17209,
+      "code_lines": 17146,
       "by_level": {
         "translated": {
-          "functions": 309,
-          "function_share": 0.1995,
-          "span_lines": 3443,
-          "span_line_share": 0.2004,
-          "code_lines": 3429,
-          "code_line_share": 0.2003
+          "functions": 313,
+          "function_share": 0.2017,
+          "span_lines": 3493,
+          "span_line_share": 0.203,
+          "code_lines": 3476,
+          "code_line_share": 0.2027
         },
         "direct": {
-          "functions": 107,
-          "function_share": 0.0691,
-          "span_lines": 1576,
-          "span_line_share": 0.0917,
-          "code_lines": 1563,
-          "code_line_share": 0.0913
+          "functions": 111,
+          "function_share": 0.0715,
+          "span_lines": 1626,
+          "span_line_share": 0.0945,
+          "code_lines": 1610,
+          "code_line_share": 0.0939
         },
         "closure": {
-          "functions": 309,
-          "function_share": 0.1995,
-          "span_lines": 3443,
-          "span_line_share": 0.2004,
-          "code_lines": 3429,
-          "code_line_share": 0.2003
+          "functions": 313,
+          "function_share": 0.2017,
+          "span_lines": 3493,
+          "span_line_share": 0.203,
+          "code_lines": 3476,
+          "code_line_share": 0.2027
         }
       }
     },
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1140,
-      "span_lines": 14282,
-      "code_lines": 14211,
+      "functions": 1143,
+      "span_lines": 14310,
+      "code_lines": 14236,
       "by_level": {
         "translated": {
-          "functions": 165,
-          "function_share": 0.1447,
-          "span_lines": 1631,
-          "span_line_share": 0.1142,
-          "code_lines": 1619,
-          "code_line_share": 0.1139
+          "functions": 169,
+          "function_share": 0.1479,
+          "span_lines": 1681,
+          "span_line_share": 0.1175,
+          "code_lines": 1666,
+          "code_line_share": 0.117
         },
         "direct": {
-          "functions": 59,
-          "function_share": 0.0518,
-          "span_lines": 902,
-          "span_line_share": 0.0632,
-          "code_lines": 891,
-          "code_line_share": 0.0627
+          "functions": 63,
+          "function_share": 0.0551,
+          "span_lines": 952,
+          "span_line_share": 0.0665,
+          "code_lines": 938,
+          "code_line_share": 0.0659
         },
         "closure": {
-          "functions": 165,
-          "function_share": 0.1447,
-          "span_lines": 1631,
-          "span_line_share": 0.1142,
-          "code_lines": 1619,
-          "code_line_share": 0.1139
+          "functions": 169,
+          "function_share": 0.1479,
+          "span_lines": 1681,
+          "span_line_share": 0.1175,
+          "code_lines": 1666,
+          "code_line_share": 0.117
         }
       }
     },
@@ -3028,6 +3030,15 @@
       "Auths.Composition.ValidationPublic.public_evaluator_refines": "exact",
       "Auths.Composition.Work.source_event_count": "partial",
       "Auths.Composition.Work.source_leaf_order": "partial",
+      "Auths.Crypto.BufferAllocation.accepted_capacity_fits": "partial",
+      "Auths.Crypto.BufferAllocation.accepted_empty": "partial",
+      "Auths.Crypto.BufferAllocation.buffer_refines": "exact",
+      "Auths.Crypto.CommitmentExamples.application_sample_admitted": "case",
+      "Auths.Crypto.CommitmentExamples.empty_domain_refused": "case",
+      "Auths.Crypto.CommitmentExamples.every_identifier_tag_admitted": "case",
+      "Auths.Crypto.CommitmentExamples.oversized_domain_refused": "case",
+      "Auths.Crypto.CommitmentRefinement.application_preimage_exact": "partial",
+      "Auths.Crypto.CommitmentRefinement.identifier_preimage_exact": "partial",
       "Auths.Crypto.CoordinateContract.guard_refines": "exact",
       "Auths.Crypto.CoordinateScan.loop_refines": "partial",
       "Auths.Crypto.Encoding.Ed25519.guard_refines": "verdict-exact",
@@ -3061,6 +3072,9 @@
       "Auths.Crypto.Refinement.preimage_length_exact": "partial",
       "Auths.Crypto.Refinement.profile_limit_refused": "partial",
       "Auths.Crypto.Refinement.signing_preimage_exact": "partial",
+      "Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest": "case",
+      "Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest": "case",
+      "Auths.Crypto.Sha256Native.raw_hash_refines": "exact",
       "Auths.Crypto.Strict.Examples.above_half_s_refused": "case",
       "Auths.Crypto.Strict.Examples.half_s_form_allowed": "case",
       "Auths.Crypto.Strict.Examples.identity_coordinate_is_weak": "case",
@@ -3166,20 +3180,20 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 439,
+    "aeneas_local_definitions": 446,
     "by_kind": {
+      "function": 313,
       "loop": 106,
-      "function": 309,
-      "closure-shim": 6,
+      "closure-shim": 9,
       "derived": 18
     },
-    "refined_direct": 109,
-    "refined_closure": 322,
-    "theorems_naming_translated_functions": 188
+    "refined_direct": 113,
+    "refined_closure": 329,
+    "theorems_naming_translated_functions": 200
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "c3658702888c768ac121f435d71d3ff7fb68b826ee0db2435a222e6a00b24e36",
+    "current_formal_inputs_sha256": "d67a7742e3433e7d0f5ffadbe1859264c79af096f18f0de97c6a58cb300c373e",
     "fresh": false,
     "campaigns": {
       "s1": {

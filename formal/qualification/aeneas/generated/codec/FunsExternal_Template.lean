@@ -78,6 +78,17 @@ axiom U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from
   Std.Usize → Result (core.result.Result Std.U16
     core.num.error.TryFromIntError)
 
+/-- [core::convert::num::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for isize}::try_from]:
+    Source: '/rustc/library/core/src/convert/num.rs', lines 300:12-300:64
+    Name pattern: [core::convert::num::{core::convert::TryFrom<isize, usize, core::num::error::TryFromIntError>}::try_from]
+    Visibility: public -/
+@[rust_fun
+  "core::convert::num::{core::convert::TryFrom<isize, usize, core::num::error::TryFromIntError>}::try_from"]
+axiom Isize.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from
+  :
+  Std.Usize → Result (core.result.Result Std.Isize
+    core.num.error.TryFromIntError)
+
 /-- [core::option::Option::Some]:
     Source: '/rustc/library/core/src/option.rs', lines 605:4-605:8
     Name pattern: [core::option::Option::Some] -/
@@ -98,6 +109,16 @@ axiom core.option.Option.as_ref {T : Type} : Option T → Result (Option T)
 @[rust_fun "core::option::{core::option::Option<@T>}::ok_or"]
 axiom core.option.Option.ok_or
   {T : Type} {E : Type} : Option T → E → Result (core.result.Result T E)
+
+/-- [core::option::{core::option::Option<T>}::and_then]:
+    Source: '/rustc/library/core/src/option.rs', lines 1538:4-1540:61
+    Name pattern: [core::option::{core::option::Option<@T>}::and_then]
+    Visibility: public -/
+@[rust_fun "core::option::{core::option::Option<@T>}::and_then"]
+axiom core.option.Option.and_then
+  {T : Type} {U : Type} {F : Type} (opsfunctionFnOnceFTupleTOptionInst :
+  core.ops.function.FnOnce F T (Option U)) :
+  Option T → F → Result (Option U)
 
 /-- [core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq]:
     Source: '/rustc/library/core/src/option.rs', lines 2440:4-2440:38

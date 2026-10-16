@@ -13,9 +13,33 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "206d13f3a2a2c479027b7f7a42c15a70f0700334b48f7c51d20bad7468261df6";
+    "3def05e8d6b7212f0a9c667033270db7824d239e074a131a791ed95adaa4cb4e";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "sha256-run/qualification/aeneas/generated/sha256/Types.lean",
+        "formal/qualification/aeneas/generated/sha256/Types.lean",
+    ),
+    (
+        "sha256-run/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
+        "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
+    ),
+    (
+        "sha256-run/qualification/aeneas/generated/sha256/Funs.lean",
+        "formal/qualification/aeneas/generated/sha256/Funs.lean",
+    ),
+    (
+        "sha256-run/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
+    ),
+    (
+        "sha256-run/translation.json",
+        "formal/qualification/aeneas/generated/sha256/translation.json",
+    ),
+    (
+        "sha256-run/foreign-name-normalization.json",
+        "formal/qualification/aeneas/generated/sha256/foreign-name-normalization.json",
+    ),
     (
         "signature-run/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
         "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
@@ -187,6 +211,8 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/sha256/FunsExternal.lean",
     "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
     "formal/qualification/aeneas/generated/signature/FunsExternal.lean",
     "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
@@ -202,6 +228,14 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/sha256/Types.lean",
+    "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
+    "formal/qualification/aeneas/generated/sha256/Funs.lean",
+    "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/sha256/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/sha256/translation.json",
+    "formal/qualification/aeneas/generated/sha256/foreign-name-normalization.json",
     "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
@@ -256,6 +290,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.Sha256",
     "qualification.aeneas.cases.Signature",
     "qualification.aeneas.cases.Composition",
     "qualification.aeneas.cases.Stores",
@@ -303,6 +338,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
     (
+        "auths_codec",
+        "formal/qualification/aeneas/generated/sha256/translation.json",
+    ),
+    (
         "auths_signature_core",
         "formal/qualification/aeneas/generated/signature/translation.json",
     ),
@@ -349,6 +388,8 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
 ];
 
 const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
+    "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
+    "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
@@ -691,11 +732,11 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 11
-        || qualification.translations.len() != 11
-        || qualification.external_models.len() != 13
+    if qualification.case_modules.len() != 12
+        || qualification.translations.len() != 12
+        || qualification.external_models.len() != 16
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 9
+        || qualification.template_axioms.len() != 11
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -709,6 +750,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "composition-unit-callback-return-v1",
             "signature-qualified-discriminants-v1",
             "signature-explicit-primitive-context-v1",
+            "sha256-monomorphic-foreign-names-v1",
+            "sha256-explicit-primitive-context-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -1147,6 +1190,14 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
+            render_sha256_types_external(),
+        ),
+        (
+            "formal/qualification/aeneas/generated/sha256/FunsExternal.lean",
+            render_sha256_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
             render_signature_types_external(),
         ),
@@ -1198,6 +1249,30 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_sha256_types_external() -> String {
+    r##"-- Explicit foreign output type, without a global instance or axiom.
+import Auths.Crypto.Sha256Primitives
+abbrev generic_array.qualified_sha256_type_decls_1 [P : Auths.Crypto.Sha256Primitives] := P.Output
+"##
+    .to_owned()
+}
+
+fn render_sha256_functions_external() -> String {
+    r##"-- Exact selected foreign calls are explicit implementation projections.
+import qualification.aeneas.generated.sha256.Types
+open Aeneas Aeneas.Std Result
+
+def generic_array.qualified_sha256_type_decls_1.Insts.CoreConvertIntoArrayU832.into
+    [P : Auths.Crypto.Sha256Primitives] (value : generic_array.qualified_sha256_type_decls_1) :
+    Result (Array Std.U8 32#usize) := P.intoBytes value
+
+def digest.qualified_sha256_type_decls_11.Insts.DigestDigestDigest.digest
+    [P : Auths.Crypto.Sha256Primitives] (value : Slice Std.U8) :
+    Result generic_array.qualified_sha256_type_decls_1 := P.digest value
+"##
+    .to_owned()
 }
 
 fn render_signature_types_external() -> String {
@@ -2282,7 +2357,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_codec::cbor::read_head,auths_codec::cbor::encode_head,auths_codec::decode::decode_canonical_action,auths_codec::hash::signing_preimage",
+            "auths_codec::cbor::read_head,auths_codec::cbor::encode_head,auths_codec::decode::decode_canonical_action,auths_codec::hash::signing_preimage,auths_codec::hash::commitment_preimage,auths_codec::hash::identifier_preimage",
             &stable_llbc.join("auths_codec.llbc"),
             "core/crates/auths-codec/Cargo.toml",
             &["--include", "auths_model"],
@@ -2435,7 +2510,38 @@ fn reproduce(
         &[],
     )?;
 
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_codec::hash::raw_sha256",
+            &stable_llbc.join("auths_codec_sha256.llbc"),
+            "core/crates/auths-codec/Cargo.toml",
+            &[
+                "--monomorphize",
+                "--include",
+                "auths_model",
+                "--opaque",
+                "sha2",
+                "--opaque",
+                "digest",
+                "--opaque",
+                "crypto_common",
+                "--opaque",
+                "typenum",
+            ],
+        ),
+        root,
+        &[],
+    )?;
+    normalize_sha256_llbc_names(
+        &stable_llbc.join("auths_codec_sha256.llbc"),
+        output,
+        charon,
+        root,
+    )?;
+
     for crate_name in [
+        "auths_codec_sha256",
         "auths_signature_core",
         "auths_composition",
         "auths_stores",
@@ -2465,6 +2571,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_codec_sha256", "sha256"),
         ("auths_signature_core", "signature"),
         ("auths_composition", "composition"),
         ("auths_stores", "stores"),
@@ -2501,9 +2608,16 @@ fn reproduce(
         if matches!(crate_name, "auths_composition" | "auths_signature_core") {
             aeneas_arguments.insert(0, "-loops-to-rec".to_owned());
         }
+        if subdir == "sha256" {
+            aeneas_arguments.splice(
+                0..0,
+                ["-namespace".to_owned(), "AuthsNativeSha256".to_owned()],
+            );
+        }
         run_checked(aeneas, &aeneas_arguments, root, &[])?;
     }
     for crate_name in [
+        "auths_codec_sha256",
         "auths_signature_core",
         "auths_composition",
         "auths_stores",
@@ -2522,6 +2636,7 @@ fn reproduce(
     normalize_composition_discriminants(output)?;
     normalize_signature_discriminants(output)?;
     normalize_signature_primitive_context(output)?;
+    normalize_sha256_primitive_context(output)?;
     Ok(())
 }
 
@@ -2595,6 +2710,185 @@ fn normalize_signature_discriminants(output: &Path) -> Result<(), String> {
 // Generalize only the explicit foreign implementation parameter. Lean threads
 // this section variable through exactly the declarations using those foreign
 // types/calls. No generated Rust function body is changed and no instance exists.
+// The pinned OCaml name-pattern emitter cannot print `Instantiated` name
+// elements. These are foreign declaration identities only: preserve every
+// Auths name, body, signature, layout, source span and call/type ID.
+fn sha256_foreign_names(mut document: Value) -> Result<(Value, Value), String> {
+    let original = document.clone();
+    let mut substitutions = BTreeMap::<String, Value>::new();
+    let mut selected = Vec::new();
+    let mut identities = BTreeSet::new();
+    let mut ledger = Vec::new();
+    for group in [
+        "type_decls",
+        "fun_decls",
+        "global_decls",
+        "trait_decls",
+        "trait_impls",
+    ] {
+        let rows = document["translated"][group]
+            .as_array()
+            .ok_or_else(|| format!("SHA-256 LLBC omits {group}"))?;
+        for (index, row) in rows.iter().enumerate().filter(|(_, row)| !row.is_null()) {
+            let name = row["item_meta"]["name"]
+                .as_array()
+                .ok_or("SHA-256 declaration has no name")?;
+            if !name.iter().any(|part| part.get("Instantiated").is_some()) {
+                continue;
+            }
+            let id = row["def_id"]
+                .as_u64()
+                .ok_or("SHA-256 declaration has no id")?;
+            let allowed = match group {
+                "type_decls" => [1, 2, 3, 4, 5, 6, 7, 11, 12].contains(&id),
+                "fun_decls" => [1, 2].contains(&id),
+                _ => false,
+            };
+            let root = name
+                .first()
+                .and_then(|part| part["Ident"][0].as_str())
+                .ok_or("SHA-256 name has no crate root")?;
+            let expected_root = match (group, id) {
+                ("type_decls", 1) => "generic_array",
+                ("type_decls", 2..=7) => "typenum",
+                ("type_decls", 11 | 12) | ("fun_decls", 1) => "digest",
+                ("fun_decls", 2) => "core",
+                _ => "",
+            };
+            if !allowed
+                || root != expected_root
+                || row["item_meta"]["is_local"] != false
+                || root.starts_with("auths_")
+                || !identities.insert((group, id))
+            {
+                return Err(
+                    "SHA-256 name normalization would touch an unreviewed or Auths declaration"
+                        .to_owned(),
+                );
+            }
+            let renamed = json!([
+                {"Ident": [root, 0]},
+                {"Ident": [format!("qualified_sha256_{group}_{id}"), 0]},
+            ]);
+            let key = serde_json::to_string(&row["item_meta"]["name"])
+                .map_err(|error| error.to_string())?;
+            if substitutions.insert(key, renamed.clone()).is_some() {
+                return Err("SHA-256 foreign declaration names are not unique".to_owned());
+            }
+            selected.push((group, index, renamed.clone()));
+            ledger.push(json!({
+                "declaration_group": group, "declaration_id": id,
+                "original_name": row["item_meta"]["name"],
+                "normalized_name": renamed, "source_span": row["item_meta"]["span"],
+            }));
+        }
+    }
+    if selected.len() != 11 {
+        return Err("SHA-256 foreign monomorphized name inventory drifted".to_owned());
+    }
+    fn rewrite(value: &mut Value, substitutions: &BTreeMap<String, Value>) -> Result<(), String> {
+        if value
+            .as_array()
+            .and_then(|array| array.first())
+            .is_some_and(|first| first.get("Ident").is_some())
+        {
+            let key = serde_json::to_string(value).map_err(|error| error.to_string())?;
+            if let Some(replacement) = substitutions.get(&key) {
+                value.clone_from(replacement);
+                return Ok(());
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    rewrite(value, substitutions)?;
+                }
+            }
+            Value::Object(values) => {
+                for value in values.values_mut() {
+                    rewrite(value, substitutions)?;
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+    rewrite(&mut document, &substitutions)?;
+    let mut expected = original.clone();
+    for (group, index, name) in selected {
+        expected["translated"][group][index]["item_meta"]["name"] = name;
+    }
+    // Charon stores copies of declaration names in three metadata caches.
+    for cache in ["item_names", "assoc_item_names", "short_names"] {
+        expected["translated"][cache] = document["translated"][cache].clone();
+    }
+    if expected != document {
+        return Err("SHA-256 name normalization changed non-name declaration data".to_owned());
+    }
+    Ok((
+        document,
+        json!({
+            "schema": "auths-proof-foreign-name-normalization/v1",
+            "declarations": ledger,
+            "preserved": ["Auths names", "all function bodies", "signatures", "generics", "layouts", "source spans", "call and type IDs"],
+        }),
+    ))
+}
+
+fn normalize_sha256_llbc_names(
+    path: &Path,
+    output: &Path,
+    charon: &Path,
+    root: &Path,
+) -> Result<(), String> {
+    let source = fs::read(path).map_err(|error| format!("could not read SHA-256 LLBC: {error}"))?;
+    let document = serde_json::from_slice(&source)
+        .map_err(|error| format!("invalid SHA-256 LLBC: {error}"))?;
+    let path_text = path.display().to_string();
+    let arguments = ["pretty-print", path_text.as_str()];
+    let original = run_output(charon, &arguments, root, &[])?;
+    let (document, mut ledger) = sha256_foreign_names(document)?;
+    write_pretty_json(path, &document)?;
+    let normalized = run_output(charon, &arguments, root, &[])?;
+    // Charon's short-name cache has nondeterministic map iteration order and
+    // hash-cons references. Use its pinned canonical printer, as the existing
+    // two-run LLBC gate does. The full JSON preservation check above still
+    // compares every body/type field and permits only reviewed name changes.
+    ledger["canonicalization"] = json!("pinned-charon-pretty-print-v1");
+    ledger["original_canonical_llbc_sha256"] =
+        json!(hex::encode(Sha256::digest(original.as_bytes())));
+    ledger["normalized_canonical_llbc_sha256"] =
+        json!(hex::encode(Sha256::digest(normalized.as_bytes())));
+    fs::create_dir_all(output.join("sha256-run"))
+        .map_err(|error| format!("could not create SHA-256 output directory: {error}"))?;
+    write_pretty_json(
+        &output.join("sha256-run/foreign-name-normalization.json"),
+        &ledger,
+    )
+}
+
+fn normalize_sha256_primitive_context(output: &Path) -> Result<(), String> {
+    let path = output.join("sha256-run/qualification/aeneas/generated/sha256/Funs.lean");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read SHA-256 functions: {error}"))?;
+    fs::write(path, sha256_primitive_context(&source)?)
+        .map_err(|error| format!("could not write SHA-256 functions: {error}"))
+}
+
+fn sha256_primitive_context(source: &str) -> Result<String, String> {
+    let marker = "noncomputable section\n";
+    if source.matches(marker).count() != 1
+        || source.matches("namespace AuthsNativeSha256\n").count() != 1
+        || source.contains("Auths.Crypto.Sha256Primitives")
+    {
+        return Err("SHA-256 explicit primitive context input drifted".to_owned());
+    }
+    Ok(source.replace(
+        marker,
+        "noncomputable section\n\nvariable [primitive : Auths.Crypto.Sha256Primitives]\n",
+    ))
+}
+
 fn normalize_signature_primitive_context(output: &Path) -> Result<(), String> {
     let path = output.join("signature-run/qualification/aeneas/generated/signature/Funs.lean");
     let source = fs::read_to_string(&path)
@@ -3055,6 +3349,20 @@ def alloc.slice.Slice.sort_by_key {T K F : Type}
     (input : Slice T) (callback : F) : Result (Slice T) := do
   let output ← sortKey key order callback input.val
   ok ⟨output.val, by rw [output.property]; exact input.property⟩
+
+-- A fallible pointer-sized signed conversion, exactly as Rust TryFrom specifies.
+def Isize.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :
+    Result (core.result.Result Std.Isize core.num.error.TryFromIntError) :=
+  ok (match IScalar.tryMkOpt .Isize value.val with
+    | some signed => .Ok signed
+    | none => .Err ())
+
+def core.option.Option.and_then {T U F : Type}
+    (callback : core.ops.function.FnOnce F T (Option U)) (value : Option T) (function : F) :
+    Result (Option U) :=
+  match value with
+  | none => ok none
+  | some value => callback.call_once function value
 "##
     .to_owned()
 }
@@ -3596,5 +3904,104 @@ mod signature_primitive_context_tests {
         assert!(signature_primitive_context(body).is_err());
         assert!(signature_primitive_context(&format!("{source}{marker}")).is_err());
         assert!(signature_primitive_context(&format!("{source}{body}")).is_err());
+    }
+}
+
+#[cfg(test)]
+mod sha256_foreign_name_tests {
+    use super::{sha256_foreign_names, sha256_primitive_context};
+    use serde_json::{Value, json};
+
+    fn declaration(id: u64, root: &str, local: bool) -> Value {
+        json!({
+            "def_id": id,
+            "item_meta": {"name": [
+                {"Ident": [root, 0]}, {"Ident": [format!("item_{id}"), 0]},
+                {"Instantiated": {"closed": true}},
+            ], "is_local": local, "span": {"file": "source.rs", "line": id}},
+            "body": {"calls": [1, 2], "guard": "retained"},
+            "signature": {"inputs": ["bytes"], "output": "fixed32"},
+            "generics": [], "layout": {"size": 32},
+        })
+    }
+
+    fn fixture() -> Value {
+        let mut types = vec![Value::Null; 15];
+        for id in [1_u64, 2, 3, 4, 5, 6, 7, 11, 12] {
+            let root = if id == 1 {
+                "generic_array"
+            } else if id <= 7 {
+                "typenum"
+            } else {
+                "digest"
+            };
+            types[usize::try_from(id).expect("small fixture id")] = declaration(id, root, false);
+        }
+        let mut local = declaration(0, "auths_codec", true);
+        local["item_meta"]["name"] =
+            json!([{"Ident": ["auths_codec", 0]}, {"Ident": ["raw_sha256", 0]}]);
+        json!({"translated": {
+            "type_decls": types,
+            "fun_decls": [local, declaration(1, "digest", false), declaration(2, "core", false)],
+            "global_decls": [], "trait_decls": [], "trait_impls": [],
+            "item_names": [], "assoc_item_names": [], "short_names": [],
+            "target_information": {"pointer_bytes": 8},
+        }})
+    }
+
+    #[test]
+    fn foreign_aliases_preserve_bodies_types_layouts_and_auths_identity() {
+        let original = fixture();
+        let (renamed, ledger) =
+            sha256_foreign_names(original.clone()).expect("reviewed name inventory");
+        assert_eq!(ledger["declarations"].as_array().expect("ledger").len(), 11);
+        assert_eq!(
+            original["translated"]["fun_decls"][0],
+            renamed["translated"]["fun_decls"][0]
+        );
+        for (old, new) in original["translated"]["fun_decls"]
+            .as_array()
+            .expect("functions")
+            .iter()
+            .zip(
+                renamed["translated"]["fun_decls"]
+                    .as_array()
+                    .expect("functions"),
+            )
+        {
+            for field in ["body", "signature", "generics", "layout", "def_id"] {
+                assert_eq!(old[field], new[field]);
+            }
+        }
+        assert!(sha256_foreign_names(renamed).is_err());
+    }
+
+    #[test]
+    fn names_in_executable_data_or_unreviewed_declarations_are_refused() {
+        let mut body_name = fixture();
+        body_name["translated"]["fun_decls"][0]["body"] =
+            body_name["translated"]["type_decls"][1]["item_meta"]["name"].clone();
+        assert!(sha256_foreign_names(body_name).is_err());
+        let mut auths = fixture();
+        auths["translated"]["type_decls"][1]["item_meta"]["name"][0] =
+            json!({"Ident": ["auths_model", 0]});
+        assert!(sha256_foreign_names(auths).is_err());
+        let mut missing = fixture();
+        missing["translated"]["type_decls"][1] = Value::Null;
+        assert!(sha256_foreign_names(missing).is_err());
+        let mut extra = fixture();
+        extra["translated"]["global_decls"] = json!([declaration(99, "sha2", false)]);
+        assert!(sha256_foreign_names(extra).is_err());
+    }
+
+    #[test]
+    fn explicit_hash_parameter_changes_no_generated_body() {
+        let source = "noncomputable section\nnamespace AuthsNativeSha256\ndef wrapper := selected_digest\nend AuthsNativeSha256\n";
+        let parameter = "\nvariable [primitive : Auths.Crypto.Sha256Primitives]\n";
+        let generalized = sha256_primitive_context(source).expect("one interface");
+        assert_eq!(generalized.replace(parameter, ""), source);
+        assert!(sha256_primitive_context(&generalized).is_err());
+        assert!(sha256_primitive_context(&format!("{source}{source}")).is_err());
+        assert!(sha256_primitive_context("def wrapper := selected_digest").is_err());
     }
 }
