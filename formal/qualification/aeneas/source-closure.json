@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "c73c2fce779537862d90aa9ba9d35c651d53c76ba81a131a83597f7cbf9fced2",
+  "digest": "c9c3f9ef750e8cce0f39656f549dd1e8d351354434bf0416c87a9e45bfe98e35",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -309,7 +309,7 @@
     },
     {
       "path": "core/crates/auths-signature-core/src/lib.rs",
-      "sha256": "2f79c7307966ec48360aab2c8f791d3f57f87210a086988b7b352a91c8fff5a9"
+      "sha256": "0e888b094b4954d4424c90817275b4fd7e3940e65a8779d90b47eb51879fa69e"
     },
     {
       "path": "core/crates/auths-signature/Cargo.toml",
@@ -497,7 +497,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Signature.lean",
-      "sha256": "aa48032163b749d410ad6d4969a0a1f84a52d97b0a6bedb2a5a8bc1d5baa587c"
+      "sha256": "9a4b2cc9656522b6d912901a2dba8382426aa409507eacf204a6f4200e648250"
     },
     {
       "path": "formal/qualification/aeneas/cases/Stores.lean",
@@ -505,7 +505,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "37c6b385d72b9e5a09600901bddbd51b411fb4e0650e36ed4868ba76de2f9882"
+      "sha256": "ced4848e8f9194383efc1172e05aad2e44549c5c91ed71aed4f46ac1880a9408"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -893,7 +893,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "ab098b03e3c5bc5b674dadb9732a5ca784bf7e4254920f2878ac1a95bdc33def"
+      "sha256": "4a17df10062e92a1eb460938d35eab71b5408f269407c1d02f73d70ac93f3b43"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -905,7 +905,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "f74dbbd935c14b9a5080efd8063f0107e14ef4e33c6116b150c82c53896e941e"
+      "sha256": "15a141c0a03146d51ab49bc9dfc1c9150fc2d39580cedae17e1148516b54ba1f"
     },
     {
       "path": "xtask/src/fuzz.rs",

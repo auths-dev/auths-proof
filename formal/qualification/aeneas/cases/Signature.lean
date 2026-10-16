@@ -1,3 +1,4 @@
+import Auths.Crypto.Strict.Examples
 import Auths.Crypto.Encoding.Examples
 
 -- Qualification compiles the actual shipping guards, their total refinements,

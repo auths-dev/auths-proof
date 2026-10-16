@@ -10,7 +10,7 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1"]
 
 source_files = [
   "core/crates/auths-signature-core/Cargo.toml",
@@ -373,10 +373,22 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_signature_core"
 translation_json = "formal/qualification/aeneas/generated/signature/translation.json"
-local_functions = 3
+local_functions = 14
 external_functions = 0
 opaque_local_functions = 0
-required_symbols = ["auths_signature_core::ed25519_point_encoding_is_canonical", "auths_signature_core::p256_key_encoding_is_canonical"]
+required_symbols = [
+  "auths_signature_core::ed25519_point_encoding_is_canonical",
+  "auths_signature_core::p256_key_encoding_is_canonical",
+  "auths_signature_core::p256_signature_is_low_s",
+  "auths_signature_core::ed25519_same_coordinate",
+  "auths_signature_core::ed25519_has_small_order_coordinate",
+  "auths_signature_core::ed25519_signature_r_is_allowed",
+  "auths_signature_core::ed25519_key_encoding",
+  "auths_signature_core::decode_ed25519_key_with",
+  "auths_signature_core::verify_ed25519_with",
+  "auths_signature_core::decode_p256_key_with",
+  "auths_signature_core::verify_p256_sha256_with",
+]
 allowed_external_symbols = []
 
 [[translations]]

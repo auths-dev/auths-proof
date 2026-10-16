@@ -94,4 +94,311 @@ def p256_key_encoding_is_canonical (encoded : Slice Std.U8) : Result Bool := do
     then ok true
     else ok (i1 = 3#u8)
 
+/-- [auths_signature_core::P256_HALF_ORDER]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 50:0-53:2 -/
+@[global_simps, irreducible]
+def P256_HALF_ORDER : Array Std.U8 32#usize :=
+  Array.make 32#usize [
+    127#u8, 255#u8, 255#u8, 255#u8, 128#u8, 0#u8, 0#u8, 0#u8, 127#u8, 255#u8,
+    255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 222#u8, 115#u8, 125#u8,
+    86#u8, 211#u8, 139#u8, 207#u8, 66#u8, 121#u8, 220#u8, 229#u8, 97#u8,
+    126#u8, 49#u8, 146#u8, 168#u8
+    ]
+
+/-- [auths_signature_core::p256_signature_is_low_s]: loop 0:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 1:0-69:1 -/
+@[rust_loop]
+def p256_signature_is_low_s_loop
+  (encoded : Array Std.U8 64#usize) (index : Std.Usize) : Result Bool := do
+  if index < 32#usize
+  then
+    let i ← 32#usize + index
+    let value ← Array.index_usize encoded i
+    let bound ← Array.index_usize P256_HALF_ORDER index
+    if value < bound
+    then ok true
+    else
+      if value > bound
+      then ok false
+      else
+        let index1 ← index + 1#usize
+        p256_signature_is_low_s_loop encoded index1
+  else ok true
+partial_fixpoint
+
+/-- [auths_signature_core::p256_signature_is_low_s]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 55:0-69:1 -/
+@[reducible]
+def p256_signature_is_low_s
+  (encoded : Array Std.U8 64#usize) : Result Bool := do
+  p256_signature_is_low_s_loop encoded 0#usize
+
+/-- [auths_signature_core::ed25519_same_coordinate]: loop 0:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 76:4-83:1 -/
+@[rust_loop]
+def ed25519_same_coordinate_loop
+  (encoded : Array Std.U8 32#usize) (expected : Array Std.U8 32#usize)
+  (index : Std.Usize) :
+  Result Bool
+  := do
+  if index < 31#usize
+  then
+    let i ← Array.index_usize encoded index
+    let i1 ← Array.index_usize expected index
+    if i != i1
+    then ok false
+    else
+      let index1 ← index + 1#usize
+      ed25519_same_coordinate_loop encoded expected index1
+  else ok true
+partial_fixpoint
+
+/-- [auths_signature_core::ed25519_same_coordinate]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 71:0-83:1 -/
+def ed25519_same_coordinate
+  (encoded : Array Std.U8 32#usize) (expected : Array Std.U8 32#usize) :
+  Result Bool
+  := do
+  let i ← Array.index_usize encoded 31#usize
+  let i1 ← lift (i &&& 127#u8)
+  let i2 ← Array.index_usize expected 31#usize
+  let i3 ← lift (i2 &&& 127#u8)
+  if i1 != i3
+  then ok false
+  else ed25519_same_coordinate_loop encoded expected 0#usize
+
+/-- [auths_signature_core::ED25519_WEAK_ZERO]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 85:0-88:2 -/
+@[global_simps, irreducible]
+def ED25519_WEAK_ZERO : Array Std.U8 32#usize := Array.repeat 32#usize 0#u8
+
+/-- [auths_signature_core::ED25519_WEAK_ONE]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 90:0-93:2 -/
+@[global_simps, irreducible]
+def ED25519_WEAK_ONE : Array Std.U8 32#usize :=
+  Array.make 32#usize [
+    1#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8,
+    0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8,
+    0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8, 0#u8
+    ]
+
+/-- [auths_signature_core::ED25519_WEAK_MINUS_ONE]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 95:0-98:2 -/
+@[global_simps, irreducible]
+def ED25519_WEAK_MINUS_ONE : Array Std.U8 32#usize :=
+  Array.make 32#usize [
+    236#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8,
+    255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8,
+    255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8,
+    255#u8, 255#u8, 255#u8, 255#u8, 127#u8
+    ]
+
+/-- [auths_signature_core::ED25519_WEAK_ORDER_EIGHT_A]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 100:0-103:2 -/
+@[global_simps, irreducible]
+def ED25519_WEAK_ORDER_EIGHT_A : Array Std.U8 32#usize :=
+  Array.make 32#usize [
+    199#u8, 23#u8, 106#u8, 112#u8, 61#u8, 77#u8, 216#u8, 79#u8, 186#u8, 60#u8,
+    11#u8, 118#u8, 13#u8, 16#u8, 103#u8, 15#u8, 42#u8, 32#u8, 83#u8, 250#u8,
+    44#u8, 57#u8, 204#u8, 198#u8, 78#u8, 199#u8, 253#u8, 119#u8, 146#u8,
+    172#u8, 3#u8, 122#u8
+    ]
+
+/-- [auths_signature_core::ED25519_WEAK_ORDER_EIGHT_B]
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 105:0-108:2 -/
+@[global_simps, irreducible]
+def ED25519_WEAK_ORDER_EIGHT_B : Array Std.U8 32#usize :=
+  Array.make 32#usize [
+    38#u8, 232#u8, 149#u8, 143#u8, 194#u8, 178#u8, 39#u8, 176#u8, 69#u8,
+    195#u8, 244#u8, 137#u8, 242#u8, 239#u8, 152#u8, 240#u8, 213#u8, 223#u8,
+    172#u8, 5#u8, 211#u8, 198#u8, 51#u8, 57#u8, 177#u8, 56#u8, 2#u8, 136#u8,
+    109#u8, 83#u8, 252#u8, 5#u8
+    ]
+
+/-- [auths_signature_core::ed25519_has_small_order_coordinate]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 110:0-116:1 -/
+def ed25519_has_small_order_coordinate
+  (encoded : Array Std.U8 32#usize) : Result Bool := do
+  let b ← ed25519_same_coordinate encoded ED25519_WEAK_ZERO
+  if b
+  then ok true
+  else
+    let b1 ← ed25519_same_coordinate encoded ED25519_WEAK_ONE
+    if b1
+    then ok true
+    else
+      let b2 ← ed25519_same_coordinate encoded ED25519_WEAK_MINUS_ONE
+      if b2
+      then ok true
+      else
+        let b3 ← ed25519_same_coordinate encoded ED25519_WEAK_ORDER_EIGHT_A
+        if b3
+        then ok true
+        else ed25519_same_coordinate encoded ED25519_WEAK_ORDER_EIGHT_B
+
+/-- [auths_signature_core::ed25519_signature_r_is_allowed]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 118:0-124:1 -/
+def ed25519_signature_r_is_allowed
+  (encoded : Array Std.U8 64#usize) : Result Bool := do
+  let s ←
+    core.array.Array.index (core.ops.index.IndexSlice
+      (core.slice.index.SliceIndexRangeToUsizeSlice Std.U8)) encoded
+      { «end» := 32#usize }
+  let r ← core.array.TryFromSharedArraySlice.try_from 32#usize s
+  match r with
+  | core.result.Result.Ok r1 =>
+    let b ← ed25519_point_encoding_is_canonical r1
+    if b
+    then let b1 ← ed25519_has_small_order_coordinate r1
+         ok (¬ b1)
+    else ok false
+  | core.result.Result.Err _ => ok false
+
+/-- [auths_signature_core::ed25519_key_encoding]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 182:0-190:1 -/
+def ed25519_key_encoding
+  (bytes : Slice Std.U8) :
+  Result (core.result.Result (Array Std.U8 32#usize) Ed25519Error)
+  := do
+  let r ← core.array.TryFromSharedArraySlice.try_from 32#usize bytes
+  match r with
+  | core.result.Result.Ok bytes1 =>
+    let b ← ed25519_point_encoding_is_canonical bytes1
+    if b
+    then ok (core.result.Result.Ok bytes1)
+    else ok (core.result.Result.Err Ed25519Error.InvalidKey)
+  | core.result.Result.Err _ =>
+    ok (core.result.Result.Err Ed25519Error.InvalidKey)
+
+/-- [auths_signature_core::decode_ed25519_key_with]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 192:0-201:1 -/
+def decode_ed25519_key_with
+  {K : Type} {D : Type} (coreopsfunctionFnOnceDTupleShared0ArrayU832OptionInst
+  : core.ops.function.FnOnce D (Array Std.U8 32#usize) (Option K))
+  (bytes : Slice Std.U8) (decode : D) :
+  Result (core.result.Result K Ed25519Error)
+  := do
+  let r ← ed25519_key_encoding bytes
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let o ←
+      coreopsfunctionFnOnceDTupleShared0ArrayU832OptionInst.call_once decode
+        val
+    match o with
+    | none => ok (core.result.Result.Err Ed25519Error.InvalidKey)
+    | some key => ok (core.result.Result.Ok key)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      K (core.convert.FromSame Ed25519Error) residual
+
+/-- [auths_signature_core::verify_ed25519_with]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 211:0-238:1 -/
+def verify_ed25519_with
+  {K : Type} {D : Type} {V : Type}
+  (coreopsfunctionFnOnceDTupleShared0ArrayU832OptionInst :
+  core.ops.function.FnOnce D (Array Std.U8 32#usize) (Option K))
+  (coreopsfunctionFnOnceVTupleShared0KShared1SliceU8Shared2ArrayU864BoolInst :
+  core.ops.function.FnOnce V (K × (Slice Std.U8) × (Array Std.U8 64#usize))
+  Bool) (bytes : Slice Std.U8) (message : Slice Std.U8)
+  (signature : Slice Std.U8) (decode : D) (verify : V) :
+  Result (core.result.Result Unit Ed25519Error)
+  := do
+  let r ← ed25519_key_encoding bytes
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let o ←
+      coreopsfunctionFnOnceDTupleShared0ArrayU832OptionInst.call_once decode
+        val
+    match o with
+    | none => ok (core.result.Result.Err Ed25519Error.InvalidKey)
+    | some key =>
+      let r1 ← core.array.TryFromSharedArraySlice.try_from 64#usize signature
+      match r1 with
+      | core.result.Result.Ok signature1 =>
+        let b ← ed25519_has_small_order_coordinate val
+        if b
+        then ok (core.result.Result.Err Ed25519Error.VerificationFailed)
+        else
+          let b1 ← ed25519_signature_r_is_allowed signature1
+          if b1
+          then
+            let b2 ←
+              coreopsfunctionFnOnceVTupleShared0KShared1SliceU8Shared2ArrayU864BoolInst.call_once
+                verify (key, message, signature1)
+            if b2
+            then ok (core.result.Result.Ok ())
+            else ok (core.result.Result.Err Ed25519Error.VerificationFailed)
+          else ok (core.result.Result.Err Ed25519Error.VerificationFailed)
+      | core.result.Result.Err _ =>
+        ok (core.result.Result.Err Ed25519Error.InvalidSignatureEncoding)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      Unit (core.convert.FromSame Ed25519Error) residual
+
+/-- [auths_signature_core::decode_p256_key_with]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 286:0-297:1 -/
+def decode_p256_key_with
+  {K : Type} {D : Type} (coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst :
+  core.ops.function.FnOnce D (Slice Std.U8) (Option K)) (bytes : Slice Std.U8)
+  (decode : D) :
+  Result (core.result.Result K P256Error)
+  := do
+  let b ← p256_key_encoding_is_canonical bytes
+  if b
+  then
+    let o ←
+      coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst.call_once decode
+        bytes
+    match o with
+    | none => ok (core.result.Result.Err P256Error.InvalidKey)
+    | some key => ok (core.result.Result.Ok key)
+  else ok (core.result.Result.Err P256Error.InvalidKey)
+
+/-- [auths_signature_core::verify_p256_sha256_with]:
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 315:0-344:1 -/
+def verify_p256_sha256_with
+  {K : Type} {S : Type} {D : Type} {P : Type} {V : Type}
+  (coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst :
+  core.ops.function.FnOnce D (Slice Std.U8) (Option K))
+  (coreopsfunctionFnOncePTupleShared0ArrayU864OptionInst :
+  core.ops.function.FnOnce P (Array Std.U8 64#usize) (Option S))
+  (coreopsfunctionFnOnceVTupleShared0KShared1SliceU8Shared2SBoolInst :
+  core.ops.function.FnOnce V (K × (Slice Std.U8) × S) Bool)
+  (bytes : Slice Std.U8) (message : Slice Std.U8) (signature : Slice Std.U8)
+  (decode : D) (parse : P) (verify : V) :
+  Result (core.result.Result Unit P256Error)
+  := do
+  let r ←
+    decode_p256_key_with coreopsfunctionFnOnceDTupleShared0SliceU8OptionInst
+      bytes decode
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← core.array.TryFromSharedArraySlice.try_from 64#usize signature
+    match r1 with
+    | core.result.Result.Ok signature1 =>
+      let o ←
+        coreopsfunctionFnOncePTupleShared0ArrayU864OptionInst.call_once parse
+          signature1
+      match o with
+      | none => ok (core.result.Result.Err P256Error.InvalidSignatureEncoding)
+      | some parsed =>
+        let b ← p256_signature_is_low_s signature1
+        if b
+        then
+          let b1 ←
+            coreopsfunctionFnOnceVTupleShared0KShared1SliceU8Shared2SBoolInst.call_once
+              verify (val, message, parsed)
+          if b1
+          then ok (core.result.Result.Ok ())
+          else ok (core.result.Result.Err P256Error.VerificationFailed)
+        else ok (core.result.Result.Err P256Error.VerificationFailed)
+    | core.result.Result.Err _ =>
+      ok (core.result.Result.Err P256Error.InvalidSignatureEncoding)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      Unit (core.convert.FromSame P256Error) residual
+
 end auths_signature_core

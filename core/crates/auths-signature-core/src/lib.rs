@@ -46,6 +46,83 @@ fn p256_key_encoding_is_canonical(encoded: &[u8]) -> bool {
     encoded[0] == 0x02 || encoded[0] == 0x03
 }
 
+// SEC 2 secp256r1 subgroup order divided by two, in big-endian form.
+const P256_HALF_ORDER: [u8; 32] = [
+    0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xde, 0x73, 0x7d, 0x56, 0xd3, 0x8b, 0xcf, 0x42, 0x79, 0xdc, 0xe5, 0x61, 0x7e, 0x31, 0x92, 0xa8,
+];
+
+fn p256_signature_is_low_s(encoded: &[u8; 64]) -> bool {
+    let mut index = 0;
+    while index < 32 {
+        let value = encoded[32 + index];
+        let bound = P256_HALF_ORDER[index];
+        if value < bound {
+            return true;
+        }
+        if value > bound {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+fn ed25519_same_coordinate(encoded: &[u8; 32], expected: &[u8; 32]) -> bool {
+    if encoded[31] & 0x7f != expected[31] & 0x7f {
+        return false;
+    }
+    let mut index = 0;
+    while index < 31 {
+        if encoded[index] != expected[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+const ED25519_WEAK_ZERO: [u8; 32] = [
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const ED25519_WEAK_ONE: [u8; 32] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+const ED25519_WEAK_MINUS_ONE: [u8; 32] = [
+    0xec, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f,
+];
+
+const ED25519_WEAK_ORDER_EIGHT_A: [u8; 32] = [
+    0xc7, 0x17, 0x6a, 0x70, 0x3d, 0x4d, 0xd8, 0x4f, 0xba, 0x3c, 0x0b, 0x76, 0x0d, 0x10, 0x67, 0x0f,
+    0x2a, 0x20, 0x53, 0xfa, 0x2c, 0x39, 0xcc, 0xc6, 0x4e, 0xc7, 0xfd, 0x77, 0x92, 0xac, 0x03, 0x7a,
+];
+
+const ED25519_WEAK_ORDER_EIGHT_B: [u8; 32] = [
+    0x26, 0xe8, 0x95, 0x8f, 0xc2, 0xb2, 0x27, 0xb0, 0x45, 0xc3, 0xf4, 0x89, 0xf2, 0xef, 0x98, 0xf0,
+    0xd5, 0xdf, 0xac, 0x05, 0xd3, 0xc6, 0x33, 0x39, 0xb1, 0x38, 0x02, 0x88, 0x6d, 0x53, 0xfc, 0x05,
+];
+
+fn ed25519_has_small_order_coordinate(encoded: &[u8; 32]) -> bool {
+    ed25519_same_coordinate(encoded, &ED25519_WEAK_ZERO)
+        || ed25519_same_coordinate(encoded, &ED25519_WEAK_ONE)
+        || ed25519_same_coordinate(encoded, &ED25519_WEAK_MINUS_ONE)
+        || ed25519_same_coordinate(encoded, &ED25519_WEAK_ORDER_EIGHT_A)
+        || ed25519_same_coordinate(encoded, &ED25519_WEAK_ORDER_EIGHT_B)
+}
+
+fn ed25519_signature_r_is_allowed(encoded: &[u8; 64]) -> bool {
+    let r: &[u8; 32] = match encoded[..32].try_into() {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+    ed25519_point_encoding_is_canonical(r) && !ed25519_has_small_order_coordinate(r)
+}
+
 /// Failure classes shared by every Ed25519 protocol adapter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Ed25519Error {
@@ -102,16 +179,67 @@ pub fn validate_ed25519_key(verification_key: &[u8]) -> Result<(), Ed25519Error>
     decode_ed25519_key(verification_key).map(|_| ())
 }
 
-fn decode_ed25519_key(verification_key: &[u8]) -> Result<VerifyingKey, Ed25519Error> {
-    let key_bytes: &[u8; 32] = verification_key
-        .try_into()
-        .map_err(|_| Ed25519Error::InvalidKey)?;
-    // The library decoder follows ZIP-215. Auths requires RFC 8032's
-    // canonical field and sign encoding before asking it to recover a point.
-    if !ed25519_point_encoding_is_canonical(key_bytes) {
+fn ed25519_key_encoding(bytes: &[u8]) -> Result<&[u8; 32], Ed25519Error> {
+    let Ok(bytes) = bytes.try_into() else {
+        return Err(Ed25519Error::InvalidKey);
+    };
+    if !ed25519_point_encoding_is_canonical(bytes) {
         return Err(Ed25519Error::InvalidKey);
     }
-    VerifyingKey::from_bytes(key_bytes).map_err(|_| Ed25519Error::InvalidKey)
+    Ok(bytes)
+}
+
+fn decode_ed25519_key_with<K, D>(bytes: &[u8], decode: D) -> Result<K, Ed25519Error>
+where
+    D: FnOnce(&[u8; 32]) -> Option<K>,
+{
+    let bytes = ed25519_key_encoding(bytes)?;
+    match decode(bytes) {
+        Some(key) => Ok(key),
+        None => Err(Ed25519Error::InvalidKey),
+    }
+}
+
+fn decode_ed25519_point(bytes: &[u8; 32]) -> Option<VerifyingKey> {
+    VerifyingKey::from_bytes(bytes).ok()
+}
+
+fn decode_ed25519_key(bytes: &[u8]) -> Result<VerifyingKey, Ed25519Error> {
+    decode_ed25519_key_with(bytes, decode_ed25519_point)
+}
+
+fn verify_ed25519_with<K, D, V>(
+    bytes: &[u8],
+    message: &[u8],
+    signature: &[u8],
+    decode: D,
+    verify: V,
+) -> Result<(), Ed25519Error>
+where
+    D: FnOnce(&[u8; 32]) -> Option<K>,
+    V: FnOnce(&K, &[u8], &[u8; 64]) -> bool,
+{
+    let bytes = ed25519_key_encoding(bytes)?;
+    let Some(key) = decode(bytes) else {
+        return Err(Ed25519Error::InvalidKey);
+    };
+    let signature: &[u8; 64] = match signature.try_into() {
+        Ok(signature) => signature,
+        Err(_) => return Err(Ed25519Error::InvalidSignatureEncoding),
+    };
+    if ed25519_has_small_order_coordinate(bytes) || !ed25519_signature_r_is_allowed(signature) {
+        return Err(Ed25519Error::VerificationFailed);
+    }
+    if verify(&key, message, signature) {
+        Ok(())
+    } else {
+        Err(Ed25519Error::VerificationFailed)
+    }
+}
+
+fn verify_ed25519_equation(key: &VerifyingKey, message: &[u8], signature: &[u8; 64]) -> bool {
+    key.verify_strict(message, &Signature::from_bytes(signature))
+        .is_ok()
 }
 
 /// Verifies an Ed25519 signature with the repository's one strict implementation.
@@ -127,11 +255,13 @@ pub fn verify_ed25519(
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), Ed25519Error> {
-    let key = decode_ed25519_key(verification_key)?;
-    let signature =
-        Signature::from_slice(signature).map_err(|_| Ed25519Error::InvalidSignatureEncoding)?;
-    key.verify_strict(message, &signature)
-        .map_err(|_| Ed25519Error::VerificationFailed)
+    verify_ed25519_with(
+        verification_key,
+        message,
+        signature,
+        decode_ed25519_point,
+        verify_ed25519_equation,
+    )
 }
 
 /// Validates one P-256 verification key.
@@ -153,11 +283,64 @@ pub fn validate_p256_key(verification_key: &[u8]) -> Result<(), P256Error> {
 ///
 /// The tag and length are checked before point decoding because the SEC1 decoder also accepts
 /// the uncompressed and compact forms of the same point.
-fn decode_p256_key(verification_key: &[u8]) -> Result<P256Key, P256Error> {
-    if !p256_key_encoding_is_canonical(verification_key) {
+fn decode_p256_key_with<K, D>(bytes: &[u8], decode: D) -> Result<K, P256Error>
+where
+    D: FnOnce(&[u8]) -> Option<K>,
+{
+    if !p256_key_encoding_is_canonical(bytes) {
         return Err(P256Error::InvalidKey);
     }
-    P256Key::from_sec1_bytes(verification_key).map_err(|_| P256Error::InvalidKey)
+    match decode(bytes) {
+        Some(key) => Ok(key),
+        None => Err(P256Error::InvalidKey),
+    }
+}
+
+fn decode_p256_point(bytes: &[u8]) -> Option<P256Key> {
+    P256Key::from_sec1_bytes(bytes).ok()
+}
+
+fn decode_p256_key(bytes: &[u8]) -> Result<P256Key, P256Error> {
+    decode_p256_key_with(bytes, decode_p256_point)
+}
+
+fn parse_p256_signature(bytes: &[u8; 64]) -> Option<P256Signature> {
+    P256Signature::from_slice(bytes).ok()
+}
+
+fn verify_p256_equation(key: &P256Key, message: &[u8], signature: &P256Signature) -> bool {
+    key.verify(message, signature).is_ok()
+}
+
+fn verify_p256_sha256_with<K, S, D, P, V>(
+    bytes: &[u8],
+    message: &[u8],
+    signature: &[u8],
+    decode: D,
+    parse: P,
+    verify: V,
+) -> Result<(), P256Error>
+where
+    D: FnOnce(&[u8]) -> Option<K>,
+    P: FnOnce(&[u8; 64]) -> Option<S>,
+    V: FnOnce(&K, &[u8], &S) -> bool,
+{
+    let key = decode_p256_key_with(bytes, decode)?;
+    let signature: &[u8; 64] = match signature.try_into() {
+        Ok(signature) => signature,
+        Err(_) => return Err(P256Error::InvalidSignatureEncoding),
+    };
+    let Some(parsed) = parse(signature) else {
+        return Err(P256Error::InvalidSignatureEncoding);
+    };
+    if !p256_signature_is_low_s(signature) {
+        return Err(P256Error::VerificationFailed);
+    }
+    if verify(&key, message, &parsed) {
+        Ok(())
+    } else {
+        Err(P256Error::VerificationFailed)
+    }
 }
 
 /// Verifies one fixed-width low-S P-256/SHA-256 signature.
@@ -175,14 +358,14 @@ pub fn verify_p256_sha256(
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), P256Error> {
-    let key = decode_p256_key(verification_key)?;
-    let signature =
-        P256Signature::from_slice(signature).map_err(|_| P256Error::InvalidSignatureEncoding)?;
-    if signature.normalize_s().is_some() {
-        return Err(P256Error::VerificationFailed);
-    }
-    key.verify(message, &signature)
-        .map_err(|_| P256Error::VerificationFailed)
+    verify_p256_sha256_with(
+        verification_key,
+        message,
+        signature,
+        decode_p256_point,
+        parse_p256_signature,
+        verify_p256_equation,
+    )
 }
 
 #[cfg(test)]
@@ -317,6 +500,180 @@ mod tests {
         let mut encoded = vec![tag];
         encoded.extend_from_slice(rest);
         encoded
+    }
+
+    #[test]
+    fn ed25519_glue_refuses_weak_inputs_before_the_equation() {
+        use core::cell::Cell;
+        let good = [
+            0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7, 0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64,
+            0x07, 0x3a, 0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25, 0xaf, 0x02, 0x1a, 0x68,
+            0xf7, 0x07, 0x51, 0x1a,
+        ];
+        for coordinate in [
+            ED25519_WEAK_ZERO,
+            ED25519_WEAK_ONE,
+            ED25519_WEAK_MINUS_ONE,
+            ED25519_WEAK_ORDER_EIGHT_A,
+            ED25519_WEAK_ORDER_EIGHT_B,
+        ] {
+            for sign in [0, 0x80] {
+                let mut weak = coordinate;
+                weak[31] |= sign;
+                if !ed25519_point_encoding_is_canonical(&weak) {
+                    continue;
+                }
+                assert!(ed25519_has_small_order_coordinate(&weak));
+                assert!(VerifyingKey::from_bytes(&weak).unwrap().is_weak());
+                let calls = Cell::new(0);
+                let mut signature = [0; 64];
+                signature[..32].copy_from_slice(&good);
+                let rejected = verify_ed25519_with(
+                    &weak,
+                    b"message",
+                    &signature,
+                    |_| Some(()),
+                    |(), _, _| {
+                        calls.set(calls.get() + 1);
+                        true
+                    },
+                );
+                assert_eq!(rejected, Err(Ed25519Error::VerificationFailed));
+                assert_eq!(calls.get(), 0);
+                signature[..32].copy_from_slice(&weak);
+                let rejected = verify_ed25519_with(
+                    &good,
+                    b"message",
+                    &signature,
+                    |_| Some(()),
+                    |(), _, _| {
+                        calls.set(calls.get() + 1);
+                        true
+                    },
+                );
+                assert_eq!(rejected, Err(Ed25519Error::VerificationFailed));
+                assert_eq!(calls.get(), 0);
+            }
+        }
+        // The real glue must still reach a supplied primitive on valid form,
+        // forwarding the exact key, message and signature. This mock does not
+        // claim that the zero scalar below authenticates a real signature.
+        let mut signature = [0; 64];
+        signature[..32].copy_from_slice(&good);
+        assert_eq!(
+            verify_ed25519_with(
+                &good,
+                b"exact message",
+                &signature,
+                |bytes| {
+                    assert_eq!(bytes, &good);
+                    Some(17u8)
+                },
+                |key, message, bytes| {
+                    assert_eq!(*key, 17);
+                    assert_eq!(message, b"exact message");
+                    assert_eq!(bytes, &signature);
+                    true
+                }
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            verify_ed25519_with(
+                &ED25519_WEAK_ONE,
+                b"message",
+                &signature[..63],
+                |_| Some(()),
+                |(), _, _| panic!("equation after bad width")
+            ),
+            Err(Ed25519Error::InvalidSignatureEncoding)
+        );
+    }
+
+    #[test]
+    fn p256_glue_preserves_parse_priority_and_blocks_high_s_before_equation() {
+        let key = [2; 33];
+        let mut signature = [0; 64];
+        signature[31] = 1;
+        signature[32..].copy_from_slice(&P256_HALF_ORDER);
+        signature[63] += 1;
+        assert_eq!(
+            verify_p256_sha256_with(
+                &key,
+                b"message",
+                &signature,
+                |_| Some(()),
+                |_| Some(()),
+                |(), _, ()| panic!("high-S must not reach the equation")
+            ),
+            Err(P256Error::VerificationFailed)
+        );
+        assert_eq!(
+            verify_p256_sha256_with(
+                &key,
+                b"message",
+                &signature,
+                |_| Some(()),
+                |_| None::<()>,
+                |(), _, ()| panic!("bad scalar must not reach the equation")
+            ),
+            Err(P256Error::InvalidSignatureEncoding)
+        );
+        signature[63] -= 1;
+        assert_eq!(
+            verify_p256_sha256_with(
+                &key,
+                b"exact message",
+                &signature,
+                |bytes| {
+                    assert_eq!(bytes, &key);
+                    Some(23u8)
+                },
+                |bytes| {
+                    assert_eq!(bytes, &signature);
+                    Some(17u8)
+                },
+                |point, message, parsed| {
+                    assert_eq!(*point, 23);
+                    assert_eq!(message, b"exact message");
+                    assert_eq!(*parsed, 17);
+                    true
+                }
+            ),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn p256_scalar_boundary_agrees_with_the_pinned_normalizer() {
+        let mut lower = P256_HALF_ORDER;
+        lower[31] -= 1;
+        let mut upper = P256_HALF_ORDER;
+        upper[31] += 1;
+        let mut one = [0; 32];
+        one[31] = 1;
+        for (scalar, admitted) in [
+            ([0; 32], true),
+            (one, true),
+            (lower, true),
+            (P256_HALF_ORDER, true),
+            (upper, false),
+            ([0xff; 32], false),
+        ] {
+            let mut encoded = [0; 64];
+            encoded[31] = 1; // Public r = 1; no signing key is involved.
+            encoded[32..].copy_from_slice(&scalar);
+            assert_eq!(p256_signature_is_low_s(&encoded), admitted);
+            if let Ok(parsed) = P256Signature::from_slice(&encoded) {
+                assert_eq!(
+                    p256_signature_is_low_s(&encoded),
+                    parsed.normalize_s().is_none()
+                );
+            }
+            // The protocol comparison depends only on the encoded s scalar.
+            encoded[..32].fill(0xff);
+            assert_eq!(p256_signature_is_low_s(&encoded), admitted);
+        }
     }
 
     #[test]

@@ -567,3 +567,56 @@ The current encoding checkpoint's hosted preflight found an iterator-style
 lint on the already-qualified explicit fixed range. A single-site lint
 expectation records the source-linked proof reason; focused Clippy passes.
 No index check, resource limit, predicate or CI job is disabled.
+
+
+## Concrete signature glue under primitive contracts
+
+The native entry points now call one shared parameterized source algorithm
+per suite. The vetted libraries retain point recovery, scalar parsing and the
+signature equations. Canonicality, exact widths, Ed25519 weak-coordinate and
+R-form restrictions, P-256 low-S, refusal precedence, and exact byte forwarding
+are visible in the shipping Auths glue and its extraction. Native key-format
+validation still permits a canonical weak encoding; verification refuses it
+after the signature-width check, preserving the existing error precedence.
+The Ed25519 library's own strict checks remain in the selected primitive.
+
+`LowContract.guard_refines` proves the concrete 64-byte P-256 scalar guard is
+total and returns exactly `s <= floor(n/2)` in big-endian numeric meaning.
+The constant is proved equal to half the secp256r1 order. A separate theorem
+shows the first 32 bytes cannot influence that decision. The source no longer
+uses an assumed low-S callback or a library-normalization decision for the
+Auths rule. Parser errors still precede low-S refusal.
+
+The Ed25519 coordinate comparator is proved equal to the decoded unsigned
+255-bit ordinate, preserving every coordinate bit and ignoring only the sign.
+The source weak-coordinate filter matches the independent numeric set. Its
+combination with the canonical point-form guard excludes the eight canonical
+weak encodings. The R checker recovers exactly the first 32 signature bytes
+and checks their canonical non-weak form. These results do not prove curve
+arithmetic or cryptographic security.
+
+`Strict.SuiteRefinement` proves both complete parameterized source algorithms
+return exactly the independent models, including each error class and its
+precedence. `Strict.SourceAcceptance` proves success iff independent accepted-
+input relations hold. The only primitive premises are the displayed exact
+total point-decoder, scalar-parser and equation contracts. No source success,
+trusted Auths guard flag, opaque Auths algorithm, custom crypto model or global
+crypto axiom is introduced. The extraction has 14 local function records and
+zero external function records.
+
+Nine native tests pass, including the published RFC public signature tuple,
+changed messages, noncanonical/non-weak keys, all eight canonical weak points,
+P-256 boundary/normalizer parity and a mathematically valid high-S tuple.
+Call-order witnesses use explicit mocks that would accept everything: weak
+Ed25519 input and high-S P-256 input never reach that equation, while admitted
+form forwards the exact key, message and signature/parser result. Mock success
+is not evidence of signature authenticity. Focused Clippy passes.
+
+The construction audit passes 536 statements with all previous 500 full
+records unchanged. Eight kernel guard examples include exact half-order,
+just-above-half, maximum scalar, canonical weak coordinate and accepted/refused
+R forms. An allowed form (including zero s) alone grants no authority.
+Exact-source qualification passes all 12 cases, native parity and two byte-identical fresh translations, with all 536 compiled claims and eleven reviewed models, zero unreviewed models and zero compiled external axioms. The source closure is `c9c3f9ef750e8cce0f39656f549dd1e8d351354434bf0416c87a9e45bfe98e35`. Hosted gates remain required on the exact pushed revision.
+The concrete library-leaf/default-wrapper correspondence, suite/principal
+dispatch, caller unsigned-object construction, complete commitment integration
+and E5 as a whole remain open, along with the other AP-SPEC-069 workstreams.

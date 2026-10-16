@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "32d7f26e12ef7b24ec82d6a6718ffebf765d1efa4d1d42cf54f1e9df0f2c07f4";
+    "7262100a415726f1ba0015ce22b8f4662a9b2bfd00bbeef745aa0b5054ab1573";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -691,6 +691,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "composition-recursive-loops-v1",
             "signature-recursive-loops-v1",
             "composition-unit-callback-return-v1",
+            "signature-qualified-discriminants-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -2193,7 +2194,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_signature_core::ed25519_point_encoding_is_canonical,auths_signature_core::p256_key_encoding_is_canonical",
+            "auths_signature_core::verify_ed25519_with,auths_signature_core::decode_ed25519_key_with,auths_signature_core::verify_p256_sha256_with",
             &stable_llbc.join("auths_signature_core.llbc"),
             "core/crates/auths-signature-core/Cargo.toml",
             &[],
@@ -2458,6 +2459,7 @@ fn reproduce(
             .map_err(|error| format!("could not remove raw nondeterministic LLBC: {error}"))?;
     }
     normalize_composition_discriminants(output)?;
+    normalize_signature_discriminants(output)?;
     Ok(())
 }
 
@@ -2504,6 +2506,28 @@ fn normalize_unit_observer_dictionary(source: &str) -> Result<String, String> {
             "import Aeneas\nimport Auths.Support.UnitCallback\n",
         )
         .replace(ORIGINAL, ADAPTED))
+}
+
+// Two signature-error enums share discriminant values with other extracted
+// modules. Qualify only the generated instance names; preserve all types and
+// translated Rust function bodies.
+fn normalize_signature_discriminants(output: &Path) -> Result<(), String> {
+    let path = output.join("signature-run/qualification/aeneas/generated/signature/Types.lean");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read signature types: {error}"))?;
+    if source.matches("discriminant isize").count() != 2
+        || source.matches("import Aeneas\n").count() != 1
+        || source.contains("qualified_discriminant")
+    {
+        return Err("signature discriminant normalization input drifted".to_owned());
+    }
+    let normalized = source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize");
+    fs::write(path, normalized).map_err(|error| format!("could not write signature types: {error}"))
 }
 
 fn charon_arguments(

@@ -1,6 +1,398 @@
 {
   "declarations": [
     {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.ByteLex",
+      "name": "Auths.Crypto.ByteLex.value_bound",
+      "statement": "∀ (bytes : List Aeneas.Std.U8), Auths.Crypto.ByteLex.value bytes < 256 ^ bytes.length"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.ByteLex",
+      "name": "Auths.Crypto.ByteLex.value_cons",
+      "statement": "∀ (head : Aeneas.Std.U8) (tail : List Aeneas.Std.U8),\n  Auths.Crypto.ByteLex.value (head :: tail) = ↑head * 256 ^ tail.length + Auths.Crypto.ByteLex.value tail"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.ByteLex",
+      "name": "Auths.Crypto.ByteLex.le_numeric",
+      "statement": "∀ (left right : List Aeneas.Std.U8),\n  left.length = right.length →\n    (Auths.Crypto.ByteLex.le left right = true ↔ Auths.Crypto.ByteLex.value left ≤ Auths.Crypto.ByteLex.value right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.LowScan",
+      "name": "Auths.Crypto.LowScan.loop_refines",
+      "statement": "∀ (input : Auths.Crypto.LowScan.Input) (remaining : ℕ) (index : Aeneas.Std.Usize),\n  ↑index + remaining = 32 →\n    Aeneas.Std.WP.spec (auths_signature_core.p256_signature_is_low_s_loop input index) fun result =>\n      result =\n        Auths.Crypto.ByteLex.le (List.drop (32 + ↑index) ↑input)\n          (List.drop ↑index ↑auths_signature_core.P256_HALF_ORDER)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.LowContract",
+      "name": "Auths.Crypto.LowContract.half_order_exact",
+      "statement": "Auths.Crypto.ByteLex.value ↑auths_signature_core.P256_HALF_ORDER = Auths.Crypto.LowContract.order / 2"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.LowContract",
+      "name": "Auths.Crypto.LowContract.guard_refines",
+      "statement": "∀ (input : Auths.Crypto.LowScan.Input),\n  auths_signature_core.p256_signature_is_low_s input =\n    Aeneas.Std.Result.ok\n      (decide (Auths.Crypto.ByteLex.value (List.drop 32 ↑input) ≤ Auths.Crypto.LowContract.order / 2))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.LowContract",
+      "name": "Auths.Crypto.LowContract.r_bytes_irrelevant",
+      "statement": "∀ (left right : Auths.Crypto.LowScan.Input),\n  List.drop 32 ↑left = List.drop 32 ↑right →\n    auths_signature_core.p256_signature_is_low_s left = auths_signature_core.p256_signature_is_low_s right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.CoordinateModel",
+      "name": "Auths.Crypto.CoordinateModel.ordinate_eq_iff",
+      "statement": "∀ (input expected : Auths.Crypto.Encoding.Encoded.Input),\n  Auths.Crypto.Encoding.Encoded.ordinate input = Auths.Crypto.Encoding.Encoded.ordinate expected ↔\n    List.take 31 ↑input = List.take 31 ↑expected ∧\n      ↑(Auths.Crypto.Encoding.Encoded.last input) % 128 = ↑(Auths.Crypto.Encoding.Encoded.last expected) % 128"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.CoordinateScan",
+      "name": "Auths.Crypto.CoordinateScan.loop_refines",
+      "statement": "∀ (input expected : Auths.Crypto.Encoding.Encoded.Input) (remaining : ℕ) (index : Aeneas.Std.Usize),\n  ↑index + remaining = 31 →\n    Aeneas.Std.WP.spec (auths_signature_core.ed25519_same_coordinate_loop input expected index) fun result =>\n      result = decide (List.take remaining (List.drop ↑index ↑input) = List.take remaining (List.drop ↑index ↑expected))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.CoordinateContract",
+      "name": "Auths.Crypto.CoordinateContract.guard_refines",
+      "statement": "∀ (input expected : Auths.Crypto.Encoding.Encoded.Input),\n  auths_signature_core.ed25519_same_coordinate input expected =\n    Aeneas.Std.Result.ok\n      (decide (Auths.Crypto.Encoding.Encoded.ordinate input = Auths.Crypto.Encoding.Encoded.ordinate expected))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.WeakContract",
+      "name": "Auths.Crypto.WeakContract.zero_value",
+      "statement": "Auths.Crypto.Encoding.Encoded.ordinate auths_signature_core.ED25519_WEAK_ZERO = 0"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.WeakContract",
+      "name": "Auths.Crypto.WeakContract.one_value",
+      "statement": "Auths.Crypto.Encoding.Encoded.ordinate auths_signature_core.ED25519_WEAK_ONE = 1"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.WeakContract",
+      "name": "Auths.Crypto.WeakContract.minus_one_value",
+      "statement": "Auths.Crypto.Encoding.Encoded.ordinate auths_signature_core.ED25519_WEAK_MINUS_ONE =\n  Auths.Crypto.Encoding.Coordinate.prime - 1"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.WeakContract",
+      "name": "Auths.Crypto.WeakContract.order_eight_a_value",
+      "statement": "Auths.Crypto.Encoding.Encoded.ordinate auths_signature_core.ED25519_WEAK_ORDER_EIGHT_A =\n  Auths.Crypto.WeakContract.orderEightY"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.WeakContract",
+      "name": "Auths.Crypto.WeakContract.order_eight_b_value",
+      "statement": "Auths.Crypto.Encoding.Encoded.ordinate auths_signature_core.ED25519_WEAK_ORDER_EIGHT_B =\n  Auths.Crypto.Encoding.Coordinate.prime - Auths.Crypto.WeakContract.orderEightY"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.WeakContract",
+      "name": "Auths.Crypto.WeakContract.guard_refines",
+      "statement": "∀ (input : Auths.Crypto.Encoding.Encoded.Input),\n  auths_signature_core.ed25519_has_small_order_coordinate input =\n    Aeneas.Std.Result.ok\n      (decide (Auths.Crypto.WeakContract.WeakCoordinate (Auths.Crypto.Encoding.Encoded.ordinate input)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.RContract",
+      "name": "Auths.Crypto.RContract.guard_refines",
+      "statement": "∀ (input : Auths.Crypto.RContract.Input),\n  auths_signature_core.ed25519_signature_r_is_allowed input =\n    Aeneas.Std.Result.ok (decide (Auths.Crypto.RContract.Allowed input))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SuiteRefinement",
+      "name": "Auths.Crypto.Strict.SuiteRefinement.key_encoding_refines",
+      "statement": "∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n  auths_signature_core.ed25519_key_encoding bytes =\n    Aeneas.Std.Result.ok (Auths.Crypto.Strict.SuiteModel.sourceEd (Auths.Crypto.Strict.SuiteModel.keyEncoding ↑bytes))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SuiteRefinement",
+      "name": "Auths.Crypto.Strict.SuiteRefinement.decode_ed25519_refines",
+      "statement": "∀ {K D : Type} (primitive : Aeneas.Std.core.ops.function.FnOnce D (Aeneas.Std.Array Aeneas.Std.U8 32#usize) (Option K))\n  (decoder : D) (decode : List Aeneas.Std.U8 → Option K),\n  (∀ (array : Aeneas.Std.Array Aeneas.Std.U8 32#usize),\n      primitive.call_once decoder array = Aeneas.Std.Result.ok (decode ↑array)) →\n    ∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      auths_signature_core.decode_ed25519_key_with primitive bytes decoder =\n        Aeneas.Std.Result.ok\n          (Auths.Crypto.Strict.SuiteModel.sourceEd (Auths.Crypto.Strict.SuiteModel.edKey decode ↑bytes))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SuiteRefinement",
+      "name": "Auths.Crypto.Strict.SuiteRefinement.decode_p256_refines",
+      "statement": "∀ {K D : Type} (primitive : Aeneas.Std.core.ops.function.FnOnce D (Aeneas.Std.Slice Aeneas.Std.U8) (Option K))\n  (decoder : D) (decode : List Aeneas.Std.U8 → Option K),\n  (∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      primitive.call_once decoder bytes = Aeneas.Std.Result.ok (decode ↑bytes)) →\n    ∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      auths_signature_core.decode_p256_key_with primitive bytes decoder =\n        Aeneas.Std.Result.ok\n          (Auths.Crypto.Strict.SuiteModel.sourceP256 (Auths.Crypto.Strict.SuiteModel.p256Key decode ↑bytes))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SuiteRefinement",
+      "name": "Auths.Crypto.Strict.SuiteRefinement.verify_ed25519_refines",
+      "statement": "∀ {K D V : Type}\n  (decoderPrimitive : Aeneas.Std.core.ops.function.FnOnce D (Aeneas.Std.Array Aeneas.Std.U8 32#usize) (Option K))\n  (verifierPrimitive :\n    Aeneas.Std.core.ops.function.FnOnce V (K × Aeneas.Std.Slice Aeneas.Std.U8 × Aeneas.Std.Array Aeneas.Std.U8 64#usize)\n      Bool)\n  (decoder : D) (verifier : V) (decode : List Aeneas.Std.U8 → Option K)\n  (equation : K → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  (∀ (array : Aeneas.Std.Array Aeneas.Std.U8 32#usize),\n      decoderPrimitive.call_once decoder array = Aeneas.Std.Result.ok (decode ↑array)) →\n    (∀ (key : K) (message : Aeneas.Std.Slice Aeneas.Std.U8) (signature : Aeneas.Std.Array Aeneas.Std.U8 64#usize),\n        verifierPrimitive.call_once verifier (key, message, signature) =\n          Aeneas.Std.Result.ok (equation key ↑message ↑signature)) →\n      ∀ (bytes message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n        auths_signature_core.verify_ed25519_with decoderPrimitive verifierPrimitive bytes message signature decoder\n            verifier =\n          Aeneas.Std.Result.ok\n            (Auths.Crypto.Strict.SuiteModel.sourceEd\n              (Auths.Crypto.Strict.SuiteModel.edVerify decode equation ↑bytes ↑message ↑signature))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SuiteRefinement",
+      "name": "Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines",
+      "statement": "∀ {K S D P V : Type}\n  (decoderPrimitive : Aeneas.Std.core.ops.function.FnOnce D (Aeneas.Std.Slice Aeneas.Std.U8) (Option K))\n  (parserPrimitive : Aeneas.Std.core.ops.function.FnOnce P (Aeneas.Std.Array Aeneas.Std.U8 64#usize) (Option S))\n  (verifierPrimitive : Aeneas.Std.core.ops.function.FnOnce V (K × Aeneas.Std.Slice Aeneas.Std.U8 × S) Bool)\n  (decoder : D) (parser : P) (verifier : V) (decode : List Aeneas.Std.U8 → Option K)\n  (parse : List Aeneas.Std.U8 → Option S) (equation : K → List Aeneas.Std.U8 → S → Bool),\n  (∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      decoderPrimitive.call_once decoder bytes = Aeneas.Std.Result.ok (decode ↑bytes)) →\n    (∀ (array : Aeneas.Std.Array Aeneas.Std.U8 64#usize),\n        parserPrimitive.call_once parser array = Aeneas.Std.Result.ok (parse ↑array)) →\n      (∀ (key : K) (message : Aeneas.Std.Slice Aeneas.Std.U8) (signature : S),\n          verifierPrimitive.call_once verifier (key, message, signature) =\n            Aeneas.Std.Result.ok (equation key (↑message) signature)) →\n        ∀ (bytes message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n          auths_signature_core.verify_p256_sha256_with decoderPrimitive parserPrimitive verifierPrimitive bytes message\n              signature decoder parser verifier =\n            Aeneas.Std.Result.ok\n              (Auths.Crypto.Strict.SuiteModel.sourceP256\n                (Auths.Crypto.Strict.SuiteModel.p256Verify decode parse equation ↑bytes ↑message ↑signature))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Acceptance",
+      "name": "Auths.Crypto.Strict.Acceptance.key_encoding_accepts_iff",
+      "statement": "∀ (bytes : List Aeneas.Std.U8) (encoded : Auths.Crypto.Encoding.Encoded.Input),\n  Auths.Crypto.Strict.SuiteModel.keyEncoding bytes = Except.ok encoded ↔\n    ↑encoded = bytes ∧ Auths.Crypto.Encoding.Encoded.Encoding encoded"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Acceptance",
+      "name": "Auths.Crypto.Strict.Acceptance.p256_key_accepts_iff",
+      "statement": "∀ {K : Type} (decode : List Aeneas.Std.U8 → Option K) (bytes : List Aeneas.Std.U8) (point : K),\n  Auths.Crypto.Strict.SuiteModel.p256Key decode bytes = Except.ok point ↔\n    Auths.Crypto.Encoding.P256.Encoding (List.map Aeneas.Std.UScalar.val bytes) ∧ decode bytes = some point"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Acceptance",
+      "name": "Auths.Crypto.Strict.Acceptance.ed_accepts_iff",
+      "statement": "∀ {K : Type} (decode : List Aeneas.Std.U8 → Option K) (equation : K → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool)\n  (key message signature : List Aeneas.Std.U8),\n  Auths.Crypto.Strict.SuiteModel.edVerify decode equation key message signature = Except.ok () ↔\n    Auths.Crypto.Strict.Acceptance.EdAccepts decode equation key message signature"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Acceptance",
+      "name": "Auths.Crypto.Strict.Acceptance.p256_accepts_iff",
+      "statement": "∀ {K S : Type} (decode : List Aeneas.Std.U8 → Option K) (parse : List Aeneas.Std.U8 → Option S)\n  (equation : K → List Aeneas.Std.U8 → S → Bool) (key message signature : List Aeneas.Std.U8),\n  Auths.Crypto.Strict.SuiteModel.p256Verify decode parse equation key message signature = Except.ok () ↔\n    Auths.Crypto.Strict.Acceptance.P256Accepts decode parse equation key message signature"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SourceAcceptance",
+      "name": "Auths.Crypto.Strict.SourceAcceptance.ed_source_accepts_iff",
+      "statement": "∀ {K D V : Type}\n  (decoderPrimitive : Aeneas.Std.core.ops.function.FnOnce D (Aeneas.Std.Array Aeneas.Std.U8 32#usize) (Option K))\n  (verifierPrimitive :\n    Aeneas.Std.core.ops.function.FnOnce V (K × Aeneas.Std.Slice Aeneas.Std.U8 × Aeneas.Std.Array Aeneas.Std.U8 64#usize)\n      Bool)\n  (decoder : D) (verifier : V) (decode : List Aeneas.Std.U8 → Option K)\n  (equation : K → List Aeneas.Std.U8 → List Aeneas.Std.U8 → Bool),\n  (∀ (array : Aeneas.Std.Array Aeneas.Std.U8 32#usize),\n      decoderPrimitive.call_once decoder array = Aeneas.Std.Result.ok (decode ↑array)) →\n    (∀ (key : K) (message : Aeneas.Std.Slice Aeneas.Std.U8) (signature : Aeneas.Std.Array Aeneas.Std.U8 64#usize),\n        verifierPrimitive.call_once verifier (key, message, signature) =\n          Aeneas.Std.Result.ok (equation key ↑message ↑signature)) →\n      ∀ (bytes message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n        auths_signature_core.verify_ed25519_with decoderPrimitive verifierPrimitive bytes message signature decoder\n              verifier =\n            Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) ↔\n          Auths.Crypto.Strict.Acceptance.EdAccepts decode equation ↑bytes ↑message ↑signature"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.SourceAcceptance",
+      "name": "Auths.Crypto.Strict.SourceAcceptance.p256_source_accepts_iff",
+      "statement": "∀ {K S D P V : Type}\n  (decoderPrimitive : Aeneas.Std.core.ops.function.FnOnce D (Aeneas.Std.Slice Aeneas.Std.U8) (Option K))\n  (parserPrimitive : Aeneas.Std.core.ops.function.FnOnce P (Aeneas.Std.Array Aeneas.Std.U8 64#usize) (Option S))\n  (verifierPrimitive : Aeneas.Std.core.ops.function.FnOnce V (K × Aeneas.Std.Slice Aeneas.Std.U8 × S) Bool)\n  (decoder : D) (parser : P) (verifier : V) (decode : List Aeneas.Std.U8 → Option K)\n  (parse : List Aeneas.Std.U8 → Option S) (equation : K → List Aeneas.Std.U8 → S → Bool),\n  (∀ (bytes : Aeneas.Std.Slice Aeneas.Std.U8),\n      decoderPrimitive.call_once decoder bytes = Aeneas.Std.Result.ok (decode ↑bytes)) →\n    (∀ (array : Aeneas.Std.Array Aeneas.Std.U8 64#usize),\n        parserPrimitive.call_once parser array = Aeneas.Std.Result.ok (parse ↑array)) →\n      (∀ (key : K) (message : Aeneas.Std.Slice Aeneas.Std.U8) (signature : S),\n          verifierPrimitive.call_once verifier (key, message, signature) =\n            Aeneas.Std.Result.ok (equation key (↑message) signature)) →\n        ∀ (bytes message signature : Aeneas.Std.Slice Aeneas.Std.U8),\n          auths_signature_core.verify_p256_sha256_with decoderPrimitive parserPrimitive verifierPrimitive bytes message\n                signature decoder parser verifier =\n              Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ()) ↔\n            Auths.Crypto.Strict.Acceptance.P256Accepts decode parse equation ↑bytes ↑message ↑signature"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.zero_s_form_allowed",
+      "statement": "auths_signature_core.p256_signature_is_low_s Auths.Crypto.Strict.Examples.zero = Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.half_s_form_allowed",
+      "statement": "auths_signature_core.p256_signature_is_low_s Auths.Crypto.Strict.Examples.half = Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.above_half_s_refused",
+      "statement": "auths_signature_core.p256_signature_is_low_s Auths.Crypto.Strict.Examples.aboveHalf = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.maximum_s_refused",
+      "statement": "auths_signature_core.p256_signature_is_low_s Auths.Crypto.Strict.Examples.maximum = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.identity_coordinate_is_weak",
+      "statement": "auths_signature_core.ed25519_has_small_order_coordinate Auths.Crypto.Encoding.Examples.canonicalIdentity =\n  Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.published_key_coordinate_is_not_weak",
+      "statement": "auths_signature_core.ed25519_has_small_order_coordinate Auths.Crypto.Encoding.Examples.rfcPublicKey =\n  Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.weak_r_form_refused",
+      "statement": "auths_signature_core.ed25519_signature_r_is_allowed Auths.Crypto.Strict.Examples.zero = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Strict.Examples",
+      "name": "Auths.Crypto.Strict.Examples.public_r_form_allowed",
+      "statement": "auths_signature_core.ed25519_signature_r_is_allowed Auths.Crypto.Strict.Examples.publicR = Aeneas.Std.Result.ok true"
+    },
+    {
       "axioms": [],
       "kind": "theorem",
       "module": "Auths.Support.UnitCallback",

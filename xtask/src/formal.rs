@@ -2005,6 +2005,30 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "Every typed Result value, including failure, divergence and success, with arbitrary state. Erasing and restoring the unit output are mutual inverses. This is a representation theorem, not a substitute callback algorithm or an authorization claim.".to_owned();
         }
+        if [
+            "Auths.Crypto.ByteLex.",
+            "Auths.Crypto.CoordinateModel.",
+            "Auths.Crypto.LowContract.half_order_exact",
+            "Auths.Crypto.WeakContract.zero_value",
+            "Auths.Crypto.WeakContract.one_value",
+            "Auths.Crypto.WeakContract.minus_one_value",
+            "Auths.Crypto.WeakContract.order_eight_a_value",
+            "Auths.Crypto.WeakContract.order_eight_b_value",
+            "Auths.Crypto.Strict.Acceptance.",
+        ]
+        .iter()
+        .any(|prefix| declaration.name.starts_with(prefix))
+        {
+            claim.claim_text = format!(
+                "The independent numeric/relational signature model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the displayed property")
+            );
+            claim.scope = "The displayed bounded bytes or arbitrary finite byte lists and explicit primitive specification functions. Byte order equals unsigned numeric order at equal width; constants have the declared values; accepted-input relations are independent of source success and characterize the transparent model in both directions. This is model/representation evidence, not cryptographic primitive correctness, native adapter binding, full dispatch or complete E5 assurance.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2317,8 +2341,12 @@ const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/com
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    signature_encoding_refinement_metadata(declaration)
+    strict_signature_refinement_metadata(declaration)
         .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+        .or_else(|| {
+            signature_encoding_refinement_metadata(declaration)
+                .map(|metadata| (metadata, SIGNATURE_TRANSLATION))
+        })
         .or_else(|| {
             composition_refinement_metadata(declaration)
                 .map(|metadata| (metadata, COMPOSITION_TRANSLATION))
@@ -2360,6 +2388,158 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn strict_signature_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the listed foundations and pinned transparent array/slice/range/word/FnOnce models are trusted. This signature extraction adds no custom crypto model, opaque Auths algorithm, external function record or global primitive axiom.",
+        "Where present, exact total primitive call contracts are explicit theorem premises. They cover point recovery, scalar parsing and the selected exact-message signature equation; they do not cover Auths canonical, weak-point, fixed-width or low-S decisions, which are concrete proved source. The claims do not prove the primitive contracts, curve arithmetic, unforgeability or constant time.",
+        "The extracted parameterized functions are used by the native entry points. The concrete library-leaf/default-wrapper correspondence, suite/principal dispatch, caller unsigned-object construction, complete commitment integration and AP-SPEC-069 E5 as a whole remain separate obligations. No complete-verifier or authorization-to-execution claim follows from these component results.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Crypto.LowScan.loop_refines" => (
+            "The shipping P-256 scalar comparison loop terminates and returns the exact suffix comparison.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Every 64-byte array and index/remaining count summing to 32. Both scalar and bound reads are in range, additions cannot overflow, and the result equals the finite byte-order model. This is the bounded loop component.",
+        ),
+        "Auths.Crypto.LowContract.guard_refines" => (
+            "The shipping P-256 low-S guard is total and equals the exact numeric half-order condition.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Every represented 64-byte signature form, including zero/out-of-range r or s. The result is true iff the big-endian unsigned s bytes encode at most floor(n/2), for the stated secp256r1 order. Scalar validity and the equation remain primitive contracts.",
+        ),
+        "Auths.Crypto.LowContract.r_bytes_irrelevant" => (
+            "The shipping low-S decision is independent of every encoded r byte.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Every pair of represented 64-byte arrays with identical last 32 bytes. This is exact input noninterference of the scalar upper-bound decision, not signature validity.",
+        ),
+        "Auths.Crypto.CoordinateScan.loop_refines" => (
+            "The shipping Ed25519 coordinate scan is total and compares exactly the remaining coordinate bytes.",
+            &["auths_signature_core::ed25519_same_coordinate"],
+            "Every pair of represented 32-byte arrays and an index/remaining count summing to 31. The result is exact prefix equality; no point-validity assumption is used.",
+        ),
+        "Auths.Crypto.CoordinateContract.guard_refines" => (
+            "The shipping sign-masked Ed25519 coordinate comparator is total and returns exactly equality of independent numeric ordinates.",
+            &["auths_signature_core::ed25519_same_coordinate"],
+            "Every pair of 32-byte arrays, including malformed point forms. The sign bit is ignored and all 255 coordinate bits are preserved. This does not identify distinct non-weak public keys or validate a curve point.",
+        ),
+        "Auths.Crypto.WeakContract.guard_refines" => (
+            "The shipping Ed25519 weak-coordinate filter is total and equals the independent numeric weak-coordinate set.",
+            &[
+                "auths_signature_core::ed25519_has_small_order_coordinate",
+                "auths_signature_core::ed25519_same_coordinate",
+            ],
+            "Every 32-byte array. The set is y=0,1,p-1 and the two declared order-eight ordinates. Combining it with the separately proved canonical form selects the eight canonical weak encodings; invalid negative-zero forms are rejected by the form guard. No group-arithmetic or cryptographic-security claim is introduced.",
+        ),
+        "Auths.Crypto.RContract.guard_refines" => (
+            "The shipping Ed25519 R-form guard is total and accepts exactly a canonical non-weak encoded first point.",
+            &[
+                "auths_signature_core::ed25519_signature_r_is_allowed",
+                "auths_signature_core::ed25519_has_small_order_coordinate",
+            ],
+            "Every represented 64-byte signature form. The first 32 bytes are recovered losslessly and checked for numeric field/sign canonicality and the declared weak-coordinate set. Scalar range and the signature equation remain primitive responsibilities.",
+        ),
+        "Auths.Crypto.Strict.SuiteRefinement.key_encoding_refines" => (
+            "The shipping Ed25519 key-form decoder is total and refines the independent length/coordinate/sign contract with exact bytes and errors.",
+            &[
+                "auths_signature_core::ed25519_key_encoding",
+                "auths_signature_core::ed25519_point_encoding_is_canonical",
+            ],
+            "Every bounded byte slice. Success returns the identical 32 bytes with canonical field/sign form; every other form is InvalidKey. Point recovery is a subsequent primitive call.",
+        ),
+        "Auths.Crypto.Strict.SuiteRefinement.decode_ed25519_refines" => (
+            "The shipping parameterized Ed25519 key decoder agrees exactly with form validation followed by the named point decoder.",
+            &[
+                "auths_signature_core::decode_ed25519_key_with",
+                "auths_signature_core::ed25519_key_encoding",
+            ],
+            "Every bounded key slice and explicit point-decoder instance. Its exact total call contract is a theorem premise; error precedence and the bytes passed to it are fixed. This does not prove the native library decoder.",
+        ),
+        "Auths.Crypto.Strict.SuiteRefinement.decode_p256_refines" => (
+            "The shipping parameterized P-256 decoder agrees exactly with compressed-form validation followed by the named point decoder.",
+            &[
+                "auths_signature_core::decode_p256_key_with",
+                "auths_signature_core::p256_key_encoding_is_canonical",
+            ],
+            "Every bounded key slice and explicit point-decoder instance under its displayed total exact call contract. Length/tag refusal precedes point decoding; recovery and curve validity remain primitive responsibilities.",
+        ),
+        "Auths.Crypto.Strict.SuiteRefinement.verify_ed25519_refines" => (
+            "The complete shipping parameterized Ed25519 glue refines the independent key, width, weak-point, R-form and equation model with exact refusal precedence.",
+            &[
+                "auths_signature_core::verify_ed25519_with",
+                "auths_signature_core::ed25519_key_encoding",
+                "auths_signature_core::ed25519_signature_r_is_allowed",
+                "auths_signature_core::ed25519_has_small_order_coordinate",
+            ],
+            "Every bounded key/message/signature slice and native decoder/equation dictionaries. Only the displayed exact total point-decoder and equation contracts are premises. Canonical and weak-point guards are proved concrete source algorithms. The exact original message and signature reach the primitive on the admitted path.",
+        ),
+        "Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines" => (
+            "The complete shipping parameterized P-256 glue refines independent compressed-form, signature-width, parser, numeric low-S and equation semantics.",
+            &[
+                "auths_signature_core::verify_p256_sha256_with",
+                "auths_signature_core::decode_p256_key_with",
+                "auths_signature_core::p256_signature_is_low_s",
+            ],
+            "Every bounded key/message/signature slice and explicit point/scalar-parser/equation instances under their exact total call contracts. The scalar upper bound is a proved concrete byte comparison, not an assumed low-S callback. Parse failures retain precedence and the original message is passed unchanged.",
+        ),
+        "Auths.Crypto.Strict.SourceAcceptance.ed_source_accepts_iff" => (
+            "The shipping parameterized Ed25519 verifier succeeds iff the independent accepted-input relation holds.",
+            &["auths_signature_core::verify_ed25519_with"],
+            "Every bounded input under the displayed exact total primitive contracts. The relation separately binds key/signature bytes, canonical/non-weak forms, a decoded point and its exact-message equation. Both soundness and useful acceptance are proved; no source-verifier success is assumed.",
+        ),
+        "Auths.Crypto.Strict.SourceAcceptance.p256_source_accepts_iff" => (
+            "The shipping parameterized P-256 verifier succeeds iff the independent accepted-input relation holds.",
+            &["auths_signature_core::verify_p256_sha256_with"],
+            "Every bounded input under the displayed point-decoder, scalar-parser and equation contracts. The relation independently requires the compressed form, exact 64-byte width, numeric s at most floor(n/2), decoder/parser results and the exact-message equation. It proves both soundness and acceptance.",
+        ),
+        "Auths.Crypto.Strict.Examples.zero_s_form_allowed" => (
+            "A kernel-checked execution establishes the zero_s_form_allowed source-guard witness.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.half_s_form_allowed" => (
+            "A kernel-checked execution establishes the half_s_form_allowed source-guard witness.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.above_half_s_refused" => (
+            "A kernel-checked execution establishes the above_half_s_refused source-guard witness.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.maximum_s_refused" => (
+            "A kernel-checked execution establishes the maximum_s_refused source-guard witness.",
+            &["auths_signature_core::p256_signature_is_low_s"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.identity_coordinate_is_weak" => (
+            "A kernel-checked execution establishes the identity_coordinate_is_weak source-guard witness.",
+            &["auths_signature_core::ed25519_has_small_order_coordinate"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.published_key_coordinate_is_not_weak" => (
+            "A kernel-checked execution establishes the published_key_coordinate_is_not_weak source-guard witness.",
+            &["auths_signature_core::ed25519_has_small_order_coordinate"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.weak_r_form_refused" => (
+            "A kernel-checked execution establishes the weak_r_form_refused source-guard witness.",
+            &["auths_signature_core::ed25519_signature_r_is_allowed"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        "Auths.Crypto.Strict.Examples.public_r_form_allowed" => (
+            "A kernel-checked execution establishes the public_r_form_allowed source-guard witness.",
+            &["auths_signature_core::ed25519_signature_r_is_allowed"],
+            "Only the exact public byte form and guard output stated here. An allowed form, including zero s or an arbitrary r, is not a valid signature or an authorization claim; the library parser/equation remain separate.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn signature_encoding_refinement_metadata(

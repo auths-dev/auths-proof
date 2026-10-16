@@ -7,7 +7,7 @@
 At the commit that contains this document, 124 of 1,044 decision-scope functions (11.9%) and 1,490 of 11,535 code lines (12.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `c11def035af6258ade6e6b2569f895e891a093dce60556d67e305d9d4011449a` over the 107 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `8a871dfb3436627cf673427fa2350b8467cd686ba39abc337802beb4bd49d748` over the 107 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30`. Figures computed under a different role table are not comparable.
@@ -58,7 +58,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,044 | 124 (11.9%) | 66 (6.3%) | 124 (11.9%) | 11,535 | 1,490 (12.9%) | 1,007 (8.7%) | 1,490 (12.9%) |
 | verifier-core | 798 | 100 (12.5%) | 51 (6.4%) | 100 (12.5%) | 8,984 | 1,108 (12.3%) | 709 (7.9%) | 1,108 (12.3%) |
-| translated-crates | 1,535 | 295 (19.2%) | 94 (6.1%) | 295 (19.2%) | 16,981 | 3,272 (19.3%) | 1,409 (8.3%) | 3,272 (19.3%) |
+| translated-crates | 1,549 | 304 (19.6%) | 103 (6.6%) | 304 (19.6%) | 17,121 | 3,403 (19.9%) | 1,540 (9.0%) | 3,403 (19.9%) |
 | verifier-closure | 1,140 | 165 (14.5%) | 59 (5.2%) | 165 (14.5%) | 14,211 | 1,619 (11.4%) | 891 (6.3%) | 1,619 (11.4%) |
 | decision-nontrivial | 453 | 94 (20.8%) | 53 (11.7%) | 94 (20.8%) | 9,762 | 1,400 (14.3%) | 968 (9.9%) | 1,400 (14.3%) |
 
@@ -187,7 +187,7 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `09270308b425a52ab6353fc70e33a924268ac2e7c1d19a8e7834c008c470252d`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `9ca2471af80804f3e529933b46ceef658aad9dfee5a7cb6f2328403d08f3512e`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -200,7 +200,7 @@ None: every function Aeneas translates is in the refined closure.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 84 exact, 4 verdict-exact, 37 partial, 33 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 93 exact, 6 verdict-exact, 40 partial, 41 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 123 of 1,044 functions (11.8%) and 1,487 of 11,535 code lines (12.9%).
 
@@ -261,6 +261,8 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Composition.ValidationPublic.public_evaluator_refines` | exact |
 | `Auths.Composition.Work.source_event_count` | partial |
 | `Auths.Composition.Work.source_leaf_order` | partial |
+| `Auths.Crypto.CoordinateContract.guard_refines` | exact |
+| `Auths.Crypto.CoordinateScan.loop_refines` | partial |
 | `Auths.Crypto.Encoding.Ed25519.guard_refines` | verdict-exact |
 | `Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted` | case |
 | `Auths.Crypto.Encoding.Examples.compressed_form_accepted` | case |
@@ -274,12 +276,32 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Crypto.Encoding.Scan.loop_refines` | partial |
 | `Auths.Crypto.Examples.minimal_preimage_exact` | case |
 | `Auths.Crypto.Examples.unicode_preimage_exact` | case |
+| `Auths.Crypto.LowContract.guard_refines` | exact |
+| `Auths.Crypto.LowContract.r_bytes_irrelevant` | partial |
+| `Auths.Crypto.LowScan.loop_refines` | partial |
+| `Auths.Crypto.RContract.guard_refines` | exact |
 | `Auths.Crypto.Refinement.accepted_frame_valid` | partial |
 | `Auths.Crypto.Refinement.accepted_preimages_bind_inputs` | partial |
 | `Auths.Crypto.Refinement.object_domains_separate` | partial |
 | `Auths.Crypto.Refinement.preimage_length_exact` | partial |
 | `Auths.Crypto.Refinement.profile_limit_refused` | partial |
 | `Auths.Crypto.Refinement.signing_preimage_exact` | partial |
+| `Auths.Crypto.Strict.Examples.above_half_s_refused` | case |
+| `Auths.Crypto.Strict.Examples.half_s_form_allowed` | case |
+| `Auths.Crypto.Strict.Examples.identity_coordinate_is_weak` | case |
+| `Auths.Crypto.Strict.Examples.maximum_s_refused` | case |
+| `Auths.Crypto.Strict.Examples.public_r_form_allowed` | case |
+| `Auths.Crypto.Strict.Examples.published_key_coordinate_is_not_weak` | case |
+| `Auths.Crypto.Strict.Examples.weak_r_form_refused` | case |
+| `Auths.Crypto.Strict.Examples.zero_s_form_allowed` | case |
+| `Auths.Crypto.Strict.SourceAcceptance.ed_source_accepts_iff` | verdict-exact |
+| `Auths.Crypto.Strict.SourceAcceptance.p256_source_accepts_iff` | verdict-exact |
+| `Auths.Crypto.Strict.SuiteRefinement.decode_ed25519_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.decode_p256_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.key_encoding_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.verify_ed25519_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines` | exact |
+| `Auths.Crypto.WeakContract.guard_refines` | exact |
 | `Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_replay_refines_rich` | exact |

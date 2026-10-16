@@ -315,3 +315,22 @@ handwritten Rust functions. Eleven reviewed library/representation models
 introduce zero compiled external axioms. Exact-source qualification passes
 12/12 cases, native parity, two identical fresh translations and the compiled
 500-statement audit. Hosted verification remains required on this revision.
+
+
+### Concrete strict signature glue
+
+`Auths.Crypto.Strict` proves the shipping parameterized Ed25519 and P-256
+algorithms against independent accepted-input relations under explicit exact
+total primitive contracts. Canonical key form, width, weak-coordinate/R form,
+numeric low-S, error order and exact message forwarding are concrete source
+properties. P-256's low-S decision is an extracted bounded byte comparison;
+it is not a primitive premise. Both accepted-input equivalences include
+useful acceptance as well as soundness.
+
+The 14-function signature extraction has no external function record, opaque
+Auths algorithm or custom crypto model. The construction audit has 536
+statements with all prior 500 full records unchanged and only the existing
+foundations. Eight kernel examples are form/guard witnesses, not claims of
+signature authenticity. Concrete native-library/default-wrapper binding,
+suite/principal dispatch, caller preimages and complete commitments remain
+E5 obligations. Fresh qualification passes all 12 cases, native parity and two byte-identical translations with all 536 audited statements and no additional axioms. Hosted evidence remains required on the exact pushed revision.

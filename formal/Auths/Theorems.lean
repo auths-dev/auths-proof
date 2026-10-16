@@ -1,3 +1,4 @@
+import Auths.Crypto.Strict.Examples
 import Auths.Composition.FacadeExamples
 import Auths.Crypto.Encoding.Examples
 import Auths.Composition.ValidationExamples
@@ -41,6 +42,42 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.ByteLex.value_bound,
+    `Auths.Crypto.ByteLex.value_cons,
+    `Auths.Crypto.ByteLex.le_numeric,
+    `Auths.Crypto.LowScan.loop_refines,
+    `Auths.Crypto.LowContract.half_order_exact,
+    `Auths.Crypto.LowContract.guard_refines,
+    `Auths.Crypto.LowContract.r_bytes_irrelevant,
+    `Auths.Crypto.CoordinateModel.ordinate_eq_iff,
+    `Auths.Crypto.CoordinateScan.loop_refines,
+    `Auths.Crypto.CoordinateContract.guard_refines,
+    `Auths.Crypto.WeakContract.zero_value,
+    `Auths.Crypto.WeakContract.one_value,
+    `Auths.Crypto.WeakContract.minus_one_value,
+    `Auths.Crypto.WeakContract.order_eight_a_value,
+    `Auths.Crypto.WeakContract.order_eight_b_value,
+    `Auths.Crypto.WeakContract.guard_refines,
+    `Auths.Crypto.RContract.guard_refines,
+    `Auths.Crypto.Strict.SuiteRefinement.key_encoding_refines,
+    `Auths.Crypto.Strict.SuiteRefinement.decode_ed25519_refines,
+    `Auths.Crypto.Strict.SuiteRefinement.decode_p256_refines,
+    `Auths.Crypto.Strict.SuiteRefinement.verify_ed25519_refines,
+    `Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines,
+    `Auths.Crypto.Strict.Acceptance.key_encoding_accepts_iff,
+    `Auths.Crypto.Strict.Acceptance.p256_key_accepts_iff,
+    `Auths.Crypto.Strict.Acceptance.ed_accepts_iff,
+    `Auths.Crypto.Strict.Acceptance.p256_accepts_iff,
+    `Auths.Crypto.Strict.SourceAcceptance.ed_source_accepts_iff,
+    `Auths.Crypto.Strict.SourceAcceptance.p256_source_accepts_iff,
+    `Auths.Crypto.Strict.Examples.zero_s_form_allowed,
+    `Auths.Crypto.Strict.Examples.half_s_form_allowed,
+    `Auths.Crypto.Strict.Examples.above_half_s_refused,
+    `Auths.Crypto.Strict.Examples.maximum_s_refused,
+    `Auths.Crypto.Strict.Examples.identity_coordinate_is_weak,
+    `Auths.Crypto.Strict.Examples.published_key_coordinate_is_not_weak,
+    `Auths.Crypto.Strict.Examples.weak_r_form_refused,
+    `Auths.Crypto.Strict.Examples.public_r_form_allowed,
     `Auths.Support.UnitCallback.erase_restore,
     `Auths.Support.UnitCallback.restore_erase,
     `Auths.Composition.Facade.event_outcome_exact,

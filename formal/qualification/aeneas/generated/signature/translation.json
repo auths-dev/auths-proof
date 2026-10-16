@@ -4,7 +4,7 @@
   "crate": "auths_signature_core",
   "functions": [
     {
-      "def_id": 0,
+      "def_id": 11,
       "lean_name": "auths_signature_core.ed25519_point_encoding_is_canonical_loop",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::ed25519_point_encoding_is_canonical",
@@ -29,7 +29,7 @@
       "parent_lean_name": "auths_signature_core.ed25519_point_encoding_is_canonical"
     },
     {
-      "def_id": 0,
+      "def_id": 11,
       "lean_name": "auths_signature_core.ed25519_point_encoding_is_canonical",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::ed25519_point_encoding_is_canonical",
@@ -46,7 +46,7 @@
       "reducible": false
     },
     {
-      "def_id": 1,
+      "def_id": 18,
       "lean_name": "auths_signature_core.p256_key_encoding_is_canonical",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::p256_key_encoding_is_canonical",
@@ -61,12 +61,240 @@
       "can_diverge": false,
       "is_rec": false,
       "reducible": false
-    }
-  ],
-  "types": [],
-  "globals": [
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_signature_core.p256_signature_is_low_s_loop",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::p256_signature_is_low_s",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 1,
+        "end_line": 69
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": true,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_signature_core.p256_signature_is_low_s"
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_signature_core.p256_signature_is_low_s",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::p256_signature_is_low_s",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 55,
+        "end_line": 69
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_signature_core.ed25519_same_coordinate_loop",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ed25519_same_coordinate",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 76,
+        "end_line": 83
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": true,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_signature_core.ed25519_same_coordinate"
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_signature_core.ed25519_same_coordinate",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ed25519_same_coordinate",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 71,
+        "end_line": 83
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 7,
+      "lean_name": "auths_signature_core.ed25519_has_small_order_coordinate",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ed25519_has_small_order_coordinate",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 110,
+        "end_line": 116
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_signature_core.ed25519_signature_r_is_allowed",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ed25519_signature_r_is_allowed",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 118,
+        "end_line": 124
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_signature_core.ed25519_key_encoding",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ed25519_key_encoding",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 182,
+        "end_line": 190
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_signature_core.decode_ed25519_key_with",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::decode_ed25519_key_with",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 192,
+        "end_line": 201
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
     {
       "def_id": 0,
+      "lean_name": "auths_signature_core.verify_ed25519_with",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::verify_ed25519_with",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 211,
+        "end_line": 238
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_signature_core.decode_p256_key_with",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::decode_p256_key_with",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 286,
+        "end_line": 297
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_signature_core.verify_p256_sha256_with",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::verify_p256_sha256_with",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 315,
+        "end_line": 344
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 2,
+      "lean_name": "auths_signature_core.Ed25519Error",
+      "lean_file": "qualification/aeneas/generated/signature/Types.lean",
+      "rust_name": "auths_signature_core::Ed25519Error",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 128,
+        "end_line": 135
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_signature_core.P256Error",
+      "lean_file": "qualification/aeneas/generated/signature/Types.lean",
+      "rust_name": "auths_signature_core::P256Error",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 151,
+        "end_line": 159
+      }
+    }
+  ],
+  "globals": [
+    {
+      "def_id": 9,
       "lean_name": "auths_signature_core.P256_KEY_LEN",
       "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
       "rust_name": "auths_signature_core::P256_KEY_LEN",
@@ -75,6 +303,84 @@
         "file": "core/crates/auths-signature-core/src/lib.rs",
         "begin_line": 14,
         "end_line": 14
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_signature_core.P256_HALF_ORDER",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::P256_HALF_ORDER",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 50,
+        "end_line": 53
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 12,
+      "lean_name": "auths_signature_core.ED25519_WEAK_ZERO",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ED25519_WEAK_ZERO",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 85,
+        "end_line": 88
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 13,
+      "lean_name": "auths_signature_core.ED25519_WEAK_ONE",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ED25519_WEAK_ONE",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 90,
+        "end_line": 93
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 14,
+      "lean_name": "auths_signature_core.ED25519_WEAK_MINUS_ONE",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ED25519_WEAK_MINUS_ONE",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 95,
+        "end_line": 98
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_signature_core.ED25519_WEAK_ORDER_EIGHT_A",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ED25519_WEAK_ORDER_EIGHT_A",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 100,
+        "end_line": 103
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_signature_core.ED25519_WEAK_ORDER_EIGHT_B",
+      "lean_file": "qualification/aeneas/generated/signature/Funs.lean",
+      "rust_name": "auths_signature_core::ED25519_WEAK_ORDER_EIGHT_B",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 105,
+        "end_line": 108
       },
       "can_fail": false
     }
