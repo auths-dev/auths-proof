@@ -1,7 +1,9 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
-- **Status:** Draft, 15 October 2026. This document specifies work; it does not
-  add a proved claim or change the status of an existing qualification.
+- **Status:** Implementation paused at a qualified component checkpoint,
+  16 October 2026, at the owner's request. E1–E5 and M6 remain incomplete.
+  See §13 for the saved state, evidence limits, and exact resume point. This
+  document does not itself add a proved claim.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
   narrowly authorized work without receiving the provider credential. Cover
@@ -751,3 +753,154 @@ tokenizer/constructor refinement slice. It must leave a positive accepted
 object and a meaningful malformed/bounds rejection proved against the exact
 shipping code. That is the starting point for the larger codec cutover,
 without claiming the other four enhancements have been completed.
+
+
+## 13. Pause checkpoint and resume instructions — 16 October 2026
+
+The owner requested a pause after a coherent checkpoint. Work is paused;
+there is no scheduled continuation. The implementation is substantial but is
+**not close to completing every requirement of this spec**. No E1–E5
+workstream or M6 is declared complete. The claim count below measures audited
+component statements, not a percentage of the end-to-end security promise.
+
+### 13.1 Saved branch and review state
+
+- Repository: `/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof`.
+- Branch: `codex/lean-enhancements`.
+- Latest implementation checkpoint: `cdb2c837995c507d051a239864aa8fef880ee192`
+  (`feat(formal): qualify selected temporal-witness expiry`).
+- Its preceding local checkpoint: `98adcfb5c358510f2729abe7c8eb2c2cddda0b32`
+  (`test(crypto): qualify shared independent P-256 corpus`).
+- Draft review: [PR 209](https://github.com/auths-dev/auths-proof/pull/209).
+  Do not merge on the strength of these component results.
+- At the pause check, the remote branch remains at
+  `59c56d5bf2a9db92b028fb430d997ff259e83ec2` (613-claim suite-adapter
+  checkpoint). The corpus and temporal checkpoints are saved locally and
+  have not been pushed, to avoid cancelling that revision's expensive
+  authoritative replay. Recheck the remote before publishing later work.
+- Unrelated research documents and two report PDFs are left untouched and
+  untracked. No partially applied status-selector refactor is left in the
+  production tree.
+
+### 13.2 Evidence achieved at this checkpoint
+
+The detailed component ledger is
+[AP_SPEC_069_STATUS.md](../assurance/AP_SPEC_069_STATUS.md). The executable
+claim inventory, full compiled statements and kernel constant references,
+exact source closures, and theorem kinds are committed under `formal/`.
+
+The latest construction qualification passes **634 compiled claims**, with
+all 613 preceding complete audit records unchanged. It passes **16/16
+qualification cases**, **22 reviewed external models**, zero unreviewed
+models, zero compiled external axioms, and two byte-identical fresh
+translations. The transitive axiom audit uses only `propext`,
+`Classical.choice`, and `Quot.sound`. Production source closure:
+`d0e1dba843ae5f0bba50a2b00cf8f779721756069e3bc1481feaab81d1b836d5`.
+The manifest separately binds the complete semantic/proof source closure.
+Release semantic-freeze and gateway semantic-closure artifacts are refreshed.
+
+Completed component boundaries include canonical CBOR heads, accepted action
+re-encoding/uniqueness, selected identifier validation, composition-plan
+validation/evaluation and facade projection, shared signing/commitment framing
+with exact bounds, native Ed25519/P-256 and one-shot SHA-256 integration under
+explicit primitive contracts, linked signature-suite verification adapters,
+collection/deadline leaves, and the new selected-witness expiry helpers.
+These do not constitute complete-object decoding or a complete verifier.
+
+The new temporal proofs cover the actual status decision/horizon and selected
+assurance-horizon helpers, loop termination, missing requirement/timestamp
+refusal, unbounded rules, inclusive endpoints, exact saturating addition and
+minimum expiry. Five focused native cases use validated constructors. **They
+are expiry-only claims:** they do not establish witness authenticity,
+selection by the full evaluator, observation-time ordering, satisfaction of
+all required policies, or runtime consumption of the complete witness.
+
+The shared independent P-256 corpus contains **653 cases**, including all
+262 pinned upstream Wycheproof cases and 173 admitted signatures over 98
+public keys. Native Rust, independent Go and independent TypeScript tests
+pass. Explicit high-S policy transformations and provenance are recorded in
+`core/fixtures/crypto/README.md`; the offline importer reproduces exact bytes.
+Tests support the primitive contracts; they do not prove crypto arithmetic.
+
+Decision-code coverage is 127/1,044 functions, 1,552/11,535 lines and 23/82
+check sites. Existing mutation campaigns predate the current proof sources
+and must be refreshed before a release. Do not interpret this pause as release
+qualification.
+
+### 13.3 Hosted evidence still pending
+
+The last confirmed fully successful hosted checkpoint is `e119ec92` (567
+claims). At the pause check, the suite-adapter revision `59c56d5b` has passed
+translation, but its authoritative Lean job is still running; no failed job
+was reported by the current main-run query:
+
+- [Main run 38904220615](https://github.com/auths-dev/auths-proof/actions/runs/38904220615).
+- [Authoritative job 116999215585](https://github.com/auths-dev/auths-proof/actions/runs/38904220615/job/116999215585).
+
+Neither local checkpoint `98adcfb5` nor `cdb2c837` has exact-revision hosted
+results. On resumption, inspect the existing job and all required independent
+workflows first. Preserve their actual conclusions, push the saved bounded
+checkpoints, and obtain hosted evidence on the new exact revision. Update the
+PR description with that distinction. Do not substitute a previous revision's
+success or a local qualification for the required hosted merge gates.
+
+### 13.4 First next implementation slice: actual status selection
+
+Continue E2/E4 at the source that selects status evidence, before claiming
+that the proved expiry helpers receive the right witnesses:
+
+- `core/crates/auths-registries/src/lib.rs`: `ExactStatusMethod` principal and
+  grant methods and `select_principal` / `select_grant`.
+- `core/crates/auths-model/src/lib.rs`: `status_issuer_in_scope` and
+  `status_issuer_visible`.
+
+A disposable extraction experiment used the shipping trait implementation,
+not a test wrapper. Charon extracted it, but Aeneas refused early returns
+inside selector loops and lifetime constraints in iterator `find` reached via
+filter/collect. No partial translation was admitted and no Auths selector was
+replaced with an opaque premise. Prototype files under `/private/tmp` are
+optional scratch material, not part of the saved implementation or a resume
+dependency.
+
+The next bounded change should:
+
+1. Preserve the current selectors and visibility rules as **test-only**
+   independent reference algorithms. Cover complete verdict, validity horizon
+   and error precedence with validated native inputs and boundary/property
+   cases before a direct production cutover.
+2. Reshape the actual principal and grant selectors into explicit bounded
+   scans with state flags, without early returns inside loops or iterator
+   `find`/filter pipelines. Keep the two concrete typed selectors. Retain one
+   shipping implementation and no compatibility switch. Rewrite the existing
+   visibility helpers similarly; do not introduce a second visibility policy
+   or change bounded-set membership without evidence.
+3. Preserve the existing semantics: ExpiresOnly precedence, method and
+   snapshot refusal order, issuer scope visibility, the first matching trust
+   rule, rollback refusal for any trusted below-floor sequence, distinct
+   missing/wrong-method/untrusted outcomes, highest-sequence tie handling,
+   stale-before-revoked precedence, and the minimum of snapshot, statement
+   and saturating age deadlines. Unknown issuers remain visible to the scope
+   filter and are refused later as untrusted.
+4. Re-extract that exact shipping closure with all Auths helpers transparent;
+   prove full result refinement against an independent selection model,
+   meaningful accepted/refused cases, termination and relevant bounds. Only
+   then connect selection to temporal-witness construction.
+5. Update source/claim/model inventories, check-site coverage, gateway closure
+   and release identities together, reproduce translation twice, and obtain
+   exact-revision hosted evidence. A native parity test alone earns no Lean
+   selection claim.
+
+### 13.5 Remaining program after that slice
+
+| Workstream | Still required for completion |
+| --- | --- |
+| E1 / M1 | Full protocol-object/tokenizer/constructor validity closure; all-input refusal/totality and inverse completeness; resource/allocation bounds; complete shared-language codec corpus. |
+| E5 / M2 | Suite constructors/IDs and closed registry dispatch; principal/key binding; actual caller unsigned-object and descriptor construction; every core/gateway commitment call; all required AP-SPEC-061 vectors. Existing crypto primitive contracts remain explicit. |
+| E2 / M3 | Native callbacks and closed registries, approvals/status/observations, staged verifier, complete sealed projection and temporal-witness selection, required/executed configuration and work accounting, full byte-to-authority composition. |
+| E3 / M4 | Actual source/lock parsing and compiler lowering, field/argument conversion, sealed projection to driver command, complete command-to-I/O bridge and independent wire oracle. |
+| E4 / M5 | Actual counter derivation and admission refinement, arbitrary finite concurrency/crash/acknowledgement histories, backend correspondence, full witness and connection-generation consumption by the driver. Existing collection-fence and deadline components remain scoped evidence. |
+| M6 | Composed history/reference-monitor theorem, independent adequacy review, useful positive actions, required mutation evidence and exact-release SDK/operator claims. |
+
+Resume from the committed artifacts and this list. Do not restart completed
+component proofs or describe the five enhancements as finished because the
+claim count grew. The exit gates in §10 remain authoritative.
