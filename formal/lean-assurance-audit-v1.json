@@ -7,6 +7,237 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.identifier_exact",
+      "statement": "∀ (value : String) (maximum : Aeneas.Std.Usize) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  auths_codec.auths_model.identifier.bounded_identifier_valid (Aeneas.Std.toStr value bounded) maximum =\n    Aeneas.Std.Result.ok (Auths.Codec.Constructors.identifierDecision value ↑maximum)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.identifier_decision_valid",
+      "statement": "∀ (value : String) (maximum : ℕ),\n  Auths.Codec.Constructors.identifierDecision value maximum = true ↔\n    Auths.Codec.Constructors.IdentifierValid value maximum"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.media_type_parse_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  auths_codec.auths_model.MediaType.parse (Aeneas.Std.toStr value bounded) =\n    Aeneas.Std.Result.ok\n      (if Auths.Codec.Constructors.identifierDecision value 128 = true then Aeneas.Std.core.result.Result.Ok value\n      else Aeneas.Std.core.result.Result.Err auths_codec.auths_model.ModelError.InvalidMediaType)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.profile_id_parse_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  auths_codec.auths_model.ProfileId.parse (Aeneas.Std.toStr value bounded) =\n    Aeneas.Std.Result.ok\n      (if Auths.Codec.Constructors.identifierDecision value 128 = true then Aeneas.Std.core.result.Result.Ok value\n      else Aeneas.Std.core.result.Result.Err auths_codec.auths_model.ModelError.InvalidProfile)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.capability_id_parse_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  auths_codec.auths_model.CapabilityId.parse (Aeneas.Std.toStr value bounded) =\n    Aeneas.Std.Result.ok\n      (if Auths.Codec.Constructors.identifierDecision value 128 = true then Aeneas.Std.core.result.Result.Ok value\n      else Aeneas.Std.core.result.Result.Err auths_codec.auths_model.ModelError.InvalidCapability)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.resource_id_parse_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  auths_codec.auths_model.ResourceId.parse (Aeneas.Std.toStr value bounded) =\n    Aeneas.Std.Result.ok\n      (if Auths.Codec.Constructors.identifierDecision value 1024 = true then Aeneas.Std.core.result.Result.Ok value\n      else Aeneas.Std.core.result.Result.Err auths_codec.auths_model.ModelError.InvalidResource)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.budget_algebra_id_parse_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  auths_codec.auths_model.BudgetAlgebraId.parse (Aeneas.Std.toStr value bounded) =\n    Aeneas.Std.Result.ok\n      (if Auths.Codec.Constructors.identifierDecision value 128 = true then Aeneas.Std.core.result.Result.Ok value\n      else Aeneas.Std.core.result.Result.Err auths_codec.auths_model.ModelError.InvalidRegistryId)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Constructors",
+      "name": "Auths.Codec.Constructors.canonical_action_new_exact",
+      "statement": "∀ (profile : auths_codec.auths_model.ProfileRef) (mediaType : auths_codec.auths_model.MediaType)\n  (body : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8) (permission : auths_codec.auths_model.Permission)\n  (budget : Option auths_codec.auths_model.BudgetCeiling),\n  auths_codec.auths_model.CanonicalAction.new profile mediaType body permission budget =\n    Aeneas.Std.Result.ok\n      (if 0 < (↑body).length ∧ (↑body).length ≤ 8388608 then\n        Aeneas.Std.core.result.Result.Ok\n          { profile := profile, media_type := mediaType, body := body, permission := permission,\n            requested_budget := budget,\n            detached_attachments := Aeneas.Std.alloc.vec.Vec.new auths_codec.auths_model.DetachedAttachment }\n      else Aeneas.Std.core.result.Result.Err auths_codec.auths_model.ModelError.InvalidCanonicalAction)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.ByteFields",
+      "name": "Auths.Codec.Action.bounded_bytes_valid",
+      "statement": "∀ (decoder next : auths_codec.cbor.Decoder) (maximum : Aeneas.Std.Usize) (nonEmpty : Bool)\n  (bytes : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.decode.bounded_bytes decoder maximum nonEmpty =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok bytes, next) →\n    (↑bytes).length ≤ ↑maximum ∧ (nonEmpty = true → 0 < (↑bytes).length)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.ActionValidity",
+      "name": "Auths.Codec.Action.decoded_body_valid",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (limits : auths_codec.auths_model.VerifierLimits)\n  (action : auths_codec.auths_model.CanonicalAction),\n  auths_codec.decode.decode_canonical_action input limits =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok action) →\n    0 < (↑action.body).length ∧ (↑action.body).length ≤ 8388608"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.ActionValidity",
+      "name": "Auths.Codec.Action.decoded_body_within_deployment",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (limits : auths_codec.auths_model.VerifierLimits)\n  (action : auths_codec.auths_model.CanonicalAction),\n  auths_codec.decode.decode_canonical_action input limits =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok action) →\n    (↑action.body).length ≤ ↑limits.canonical_body_bytes"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.minimal_limits_valid",
+      "statement": "Auths.Codec.Examples.minimalLimits.validate = Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok ())"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.minimal_encoding_exact",
+      "statement": "auths_codec.encode.encode_canonical_action Auths.Codec.Examples.minimalAction =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Ok\n      ⟨↑Auths.Codec.Examples.minimalInput, Auths.Codec.Examples.minimal_encoding_exact._proof_1⟩)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.minimal_action_accepted",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.minimalInput Auths.Codec.Examples.minimalLimits =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok Auths.Codec.Examples.minimalAction)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.duplicate_key_refused",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.duplicateKeyInput Auths.Codec.Examples.minimalLimits =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.NonCanonical)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.nonminimal_integer_refused",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.nonminimalIntegerInput\n    Auths.Codec.Examples.minimalLimits =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.NonCanonical)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.invalid_utf8_refused",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.invalidUtf8Input Auths.Codec.Examples.minimalLimits =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.Malformed)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.truncated_refused",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.truncatedInput Auths.Codec.Examples.minimalLimits =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.Malformed)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.trailing_byte_refused",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.trailingByteInput Auths.Codec.Examples.minimalLimits =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.Malformed)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.action_byte_limit_refused",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.minimalInput\n    (have __src := Auths.Codec.Examples.minimalLimits;\n    { bundle_bytes := __src.bundle_bytes, action_bytes := 25#usize, context_bytes := __src.context_bytes,\n      grants := __src.grants, actions := __src.actions, plan_leaves := __src.plan_leaves,\n      plan_depth := __src.plan_depth, plan_branching := __src.plan_branching, evidence := __src.evidence,\n      evidence_bytes := __src.evidence_bytes, bindings := __src.bindings, principal_status := __src.principal_status,\n      grant_status := __src.grant_status, attachments := __src.attachments, attachment_bytes := __src.attachment_bytes,\n      signatures := __src.signatures, signature_bytes := __src.signature_bytes, permissions := __src.permissions,\n      audiences := __src.audiences, extensions := __src.extensions, extension_bytes := __src.extension_bytes,\n      body_digests := __src.body_digests, binding_evidence := __src.binding_evidence,\n      canonical_body_bytes := __src.canonical_body_bytes, registry_entries := __src.registry_entries,\n      trust_anchors := __src.trust_anchors, work_units := __src.work_units, approvals := __src.approvals,\n      approver_anchors := __src.approver_anchors, approval_requirements := __src.approval_requirements }) =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Examples",
+      "name": "Auths.Codec.Examples.action_byte_limit_exact",
+      "statement": "auths_codec.decode.decode_canonical_action Auths.Codec.Examples.minimalInput\n    (have __src := Auths.Codec.Examples.minimalLimits;\n    { bundle_bytes := __src.bundle_bytes, action_bytes := 26#usize, context_bytes := __src.context_bytes,\n      grants := __src.grants, actions := __src.actions, plan_leaves := __src.plan_leaves,\n      plan_depth := __src.plan_depth, plan_branching := __src.plan_branching, evidence := __src.evidence,\n      evidence_bytes := __src.evidence_bytes, bindings := __src.bindings, principal_status := __src.principal_status,\n      grant_status := __src.grant_status, attachments := __src.attachments, attachment_bytes := __src.attachment_bytes,\n      signatures := __src.signatures, signature_bytes := __src.signature_bytes, permissions := __src.permissions,\n      audiences := __src.audiences, extensions := __src.extensions, extension_bytes := __src.extension_bytes,\n      body_digests := __src.body_digests, binding_evidence := __src.binding_evidence,\n      canonical_body_bytes := __src.canonical_body_bytes, registry_entries := __src.registry_entries,\n      trust_anchors := __src.trust_anchors, work_units := __src.work_units, approvals := __src.approvals,\n      approver_anchors := __src.approver_anchors, approval_requirements := __src.approval_requirements }) =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok Auths.Codec.Examples.minimalAction)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Refinement.Identifier",
       "name": "Auths.Refinement.Identifier.identifier_string_exact",
       "statement": "∀ (value : String) (maximum : Aeneas.Std.Usize) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  Aeneas.Std.WP.spec (auths_model.identifier.bounded_identifier_valid (Aeneas.Std.toStr value bounded) maximum)\n    fun result =>\n    result =\n      (!(↑(Aeneas.Std.toStr value bounded)).isEmpty && decide ((↑(Aeneas.Std.toStr value bounded)).length ≤ ↑maximum) &&\n        !(List.map Char.toNat value.toList).any fun scalar => decide (Auths.Model.Identifier.excluded scalar))"

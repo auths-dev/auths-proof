@@ -219,7 +219,7 @@ native codec/model/authority/author tests and two byte-identical translations.
 The expanded codec has 73 local and 75 imported function records, including
 its actual constructors, with zero opaque Auths functions. Its six reviewed
 external models introduce no compiled axiom. The exact production source
-closure is `26c7debdb132b8c1ee4c5d5dd9dd9886922802b00dae31ae71385443b1029ea6`.
+closure is `f67c463f9f8e7d4e8c9674f86f385da7e4144edbd38f9ceede3b8f93263e463e`.
 The hosted gates for the expanded checkpoint remain required.
 
 Native tests retain the former action codec and attachment checks only as
@@ -229,6 +229,54 @@ and aggregate-byte bounds. The qualification now includes native codec tests.
 The reviewed sorting model is restricted to the actual stateless digest-key
 callback and lawful digest order; arbitrary stateful callbacks are not modeled.
 
-This does not complete E1. In particular, a positive Lean witness through the
-complete action decoder, full constructor validity, inverse completeness,
-resource accounting and the remaining protocol objects still require work.
+This does not complete E1. Full constructor validity, inverse completeness, resource accounting and the
+remaining protocol objects still require work. The positive whole-decoder
+witness is supplied by the following slice.
+
+## Whole-action witnesses and constructor validity
+
+The complete translated action decoder now has a kernel-checked positive
+witness: a 26-byte nonempty canonical action with every required field, under
+explicit valid limits. Its encoder returns those exact bytes. The same source
+refuses duplicate keys and nonminimal integers as `NonCanonical`, and invalid
+UTF-8, truncation and trailing bytes as `Malformed`. A 25-byte action limit
+refuses the input; the exact 26-byte limit accepts it. These are codec witnesses;
+the opaque profile and body do not claim application authorization.
+
+Five typed string constructors now have exact decisions on every validated
+UTF-8 string within the standard-library byte-carrier bound, against an
+independent nonempty/byte-length/Unicode predicate. The action constructor
+also has an exact nonempty/8 MiB body decision, preserving its other incoming
+typed fields. For every successful complete action decode, the actual returned
+body is nonempty and fits both the protocol ceiling and the deployment's
+canonical-body-byte limit. These are accepted-result guarantees; totality,
+full decoded-carrier validity, inverse completeness and aggregate work and
+allocation bounds remain open.
+
+The proof evaluation rules are equalities proved for all their inputs. They
+use a conservative 32-bit branch that works on either supported machine width
+and retain the original operation elsewhere. No platform-width assumption,
+`native_decide`, opaque Auths algorithm or new axiom is introduced. Native
+integration cases mirror the exact positive/refusal inputs for hosted parity.
+
+The compiled construction audit has 374 declarations. All preceding 353
+statements are unchanged, and every transitive axiom remains in the existing
+three-name allowlist. The new full qualification passes: two byte-identical clean translations, all
+ten qualification modules and the native codec/model/authority/author tests,
+including the new positive/refusal integration cases. The bound production
+source closure is `f67c463f9f8e7d4e8c9674f86f385da7e4144edbd38f9ceede3b8f93263e463e`.
+The exact-revision hosted gates remain required; no E1–E5 workstream is complete.
+
+The preceding checkpoint `39c0cfd8` passed hosted PostgreSQL lifecycle
+qualification, recipe qualification, gateway isolation, both customer demos
+and Python/TypeScript package checks. Main CI passed preflight, fast Lean,
+compliance, dependency/secrets and live-provider jobs. Its authoritative
+workspace job exposed a valid base64url public key beginning with `-` being
+misparsed as an option in the release CLI. Both certificate commands now
+accept that argument, with a deterministic parser regression and the exact
+previously failing commissioning journey passing locally. The patched revision
+still requires the hosted authoritative gate.
+
+Coverage continues to use the declared local-translation measurement. Imported
+constructor bodies are present in the extraction and compiled proof closure,
+but are not newly counted as local functions to inflate the headline metric.

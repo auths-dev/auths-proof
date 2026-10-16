@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "26c7debdb132b8c1ee4c5d5dd9dd9886922802b00dae31ae71385443b1029ea6",
+  "digest": "f67c463f9f8e7d4e8c9674f86f385da7e4144edbd38f9ceede3b8f93263e463e",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -178,6 +178,10 @@
     {
       "path": "core/crates/auths-codec/src/observation.rs",
       "sha256": "fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149"
+    },
+    {
+      "path": "core/crates/auths-codec/tests/formal_action_witness.rs",
+      "sha256": "f8e5e7af2f5cb6198547767e9bd173c74aed85af05fbead360a8a7ce69575853"
     },
     {
       "path": "core/crates/auths-composition/Cargo.toml",
@@ -449,7 +453,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Codec.lean",
-      "sha256": "b2817495fadcbae70bf89d698c44724c69520677e6befddb851f74759282fdbd"
+      "sha256": "5b33beb7f3106bb9688461c9e3408d2f354a453722653d69c953f7b265c1ed40"
     },
     {
       "path": "formal/qualification/aeneas/cases/Connections.lean",

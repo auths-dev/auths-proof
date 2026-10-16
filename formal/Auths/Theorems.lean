@@ -22,6 +22,8 @@ import Auths.Approval
 import Auths.Codec.Refinement
 import Auths.Codec.Encoder
 import Auths.Codec.Action
+import Auths.Codec.ActionValidity
+import Auths.Codec.Examples
 import Auths.Codec.String
 import Auths.Refinement.Identifier
 import Auths.Product.Refinement.CollectionFence
@@ -31,6 +33,27 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Codec.Constructors.identifier_exact,
+    `Auths.Codec.Constructors.identifier_decision_valid,
+    `Auths.Codec.Constructors.media_type_parse_exact,
+    `Auths.Codec.Constructors.profile_id_parse_exact,
+    `Auths.Codec.Constructors.capability_id_parse_exact,
+    `Auths.Codec.Constructors.resource_id_parse_exact,
+    `Auths.Codec.Constructors.budget_algebra_id_parse_exact,
+    `Auths.Codec.Constructors.canonical_action_new_exact,
+    `Auths.Codec.Action.bounded_bytes_valid,
+    `Auths.Codec.Action.decoded_body_valid,
+    `Auths.Codec.Action.decoded_body_within_deployment,
+    `Auths.Codec.Examples.minimal_limits_valid,
+    `Auths.Codec.Examples.minimal_encoding_exact,
+    `Auths.Codec.Examples.minimal_action_accepted,
+    `Auths.Codec.Examples.duplicate_key_refused,
+    `Auths.Codec.Examples.nonminimal_integer_refused,
+    `Auths.Codec.Examples.invalid_utf8_refused,
+    `Auths.Codec.Examples.truncated_refused,
+    `Auths.Codec.Examples.trailing_byte_refused,
+    `Auths.Codec.Examples.action_byte_limit_refused,
+    `Auths.Codec.Examples.action_byte_limit_exact,
     `Auths.Refinement.Identifier.identifier_string_exact,
     `Auths.Codec.Action.decode_encode_exact,
     `Auths.Codec.Action.accepted_encoding_unique,

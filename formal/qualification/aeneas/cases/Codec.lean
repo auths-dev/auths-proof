@@ -1,3 +1,5 @@
+import Auths.Codec.Examples
+import Auths.Codec.ActionValidity
 import Auths.Codec.Encoder
 import Auths.Codec.String
 import Auths.Refinement.Identifier
@@ -79,5 +81,16 @@ private def surrogateUtf8 : Slice Std.U8 := ⟨[237#u8, 160#u8, 128#u8], by scal
 
 example : core.str.converts.from_utf8 surrogateUtf8 = ok (.Err ()) := by
   rfl
+
+-- Full-object witnesses exercise the same production decoder as the claims.
+example : auths_codec.decode.decode_canonical_action
+    Auths.Codec.Examples.minimalInput Auths.Codec.Examples.minimalLimits =
+      ok (.Ok Auths.Codec.Examples.minimalAction) :=
+  Auths.Codec.Examples.minimal_action_accepted
+
+example : auths_codec.decode.decode_canonical_action
+    Auths.Codec.Examples.nonminimalIntegerInput Auths.Codec.Examples.minimalLimits =
+      ok (.Err auths_codec.error.CodecError.NonCanonical) :=
+  Auths.Codec.Examples.nonminimal_integer_refused
 
 end qualification.aeneas.cases

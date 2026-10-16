@@ -109,7 +109,7 @@ core/crates/auths-codec/src/decode.rs	52	60	9	array	core/crates/auths-codec	deco
 core/crates/auths-codec/src/decode.rs	62	68	7	array_exact	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/decode.rs	70	76	7	key	core/crates/auths-codec	decoding	0	0		1	0	1	0
 core/crates/auths-codec/src/decode.rs	78	83	6	text	core/crates/auths-codec	decoding	0	0		1	0	1	0
-core/crates/auths-codec/src/decode.rs	85	97	13	bounded_bytes	core/crates/auths-codec	decoding	0	0		1	0	1	0
+core/crates/auths-codec/src/decode.rs	85	97	13	bounded_bytes	core/crates/auths-codec	decoding	0	0		1	1	1	1
 core/crates/auths-codec/src/decode.rs	99	104	6	digest_bytes	core/crates/auths-codec	decoding	0	0		1	0	1	0
 core/crates/auths-codec/src/decode.rs	106	108	3	is_null	core/crates/auths-codec	decoding	0	0		1	0	1	0
 core/crates/auths-codec/src/decode.rs	110	112	3	null	core/crates/auths-codec	decoding	0	0		1	0	1	0
@@ -165,7 +165,7 @@ core/crates/auths-codec/src/decode.rs	1502	1517	16	decode_principal_status_snaps
 core/crates/auths-codec/src/decode.rs	1525	1540	16	decode_grant_status_snapshot	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/decode.rs	1548	1575	27	attachment_batch_step	core/crates/auths-codec	decoding	0	0		1	0	1	0
 core/crates/auths-codec/src/decode.rs	1577	1593	17	attachment_batch	core/crates/auths-codec	decoding	0	0		1	0	1	0
-core/crates/auths-codec/src/decode.rs	1601	1639	39	decode_canonical_action	core/crates/auths-codec	decoding	0	0		1	1	1	2
+core/crates/auths-codec/src/decode.rs	1601	1639	39	decode_canonical_action	core/crates/auths-codec	decoding	0	0		1	1	1	12
 core/crates/auths-codec/src/decode.rs	1641	1665	25	assurance_claim	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/decode.rs	1667	1677	11	evidence_ids	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/decode.rs	1679	1706	28	assurance_report	core/crates/auths-codec	decoding	0	0		0	0	0	0
@@ -198,7 +198,7 @@ core/crates/auths-codec/src/encode.rs	287	294	8	encode_signed_grant_to	core/crat
 core/crates/auths-codec/src/encode.rs	301	303	3	encode_signed_grant	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/encode.rs	305	364	60	encode_action_envelope_to	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/encode.rs	371	373	3	encode_action_envelope	core/crates/auths-codec	decoding	0	0		0	0	0	0
-core/crates/auths-codec/src/encode.rs	380	400	21	encode_canonical_action	core/crates/auths-codec	decoding	0	0		1	1	1	1
+core/crates/auths-codec/src/encode.rs	380	400	21	encode_canonical_action	core/crates/auths-codec	decoding	0	0		1	1	1	2
 core/crates/auths-codec/src/encode.rs	402	413	12	encode_canonical_attachment	core/crates/auths-codec	decoding	0	0		1	0	1	0
 core/crates/auths-codec/src/encode.rs	415	438	24	encode_assurance_claim	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/encode.rs	440	450	11	encode_role	core/crates/auths-codec	decoding	0	0		0	0	0	0
@@ -377,7 +377,7 @@ core/crates/auths-model/src/bounded_policy.rs	188	199	12	bounded_policy_link_acc
 core/crates/auths-model/src/identifier.rs	9	21	13	forbidden_three_byte_prefix	core/crates/auths-model	decision	1	0	1	1	0	1	0
 core/crates/auths-model/src/identifier.rs	23	42	20	forbidden_identifier_at	core/crates/auths-model	decision	1	0	1	1	1	1	1
 core/crates/auths-model/src/identifier.rs	44	53	10	contains_forbidden_identifier	core/crates/auths-model	decision	1	0	1	1	1	1	1
-core/crates/auths-model/src/identifier.rs	55	57	3	bounded_identifier_valid	core/crates/auths-model	decision	1	0	1	1	1	1	3
+core/crates/auths-model/src/identifier.rs	55	57	3	bounded_identifier_valid	core/crates/auths-model	decision	1	0	1	1	1	1	4
 core/crates/auths-model/src/lib.rs	99	105	7	ProtocolVersion::new	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/lib.rs	108	110	3	ProtocolVersion::get	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/lib.rs	113	118	6	parse_bounded	core/crates/auths-model	decision	1	0	1	0	0	0	0

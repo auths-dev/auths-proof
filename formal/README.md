@@ -152,6 +152,20 @@ The string representation bridge derives the Unicode stream from validated
 strings; it does not assume arbitrary byte carriers are UTF-8. Cases include
 valid strings, overlong UTF-8 and surrogate encodings.
 
+`Auths.Codec.Examples` additionally proves acceptance and exact encoding of a
+complete nonempty action. The same shipping decoder refuses duplicate keys,
+nonminimal integers, invalid UTF-8, truncation, trailing input and a byte limit
+one below the accepted input; it accepts the exact byte boundary. Evaluation
+uses kernel-proved portable scalar/vector equalities, with the original checked
+behavior retained outside each conservative branch. It adds no native axiom.
+The action is opaque codec data, not an application authorization witness.
+
+`Auths.Codec.Constructors` gives exact decisions for the five string constructors
+on validated bounded UTF-8 carriers and the complete action body constructor.
+`Auths.Codec.ActionValidity` connects successful decoding to a nonempty body
+within both the 8 MiB protocol ceiling and the declared deployment body limit.
+These accepted-result implications do not establish parser totality.
+
 These are scoped component results. Full constructor validity, action inverse
 completeness and work bounds, every other protocol object, and AP-SPEC-069's
 remaining verifier, driver, history and cryptographic obligations are still
