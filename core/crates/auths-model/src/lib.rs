@@ -4940,58 +4940,83 @@ pub enum DenialReason {
     ApprovalThresholdNotMet,
 }
 
-impl DenialReason {
-    /// Returns the stable language-neutral V1 reason code.
-    #[must_use]
-    pub const fn code(self) -> &'static str {
-        match self {
-            Self::MalformedProof => "malformed-proof",
-            Self::NonCanonicalProof => "non-canonical-proof",
-            Self::ResourceLimitExceeded => "resource-limit-exceeded",
-            Self::DigestMismatch => "digest-mismatch",
-            Self::DuplicateObject => "duplicate-object",
-            Self::MissingReference => "missing-reference",
-            Self::ReferenceCycle => "reference-cycle",
-            Self::AmbiguousTerminalGrant => "ambiguous-terminal-grant",
-            Self::UnusedCriticalEvidence => "unused-critical-evidence",
-            Self::InvalidSignature => "invalid-signature",
-            Self::PrincipalMethodMismatch => "principal-method-mismatch",
-            Self::VerificationMethodMismatch => "verification-method-mismatch",
-            Self::SignatureSuiteMismatch => "signature-suite-mismatch",
-            Self::UntrustedRoot => "untrusted-root",
-            Self::BrokenGrantChain => "broken-grant-chain",
-            Self::DelegationExpanded => "delegation-expanded",
-            Self::PermissionNotGranted => "permission-not-granted",
-            Self::ActionConstraintMismatch => "action-constraint-mismatch",
-            Self::BudgetCeilingExceeded => "budget-ceiling-exceeded",
-            Self::AuthorizationPlanInvalid => "authorization-plan-invalid",
-            Self::CompositionRequirementNotMet => "composition-requirement-not-met",
-            Self::PlanActionMismatch => "plan-action-mismatch",
-            Self::ActionBodyMismatch => "action-body-mismatch",
-            Self::AudienceMismatch => "audience-mismatch",
-            Self::ChallengeMismatch => "challenge-mismatch",
-            Self::ActionOutsideValidity => "action-outside-validity",
-            Self::PrincipalRevoked => "principal-revoked",
-            Self::GrantRevoked => "grant-revoked",
-            Self::StatusSequenceRollback => "status-sequence-rollback",
-            Self::StatusMethodMismatch => "status-method-mismatch",
-            Self::StatusIssuerUntrusted => "status-issuer-untrusted",
-            Self::RegistryManifestMismatch => "registry-manifest-mismatch",
-            Self::VerifierConfigurationMismatch => "verifier-configuration-mismatch",
-            Self::ResourceNamespaceMismatch => "resource-namespace-mismatch",
-            Self::CriticalExtensionUnknown => "critical-extension-unknown",
-            Self::AttachmentMissing => "attachment-missing",
-            Self::AttachmentDigestMismatch => "attachment-digest-mismatch",
-            Self::AttachmentLengthMismatch => "attachment-length-mismatch",
-            Self::DuplicateAttachment => "duplicate-attachment",
-            Self::UnusedCriticalAttachment => "unused-critical-attachment",
-            Self::OpaqueAttachmentNotAllowed => "opaque-attachment-not-allowed",
-            Self::LocalPolicyDenied => "local-policy-denied",
-            Self::ObservationConditionFalse => "observation-condition-false",
-            Self::ObserverInAuthorityChain => "observer-in-authority-chain",
-            Self::ObservationRequirementDropped => "observation-requirement-dropped",
-            Self::ApprovalThresholdNotMet => "approval-threshold-not-met",
+// Each result-code string and its lexical selection rank share one catalog.
+// Ranks are internal comparison data; they are never serialized.
+macro_rules! ordered_result_codes {
+    ($($variant:ident => ($code:literal, $rank:literal)),+ $(,)?) => {
+        /// Returns the stable language-neutral V1 result code.
+        #[must_use]
+        pub const fn code(self) -> &'static str {
+            match self { $(Self::$variant => $code),+ }
         }
+
+        /// Tests strict lexical order of the stable V1 result codes.
+        ///
+        /// This is the same order as `self.code() < other.code()`, without
+        /// borrowing strings or allocating diagnostic collections. The
+        /// internal numeric ranks are not a protocol or persistence format.
+        #[must_use]
+        pub const fn code_precedes(self, other: Self) -> bool {
+            self.code_order() < other.code_order()
+        }
+
+        const fn code_order(self) -> u8 {
+            match self { $(Self::$variant => $rank),+ }
+        }
+
+        #[cfg(test)]
+        const CODE_CATALOG: &'static [Self] = &[$(Self::$variant),+];
+    };
+}
+
+impl DenialReason {
+    ordered_result_codes! {
+        ActionBodyMismatch => ("action-body-mismatch", 0),
+        ActionConstraintMismatch => ("action-constraint-mismatch", 1),
+        ActionOutsideValidity => ("action-outside-validity", 2),
+        AmbiguousTerminalGrant => ("ambiguous-terminal-grant", 3),
+        ApprovalThresholdNotMet => ("approval-threshold-not-met", 4),
+        AttachmentDigestMismatch => ("attachment-digest-mismatch", 5),
+        AttachmentLengthMismatch => ("attachment-length-mismatch", 6),
+        AttachmentMissing => ("attachment-missing", 7),
+        AudienceMismatch => ("audience-mismatch", 8),
+        AuthorizationPlanInvalid => ("authorization-plan-invalid", 9),
+        BrokenGrantChain => ("broken-grant-chain", 10),
+        BudgetCeilingExceeded => ("budget-ceiling-exceeded", 11),
+        ChallengeMismatch => ("challenge-mismatch", 12),
+        CompositionRequirementNotMet => ("composition-requirement-not-met", 13),
+        CriticalExtensionUnknown => ("critical-extension-unknown", 14),
+        DelegationExpanded => ("delegation-expanded", 15),
+        DigestMismatch => ("digest-mismatch", 16),
+        DuplicateAttachment => ("duplicate-attachment", 17),
+        DuplicateObject => ("duplicate-object", 18),
+        GrantRevoked => ("grant-revoked", 19),
+        InvalidSignature => ("invalid-signature", 20),
+        LocalPolicyDenied => ("local-policy-denied", 21),
+        MalformedProof => ("malformed-proof", 22),
+        MissingReference => ("missing-reference", 23),
+        NonCanonicalProof => ("non-canonical-proof", 24),
+        ObservationConditionFalse => ("observation-condition-false", 25),
+        ObservationRequirementDropped => ("observation-requirement-dropped", 26),
+        ObserverInAuthorityChain => ("observer-in-authority-chain", 27),
+        OpaqueAttachmentNotAllowed => ("opaque-attachment-not-allowed", 28),
+        PermissionNotGranted => ("permission-not-granted", 29),
+        PlanActionMismatch => ("plan-action-mismatch", 30),
+        PrincipalMethodMismatch => ("principal-method-mismatch", 31),
+        PrincipalRevoked => ("principal-revoked", 32),
+        ReferenceCycle => ("reference-cycle", 33),
+        RegistryManifestMismatch => ("registry-manifest-mismatch", 34),
+        ResourceLimitExceeded => ("resource-limit-exceeded", 35),
+        ResourceNamespaceMismatch => ("resource-namespace-mismatch", 36),
+        SignatureSuiteMismatch => ("signature-suite-mismatch", 37),
+        StatusIssuerUntrusted => ("status-issuer-untrusted", 38),
+        StatusMethodMismatch => ("status-method-mismatch", 39),
+        StatusSequenceRollback => ("status-sequence-rollback", 40),
+        UntrustedRoot => ("untrusted-root", 41),
+        UnusedCriticalAttachment => ("unused-critical-attachment", 42),
+        UnusedCriticalEvidence => ("unused-critical-evidence", 43),
+        VerificationMethodMismatch => ("verification-method-mismatch", 44),
+        VerifierConfigurationMismatch => ("verifier-configuration-mismatch", 45),
     }
 
     /// Parses one exact stable V1 denial code.
@@ -5076,32 +5101,28 @@ pub enum Requirement {
 }
 
 impl Requirement {
-    /// Returns the stable language-neutral V1 requirement code.
-    #[must_use]
-    pub const fn code(self) -> &'static str {
-        match self {
-            Self::UnsupportedProtocol => "unsupported-protocol",
-            Self::UnsupportedPrincipalMethod => "unsupported-principal-method",
-            Self::UnsupportedSignatureSuite => "unsupported-signature-suite",
-            Self::UnsupportedEvidenceType => "unsupported-evidence-type",
-            Self::UnsupportedStatusMethod => "unsupported-status-method",
-            Self::UnsupportedProfile => "unsupported-profile",
-            Self::UnsupportedProfilePolicy => "unsupported-profile-policy",
-            Self::UnsupportedResourceMatcher => "unsupported-resource-matcher",
-            Self::UnsupportedBudgetAlgebra => "unsupported-budget-algebra",
-            Self::UnsupportedCriticalExtension => "unsupported-critical-extension",
-            Self::UnsupportedAssuranceClaim => "unsupported-assurance-claim",
-            Self::MissingPrincipalEvidence => "missing-principal-evidence",
-            Self::MissingPrincipalStatus => "missing-principal-status",
-            Self::MissingGrantStatus => "missing-grant-status",
-            Self::StaleStatus => "stale-status",
-            Self::HistoricalStateUnavailable => "historical-state-unavailable",
-            Self::AssuranceRequirementNotMet => "assurance-requirement-not-met",
-            Self::ExternalFactUnavailable => "external-fact-unavailable",
-            Self::ObservationMissing => "observation-missing",
-            Self::ObservationActionFactUnavailable => "observation-action-fact-unavailable",
-            Self::ApprovalUnavailable => "approval-unavailable",
-        }
+    ordered_result_codes! {
+        ApprovalUnavailable => ("approval-unavailable", 0),
+        AssuranceRequirementNotMet => ("assurance-requirement-not-met", 1),
+        ExternalFactUnavailable => ("external-fact-unavailable", 2),
+        HistoricalStateUnavailable => ("historical-state-unavailable", 3),
+        MissingGrantStatus => ("missing-grant-status", 4),
+        MissingPrincipalEvidence => ("missing-principal-evidence", 5),
+        MissingPrincipalStatus => ("missing-principal-status", 6),
+        ObservationActionFactUnavailable => ("observation-action-fact-unavailable", 7),
+        ObservationMissing => ("observation-missing", 8),
+        StaleStatus => ("stale-status", 9),
+        UnsupportedAssuranceClaim => ("unsupported-assurance-claim", 10),
+        UnsupportedBudgetAlgebra => ("unsupported-budget-algebra", 11),
+        UnsupportedCriticalExtension => ("unsupported-critical-extension", 12),
+        UnsupportedEvidenceType => ("unsupported-evidence-type", 13),
+        UnsupportedPrincipalMethod => ("unsupported-principal-method", 14),
+        UnsupportedProfile => ("unsupported-profile", 15),
+        UnsupportedProfilePolicy => ("unsupported-profile-policy", 16),
+        UnsupportedProtocol => ("unsupported-protocol", 17),
+        UnsupportedResourceMatcher => ("unsupported-resource-matcher", 18),
+        UnsupportedSignatureSuite => ("unsupported-signature-suite", 19),
+        UnsupportedStatusMethod => ("unsupported-status-method", 20),
     }
 
     /// Parses one exact stable V1 indeterminate requirement code.
@@ -5291,6 +5312,22 @@ mod kani_harnesses {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn code_selection_matches_every_published_diagnostic_pair() {
+        for &left in DenialReason::CODE_CATALOG {
+            assert_eq!(DenialReason::from_code(left.code()), Some(left));
+            for &right in DenialReason::CODE_CATALOG {
+                assert_eq!(left.code_precedes(right), left.code() < right.code());
+            }
+        }
+        for &left in Requirement::CODE_CATALOG {
+            assert_eq!(Requirement::from_code(left.code()), Some(left));
+            for &right in Requirement::CODE_CATALOG {
+                assert_eq!(left.code_precedes(right), left.code() < right.code());
+            }
+        }
+    }
     use super::*;
 
     const IDENTITY_IDENTIFIER_VECTOR_V1: &str = r#"{"schema":"auths-identity-identifier-conformance/v1","maximum_utf8_bytes":128,"valid":["a","raw-key-v2","p256-sha256-v1","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],"invalid":["","contains space","contains\ttab","contains\nnewline","contains\u00a0space","contains\u0007control","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}"#;

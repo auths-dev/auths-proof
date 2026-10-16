@@ -300,14 +300,16 @@ core/crates/auths-codec/src/observation.rs	419	455	37	encode_observer_anchors	co
 core/crates/auths-codec/src/observation.rs	457	501	45	observer_anchors	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/observation.rs	503	516	14	encode_observation_satisfactions	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/observation.rs	518	532	15	observation_satisfactions	core/crates/auths-codec	decoding	0	0		0	0	0	0
-core/crates/auths-composition/src/lib.rs	48	52	5	EvaluationEvent::outcome	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	59	65	7	evaluate_threshold_counts	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	73	79	7	evaluate	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	93	102	10	evaluate_observed	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	104	208	105	evaluate_node	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	210	226	17	observe_aggregate	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	228	230	3	canonical_denial	core/crates/auths-composition	decision	1	0	1	0	0	0	0
-core/crates/auths-composition/src/lib.rs	232	237	6	canonical_requirement	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/lib.rs	54	58	5	EvaluationEvent::outcome	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/lib.rs	65	71	7	evaluate_threshold_counts	core/crates/auths-composition	decision	1	0	1	1	0	1	0
+core/crates/auths-composition/src/lib.rs	79	85	7	evaluate	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/lib.rs	99	108	10	evaluate_observed	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/lib.rs	110	122	13	evaluate_members	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/lib.rs	124	169	46	evaluate_node	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/lib.rs	171	187	17	observe_aggregate	core/crates/auths-composition	decision	1	0	1	0	0	0	0
+core/crates/auths-composition/src/summary.rs	13	38	26	push	core/crates/auths-composition	decision	1	0	1	1	1	1	1
+core/crates/auths-composition/src/summary.rs	40	48	9	all	core/crates/auths-composition	decision	1	0	1	1	1	1	1
+core/crates/auths-composition/src/summary.rs	50	62	13	threshold	core/crates/auths-composition	decision	1	0	1	1	1	1	2
 core/crates/auths-model/src/approval.rs	53	67	15	ApprovalRequirement::new	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/approval.rs	71	73	3	ApprovalRequirement::approvers	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/approval.rs	77	79	3	ApprovalRequirement::threshold	core/crates/auths-model	decision	1	0	1	0	0	0	0
@@ -775,11 +777,12 @@ core/crates/auths-model/src/lib.rs	4873	4875	3	PortableVerificationResult::requi
 core/crates/auths-model/src/lib.rs	4878	4880	3	PortableVerificationResult::local_configuration	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/lib.rs	4883	4885	3	PortableVerificationResult::observation_satisfactions	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/lib.rs	4888	4890	3	PortableVerificationResult::approval_satisfactions	core/crates/auths-model	decision	1	0	1	0	0	0	0
-core/crates/auths-model/src/lib.rs	4946	4995	50	DenialReason::code	core/crates/auths-model	decision	1	0	1	0	0	0	0
-core/crates/auths-model/src/lib.rs	4999	5050	52	DenialReason::from_code	core/crates/auths-model	decision	1	0	1	0	0	0	0
-core/crates/auths-model/src/lib.rs	5081	5105	25	Requirement::code	core/crates/auths-model	decision	1	0	1	0	0	0	0
-core/crates/auths-model/src/lib.rs	5109	5135	27	Requirement::from_code	core/crates/auths-model	decision	1	0	1	0	0	0	0
-core/crates/auths-model/src/lib.rs	5185	5230	46	ModelError::fmt	core/crates/auths-model	decision	1	0	1	0	0	0	0
+core/crates/auths-model/src/lib.rs	4949	4951	3	code	core/crates/auths-model	decision	1	1	0	0	0	0	0
+core/crates/auths-model/src/lib.rs	4959	4961	3	code_precedes	core/crates/auths-model	decision	1	1	0	0	0	0	0
+core/crates/auths-model/src/lib.rs	4963	4965	3	code_order	core/crates/auths-model	decision	1	1	0	0	0	0	0
+core/crates/auths-model/src/lib.rs	5024	5075	52	DenialReason::from_code	core/crates/auths-model	decision	1	0	1	0	0	0	0
+core/crates/auths-model/src/lib.rs	5130	5156	27	Requirement::from_code	core/crates/auths-model	decision	1	0	1	0	0	0	0
+core/crates/auths-model/src/lib.rs	5206	5251	46	ModelError::fmt	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/observation.rs	57	59	3	fact_name_equal	core/crates/auths-model	decision	1	0	1	1	1	1	1
 core/crates/auths-model/src/observation.rs	71	76	6	FactBytes::new	core/crates/auths-model	decision	1	0	1	0	0	0	0
 core/crates/auths-model/src/observation.rs	79	81	3	FactBytes::as_slice	core/crates/auths-model	decision	1	0	1	0	0	0	0

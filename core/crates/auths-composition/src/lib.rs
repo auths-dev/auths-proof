@@ -5,11 +5,17 @@
 
 extern crate alloc;
 
+#[cfg(test)]
 use alloc::vec::Vec;
+
+#[cfg(test)]
+mod oracle;
+mod summary;
 pub use auths_algebra_kernel::Truth as ThresholdTruth;
 use auths_model::{
     AuthorizationPlan, AuthorizationPlanRef, DenialReason, ProofRef, Requirement, VerifierLimits,
 };
+use summary::Summary;
 
 /// Result of evaluating one plan branch.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -101,6 +107,20 @@ pub fn evaluate_observed(
     Ok(evaluate_node(plan, branch, observer))
 }
 
+fn evaluate_members(
+    members: &[AuthorizationPlan],
+    branch: &mut impl FnMut(ProofRef) -> BranchOutcome,
+    observer: &mut impl FnMut(EvaluationEvent),
+) -> Summary {
+    let mut state = Summary::default();
+    let mut index = 0;
+    while index < members.len() {
+        summary::push(&mut state, evaluate_node(&members[index], branch, observer));
+        index += 1;
+    }
+    state
+}
+
 fn evaluate_node(
     plan: &AuthorizationPlan,
     branch: &mut impl FnMut(ProofRef) -> BranchOutcome,
@@ -113,96 +133,37 @@ fn evaluate_node(
             outcome
         }
         AuthorizationPlanRef::AllOf(members) => {
-            let child_count = members.len();
-            let mut authorized = 0usize;
-            let mut denied = Vec::new();
-            let mut indeterminate = Vec::new();
-            for member in members {
-                match evaluate_node(member, branch, observer) {
-                    BranchOutcome::Authorized => authorized += 1,
-                    BranchOutcome::Denied(reason) | BranchOutcome::StructurallyInvalid(reason) => {
-                        denied.push(reason);
-                    }
-                    BranchOutcome::Indeterminate(requirement) => indeterminate.push(requirement),
-                }
-            }
-            let outcome = canonical_denial(&denied).map_or_else(
-                || {
-                    canonical_requirement(&indeterminate)
-                        .map_or(BranchOutcome::Authorized, BranchOutcome::Indeterminate)
-                },
-                BranchOutcome::Denied,
-            );
+            let state = evaluate_members(members, branch, observer);
             observe_aggregate(
                 observer,
-                child_count,
-                u16::try_from(child_count).unwrap_or(u16::MAX),
-                authorized,
-                indeterminate.len(),
-                outcome,
+                members.len(),
+                u16::try_from(members.len()).unwrap_or(u16::MAX),
+                state.authorized,
+                state.indeterminate,
+                summary::all(state),
             )
         }
         AuthorizationPlanRef::AnyOf(members) => {
-            let child_count = members.len();
-            let mut authorized = 0usize;
-            let mut denied = Vec::new();
-            let mut indeterminate = Vec::new();
-            for member in members {
-                match evaluate_node(member, branch, observer) {
-                    BranchOutcome::Authorized => authorized += 1,
-                    BranchOutcome::Denied(reason) | BranchOutcome::StructurallyInvalid(reason) => {
-                        denied.push(reason);
-                    }
-                    BranchOutcome::Indeterminate(requirement) => indeterminate.push(requirement),
-                }
-            }
-            let outcome = if authorized > 0 {
-                BranchOutcome::Authorized
-            } else if let Some(requirement) = canonical_requirement(&indeterminate) {
-                BranchOutcome::Indeterminate(requirement)
-            } else {
-                BranchOutcome::Denied(
-                    canonical_denial(&denied).unwrap_or(DenialReason::AuthorizationPlanInvalid),
-                )
-            };
+            let state = evaluate_members(members, branch, observer);
             observe_aggregate(
                 observer,
-                child_count,
+                members.len(),
                 1,
-                authorized,
-                indeterminate.len(),
-                outcome,
+                state.authorized,
+                state.indeterminate,
+                summary::threshold(state, 1),
             )
         }
         AuthorizationPlanRef::KOfN { k, members } => {
-            let child_count = members.len();
-            let mut authorized = 0usize;
-            let mut indeterminate = 0usize;
-            let mut denied = Vec::new();
-            let mut requirements = Vec::new();
-            for member in members {
-                match evaluate_node(member, branch, observer) {
-                    BranchOutcome::Authorized => authorized += 1,
-                    BranchOutcome::Denied(reason) | BranchOutcome::StructurallyInvalid(reason) => {
-                        denied.push(reason);
-                    }
-                    BranchOutcome::Indeterminate(requirement) => {
-                        indeterminate += 1;
-                        requirements.push(requirement);
-                    }
-                }
-            }
-            let outcome = match evaluate_threshold_counts(k, authorized, indeterminate) {
-                ThresholdTruth::Authorized => BranchOutcome::Authorized,
-                ThresholdTruth::Indeterminate => BranchOutcome::Indeterminate(
-                    canonical_requirement(&requirements)
-                        .unwrap_or(Requirement::ExternalFactUnavailable),
-                ),
-                ThresholdTruth::Denied => BranchOutcome::Denied(
-                    canonical_denial(&denied).unwrap_or(DenialReason::AuthorizationPlanInvalid),
-                ),
-            };
-            observe_aggregate(observer, child_count, k, authorized, indeterminate, outcome)
+            let state = evaluate_members(members, branch, observer);
+            observe_aggregate(
+                observer,
+                members.len(),
+                k,
+                state.authorized,
+                state.indeterminate,
+                summary::threshold(state, k),
+            )
         }
     }
 }
@@ -225,17 +186,6 @@ fn observe_aggregate(
     outcome
 }
 
-fn canonical_denial(reasons: &[DenialReason]) -> Option<DenialReason> {
-    reasons.iter().copied().min_by_key(|reason| reason.code())
-}
-
-fn canonical_requirement(requirements: &[Requirement]) -> Option<Requirement> {
-    requirements
-        .iter()
-        .copied()
-        .min_by_key(|requirement| requirement.code())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,7 +199,167 @@ mod tests {
         }
     }
 
+    #[test]
+    fn formal_summary_witnesses_match_shipping_operations() {
+        use BranchOutcome::{
+            Authorized as A, Denied as D, Indeterminate as I, StructurallyInvalid as S,
+        };
+        let cases = [
+            (true, 2, vec![A, A], A),
+            (
+                true,
+                2,
+                vec![
+                    I(Requirement::StaleStatus),
+                    D(DenialReason::InvalidSignature),
+                ],
+                D(DenialReason::InvalidSignature),
+            ),
+            (
+                true,
+                3,
+                vec![
+                    D(DenialReason::InvalidSignature),
+                    S(DenialReason::ActionBodyMismatch),
+                    D(DenialReason::MissingReference),
+                ],
+                D(DenialReason::ActionBodyMismatch),
+            ),
+            (false, 1, vec![S(DenialReason::MissingReference), A], A),
+            (
+                false,
+                1,
+                vec![
+                    D(DenialReason::InvalidSignature),
+                    I(Requirement::StaleStatus),
+                ],
+                I(Requirement::StaleStatus),
+            ),
+            (
+                false,
+                1,
+                vec![
+                    I(Requirement::StaleStatus),
+                    I(Requirement::ApprovalUnavailable),
+                ],
+                I(Requirement::ApprovalUnavailable),
+            ),
+            (
+                false,
+                1,
+                vec![
+                    A,
+                    I(Requirement::StaleStatus),
+                    D(DenialReason::InvalidSignature),
+                ],
+                A,
+            ),
+            (
+                false,
+                2,
+                vec![
+                    A,
+                    I(Requirement::StaleStatus),
+                    D(DenialReason::InvalidSignature),
+                ],
+                I(Requirement::StaleStatus),
+            ),
+            (
+                false,
+                3,
+                vec![
+                    A,
+                    I(Requirement::StaleStatus),
+                    D(DenialReason::InvalidSignature),
+                ],
+                D(DenialReason::InvalidSignature),
+            ),
+        ];
+        for (all, required, children, expected) in cases {
+            let mut state = Summary::default();
+            for child in children {
+                summary::push(&mut state, child);
+            }
+            let actual = if all {
+                summary::all(state)
+            } else {
+                summary::threshold(state, required)
+            };
+            assert_eq!(actual, expected);
+        }
+    }
+
+    fn nested_plan(seed: u64, leaves: &[u8]) -> AuthorizationPlan {
+        if leaves.len() == 1 {
+            return AuthorizationPlan::proof(ProofRef::new([leaves[0]; 32]));
+        }
+        let middle = leaves.len() / 2;
+        let children = vec![
+            nested_plan(seed.rotate_left(7).wrapping_add(1), &leaves[..middle]),
+            nested_plan(seed.rotate_right(5).wrapping_add(3), &leaves[middle..]),
+        ];
+        match seed % 3 {
+            0 => AuthorizationPlan::all_of(children),
+            1 => AuthorizationPlan::any_of(children),
+            _ => AuthorizationPlan::k_of_n(if seed & 8 == 0 { 1 } else { 2 }, children),
+        }
+        .expect("bounded distinct test leaves")
+    }
+
+    fn diagnostic(tag: usize) -> BranchOutcome {
+        match tag % 8 {
+            0 | 1 => BranchOutcome::Authorized,
+            2 => BranchOutcome::Denied(DenialReason::InvalidSignature),
+            3 => BranchOutcome::Denied(DenialReason::ActionBodyMismatch),
+            4 => BranchOutcome::Indeterminate(Requirement::StaleStatus),
+            5 => BranchOutcome::Indeterminate(Requirement::ApprovalUnavailable),
+            6 => BranchOutcome::StructurallyInvalid(DenialReason::MissingReference),
+            _ => BranchOutcome::StructurallyInvalid(DenialReason::ActionConstraintMismatch),
+        }
+    }
+
+    fn run_with_stateful_callbacks(
+        plan: &AuthorizationPlan,
+        tags: &[u8],
+        previous: bool,
+    ) -> (BranchOutcome, Vec<ProofRef>, Vec<EvaluationEvent>, usize) {
+        let state = core::cell::Cell::new(0usize);
+        let mut visited = Vec::new();
+        let mut events = Vec::new();
+        let mut branch = |reference: ProofRef| {
+            state.set(state.get() + 11);
+            visited.push(reference);
+            diagnostic(usize::from(tags[usize::from(reference.as_bytes()[0]) - 1]) + state.get())
+        };
+        let mut observer = |event| {
+            state.set(state.get() + 17);
+            events.push(event);
+        };
+        let outcome = if previous {
+            oracle::evaluate_node(plan, &mut branch, &mut observer)
+        } else {
+            evaluate_observed(plan, &VerifierLimits::hard(), &mut branch, &mut observer)
+                .expect("valid bounded plan")
+        };
+        (outcome, visited, events, state.get())
+    }
+
     proptest! {
+        #[test]
+        fn streaming_summary_preserves_nested_results_and_callback_events(
+            tags in proptest::collection::vec(any::<u8>(), 1..33),
+            seed in any::<u64>(),
+        ) {
+            let leaves: Vec<u8> = (1..=tags.len())
+                .map(|index| u8::try_from(index).expect("bounded test index"))
+                .collect();
+            let plan = nested_plan(seed, &leaves);
+            prop_assert_eq!(
+                run_with_stateful_callbacks(&plan, &tags, false),
+                run_with_stateful_callbacks(&plan, &tags, true),
+            );
+        }
+
         #[test]
         fn threshold_matches_exact_counting(
             tags in proptest::collection::vec(0u8..3, 1..16),

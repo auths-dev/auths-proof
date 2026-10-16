@@ -2731,8 +2731,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 5139,
-        "end_line": 5139
+        "begin_line": 5160,
+        "end_line": 5160
       }
     },
     {

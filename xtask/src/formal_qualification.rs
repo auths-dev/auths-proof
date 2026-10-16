@@ -13,9 +13,21 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "43999ba6c75ffd453cdf6cd4c9c2dc1927c5c67a86febde3557835d5add2e03f";
+    "1a2135d40b4e426048ed3a7a64f7fba24221b77b573e7e25a875a6bed1e4474e";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
+    (
+        "composition-run/qualification/aeneas/generated/composition/Types.lean",
+        "formal/qualification/aeneas/generated/composition/Types.lean",
+    ),
+    (
+        "composition-run/qualification/aeneas/generated/composition/Funs.lean",
+        "formal/qualification/aeneas/generated/composition/Funs.lean",
+    ),
+    (
+        "composition-run/translation.json",
+        "formal/qualification/aeneas/generated/composition/translation.json",
+    ),
     (
         "stores-run/qualification/aeneas/generated/stores/Types.lean",
         "formal/qualification/aeneas/generated/stores/Types.lean",
@@ -158,6 +170,9 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/composition/Types.lean",
+    "formal/qualification/aeneas/generated/composition/Funs.lean",
+    "formal/qualification/aeneas/generated/composition/translation.json",
     "formal/qualification/aeneas/generated/stores/Types.lean",
     "formal/qualification/aeneas/generated/stores/Funs.lean",
     "formal/qualification/aeneas/generated/stores/translation.json",
@@ -198,6 +213,7 @@ const GENERATED_ARTIFACTS: &[&str] = &[
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
+    "qualification.aeneas.cases.Composition",
     "qualification.aeneas.cases.Stores",
     "qualification.aeneas.cases.Codec",
     "qualification.aeneas.cases.Model",
@@ -210,6 +226,11 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "core/crates/auths-composition/Cargo.toml",
+    "core/crates/auths-composition/src/lib.rs",
+    "core/crates/auths-composition/src/summary.rs",
+    "formal/Auths/Support/Discriminant.lean",
+    "formal/qualification/aeneas/cases/Composition.lean",
     "core/crates/auths-codec/src/decode.rs",
     "core/crates/auths-codec/src/encode.rs",
     "core/crates/auths-codec/src/error.rs",
@@ -232,6 +253,10 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
+    (
+        "auths_composition",
+        "formal/qualification/aeneas/generated/composition/translation.json",
+    ),
     (
         "auths_stores",
         "formal/qualification/aeneas/generated/stores/translation.json",
@@ -295,6 +320,7 @@ struct Qualification {
     source_files: Vec<String>,
     generated_files: Vec<String>,
     case_modules: Vec<String>,
+    codegen_normalizations: Vec<String>,
     tools: QualificationTools,
     external_models: Vec<ExternalModel>,
     warning_inventory: Vec<WarningInventory>,
@@ -608,13 +634,17 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 9
-        || qualification.translations.len() != 9
+    if qualification.case_modules.len() != 10
+        || qualification.translations.len() != 10
         || qualification.external_models.len() != 6
         || qualification.warning_inventory.len() != 4
         || qualification.template_axioms.len() != 5
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
+    }
+
+    if qualification.codegen_normalizations != ["composition-qualified-discriminants-v1"] {
+        return Err("Aeneas code generation normalization inventory drifted".to_owned());
     }
 
     for path in [
@@ -771,6 +801,7 @@ fn qualification_boundary_contract_sha256(qualification: &Qualification) -> Stri
         "translations": translations,
         "warning_inventory": warnings,
         "template_axioms": templates,
+        "codegen_normalizations": qualification.codegen_normalizations,
     }))
     .expect("in-memory qualification contract serializes");
     hex::encode(Sha256::digest(bytes))
@@ -1382,14 +1413,17 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
                 expected.crate_name
             ));
         }
-        if report.crate_name == "auths_codec"
-            && report
-                .functions
-                .iter()
-                .any(|function| function.rust_name.starts_with("auths_") && function.is_opaque)
+        if matches!(
+            report.crate_name.as_str(),
+            "auths_codec" | "auths_composition"
+        ) && report
+            .functions
+            .iter()
+            .any(|function| function.rust_name.starts_with("auths_") && function.is_opaque)
         {
             return Err(
-                "the codec closure must translate every Auths constructor and helper".to_owned(),
+                "the codec/composition closure must translate every Auths constructor and helper"
+                    .to_owned(),
             );
         }
         let local = report
@@ -1778,6 +1812,8 @@ fn run_rust_qualification_cases(root: &Path) -> Result<(), String> {
             "-p".to_owned(),
             "auths-codec".to_owned(),
             "-p".to_owned(),
+            "auths-composition".to_owned(),
+            "-p".to_owned(),
             "auths-authority".to_owned(),
             "-p".to_owned(),
             "auths-author".to_owned(),
@@ -1968,6 +2004,22 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
+            "auths_composition::summary::push,auths_composition::summary::all,auths_composition::summary::threshold",
+            &stable_llbc.join("auths_composition.llbc"),
+            "core/crates/auths-composition/Cargo.toml",
+            &[
+                "--include",
+                "auths_model",
+                "--include",
+                "auths_algebra_kernel",
+            ],
+        ),
+        root,
+        &[],
+    )?;
+    run_checked(
+        charon,
+        &charon_arguments(
             "auths_codec::cbor::read_head,auths_codec::cbor::encode_head,auths_codec::decode::decode_canonical_action,auths_codec::hash::signing_preimage",
             &stable_llbc.join("auths_codec.llbc"),
             "core/crates/auths-codec/Cargo.toml",
@@ -2122,6 +2174,7 @@ fn reproduce(
     )?;
 
     for crate_name in [
+        "auths_composition",
         "auths_stores",
         "auths_codec",
         "auths_model",
@@ -2149,6 +2202,7 @@ fn reproduce(
     }
 
     for (crate_name, subdir) in [
+        ("auths_composition", "composition"),
         ("auths_stores", "stores"),
         ("auths_codec", "codec"),
         ("auths_model", "model"),
@@ -2187,6 +2241,7 @@ fn reproduce(
         )?;
     }
     for crate_name in [
+        "auths_composition",
         "auths_stores",
         "auths_codec",
         "auths_model",
@@ -2200,7 +2255,30 @@ fn reproduce(
         fs::remove_file(llbc.join(format!("{crate_name}.llbc")))
             .map_err(|error| format!("could not remove raw nondeterministic LLBC: {error}"))?;
     }
+    normalize_composition_discriminants(output)?;
     Ok(())
+}
+
+// Metadata-only: preserve every pinned generated datatype and match body.
+// The reviewed attribute changes anonymous instance names, not discriminants.
+fn normalize_composition_discriminants(output: &Path) -> Result<(), String> {
+    let path = output.join("composition-run/qualification/aeneas/generated/composition/Types.lean");
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("could not read composition types: {error}"))?;
+    if source.matches("discriminant isize").count() != 4
+        || source.matches("import Aeneas\n").count() != 1
+        || source.contains("qualified_discriminant")
+    {
+        return Err("composition discriminant normalization input drifted".to_owned());
+    }
+    let normalized = source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize");
+    fs::write(path, normalized)
+        .map_err(|error| format!("could not write composition types: {error}"))
 }
 
 fn charon_arguments(

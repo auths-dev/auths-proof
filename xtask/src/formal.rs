@@ -1845,6 +1845,29 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "Finite lists of independent natural-number upper endpoints, preserving inclusive and exclusive boundaries. This is endpoint algebra; it does not establish that an actual verification or installed gate supplied every required bound.".to_owned();
         }
+        if declaration.name.starts_with("Auths.Composition.Model.") {
+            claim.claim_text = format!(
+                "The independent finite child-sequence model proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated property")
+            );
+            claim.scope = "Natural-number counts and minimum diagnostics over arbitrary finite child-outcome lists, with explicit treatment of structural invalidity. This is the independent aggregation specification, not complete plan traversal, registry/stage, callback or verifier soundness.".to_owned();
+        }
+        if declaration.name.starts_with("Auths.Composition.Examples.") {
+            claim.claim_text = format!(
+                "A kernel-checked execution of the shipping summary operations establishes the concrete {} witness.",
+                declaration.name.rsplit('.').next().unwrap_or("stated")
+            );
+            claim.scope = "The exact bounded child outcomes and threshold in this statement, including successful, denied and indeterminate cases. The Lean harness calls the actual translated push and finalizer operations; it does not assert plan validation, callback ordering or full verifier acceptance.".to_owned();
+            claim.claim_status = "qualified".to_owned();
+        }
+        if declaration.name == "Auths.Composition.Refinement.saturating_add_exact" {
+            claim.claim_text = "The pinned Aeneas unsigned-word saturating-add model equals the minimum of the word maximum and the natural-number sum.".to_owned();
+            claim.scope = "Every pair of unsigned machine-word model values on either supported width. This proves a property of the pinned standard-library model; it is not a new opaque Auths algorithm or a complete verifier theorem.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2146,15 +2169,22 @@ const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/F
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
+const COMPOSITION_TRANSLATION: &str = "formal/qualification/aeneas/generated/composition/Funs.lean";
+
 /// Qualified refinement metadata together with the generated translation the
 /// claim must cite: the authority evaluators live in the authority crate's
 /// translation, the observation predicates in the model crate's, and the
 /// gateway leaves in the gateway kernel's.
+
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
-    production_refinement_metadata(declaration)
-        .map(|metadata| (metadata, AUTHORITY_TRANSLATION))
+    composition_refinement_metadata(declaration)
+        .map(|metadata| (metadata, COMPOSITION_TRANSLATION))
+        .or_else(|| {
+            production_refinement_metadata(declaration)
+                .map(|metadata| (metadata, AUTHORITY_TRANSLATION))
+        })
         .or_else(|| {
             observation_refinement_metadata(declaration)
                 .map(|metadata| (metadata, MODEL_TRANSLATION))
@@ -2188,6 +2218,87 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+fn composition_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed declaration-name normalization, the pinned standard-library models, and the listed foundational axioms are trusted.",
+        "These statements cover child-outcome accumulation and finalization. The recursive plan carrier/traversal, validation, callback and observer ordering, registry/stage composition, sealed result projection and complete verifier remain separate obligations; this slice does not complete AP-SPEC-069 E2.",
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Composition.Refinement.push_exact" => (
+            "The shipping constant-space accumulator returns the exact independent natural-number update for each of the four child outcome variants.",
+            &["auths_composition::summary::push"],
+            "Every typed summary and child outcome whose two counters can each be incremented within usize; the postcondition fixes both counters and both minimum diagnostics.",
+        ),
+        "Auths.Composition.Refinement.all_exact" => (
+            "The shipping conjunction finalizer returns exactly the independent denial-before-indeterminate decision.",
+            &["auths_composition::summary::all"],
+            "Every typed summary, including empty or inconsistent summaries. The separate Matches theorem establishes minimum-code meaning for a complete child sequence.",
+        ),
+        "Auths.Composition.Refinement.threshold_exact" => (
+            "The shipping threshold finalizer returns exactly the independent count decision and selected diagnostic, including saturating addition.",
+            &[
+                "auths_composition::summary::threshold",
+                "auths_composition::evaluate_threshold_counts",
+            ],
+            "Every u16 threshold and pair of usize counts with arbitrary diagnostic options, on either supported machine width. Zero and out-of-range thresholds are algebra inputs; plan validation rejects them separately.",
+        ),
+        "Auths.Composition.Refinement.threshold_authorized_exact" => (
+            "The shipping threshold finalizer authorizes exactly when the supplied authorized-child count meets the threshold.",
+            &["auths_composition::summary::threshold"],
+            "Every u16 threshold and every typed summary; this is count classification rather than a proof of plan validation, child authenticity or branch selection.",
+        ),
+        "Auths.Composition.Refinement.source_fold_exact" => (
+            "Every bounded finite sequence of actual shipping accumulator calls returns the exact independent folded summary.",
+            &["auths_composition::summary::push"],
+            "Every initial typed summary and child-outcome list for which each initial counter plus list length fits usize. This is the sequence of source updates; it does not prove the recursive evaluator supplied that exact sequence.",
+        ),
+        "Auths.Composition.Refinement.denial_precedes_lexical" => (
+            "The shipping denial comparison returns precisely strict lexical order of the independent stable V1 denial-code bytes.",
+            &[
+                "auths_model::{auths_model::DenialReason}::code_precedes",
+                "auths_model::{auths_model::DenialReason}::code_order",
+            ],
+            "Every pair of denial variants. The source rank and public string getter share one catalog; exhaustive native tests separately guard string parity, and the borrowed-string getter itself is outside this extraction.",
+        ),
+        "Auths.Composition.Refinement.requirement_precedes_lexical" => (
+            "The shipping requirement comparison returns precisely strict lexical order of the independent stable V1 requirement-code bytes.",
+            &[
+                "auths_model::{auths_model::Requirement}::code_precedes",
+                "auths_model::{auths_model::Requirement}::code_order",
+            ],
+            "Every pair of requirement variants. The source rank and public string getter share one catalog; exhaustive native tests separately guard string parity, and the borrowed-string getter itself is outside this extraction.",
+        ),
+        "Auths.Composition.Refinement.denial_order_exact" => (
+            "The mechanically translated diagnostic helper returns exactly its independent finite-rank specification.",
+            &["auths_model::{auths_model::DenialReason}::code_order"],
+            "Every variant or pair of variants in the stated stable V1 diagnostic carrier. Separate lexical-order theorems relate these ranks to the independent published-code byte table; the public borrowed-string getter itself remains outside this extraction.",
+        ),
+        "Auths.Composition.Refinement.denial_precedes_exact" => (
+            "The mechanically translated diagnostic helper returns exactly its independent finite-rank specification.",
+            &["auths_model::{auths_model::DenialReason}::code_precedes"],
+            "Every variant or pair of variants in the stated stable V1 diagnostic carrier. Separate lexical-order theorems relate these ranks to the independent published-code byte table; the public borrowed-string getter itself remains outside this extraction.",
+        ),
+        "Auths.Composition.Refinement.requirement_order_exact" => (
+            "The mechanically translated diagnostic helper returns exactly its independent finite-rank specification.",
+            &["auths_model::{auths_model::Requirement}::code_order"],
+            "Every variant or pair of variants in the stated stable V1 diagnostic carrier. Separate lexical-order theorems relate these ranks to the independent published-code byte table; the public borrowed-string getter itself remains outside this extraction.",
+        ),
+        "Auths.Composition.Refinement.requirement_precedes_exact" => (
+            "The mechanically translated diagnostic helper returns exactly its independent finite-rank specification.",
+            &["auths_model::{auths_model::Requirement}::code_precedes"],
+            "Every variant or pair of variants in the stated stable V1 diagnostic carrier. Separate lexical-order theorems relate these ranks to the independent published-code byte table; the public borrowed-string getter itself remains outside this extraction.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn entry_deadline_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {

@@ -1,0 +1,225 @@
+{
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
+  "charon_version": "0.1.225",
+  "crate": "auths_composition",
+  "functions": [
+    {
+      "def_id": 8,
+      "lean_name": "auths_composition.auths_algebra_kernel.generated.threshold_counts",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_algebra_kernel::generated::threshold_counts",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+        "begin_line": 157,
+        "end_line": 157
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_composition.auths_model.Requirement.code_order",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_model::{auths_model::Requirement}::code_order",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 4963,
+        "end_line": 4963
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_composition.auths_model.Requirement.code_precedes",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_model::{auths_model::Requirement}::code_precedes",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 4959,
+        "end_line": 4959
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 7,
+      "lean_name": "auths_composition.auths_model.DenialReason.code_order",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_model::{auths_model::DenialReason}::code_order",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 4963,
+        "end_line": 4963
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_composition.auths_model.DenialReason.code_precedes",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_model::{auths_model::DenialReason}::code_precedes",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 4959,
+        "end_line": 4959
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_composition.evaluate_threshold_counts",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_composition::evaluate_threshold_counts",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-composition/src/lib.rs",
+        "begin_line": 65,
+        "end_line": 71
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_composition.summary.push",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_composition::summary::push",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-composition/src/summary.rs",
+        "begin_line": 13,
+        "end_line": 38
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_composition.summary.all",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_composition::summary::all",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-composition/src/summary.rs",
+        "begin_line": 40,
+        "end_line": 48
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_composition.summary.threshold",
+      "lean_file": "qualification/aeneas/generated/composition/Funs.lean",
+      "rust_name": "auths_composition::summary::threshold",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-composition/src/summary.rs",
+        "begin_line": 50,
+        "end_line": 62
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 5,
+      "lean_name": "auths_composition.auths_algebra_kernel.generated.Truth",
+      "lean_file": "qualification/aeneas/generated/composition/Types.lean",
+      "rust_name": "auths_algebra_kernel::generated::Truth",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+        "begin_line": 11,
+        "end_line": 11
+      }
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_composition.auths_model.DenialReason",
+      "lean_file": "qualification/aeneas/generated/composition/Types.lean",
+      "rust_name": "auths_model::DenialReason",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 4894,
+        "end_line": 4894
+      }
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_composition.auths_model.Requirement",
+      "lean_file": "qualification/aeneas/generated/composition/Types.lean",
+      "rust_name": "auths_model::Requirement",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 5079,
+        "end_line": 5079
+      }
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_composition.BranchOutcome",
+      "lean_file": "qualification/aeneas/generated/composition/Types.lean",
+      "rust_name": "auths_composition::BranchOutcome",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-composition/src/lib.rs",
+        "begin_line": 22,
+        "end_line": 31
+      }
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_composition.summary.Summary",
+      "lean_file": "qualification/aeneas/generated/composition/Types.lean",
+      "rust_name": "auths_composition::summary::Summary",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-composition/src/summary.rs",
+        "begin_line": 6,
+        "end_line": 11
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

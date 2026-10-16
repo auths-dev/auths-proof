@@ -188,3 +188,26 @@ the previous helper is a test-only parity oracle. Public caller encodings,
 signature descriptors, cryptographic suite/dispatch behavior and commitment
 preimages remain outside this slice. AP-SPEC-069 E5 and the complete composed
 claim remain open.
+
+
+## Finite child-summary refinement
+
+The shipping composition engine now accumulates child outcomes in constant
+space. Its translated update and finalizers refine an independent finite-list
+specification of counts, minimum diagnostics, conjunctions and thresholds.
+Every bounded sequence of actual updates has the exact specified summary;
+threshold classification includes saturating unsigned arithmetic. Independent
+byte tables establish lexical precedence for every denial/requirement pair,
+with exhaustive native catalog/string parity and nine Lean/native witnesses.
+
+The qualified source has four local and five imported composition functions,
+without opaque Auths functions. The compiled audit has 418 declarations, all
+prior 387 records unchanged, and only the existing foundational axioms. Full
+qualification passes all 11 modules, native cases and two identical translations.
+The inventory records a naming-only discriminant normalization that reuses the
+pinned generator and changes only anonymous instance namespaces.
+
+This is a child-sequence refinement. Recursive plan traversal/validation,
+callback/observer correspondence, the complete staged verifier and sealed
+result projection remain AP-SPEC-069 E2 obligations. The separate full-evaluator
+prototype is not part of the qualified assurance claim.

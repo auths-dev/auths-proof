@@ -10,7 +10,7 @@ shipping-source refinement and hosted evidence gates.
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. Caller unsigned-object construction, suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
-| M3: complete verifier | Pending | E2.1–E2.5. |
+| M3: complete verifier | In progress | Shipping child-summary updates and finalization refine an independent finite-sequence model. Complete plan validation/traversal, callbacks/events, registry/stage composition, sealed projection and E2.1–E2.5 remain. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
@@ -323,3 +323,55 @@ also pass hosted qualification. At the preceding `d386aec2` checkpoint,
 authoritative implementation, Kani, fast Lean, compliance, dependencies,
 secrets and the live-provider jobs passed; translation remained in progress
 when this slice was prepared.
+
+
+## Finite child-summary slice
+
+The shipping composition evaluator now uses one constant-space summary of
+immediate-child outcomes. It retains the authorized and indeterminate counts
+and the minimum denial/requirement directly, replacing the prior diagnostic
+vectors. All child evaluations and observer calls remain in their previous
+order. The former evaluator exists only as a native test oracle. Property tests
+compare nested conjunctions, alternatives and thresholds with callbacks that
+share mutable test state, checking the exact result, visited leaves, observer
+events and final callback state.
+
+The actual accumulator update, conjunction finalizer and threshold finalizer
+are translated without opaque Auths functions. Their source proofs give exact
+natural-number updates and final decisions, including saturating addition on
+either supported machine width. Every bounded finite sequence of actual source
+updates matches the independent folded summary. The model proves both counts
+and minimum diagnostics for every child sequence, conjunction acceptance iff
+every child authorizes, and threshold acceptance iff its count is sufficient.
+Structural invalidity contributes a denial to its parent; a successful
+alternative can still authorize, as the protocol specifies.
+
+A single source catalog owns each stable diagnostic string and its comparison
+rank. Kernel proofs cover every pair of the 46 denial and 21 requirement
+variants against independent published-code byte tables. Native tests separately
+check each public string getter, parser round trip and pairwise ordering.
+The borrowed-string getter itself is not in this extraction. Nine positive,
+denied and indeterminate Lean witnesses have matching native operation cases.
+
+Qualification passes with 418 compiled declarations, the prior 387 statement
+records unchanged, all 11 modules, native model/codec/composition/authority/
+author cases, and two byte-identical clean translations. The composition slice
+has four local and five imported function records and zero opaque Auths
+functions. The six existing external models remain unchanged in number and
+introduce no compiled axiom. A separately inventoried, metadata-only naming
+normalization reuses the pinned Aeneas discriminant generator and scopes its
+anonymous instance names; it changes no datatype or discriminant match body.
+The compiled multi-import cases check distinct explicit tags on enums with the
+same short name. Bound production source closure:
+`003df1917fd715485d8f7fa0cb69a4c7cff4854a39069fa5d9d0fa34b4310adb`.
+
+This does not complete E2. The qualified slice does not establish that the
+recursive plan evaluator supplies exactly this child sequence, validates the
+plan, invokes callbacks/observers with the expected state, or composes every
+verifier stage and sealed projection. The private full-evaluator prototype is
+not a qualified claim. Exact-revision hosted gates remain required. The preceding
+`d386aec2` checkpoint passed every main CI gate, including authoritative Lean
+replay and final evidence. At `fead08c4`, hosted PostgreSQL lifecycle, recipe
+qualification, gateway isolation, both customer demos, operator package and
+Python/TypeScript package checks pass; the main formal gates are still running.
+All E1–E5 workstreams remain open.

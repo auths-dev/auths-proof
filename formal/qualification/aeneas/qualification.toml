@@ -9,8 +9,15 @@ shipping_target = "workspace-host"
 extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
+# Only declaration metadata changes: the pinned match generator is reused verbatim.
+codegen_normalizations = ["composition-qualified-discriminants-v1"]
 
 source_files = [
+  "core/crates/auths-composition/Cargo.toml",
+  "core/crates/auths-composition/src/lib.rs",
+  "core/crates/auths-composition/src/summary.rs",
+  "formal/Auths/Support/Discriminant.lean",
+  "formal/qualification/aeneas/cases/Composition.lean",
   "product/stores/auths-stores/Cargo.toml",
   "product/stores/auths-stores/src/lib.rs",
   "product/stores/auths-stores/src/gateway_fence.rs",
@@ -73,6 +80,9 @@ source_files = [
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/composition/Types.lean",
+  "formal/qualification/aeneas/generated/composition/Funs.lean",
+  "formal/qualification/aeneas/generated/composition/translation.json",
   "formal/qualification/aeneas/generated/stores/Types.lean",
   "formal/qualification/aeneas/generated/stores/Funs.lean",
   "formal/qualification/aeneas/generated/stores/translation.json",
@@ -113,6 +123,7 @@ generated_files = [
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.Composition",
   "qualification.aeneas.cases.Stores",
   "qualification.aeneas.cases.Codec",
   "qualification.aeneas.cases.Model",
@@ -284,6 +295,31 @@ id = "aeneas-meta-utils"
 artifact = "formal/.lake/packages/aeneas/backends/lean/AeneasMeta/Utils.lean"
 upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
+
+[[translations]]
+crate_name = "auths_composition"
+translation_json = "formal/qualification/aeneas/generated/composition/translation.json"
+local_functions = 4
+external_functions = 5
+opaque_local_functions = 0
+required_symbols = [
+  "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{auths_model::Requirement}::code_order",
+  "auths_model::{auths_model::Requirement}::code_precedes",
+  "auths_model::{auths_model::DenialReason}::code_order",
+  "auths_model::{auths_model::DenialReason}::code_precedes",
+  "auths_composition::evaluate_threshold_counts",
+  "auths_composition::summary::push",
+  "auths_composition::summary::all",
+  "auths_composition::summary::threshold",
+]
+allowed_external_symbols = [
+  "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{auths_model::Requirement}::code_order",
+  "auths_model::{auths_model::Requirement}::code_precedes",
+  "auths_model::{auths_model::DenialReason}::code_order",
+  "auths_model::{auths_model::DenialReason}::code_precedes",
+]
 
 [[translations]]
 crate_name = "auths_stores"

@@ -51,7 +51,7 @@ def auths_model.ResourceId := String
 def auths_model.BudgetAlgebraId := String
 
 /-- [auths_model::ModelError]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 5139:0-5139:19
+    Source: 'core/crates/auths-model/src/lib.rs', lines 5160:0-5160:19
     Name pattern: [auths_model::ModelError]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::ModelError"]

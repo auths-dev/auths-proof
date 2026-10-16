@@ -13,6 +13,7 @@ schema = "auths-proof-coverage-scope/v1"
 verifier_crate = "core/crates/auths-verifier"
 decision_kernel_crates = ["product/runtime/auths-lifecycle", "product/policy/auths-bounded-policy"]
 translated_crates = [
+    "core/crates/auths-composition",
     "product/stores/auths-stores",
     "core/crates/auths-codec",
     "core/crates/auths-model",
@@ -69,6 +70,8 @@ crates = ["product/stores/auths-stores"]
 "core/crates/auths-codec/src/lib.rs" = "decoding"
 "core/crates/auths-codec/src/observation.rs" = "decoding"
 "core/crates/auths-composition/src/lib.rs" = "decision"
+"core/crates/auths-composition/src/summary.rs" = "decision"
+"core/crates/auths-composition/src/oracle.rs" = "test-support"
 "core/crates/auths-model/src/approval.rs" = "decision"
 "core/crates/auths-model/src/bounded.rs" = "decision"
 "core/crates/auths-model/src/bounded_policy.rs" = "decision"

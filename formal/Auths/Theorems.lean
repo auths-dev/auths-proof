@@ -2,6 +2,7 @@ import Auths.Attenuation
 import Auths.Authority
 import Auths.Rich.Mutations
 import Auths.Composition
+import Auths.Composition.Examples
 import Auths.Diversity
 import Auths.Product.Theorems
 import Auths.Product.Refinement
@@ -34,6 +35,37 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Composition.Model.least_none_iff_empty,
+    `Auths.Composition.Model.all_children_authorize_iff,
+    `Auths.Composition.Model.threshold_children_authorize_iff,
+    `Auths.Composition.Model.denial_rank_lexical,
+    `Auths.Composition.Model.requirement_rank_lexical,
+    `Auths.Composition.Model.retain_minimum_least,
+    `Auths.Composition.Model.record_matches,
+    `Auths.Composition.Model.summarize_matches,
+    `Auths.Composition.Model.threshold_authorized_iff,
+    `Auths.Composition.Model.all_authorized_iff,
+    `Auths.Composition.Refinement.denial_order_exact,
+    `Auths.Composition.Refinement.denial_precedes_exact,
+    `Auths.Composition.Refinement.requirement_order_exact,
+    `Auths.Composition.Refinement.requirement_precedes_exact,
+    `Auths.Composition.Refinement.push_exact,
+    `Auths.Composition.Refinement.all_exact,
+    `Auths.Composition.Refinement.saturating_add_exact,
+    `Auths.Composition.Refinement.threshold_exact,
+    `Auths.Composition.Refinement.denial_precedes_lexical,
+    `Auths.Composition.Refinement.requirement_precedes_lexical,
+    `Auths.Composition.Refinement.threshold_authorized_exact,
+    `Auths.Composition.Refinement.source_fold_exact,
+    `Auths.Composition.Examples.all_positive,
+    `Auths.Composition.Examples.all_denial_before_missing,
+    `Auths.Composition.Examples.all_smallest_code,
+    `Auths.Composition.Examples.any_positive_overrides_invalid,
+    `Auths.Composition.Examples.any_missing_before_denial,
+    `Auths.Composition.Examples.any_smallest_requirement,
+    `Auths.Composition.Examples.threshold_lower_bound,
+    `Auths.Composition.Examples.threshold_reachable,
+    `Auths.Composition.Examples.threshold_impossible,
     `Auths.Crypto.Framing.length_exact,
     `Auths.Crypto.Framing.framing_is_unambiguous,
     `Auths.Crypto.Framing.different_tags_separate,

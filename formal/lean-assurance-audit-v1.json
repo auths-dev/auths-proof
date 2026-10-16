@@ -6,6 +6,323 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.least_none_iff_empty",
+      "statement": "∀ {α : Type} (rank : α → ℕ) (inputs : List α) (selected : Option α),\n  Auths.Composition.Model.Least rank inputs selected → (selected = none ↔ inputs = [])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.all_children_authorize_iff",
+      "statement": "∀ (outcomes : List auths_composition.BranchOutcome),\n  Auths.Composition.Model.allOutcome (Auths.Composition.Model.summarize outcomes) =\n      auths_composition.BranchOutcome.Authorized ↔\n    ∀ outcome ∈ outcomes, outcome = auths_composition.BranchOutcome.Authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.threshold_children_authorize_iff",
+      "statement": "∀ (required : ℕ) (outcomes : List auths_composition.BranchOutcome),\n  Auths.Composition.Model.thresholdOutcome required (Auths.Composition.Model.summarize outcomes) =\n      auths_composition.BranchOutcome.Authorized ↔\n    required ≤ Auths.Composition.Model.authorizedCount outcomes"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Composition.Diagnostics",
+      "name": "Auths.Composition.Model.denial_rank_lexical",
+      "statement": "∀ (left right : auths_composition.auths_model.DenialReason),\n  Auths.Composition.Model.denialRank left < Auths.Composition.Model.denialRank right ↔\n    List.Lex (fun x1 x2 => x1 < x2) (Auths.Composition.Model.denialCode left) (Auths.Composition.Model.denialCode right)"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Composition.Diagnostics",
+      "name": "Auths.Composition.Model.requirement_rank_lexical",
+      "statement": "∀ (left right : auths_composition.auths_model.Requirement),\n  Auths.Composition.Model.requirementRank left < Auths.Composition.Model.requirementRank right ↔\n    List.Lex (fun x1 x2 => x1 < x2) (Auths.Composition.Model.requirementCode left)\n      (Auths.Composition.Model.requirementCode right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.retain_minimum_least",
+      "statement": "∀ {α : Type} (rank : α → ℕ) (inputs : List α) (previous : Option α) (candidate : α),\n  Auths.Composition.Model.Least rank inputs previous →\n    Auths.Composition.Model.Least rank (inputs ++ [candidate])\n      (Auths.Composition.Model.retainMinimum rank previous candidate)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.record_matches",
+      "statement": "∀ (state : Auths.Composition.Model.Summary) (outcomes : List auths_composition.BranchOutcome)\n  (outcome : auths_composition.BranchOutcome),\n  Auths.Composition.Model.Matches state outcomes →\n    Auths.Composition.Model.Matches (Auths.Composition.Model.record state outcome) (outcomes ++ [outcome])"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.summarize_matches",
+      "statement": "∀ (outcomes : List auths_composition.BranchOutcome),\n  Auths.Composition.Model.Matches (Auths.Composition.Model.summarize outcomes) outcomes"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.threshold_authorized_iff",
+      "statement": "∀ (required : ℕ) (state : Auths.Composition.Model.Summary),\n  Auths.Composition.Model.thresholdOutcome required state = auths_composition.BranchOutcome.Authorized ↔\n    required ≤ state.authorized"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Model",
+      "name": "Auths.Composition.Model.all_authorized_iff",
+      "statement": "∀ (state : Auths.Composition.Model.Summary),\n  Auths.Composition.Model.allOutcome state = auths_composition.BranchOutcome.Authorized ↔\n    state.denial = none ∧ state.requirement = none"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.denial_order_exact",
+      "statement": "∀ (value : auths_composition.auths_model.DenialReason),\n  Aeneas.Std.WP.spec value.code_order fun result => ↑result = Auths.Composition.Model.denialRank value"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.denial_precedes_exact",
+      "statement": "∀ (left right : auths_composition.auths_model.DenialReason),\n  Aeneas.Std.WP.spec (left.code_precedes right) fun result =>\n    result = decide (Auths.Composition.Model.denialRank left < Auths.Composition.Model.denialRank right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.requirement_order_exact",
+      "statement": "∀ (value : auths_composition.auths_model.Requirement),\n  Aeneas.Std.WP.spec value.code_order fun result => ↑result = Auths.Composition.Model.requirementRank value"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.requirement_precedes_exact",
+      "statement": "∀ (left right : auths_composition.auths_model.Requirement),\n  Aeneas.Std.WP.spec (left.code_precedes right) fun result =>\n    result = decide (Auths.Composition.Model.requirementRank left < Auths.Composition.Model.requirementRank right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.push_exact",
+      "statement": "∀ (state : auths_composition.summary.Summary) (outcome : auths_composition.BranchOutcome),\n  ↑state.authorized + 1 ≤ Aeneas.Std.Usize.max →\n    ↑state.indeterminate + 1 ≤ Aeneas.Std.Usize.max →\n      Aeneas.Std.WP.spec (auths_composition.summary.push state outcome) fun result =>\n        Auths.Composition.Refinement.view result =\n          Auths.Composition.Model.record (Auths.Composition.Refinement.view state) outcome"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.all_exact",
+      "statement": "∀ (state : auths_composition.summary.Summary),\n  auths_composition.summary.all state =\n    Aeneas.Std.Result.ok (Auths.Composition.Model.allOutcome (Auths.Composition.Refinement.view state))"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.saturating_add_exact",
+      "statement": "∀ (left right : Aeneas.Std.Usize),\n  ↑(Aeneas.Std.core.num.Usize.saturating_add left right) = min Aeneas.Std.Usize.max (↑left + ↑right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.threshold_exact",
+      "statement": "∀ (state : auths_composition.summary.Summary) (required : Aeneas.Std.U16),\n  auths_composition.summary.threshold state required =\n    Aeneas.Std.Result.ok\n      (Auths.Composition.Model.thresholdOutcome (↑required) (Auths.Composition.Refinement.view state))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.denial_precedes_lexical",
+      "statement": "∀ (left right : auths_composition.auths_model.DenialReason),\n  left.code_precedes right =\n    Aeneas.Std.Result.ok\n      (decide\n        (List.Lex (fun x1 x2 => x1 < x2) (Auths.Composition.Model.denialCode left)\n          (Auths.Composition.Model.denialCode right)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.requirement_precedes_lexical",
+      "statement": "∀ (left right : auths_composition.auths_model.Requirement),\n  left.code_precedes right =\n    Aeneas.Std.Result.ok\n      (decide\n        (List.Lex (fun x1 x2 => x1 < x2) (Auths.Composition.Model.requirementCode left)\n          (Auths.Composition.Model.requirementCode right)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.threshold_authorized_exact",
+      "statement": "∀ (state : auths_composition.summary.Summary) (required : Aeneas.Std.U16),\n  auths_composition.summary.threshold state required = Aeneas.Std.Result.ok auths_composition.BranchOutcome.Authorized ↔\n    ↑required ≤ ↑state.authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Refinement",
+      "name": "Auths.Composition.Refinement.source_fold_exact",
+      "statement": "∀ (state : auths_composition.summary.Summary) (outcomes : List auths_composition.BranchOutcome),\n  ↑state.authorized + outcomes.length ≤ Aeneas.Std.Usize.max →\n    ↑state.indeterminate + outcomes.length ≤ Aeneas.Std.Usize.max →\n      Aeneas.Std.WP.spec (Auths.Composition.Refinement.sourceFold state outcomes) fun result =>\n        Auths.Composition.Refinement.view result =\n          List.foldl Auths.Composition.Model.record (Auths.Composition.Refinement.view state) outcomes"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.all_positive",
+      "statement": "Auths.Composition.Examples.decideChildren true 2#u16\n    [auths_composition.BranchOutcome.Authorized, auths_composition.BranchOutcome.Authorized] =\n  Aeneas.Std.Result.ok auths_composition.BranchOutcome.Authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.all_denial_before_missing",
+      "statement": "Auths.Composition.Examples.decideChildren true 2#u16\n    [auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus,\n      auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.all_smallest_code",
+      "statement": "Auths.Composition.Examples.decideChildren true 3#u16\n    [auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature,\n      auths_composition.BranchOutcome.StructurallyInvalid auths_composition.auths_model.DenialReason.ActionBodyMismatch,\n      auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.MissingReference] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.ActionBodyMismatch)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.any_positive_overrides_invalid",
+      "statement": "Auths.Composition.Examples.decideChildren false 1#u16\n    [auths_composition.BranchOutcome.StructurallyInvalid auths_composition.auths_model.DenialReason.MissingReference,\n      auths_composition.BranchOutcome.Authorized] =\n  Aeneas.Std.Result.ok auths_composition.BranchOutcome.Authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.any_missing_before_denial",
+      "statement": "Auths.Composition.Examples.decideChildren false 1#u16\n    [auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature,\n      auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.any_smallest_requirement",
+      "statement": "Auths.Composition.Examples.decideChildren false 1#u16\n    [auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus,\n      auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.ApprovalUnavailable] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.ApprovalUnavailable)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.threshold_lower_bound",
+      "statement": "Auths.Composition.Examples.decideChildren false 1#u16\n    [auths_composition.BranchOutcome.Authorized,\n      auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus,\n      auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature] =\n  Aeneas.Std.Result.ok auths_composition.BranchOutcome.Authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.threshold_reachable",
+      "statement": "Auths.Composition.Examples.decideChildren false 2#u16\n    [auths_composition.BranchOutcome.Authorized,\n      auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus,\n      auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Examples",
+      "name": "Auths.Composition.Examples.threshold_impossible",
+      "statement": "Auths.Composition.Examples.decideChildren false 3#u16\n    [auths_composition.BranchOutcome.Authorized,\n      auths_composition.BranchOutcome.Indeterminate auths_composition.auths_model.Requirement.StaleStatus,\n      auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature] =\n  Aeneas.Std.Result.ok\n    (auths_composition.BranchOutcome.Denied auths_composition.auths_model.DenialReason.InvalidSignature)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Crypto.Framing",
       "name": "Auths.Crypto.Framing.length_exact",
       "statement": "∀ (frame : Auths.Crypto.Framing.Frame),\n  (Auths.Crypto.Framing.encode frame).length = 21 + frame.profile.length + frame.statement.length"
