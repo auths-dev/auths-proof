@@ -1,3 +1,4 @@
+import Auths.Product.CounterRefinement
 import Auths.Product.Frontier.Refinement
 import Auths.Product.Refinement.EntryDeadline
 import qualification.aeneas.generated.gateway.Funs
@@ -111,3 +112,13 @@ end qualification.aeneas.cases
 #check Auths.Product.Frontier.Refinement.observe_exact
 #check Auths.Product.Frontier.Refinement.candidate_exact
 #check Auths.Product.Frontier.Refinement.source_work_bound
+
+#check Auths.Product.CounterFrames.Refinement.word_exact
+#check Auths.Product.CounterFrames.Refinement.component_exact
+#check Auths.Product.CounterFrames.Refinement.coordinates_exact
+#check Auths.Product.CounterFrames.Refinement.count_exact
+#check Auths.Product.CounterFrames.Refinement.sum_exact
+#check Auths.Product.CounterFrames.Refinement.count_slot_exact
+#check Auths.Product.CounterFrames.Refinement.sum_slot_exact
+#check Auths.Product.CounterFrames.Refinement.count_source_binds_inputs
+#check Auths.Product.CounterFrames.Refinement.sum_source_binds_inputs

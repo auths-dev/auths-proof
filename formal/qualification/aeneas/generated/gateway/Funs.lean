@@ -2,6 +2,7 @@
 -- [auths_gateway_kernel]: function definitions
 import Aeneas
 import qualification.aeneas.generated.gateway.Types
+import qualification.aeneas.generated.gateway.FunsExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -12,6 +13,9 @@ set_option maxHeartbeats 1000000
 
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
+
+/- You can remove the following line by using the CLI option `-all-computable`: -/
+noncomputable section
 
 namespace auths_gateway_kernel
 
@@ -1381,6 +1385,128 @@ def construct.field_index
   Result (Option Std.Usize)
   := do
   construct.field_index_loop names wanted 0#usize none
+
+/-- [auths_gateway_kernel::counter_preimages::append_word]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 6:0-8:1 -/
+def counter_preimages.append_word
+  (output : alloc.vec.Vec Std.U8) (value : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let a ← lift (core.num.U64.to_be_bytes value)
+  let s ← lift (Array.to_slice a)
+  construct.append_bytes output s
+
+/-- [auths_gateway_kernel::counter_preimages::append_component]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 10:0-14:1 -/
+def counter_preimages.append_component
+  (output : alloc.vec.Vec Std.U8) (value : Slice Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i := Slice.len value
+  let r ← U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i
+  let length ← core.result.Result.unwrap_or r core.num.U64.MAX
+  let output1 ← counter_preimages.append_word output length
+  construct.append_bytes output1 value
+
+/-- [auths_gateway_kernel::counter_preimages::append_coordinates]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 16:0-19:1 -/
+def counter_preimages.append_coordinates
+  (output : alloc.vec.Vec Std.U8) (window : Std.U64) (index : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let output1 ← counter_preimages.append_word output window
+  counter_preimages.append_word output1 index
+
+/-- [auths_gateway_kernel::counter_preimages::count_counter_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 26:0-38:1
+    Visibility: public -/
+def counter_preimages.count_counter_preimage
+  (namespace1 : Slice Std.U8) (subject : Slice Std.U8)
+  (evaluator : Slice Std.U8) (window : Std.U64) (index : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 30#usize [
+        97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8,
+        101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 98#u8, 111#u8, 117#u8, 110#u8,
+        100#u8, 101#u8, 100#u8, 45#u8, 99#u8, 111#u8, 117#u8, 110#u8, 116#u8,
+        47#u8, 50#u8, 0#u8
+        ]))
+  let output ← construct.copy_bytes s
+  let output1 ← counter_preimages.append_component output namespace1
+  let output2 ← counter_preimages.append_component output1 subject
+  let output3 ← counter_preimages.append_component output2 evaluator
+  counter_preimages.append_coordinates output3 window index
+
+/-- [auths_gateway_kernel::counter_preimages::sum_counter_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 43:0-57:1
+    Visibility: public -/
+def counter_preimages.sum_counter_preimage
+  (namespace1 : Slice Std.U8) (subject : Slice Std.U8)
+  (evaluator : Slice Std.U8) (partition : Slice Std.U8) (window : Std.U64)
+  (index : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 28#usize [
+        97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8,
+        101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 98#u8, 111#u8, 117#u8, 110#u8,
+        100#u8, 101#u8, 100#u8, 45#u8, 115#u8, 117#u8, 109#u8, 47#u8, 49#u8,
+        0#u8
+        ]))
+  let output ← construct.copy_bytes s
+  let output1 ← counter_preimages.append_component output namespace1
+  let output2 ← counter_preimages.append_component output1 subject
+  let output3 ← counter_preimages.append_component output2 evaluator
+  let output4 ← counter_preimages.append_component output3 partition
+  counter_preimages.append_coordinates output4 window index
+
+/-- [auths_gateway_kernel::counter_preimages::slot_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 59:0-62:1 -/
+def counter_preimages.slot_preimage
+  (domain : Slice Std.U8) (counter : Array Std.U8 32#usize) (slot : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let v ← construct.copy_bytes domain
+  let s ← lift (Array.to_slice counter)
+  let output ← construct.append_bytes v s
+  counter_preimages.append_word output slot
+
+/-- [auths_gateway_kernel::counter_preimages::count_slot_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 67:0-69:1
+    Visibility: public -/
+def counter_preimages.count_slot_preimage
+  (counter : Array Std.U8 32#usize) (slot : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 35#usize [
+        97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8,
+        101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 98#u8, 111#u8, 117#u8, 110#u8,
+        100#u8, 101#u8, 100#u8, 45#u8, 99#u8, 111#u8, 117#u8, 110#u8, 116#u8,
+        45#u8, 115#u8, 108#u8, 111#u8, 116#u8, 47#u8, 50#u8, 0#u8
+        ]))
+  counter_preimages.slot_preimage s counter slot
+
+/-- [auths_gateway_kernel::counter_preimages::sum_slot_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_preimages.rs', lines 74:0-76:1
+    Visibility: public -/
+def counter_preimages.sum_slot_preimage
+  (counter : Array Std.U8 32#usize) (slot : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 33#usize [
+        97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8,
+        101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 98#u8, 111#u8, 117#u8, 110#u8,
+        100#u8, 101#u8, 100#u8, 45#u8, 115#u8, 117#u8, 109#u8, 45#u8, 115#u8,
+        108#u8, 111#u8, 116#u8, 47#u8, 49#u8, 0#u8
+        ]))
+  counter_preimages.slot_preimage s counter slot
 
 /-- [auths_gateway_kernel::deadline::intersect_entry_bounds]:
     Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 15:0-24:1

@@ -1,5 +1,6 @@
 -- REVIEWED TRANSPARENT STANDARD-LIBRARY MODELS; NO AUTHS ALGORITHM IS OPAQUE.
 import qualification.aeneas.generated.codec.Types
+import qualification.aeneas.generated.standard.CheckedResult
 import qualification.aeneas.generated.model.FunsExternal
 open Aeneas Aeneas.Std Result
 set_option linter.unusedVariables false
@@ -10,9 +11,6 @@ def Auths.Codec.StdModel.bytes (bytes : Str) : ByteArray :=
 
 def Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
   core.num.tryFromUScalar .Usize value
-
-def U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :=
-  core.num.tryFromUScalar .U64 value
 
 def U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
   core.num.tryFromUScalar .U8 value
@@ -54,9 +52,6 @@ def core.result.Result.map_err {T E F O : Type}
   | .Err error =>
     let output ← function.call_once callback error
     ok (.Err output)
-
-def core.result.Result.unwrap_or {T E : Type} (value : core.result.Result T E) (fallback : T) :
-    Result T := ok (match value with | .Ok value => value | .Err _ => fallback)
 
 def core.str.converts.from_utf8 (bytes : Slice Std.U8) :
     Result (core.result.Result Str core.str.error.Utf8Error) :=

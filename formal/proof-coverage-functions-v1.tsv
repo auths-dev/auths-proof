@@ -1490,6 +1490,14 @@ product/runtime/auths-gateway-kernel/src/construct.rs	840	852	13	construct_actio
 product/runtime/auths-gateway-kernel/src/construct.rs	858	865	8	construct_credential_read	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/construct.rs	1054	1065	12	field_name_equal	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/construct.rs	1070	1080	11	field_index	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	6	8	3	append_word	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	10	14	5	append_component	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	16	19	4	append_coordinates	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	26	38	13	count_counter_preimage	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	43	57	15	sum_counter_preimage	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	59	62	4	slot_preimage	product/runtime/auths-gateway-kernel	decision	0	0		1	0	1	0
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	67	69	3	count_slot_preimage	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
+product/runtime/auths-gateway-kernel/src/counter_preimages.rs	74	76	3	sum_slot_preimage	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/deadline.rs	15	24	10	intersect_entry_bounds	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	1
 product/runtime/auths-gateway-kernel/src/deadline.rs	29	31	3	entry_time_allows	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2
 product/runtime/auths-gateway-kernel/src/frontier.rs	16	21	6	FrontierSearch::new	product/runtime/auths-gateway-kernel	decision	0	0		1	1	1	2

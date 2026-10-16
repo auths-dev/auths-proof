@@ -1331,3 +1331,12 @@ its actual Rust prototype translates after replacing unsupported nested borrows
 with fixed-field composition. It has not yet been cut over into production or
 added to this qualified inventory. Continue with that source/primitive bridge,
 then actual counter derivation and reservation/backend correspondence.
+
+
+### 13.17 Counter and slot framing batch — qualified 757-claim checkpoint
+
+The production counter/slot hashing callers now consume pure kernel builders for the exact preimages. The count/sum tags, eight-byte component lengths, namespace, link subject, evaluator, partition, fixed-window coordinates, 32-byte counter IDs and slot words are preserved. A frozen native incremental-hash oracle checks the actual callers, including Unicode, empty/unpartitioned values, embedded NUL and u64 boundaries. The pure kernel has 26 passing tests, and the affected Rust targets pass clippy.
+
+The complete Lean build passes with 16 new inventoried results: exact source framing helpers and all four public builders, source-output identity binding for count/sum, independent counter/slot framing injectivity, and explicit framing-size bounds. Count and sum frames are at most 774 and 844 bytes on the production size domain. Hash equality is not assumed to imply preimage equality. The two existing standard checked-conversion/Result definitions were moved unchanged into a minimal shared bridge so gateway proofs do not import unrelated string/sort models.
+
+The final audit qualifies **757 claims**, with all 741 previous complete declaration records unchanged, no unexpected axioms, **25 reviewed models**, zero unreviewed/compiled external axioms, **18/18 cases**, and **two byte-identical clean full translations**. Source closure: `8701bdf464825fa990591db6833a3b35dc58806769a80520651dcade26968222`. Statement review: `ap-spec-069-counter-slot-framing-2026-10-16`; inventory digest: `2709ec4fbc2601760e0937ff445a361dcb4b99fb866ea5ca3b573293858fab3d`; boundary contract: `cb3d1bff851332bd0f01c207b6b551a99c276beb4d0cc3022190b8db49593a4b`. All 224 active gateway tests and 26 kernel tests pass; the 26 existing ignored gateway tests are unchanged. Hosted exact-revision evidence remains required. Counter aggregation and runtime/backend correspondence remain open; a separate keyed-minimum aggregation prototype is prepared and is not part of this checkpoint.

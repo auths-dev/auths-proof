@@ -28,3 +28,6 @@ pub mod transition;
 
 /// Bounded slot-prefix search decisions; storage remains in the runtime.
 pub mod frontier;
+
+/// Exact bounded-counter and slot commitment bytes; hashing stays in the runtime.
+pub mod counter_preimages;

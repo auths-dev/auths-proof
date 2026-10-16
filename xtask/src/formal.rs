@@ -2553,6 +2553,52 @@ fn expanded_batch_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, bool)> {
     let (claim_text, rust_symbol, gateway) = match declaration {
+        "Auths.Product.CounterFrames.Refinement.word_exact" => (
+            "The actual framing helper appends the exact eight-byte big-endian u64 word within the displayed allocation bound.",
+            "auths_gateway_kernel::counter_preimages::append_word",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.component_exact" => (
+            "The actual component helper appends the exact checked eight-byte length and unchanged bytes within the displayed allocation bound.",
+            "auths_gateway_kernel::counter_preimages::append_component",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.coordinates_exact" => (
+            "The actual coordinate helper appends the exact window and window index as two big-endian u64 words.",
+            "auths_gateway_kernel::counter_preimages::append_coordinates",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.count_exact" => (
+            "The actual count-counter builder returns exactly the independent domain-separated framing on the production namespace, subject and evaluator size domain.",
+            "auths_gateway_kernel::counter_preimages::count_counter_preimage",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.sum_exact" => (
+            "The actual sum-counter builder returns exactly the independent framing including the partition on the production size domain.",
+            "auths_gateway_kernel::counter_preimages::sum_counter_preimage",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.count_slot_exact" => (
+            "The actual count-slot builder returns exactly the count-slot domain, typed 32-byte counter and big-endian slot word on every represented input.",
+            "auths_gateway_kernel::counter_preimages::count_slot_preimage",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.sum_slot_exact" => (
+            "The actual sum-slot builder returns exactly the sum-slot domain, typed 32-byte counter and big-endian slot word on every represented input.",
+            "auths_gateway_kernel::counter_preimages::sum_slot_preimage",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.count_source_binds_inputs" => (
+            "Any two actual count-counter builds whose bytes agree have identical namespace, subject, evaluator, window and window index. This concerns exact preimages, not SHA-256 collisions.",
+            "auths_gateway_kernel::counter_preimages::count_counter_preimage",
+            true,
+        ),
+        "Auths.Product.CounterFrames.Refinement.sum_source_binds_inputs" => (
+            "Any two actual sum-counter builds whose bytes agree have identical namespace, subject, evaluator, partition, window and window index. This concerns exact preimages, not SHA-256 collisions.",
+            "auths_gateway_kernel::counter_preimages::sum_counter_preimage",
+            true,
+        ),
+
         "Auths.Product.Frontier.Refinement.start_exact" => (
             "The actual slot-frontier constructor returns precisely the independent initial interval on every u64 bound.",
             "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new",
@@ -2678,12 +2724,33 @@ fn expanded_batch_refinement_metadata(
                 "auths_gateway_kernel::identity::valid_token" => {
                     &["auths_gateway_kernel::identity::valid_token"]
                 }
+                "auths_gateway_kernel::counter_preimages::append_word" => {
+                    &["auths_gateway_kernel::counter_preimages::append_word"]
+                }
+                "auths_gateway_kernel::counter_preimages::append_component" => {
+                    &["auths_gateway_kernel::counter_preimages::append_component"]
+                }
+                "auths_gateway_kernel::counter_preimages::append_coordinates" => {
+                    &["auths_gateway_kernel::counter_preimages::append_coordinates"]
+                }
+                "auths_gateway_kernel::counter_preimages::count_counter_preimage" => {
+                    &["auths_gateway_kernel::counter_preimages::count_counter_preimage"]
+                }
+                "auths_gateway_kernel::counter_preimages::sum_counter_preimage" => {
+                    &["auths_gateway_kernel::counter_preimages::sum_counter_preimage"]
+                }
+                "auths_gateway_kernel::counter_preimages::count_slot_preimage" => {
+                    &["auths_gateway_kernel::counter_preimages::count_slot_preimage"]
+                }
+                "auths_gateway_kernel::counter_preimages::sum_slot_preimage" => {
+                    &["auths_gateway_kernel::counter_preimages::sum_slot_preimage"]
+                }
                 _ => return None,
             },
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
             residual_assumptions: &[
                 "Trust Lean's kernel, the pinned Rust/Charon/Aeneas boundary and the inventoried transparent standard interfaces. No Auths body in the qualified unit is opaque and no generated function body is rewritten.",
-                "Decoder success premises state partial-correctness safety and earn scope invariants; they are not assumed authorization decisions or total-parser claims. The source scheme/token and field-index leaves state complete results on their displayed domains. The preimage size premises are the real namespace/operation constructor bounds; no hash injectivity or signature security is asserted.",
+                "Decoder success premises state partial-correctness safety and earn scope invariants; they are not assumed authorization decisions or total-parser claims. The source scheme/token and field-index leaves state complete results on their displayed domains. Preimage size premises state the displayed production caller bounds. Counter and slot builders match pre-hash bytes; hashing callers have native parity evidence and SHA-256 security remains a separate primitive contract. No hash injectivity or signature security is asserted.",
                 "Independent history/schema/framing models establish only their own declared semantics until source/store/compiler/driver correspondence is composed. These source components do not close complete byte decoding, canonical round trips, registry authentication, staged verification, JSON implementation correctness, complete concurrent admission, backend durability or runtime entry. Remaining E1-E5/M6 obligations remain explicit in AP-SPEC-069.",
             ],
             scope: "The exact displayed source component. Trust-collection-to-status composition preserves each rule, all views and the complete selector result; remaining snapshot authenticity and full verifier composition are separate. The schema lookup is consumed by shipping lowering, and logical identity leaves are consumed by shipping constructors/key hashing; those caller/JSON/primitive boundaries still need their own full correspondence. The frontier source claims cover the pure search methods. Their proof-owned answer trace is not the actual runtime I/O loop; store-read mapping, append-only-prefix semantics and atomic reservation linearization remain separate.",

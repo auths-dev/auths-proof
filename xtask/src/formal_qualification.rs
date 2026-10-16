@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "89cbb9637b4ac2abe8d319601c55f89a69723633f9f1eae4a78a29ef549fd0f4";
+    "cb3d1bff851332bd0f01c207b6b551a99c276beb4d0cc3022190b8db49593a4b";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -289,6 +289,10 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
         "formal/qualification/aeneas/generated/gateway/Funs.lean",
     ),
     (
+        "gateway-run/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
+    ),
+    (
         "gateway-run/translation.json",
         "formal/qualification/aeneas/generated/gateway/translation.json",
     ),
@@ -307,6 +311,8 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
+    "formal/qualification/aeneas/generated/gateway/FunsExternal.lean",
     "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
     "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean",
     "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
@@ -332,6 +338,7 @@ const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
 /// Keep this ordered list aligned with the checked-in qualification manifest;
 /// synchronization and reviewed bridge destinations are checked against it.
 const GENERATED_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
     "formal/qualification/aeneas/generated/scope_codec/Types.lean",
     "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
@@ -419,6 +426,8 @@ const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/lifecycle/translation.json",
     "formal/qualification/aeneas/generated/gateway/Types.lean",
     "formal/qualification/aeneas/generated/gateway/Funs.lean",
+    "formal/qualification/aeneas/generated/gateway/FunsExternal.lean",
+    "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/gateway/translation.json",
     "formal/qualification/aeneas/generated/connections/Types.lean",
     "formal/qualification/aeneas/generated/connections/Funs.lean",
@@ -446,6 +455,8 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
+    "product/runtime/auths-gateway-kernel/src/counter_preimages.rs",
+    "product/runtime/auths-gateway/src/bounds.rs",
     "product/runtime/auths-gateway-kernel/src/frontier.rs",
     "product/runtime/auths-gateway-kernel/src/identity.rs",
     "product/runtime/auths-gateway/src/recipe.rs",
@@ -603,6 +614,7 @@ const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
     "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/authority/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
 ];
 
 #[derive(Deserialize)]
@@ -1089,9 +1101,9 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     }
     if qualification.case_modules.len() != 17
         || qualification.translations.len() != 17
-        || qualification.external_models.len() != 24
+        || qualification.external_models.len() != 25
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 19
+        || qualification.template_axioms.len() != 20
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -1557,6 +1569,14 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
+            render_checked_result_interfaces(),
+        ),
+        (
+            "formal/qualification/aeneas/generated/gateway/FunsExternal.lean",
+            render_gateway_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
             render_scope_codec_types_external(),
         ),
@@ -1648,6 +1668,28 @@ fn synchronize_reviewed_bridges(
         }
     }
     Ok(())
+}
+
+fn render_checked_result_interfaces() -> String {
+    r##"-- Exact checked conversion and Result projection shared by translation units.
+import Aeneas
+open Aeneas Aeneas.Std Result
+
+def U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :=
+  core.num.tryFromUScalar .U64 value
+
+def core.result.Result.unwrap_or {T E : Type} (value : core.result.Result T E) (fallback : T) :
+    Result T := ok (match value with | .Ok value => value | .Err _ => fallback)
+"##
+    .to_owned()
+}
+
+fn render_gateway_functions_external() -> String {
+    r##"-- Reuse the reviewed checked usize-to-u64 conversion and Result.unwrap_or models.
+import qualification.aeneas.generated.gateway.Types
+import qualification.aeneas.generated.standard.CheckedResult
+"##
+    .to_owned()
 }
 
 fn render_status_selection_functions_external() -> String {
@@ -3218,7 +3260,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
+            "auths_gateway_kernel::counter_preimages::count_counter_preimage,auths_gateway_kernel::counter_preimages::sum_counter_preimage,auths_gateway_kernel::counter_preimages::count_slot_preimage,auths_gateway_kernel::counter_preimages::sum_slot_preimage,auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
             &stable_llbc.join("auths_gateway_kernel.llbc"),
             "product/runtime/auths-gateway-kernel/Cargo.toml",
             &[],
@@ -4477,6 +4519,7 @@ def core.str.error.Utf8Error : Type := Unit
 fn render_codec_functions_external() -> String {
     r##"-- REVIEWED TRANSPARENT STANDARD-LIBRARY MODELS; NO AUTHS ALGORITHM IS OPAQUE.
 import qualification.aeneas.generated.codec.Types
+import qualification.aeneas.generated.standard.CheckedResult
 import qualification.aeneas.generated.model.FunsExternal
 open Aeneas Aeneas.Std Result
 set_option linter.unusedVariables false
@@ -4487,9 +4530,6 @@ def Auths.Codec.StdModel.bytes (bytes : Str) : ByteArray :=
 
 def Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
   core.num.tryFromUScalar .Usize value
-
-def U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :=
-  core.num.tryFromUScalar .U64 value
 
 def U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
   core.num.tryFromUScalar .U8 value
@@ -4531,9 +4571,6 @@ def core.result.Result.map_err {T E F O : Type}
   | .Err error =>
     let output ← function.call_once callback error
     ok (.Err output)
-
-def core.result.Result.unwrap_or {T E : Type} (value : core.result.Result T E) (fallback : T) :
-    Result T := ok (match value with | .Ok value => value | .Err _ => fallback)
 
 def core.str.converts.from_utf8 (bytes : Slice Std.U8) :
     Result (core.result.Result Str core.str.error.Utf8Error) :=

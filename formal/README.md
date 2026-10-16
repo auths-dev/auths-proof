@@ -14,11 +14,12 @@ declaration name, statement, transitive axiom set, source closure, and required
 evidence. This prevents a renamed, weakened, deleted, or `sorry`-backed theorem
 from satisfying the repository gate through a textual look-alike.
 
-The latest qualified development checkpoint has 741 compiled claims, 18/18
-qualification cases, 24 reviewed external models and two byte-identical full
-translation reproductions. It adds principal/scope construction and decoding,
-field/identity binding, finite claim/budget histories and source frontier-search
-proofs. See the [implementation ledger](../docs/assurance/AP_SPEC_069_STATUS.md)
+The latest qualified development checkpoint has 757 compiled claims, 18/18
+qualification cases, 25 reviewed external models and two byte-identical full
+translation reproductions. Its latest batch adds production counter/slot
+framing, exact source-output identity binding and bounded frame sizes, after
+principal/scope construction, field/identity binding, finite claim/budget
+histories and source frontier-search proofs. See the [implementation ledger](../docs/assurance/AP_SPEC_069_STATUS.md)
 for exact scope and remaining work. Hosted evidence on the pushed revision
 remains required.
 

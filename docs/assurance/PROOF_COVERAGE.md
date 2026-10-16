@@ -7,10 +7,10 @@
 At the commit that contains this document, 133 of 1,046 decision-scope functions (12.7%) and 1,814 of 11,544 code lines (15.7%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `9ec74ce8f206d5f138ef0a37bc6c5e7ce6667b9ecc6c6bf59baf0477df2aa5c9` over the 127 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `64e25dbac558e7e501439b826692be3ec0b65226449f22e524ecee08b6a74e2a` over the 128 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 2.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `73b5935edec4bb4839e8e01b743cf4636f5351c31ccdc3f87d4951066ea9a3d2`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `b1dca378fb7215cb0d0983af50540a6063565dc9e40abc166a871c57492283c3`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -64,7 +64,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,046 | 133 (12.7%) | 76 (7.3%) | 133 (12.7%) | 11,544 | 1,814 (15.7%) | 1,337 (11.6%) | 1,814 (15.7%) |
 | verifier-core | 800 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,993 | 1,432 (15.9%) | 1,033 (11.5%) | 1,432 (15.9%) |
-| translated-crates | 1,801 | 345 (19.2%) | 139 (7.7%) | 345 (19.2%) | 22,061 | 3,999 (18.1%) | 2,124 (9.6%) | 3,999 (18.1%) |
+| translated-crates | 1,809 | 353 (19.5%) | 146 (8.1%) | 353 (19.5%) | 22,111 | 4,049 (18.3%) | 2,170 (9.8%) | 4,049 (18.3%) |
 | verifier-closure | 1,147 | 182 (15.9%) | 75 (6.5%) | 182 (15.9%) | 14,272 | 2,065 (14.5%) | 1,334 (9.3%) | 2,065 (14.5%) |
 | decision-nontrivial | 455 | 103 (22.6%) | 63 (13.8%) | 103 (22.6%) | 9,771 | 1,724 (17.6%) | 1,298 (13.3%) | 1,724 (17.6%) |
 
@@ -214,7 +214,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `f8c07467dc4d3b5acc17c40d0eb73546e620cf5adc5a506e3c2b9969547e110c`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `28de0fce379b75de8eb7f46216f56e130c2f23c5d85ae0a9fce8d1624b057b5f`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -227,7 +227,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 133 exact, 12 verdict-exact, 76 partial, 84 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 140 exact, 12 verdict-exact, 78 partial, 84 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 127 of 1,046 functions (12.1%) and 1,565 of 11,544 code lines (13.6%).
 
@@ -392,6 +392,15 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Lifecycle.Refinement.translated_replay_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_terminal_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_transition_refines_rich` | exact |
+| `Auths.Product.CounterFrames.Refinement.component_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.coordinates_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.count_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.count_slot_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.count_source_binds_inputs` | partial |
+| `Auths.Product.CounterFrames.Refinement.sum_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.sum_slot_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.sum_source_binds_inputs` | partial |
+| `Auths.Product.CounterFrames.Refinement.word_exact` | exact |
 | `Auths.Product.Frontier.Refinement.candidate_exact` | exact |
 | `Auths.Product.Frontier.Refinement.observe_exact` | exact |
 | `Auths.Product.Frontier.Refinement.probe_exact` | exact |

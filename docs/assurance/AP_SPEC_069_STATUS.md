@@ -5,6 +5,27 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified counter/slot checkpoint — 16 October 2026
+
+The current batch qualifies **757 compiled claims**. All 741 previous complete
+declaration records are unchanged. Both clean full translations reproduce
+byte-identically; all 18 qualification cases pass, with 25 reviewed external
+models, none unreviewed, and no compiled external axioms. The source closure is
+`8701bdf464825fa990591db6833a3b35dc58806769a80520651dcade26968222`.
+
+Production counter/slot hashing now consumes the translated exact preimage
+builders. The new proofs cover the component lengths and bytes, all four
+domains, window coordinates, typed counter IDs and slot words; count/sum
+source-output identity binding; framing injectivity; and 774/844-byte counter
+frame bounds. SHA-256 security remains a separate primitive contract. The
+actual hashing callers match their frozen previous implementation in native
+parity tests. The complete Lean build, 224 gateway tests, 26 kernel tests and
+affected-target clippy pass. Hosted exact-revision evidence remains required.
+
+Counter aggregation, full runtime/backend correspondence and the remaining
+E1–E5/M6 obligations remain open. A separate keyed-minimum prototype is prepared
+for the next batch. See spec §13.17.
+
 ## Qualified checkpoint — 16 October 2026
 
 The current local batch qualifies **741 compiled claims**, including all 671

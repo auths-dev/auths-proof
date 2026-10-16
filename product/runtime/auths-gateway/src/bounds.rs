@@ -589,24 +589,6 @@ pub(crate) struct SumRequirement {
     pub(crate) partition: Option<String>,
 }
 
-/// SHA-256 of `domain`, each component with an eight-byte big-endian length
-/// prefix, then the window length and index.
-fn counter_key(domain: &[u8], components: &[&[u8]], window_seconds: u64, index: u64) -> [u8; 32] {
-    let mut hash = Sha256::new();
-    hash.update(domain);
-    for component in components {
-        hash.update(
-            u64::try_from(component.len())
-                .unwrap_or(u64::MAX)
-                .to_be_bytes(),
-        );
-        hash.update(component);
-    }
-    hash.update(window_seconds.to_be_bytes());
-    hash.update(index.to_be_bytes());
-    hash.finalize().into()
-}
-
 /// The count counter of `subject` in one fixed window.
 pub(crate) fn count_counter_key(
     namespace: &OperatorNamespace,
@@ -614,16 +596,16 @@ pub(crate) fn count_counter_key(
     window_seconds: u64,
     index: u64,
 ) -> [u8; 32] {
-    counter_key(
-        b"auths.gateway-bounded-count/2\0",
-        &[
+    Sha256::digest(
+        auths_gateway_kernel::counter_preimages::count_counter_preimage(
             namespace.as_str().as_bytes(),
             subject.as_str().as_bytes(),
             ARGUMENT_CEILING_EVALUATOR.as_bytes(),
-        ],
-        window_seconds,
-        index,
+            window_seconds,
+            index,
+        ),
     )
+    .into()
 }
 
 /// The sum counter of `subject` and `partition` (empty when unpartitioned)
@@ -635,35 +617,31 @@ pub(crate) fn sum_counter_key(
     window_seconds: u64,
     index: u64,
 ) -> [u8; 32] {
-    counter_key(
-        b"auths.gateway-bounded-sum/1\0",
-        &[
+    Sha256::digest(
+        auths_gateway_kernel::counter_preimages::sum_counter_preimage(
             namespace.as_str().as_bytes(),
             subject.as_str().as_bytes(),
             ARGUMENT_CEILING_EVALUATOR.as_bytes(),
             partition.as_bytes(),
-        ],
-        window_seconds,
-        index,
+            window_seconds,
+            index,
+        ),
     )
+    .into()
 }
 
 /// The key of slot `slot` of count counter `counter`.
 pub(crate) fn count_slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    slot_key(b"auths.gateway-bounded-count-slot/2\0", counter, slot)
+    Sha256::digest(auths_gateway_kernel::counter_preimages::count_slot_preimage(counter, slot))
+        .into()
 }
 
 /// The key of slot `slot` of sum counter `counter`.
 pub(crate) fn sum_slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    slot_key(b"auths.gateway-bounded-sum-slot/1\0", counter, slot)
-}
-
-fn slot_key(domain: &[u8], counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    let mut hash = Sha256::new();
-    hash.update(domain);
-    hash.update(counter);
-    hash.update(slot.to_be_bytes());
-    hash.finalize().into()
+    Sha256::digest(auths_gateway_kernel::counter_preimages::sum_slot_preimage(
+        counter, slot,
+    ))
+    .into()
 }
 
 /// The verified text value of `argument`, or `argument-unavailable`.
@@ -1286,5 +1264,82 @@ mod tests {
         );
         assert_ne!(count_slot_key(&count, 0), sum_slot_key(&count, 0));
         assert_ne!(count_slot_key(&count, 0), count_slot_key(&count, 1));
+    }
+}
+
+#[cfg(test)]
+mod commitment_preimage_parity {
+    use super::*;
+
+    // Frozen pre-cutover incremental hashing, independent of the new byte builder.
+    fn previous(domain: &[u8], components: &[&[u8]], window: u64, index: u64) -> [u8; 32] {
+        let mut hash = Sha256::new();
+        hash.update(domain);
+        for component in components {
+            hash.update(
+                u64::try_from(component.len())
+                    .unwrap_or(u64::MAX)
+                    .to_be_bytes(),
+            );
+            hash.update(component);
+        }
+        hash.update(window.to_be_bytes());
+        hash.update(index.to_be_bytes());
+        hash.finalize().into()
+    }
+
+    #[test]
+    fn actual_counter_keys_preserve_namespace_subject_partition_and_window() {
+        for operator in ["operator", "stripe-receivables-test"] {
+            let namespace = OperatorNamespace::parse(operator).expect("namespace");
+            for principal in ["raw:subject", "did:key:sample", "raw:λ"] {
+                let subject = PrincipalId::parse(principal).expect("principal");
+                for value in [0, 1, 255, 256, u64::MAX] {
+                    let parts = [
+                        operator.as_bytes(),
+                        principal.as_bytes(),
+                        ARGUMENT_CEILING_EVALUATOR.as_bytes(),
+                    ];
+                    assert_eq!(
+                        count_counter_key(&namespace, &subject, value, value),
+                        previous(b"auths.gateway-bounded-count/2\0", &parts, value, value)
+                    );
+                    for partition in ["", "account", "contains\0separator", "λ"] {
+                        assert_eq!(
+                            sum_counter_key(&namespace, &subject, partition, value, value),
+                            previous(
+                                b"auths.gateway-bounded-sum/1\0",
+                                &[parts[0], parts[1], parts[2], partition.as_bytes()],
+                                value,
+                                value
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn actual_slot_keys_preserve_the_previous_incremental_hash_input() {
+        for counter in [[0; 32], [255; 32]] {
+            for slot in [0, 1, 255, 256, u64::MAX] {
+                let old = |domain: &[u8]| -> [u8; 32] {
+                    let mut hash = Sha256::new();
+                    hash.update(domain);
+                    hash.update(counter);
+                    hash.update(slot.to_be_bytes());
+                    hash.finalize().into()
+                };
+                assert_eq!(
+                    count_slot_key(&counter, slot),
+                    old(b"auths.gateway-bounded-count-slot/2\0")
+                );
+                assert_eq!(
+                    sum_slot_key(&counter, slot),
+                    old(b"auths.gateway-bounded-sum-slot/1\0")
+                );
+            }
+        }
     }
 }
