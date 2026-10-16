@@ -1,3 +1,4 @@
+import Auths.Composition.FacadeExamples
 import Auths.Crypto.Encoding.Examples
 import Auths.Composition.ValidationExamples
 import Auths.Attenuation
@@ -40,6 +41,16 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Support.UnitCallback.erase_restore,
+    `Auths.Support.UnitCallback.restore_erase,
+    `Auths.Composition.Facade.event_outcome_exact,
+    `Auths.Composition.Facade.observer_mut_exact,
+    `Auths.Composition.Facade.observer_once_exact,
+    `Auths.Composition.Facade.evaluate_refines,
+    `Auths.Composition.Facade.invalid_plan_preserves_callback,
+    `Auths.Composition.FacadeExamples.conjunction_authorizes,
+    `Auths.Composition.FacadeExamples.duplicate_refused,
+    `Auths.Composition.FacadeExamples.threshold_indeterminate,
     `Auths.Crypto.Encoding.Byte.lower_seven,
     `Auths.Crypto.Encoding.Byte.sign_bit,
     `Auths.Crypto.Encoding.Digits.value_bound,

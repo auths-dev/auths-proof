@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-  "inputs_sha256": "05cd335a80bf6b341807d8ae18cea94d321bca8d22942c72048a6c8b4ae48e52",
+  "inputs_sha256": "c11def035af6258ade6e6b2569f895e891a093dce60556d67e305d9d4011449a",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -55,7 +55,7 @@
     "core/crates/auths-registries/Cargo.toml": "sha256:590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2",
     "core/crates/auths-registries/src/lib.rs": "sha256:020bab93285f280aa2c05a67afa09ad1ca2f1e128e90e898c69bc7a7bfd16c89",
     "core/crates/auths-registries/src/template.rs": "sha256:1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4",
-    "core/crates/auths-signature-core/src/lib.rs": "sha256:1f3a218b5289db59c0fb8b348e7550c98013b94bb9fe65404ea7cb97d71f1b7e",
+    "core/crates/auths-signature-core/src/lib.rs": "sha256:2f79c7307966ec48360aab2c8f791d3f57f87210a086988b7b352a91c8fff5a9",
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
     "core/crates/auths-verifier/src/approval.rs": "sha256:2826a5227945a3e0ea000584f1e1c794bec3b313b13843f4284e0e716f830d33",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
@@ -64,7 +64,7 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:2d76589c4c3d47d2fb079e03eb2203ef9acd7ea61ea964f2d9faf64dca229b30",
-    "formal/lean-assurance-audit-v1.json": "sha256:88724aec4f6f0f36d215d656fdc5efc8c373d9ea37c9a372279b0824dba09d93",
+    "formal/lean-assurance-audit-v1.json": "sha256:a5b67e35879aae3108d027861b96eacc8e62e01c46be370ef7f7779bd695aa4f",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -73,8 +73,8 @@
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
     "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:311cf2b24790105fabc39a3caa7bc46eb61fb3efb8d696142d5b30758fc95f48",
     "formal/qualification/aeneas/generated/codec/translation.json": "sha256:2effea96bbdb75ee3920b9c1d5402d20e66c798fda8e7851dcfa42eb0c4caff3",
-    "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:ecca9c9af47a555d5ed557a0ace1a74e565b14a41bb2a5a19c8da1d5bb98377a",
-    "formal/qualification/aeneas/generated/composition/translation.json": "sha256:e61908bf2f0d69d084eb09bde25b25f379e70fd28dcb1917148391b7c37e916b",
+    "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:779faa8458cefaf60a680bab591dbf09414fcc3b145cdc168693fa5d1a6cb3bc",
+    "formal/qualification/aeneas/generated/composition/translation.json": "sha256:1f54f440de17133288d202ee605285c210c8fe47ede43fdded9c28481290dc50",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
@@ -83,12 +83,12 @@
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
     "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:48fadbfbf052e310cd6df3fdc11e8e96785330f34144c1e471a908b7c1b21feb",
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
-    "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:2165115b3839ba363d8482e0063b8139dee7b99d172d7accb5bb168c4ce58686",
-    "formal/qualification/aeneas/generated/signature/translation.json": "sha256:a06e239387205746988b1d96ebd17f0b2d43faa5b8425c8814f8a22d00402d62",
+    "formal/qualification/aeneas/generated/signature/Funs.lean": "sha256:1b765fe536d59fc834d4d8ee6417b1b4dac935b8bdbfe22c31a5747adfee69af",
+    "formal/qualification/aeneas/generated/signature/translation.json": "sha256:ab6ac3e5e6e38cc20067a9384826810d6150c00106bcf9c9c1ca28a10e857ed1",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:fa62177dcaa8dc8291354ce8cad02b36e89a379e4fb11fe347840c45f4db156d",
-    "formal/theorem-kinds-v1.toml": "sha256:9670544f98c7564c843ac396a245d4d508b187bd869078019666aba9fc029e78",
+    "formal/qualification/aeneas/qualification.toml": "sha256:37c6b385d72b9e5a09600901bddbd51b411fb4e0650e36ed4868ba76de2f9882",
+    "formal/theorem-kinds-v1.toml": "sha256:54bd371a6ea4651d30d43e1d9c39b6e9d60b2552113bdbd209437f3a6ee8047c",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -128,14 +128,13 @@
   },
   "claim": {
     "decision_functions": 1044,
-    "decision_closure_functions": 122,
+    "decision_closure_functions": 124,
     "decision_code_lines": 11535,
-    "decision_closure_code_lines": 1478,
+    "decision_closure_code_lines": 1490,
     "check_sites": 82,
     "covered_check_sites": 23,
     "uncovered_components": [
       "the staged verifier control flow",
-      "the composition evaluator",
       "the registry handlers",
       "the codec"
     ]
@@ -211,28 +210,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 122,
-          "function_share": 0.1169,
-          "span_lines": 1489,
-          "span_line_share": 0.1286,
-          "code_lines": 1478,
-          "code_line_share": 0.1281
+          "functions": 124,
+          "function_share": 0.1188,
+          "span_lines": 1501,
+          "span_line_share": 0.1296,
+          "code_lines": 1490,
+          "code_line_share": 0.1292
         },
         "direct": {
-          "functions": 64,
-          "function_share": 0.0613,
-          "span_lines": 1006,
-          "span_line_share": 0.0869,
-          "code_lines": 995,
-          "code_line_share": 0.0863
+          "functions": 66,
+          "function_share": 0.0632,
+          "span_lines": 1018,
+          "span_line_share": 0.0879,
+          "code_lines": 1007,
+          "code_line_share": 0.0873
         },
         "closure": {
-          "functions": 122,
-          "function_share": 0.1169,
-          "span_lines": 1489,
-          "span_line_share": 0.1286,
-          "code_lines": 1478,
-          "code_line_share": 0.1281
+          "functions": 124,
+          "function_share": 0.1188,
+          "span_lines": 1501,
+          "span_line_share": 0.1296,
+          "code_lines": 1490,
+          "code_line_share": 0.1292
         }
       }
     },
@@ -244,28 +243,28 @@
       "code_lines": 8984,
       "by_level": {
         "translated": {
-          "functions": 98,
-          "function_share": 0.1228,
-          "span_lines": 1107,
-          "span_line_share": 0.1226,
-          "code_lines": 1096,
-          "code_line_share": 0.122
+          "functions": 100,
+          "function_share": 0.1253,
+          "span_lines": 1119,
+          "span_line_share": 0.1239,
+          "code_lines": 1108,
+          "code_line_share": 0.1233
         },
         "direct": {
-          "functions": 49,
-          "function_share": 0.0614,
-          "span_lines": 708,
-          "span_line_share": 0.0784,
-          "code_lines": 697,
-          "code_line_share": 0.0776
+          "functions": 51,
+          "function_share": 0.0639,
+          "span_lines": 720,
+          "span_line_share": 0.0798,
+          "code_lines": 709,
+          "code_line_share": 0.0789
         },
         "closure": {
-          "functions": 98,
-          "function_share": 0.1228,
-          "span_lines": 1107,
-          "span_line_share": 0.1226,
-          "code_lines": 1096,
-          "code_line_share": 0.122
+          "functions": 100,
+          "function_share": 0.1253,
+          "span_lines": 1119,
+          "span_line_share": 0.1239,
+          "code_lines": 1108,
+          "code_line_share": 0.1233
         }
       }
     },
@@ -273,32 +272,32 @@
       "scope": "translated-crates",
       "minimum_code_lines": 0,
       "functions": 1535,
-      "span_lines": 17037,
-      "code_lines": 16977,
+      "span_lines": 17043,
+      "code_lines": 16981,
       "by_level": {
         "translated": {
-          "functions": 293,
-          "function_share": 0.1909,
-          "span_lines": 3268,
-          "span_line_share": 0.1918,
-          "code_lines": 3256,
-          "code_line_share": 0.1918
+          "functions": 295,
+          "function_share": 0.1922,
+          "span_lines": 3286,
+          "span_line_share": 0.1928,
+          "code_lines": 3272,
+          "code_line_share": 0.1927
         },
         "direct": {
-          "functions": 92,
-          "function_share": 0.0599,
-          "span_lines": 1404,
-          "span_line_share": 0.0824,
-          "code_lines": 1393,
-          "code_line_share": 0.0821
+          "functions": 94,
+          "function_share": 0.0612,
+          "span_lines": 1422,
+          "span_line_share": 0.0834,
+          "code_lines": 1409,
+          "code_line_share": 0.083
         },
         "closure": {
-          "functions": 293,
-          "function_share": 0.1909,
-          "span_lines": 3268,
-          "span_line_share": 0.1918,
-          "code_lines": 3256,
-          "code_line_share": 0.1918
+          "functions": 295,
+          "function_share": 0.1922,
+          "span_lines": 3286,
+          "span_line_share": 0.1928,
+          "code_lines": 3272,
+          "code_line_share": 0.1927
         }
       }
     },
@@ -310,28 +309,28 @@
       "code_lines": 14211,
       "by_level": {
         "translated": {
-          "functions": 163,
-          "function_share": 0.143,
-          "span_lines": 1619,
-          "span_line_share": 0.1134,
-          "code_lines": 1607,
-          "code_line_share": 0.1131
+          "functions": 165,
+          "function_share": 0.1447,
+          "span_lines": 1631,
+          "span_line_share": 0.1142,
+          "code_lines": 1619,
+          "code_line_share": 0.1139
         },
         "direct": {
-          "functions": 57,
-          "function_share": 0.05,
-          "span_lines": 890,
-          "span_line_share": 0.0623,
-          "code_lines": 879,
-          "code_line_share": 0.0619
+          "functions": 59,
+          "function_share": 0.0518,
+          "span_lines": 902,
+          "span_line_share": 0.0632,
+          "code_lines": 891,
+          "code_line_share": 0.0627
         },
         "closure": {
-          "functions": 163,
-          "function_share": 0.143,
-          "span_lines": 1619,
-          "span_line_share": 0.1134,
-          "code_lines": 1607,
-          "code_line_share": 0.1131
+          "functions": 165,
+          "function_share": 0.1447,
+          "span_lines": 1631,
+          "span_line_share": 0.1142,
+          "code_lines": 1619,
+          "code_line_share": 0.1139
         }
       }
     },
@@ -343,28 +342,28 @@
       "code_lines": 9762,
       "by_level": {
         "translated": {
-          "functions": 92,
-          "function_share": 0.2031,
-          "span_lines": 1399,
-          "span_line_share": 0.1427,
-          "code_lines": 1388,
-          "code_line_share": 0.1422
+          "functions": 94,
+          "function_share": 0.2075,
+          "span_lines": 1411,
+          "span_line_share": 0.1439,
+          "code_lines": 1400,
+          "code_line_share": 0.1434
         },
         "direct": {
-          "functions": 51,
-          "function_share": 0.1126,
-          "span_lines": 967,
-          "span_line_share": 0.0986,
-          "code_lines": 956,
-          "code_line_share": 0.0979
+          "functions": 53,
+          "function_share": 0.117,
+          "span_lines": 979,
+          "span_line_share": 0.0998,
+          "code_lines": 968,
+          "code_line_share": 0.0992
         },
         "closure": {
-          "functions": 92,
-          "function_share": 0.2031,
-          "span_lines": 1399,
-          "span_line_share": 0.1427,
-          "code_lines": 1388,
-          "code_line_share": 0.1422
+          "functions": 94,
+          "function_share": 0.2075,
+          "span_lines": 1411,
+          "span_line_share": 0.1439,
+          "code_lines": 1400,
+          "code_line_share": 0.1434
         }
       }
     }
@@ -378,28 +377,28 @@
       "code_lines": 11470,
       "by_level": {
         "translated": {
-          "functions": 121,
-          "function_share": 0.1182,
-          "span_lines": 1486,
-          "span_line_share": 0.129,
-          "code_lines": 1475,
-          "code_line_share": 0.1286
+          "functions": 123,
+          "function_share": 0.1201,
+          "span_lines": 1498,
+          "span_line_share": 0.1301,
+          "code_lines": 1487,
+          "code_line_share": 0.1296
         },
         "direct": {
-          "functions": 64,
-          "function_share": 0.0625,
-          "span_lines": 1006,
-          "span_line_share": 0.0873,
-          "code_lines": 995,
-          "code_line_share": 0.0867
+          "functions": 66,
+          "function_share": 0.0645,
+          "span_lines": 1018,
+          "span_line_share": 0.0884,
+          "code_lines": 1007,
+          "code_line_share": 0.0878
         },
         "closure": {
-          "functions": 121,
-          "function_share": 0.1182,
-          "span_lines": 1486,
-          "span_line_share": 0.129,
-          "code_lines": 1475,
-          "code_line_share": 0.1286
+          "functions": 123,
+          "function_share": 0.1201,
+          "span_lines": 1498,
+          "span_line_share": 0.1301,
+          "code_lines": 1487,
+          "code_line_share": 0.1296
         }
       }
     },
@@ -411,28 +410,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 122,
-          "function_share": 0.1169,
-          "span_lines": 1489,
-          "span_line_share": 0.1286,
-          "code_lines": 1478,
-          "code_line_share": 0.1281
+          "functions": 124,
+          "function_share": 0.1188,
+          "span_lines": 1501,
+          "span_line_share": 0.1296,
+          "code_lines": 1490,
+          "code_line_share": 0.1292
         },
         "direct": {
-          "functions": 64,
-          "function_share": 0.0613,
-          "span_lines": 1006,
-          "span_line_share": 0.0869,
-          "code_lines": 995,
-          "code_line_share": 0.0863
+          "functions": 66,
+          "function_share": 0.0632,
+          "span_lines": 1018,
+          "span_line_share": 0.0879,
+          "code_lines": 1007,
+          "code_line_share": 0.0873
         },
         "closure": {
-          "functions": 121,
-          "function_share": 0.1159,
-          "span_lines": 1486,
-          "span_line_share": 0.1283,
-          "code_lines": 1475,
-          "code_line_share": 0.1279
+          "functions": 123,
+          "function_share": 0.1178,
+          "span_lines": 1498,
+          "span_line_share": 0.1293,
+          "code_lines": 1487,
+          "code_line_share": 0.1289
         }
       }
     },
@@ -444,28 +443,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 122,
-          "function_share": 0.1169,
-          "span_lines": 1489,
-          "span_line_share": 0.1286,
-          "code_lines": 1478,
-          "code_line_share": 0.1281
+          "functions": 124,
+          "function_share": 0.1188,
+          "span_lines": 1501,
+          "span_line_share": 0.1296,
+          "code_lines": 1490,
+          "code_line_share": 0.1292
         },
         "direct": {
-          "functions": 64,
-          "function_share": 0.0613,
-          "span_lines": 1006,
-          "span_line_share": 0.0869,
-          "code_lines": 995,
-          "code_line_share": 0.0863
+          "functions": 66,
+          "function_share": 0.0632,
+          "span_lines": 1018,
+          "span_line_share": 0.0879,
+          "code_lines": 1007,
+          "code_line_share": 0.0873
         },
         "closure": {
-          "functions": 117,
-          "function_share": 0.1121,
-          "span_lines": 1391,
-          "span_line_share": 0.1201,
-          "code_lines": 1387,
-          "code_line_share": 0.1202
+          "functions": 119,
+          "function_share": 0.114,
+          "span_lines": 1403,
+          "span_line_share": 0.1211,
+          "code_lines": 1399,
+          "code_line_share": 0.1213
         }
       }
     },
@@ -477,28 +476,28 @@
       "code_lines": 11535,
       "by_level": {
         "translated": {
-          "functions": 122,
-          "function_share": 0.1169,
-          "span_lines": 1489,
-          "span_line_share": 0.1286,
-          "code_lines": 1478,
-          "code_line_share": 0.1281
+          "functions": 124,
+          "function_share": 0.1188,
+          "span_lines": 1501,
+          "span_line_share": 0.1296,
+          "code_lines": 1490,
+          "code_line_share": 0.1292
         },
         "direct": {
-          "functions": 64,
-          "function_share": 0.0613,
-          "span_lines": 1006,
-          "span_line_share": 0.0869,
-          "code_lines": 995,
-          "code_line_share": 0.0863
+          "functions": 66,
+          "function_share": 0.0632,
+          "span_lines": 1018,
+          "span_line_share": 0.0879,
+          "code_lines": 1007,
+          "code_line_share": 0.0873
         },
         "closure": {
-          "functions": 121,
-          "function_share": 0.1159,
-          "span_lines": 1486,
-          "span_line_share": 0.1283,
-          "code_lines": 1475,
-          "code_line_share": 0.1279
+          "functions": 123,
+          "function_share": 0.1178,
+          "span_lines": 1498,
+          "span_line_share": 0.1293,
+          "code_lines": 1487,
+          "code_line_share": 0.1289
         }
       }
     }
@@ -535,9 +534,9 @@
     "core/crates/auths-composition": {
       "decision_functions": 10,
       "decision_code_lines": 155,
-      "translated": 8,
-      "refined_closure": 8,
-      "refined_closure_code_lines": 143
+      "translated": 10,
+      "refined_closure": 10,
+      "refined_closure_code_lines": 155
     },
     "core/crates/auths-model": {
       "decision_functions": 547,
@@ -2999,6 +2998,14 @@
       "Auths.Codec.Refinement.read_head_refines": "exact",
       "Auths.Codec.Refinement.read_tail_bounded": "exact",
       "Auths.Composition.Bounds.source_bounded_events": "partial",
+      "Auths.Composition.Facade.evaluate_refines": "exact",
+      "Auths.Composition.Facade.event_outcome_exact": "exact",
+      "Auths.Composition.Facade.invalid_plan_preserves_callback": "partial",
+      "Auths.Composition.Facade.observer_mut_exact": "exact",
+      "Auths.Composition.Facade.observer_once_exact": "exact",
+      "Auths.Composition.FacadeExamples.conjunction_authorizes": "case",
+      "Auths.Composition.FacadeExamples.duplicate_refused": "case",
+      "Auths.Composition.FacadeExamples.threshold_indeterminate": "case",
       "Auths.Composition.PlanExamples.all_visits_after_denial": "case",
       "Auths.Composition.PlanExamples.any_visits_after_authorization": "case",
       "Auths.Composition.PlanExamples.threshold_indeterminate": "case",
@@ -3129,19 +3136,20 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 415,
+    "aeneas_local_definitions": 419,
     "by_kind": {
       "loop": 104,
-      "function": 293,
-      "derived": 18
+      "function": 295,
+      "derived": 18,
+      "closure-shim": 2
     },
-    "refined_direct": 92,
-    "refined_closure": 300,
-    "theorems_naming_translated_functions": 150
+    "refined_direct": 96,
+    "refined_closure": 304,
+    "theorems_naming_translated_functions": 158
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "b1e56b8527aa7e8d16fe41656bf9f15122f5e9c15ebd5a31ef120384ae3e6ab3",
+    "current_formal_inputs_sha256": "09270308b425a52ab6353fc70e33a924268ac2e7c1d19a8e7834c008c470252d",
     "fresh": false,
     "campaigns": {
       "s1": {

@@ -20,7 +20,7 @@ namespace auths_signature_core
 @[global_simps, irreducible] def P256_KEY_LEN : Std.Usize := 33#usize
 
 /-- [auths_signature_core::ed25519_point_encoding_is_canonical]: loop 0:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 21:4-24:5 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 27:4-30:5 -/
 @[rust_loop]
 def ed25519_point_encoding_is_canonical_loop
   (iter : core.ops.range.Range Std.Usize) (encoded : Array Std.U8 32#usize)
@@ -38,7 +38,7 @@ def ed25519_point_encoding_is_canonical_loop
 partial_fixpoint
 
 /-- [auths_signature_core::ed25519_point_encoding_is_canonical]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 17:0-33:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 17:0-39:1 -/
 def ed25519_point_encoding_is_canonical
   (encoded : Array Std.U8 32#usize) : Result Bool := do
   let i ← Array.index_usize encoded 31#usize
@@ -83,7 +83,7 @@ def ed25519_point_encoding_is_canonical
     else ok true
 
 /-- [auths_signature_core::p256_key_encoding_is_canonical]:
-    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 36:0-41:1 -/
+    Source: 'core/crates/auths-signature-core/src/lib.rs', lines 42:0-47:1 -/
 def p256_key_encoding_is_canonical (encoded : Slice Std.U8) : Result Bool := do
   let i := Slice.len encoded
   if i != P256_KEY_LEN

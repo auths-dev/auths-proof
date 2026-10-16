@@ -10,7 +10,7 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1"]
+codegen_normalizations = ["composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1"]
 
 source_files = [
   "core/crates/auths-signature-core/Cargo.toml",
@@ -21,6 +21,7 @@ source_files = [
   "core/crates/auths-composition/src/summary.rs",
   "formal/Auths/Support/Discriminant.lean",
   "formal/Auths/Support/PositiveVec.lean",
+  "formal/Auths/Support/UnitCallback.lean",
   "formal/qualification/aeneas/cases/Composition.lean",
   "product/stores/auths-stores/Cargo.toml",
   "product/stores/auths-stores/src/lib.rs",
@@ -155,6 +156,16 @@ charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[external_models]]
+id = "composition-unit-output-abi"
+kind = "transparent-isomorphic-callback-result-representation"
+artifact = "formal/Auths/Support/UnitCallback.lean"
+rust_symbols = ["core::ops::function::FnMut::call_mut"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The pinned backend erases the concrete unit output of evaluate's stateless observer but retains a generic FnMut dictionary field expecting Unit times state. A single checked dictionary-field adapter restores that component. Both result round trips are proved for every success, failure and divergence value. Every generated Auths function body, constructor, argument, callback call and branch remains unchanged. Only the exact zero-output closure dictionary receives this bridge."
 
 [[external_models]]
 id = "composition-ordered-set-carriers"
@@ -371,10 +382,14 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_composition"
 translation_json = "formal/qualification/aeneas/generated/composition/translation.json"
-local_functions = 10
+local_functions = 14
 external_functions = 27
 opaque_local_functions = 0
 required_symbols = [
+  "auths_composition::{auths_composition::EvaluationEvent}::outcome",
+  "auths_composition::evaluate",
+  "auths_composition::evaluate::{impl core::ops::function::FnMut<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_mut",
+  "auths_composition::evaluate::{impl core::ops::function::FnOnce<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_once",
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
   "core::option::{impl core::default::Default for core::option::Option<T>}::default",

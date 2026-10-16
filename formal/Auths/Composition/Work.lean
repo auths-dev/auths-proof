@@ -21,7 +21,7 @@ section
 variable {R B : Type} (branch : B → R → BranchOutcome × B)
 
 def NodeCountCorrect (plan : Plan R) : Prop :=
-  ∀ state count, (evaluate branch countEvent plan state count).2.2 = count + nodes plan
+  ∀ state count, (Auths.Composition.PlanModel.evaluate branch countEvent plan state count).2.2 = count + nodes plan
 
 def MemberCountCorrect (members : List (Plan R)) : Prop :=
   ∀ state count, (evaluateChildren branch countEvent members state count).2.2 = count + memberNodes members
@@ -32,26 +32,26 @@ theorem event_count (plan : Plan R) : NodeCountCorrect branch plan := by
     (motive_2 := fun members => MemberCountCorrect branch members)
     ?_ ?_ ?_ ?_ ?_ ?_ plan
   · intro reference state count
-    simp [evaluate, countEvent, nodes]
+    simp [Auths.Composition.PlanModel.evaluate, countEvent, nodes]
   · intro members correct state count
-    simp only [evaluate, countEvent, nodes]
+    simp only [Auths.Composition.PlanModel.evaluate, countEvent, nodes]
     have counted := correct state count
     rw [counted]
     omega
   · intro members correct state count
-    simp only [evaluate, countEvent, nodes]
+    simp only [Auths.Composition.PlanModel.evaluate, countEvent, nodes]
     have counted := correct state count
     rw [counted]
     omega
   · intro required members correct state count
-    simp only [evaluate, countEvent, nodes]
+    simp only [Auths.Composition.PlanModel.evaluate, countEvent, nodes]
     have counted := correct state count
     rw [counted]
     omega
   · intro state count
     simp [evaluateChildren, memberNodes]
   · intro head tail headCorrect tailCorrect state count
-    generalize childEq : evaluate branch countEvent head state count = child
+    generalize childEq : Auths.Composition.PlanModel.evaluate branch countEvent head state count = child
     rcases child with ⟨outcome, next, counted⟩
     have headCount := headCorrect state count
     rw [childEq] at headCount
@@ -83,7 +83,7 @@ section
 variable {R B : Type} (branch : B → R → BranchOutcome × B)
 
 def NodeOrderCorrect (plan : Plan R) : Prop :=
-  ∀ state trace, (evaluate branch recordLeaf plan state trace).2.2 = trace ++ leaves plan
+  ∀ state trace, (Auths.Composition.PlanModel.evaluate branch recordLeaf plan state trace).2.2 = trace ++ leaves plan
 
 def MemberOrderCorrect (members : List (Plan R)) : Prop :=
   ∀ state trace, (evaluateChildren branch recordLeaf members state trace).2.2 = trace ++ memberLeaves members
@@ -94,20 +94,20 @@ theorem leaf_order (plan : Plan R) : NodeOrderCorrect branch plan := by
     (motive_2 := fun members => MemberOrderCorrect branch members)
     ?_ ?_ ?_ ?_ ?_ ?_ plan
   · intro reference state trace
-    simp [evaluate, recordLeaf, leaves]
+    simp [Auths.Composition.PlanModel.evaluate, recordLeaf, leaves]
   · intro members correct state trace
-    simp only [evaluate, recordLeaf, leaves]
+    simp only [Auths.Composition.PlanModel.evaluate, recordLeaf, leaves]
     exact correct state trace
   · intro members correct state trace
-    simp only [evaluate, recordLeaf, leaves]
+    simp only [Auths.Composition.PlanModel.evaluate, recordLeaf, leaves]
     exact correct state trace
   · intro required members correct state trace
-    simp only [evaluate, recordLeaf, leaves]
+    simp only [Auths.Composition.PlanModel.evaluate, recordLeaf, leaves]
     exact correct state trace
   · intro state trace
     simp [evaluateChildren, memberLeaves]
   · intro head tail headCorrect tailCorrect state trace
-    generalize childEq : evaluate branch recordLeaf head state trace = child
+    generalize childEq : Auths.Composition.PlanModel.evaluate branch recordLeaf head state trace = child
     rcases child with ⟨outcome, next, observed⟩
     have headOrder := headCorrect state trace
     rw [childEq] at headOrder
@@ -134,7 +134,7 @@ theorem source_event_count
     (plan : auths_model.AuthorizationPlan) (state : B) (count : Nat) :
     ∃ outcome next, evaluate_node nativeBranch nativeObserver plan state count =
       Aeneas.Std.Result.ok (outcome, next, count + nodes (viewPlan plan)) := by
-  let expected := evaluate modelBranch countEvent (viewPlan plan) state count
+  let expected := Auths.Composition.PlanModel.evaluate modelBranch countEvent (viewPlan plan) state count
   refine ⟨expected.1, expected.2.1, ?_⟩
   have counted := event_count modelBranch (viewPlan plan) state count
   rw [← counted]
@@ -148,7 +148,7 @@ theorem source_leaf_order
     (plan : auths_model.AuthorizationPlan) (state : B) (trace : List auths_model.ProofRef) :
     ∃ outcome next, evaluate_node nativeBranch nativeObserver plan state trace =
       Aeneas.Std.Result.ok (outcome, next, trace ++ leaves (viewPlan plan)) := by
-  let expected := evaluate modelBranch recordLeaf (viewPlan plan) state trace
+  let expected := Auths.Composition.PlanModel.evaluate modelBranch recordLeaf (viewPlan plan) state trace
   refine ⟨expected.1, expected.2.1, ?_⟩
   have ordered := leaf_order modelBranch (viewPlan plan) state trace
   rw [← ordered]

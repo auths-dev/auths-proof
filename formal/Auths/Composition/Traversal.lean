@@ -69,7 +69,7 @@ theorem children_count (members : List (Plan auths_model.ProofRef)) (state : B) 
   induction members generalizing state observer with
   | nil => simp [evaluateChildren]
   | cons head tail ih =>
-    generalize expected : evaluate modelBranch modelObserver head state observer = child
+    generalize expected : Auths.Composition.PlanModel.evaluate modelBranch modelObserver head state observer = child
     rcases child with ⟨outcome, next, observed⟩
     simp [evaluateChildren, expected, ih]
 
@@ -77,18 +77,18 @@ include branchContract observerContract
 
 theorem proof_leaf_exact (reference : auths_model.ProofRef) (state : B) (observer : O) :
     evaluate_node nativeBranch nativeObserver (.mk (.Proof reference)) state observer =
-      ok (evaluate modelBranch modelObserver (.proof reference) state observer) := by
+      ok (Auths.Composition.PlanModel.evaluate modelBranch modelObserver (.proof reference) state observer) := by
   rw [evaluate_node.eq_def]
   simp only [auths_model.AuthorizationPlan.as_ref, auths_model.AuthorizationPlan._0,
     bind_tc_ok, branchContract]
   cases outcome : modelBranch state reference with
   | mk result next =>
-    simp [outcome, observerContract, evaluate, eventView]
+    simp [outcome, observerContract, Auths.Composition.PlanModel.evaluate, eventView]
 
 def NodeCorrect (plan : auths_model.AuthorizationPlan) : Prop :=
   ∀ state observer,
     evaluate_node nativeBranch nativeObserver plan state observer =
-      ok (evaluate modelBranch modelObserver (viewPlan plan) state observer)
+      ok (Auths.Composition.PlanModel.evaluate modelBranch modelObserver (viewPlan plan) state observer)
 
 def ElementsCorrect {n : Nat}
     (elements : auths_composition.alloc.vec.SizedList auths_model.AuthorizationPlan n) : Prop :=
@@ -143,7 +143,7 @@ omit branchContract observerContract in
   rw [same]
   unfold NodeCorrect at headCorrect
   rw [headCorrect branch observer]
-  generalize expected : evaluate modelBranch modelObserver (viewPlan head) branch observer = child
+  generalize expected : Auths.Composition.PlanModel.evaluate modelBranch modelObserver (viewPlan head) branch observer = child
   rcases child with ⟨outcome, nextBranch, nextObserver⟩
   simp only [bind_tc_ok]
   have authorizedStep : state.authorized.val + 1 ≤ Usize.max := by omega
@@ -217,7 +217,7 @@ theorem all_node_exact (members : auths_composition.alloc.vec.Vec auths_model.Au
   have authorizedEq := congrArg Summary.authorized agreement
   have indeterminateEq := congrArg Summary.indeterminate agreement
   simp only [view] at authorizedEq indeterminateEq
-  simp only [viewPlan, viewNode, evaluate, branchEq, observerEq,
+  simp only [viewPlan, viewNode, Auths.Composition.PlanModel.evaluate, branchEq, observerEq,
     eventView, authorizedEq, indeterminateEq, requiredEq, Slice.len_val, Slice.length,
     auths_composition.alloc.vec.Vec.deref_exact,
     auths_composition.alloc.vec.SizedList.length, view_members_length]
@@ -240,7 +240,7 @@ theorem any_node_exact (members : auths_composition.alloc.vec.Vec auths_model.Au
   have authorizedEq := congrArg Summary.authorized agreement
   have indeterminateEq := congrArg Summary.indeterminate agreement
   simp only [view] at authorizedEq indeterminateEq
-  simp only [viewPlan, viewNode, evaluate, branchEq, observerEq,
+  simp only [viewPlan, viewNode, Auths.Composition.PlanModel.evaluate, branchEq, observerEq,
     eventView, authorizedEq, indeterminateEq, Slice.len_val, Slice.length,
     auths_composition.alloc.vec.Vec.deref_exact,
     auths_composition.alloc.vec.SizedList.length, view_members_length]
@@ -263,7 +263,7 @@ theorem threshold_node_exact (required : Std.U16) (members : auths_composition.a
   have authorizedEq := congrArg Summary.authorized agreement
   have indeterminateEq := congrArg Summary.indeterminate agreement
   simp only [view] at authorizedEq indeterminateEq
-  simp only [viewPlan, viewNode, evaluate, branchEq, observerEq,
+  simp only [viewPlan, viewNode, Auths.Composition.PlanModel.evaluate, branchEq, observerEq,
     eventView, authorizedEq, indeterminateEq, Slice.len_val, Slice.length,
     auths_composition.alloc.vec.Vec.deref_exact,
     auths_composition.alloc.vec.SizedList.length, view_members_length]
@@ -298,7 +298,7 @@ theorem all_nodes_correct (plan : auths_model.AuthorizationPlan) :
 
 theorem evaluator_refines (plan : auths_model.AuthorizationPlan) (branch : B) (observer : O) :
     evaluate_node nativeBranch nativeObserver plan branch observer =
-      ok (evaluate modelBranch modelObserver (viewPlan plan) branch observer) := by
+      ok (Auths.Composition.PlanModel.evaluate modelBranch modelObserver (viewPlan plan) branch observer) := by
   exact all_nodes_correct nativeBranch nativeObserver modelBranch modelObserver
     branchContract observerContract plan branch observer
 

@@ -18,6 +18,12 @@ fn ed25519_point_encoding_is_canonical(encoded: &[u8; 32]) -> bool {
     let top = encoded[31] & 0x7f;
     let mut all_max = top == 0x7f;
     let mut all_zero = top == 0;
+    // The qualified scan uses this explicit fixed range; its refinement proves
+    // every array read in bounds. Keep the index representation shared with it.
+    #[expect(
+        clippy::needless_range_loop,
+        reason = "the source-linked bounded-scan proof uses this explicit index range"
+    )]
     for index in 1..31 {
         all_max &= encoded[index] == 0xff;
         all_zero &= encoded[index] == 0;

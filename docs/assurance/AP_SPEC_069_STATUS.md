@@ -10,7 +10,7 @@ shipping-source refinement and hosted evidence gates.
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. The shipping Ed25519 field/sign and P-256 compressed-form guards now have total exact refinements. Caller unsigned-object construction, complete suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
-| M3: complete verifier | In progress | The public observed evaluator now refines independent structural validation followed by all/any/k semantics. The source validator accepts iff the independent structural contract holds; invalid plans preserve both callback states without callback premises. Callback implementations, facade/getter coverage, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. Exact-revision hosted gates are pending for this expansion. |
+| M3: complete verifier | In progress | The public observed evaluator now refines independent structural validation followed by all/any/k semantics. The source validator accepts iff the independent structural contract holds; invalid plans preserve both callback states without callback premises. The ordinary facade and event accessor are now also refined. Callback implementations, registry/stage composition, sealed projection and the full E2.1–E2.5 claim remain. Exact-revision hosted gates are pending for this expansion. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
 | M6: composed assurance | Pending | Final history theorem, adequacy review, and exact-release evidence. |
@@ -523,3 +523,47 @@ caller unsigned bytes, commitments, and composed E5 remain open.
 
 Primary contracts: [RFC 8032 section 5.1.3](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.3)
 and the pinned [dalek decoder contract](https://docs.rs/ed25519-dalek/2.2.0/ed25519_dalek/struct.VerifyingKey.html#method.from_bytes).
+
+
+## Public composition facade and event projection
+
+The ordinary public `evaluate` facade now has its own exact source refinement.
+It agrees with independent structural validation and three-valued evaluation,
+including the exact final branch state. Its actual stateless observer is
+proved rather than assumed. Independently invalid structure is refused before
+any branch call, without a callback correctness or termination premise.
+The event accessor returns exactly the independent proof/aggregate outcome.
+Native callback implementations and the staged verifier remain E2 obligations.
+
+The additional extraction contains 14 local and 27 imported function records.
+Two local records are compiler-generated closure call shims. They remain in
+the refinement dependency graph and in the explicit translation inventory;
+the handwritten-function metric treats them separately, just as it already
+distinguishes compiler-generated loop and derived-method records. This does
+not remove any handwritten Rust function from the denominator. All 10
+composition functions now reach the audited closure; decision coverage is
+124/1,044 functions and 1,490/11,535 lines. The staged verifier and callback
+implementations remain outside this component claim.
+
+The pinned backend erases the concrete unit output of the empty observer's
+call, while the generic FnMut dictionary retains a Unit-times-state result.
+One exact dictionary-field adapter restores that component. Both Result round
+trips hold for arbitrary state, success, failure and divergence, with **zero
+axioms**. Generated Rust function bodies and constructors are preserved. The
+normalizer refuses missing, repeated or already-adapted dictionary sites;
+focused regressions also prevent ordinary handwritten functions from being
+classified as closure shims. The current inventory contains eleven reviewed
+library/representation models and no compiled external axiom.
+
+The construction audit passes 500 statements, with all previous 490 full
+records unchanged and only the existing foundations. Kernel executions cover
+a useful two-leaf conjunction, structural duplicate refusal before callbacks,
+and a three-leaf indeterminate threshold through the actual facade. Exact
+source qualification passes all 12 cases, native parity and two byte-identical
+fresh translations, with the 500-statement compiled audit. Its source closure
+is `c73c2fce779537862d90aa9ba9d35c651d53c76ba81a131a83597f7cbf9fced2`.
+Hosted gates remain required on the exact pushed revision.
+The current encoding checkpoint's hosted preflight found an iterator-style
+lint on the already-qualified explicit fixed range. A single-site lint
+expectation records the source-linked proof reason; focused Clippy passes.
+No index check, resource limit, predicate or CI job is disabled.

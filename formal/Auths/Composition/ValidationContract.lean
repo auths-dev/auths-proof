@@ -46,7 +46,7 @@ theorem valid_public_evaluator_refines (plan : auths_model.AuthorizationPlan)
     (limits : auths_model.VerifierLimits) (bounded : LimitsBounded limits)
     (valid : Valid (sourceLimits limits) (viewPlan plan)) (state : B) (observer : O) :
     evaluate_observed nativeBranch nativeObserver plan limits state observer =
-      let expected := evaluate modelBranch modelObserver (viewPlan plan) state observer
+      let expected := Auths.Composition.PlanModel.evaluate modelBranch modelObserver (viewPlan plan) state observer
       ok (.Ok expected.1, expected.2.1, expected.2.2) := by
   obtain ⟨shape, nativeEq⟩ := (source_accepts_iff_valid plan limits bounded).mpr valid
   exact Auths.Composition.Wrapper.validated_refines nativeBranch nativeObserver modelBranch modelObserver

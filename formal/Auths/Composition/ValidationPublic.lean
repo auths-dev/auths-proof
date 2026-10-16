@@ -82,7 +82,7 @@ def evaluateChecked {B O : Type}
   match checkPlan limits 1 plan rootState with
   | .error _ => (.Err .AuthorizationPlanInvalid, state, observer)
   | .ok _ =>
-    let next := evaluate branch observe plan state observer
+    let next := Auths.Composition.PlanModel.evaluate branch observe plan state observer
     (.Ok next.1, next.2.1, next.2.2)
 
 section

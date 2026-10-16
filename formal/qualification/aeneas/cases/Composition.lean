@@ -1,3 +1,4 @@
+import Auths.Composition.FacadeExamples
 import Auths.Composition.ValidationExamples
 import Auths.Composition.Examples
 import Auths.Composition.PlanExamples

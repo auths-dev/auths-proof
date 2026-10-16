@@ -1,4 +1,4 @@
-freeze_version = 405
+freeze_version = 406
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -6,7 +6,7 @@ freeze_version = 405
 # made the two generated artifacts hash each other and therefore unable to
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
-"auths.core.protocol" = 49
+"auths.core.protocol" = 50
 "auths.frozen-bytes/architecture/dependency-graph.json" = 80
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 2
@@ -16,10 +16,10 @@ freeze_version = 405
 "auths.frozen-bytes/core/fixtures/v1/manifest.json" = 15
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 77
-"auths.frozen-bytes/formal/qualification/aeneas/generated" = 32
-"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 26
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 116
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 78
+"auths.frozen-bytes/formal/qualification/aeneas/generated" = 33
+"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 27
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 117
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 4
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 3
@@ -45,9 +45,9 @@ freeze_version = 405
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 138
+"auths.identity.protocol" = 139
 "auths.modular-components" = 22
-"auths.portable-abi-bindings" = 131
+"auths.portable-abi-bindings" = 132
 "auths.product.bounded-domains" = 19
 "auths.product.bounded-policy" = 6
 "auths.product.configuration-commitments" = 1
@@ -67,4 +67,4 @@ freeze_version = 405
 "auths.product.vocabulary" = 26
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 79
-"auths.release.public-surface" = 405
+"auths.release.public-surface" = 406

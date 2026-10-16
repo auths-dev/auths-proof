@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "9e60b116e869c757ef36461ee53b8ebe6708320732cd85db923b7ad5e058f723";
+    "32d7f26e12ef7b24ec82d6a6718ffebf765d1efa4d1d42cf54f1e9df0f2c07f4";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -264,6 +264,7 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
     "core/crates/auths-composition/src/summary.rs",
     "formal/Auths/Support/Discriminant.lean",
     "formal/Auths/Support/PositiveVec.lean",
+    "formal/Auths/Support/UnitCallback.lean",
     "formal/qualification/aeneas/cases/Composition.lean",
     "core/crates/auths-codec/src/decode.rs",
     "core/crates/auths-codec/src/encode.rs",
@@ -676,7 +677,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
     }
     if qualification.case_modules.len() != 11
         || qualification.translations.len() != 11
-        || qualification.external_models.len() != 10
+        || qualification.external_models.len() != 11
         || qualification.warning_inventory.len() != 4
         || qualification.template_axioms.len() != 7
     {
@@ -689,6 +690,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "composition-positive-vector-v1",
             "composition-recursive-loops-v1",
             "signature-recursive-loops-v1",
+            "composition-unit-callback-return-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -2202,7 +2204,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_composition::evaluate_observed",
+            "auths_composition::evaluate,auths_composition::_::outcome",
             &stable_llbc.join("auths_composition.llbc"),
             "core/crates/auths-composition/Cargo.toml",
             &[
@@ -2459,9 +2461,10 @@ fn reproduce(
     Ok(())
 }
 
-// Preserve every generated constructor and function body. The two imported
-// support modules give qualified instance names and an isomorphic bounded Vec.
-// The Vec adapter proves both round trips and delegates deref to the pinned model.
+// Preserve every translated Rust function body and constructor. The support
+// modules qualify instances and give an isomorphic bounded Vec. A single trait
+// dictionary field restores its erased unit output with a proved Result
+// isomorphism; the callback implementation itself is not rewritten.
 fn normalize_composition_discriminants(output: &Path) -> Result<(), String> {
     let path = output.join("composition-run/qualification/aeneas/generated/composition/Types.lean");
     let source = fs::read_to_string(&path)
@@ -2479,7 +2482,28 @@ fn normalize_composition_discriminants(output: &Path) -> Result<(), String> {
         )
         .replace("discriminant isize", "qualified_discriminant isize");
     fs::write(path, normalized)
-        .map_err(|error| format!("could not write composition types: {error}"))
+        .map_err(|error| format!("could not write composition types: {error}"))?;
+    let functions =
+        output.join("composition-run/qualification/aeneas/generated/composition/Funs.lean");
+    let source = fs::read_to_string(&functions)
+        .map_err(|error| format!("could not read composition functions: {error}"))?;
+    let normalized = normalize_unit_observer_dictionary(&source)?;
+    fs::write(functions, normalized)
+        .map_err(|error| format!("could not write composition dictionary bridge: {error}"))
+}
+
+fn normalize_unit_observer_dictionary(source: &str) -> Result<String, String> {
+    const ORIGINAL: &str = "  call_mut :=\n    evaluate.closure.Insts.CoreOpsFunctionFnMutTupleEvaluationEventTuple.call_mut\n    coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst\n}";
+    const ADAPTED: &str = "  call_mut := fun state event => Auths.Support.UnitCallback.restore (\n    evaluate.closure.Insts.CoreOpsFunctionFnMutTupleEvaluationEventTuple.call_mut\n    coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst state event)\n}";
+    if source.matches(ORIGINAL).count() != 1 || source.matches("import Aeneas\n").count() != 1 {
+        return Err("composition unit-observer dictionary input drifted".to_owned());
+    }
+    Ok(source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.UnitCallback\n",
+        )
+        .replace(ORIGINAL, ADAPTED))
 }
 
 fn charon_arguments(
@@ -3418,5 +3442,29 @@ def character := 's'
             qualification_boundary_contract_sha256(&qualification),
             QUALIFICATION_BOUNDARY_CONTRACT_SHA256
         );
+    }
+}
+
+#[cfg(test)]
+mod unit_observer_dictionary_tests {
+    use super::normalize_unit_observer_dictionary;
+
+    #[test]
+    fn unit_adapter_is_single_site_and_preserves_the_callback_body() {
+        let callback =
+            "def native_callback (state : Unit) (_event : Unit) : Result Unit := ok state\n";
+        let field = "  call_mut :=\n    evaluate.closure.Insts.CoreOpsFunctionFnMutTupleEvaluationEventTuple.call_mut\n    coreopsfunctionFnMutT0TupleProofRefBranchOutcomeInst\n}";
+        let source = format!("import Aeneas\n{callback}{field}");
+        let adapted = normalize_unit_observer_dictionary(&source).expect("reviewed dictionary");
+        assert!(adapted.contains(callback));
+        assert_eq!(
+            adapted
+                .matches("Auths.Support.UnitCallback.restore")
+                .count(),
+            1
+        );
+        assert!(normalize_unit_observer_dictionary(callback).is_err());
+        assert!(normalize_unit_observer_dictionary(&format!("{source}\n{field}")).is_err());
+        assert!(normalize_unit_observer_dictionary(&adapted).is_err());
     }
 }

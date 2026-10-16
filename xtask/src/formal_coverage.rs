@@ -978,6 +978,17 @@ struct QualificationTranslation {
 
 type Translations = (Vec<Translated>, Vec<(String, String)>);
 
+// These are compiler-created trait call shims for an anonymous closure, not
+// handwritten `fn` declarations. Keep them in the Lean dependency graph; do
+// not invent a separately scanned Rust function at the closure's inner span.
+fn is_generated_closure_shim(rust_name: &str) -> bool {
+    rust_name.contains("::closure<")
+        && ((rust_name.contains("{impl core::ops::function::FnMut<")
+            && rust_name.ends_with("}::call_mut"))
+            || (rust_name.contains("{impl core::ops::function::FnOnce<")
+                && rust_name.ends_with("}::call_once")))
+}
+
 fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
     let qualification: QualificationTranslations = toml::from_str(&tree.read(QUALIFICATION)?)
         .map_err(|error| format!("invalid {QUALIFICATION}: {error}"))?;
@@ -1026,6 +1037,8 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
             let second_last = if pieces.len() >= 2 { pieces[1] } else { "" };
             let kind = if second_last.contains("_loop") || lean_name.ends_with("_loop") {
                 "loop"
+            } else if is_generated_closure_shim(rust_name) {
+                "closure-shim"
             } else if begin_line == end_line
                 && tree
                     .read(file)?
@@ -3671,5 +3684,29 @@ mod tests {
             begin_line: None,
         };
         assert!(resolve_function(&functions, &absent).is_err());
+    }
+}
+
+#[cfg(test)]
+mod closure_shim_tests {
+    use super::is_generated_closure_shim;
+
+    #[test]
+    fn closure_shims_do_not_hide_handwritten_functions_or_methods() {
+        assert!(is_generated_closure_shim(
+            "auths_composition::evaluate::{impl core::ops::function::FnMut<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_mut"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_composition::evaluate::{impl core::ops::function::FnOnce<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_once"
+        ));
+        for function in [
+            "auths_composition::evaluate",
+            "auths_composition::{auths_composition::EvaluationEvent}::outcome",
+            "auths_model::{impl core::ops::function::FnMut<T> for auths_model::Handler}::call_mut",
+            "auths_model::closure<T>::decide",
+            "auths_model::{impl core::ops::function::FnMut<T> for auths_model::closure<T>}::verify",
+        ] {
+            assert!(!is_generated_closure_shim(function), "{function}");
+        }
     }
 }

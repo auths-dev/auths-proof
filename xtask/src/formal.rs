@@ -1994,6 +1994,17 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             );
             claim.scope = "The displayed bytes, bounded base-256 digits, natural coordinates and sign propositions. These transparent arithmetic/representation lemmas support the separately qualified shipping encoding guards. No curve recovery, signature equation, primitive-security or complete-verifier claim follows from this helper statement.".to_owned();
         }
+        if declaration.name.starts_with("Auths.Support.UnitCallback.") {
+            claim.claim_text = format!(
+                "The transparent unit-output ABI adapter proves {}.",
+                declaration
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("the stated round trip")
+            );
+            claim.scope = "Every typed Result value, including failure, divergence and success, with arbitrary state. Erasing and restoring the unit output are mutual inverses. This is a representation theorem, not a substitute callback algorithm or an authorization claim.".to_owned();
+        }
         let proof_kind = if declaration.module.contains(".Refinement") {
             FormalEvidenceKind::LeanRefinement
         } else {
@@ -2428,6 +2439,73 @@ fn signature_encoding_refinement_metadata(
 }
 
 fn composition_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const FACADE_RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the listed foundations and reviewed standard-container models are trusted. The explicit unit-output dictionary adapter is a proved Result isomorphism; it restores the component erased at the concrete FnMut ABI and does not change a generated Auths function body.",
+        "The facade proof discharges the actual stateless observer and retains the displayed exact total branch callback contract. Invalid structure is refused without any callback premise. These are complete composition entry-point results, not proofs of branch implementations, signatures, registry/stage composition, sealed authorization projection, or complete verifier resource bounds; AP-SPEC-069 E2 remains open.",
+    ];
+    let facade: Option<(&str, &[&str], &str)> = match declaration {
+        "Auths.Composition.Facade.event_outcome_exact" => Some((
+            "The shipping event accessor returns exactly the independent event outcome.",
+            &["auths_composition::{auths_composition::EvaluationEvent}::outcome"],
+            "Every proof or aggregate event, with arbitrary references, counts and branch result. No premise is required.",
+        )),
+        "Auths.Composition.Facade.observer_mut_exact" => Some((
+            "The shipping anonymous observer callback preserves exactly its state and discards the event.",
+            &[
+                "auths_composition::evaluate::{impl core::ops::function::FnMut<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_mut",
+            ],
+            "Every branch callback dictionary, unit observer state and event. The branch callback is not invoked and no correctness or totality contract is required.",
+        )),
+        "Auths.Composition.Facade.observer_once_exact" => Some((
+            "The shipping one-use observer callback returns exactly unit.",
+            &[
+                "auths_composition::evaluate::{impl core::ops::function::FnOnce<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_once",
+                "auths_composition::evaluate::{impl core::ops::function::FnMut<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_mut",
+            ],
+            "Every branch callback dictionary, unit observer state and event. The state-return ABI adapter is separate and has both general Result round-trip proofs.",
+        )),
+        "Auths.Composition.Facade.evaluate_refines" => Some((
+            "The complete shipping public facade agrees with independent structural validation and three-valued plan evaluation.",
+            &[
+                "auths_composition::evaluate",
+                "auths_composition::evaluate_observed",
+            ],
+            "Every finite represented plan, arbitrary branch state and protocol-sized limits. An exact total stateful branch callback contract is explicit. Validation success/refusal and the exact result/final branch state are fixed; the actual stateless observer contract is discharged by the proof.",
+        )),
+        "Auths.Composition.Facade.invalid_plan_preserves_callback" => Some((
+            "The shipping public facade refuses independently invalid plans before calling the branch.",
+            &[
+                "auths_composition::evaluate",
+                "auths_composition::evaluate_observed",
+            ],
+            "Every independently invalid represented plan under protocol-sized limits and arbitrary native callback and initial state. No callback correctness or totality premise is needed. The result is AuthorizationPlanInvalid with the exact initial state.",
+        )),
+        "Auths.Composition.FacadeExamples.conjunction_authorizes" => Some((
+            "A kernel-checked execution establishes the concrete conjunction_authorizes public-facade witness.",
+            &["auths_composition::evaluate"],
+            "The displayed two- or three-leaf plan, protocol-sized limits, actual stateful callback and initial state. Acceptance, indeterminacy or structural refusal fixes the exact final state. These are composition witnesses, not complete proof-authenticity or verifier witnesses.",
+        )),
+        "Auths.Composition.FacadeExamples.duplicate_refused" => Some((
+            "A kernel-checked execution establishes the concrete duplicate_refused public-facade witness.",
+            &["auths_composition::evaluate"],
+            "The displayed two- or three-leaf plan, protocol-sized limits, actual stateful callback and initial state. Acceptance, indeterminacy or structural refusal fixes the exact final state. These are composition witnesses, not complete proof-authenticity or verifier witnesses.",
+        )),
+        "Auths.Composition.FacadeExamples.threshold_indeterminate" => Some((
+            "A kernel-checked execution establishes the concrete threshold_indeterminate public-facade witness.",
+            &["auths_composition::evaluate"],
+            "The displayed two- or three-leaf plan, protocol-sized limits, actual stateful callback and initial state. Acceptance, indeterminacy or structural refusal fixes the exact final state. These are composition witnesses, not complete proof-authenticity or verifier witnesses.",
+        )),
+        _ => None,
+    };
+    if let Some((claim_text, rust_symbols, scope)) = facade {
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope,
+            residual_assumptions: FACADE_RESIDUAL,
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     const PUBLIC_RESIDUAL: &[&str] = &[
         "The Lean kernel, pinned Rust/Charon/Aeneas/Lean toolchain, reviewed naming and positive-vector representation, listed foundations, and explicit standard-library models are trusted. BTreeSet is a reviewed semantic container boundary for Global and copied ProofRef values with a proved lawful byte order; its tree implementation and physical allocation behavior are not proved.",
         "Protocol limits are explicit numeric premises. Successful evaluation requires the displayed exact stateful callback contracts; invalid-plan refusal needs none. This slice covers public structural validation and composition, not callback implementations, cryptography, registry/stage composition, sealed action projection, full verifier work/stack bounds, or AP-SPEC-069 E2 as a whole.",

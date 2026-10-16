@@ -1,6 +1,108 @@
 {
   "declarations": [
     {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Support.UnitCallback",
+      "name": "Auths.Support.UnitCallback.erase_restore",
+      "statement": "∀ {S : Type} (operation : Aeneas.Std.Result S),\n  Auths.Support.UnitCallback.erase (Auths.Support.UnitCallback.restore operation) = operation"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Support.UnitCallback",
+      "name": "Auths.Support.UnitCallback.restore_erase",
+      "statement": "∀ {S : Type} (operation : Aeneas.Std.Result (Unit × S)),\n  Auths.Support.UnitCallback.restore (Auths.Support.UnitCallback.erase operation) = operation"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Facade",
+      "name": "Auths.Composition.Facade.event_outcome_exact",
+      "statement": "auths_composition.EvaluationEvent.outcome = fun event =>\n  Aeneas.Std.Result.ok (Auths.Composition.Facade.eventOutcome (Auths.Composition.PlanModel.eventView event))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Facade",
+      "name": "Auths.Composition.Facade.observer_mut_exact",
+      "statement": "∀ {B : Type}\n  (branch : Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (state : auths_composition.evaluate.closure B) (event : auths_composition.EvaluationEvent),\n  auths_composition.evaluate.closure.Insts.CoreOpsFunctionFnMutTupleEvaluationEventTuple.call_mut branch state event =\n    Aeneas.Std.Result.ok state"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Facade",
+      "name": "Auths.Composition.Facade.observer_once_exact",
+      "statement": "∀ {B : Type}\n  (branch : Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (state : auths_composition.evaluate.closure B) (event : auths_composition.EvaluationEvent),\n  auths_composition.evaluate.closure.Insts.CoreOpsFunctionFnOnceTupleEvaluationEventTuple.call_once branch state event =\n    Aeneas.Std.Result.ok ()"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Facade",
+      "name": "Auths.Composition.Facade.evaluate_refines",
+      "statement": "∀ {B : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (modelBranch : B → auths_composition.auths_model.ProofRef → auths_composition.BranchOutcome × B),\n  (∀ (state : B) (reference : auths_composition.auths_model.ProofRef),\n      nativeBranch.call_mut state reference = Aeneas.Std.Result.ok (modelBranch state reference)) →\n    ∀ (plan : auths_composition.auths_model.AuthorizationPlan) (limits : auths_composition.auths_model.VerifierLimits),\n      Auths.Composition.ValidationRefinement.LimitsBounded limits →\n        ∀ (state : B),\n          auths_composition.evaluate nativeBranch plan limits state =\n            have expected :=\n              Auths.Composition.ValidationPublic.evaluateChecked modelBranch (fun observer x => observer)\n                (Auths.Composition.ValidationModel.sourceLimits limits) (Auths.Composition.PlanModel.viewPlan plan)\n                state ();\n            Aeneas.Std.Result.ok (expected.1, expected.2.1)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.Facade",
+      "name": "Auths.Composition.Facade.invalid_plan_preserves_callback",
+      "statement": "∀ {B : Type}\n  (nativeBranch :\n    Aeneas.Std.core.ops.function.FnMut B auths_composition.auths_model.ProofRef auths_composition.BranchOutcome)\n  (plan : auths_composition.auths_model.AuthorizationPlan) (limits : auths_composition.auths_model.VerifierLimits),\n  Auths.Composition.ValidationRefinement.LimitsBounded limits →\n    ¬Auths.Composition.ValidationModel.Valid (Auths.Composition.ValidationModel.sourceLimits limits)\n          (Auths.Composition.PlanModel.viewPlan plan) →\n      ∀ (state : B),\n        auths_composition.evaluate nativeBranch plan limits state =\n          Aeneas.Std.Result.ok\n            (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid,\n              state)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.FacadeExamples",
+      "name": "Auths.Composition.FacadeExamples.conjunction_authorizes",
+      "statement": "auths_composition.evaluate Auths.Composition.PlanExamples.branch Auths.Composition.PlanExamples.twoLeaves\n    Auths.Composition.ValidationExamples.limits 0 =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok auths_composition.BranchOutcome.Authorized, 2)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.FacadeExamples",
+      "name": "Auths.Composition.FacadeExamples.duplicate_refused",
+      "statement": "auths_composition.evaluate Auths.Composition.PlanExamples.branch Auths.Composition.ValidationExamples.duplicate\n    Auths.Composition.ValidationExamples.limits 5 =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Err auths_composition.auths_model.DenialReason.AuthorizationPlanInvalid, 5)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition.FacadeExamples",
+      "name": "Auths.Composition.FacadeExamples.threshold_indeterminate",
+      "statement": "auths_composition.evaluate Auths.Composition.PlanExamples.mixedBranch\n    (auths_composition.auths_model.AuthorizationPlan.mk\n      (auths_composition.auths_model.AuthorizationPlanNode.KOfN 2#u16 Auths.Composition.PlanExamples.threeMembers))\n    Auths.Composition.ValidationExamples.limits 0 =\n  Aeneas.Std.Result.ok\n    (Aeneas.Std.core.result.Result.Ok\n        (auths_composition.BranchOutcome.Indeterminate\n          auths_composition.auths_model.Requirement.ExternalFactUnavailable),\n      3)"
+    },
+    {
       "axioms": [
         "propext",
         "Classical.choice",

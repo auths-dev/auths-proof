@@ -304,4 +304,9 @@ structure summary.Summary where
   denial : Option auths_model.DenialReason
   requirement : Option auths_model.Requirement
 
+/-- [auths_composition::evaluate::closure]
+    Source: 'core/crates/auths-composition/src/lib.rs', lines 84:49-84:55 -/
+@[reducible]
+def evaluate.closure (T0 : Type) := Unit
+
 end auths_composition

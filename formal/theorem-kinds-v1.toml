@@ -12,6 +12,14 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Composition.Facade.event_outcome_exact" = "exact"
+"Auths.Composition.Facade.observer_mut_exact" = "exact"
+"Auths.Composition.Facade.observer_once_exact" = "exact"
+"Auths.Composition.Facade.evaluate_refines" = "exact"
+"Auths.Composition.Facade.invalid_plan_preserves_callback" = "partial"
+"Auths.Composition.FacadeExamples.conjunction_authorizes" = "case"
+"Auths.Composition.FacadeExamples.duplicate_refused" = "case"
+"Auths.Composition.FacadeExamples.threshold_indeterminate" = "case"
 "Auths.Crypto.Encoding.Scan.loop_refines" = "partial"
 "Auths.Crypto.Encoding.RootFlags.root_flags" = "partial"
 "Auths.Crypto.Encoding.Ed25519.guard_refines" = "verdict-exact"

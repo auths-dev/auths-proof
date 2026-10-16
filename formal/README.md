@@ -295,3 +295,23 @@ byte-identical fresh translations and all 490 audited statements. Complete
 suite glue, caller preimages, principal binding, dispatch and commitment
 integration remain separate AP-SPEC-069 E5 obligations. Hosted evidence is
 still required on this exact revision.
+
+
+### Public composition facade
+
+`Auths.Composition.Facade` refines the shipping `evaluate` wrapper against
+independent validation/evaluation and proves the exact event accessor. It
+discharges the actual stateless observer, preserves the exact branch state,
+and refuses structurally invalid plans without callback premises. The 500
+compiled statements preserve all 490 previous full records. All ten
+handwritten composition functions now lie in the audited closure; registered
+branch/stage implementations and full verifier assurance remain open.
+
+One explicit, single-site FnMut dictionary binding restores an erased unit
+output. The Result adapter has both general round-trip proofs and no axioms;
+no translated Rust function body is rewritten. Compiler-generated closure
+call shims remain in the call graph and are reported separately from
+handwritten Rust functions. Eleven reviewed library/representation models
+introduce zero compiled external axioms. Exact-source qualification passes
+12/12 cases, native parity, two identical fresh translations and the compiled
+500-statement audit. Hosted verification remains required on this revision.
