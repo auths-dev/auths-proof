@@ -20,6 +20,9 @@ def U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
 def U16.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
   core.num.tryFromUScalar .U16 value
 
+def U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :=
+  core.num.tryFromUScalar .U16 value
+
 def core.option.Option.Some {T : Type} (value : T) : Result (Option T) := ok (some value)
 def core.option.Option.as_ref {T : Type} (value : Option T) : Result (Option T) := ok value
 

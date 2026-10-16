@@ -182,6 +182,13 @@ def auths_model.identifier.bounded_identifier_valid
       ok (¬ b1)
     else ok false
 
+/-- [auths_model::PROTOCOL_V1]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 22:0-22:26
+    Name pattern: [auths_model::PROTOCOL_V1]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::PROTOCOL_V1"]
+def auths_model.PROTOCOL_V1 : Std.U16 := 1#u16
+
 /-- [auths_model::HARD_MAX_BUNDLE_BYTES]
     Source: 'core/crates/auths-model/src/lib.rs', lines 23:0-23:38
     Name pattern: [auths_model::HARD_MAX_BUNDLE_BYTES]
@@ -3452,5 +3459,108 @@ def decode.decode_canonical_action
     core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
       auths_model.CanonicalAction
       error.CodecError.Insts.CoreConvertFromModelError residual
+
+/-- [auths_codec::hash::SIGNING_PREFIX]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 23:0-23:39 -/
+@[global_simps, irreducible]
+def hash.SIGNING_PREFIX : Slice Std.U8 :=
+  Array.to_slice (Array.make 5#usize [ 65#u8, 85#u8, 84#u8, 72#u8, 83#u8 ])
+
+/-- [auths_codec::hash::signing_preimage]:
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 105:0-134:1 -/
+def hash.signing_preimage
+  (object_type : hash.ObjectType) (profile_id : Str)
+  (profile_version : Std.U16) (canonical_signing_object : Slice Std.U8) :
+  Result (core.result.Result (alloc.vec.Vec Std.U8) error.CodecError)
+  := do
+  let i ← core.str.Str.len profile_id
+  let r ← U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+      error.CodecError) r (error.limit_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let i1 := Slice.len canonical_signing_object
+    let r2 ← U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i1
+    let r3 ←
+      core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+        error.CodecError) r2 (error.limit_error)
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r3
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let i2 := Slice.len hash.SIGNING_PREFIX
+      let i3 ← 2#usize + 2#usize
+      let i4 ← i3 + 2#usize
+      let i5 ← i4 + 2#usize
+      let i6 ← i5 + 8#usize
+      let o ← lift (Usize.checked_add i2 i6)
+      let r4 ← core.option.Option.ok_or o error.CodecError.LimitExceeded
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r4
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let o1 ← lift (Usize.checked_add val2 i)
+        let r5 ← core.option.Option.ok_or o1 error.CodecError.LimitExceeded
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r5
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val3 =>
+          let i7 := Slice.len canonical_signing_object
+          let o2 ← lift (Usize.checked_add val3 i7)
+          let r6 ← core.option.Option.ok_or o2 error.CodecError.LimitExceeded
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r6
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue val4 =>
+            let output := alloc.vec.Vec.with_capacity Std.U8 val4
+            let output1 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output
+                hash.SIGNING_PREFIX
+            let a ← lift (core.num.U16.to_be_bytes auths_model.PROTOCOL_V1)
+            let s ← lift (Array.to_slice a)
+            let output2 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output1 s
+            let object_type1 := read_discriminant object_type
+            let i8 ← lift (IScalar.hcast .U16 object_type1)
+            let a1 ← lift (core.num.U16.to_be_bytes i8)
+            let s1 ← lift (Array.to_slice a1)
+            let output3 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output2 s1
+            let a2 ← lift (core.num.U16.to_be_bytes val)
+            let s2 ← lift (Array.to_slice a2)
+            let output4 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output3 s2
+            let s3 ← core.str.Str.as_bytes profile_id
+            let output5 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output4 s3
+            let a3 ← lift (core.num.U16.to_be_bytes profile_version)
+            let s4 ← lift (Array.to_slice a3)
+            let output6 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output5 s4
+            let a4 ← lift (core.num.U64.to_be_bytes val1)
+            let s5 ← lift (Array.to_slice a4)
+            let output7 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output6 s5
+            let output8 ←
+              alloc.vec.Vec.extend_from_slice core.clone.CloneU8 output7
+                canonical_signing_object
+            ok (core.result.Result.Ok output8)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+              residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+            residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+          residual
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+        residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError) residual
 
 end auths_codec

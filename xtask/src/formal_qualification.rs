@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "7ec5f71238390904760feafec2fdfda56f65936c86d79d1719d699befe8ddc01";
+    "43999ba6c75ffd453cdf6cd4c9c2dc1927c5c67a86febde3557835d5add2e03f";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -213,6 +213,7 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
     "core/crates/auths-codec/src/decode.rs",
     "core/crates/auths-codec/src/encode.rs",
     "core/crates/auths-codec/src/error.rs",
+    "core/crates/auths-codec/src/hash.rs",
     "formal/qualification/aeneas/cases/Stores.lean",
     "formal/qualification/aeneas/cases/Codec.lean",
     ".cargo/config.toml",
@@ -1967,7 +1968,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_codec::cbor::read_head,auths_codec::cbor::encode_head,auths_codec::decode::decode_canonical_action",
+            "auths_codec::cbor::read_head,auths_codec::cbor::encode_head,auths_codec::decode::decode_canonical_action,auths_codec::hash::signing_preimage",
             &stable_llbc.join("auths_codec.llbc"),
             "core/crates/auths-codec/Cargo.toml",
             &["--include", "auths_model"],
@@ -2552,6 +2553,9 @@ def U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
   core.num.tryFromUScalar .U8 value
 
 def U16.Insts.CoreConvertTryFromU64TryFromIntError.try_from (value : Std.U64) :=
+  core.num.tryFromUScalar .U16 value
+
+def U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize) :=
   core.num.tryFromUScalar .U16 value
 
 def core.option.Option.Some {T : Type} (value : T) : Result (Option T) := ok (some value)

@@ -4,7 +4,7 @@
   "crate": "auths_codec",
   "functions": [
     {
-      "def_id": 351,
+      "def_id": 358,
       "lean_name": "auths_codec.Array.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
@@ -21,24 +21,7 @@
       "reducible": false
     },
     {
-      "def_id": 77,
-      "lean_name": "auths_codec.Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from",
-      "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
-      "rust_name": "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
-      "is_local": false,
-      "source": {
-        "file": "/rustc/library/core/src/convert/num.rs",
-        "begin_line": 258,
-        "end_line": 258
-      },
-      "is_opaque": true,
-      "can_fail": true,
-      "can_diverge": false,
-      "is_rec": false,
-      "reducible": false
-    },
-    {
-      "def_id": 328,
+      "def_id": 39,
       "lean_name": "auths_codec.U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from",
@@ -55,7 +38,24 @@
       "reducible": false
     },
     {
-      "def_id": 298,
+      "def_id": 87,
+      "lean_name": "auths_codec.Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from",
+      "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
+      "rust_name": "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/convert/num.rs",
+        "begin_line": 258,
+        "end_line": 258
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 306,
       "lean_name": "auths_codec.U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from",
@@ -72,7 +72,7 @@
       "reducible": false
     },
     {
-      "def_id": 299,
+      "def_id": 307,
       "lean_name": "auths_codec.U16.Insts.CoreConvertTryFromU64TryFromIntError.try_from",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
@@ -89,7 +89,24 @@
       "reducible": false
     },
     {
-      "def_id": 297,
+      "def_id": 37,
+      "lean_name": "auths_codec.U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from",
+      "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
+      "rust_name": "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/convert/num.rs",
+        "begin_line": 300,
+        "end_line": 300
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 305,
       "lean_name": "auths_codec.core.option.Option.Some",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::option::Option::Some",
@@ -106,7 +123,7 @@
       "reducible": false
     },
     {
-      "def_id": 169,
+      "def_id": 177,
       "lean_name": "auths_codec.core.option.Option.as_ref",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::option::{core::option::Option<T>}::as_ref",
@@ -123,7 +140,7 @@
       "reducible": false
     },
     {
-      "def_id": 76,
+      "def_id": 41,
       "lean_name": "auths_codec.core.option.Option.ok_or",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::option::{core::option::Option<T>}::ok_or",
@@ -140,7 +157,7 @@
       "reducible": false
     },
     {
-      "def_id": 51,
+      "def_id": 62,
       "lean_name": "auths_codec.core.option.Option.Insts.CoreCmpPartialEqOption.eq",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq",
@@ -157,7 +174,7 @@
       "reducible": false
     },
     {
-      "def_id": 296,
+      "def_id": 304,
       "lean_name": "auths_codec.core.result.Result.map",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::result::{core::result::Result<T, E>}::map",
@@ -174,7 +191,7 @@
       "reducible": false
     },
     {
-      "def_id": 20,
+      "def_id": 21,
       "lean_name": "auths_codec.core.result.Result.map_err",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::result::{core::result::Result<T, E>}::map_err",
@@ -191,7 +208,7 @@
       "reducible": false
     },
     {
-      "def_id": 50,
+      "def_id": 61,
       "lean_name": "auths_codec.core.result.Result.unwrap_or",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::result::{core::result::Result<T, E>}::unwrap_or",
@@ -208,7 +225,7 @@
       "reducible": false
     },
     {
-      "def_id": 123,
+      "def_id": 137,
       "lean_name": "auths_codec.core.str.converts.from_utf8",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::str::converts::from_utf8",
@@ -225,7 +242,7 @@
       "reducible": false
     },
     {
-      "def_id": 125,
+      "def_id": 36,
       "lean_name": "auths_codec.core.str.Str.len",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::str::{str}::len",
@@ -242,7 +259,7 @@
       "reducible": false
     },
     {
-      "def_id": 124,
+      "def_id": 138,
       "lean_name": "auths_codec.core.str.Str.is_empty",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::str::{str}::is_empty",
@@ -259,7 +276,7 @@
       "reducible": false
     },
     {
-      "def_id": 126,
+      "def_id": 44,
       "lean_name": "auths_codec.core.str.Str.as_bytes",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "core::str::{str}::as_bytes",
@@ -276,7 +293,7 @@
       "reducible": false
     },
     {
-      "def_id": 86,
+      "def_id": 95,
       "lean_name": "auths_codec.alloc.slice.Slice.sort_by_key",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "alloc::slice::{[T]}::sort_by_key",
@@ -293,7 +310,7 @@
       "reducible": false
     },
     {
-      "def_id": 162,
+      "def_id": 170,
       "lean_name": "auths_codec.alloc.string.String.Insts.CoreOpsDerefDerefStr.deref",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
@@ -310,7 +327,7 @@
       "reducible": false
     },
     {
-      "def_id": 62,
+      "def_id": 73,
       "lean_name": "auths_codec.alloc.string.String.Insts.CoreConvertFromShared0Str.from",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from",
@@ -327,7 +344,7 @@
       "reducible": false
     },
     {
-      "def_id": 33,
+      "def_id": 34,
       "lean_name": "auths_codec.alloc.vec.Vec.as_slice",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "alloc::vec::{alloc::vec::Vec<T>}::as_slice",
@@ -344,7 +361,7 @@
       "reducible": false
     },
     {
-      "def_id": 81,
+      "def_id": 90,
       "lean_name": "auths_codec.alloc.vec.Vec.is_empty",
       "lean_file": "qualification/aeneas/generated/codec/FunsExternal_Template.lean",
       "rust_name": "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
@@ -361,7 +378,7 @@
       "reducible": false
     },
     {
-      "def_id": 347,
+      "def_id": 354,
       "lean_name": "auths_codec.auths_model.identifier.forbidden_three_byte_prefix",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::identifier::forbidden_three_byte_prefix",
@@ -378,7 +395,7 @@
       "reducible": false
     },
     {
-      "def_id": 300,
+      "def_id": 308,
       "lean_name": "auths_codec.auths_model.identifier.forbidden_identifier_at",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::identifier::forbidden_identifier_at",
@@ -395,7 +412,7 @@
       "reducible": false
     },
     {
-      "def_id": 127,
+      "def_id": 139,
       "lean_name": "auths_codec.auths_model.identifier.contains_forbidden_identifier_loop.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::identifier::contains_forbidden_identifier",
@@ -420,7 +437,7 @@
       "parent_lean_name": "auths_codec.auths_model.identifier.contains_forbidden_identifier"
     },
     {
-      "def_id": 127,
+      "def_id": 139,
       "lean_name": "auths_codec.auths_model.identifier.contains_forbidden_identifier_loop",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::identifier::contains_forbidden_identifier",
@@ -445,7 +462,7 @@
       "parent_lean_name": "auths_codec.auths_model.identifier.contains_forbidden_identifier"
     },
     {
-      "def_id": 127,
+      "def_id": 139,
       "lean_name": "auths_codec.auths_model.identifier.contains_forbidden_identifier",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::identifier::contains_forbidden_identifier",
@@ -462,7 +479,7 @@
       "reducible": true
     },
     {
-      "def_id": 61,
+      "def_id": 72,
       "lean_name": "auths_codec.auths_model.identifier.bounded_identifier_valid",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::identifier::bounded_identifier_valid",
@@ -479,7 +496,7 @@
       "reducible": false
     },
     {
-      "def_id": 19,
+      "def_id": 20,
       "lean_name": "auths_codec.auths_model.MediaType.parse",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::MediaType}::parse",
@@ -496,7 +513,7 @@
       "reducible": false
     },
     {
-      "def_id": 54,
+      "def_id": 65,
       "lean_name": "auths_codec.auths_model.ProfileId.parse",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ProfileId}::parse",
@@ -513,7 +530,7 @@
       "reducible": false
     },
     {
-      "def_id": 67,
+      "def_id": 78,
       "lean_name": "auths_codec.auths_model.CapabilityId.parse",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CapabilityId}::parse",
@@ -530,7 +547,7 @@
       "reducible": false
     },
     {
-      "def_id": 68,
+      "def_id": 79,
       "lean_name": "auths_codec.auths_model.ResourceId.parse",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ResourceId}::parse",
@@ -547,7 +564,7 @@
       "reducible": false
     },
     {
-      "def_id": 135,
+      "def_id": 145,
       "lean_name": "auths_codec.auths_model.BudgetAlgebraId.parse",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::BudgetAlgebraId}::parse",
@@ -564,7 +581,7 @@
       "reducible": false
     },
     {
-      "def_id": 95,
+      "def_id": 104,
       "lean_name": "auths_codec.auths_model.MediaType.as_str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::MediaType}::as_str",
@@ -581,7 +598,7 @@
       "reducible": false
     },
     {
-      "def_id": 159,
+      "def_id": 167,
       "lean_name": "auths_codec.auths_model.ProfileId.as_str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ProfileId}::as_str",
@@ -598,7 +615,7 @@
       "reducible": false
     },
     {
-      "def_id": 166,
+      "def_id": 174,
       "lean_name": "auths_codec.auths_model.CapabilityId.as_str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CapabilityId}::as_str",
@@ -615,7 +632,7 @@
       "reducible": false
     },
     {
-      "def_id": 168,
+      "def_id": 176,
       "lean_name": "auths_codec.auths_model.ResourceId.as_str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ResourceId}::as_str",
@@ -632,7 +649,7 @@
       "reducible": false
     },
     {
-      "def_id": 326,
+      "def_id": 334,
       "lean_name": "auths_codec.auths_model.BudgetAlgebraId.as_str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::BudgetAlgebraId}::as_str",
@@ -649,7 +666,7 @@
       "reducible": false
     },
     {
-      "def_id": 320,
+      "def_id": 328,
       "lean_name": "auths_codec.auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
@@ -666,7 +683,7 @@
       "reducible": false
     },
     {
-      "def_id": 319,
+      "def_id": 327,
       "lean_name": "auths_codec.auths_model.Digest.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
@@ -683,7 +700,7 @@
       "reducible": false
     },
     {
-      "def_id": 305,
+      "def_id": 313,
       "lean_name": "auths_codec.auths_model.Digest.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::Digest}::new",
@@ -700,7 +717,7 @@
       "reducible": false
     },
     {
-      "def_id": 340,
+      "def_id": 347,
       "lean_name": "auths_codec.auths_model.Digest.as_bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::Digest}::as_bytes",
@@ -717,7 +734,7 @@
       "reducible": false
     },
     {
-      "def_id": 153,
+      "def_id": 161,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest.eq",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::eq",
@@ -734,7 +751,7 @@
       "reducible": false
     },
     {
-      "def_id": 317,
+      "def_id": 325,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpEq.assert_fields_are_eq",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}::assert_fields_are_eq",
@@ -751,7 +768,7 @@
       "reducible": false
     },
     {
-      "def_id": 150,
+      "def_id": 158,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}::cmp",
@@ -768,7 +785,7 @@
       "reducible": false
     },
     {
-      "def_id": 318,
+      "def_id": 326,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest.partial_cmp",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::partial_cmp",
@@ -785,7 +802,7 @@
       "reducible": false
     },
     {
-      "def_id": 140,
+      "def_id": 149,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::AttachmentDigest}::new",
@@ -802,7 +819,7 @@
       "reducible": false
     },
     {
-      "def_id": 266,
+      "def_id": 274,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.as_bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::AttachmentDigest}::as_bytes",
@@ -819,7 +836,7 @@
       "reducible": false
     },
     {
-      "def_id": 56,
+      "def_id": 67,
       "lean_name": "auths_codec.auths_model.ProfileRef.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ProfileRef}::new",
@@ -836,7 +853,7 @@
       "reducible": false
     },
     {
-      "def_id": 158,
+      "def_id": 166,
       "lean_name": "auths_codec.auths_model.ProfileRef.impl.id",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ProfileRef}::id",
@@ -853,7 +870,7 @@
       "reducible": false
     },
     {
-      "def_id": 160,
+      "def_id": 168,
       "lean_name": "auths_codec.auths_model.ProfileRef.impl.version",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::ProfileRef}::version",
@@ -870,7 +887,7 @@
       "reducible": false
     },
     {
-      "def_id": 69,
+      "def_id": 80,
       "lean_name": "auths_codec.auths_model.Permission.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::Permission}::new",
@@ -887,7 +904,7 @@
       "reducible": false
     },
     {
-      "def_id": 165,
+      "def_id": 173,
       "lean_name": "auths_codec.auths_model.Permission.impl.capability",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::Permission}::capability",
@@ -904,7 +921,7 @@
       "reducible": false
     },
     {
-      "def_id": 167,
+      "def_id": 175,
       "lean_name": "auths_codec.auths_model.Permission.impl.resource",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::Permission}::resource",
@@ -921,7 +938,7 @@
       "reducible": false
     },
     {
-      "def_id": 136,
+      "def_id": 146,
       "lean_name": "auths_codec.auths_model.BudgetCeiling.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::BudgetCeiling}::new",
@@ -938,7 +955,7 @@
       "reducible": false
     },
     {
-      "def_id": 325,
+      "def_id": 333,
       "lean_name": "auths_codec.auths_model.BudgetCeiling.impl.algebra",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::BudgetCeiling}::algebra",
@@ -955,7 +972,7 @@
       "reducible": false
     },
     {
-      "def_id": 327,
+      "def_id": 335,
       "lean_name": "auths_codec.auths_model.BudgetCeiling.impl.value",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::BudgetCeiling}::value",
@@ -972,7 +989,7 @@
       "reducible": false
     },
     {
-      "def_id": 152,
+      "def_id": 160,
       "lean_name": "auths_codec.auths_model.DetachedAttachment.impl.bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::DetachedAttachment}::bytes",
@@ -989,7 +1006,7 @@
       "reducible": false
     },
     {
-      "def_id": 151,
+      "def_id": 159,
       "lean_name": "auths_codec.auths_model.DetachedAttachment.impl.digest",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::DetachedAttachment}::digest",
@@ -1006,7 +1023,7 @@
       "reducible": false
     },
     {
-      "def_id": 88,
+      "def_id": 97,
       "lean_name": "auths_codec.auths_model.canonical_attachments_valid_loop.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::canonical_attachments_valid",
@@ -1031,7 +1048,7 @@
       "parent_lean_name": "auths_codec.auths_model.canonical_attachments_valid"
     },
     {
-      "def_id": 88,
+      "def_id": 97,
       "lean_name": "auths_codec.auths_model.canonical_attachments_valid_loop",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::canonical_attachments_valid",
@@ -1056,7 +1073,7 @@
       "parent_lean_name": "auths_codec.auths_model.canonical_attachments_valid"
     },
     {
-      "def_id": 88,
+      "def_id": 97,
       "lean_name": "auths_codec.auths_model.canonical_attachments_valid",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::canonical_attachments_valid",
@@ -1073,7 +1090,7 @@
       "reducible": true
     },
     {
-      "def_id": 29,
+      "def_id": 30,
       "lean_name": "auths_codec.auths_model.CanonicalAction.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::new",
@@ -1090,7 +1107,7 @@
       "reducible": false
     },
     {
-      "def_id": 145,
+      "def_id": 153,
       "lean_name": "auths_codec.auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest.call_mut",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_mut",
@@ -1107,7 +1124,7 @@
       "reducible": false
     },
     {
-      "def_id": 144,
+      "def_id": 152,
       "lean_name": "auths_codec.auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnOnceTupleSharedDetachedAttachmentAttachmentDigest.call_once",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_once",
@@ -1124,7 +1141,7 @@
       "reducible": false
     },
     {
-      "def_id": 30,
+      "def_id": 31,
       "lean_name": "auths_codec.auths_model.CanonicalAction.with_detached_attachments",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::with_detached_attachments",
@@ -1141,7 +1158,7 @@
       "reducible": false
     },
     {
-      "def_id": 92,
+      "def_id": 101,
       "lean_name": "auths_codec.auths_model.CanonicalAction.impl.profile",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::profile",
@@ -1158,7 +1175,7 @@
       "reducible": false
     },
     {
-      "def_id": 94,
+      "def_id": 103,
       "lean_name": "auths_codec.auths_model.CanonicalAction.impl.media_type",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::media_type",
@@ -1175,7 +1192,7 @@
       "reducible": false
     },
     {
-      "def_id": 97,
+      "def_id": 106,
       "lean_name": "auths_codec.auths_model.CanonicalAction.impl.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::body",
@@ -1192,7 +1209,7 @@
       "reducible": false
     },
     {
-      "def_id": 99,
+      "def_id": 108,
       "lean_name": "auths_codec.auths_model.CanonicalAction.impl.permission",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::permission",
@@ -1209,7 +1226,7 @@
       "reducible": false
     },
     {
-      "def_id": 101,
+      "def_id": 110,
       "lean_name": "auths_codec.auths_model.CanonicalAction.impl.requested_budget",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::requested_budget",
@@ -1226,7 +1243,7 @@
       "reducible": false
     },
     {
-      "def_id": 103,
+      "def_id": 112,
       "lean_name": "auths_codec.auths_model.CanonicalAction.impl.detached_attachments",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::detached_attachments",
@@ -1243,7 +1260,7 @@
       "reducible": false
     },
     {
-      "def_id": 142,
+      "def_id": 150,
       "lean_name": "auths_codec.auths_model.DetachedAttachment.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::DetachedAttachment}::new",
@@ -1260,7 +1277,7 @@
       "reducible": false
     },
     {
-      "def_id": 48,
+      "def_id": 59,
       "lean_name": "auths_codec.auths_model.VerifierLimits.hard",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::VerifierLimits}::hard",
@@ -1277,7 +1294,7 @@
       "reducible": false
     },
     {
-      "def_id": 13,
+      "def_id": 14,
       "lean_name": "auths_codec.auths_model.VerifierLimits.get",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::VerifierLimits}::get",
@@ -1294,7 +1311,7 @@
       "reducible": false
     },
     {
-      "def_id": 11,
+      "def_id": 12,
       "lean_name": "auths_codec.auths_model.VerifierLimits.validate",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::VerifierLimits}::validate",
@@ -1311,7 +1328,7 @@
       "reducible": false
     },
     {
-      "def_id": 120,
+      "def_id": 134,
       "lean_name": "auths_codec.cbor.malformed",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::malformed",
@@ -1328,7 +1345,7 @@
       "reducible": false
     },
     {
-      "def_id": 133,
+      "def_id": 143,
       "lean_name": "auths_codec.cbor.Type.Insts.CoreCmpPartialEqType.eq",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{impl core::cmp::PartialEq<auths_codec::cbor::Type> for auths_codec::cbor::Type}::eq",
@@ -1345,7 +1362,7 @@
       "reducible": false
     },
     {
-      "def_id": 5,
+      "def_id": 6,
       "lean_name": "auths_codec.cbor.read_tail_loop.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::read_tail",
@@ -1370,7 +1387,7 @@
       "parent_lean_name": "auths_codec.cbor.read_tail"
     },
     {
-      "def_id": 5,
+      "def_id": 6,
       "lean_name": "auths_codec.cbor.read_tail_loop",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::read_tail",
@@ -1395,7 +1412,7 @@
       "parent_lean_name": "auths_codec.cbor.read_tail"
     },
     {
-      "def_id": 5,
+      "def_id": 6,
       "lean_name": "auths_codec.cbor.read_tail",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::read_tail",
@@ -1429,7 +1446,7 @@
       "reducible": false
     },
     {
-      "def_id": 10,
+      "def_id": 11,
       "lean_name": "auths_codec.cbor.append_tail_loop.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::append_tail",
@@ -1454,7 +1471,7 @@
       "parent_lean_name": "auths_codec.cbor.append_tail"
     },
     {
-      "def_id": 10,
+      "def_id": 11,
       "lean_name": "auths_codec.cbor.append_tail_loop",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::append_tail",
@@ -1479,7 +1496,7 @@
       "parent_lean_name": "auths_codec.cbor.append_tail"
     },
     {
-      "def_id": 10,
+      "def_id": 11,
       "lean_name": "auths_codec.cbor.append_tail",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::append_tail",
@@ -1513,7 +1530,7 @@
       "reducible": false
     },
     {
-      "def_id": 14,
+      "def_id": 15,
       "lean_name": "auths_codec.cbor.Decoder.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::new",
@@ -1530,7 +1547,7 @@
       "reducible": false
     },
     {
-      "def_id": 28,
+      "def_id": 29,
       "lean_name": "auths_codec.cbor.Decoder.at",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::at",
@@ -1547,7 +1564,7 @@
       "reducible": false
     },
     {
-      "def_id": 26,
+      "def_id": 27,
       "lean_name": "auths_codec.cbor.Decoder.impl.position",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::position",
@@ -1564,7 +1581,7 @@
       "reducible": false
     },
     {
-      "def_id": 295,
+      "def_id": 303,
       "lean_name": "auths_codec.cbor.Decoder.head",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head",
@@ -1581,7 +1598,7 @@
       "reducible": false
     },
     {
-      "def_id": 114,
+      "def_id": 128,
       "lean_name": "auths_codec.cbor.Decoder.collection",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection",
@@ -1598,7 +1615,7 @@
       "reducible": false
     },
     {
-      "def_id": 49,
+      "def_id": 60,
       "lean_name": "auths_codec.cbor.Decoder.map",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map",
@@ -1615,7 +1632,7 @@
       "reducible": false
     },
     {
-      "def_id": 75,
+      "def_id": 86,
       "lean_name": "auths_codec.cbor.Decoder.array",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array",
@@ -1632,7 +1649,7 @@
       "reducible": false
     },
     {
-      "def_id": 118,
+      "def_id": 132,
       "lean_name": "auths_codec.cbor.Decoder.u64",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64",
@@ -1649,7 +1666,7 @@
       "reducible": false
     },
     {
-      "def_id": 55,
+      "def_id": 66,
       "lean_name": "auths_codec.cbor.Decoder.u16",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u16",
@@ -1666,7 +1683,7 @@
       "reducible": false
     },
     {
-      "def_id": 52,
+      "def_id": 63,
       "lean_name": "auths_codec.cbor.Decoder.u8",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8",
@@ -1683,7 +1700,7 @@
       "reducible": false
     },
     {
-      "def_id": 122,
+      "def_id": 136,
       "lean_name": "auths_codec.cbor.Decoder.payload",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload",
@@ -1700,7 +1717,7 @@
       "reducible": false
     },
     {
-      "def_id": 64,
+      "def_id": 75,
       "lean_name": "auths_codec.cbor.Decoder.bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::bytes",
@@ -1717,7 +1734,7 @@
       "reducible": false
     },
     {
-      "def_id": 60,
+      "def_id": 71,
       "lean_name": "auths_codec.cbor.Decoder.str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str",
@@ -1734,7 +1751,7 @@
       "reducible": false
     },
     {
-      "def_id": 134,
+      "def_id": 144,
       "lean_name": "auths_codec.cbor.Decoder.null",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::null",
@@ -1751,7 +1768,7 @@
       "reducible": false
     },
     {
-      "def_id": 132,
+      "def_id": 142,
       "lean_name": "auths_codec.cbor.Decoder.datatype",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::datatype",
@@ -1768,7 +1785,7 @@
       "reducible": false
     },
     {
-      "def_id": 89,
+      "def_id": 98,
       "lean_name": "auths_codec.cbor.Encoder.new",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::new",
@@ -1785,7 +1802,7 @@
       "reducible": false
     },
     {
-      "def_id": 108,
+      "def_id": 117,
       "lean_name": "auths_codec.cbor.Encoder.into_writer",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::into_writer",
@@ -1802,7 +1819,7 @@
       "reducible": false
     },
     {
-      "def_id": 321,
+      "def_id": 329,
       "lean_name": "auths_codec.cbor.Encoder.head",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::head",
@@ -1819,7 +1836,7 @@
       "reducible": false
     },
     {
-      "def_id": 154,
+      "def_id": 162,
       "lean_name": "auths_codec.cbor.Encoder.map",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::map",
@@ -1836,7 +1853,7 @@
       "reducible": false
     },
     {
-      "def_id": 173,
+      "def_id": 181,
       "lean_name": "auths_codec.cbor.Encoder.array",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::array",
@@ -1853,7 +1870,7 @@
       "reducible": false
     },
     {
-      "def_id": 322,
+      "def_id": 330,
       "lean_name": "auths_codec.cbor.Encoder.u64",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::u64",
@@ -1870,7 +1887,7 @@
       "reducible": false
     },
     {
-      "def_id": 161,
+      "def_id": 169,
       "lean_name": "auths_codec.cbor.Encoder.u16",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::u16",
@@ -1887,7 +1904,7 @@
       "reducible": false
     },
     {
-      "def_id": 157,
+      "def_id": 165,
       "lean_name": "auths_codec.cbor.Encoder.u8",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::u8",
@@ -1904,7 +1921,7 @@
       "reducible": false
     },
     {
-      "def_id": 324,
+      "def_id": 332,
       "lean_name": "auths_codec.cbor.Encoder.payload",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::payload",
@@ -1921,7 +1938,7 @@
       "reducible": false
     },
     {
-      "def_id": 164,
+      "def_id": 172,
       "lean_name": "auths_codec.cbor.Encoder.bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::bytes",
@@ -1938,7 +1955,7 @@
       "reducible": false
     },
     {
-      "def_id": 163,
+      "def_id": 171,
       "lean_name": "auths_codec.cbor.Encoder.str",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::str",
@@ -1955,7 +1972,7 @@
       "reducible": false
     },
     {
-      "def_id": 170,
+      "def_id": 178,
       "lean_name": "auths_codec.cbor.Encoder.null",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::cbor::{auths_codec::cbor::Encoder}::null",
@@ -1972,7 +1989,7 @@
       "reducible": false
     },
     {
-      "def_id": 53,
+      "def_id": 64,
       "lean_name": "auths_codec.decode.decode_error",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::decode_error",
@@ -1989,7 +2006,7 @@
       "reducible": false
     },
     {
-      "def_id": 15,
+      "def_id": 16,
       "lean_name": "auths_codec.decode.map",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::map",
@@ -2006,7 +2023,7 @@
       "reducible": false
     },
     {
-      "def_id": 78,
+      "def_id": 38,
       "lean_name": "auths_codec.error.limit_error",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::error::limit_error",
@@ -2023,7 +2040,7 @@
       "reducible": false
     },
     {
-      "def_id": 25,
+      "def_id": 26,
       "lean_name": "auths_codec.decode.array",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::array",
@@ -2040,7 +2057,7 @@
       "reducible": false
     },
     {
-      "def_id": 16,
+      "def_id": 17,
       "lean_name": "auths_codec.decode.key",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::key",
@@ -2057,7 +2074,7 @@
       "reducible": false
     },
     {
-      "def_id": 18,
+      "def_id": 19,
       "lean_name": "auths_codec.decode.text",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::text",
@@ -2074,7 +2091,7 @@
       "reducible": false
     },
     {
-      "def_id": 22,
+      "def_id": 23,
       "lean_name": "auths_codec.decode.bounded_bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::bounded_bytes",
@@ -2091,7 +2108,7 @@
       "reducible": false
     },
     {
-      "def_id": 139,
+      "def_id": 148,
       "lean_name": "auths_codec.decode.digest_bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::digest_bytes",
@@ -2108,7 +2125,7 @@
       "reducible": false
     },
     {
-      "def_id": 71,
+      "def_id": 82,
       "lean_name": "auths_codec.decode.is_null",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::is_null",
@@ -2125,7 +2142,7 @@
       "reducible": false
     },
     {
-      "def_id": 72,
+      "def_id": 83,
       "lean_name": "auths_codec.decode.null",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::null",
@@ -2142,7 +2159,7 @@
       "reducible": false
     },
     {
-      "def_id": 21,
+      "def_id": 22,
       "lean_name": "auths_codec.error.CodecError.Insts.CoreConvertFromModelError.from",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from",
@@ -2159,7 +2176,7 @@
       "reducible": false
     },
     {
-      "def_id": 17,
+      "def_id": 18,
       "lean_name": "auths_codec.decode.profile_ref",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::profile_ref",
@@ -2176,7 +2193,7 @@
       "reducible": false
     },
     {
-      "def_id": 23,
+      "def_id": 24,
       "lean_name": "auths_codec.decode.permission",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::permission",
@@ -2193,7 +2210,7 @@
       "reducible": false
     },
     {
-      "def_id": 73,
+      "def_id": 84,
       "lean_name": "auths_codec.decode.budget",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::budget",
@@ -2210,7 +2227,7 @@
       "reducible": false
     },
     {
-      "def_id": 24,
+      "def_id": 25,
       "lean_name": "auths_codec.decode.optional_budget",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::optional_budget",
@@ -2227,7 +2244,7 @@
       "reducible": false
     },
     {
-      "def_id": 31,
+      "def_id": 32,
       "lean_name": "auths_codec.decode.ensure_complete",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::ensure_complete",
@@ -2244,7 +2261,7 @@
       "reducible": false
     },
     {
-      "def_id": 79,
+      "def_id": 88,
       "lean_name": "auths_codec.decode.attachment_batch_step",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::attachment_batch_step",
@@ -2261,7 +2278,7 @@
       "reducible": false
     },
     {
-      "def_id": 27,
+      "def_id": 28,
       "lean_name": "auths_codec.decode.attachment_batch_loop.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::attachment_batch",
@@ -2286,7 +2303,7 @@
       "parent_lean_name": "auths_codec.decode.attachment_batch"
     },
     {
-      "def_id": 27,
+      "def_id": 28,
       "lean_name": "auths_codec.decode.attachment_batch_loop",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::attachment_batch",
@@ -2311,7 +2328,7 @@
       "parent_lean_name": "auths_codec.decode.attachment_batch"
     },
     {
-      "def_id": 27,
+      "def_id": 28,
       "lean_name": "auths_codec.decode.attachment_batch",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::decode::attachment_batch",
@@ -2328,7 +2345,7 @@
       "reducible": false
     },
     {
-      "def_id": 155,
+      "def_id": 163,
       "lean_name": "auths_codec.encode.encode_error",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_error",
@@ -2345,7 +2362,7 @@
       "reducible": false
     },
     {
-      "def_id": 98,
+      "def_id": 107,
       "lean_name": "auths_codec.encode.bytes",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::bytes",
@@ -2362,7 +2379,7 @@
       "reducible": false
     },
     {
-      "def_id": 91,
+      "def_id": 100,
       "lean_name": "auths_codec.encode.key",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::key",
@@ -2379,7 +2396,7 @@
       "reducible": false
     },
     {
-      "def_id": 90,
+      "def_id": 99,
       "lean_name": "auths_codec.encode.map",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::map",
@@ -2396,7 +2413,7 @@
       "reducible": false
     },
     {
-      "def_id": 107,
+      "def_id": 116,
       "lean_name": "auths_codec.encode.encode_canonical_attachment",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_canonical_attachment",
@@ -2413,7 +2430,7 @@
       "reducible": false
     },
     {
-      "def_id": 96,
+      "def_id": 105,
       "lean_name": "auths_codec.encode.text",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::text",
@@ -2430,7 +2447,7 @@
       "reducible": false
     },
     {
-      "def_id": 171,
+      "def_id": 179,
       "lean_name": "auths_codec.encode.encode_budget",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_budget",
@@ -2447,7 +2464,7 @@
       "reducible": false
     },
     {
-      "def_id": 102,
+      "def_id": 111,
       "lean_name": "auths_codec.encode.encode_optional_budget",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_optional_budget",
@@ -2464,7 +2481,7 @@
       "reducible": false
     },
     {
-      "def_id": 100,
+      "def_id": 109,
       "lean_name": "auths_codec.encode.encode_permission",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_permission",
@@ -2481,7 +2498,7 @@
       "reducible": false
     },
     {
-      "def_id": 93,
+      "def_id": 102,
       "lean_name": "auths_codec.encode.encode_profile_ref",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_profile_ref",
@@ -2498,7 +2515,7 @@
       "reducible": false
     },
     {
-      "def_id": 172,
+      "def_id": 180,
       "lean_name": "auths_codec.encode.length",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::length",
@@ -2515,7 +2532,7 @@
       "reducible": false
     },
     {
-      "def_id": 104,
+      "def_id": 113,
       "lean_name": "auths_codec.encode.array",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::array",
@@ -2532,7 +2549,7 @@
       "reducible": false
     },
     {
-      "def_id": 32,
+      "def_id": 33,
       "lean_name": "auths_codec.encode.encode_canonical_action_loop.body",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_canonical_action",
@@ -2557,7 +2574,7 @@
       "parent_lean_name": "auths_codec.encode.encode_canonical_action"
     },
     {
-      "def_id": 32,
+      "def_id": 33,
       "lean_name": "auths_codec.encode.encode_canonical_action_loop",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_canonical_action",
@@ -2582,7 +2599,7 @@
       "parent_lean_name": "auths_codec.encode.encode_canonical_action"
     },
     {
-      "def_id": 32,
+      "def_id": 33,
       "lean_name": "auths_codec.encode.encode_canonical_action",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_codec::encode::encode_canonical_action",
@@ -2614,11 +2631,28 @@
       "can_diverge": true,
       "is_rec": false,
       "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_codec.hash.signing_preimage",
+      "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
+      "rust_name": "auths_codec::hash::signing_preimage",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-codec/src/hash.rs",
+        "begin_line": 105,
+        "end_line": 134
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
     }
   ],
   "types": [
     {
-      "def_id": 35,
+      "def_id": 36,
       "lean_name": "auths_codec.core.str.error.Utf8Error",
       "lean_file": "qualification/aeneas/generated/codec/TypesExternal_Template.lean",
       "rust_name": "core::str::error::Utf8Error",
@@ -2642,7 +2676,7 @@
       }
     },
     {
-      "def_id": 21,
+      "def_id": 23,
       "lean_name": "auths_codec.auths_model.ProfileId",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::ProfileId",
@@ -2654,7 +2688,7 @@
       }
     },
     {
-      "def_id": 23,
+      "def_id": 25,
       "lean_name": "auths_codec.auths_model.CapabilityId",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::CapabilityId",
@@ -2666,7 +2700,7 @@
       }
     },
     {
-      "def_id": 24,
+      "def_id": 26,
       "lean_name": "auths_codec.auths_model.ResourceId",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::ResourceId",
@@ -2678,7 +2712,7 @@
       }
     },
     {
-      "def_id": 25,
+      "def_id": 27,
       "lean_name": "auths_codec.auths_model.BudgetAlgebraId",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::BudgetAlgebraId",
@@ -2702,7 +2736,7 @@
       }
     },
     {
-      "def_id": 34,
+      "def_id": 35,
       "lean_name": "auths_codec.auths_model.Digest",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::Digest",
@@ -2714,7 +2748,7 @@
       }
     },
     {
-      "def_id": 26,
+      "def_id": 28,
       "lean_name": "auths_codec.auths_model.AttachmentDigest",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::AttachmentDigest",
@@ -2786,7 +2820,7 @@
       }
     },
     {
-      "def_id": 29,
+      "def_id": 30,
       "lean_name": "auths_codec.auths_model.CanonicalAction.with_detached_attachments.closure",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure",
@@ -2834,7 +2868,7 @@
       }
     },
     {
-      "def_id": 36,
+      "def_id": 37,
       "lean_name": "auths_codec.cbor.Type",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_codec::cbor::Type",
@@ -2870,7 +2904,7 @@
       }
     },
     {
-      "def_id": 30,
+      "def_id": 31,
       "lean_name": "auths_codec.cbor.Encoder",
       "lean_file": "qualification/aeneas/generated/codec/Types.lean",
       "rust_name": "auths_codec::cbor::Encoder",
@@ -2904,11 +2938,36 @@
         "begin_line": 1542,
         "end_line": 1546
       }
+    },
+    {
+      "def_id": 20,
+      "lean_name": "auths_codec.hash.ObjectType",
+      "lean_file": "qualification/aeneas/generated/codec/Types.lean",
+      "rust_name": "auths_codec::hash::ObjectType",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-codec/src/hash.rs",
+        "begin_line": 29,
+        "end_line": 36
+      }
     }
   ],
   "globals": [
     {
-      "def_id": 7,
+      "def_id": 1,
+      "lean_name": "auths_codec.auths_model.PROTOCOL_V1",
+      "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
+      "rust_name": "auths_model::PROTOCOL_V1",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 22,
+        "end_line": 22
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 9,
       "lean_name": "auths_codec.auths_model.HARD_MAX_BUNDLE_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_BUNDLE_BYTES",
@@ -2921,7 +2980,7 @@
       "can_fail": true
     },
     {
-      "def_id": 8,
+      "def_id": 10,
       "lean_name": "auths_codec.auths_model.HARD_MAX_ACTION_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_ACTION_BYTES",
@@ -2934,7 +2993,7 @@
       "can_fail": true
     },
     {
-      "def_id": 9,
+      "def_id": 11,
       "lean_name": "auths_codec.auths_model.HARD_MAX_CONTEXT_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_CONTEXT_BYTES",
@@ -2947,7 +3006,7 @@
       "can_fail": true
     },
     {
-      "def_id": 10,
+      "def_id": 12,
       "lean_name": "auths_codec.auths_model.HARD_MAX_GRANTS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_GRANTS",
@@ -2960,7 +3019,7 @@
       "can_fail": false
     },
     {
-      "def_id": 11,
+      "def_id": 13,
       "lean_name": "auths_codec.auths_model.HARD_MAX_ACTIONS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_ACTIONS",
@@ -2973,7 +3032,7 @@
       "can_fail": false
     },
     {
-      "def_id": 12,
+      "def_id": 14,
       "lean_name": "auths_codec.auths_model.HARD_MAX_PLAN_LEAVES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_PLAN_LEAVES",
@@ -2986,7 +3045,7 @@
       "can_fail": false
     },
     {
-      "def_id": 13,
+      "def_id": 15,
       "lean_name": "auths_codec.auths_model.HARD_MAX_PLAN_DEPTH",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_PLAN_DEPTH",
@@ -2999,7 +3058,7 @@
       "can_fail": false
     },
     {
-      "def_id": 14,
+      "def_id": 16,
       "lean_name": "auths_codec.auths_model.HARD_MAX_PLAN_BRANCHING",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_PLAN_BRANCHING",
@@ -3012,7 +3071,7 @@
       "can_fail": false
     },
     {
-      "def_id": 15,
+      "def_id": 17,
       "lean_name": "auths_codec.auths_model.HARD_MAX_EVIDENCE",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_EVIDENCE",
@@ -3025,7 +3084,7 @@
       "can_fail": false
     },
     {
-      "def_id": 16,
+      "def_id": 18,
       "lean_name": "auths_codec.auths_model.HARD_MAX_EVIDENCE_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_EVIDENCE_BYTES",
@@ -3038,7 +3097,7 @@
       "can_fail": true
     },
     {
-      "def_id": 17,
+      "def_id": 19,
       "lean_name": "auths_codec.auths_model.HARD_MAX_BINDINGS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_BINDINGS",
@@ -3051,7 +3110,7 @@
       "can_fail": false
     },
     {
-      "def_id": 18,
+      "def_id": 20,
       "lean_name": "auths_codec.auths_model.HARD_MAX_PRINCIPAL_STATUS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_PRINCIPAL_STATUS",
@@ -3064,7 +3123,7 @@
       "can_fail": false
     },
     {
-      "def_id": 19,
+      "def_id": 21,
       "lean_name": "auths_codec.auths_model.HARD_MAX_GRANT_STATUS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_GRANT_STATUS",
@@ -3077,7 +3136,7 @@
       "can_fail": false
     },
     {
-      "def_id": 2,
+      "def_id": 4,
       "lean_name": "auths_codec.auths_model.HARD_MAX_ATTACHMENTS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_ATTACHMENTS",
@@ -3090,7 +3149,7 @@
       "can_fail": false
     },
     {
-      "def_id": 20,
+      "def_id": 22,
       "lean_name": "auths_codec.auths_model.HARD_MAX_ATTACHMENT_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_ATTACHMENT_BYTES",
@@ -3103,7 +3162,7 @@
       "can_fail": true
     },
     {
-      "def_id": 21,
+      "def_id": 23,
       "lean_name": "auths_codec.auths_model.HARD_MAX_SIGNATURES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_SIGNATURES",
@@ -3116,7 +3175,7 @@
       "can_fail": false
     },
     {
-      "def_id": 22,
+      "def_id": 24,
       "lean_name": "auths_codec.auths_model.HARD_MAX_SIGNATURE_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_SIGNATURE_BYTES",
@@ -3129,7 +3188,7 @@
       "can_fail": false
     },
     {
-      "def_id": 23,
+      "def_id": 25,
       "lean_name": "auths_codec.auths_model.HARD_MAX_PERMISSIONS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_PERMISSIONS",
@@ -3142,7 +3201,7 @@
       "can_fail": false
     },
     {
-      "def_id": 24,
+      "def_id": 26,
       "lean_name": "auths_codec.auths_model.HARD_MAX_AUDIENCES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_AUDIENCES",
@@ -3155,7 +3214,7 @@
       "can_fail": false
     },
     {
-      "def_id": 25,
+      "def_id": 27,
       "lean_name": "auths_codec.auths_model.HARD_MAX_EXTENSIONS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_EXTENSIONS",
@@ -3168,7 +3227,7 @@
       "can_fail": false
     },
     {
-      "def_id": 26,
+      "def_id": 28,
       "lean_name": "auths_codec.auths_model.HARD_MAX_EXTENSION_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_EXTENSION_BYTES",
@@ -3181,7 +3240,7 @@
       "can_fail": false
     },
     {
-      "def_id": 27,
+      "def_id": 29,
       "lean_name": "auths_codec.auths_model.HARD_MAX_BODY_DIGESTS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_BODY_DIGESTS",
@@ -3194,7 +3253,7 @@
       "can_fail": false
     },
     {
-      "def_id": 28,
+      "def_id": 30,
       "lean_name": "auths_codec.auths_model.HARD_MAX_BINDING_EVIDENCE",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_BINDING_EVIDENCE",
@@ -3207,7 +3266,7 @@
       "can_fail": false
     },
     {
-      "def_id": 1,
+      "def_id": 3,
       "lean_name": "auths_codec.auths_model.HARD_MAX_CANONICAL_BODY_BYTES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_CANONICAL_BODY_BYTES",
@@ -3220,7 +3279,7 @@
       "can_fail": true
     },
     {
-      "def_id": 31,
+      "def_id": 33,
       "lean_name": "auths_codec.auths_model.HARD_MAX_WORK_UNITS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_WORK_UNITS",
@@ -3233,7 +3292,7 @@
       "can_fail": false
     },
     {
-      "def_id": 29,
+      "def_id": 31,
       "lean_name": "auths_codec.auths_model.HARD_MAX_REGISTRY_ENTRIES",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_REGISTRY_ENTRIES",
@@ -3246,7 +3305,7 @@
       "can_fail": false
     },
     {
-      "def_id": 30,
+      "def_id": 32,
       "lean_name": "auths_codec.auths_model.HARD_MAX_TRUST_ANCHORS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_TRUST_ANCHORS",
@@ -3259,7 +3318,7 @@
       "can_fail": false
     },
     {
-      "def_id": 32,
+      "def_id": 34,
       "lean_name": "auths_codec.auths_model.HARD_MAX_APPROVALS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_APPROVALS",
@@ -3272,7 +3331,7 @@
       "can_fail": false
     },
     {
-      "def_id": 33,
+      "def_id": 35,
       "lean_name": "auths_codec.auths_model.HARD_MAX_APPROVER_ANCHORS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_APPROVER_ANCHORS",
@@ -3285,7 +3344,7 @@
       "can_fail": false
     },
     {
-      "def_id": 34,
+      "def_id": 36,
       "lean_name": "auths_codec.auths_model.HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS",
@@ -3296,12 +3355,25 @@
         "end_line": 84
       },
       "can_fail": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_codec.hash.SIGNING_PREFIX",
+      "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
+      "rust_name": "auths_codec::hash::SIGNING_PREFIX",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-codec/src/hash.rs",
+        "begin_line": 23,
+        "end_line": 23
+      },
+      "can_fail": false
     }
   ],
   "trait_decls": [],
   "trait_impls": [
     {
-      "def_id": 23,
+      "def_id": 27,
       "lean_name": "auths_codec.core.option.Option.Insts.CoreCmpPartialEqOption",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}",
@@ -3331,7 +3403,7 @@
       "impl_trait_is_builtin": true
     },
     {
-      "def_id": 50,
+      "def_id": 52,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}",
@@ -3346,7 +3418,7 @@
       "impl_trait_is_builtin": true
     },
     {
-      "def_id": 48,
+      "def_id": 50,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpEq",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}",
@@ -3361,7 +3433,7 @@
       "impl_trait_is_builtin": true
     },
     {
-      "def_id": 49,
+      "def_id": 51,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}",
@@ -3376,7 +3448,7 @@
       "impl_trait_is_builtin": true
     },
     {
-      "def_id": 36,
+      "def_id": 38,
       "lean_name": "auths_codec.auths_model.AttachmentDigest.Insts.CoreCmpOrd",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}",
@@ -3391,7 +3463,7 @@
       "impl_trait_is_builtin": true
     },
     {
-      "def_id": 33,
+      "def_id": 35,
       "lean_name": "auths_codec.auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnOnceTupleSharedDetachedAttachmentAttachmentDigest",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}",
@@ -3406,7 +3478,7 @@
       "impl_trait_is_builtin": true
     },
     {
-      "def_id": 34,
+      "def_id": 36,
       "lean_name": "auths_codec.auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest",
       "lean_file": "qualification/aeneas/generated/codec/Funs.lean",
       "rust_name": "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}",

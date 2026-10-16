@@ -22,6 +22,7 @@ import Auths.Approval
 import Auths.Codec.Refinement
 import Auths.Codec.Encoder
 import Auths.Codec.Action
+import Auths.Crypto.Examples
 import Auths.Codec.ActionValidity
 import Auths.Codec.Examples
 import Auths.Codec.String
@@ -33,6 +34,19 @@ namespace Auths
 
 def theoremInventory : List Lean.Name :=
   [
+    `Auths.Crypto.Framing.length_exact,
+    `Auths.Crypto.Framing.framing_is_unambiguous,
+    `Auths.Crypto.Framing.different_tags_separate,
+    `Auths.Crypto.Endian.be16_exact,
+    `Auths.Crypto.Endian.be64_exact,
+    `Auths.Crypto.Refinement.signing_preimage_exact,
+    `Auths.Crypto.Refinement.accepted_frame_valid,
+    `Auths.Crypto.Refinement.accepted_preimages_bind_inputs,
+    `Auths.Crypto.Refinement.preimage_length_exact,
+    `Auths.Crypto.Refinement.object_domains_separate,
+    `Auths.Crypto.Refinement.profile_limit_refused,
+    `Auths.Crypto.Examples.minimal_preimage_exact,
+    `Auths.Crypto.Examples.unicode_preimage_exact,
     `Auths.Codec.Constructors.identifier_exact,
     `Auths.Codec.Constructors.identifier_decision_valid,
     `Auths.Codec.Constructors.media_type_parse_exact,

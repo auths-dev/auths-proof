@@ -1,3 +1,4 @@
+import Auths.Crypto.Examples
 import Auths.Codec.Examples
 import Auths.Codec.ActionValidity
 import Auths.Codec.Encoder
@@ -92,5 +93,11 @@ example : auths_codec.decode.decode_canonical_action
     Auths.Codec.Examples.nonminimalIntegerInput Auths.Codec.Examples.minimalLimits =
       ok (.Err auths_codec.error.CodecError.NonCanonical) :=
   Auths.Codec.Examples.nonminimal_integer_refused
+
+example : auths_codec.hash.signing_preimage .Grant
+    (toStr "t" (by change 1 ≤ U32.max; scalar_tac)) 1#u16
+    (⟨[1#u8], by scalar_tac⟩ : Slice Std.U8) =
+      ok (.Ok Auths.Crypto.Examples.minimalPreimage) :=
+  Auths.Crypto.Examples.minimal_preimage_exact
 
 end qualification.aeneas.cases

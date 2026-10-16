@@ -297,4 +297,15 @@ structure decode.AttachmentBatch where
   attachment_bytes : Std.Usize
   position : Std.Usize
 
+/-- [auths_codec::hash::ObjectType]
+    Source: 'core/crates/auths-codec/src/hash.rs', lines 29:0-36:1 -/
+@[discriminant isize [1,2,3,4,9,10]]
+inductive hash.ObjectType where
+| Grant : hash.ObjectType
+| Action : hash.ObjectType
+| PrincipalStatus : hash.ObjectType
+| GrantStatus : hash.ObjectType
+| Observation : hash.ObjectType
+| Approval : hash.ObjectType
+
 end auths_codec

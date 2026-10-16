@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "04a9d7749c23058f02595d94d0faf64023dd89e423c825a136f29ab709852a09",
-  "inputs_sha256": "dc45c689ec3ab1f304ca75cea548c9a44e7d7f3314daf19846fcea6f0d959150",
+  "inputs_sha256": "8c2a5ed4febed770b265d0650b28bcab97f64312a205ff4f4c660e2261d0f061",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -33,7 +33,7 @@
     "core/crates/auths-codec/src/decode.rs": "sha256:9b23c5ab3540877b19befca2a271617164c06e777747ebbeaf6e32ce30d2ce18",
     "core/crates/auths-codec/src/encode.rs": "sha256:163dcb12f640eb63fbdb872e75bab1ee9e01571797cdf3a10b77cfd0b02a0c0b",
     "core/crates/auths-codec/src/error.rs": "sha256:80c1e7fdd190a0d050c69fbcde9836a4702d9b98e8effd76bc659c3d75ea8175",
-    "core/crates/auths-codec/src/hash.rs": "sha256:f88e111f1dbb2cef6b7b5e9c948cb45ff92e366710c8a5f5c636138aa748479e",
+    "core/crates/auths-codec/src/hash.rs": "sha256:33a2ad9e865d3af6739a4f248773ba41f3364b1ae315ea8ec5b860cb1386051e",
     "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
     "core/crates/auths-codec/src/observation.rs": "sha256:fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149",
     "core/crates/auths-composition/Cargo.toml": "sha256:331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
@@ -61,15 +61,15 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:04a9d7749c23058f02595d94d0faf64023dd89e423c825a136f29ab709852a09",
-    "formal/lean-assurance-audit-v1.json": "sha256:2ba3146285e943e5ae96493a881bc98c37789ac0d04febffd06e28c2b4ae2fa6",
+    "formal/lean-assurance-audit-v1.json": "sha256:9299e558c6ca971fc7c6b1a5a39b232fc65eb7bfd717cb50908fa9cd5221ccb0",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
     "formal/qualification/aeneas/generated/authority/translation.json": "sha256:73998f4c391f5c2037f153a3bda1768fb43d9da9b3b5975fd30088735cc6f7d9",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:03c45cd0c055b48ee7120d0ecbfbd5d3e60ece84e23c55ca0e954273c97becf7",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:98618f620a31ae79d1ed132c33d3d7de0d48764a00d728f881999f64742fe577",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:f063e78c51933aef6e686f67299b80a68d3b76cb1baca7848d59a19c70afec15",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:924756cc984ff9c4d7276606a7586a1d92055101efd71d118e919a6ca0d7bf61",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
@@ -80,8 +80,8 @@
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:4d63e64d6a8ae5b4e1647fe1c6ca06c109a40137ca905c88e42d5bdb4396aff2",
-    "formal/theorem-kinds-v1.toml": "sha256:6fa031e39dc5d41f9ea9ed61425aec87f9d1afcb9c2aa070fc7c7c36397f7cd5",
+    "formal/qualification/aeneas/qualification.toml": "sha256:1f4e73fbb870fa47c195681785c7c901f5c3acd2688e7354d3d684d691add8e4",
+    "formal/theorem-kinds-v1.toml": "sha256:9881759ac17606c13273676d64561b9e002d8f709510dc632c6a498770fc4940",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -263,32 +263,32 @@
       "scope": "translated-crates",
       "minimum_code_lines": 0,
       "functions": 1513,
-      "span_lines": 16829,
-      "code_lines": 16774,
+      "span_lines": 16833,
+      "code_lines": 16778,
       "by_level": {
         "translated": {
-          "functions": 282,
-          "function_share": 0.1864,
-          "span_lines": 3072,
-          "span_line_share": 0.1825,
-          "code_lines": 3060,
-          "code_line_share": 0.1824
+          "functions": 283,
+          "function_share": 0.187,
+          "span_lines": 3102,
+          "span_line_share": 0.1843,
+          "code_lines": 3090,
+          "code_line_share": 0.1842
         },
         "direct": {
-          "functions": 84,
-          "function_share": 0.0555,
-          "span_lines": 1245,
-          "span_line_share": 0.074,
-          "code_lines": 1234,
-          "code_line_share": 0.0736
+          "functions": 85,
+          "function_share": 0.0562,
+          "span_lines": 1275,
+          "span_line_share": 0.0757,
+          "code_lines": 1264,
+          "code_line_share": 0.0753
         },
         "closure": {
-          "functions": 282,
-          "function_share": 0.1864,
-          "span_lines": 3072,
-          "span_line_share": 0.1825,
-          "code_lines": 3060,
-          "code_line_share": 0.1824
+          "functions": 283,
+          "function_share": 0.187,
+          "span_lines": 3102,
+          "span_line_share": 0.1843,
+          "code_lines": 3090,
+          "code_line_share": 0.1842
         }
       }
     },
@@ -296,32 +296,32 @@
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
       "functions": 1136,
-      "span_lines": 14319,
-      "code_lines": 14251,
+      "span_lines": 14323,
+      "code_lines": 14255,
       "by_level": {
         "translated": {
-          "functions": 154,
-          "function_share": 0.1356,
-          "span_lines": 1446,
-          "span_line_share": 0.101,
-          "code_lines": 1434,
-          "code_line_share": 0.1006
+          "functions": 155,
+          "function_share": 0.1364,
+          "span_lines": 1476,
+          "span_line_share": 0.1031,
+          "code_lines": 1464,
+          "code_line_share": 0.1027
         },
         "direct": {
-          "functions": 51,
-          "function_share": 0.0449,
-          "span_lines": 754,
-          "span_line_share": 0.0527,
-          "code_lines": 743,
-          "code_line_share": 0.0521
+          "functions": 52,
+          "function_share": 0.0458,
+          "span_lines": 784,
+          "span_line_share": 0.0547,
+          "code_lines": 773,
+          "code_line_share": 0.0542
         },
         "closure": {
-          "functions": 154,
-          "function_share": 0.1356,
-          "span_lines": 1446,
-          "span_line_share": 0.101,
-          "code_lines": 1434,
-          "code_line_share": 0.1006
+          "functions": 155,
+          "function_share": 0.1364,
+          "span_lines": 1476,
+          "span_line_share": 0.1031,
+          "code_lines": 1464,
+          "code_line_share": 0.1027
         }
       }
     },
@@ -2954,6 +2954,14 @@
       "Auths.Codec.Refinement.read_head_accepts_encoding": "partial",
       "Auths.Codec.Refinement.read_head_refines": "exact",
       "Auths.Codec.Refinement.read_tail_bounded": "exact",
+      "Auths.Crypto.Examples.minimal_preimage_exact": "case",
+      "Auths.Crypto.Examples.unicode_preimage_exact": "case",
+      "Auths.Crypto.Refinement.accepted_frame_valid": "partial",
+      "Auths.Crypto.Refinement.accepted_preimages_bind_inputs": "partial",
+      "Auths.Crypto.Refinement.object_domains_separate": "partial",
+      "Auths.Crypto.Refinement.preimage_length_exact": "partial",
+      "Auths.Crypto.Refinement.profile_limit_refused": "partial",
+      "Auths.Crypto.Refinement.signing_preimage_exact": "partial",
       "Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich": "exact",
       "Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich": "exact",
       "Auths.Lifecycle.Refinement.translated_replay_refines_rich": "exact",
@@ -3043,19 +3051,19 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 401,
+    "aeneas_local_definitions": 402,
     "by_kind": {
-      "function": 282,
+      "function": 283,
       "derived": 17,
       "loop": 102
     },
-    "refined_direct": 84,
-    "refined_closure": 288,
-    "theorems_naming_translated_functions": 108
+    "refined_direct": 85,
+    "refined_closure": 289,
+    "theorems_naming_translated_functions": 116
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "80e5f8b07aa759e9ef441cc6ce70138a89666c491c0cdae76ae6420701035297",
+    "current_formal_inputs_sha256": "d28d98c222fa9c7ac7f2f19fa389953d1880bd8c217937a5c7510842999e9ae7",
     "fresh": false,
     "campaigns": {
       "s1": {

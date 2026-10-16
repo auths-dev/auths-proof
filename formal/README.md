@@ -170,3 +170,21 @@ These are scoped component results. Full constructor validity, action inverse
 completeness and work bounds, every other protocol object, and AP-SPEC-069's
 remaining verifier, driver, history and cryptographic obligations are still
 required. See the [implementation ledger](../docs/assurance/AP_SPEC_069_STATUS.md).
+
+
+## Shared signing-frame refinement
+
+`Auths.Crypto.Refinement` connects the actual `hash::signing_preimage` to the
+independent `Auths.Crypto.Framing` byte grammar. Successful calls supply their
+own validated length/tag premises. Equal returned bytes bind every framed
+input; different registered object kinds have different preimages. Output
+length and oversized-profile refusal are proved, with ordinary and multibyte
+positive examples. These are preimage properties, without a hash-injectivity
+assumption.
+
+The shared helper is in the qualified codec extraction, with no opaque Auths
+algorithm. Its checked capacity and error transitions have one shipping path;
+the previous helper is a test-only parity oracle. Public caller encodings,
+signature descriptors, cryptographic suite/dispatch behavior and commitment
+preimages remain outside this slice. AP-SPEC-069 E5 and the complete composed
+claim remain open.

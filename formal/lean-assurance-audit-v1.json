@@ -3,6 +3,146 @@
     {
       "axioms": [
         "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Framing",
+      "name": "Auths.Crypto.Framing.length_exact",
+      "statement": "∀ (frame : Auths.Crypto.Framing.Frame),\n  (Auths.Crypto.Framing.encode frame).length = 21 + frame.profile.length + frame.statement.length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Framing",
+      "name": "Auths.Crypto.Framing.framing_is_unambiguous",
+      "statement": "∀ (left right : Auths.Crypto.Framing.Frame),\n  left.Valid → right.Valid → Auths.Crypto.Framing.encode left = Auths.Crypto.Framing.encode right → left = right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Framing",
+      "name": "Auths.Crypto.Framing.different_tags_separate",
+      "statement": "∀ (left right : Auths.Crypto.Framing.Frame),\n  left.Valid →\n    right.Valid →\n      left.objectTag ≠ right.objectTag → Auths.Crypto.Framing.encode left ≠ Auths.Crypto.Framing.encode right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Endian",
+      "name": "Auths.Crypto.Endian.be16_exact",
+      "statement": "∀ (value : Aeneas.Std.U16),\n  List.map (fun x => ↑x) ↑(Aeneas.Std.core.num.U16.to_be_bytes value) = Auths.Codec.bigEndian 2 ↑value"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Endian",
+      "name": "Auths.Crypto.Endian.be64_exact",
+      "statement": "∀ (value : Aeneas.Std.U64),\n  List.map (fun x => ↑x) ↑(Aeneas.Std.core.num.U64.to_be_bytes value) = Auths.Codec.bigEndian 8 ↑value"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Refinement",
+      "name": "Auths.Crypto.Refinement.signing_preimage_exact",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (statement : Aeneas.Std.Slice Aeneas.Std.U8) (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.signing_preimage kind profile version statement =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    List.map (fun x => ↑x) ↑output =\n      Auths.Crypto.Framing.encode (Auths.Crypto.Refinement.inputFrame kind profile version statement)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Refinement",
+      "name": "Auths.Crypto.Refinement.accepted_frame_valid",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (statement : Aeneas.Std.Slice Aeneas.Std.U8) (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.signing_preimage kind profile version statement =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (Auths.Crypto.Refinement.inputFrame kind profile version statement).Valid"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Refinement",
+      "name": "Auths.Crypto.Refinement.accepted_preimages_bind_inputs",
+      "statement": "∀ (leftKind rightKind : auths_codec.hash.ObjectType) (leftProfile rightProfile : Aeneas.Std.Str)\n  (leftVersion rightVersion : Aeneas.Std.U16) (leftStatement rightStatement : Aeneas.Std.Slice Aeneas.Std.U8)\n  (leftOutput rightOutput : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.signing_preimage leftKind leftProfile leftVersion leftStatement =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok leftOutput) →\n    auths_codec.hash.signing_preimage rightKind rightProfile rightVersion rightStatement =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok rightOutput) →\n      ↑leftOutput = ↑rightOutput →\n        leftKind = rightKind ∧ leftProfile = rightProfile ∧ leftVersion = rightVersion ∧ leftStatement = rightStatement"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Refinement",
+      "name": "Auths.Crypto.Refinement.preimage_length_exact",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (statement : Aeneas.Std.Slice Aeneas.Std.U8) (output : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.signing_preimage kind profile version statement =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok output) →\n    (↑output).length = 21 + (↑profile).length + (↑statement).length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Refinement",
+      "name": "Auths.Crypto.Refinement.object_domains_separate",
+      "statement": "∀ (leftKind rightKind : auths_codec.hash.ObjectType) (leftProfile rightProfile : Aeneas.Std.Str)\n  (leftVersion rightVersion : Aeneas.Std.U16) (leftStatement rightStatement : Aeneas.Std.Slice Aeneas.Std.U8)\n  (leftOutput rightOutput : Aeneas.Std.alloc.vec.Vec Aeneas.Std.U8),\n  auths_codec.hash.signing_preimage leftKind leftProfile leftVersion leftStatement =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok leftOutput) →\n    auths_codec.hash.signing_preimage rightKind rightProfile rightVersion rightStatement =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok rightOutput) →\n      leftKind ≠ rightKind → ↑leftOutput ≠ ↑rightOutput"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Refinement",
+      "name": "Auths.Crypto.Refinement.profile_limit_refused",
+      "statement": "∀ (kind : auths_codec.hash.ObjectType) (profile : Aeneas.Std.Str) (version : Aeneas.Std.U16)\n  (statement : Aeneas.Std.Slice Aeneas.Std.U8),\n  65535 < (↑profile).length →\n    auths_codec.hash.signing_preimage kind profile version statement =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Err auths_codec.error.CodecError.LimitExceeded)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Examples",
+      "name": "Auths.Crypto.Examples.minimal_preimage_exact",
+      "statement": "auths_codec.hash.signing_preimage auths_codec.hash.ObjectType.Grant (Aeneas.Std.toStr \"t\" ⋯) 1#u16\n    ⟨[1#u8], Auths.Crypto.Examples.minimal_preimage_exact._proof_2⟩ =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok Auths.Crypto.Examples.minimalPreimage)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Crypto.Examples",
+      "name": "Auths.Crypto.Examples.unicode_preimage_exact",
+      "statement": "auths_codec.hash.signing_preimage auths_codec.hash.ObjectType.Approval (Aeneas.Std.toStr \"λ\" ⋯) 65535#u16\n    ⟨[1#u8], Auths.Crypto.Examples.minimal_preimage_exact._proof_2⟩ =\n  Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok Auths.Crypto.Examples.unicodePreimage)"
+    },
+    {
+      "axioms": [
+        "propext",
         "Classical.choice",
         "Quot.sound"
       ],

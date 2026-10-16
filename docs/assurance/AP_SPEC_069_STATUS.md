@@ -9,7 +9,7 @@ shipping-source refinement and hosted evidence gates.
 | --- | --- | --- |
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
 | M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
-| M2: crypto integration | Pending | E5.1–E5.4. |
+| M2: crypto integration | In progress | The shipping shared signing framer refines an independent byte grammar, supplies its validated frame premises, and proves input binding, object-domain separation, exact length and oversized-profile refusal. Caller unsigned-object construction, suite glue/dispatch and commitments remain E5.1–E5.4 obligations. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
 | M5: history and storage | In progress | Both backends fence slot admission against a durable monotone collection cutoff. The native verifier now retains the selected witness's temporal horizon, which the final driver intersects with installed gates and the operational cap. Exact endpoint and cutoff leaves refine independent models. Complete temporal-witness, backend, admission and driver-history correspondence remain to be qualified. |
@@ -280,3 +280,46 @@ still requires the hosted authoritative gate.
 Coverage continues to use the declared local-translation measurement. Imported
 constructor bodies are present in the extraction and compiled proof closure,
 but are not newly counted as local functions to inflate the headline metric.
+
+## Shared signing-frame slice
+
+The actual `hash::signing_preimage` is now extracted with its complete Auths
+closure. It emits exactly the independent protocol grammar: `AUTHS`, protocol
+V1, registered object tag, profile byte length and bytes, profile version,
+unsigned-statement byte length and bytes. The qualified source supports the
+six existing tags, including observation 9 and approval 10. The source's own
+successful checked conversions establish every frame-validity premise.
+
+For every successful source call, equal preimage bytes imply equal object
+kind, profile bytes, profile version and unsigned statement bytes. Different
+object kinds cannot share preimage bytes. Exact output length is
+`21 + profile_bytes + statement_bytes`; a profile longer than 65,535 bytes is
+refused with `LimitExceeded`. These are syntactic byte-binding statements,
+without any assertion of collision-free hashes. Kernel examples cover an
+ordinary Grant frame and an Approval frame with a multibyte profile and the
+maximum u16 profile version.
+
+The shipping implementation now uses the existing named typed-error converter
+and three explicit checked capacity additions. This preserves the prior
+preimage bytes and errors and exposes the real source to translation and
+coverage. The former helper exists only inside the test module as a parity
+oracle. Native qualification compares arbitrary strings, versions and bodies
+across all six tags, plus exact ASCII/UTF-8 length boundaries.
+
+Full local qualification passes: 387 audited declarations, all ten modules,
+native model/codec/authority/author cases, and two byte-identical clean
+translations. The prior 374 statement records are unchanged; all transitive
+axioms remain in the original three-name allowlist. The codec closure has
+74 local and 76 imported function records and zero opaque Auths functions.
+The additional reviewed usize-to-u16 adapter is a transparent checked
+conversion, with no compiled axiom. Production source closure:
+`60a181a4bac97f3663b5ac49b6663924fac04d94b635525cd44827b3631dc899`.
+
+This does not complete E5. The public signing wrappers' construction of the
+canonical unsigned object and signature descriptor, suite/key decoding and
+dispatch, commitment preimages, primitive contracts and composed authorization
+still require their own source-bound proofs. The exact pushed revision must
+also pass hosted qualification. At the preceding `d386aec2` checkpoint,
+authoritative implementation, Kani, fast Lean, compliance, dependencies,
+secrets and the live-provider jobs passed; translation remained in progress
+when this slice was prepared.

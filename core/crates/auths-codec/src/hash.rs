@@ -108,14 +108,18 @@ fn signing_preimage(
     profile_version: u16,
     canonical_signing_object: &[u8],
 ) -> Result<Vec<u8>, CodecError> {
-    let profile_length = u16::try_from(profile_id.len()).map_err(|_| CodecError::LimitExceeded)?;
+    let profile_length = u16::try_from(profile_id.len()).map_err(crate::error::limit_error)?;
     let object_length =
-        u64::try_from(canonical_signing_object.len()).map_err(|_| CodecError::LimitExceeded)?;
+        u64::try_from(canonical_signing_object.len()).map_err(crate::error::limit_error)?;
     let capacity = SIGNING_PREFIX
         .len()
         .checked_add(2 + 2 + 2 + 2 + 8)
-        .and_then(|value| value.checked_add(profile_id.len()))
-        .and_then(|value| value.checked_add(canonical_signing_object.len()))
+        .ok_or(CodecError::LimitExceeded)?;
+    let capacity = capacity
+        .checked_add(profile_id.len())
+        .ok_or(CodecError::LimitExceeded)?;
+    let capacity = capacity
+        .checked_add(canonical_signing_object.len())
         .ok_or(CodecError::LimitExceeded)?;
     let mut output = Vec::with_capacity(capacity);
     output.extend_from_slice(SIGNING_PREFIX);
@@ -396,4 +400,87 @@ pub fn approval_digest(approval: &SignedApproval) -> Result<ApprovalDigest, Code
     Ok(ApprovalDigest::from_digest(raw_sha256(
         &crate::encode_signed_approval(approval)?,
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::String;
+    use proptest::prelude::*;
+
+    fn signing_preimage_reference(
+        object_type: ObjectType,
+        profile_id: &str,
+        profile_version: u16,
+        canonical_signing_object: &[u8],
+    ) -> Result<Vec<u8>, CodecError> {
+        let profile_length =
+            u16::try_from(profile_id.len()).map_err(|_| CodecError::LimitExceeded)?;
+        let object_length =
+            u64::try_from(canonical_signing_object.len()).map_err(|_| CodecError::LimitExceeded)?;
+        let capacity = SIGNING_PREFIX
+            .len()
+            .checked_add(2 + 2 + 2 + 2 + 8)
+            .and_then(|value| value.checked_add(profile_id.len()))
+            .and_then(|value| value.checked_add(canonical_signing_object.len()))
+            .ok_or(CodecError::LimitExceeded)?;
+        let mut output = Vec::with_capacity(capacity);
+        output.extend_from_slice(SIGNING_PREFIX);
+        output.extend_from_slice(&PROTOCOL_V1.to_be_bytes());
+        output.extend_from_slice(&(object_type as u16).to_be_bytes());
+        output.extend_from_slice(&profile_length.to_be_bytes());
+        output.extend_from_slice(profile_id.as_bytes());
+        output.extend_from_slice(&profile_version.to_be_bytes());
+        output.extend_from_slice(&object_length.to_be_bytes());
+        output.extend_from_slice(canonical_signing_object);
+        Ok(output)
+    }
+
+    fn object_types() -> [ObjectType; 6] {
+        [
+            ObjectType::Grant,
+            ObjectType::Action,
+            ObjectType::PrincipalStatus,
+            ObjectType::GrantStatus,
+            ObjectType::Observation,
+            ObjectType::Approval,
+        ]
+    }
+
+    proptest! {
+        #[test]
+        fn signing_frame_preserves_bytes_and_errors(
+            profile in any::<String>(), version in any::<u16>(),
+            statement in proptest::collection::vec(any::<u8>(), 0..4096),
+        ) {
+            for kind in object_types() {
+                prop_assert_eq!(signing_preimage(kind, &profile, version, &statement),
+                    signing_preimage_reference(kind, &profile, version, &statement));
+            }
+        }
+    }
+
+    #[test]
+    fn signing_frame_profile_limit_counts_utf8_bytes_exactly() {
+        for profile in [
+            String::new(),
+            "a".repeat(65535),
+            "a".repeat(65536),
+            "λ".repeat(32767) + "a",
+            "λ".repeat(32768),
+        ] {
+            for kind in object_types() {
+                let actual = signing_preimage(kind, &profile, u16::MAX, &[0, 255]);
+                assert_eq!(
+                    actual,
+                    signing_preimage_reference(kind, &profile, u16::MAX, &[0, 255])
+                );
+                if profile.len() > usize::from(u16::MAX) {
+                    assert_eq!(actual, Err(CodecError::LimitExceeded));
+                } else {
+                    assert_eq!(actual.as_ref().map(Vec::len), Ok(21 + profile.len() + 2));
+                }
+            }
+        }
+    }
 }

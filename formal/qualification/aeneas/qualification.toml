@@ -21,6 +21,7 @@ source_files = [
   "core/crates/auths-codec/src/decode.rs",
   "core/crates/auths-codec/src/encode.rs",
   "core/crates/auths-codec/src/error.rs",
+  "core/crates/auths-codec/src/hash.rs",
   "formal/qualification/aeneas/cases/Codec.lean",
   ".cargo/config.toml",
   "Cargo.toml",
@@ -155,6 +156,7 @@ rust_symbols = [
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
   "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
   "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from",
   "core::option::Option::Some",
@@ -298,8 +300,8 @@ allowed_external_symbols = []
 [[translations]]
 crate_name = "auths_codec"
 translation_json = "formal/qualification/aeneas/generated/codec/translation.json"
-local_functions = 73
-external_functions = 75
+local_functions = 74
+external_functions = 76
 opaque_local_functions = 0
 required_symbols = [
   "auths_codec::cbor::malformed",
@@ -310,6 +312,7 @@ required_symbols = [
   "auths_codec::cbor::encode_head",
   "auths_codec::cbor::append_tail",
   "auths_codec::decode::decode_canonical_action",
+  "auths_codec::hash::signing_preimage",
   "auths_codec::decode::attachment_batch",
   "auths_codec::decode::attachment_batch_step",
   "auths_codec::encode::encode_canonical_action",
@@ -375,6 +378,7 @@ allowed_external_symbols = [
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
   "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
   "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
   "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from",
   "core::option::Option::Some",
@@ -628,7 +632,7 @@ compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/codec/FunsExternal_Template.lean"
-count = 21
+count = 22
 compiled = false
 
 [[template_axioms]]

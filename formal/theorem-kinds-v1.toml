@@ -12,6 +12,14 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Crypto.Refinement.signing_preimage_exact" = "partial"
+"Auths.Crypto.Refinement.accepted_frame_valid" = "partial"
+"Auths.Crypto.Refinement.accepted_preimages_bind_inputs" = "partial"
+"Auths.Crypto.Refinement.preimage_length_exact" = "partial"
+"Auths.Crypto.Refinement.object_domains_separate" = "partial"
+"Auths.Crypto.Refinement.profile_limit_refused" = "partial"
+"Auths.Crypto.Examples.minimal_preimage_exact" = "case"
+"Auths.Crypto.Examples.unicode_preimage_exact" = "case"
 "Auths.Codec.Constructors.identifier_exact" = "partial"
 "Auths.Codec.Action.bounded_bytes_valid" = "partial"
 "Auths.Codec.Action.decoded_body_valid" = "partial"

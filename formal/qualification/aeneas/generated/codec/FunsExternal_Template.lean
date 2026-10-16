@@ -24,17 +24,6 @@ axiom Array.Insts.CoreCmpOrd.cmp
   {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T) :
   Array T N → Array T N → Result Ordering
 
-/-- [core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from]:
-    Source: '/rustc/library/core/src/convert/num.rs', lines 258:12-258:68
-    Name pattern: [core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<usize, u64, core::num::error::TryFromIntError>}::try_from]
-    Visibility: public -/
-@[rust_fun
-  "core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<usize, u64, core::num::error::TryFromIntError>}::try_from"]
-axiom Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from
-  :
-  Std.U64 → Result (core.result.Result Std.Usize
-    core.num.error.TryFromIntError)
-
 /-- [core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from]:
     Source: '/rustc/library/core/src/convert/num.rs', lines 258:12-258:68
     Name pattern: [core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<u64, usize, core::num::error::TryFromIntError>}::try_from]
@@ -44,6 +33,17 @@ axiom Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from
 axiom U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from
   :
   Std.Usize → Result (core.result.Result Std.U64
+    core.num.error.TryFromIntError)
+
+/-- [core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from]:
+    Source: '/rustc/library/core/src/convert/num.rs', lines 258:12-258:68
+    Name pattern: [core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<usize, u64, core::num::error::TryFromIntError>}::try_from]
+    Visibility: public -/
+@[rust_fun
+  "core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<usize, u64, core::num::error::TryFromIntError>}::try_from"]
+axiom Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from
+  :
+  Std.U64 → Result (core.result.Result Std.Usize
     core.num.error.TryFromIntError)
 
 /-- [core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from]:
@@ -65,6 +65,17 @@ axiom U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from
 axiom U16.Insts.CoreConvertTryFromU64TryFromIntError.try_from
   :
   Std.U64 → Result (core.result.Result Std.U16
+    core.num.error.TryFromIntError)
+
+/-- [core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from]:
+    Source: '/rustc/library/core/src/convert/num.rs', lines 300:12-300:64
+    Name pattern: [core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<u16, usize, core::num::error::TryFromIntError>}::try_from]
+    Visibility: public -/
+@[rust_fun
+  "core::convert::num::ptr_try_from_impls::{core::convert::TryFrom<u16, usize, core::num::error::TryFromIntError>}::try_from"]
+axiom U16.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from
+  :
+  Std.Usize → Result (core.result.Result Std.U16
     core.num.error.TryFromIntError)
 
 /-- [core::option::Option::Some]:
