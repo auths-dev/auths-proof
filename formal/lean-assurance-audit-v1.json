@@ -7,6 +7,72 @@
         "Quot.sound"
       ],
       "kind": "theorem",
+      "module": "Auths.Refinement.Identifier",
+      "name": "Auths.Refinement.Identifier.identifier_string_exact",
+      "statement": "∀ (value : String) (maximum : Aeneas.Std.Usize) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  Aeneas.Std.WP.spec (auths_model.identifier.bounded_identifier_valid (Aeneas.Std.toStr value bounded) maximum)\n    fun result =>\n    result =\n      (!(↑(Aeneas.Std.toStr value bounded)).isEmpty && decide ((↑(Aeneas.Std.toStr value bounded)).length ≤ ↑maximum) &&\n        !(List.map Char.toNat value.toList).any fun scalar => decide (Auths.Model.Identifier.excluded scalar))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Action",
+      "name": "Auths.Codec.Action.decode_encode_exact",
+      "statement": "∀ (input : Aeneas.Std.Slice Aeneas.Std.U8) (limits : auths_codec.auths_model.VerifierLimits)\n  (action : auths_codec.auths_model.CanonicalAction),\n  auths_codec.decode.decode_canonical_action input limits =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok action) →\n    ∃ bytes,\n      auths_codec.encode.encode_canonical_action action =\n          Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok bytes) ∧\n        ↑bytes = ↑input"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.Action",
+      "name": "Auths.Codec.Action.accepted_encoding_unique",
+      "statement": "∀ (left right : Aeneas.Std.Slice Aeneas.Std.U8) (limits : auths_codec.auths_model.VerifierLimits)\n  (action : auths_codec.auths_model.CanonicalAction),\n  auths_codec.decode.decode_canonical_action left limits =\n      Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok action) →\n    auths_codec.decode.decode_canonical_action right limits =\n        Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok action) →\n      ↑left = ↑right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.String",
+      "name": "Auths.Codec.StringRefinement.string_copy_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  alloc.string.String.Insts.CoreConvertFromShared0Str.from (Aeneas.Std.toStr value bounded) = Aeneas.Std.Result.ok value"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.String",
+      "name": "Auths.Codec.StringRefinement.string_borrow_exact",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  alloc.string.String.Insts.CoreOpsDerefDerefStr.deref value = Aeneas.Std.Result.ok (Aeneas.Std.toStr value bounded)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Codec.String",
+      "name": "Auths.Codec.StringRefinement.utf8_accepts_string",
+      "statement": "∀ (value : String) (bounded : value.toByteArray.size ≤ Aeneas.Std.U32.max),\n  core.str.converts.from_utf8 (Aeneas.Std.toStr value bounded) =\n    Aeneas.Std.Result.ok (Aeneas.Std.core.result.Result.Ok (Aeneas.Std.toStr value bounded))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
       "module": "Auths.Model.IdentifierSemantics",
       "name": "Auths.Model.Identifier.contains_encoded_scalars",
       "statement": "∀ (scalars : List ℕ),\n  (∀ scalar ∈ scalars, scalar ≤ 1114111) →\n    Auths.Model.Identifier.containsExcluded (List.flatMap Auths.Model.Identifier.utf8 scalars) =\n      scalars.any fun scalar => decide (Auths.Model.Identifier.excluded scalar)"

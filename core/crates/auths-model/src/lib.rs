@@ -13,7 +13,7 @@ pub use bounded::{BoundError, BoundedBytes, BoundedSet};
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
+    string::String,
     vec::Vec,
 };
 use core::fmt;
@@ -114,7 +114,7 @@ fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<Strin
     if !identifier::bounded_identifier_valid(value, maximum) {
         return Err(error);
     }
-    Ok(value.to_string())
+    Ok(String::from(value))
 }
 
 fn byte_slices_equal(left: &[u8], right: &[u8]) -> bool {
@@ -136,7 +136,10 @@ macro_rules! bounded_string {
             /// empty, exceeds its protocol bound, or contains whitespace or a
             /// control character.
             pub fn parse(value: &str) -> Result<Self, ModelError> {
-                parse_bounded(value, $maximum, $error).map(Self)
+                if !$crate::identifier::bounded_identifier_valid(value, $maximum) {
+                    return Err($error);
+                }
+                Ok(Self(String::from(value)))
             }
 
             #[must_use]
@@ -1633,6 +1636,25 @@ pub struct CanonicalAction {
     detached_attachments: Vec<DetachedAttachment>,
 }
 
+fn canonical_attachments_valid(attachments: &[DetachedAttachment]) -> bool {
+    let mut index = 0;
+    let mut total = 0usize;
+    while index < attachments.len() {
+        if index > 0 && attachments[index - 1].digest() == attachments[index].digest() {
+            return false;
+        }
+        total = match total.checked_add(attachments[index].bytes().len()) {
+            Some(value) => value,
+            None => return false,
+        };
+        if total > HARD_MAX_ATTACHMENT_BYTES {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
 impl CanonicalAction {
     /// Constructs a bounded profile-canonical action.
     ///
@@ -1668,25 +1690,22 @@ impl CanonicalAction {
     /// protocol bounds, contains duplicate identifiers, or the accumulated
     /// detached bytes exceed the attachment-byte hard limit.
     pub fn with_detached_attachments(
-        mut self,
+        self,
         mut attachments: Vec<DetachedAttachment>,
     ) -> Result<Self, ModelError> {
-        attachments.sort_by_key(DetachedAttachment::digest);
-        if attachments.len() > HARD_MAX_ATTACHMENTS
-            || attachments
-                .windows(2)
-                .any(|window| window[0].digest() == window[1].digest())
-            || attachments
-                .iter()
-                .try_fold(0usize, |total, attachment| {
-                    total.checked_add(attachment.bytes().len())
-                })
-                .is_none_or(|total| total > HARD_MAX_ATTACHMENT_BYTES)
-        {
+        if attachments.len() > HARD_MAX_ATTACHMENTS {
             return Err(ModelError::InvalidAttachment);
         }
-        self.detached_attachments = attachments;
-        Ok(self)
+        // A concrete stateless closure keeps the translated key computation explicit.
+        #[allow(clippy::redundant_closure_for_method_calls)]
+        attachments.sort_by_key(|attachment| attachment.digest());
+        if !canonical_attachments_valid(&attachments) {
+            return Err(ModelError::InvalidAttachment);
+        }
+        Ok(Self {
+            detached_attachments: attachments,
+            ..self
+        })
     }
 
     /// Returns the exact profile and semantic version.

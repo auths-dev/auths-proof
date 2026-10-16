@@ -12,6 +12,9 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Refinement.Identifier.identifier_string_exact" = "partial"
+"Auths.Codec.Action.decode_encode_exact" = "partial"
+"Auths.Codec.Action.accepted_encoding_unique" = "partial"
 "Auths.Refinement.Identifier.forbidden_at_exact" = "exact"
 "Auths.Refinement.Identifier.scan_exact" = "exact"
 "Auths.Refinement.Identifier.identifier_exact" = "exact"

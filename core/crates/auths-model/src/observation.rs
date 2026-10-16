@@ -15,7 +15,7 @@
 use crate::{
     EvidenceObject, HARD_MAX_PERMISSIONS, HARD_MAX_REGISTRY_ENTRIES, ModelError, PrincipalId,
     PrincipalMethodId, ProtocolVersion, ResourceId, SignatureEnvelope, Timestamp, ValidityWindow,
-    byte_slices_equal, parse_bounded,
+    byte_slices_equal,
 };
 use alloc::{string::String, vec::Vec};
 use core::fmt;

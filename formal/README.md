@@ -1,9 +1,11 @@
 # Auths-Proof formal model
 
-This Lean 4 project proves properties of the target V1 authority ordering and
-three-valued composition algebra. It deliberately excludes codecs,
-cryptography, adapters, clocks, networking, storage, and complete verifier
-control flow.
+This Lean 4 project proves properties of target V1 authority ordering,
+three-valued composition, and selected shipping codec and enforcement functions.
+The complete verifier, complete protocol-object codecs, cryptographic
+integration, backend implementations, adapters, physical clocks and networking
+remain outside the completed proof surface. Each component's exact scope is
+recorded below and in the assurance manifest.
 
 Every public theorem claim is listed in
 [`assurance-manifest-v1.toml`](assurance-manifest-v1.toml). The compiled
@@ -35,16 +37,17 @@ translation source closure, and reproduces the generated artifacts twice
 byte-for-byte. The reviewed decision is recorded in
 [`ADR 0011`](../docs/adr/0011-rich-authority-rust-lean-link.md).
 
-That qualification translates selected shipping authority, attenuation,
-lifecycle, and bounded-policy predicates to Lean and refines them under stated
+That qualification translates selected shipping codec, identifier, authority,
+attenuation, lifecycle and bounded-policy functions to Lean and refines them under stated
 representation and external-model assumptions. The rich authority and
 transition relations are no longer only a disclosed trust boundary around a
 proved Boolean aggregation: their scoped refinement claims are listed in
 [`assurance-manifest-v1.toml`](assurance-manifest-v1.toml), each with its scope
 and residual assumptions. This is **not** a formally verified end-to-end
-verifier. Canonical decoding, cryptography, storage, clocks, networking,
-adapter behavior, and the complete verifier control flow remain outside this
-proof surface.
+verifier. Complete codec totality/completeness, cryptographic integration,
+backend behavior, clocks, networking, adapters and the complete verifier control
+flow remain open obligations. Selected codec and enforcement claims must not
+be presented as completion of those larger boundaries.
 
 ## Commands
 
@@ -125,3 +128,31 @@ the translation, toolchain, source, and evidence inputs still match. Changes
 to those inputs require two fresh, byte-identical reproductions. The complete
 qualified path remains in hosted CI; contributors do not need to install the
 formal toolchains locally to receive proof diagnostics.
+
+## Canonical-action byte binding
+
+The complete shipping canonical-action decoder and encoder, including their
+Auths constructors, are now in the extraction closure. No Auths function in
+that closure is opaque. `Auths.Codec.Action.decode_encode_exact` states that
+every successful decode re-encodes to the accepted bytes;
+`accepted_encoding_unique` derives one accepted encoding per decoded action.
+Neither theorem assumes injective hashes.
+
+The parser folds a bounded owned attachment state, and the encoder folds its
+owned writer. Named error converters and explicit borrowed-result matches keep
+those transitions visible to translation and source coverage. Native tests
+compare against the former implementation, retained only as a test oracle,
+including valid randomized actions, mutations, truncation, duplicate and
+aggregate attachment bounds, and optional budgets.
+
+Reviewed transparent standard-library models supply checked conversions,
+Option/Result, UTF-8 validation, copying, collection projections and the sole
+pure digest-key sorting call. The exact stateless callback has a source proof.
+The string representation bridge derives the Unicode stream from validated
+strings; it does not assume arbitrary byte carriers are UTF-8. Cases include
+valid strings, overlong UTF-8 and surrogate encodings.
+
+These are scoped component results. Full constructor validity, action inverse
+completeness and work bounds, every other protocol object, and AP-SPEC-069's
+remaining verifier, driver, history and cryptographic obligations are still
+required. See the [implementation ledger](../docs/assurance/AP_SPEC_069_STATUS.md).

@@ -11,6 +11,10 @@ use alloc::vec::Vec;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Error;
 
+fn malformed<T>(_error: T) -> Error {
+    Error
+}
+
 /// The wire categories inspected by the object decoder.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Type {
@@ -140,6 +144,13 @@ impl<'a> Decoder<'a> {
         Self { input, position: 0 }
     }
 
+    pub(crate) fn at(input: &'a [u8], position: usize) -> Result<Self, Error> {
+        if position > input.len() {
+            return Err(Error);
+        }
+        Ok(Self { input, position })
+    }
+
     pub(crate) const fn position(&self) -> usize {
         self.position
     }
@@ -174,19 +185,19 @@ impl<'a> Decoder<'a> {
     }
 
     pub(crate) fn u32(&mut self) -> Result<u32, Error> {
-        self.u64()?.try_into().map_err(|_| Error)
+        self.u64()?.try_into().map_err(malformed)
     }
 
     pub(crate) fn u16(&mut self) -> Result<u16, Error> {
-        self.u64()?.try_into().map_err(|_| Error)
+        self.u64()?.try_into().map_err(malformed)
     }
 
     pub(crate) fn u8(&mut self) -> Result<u8, Error> {
-        self.u64()?.try_into().map_err(|_| Error)
+        self.u64()?.try_into().map_err(malformed)
     }
 
     fn payload(&mut self, major: u8) -> Result<&'a [u8], Error> {
-        let length = usize::try_from(self.head(major)?).map_err(|_| Error)?;
+        let length = usize::try_from(self.head(major)?).map_err(malformed)?;
         let end = self.position.checked_add(length).ok_or(Error)?;
         let bytes = self.input.get(self.position..end).ok_or(Error)?;
         self.position = end;
@@ -198,7 +209,10 @@ impl<'a> Decoder<'a> {
     }
 
     pub(crate) fn str(&mut self) -> Result<&'a str, Error> {
-        core::str::from_utf8(self.payload(3)?).map_err(|_| Error)
+        match core::str::from_utf8(self.payload(3)?) {
+            Ok(value) => Ok(value),
+            Err(_) => Err(Error),
+        }
     }
 
     pub(crate) fn bool(&mut self) -> Result<bool, Error> {
@@ -279,7 +293,7 @@ impl Encoder {
     }
 
     fn payload(&mut self, major: u8, bytes: &[u8]) -> Result<(), Error> {
-        self.head(major, u64::try_from(bytes.len()).map_err(|_| Error)?)?;
+        self.head(major, u64::try_from(bytes.len()).map_err(malformed)?)?;
         self.output.extend_from_slice(bytes);
         Ok(())
     }

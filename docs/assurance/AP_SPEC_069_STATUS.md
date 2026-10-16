@@ -8,7 +8,7 @@ shipping-source refinement and hosted evidence gates.
 | Milestone | State | Evidence / remaining work |
 | --- | --- | --- |
 | M0: claims and extraction slices | In progress | Shipping head reading/writing and identifier lookahead/scanning refine explicit grammars, with positive/refusal cases and compiled statement/axiom audits. Full protocol-object refinement and hosted qualification remain required. |
-| M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. The shared identifier validator has exact scan/bounds refinements and Unicode-stream adequacy. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
+| M1: complete codec | In progress | The head codec has a source-to-source round trip and a one-to-nine-byte output bound. Successful canonical-action decoding has exact re-encoding and accepted-encoding uniqueness proofs. The shared identifier validator has exact scan/bounds refinements and a validated-string representation bridge. Complete object/carrier, work/allocation, constructor and codec refinements and hosted corpus/property evidence remain required. |
 | M2: crypto integration | Pending | E5.1–E5.4. |
 | M3: complete verifier | Pending | E2.1–E2.5. |
 | M4: mapping and driver | Pending | E3.1–E3.5. |
@@ -47,14 +47,13 @@ claims. A separate fresh-environment replay of `Auths.Codec.Refinement`
 passed. These are development results; the exact pushed revision still
 requires the hosted authoritative gates.
 
-The next object-level prototype extracted `decode_canonical_action` through
-Charon. Strict Aeneas translation rejected its fallible attachment iteration.
-Removing borrowed encoder returns eliminated the encoder arrow-type errors;
-factoring the attachment loop still exposed an Aeneas context-match failure.
-The unsuccessful loop rewrites were removed. This is a concrete need for an
-owned, bounded decoder-state transition before claiming whole-object
-refinement. The prototype's partial output is not in the qualification
-inventory and cannot support an assurance claim.
+The canonical-action path now uses a bounded owned attachment transition and
+an owned encoder fold. Named error converters and explicit borrowed-result
+matches keep the actual source visible to both translation and coverage. Its
+complete Auths constructor closure is extracted; no Auths algorithm in that
+closure is opaque. The accepted-byte and uniqueness theorems are component
+properties; totality, inverse completeness, resource bounds, full carrier
+validity and every other protocol object remain open.
 
 ## Collection-fence slice
 
@@ -204,4 +203,32 @@ or accepted toolchain. Local qualification of this repair again passes all
 The PostgreSQL fixture now creates its host output directory before Docker,
 preserving runner ownership of `target/`. Source qualification plans were
 regenerated with the current schema-7 store descriptor; all six focused plan
-and commissioning tests pass. Hosted backend qualification remains required.
+and commissioning tests pass. The hosted PostgreSQL qualification for `62f859c5` passed, including multi-host
+capacity checks, hostile gateway/store conformance and physical backup/restore
+([run](https://github.com/auths-dev/auths-proof/actions/runs/38822086710)).
+This backend evidence does not complete the E4 driver/history correspondence.
+
+## Canonical-action and string bridge construction
+
+The expanded codec has accepted-byte and encoding-uniqueness proofs, together
+with exact validated-string representation, copying, borrowing and UTF-8 model
+acceptance. The compiled audit contains 353 declarations; the preceding 347
+statements are unchanged and the transitive axioms remain `propext`,
+`Classical.choice` and `Quot.sound`. Qualification passes all ten modules,
+native codec/model/authority/author tests and two byte-identical translations.
+The expanded codec has 73 local and 75 imported function records, including
+its actual constructors, with zero opaque Auths functions. Its six reviewed
+external models introduce no compiled axiom. The exact production source
+closure is `f76cc84b76e807cafdfbbb2abe08fbe64d999838a523396d62af332ec6450237`.
+The hosted gates for the expanded checkpoint remain required.
+
+Native tests retain the former action codec and attachment checks only as
+refactor-equivalence oracles. They cover successful random actions, optional
+budgets, truncation, byte mutations, duplicate attachments, collection bounds
+and aggregate-byte bounds. The qualification now includes native codec tests.
+The reviewed sorting model is restricted to the actual stateless digest-key
+callback and lawful digest order; arbitrary stateful callbacks are not modeled.
+
+This does not complete E1. In particular, a positive Lean witness through the
+complete action decoder, full constructor validity, inverse completeness,
+resource accounting and the remaining protocol objects still require work.

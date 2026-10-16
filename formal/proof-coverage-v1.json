@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "04a9d7749c23058f02595d94d0faf64023dd89e423c825a136f29ab709852a09",
-  "inputs_sha256": "8b054e2a5fd15cde141ba66c7084b21b933e3a7eb95924a5d3cf9a22cdb98c88",
+  "inputs_sha256": "ebb0dd63a4d345d8256d6b5fb94bbe798de7abadd2b3129e2c6a15847eb94045",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -29,10 +29,10 @@
     "core/crates/auths-codec/Cargo.toml": "sha256:b164e44179704bcb76d32f7e25281ed17f738e434290997e979739ebe49b4f77",
     "core/crates/auths-codec/src/approval.rs": "sha256:eb0a867ab26c151f9f947090dd81b5802541e818104ac2b363634e2c8f568005",
     "core/crates/auths-codec/src/bounded_policy.rs": "sha256:5c84447f057e2bf356323c6d83cab4daf64fcce221051a0863350f414ad0fb85",
-    "core/crates/auths-codec/src/cbor.rs": "sha256:696cd6a1cbe08f7a2eb0d313f88c89a08792b97bdec63d9881b0831d6ff76998",
-    "core/crates/auths-codec/src/decode.rs": "sha256:af17c02b0ee459f63baaf189ae6d7a5d77d45f36045f6a4d2a287c9619b08b33",
-    "core/crates/auths-codec/src/encode.rs": "sha256:1df5a654f18e6c3f9a677a7952445b5d270f3d639ea6e70035f05d32fac2d602",
-    "core/crates/auths-codec/src/error.rs": "sha256:fecb0737c16deb42d859f1dc7727c698438d9ac12064fd99e0024629642c390c",
+    "core/crates/auths-codec/src/cbor.rs": "sha256:03f43d462fe39a45c7ad5ef487376ce109ae359b7874ec2b0200601ad0563361",
+    "core/crates/auths-codec/src/decode.rs": "sha256:b86092621720e83e7fc3537a28b14f143d8cd44b1808d6f40a99be090d197757",
+    "core/crates/auths-codec/src/encode.rs": "sha256:163dcb12f640eb63fbdb872e75bab1ee9e01571797cdf3a10b77cfd0b02a0c0b",
+    "core/crates/auths-codec/src/error.rs": "sha256:80c1e7fdd190a0d050c69fbcde9836a4702d9b98e8effd76bc659c3d75ea8175",
     "core/crates/auths-codec/src/hash.rs": "sha256:f88e111f1dbb2cef6b7b5e9c948cb45ff92e366710c8a5f5c636138aa748479e",
     "core/crates/auths-codec/src/lib.rs": "sha256:09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601",
     "core/crates/auths-codec/src/observation.rs": "sha256:fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149",
@@ -43,8 +43,8 @@
     "core/crates/auths-model/src/bounded.rs": "sha256:f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9",
     "core/crates/auths-model/src/bounded_policy.rs": "sha256:306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450",
     "core/crates/auths-model/src/identifier.rs": "sha256:c8dc49cf467ee0456a447a5337ead067b7d0a80eaa6c745b469e9b837cb627b0",
-    "core/crates/auths-model/src/lib.rs": "sha256:064cff3eec9077831fc51a77588d9d0d2029f1c68a6d394282f531d605323691",
-    "core/crates/auths-model/src/observation.rs": "sha256:b3ed3e3cc090afca2896a7d3de7988afccc1ee1ea0ebd91b51a8bc0f20ad8dbb",
+    "core/crates/auths-model/src/lib.rs": "sha256:1d9c4b8dbe1693f33f145b196bdefa7c3a89008687ce1156432357cad7e21e6f",
+    "core/crates/auths-model/src/observation.rs": "sha256:0f0a8a4bd942867f168c0e411a8bca5d7f57e94065beaebe919b26b08ddd2108",
     "core/crates/auths-ports/Cargo.toml": "sha256:596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c",
     "core/crates/auths-ports/src/binding.rs": "sha256:a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d",
     "core/crates/auths-ports/src/diagnostics.rs": "sha256:aa596572503b5a65a918bb2ff38281c144ff53821ee914e9325c852828d852df",
@@ -61,27 +61,27 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:a4eebcb806f2be41aa39fb18700c70170cfe5792162feca0501d6e3fb69325ea",
     "formal/coverage-scope-v1.toml": "sha256:04a9d7749c23058f02595d94d0faf64023dd89e423c825a136f29ab709852a09",
-    "formal/lean-assurance-audit-v1.json": "sha256:92aa994d4e2701150798b07a63b53af22749fef00d3d5af9d5b0478cef7d7279",
+    "formal/lean-assurance-audit-v1.json": "sha256:dfc43e8f022c44e68de1a48e1412ea74f63c8bb0772b6e71fe56b066dae03098",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
-    "formal/qualification/aeneas/generated/authority/translation.json": "sha256:a10260d700a01186676edc01f1989870a0b53db39f0408ff1fa3748d9efa044d",
+    "formal/qualification/aeneas/generated/authority/translation.json": "sha256:73998f4c391f5c2037f153a3bda1768fb43d9da9b3b5975fd30088735cc6f7d9",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:d22192192ca6c6b57c2eba5d8d5dd465f887703579db62d758e0a969d551069e",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:2e431560c01742a7decd92182dbe7e71390bfd53b38a63c1d8b474408e54a5ab",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:7e586b90af4515b0a196171f77010d28c4143cba3518ba0523c1125de211cb37",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:df66081bef20e9879c1fbdcc5f70df81a606eba379662de37f6ff0c506ac0025",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
     "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:a9d551b89ca88ed72032d2e58f08d1106b83d77956d2677492452ad41312cb4a",
     "formal/qualification/aeneas/generated/lifecycle/Funs.lean": "sha256:817dcbb854a599fb14c89854d8023809a390f7a00e1cc70dbc7151d7b254649f",
     "formal/qualification/aeneas/generated/lifecycle/translation.json": "sha256:b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
-    "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:58c04377b98175bd0953969867d8453839fcbd527b58c857e99ab721e32f8830",
-    "formal/qualification/aeneas/generated/model/translation.json": "sha256:74775c07bad11cd565f5cf14cc5cf1ba28a2162d3471360f2d7170ca13dcf8f7",
+    "formal/qualification/aeneas/generated/model/Funs.lean": "sha256:48fadbfbf052e310cd6df3fdc11e8e96785330f34144c1e471a908b7c1b21feb",
+    "formal/qualification/aeneas/generated/model/translation.json": "sha256:e31a7a0fd7b3f44f7057c8d928b1aa8c1bb13b040e3d24cc0b897fd8bc1c777a",
     "formal/qualification/aeneas/generated/stores/Funs.lean": "sha256:93659adb731e4ebd0bfd7dde510d582657fc8e89427ebdee9ee2cdf8324bcf64",
     "formal/qualification/aeneas/generated/stores/translation.json": "sha256:22c9f88c31e9b7fb88b45dd9e7a8b072a016c386ee3f7e916bfd96a32555b56c",
-    "formal/qualification/aeneas/qualification.toml": "sha256:9df58cef62b327e98ee36a0fcf6d0438fa9deefe677b26a7a663f583ad30ff57",
-    "formal/theorem-kinds-v1.toml": "sha256:2f6466b908d2eb8362e0cff19f66e20ec53697b74c96b193ad500c1eb544ad2d",
+    "formal/qualification/aeneas/qualification.toml": "sha256:4d63e64d6a8ae5b4e1647fe1c6ca06c109a40137ca905c88e42d5bdb4396aff2",
+    "formal/theorem-kinds-v1.toml": "sha256:93bea616161b9a50ce47e407b375c199dd6fd0ef86635971135fb54fa3e12b13",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -120,12 +120,12 @@
     "product/stores/auths-stores/src/lifecycle.rs": "sha256:0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
   },
   "claim": {
-    "decision_functions": 1039,
+    "decision_functions": 1040,
     "decision_closure_functions": 114,
-    "decision_code_lines": 11562,
+    "decision_code_lines": 11579,
     "decision_closure_code_lines": 1335,
     "check_sites": 82,
-    "covered_check_sites": 15,
+    "covered_check_sites": 23,
     "uncovered_components": [
       "the staged verifier control flow",
       "the composition evaluator",
@@ -196,165 +196,165 @@
     "decision": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1039,
-      "span_lines": 11605,
-      "code_lines": 11562,
+      "functions": 1040,
+      "span_lines": 11623,
+      "code_lines": 11579,
       "by_level": {
         "translated": {
           "functions": 114,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 1346,
-          "span_line_share": 0.116,
+          "span_line_share": 0.1158,
           "code_lines": 1335,
-          "code_line_share": 0.1155
+          "code_line_share": 0.1153
         },
         "direct": {
           "functions": 59,
-          "function_share": 0.0568,
+          "function_share": 0.0567,
           "span_lines": 900,
-          "span_line_share": 0.0776,
+          "span_line_share": 0.0774,
           "code_lines": 889,
-          "code_line_share": 0.0769
+          "code_line_share": 0.0768
         },
         "closure": {
           "functions": 114,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 1346,
-          "span_line_share": 0.116,
+          "span_line_share": 0.1158,
           "code_lines": 1335,
-          "code_line_share": 0.1155
+          "code_line_share": 0.1153
         }
       }
     },
     "verifier-core": {
       "scope": "verifier-core",
       "minimum_code_lines": 0,
-      "functions": 793,
-      "span_lines": 9051,
-      "code_lines": 9011,
+      "functions": 794,
+      "span_lines": 9069,
+      "code_lines": 9028,
       "by_level": {
         "translated": {
           "functions": 90,
-          "function_share": 0.1135,
+          "function_share": 0.1134,
           "span_lines": 964,
-          "span_line_share": 0.1065,
+          "span_line_share": 0.1063,
           "code_lines": 953,
-          "code_line_share": 0.1058
+          "code_line_share": 0.1056
         },
         "direct": {
           "functions": 44,
-          "function_share": 0.0555,
+          "function_share": 0.0554,
           "span_lines": 602,
-          "span_line_share": 0.0665,
+          "span_line_share": 0.0664,
           "code_lines": 591,
-          "code_line_share": 0.0656
+          "code_line_share": 0.0655
         },
         "closure": {
           "functions": 90,
-          "function_share": 0.1135,
+          "function_share": 0.1134,
           "span_lines": 964,
-          "span_line_share": 0.1065,
+          "span_line_share": 0.1063,
           "code_lines": 953,
-          "code_line_share": 0.1058
+          "code_line_share": 0.1056
         }
       }
     },
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1505,
-      "span_lines": 16759,
-      "code_lines": 16706,
+      "functions": 1513,
+      "span_lines": 16832,
+      "code_lines": 16777,
       "by_level": {
         "translated": {
-          "functions": 222,
-          "function_share": 0.1475,
-          "span_lines": 2669,
-          "span_line_share": 0.1593,
-          "code_lines": 2658,
-          "code_line_share": 0.1591
+          "functions": 282,
+          "function_share": 0.1864,
+          "span_lines": 3075,
+          "span_line_share": 0.1827,
+          "code_lines": 3063,
+          "code_line_share": 0.1826
         },
         "direct": {
-          "functions": 81,
-          "function_share": 0.0538,
-          "span_lines": 1172,
-          "span_line_share": 0.0699,
-          "code_lines": 1161,
-          "code_line_share": 0.0695
+          "functions": 83,
+          "function_share": 0.0549,
+          "span_lines": 1232,
+          "span_line_share": 0.0732,
+          "code_lines": 1221,
+          "code_line_share": 0.0728
         },
         "closure": {
-          "functions": 222,
-          "function_share": 0.1475,
-          "span_lines": 2669,
-          "span_line_share": 0.1593,
-          "code_lines": 2658,
-          "code_line_share": 0.1591
+          "functions": 282,
+          "function_share": 0.1864,
+          "span_lines": 3075,
+          "span_line_share": 0.1827,
+          "code_lines": 3063,
+          "code_line_share": 0.1826
         }
       }
     },
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1128,
-      "span_lines": 14249,
-      "code_lines": 14183,
+      "functions": 1136,
+      "span_lines": 14322,
+      "code_lines": 14254,
       "by_level": {
         "translated": {
-          "functions": 94,
-          "function_share": 0.0833,
-          "span_lines": 1043,
-          "span_line_share": 0.0732,
-          "code_lines": 1032,
-          "code_line_share": 0.0728
+          "functions": 154,
+          "function_share": 0.1356,
+          "span_lines": 1449,
+          "span_line_share": 0.1012,
+          "code_lines": 1437,
+          "code_line_share": 0.1008
         },
         "direct": {
-          "functions": 48,
-          "function_share": 0.0426,
-          "span_lines": 681,
-          "span_line_share": 0.0478,
-          "code_lines": 670,
-          "code_line_share": 0.0472
+          "functions": 50,
+          "function_share": 0.044,
+          "span_lines": 741,
+          "span_line_share": 0.0517,
+          "code_lines": 730,
+          "code_line_share": 0.0512
         },
         "closure": {
-          "functions": 94,
-          "function_share": 0.0833,
-          "span_lines": 1043,
-          "span_line_share": 0.0732,
-          "code_lines": 1032,
-          "code_line_share": 0.0728
+          "functions": 154,
+          "function_share": 0.1356,
+          "span_lines": 1449,
+          "span_line_share": 0.1012,
+          "code_lines": 1437,
+          "code_line_share": 0.1008
         }
       }
     },
     "decision-nontrivial": {
       "scope": "decision",
       "minimum_code_lines": 4,
-      "functions": 449,
-      "span_lines": 9832,
-      "code_lines": 9792,
+      "functions": 451,
+      "span_lines": 9853,
+      "code_lines": 9812,
       "by_level": {
         "translated": {
           "functions": 84,
-          "function_share": 0.1871,
+          "function_share": 0.1863,
           "span_lines": 1256,
-          "span_line_share": 0.1277,
+          "span_line_share": 0.1275,
           "code_lines": 1245,
-          "code_line_share": 0.1271
+          "code_line_share": 0.1269
         },
         "direct": {
           "functions": 46,
-          "function_share": 0.1024,
+          "function_share": 0.102,
           "span_lines": 861,
-          "span_line_share": 0.0876,
+          "span_line_share": 0.0874,
           "code_lines": 850,
-          "code_line_share": 0.0868
+          "code_line_share": 0.0866
         },
         "closure": {
           "functions": 84,
-          "function_share": 0.1871,
+          "function_share": 0.1863,
           "span_lines": 1256,
-          "span_line_share": 0.1277,
+          "span_line_share": 0.1275,
           "code_lines": 1245,
-          "code_line_share": 0.1271
+          "code_line_share": 0.1269
         }
       }
     }
@@ -363,132 +363,132 @@
     "decision_without_macro_rules_functions": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1022,
-      "span_lines": 11552,
-      "code_lines": 11509,
+      "functions": 1023,
+      "span_lines": 11567,
+      "code_lines": 11523,
       "by_level": {
         "translated": {
           "functions": 113,
-          "function_share": 0.1106,
+          "function_share": 0.1105,
           "span_lines": 1343,
-          "span_line_share": 0.1163,
+          "span_line_share": 0.1161,
           "code_lines": 1332,
-          "code_line_share": 0.1157
+          "code_line_share": 0.1156
         },
         "direct": {
           "functions": 59,
           "function_share": 0.0577,
           "span_lines": 900,
-          "span_line_share": 0.0779,
+          "span_line_share": 0.0778,
           "code_lines": 889,
           "code_line_share": 0.0772
         },
         "closure": {
           "functions": 113,
-          "function_share": 0.1106,
+          "function_share": 0.1105,
           "span_lines": 1343,
-          "span_line_share": 0.1163,
+          "span_line_share": 0.1161,
           "code_lines": 1332,
-          "code_line_share": 0.1157
+          "code_line_share": 0.1156
         }
       }
     },
     "decision_exact_or_verdict_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1039,
-      "span_lines": 11605,
-      "code_lines": 11562,
+      "functions": 1040,
+      "span_lines": 11623,
+      "code_lines": 11579,
       "by_level": {
         "translated": {
           "functions": 114,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 1346,
-          "span_line_share": 0.116,
+          "span_line_share": 0.1158,
           "code_lines": 1335,
-          "code_line_share": 0.1155
+          "code_line_share": 0.1153
         },
         "direct": {
           "functions": 59,
-          "function_share": 0.0568,
+          "function_share": 0.0567,
           "span_lines": 900,
-          "span_line_share": 0.0776,
+          "span_line_share": 0.0774,
           "code_lines": 889,
-          "code_line_share": 0.0769
+          "code_line_share": 0.0768
         },
         "closure": {
           "functions": 113,
-          "function_share": 0.1088,
+          "function_share": 0.1087,
           "span_lines": 1343,
-          "span_line_share": 0.1157,
+          "span_line_share": 0.1155,
           "code_lines": 1332,
-          "code_line_share": 0.1152
+          "code_line_share": 0.115
         }
       }
     },
     "decision_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1039,
-      "span_lines": 11605,
-      "code_lines": 11562,
+      "functions": 1040,
+      "span_lines": 11623,
+      "code_lines": 11579,
       "by_level": {
         "translated": {
           "functions": 114,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 1346,
-          "span_line_share": 0.116,
+          "span_line_share": 0.1158,
           "code_lines": 1335,
-          "code_line_share": 0.1155
+          "code_line_share": 0.1153
         },
         "direct": {
           "functions": 59,
-          "function_share": 0.0568,
+          "function_share": 0.0567,
           "span_lines": 900,
-          "span_line_share": 0.0776,
+          "span_line_share": 0.0774,
           "code_lines": 889,
-          "code_line_share": 0.0769
+          "code_line_share": 0.0768
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1049,
+          "function_share": 0.1048,
           "span_lines": 1248,
-          "span_line_share": 0.1075,
+          "span_line_share": 0.1074,
           "code_lines": 1244,
-          "code_line_share": 0.1076
+          "code_line_share": 0.1074
         }
       }
     },
     "decision_without_trait_instance_records": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1039,
-      "span_lines": 11605,
-      "code_lines": 11562,
+      "functions": 1040,
+      "span_lines": 11623,
+      "code_lines": 11579,
       "by_level": {
         "translated": {
           "functions": 114,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 1346,
-          "span_line_share": 0.116,
+          "span_line_share": 0.1158,
           "code_lines": 1335,
-          "code_line_share": 0.1155
+          "code_line_share": 0.1153
         },
         "direct": {
           "functions": 59,
-          "function_share": 0.0568,
+          "function_share": 0.0567,
           "span_lines": 900,
-          "span_line_share": 0.0776,
+          "span_line_share": 0.0774,
           "code_lines": 889,
-          "code_line_share": 0.0769
+          "code_line_share": 0.0768
         },
         "closure": {
           "functions": 113,
-          "function_share": 0.1088,
+          "function_share": 0.1087,
           "span_lines": 1343,
-          "span_line_share": 0.1157,
+          "span_line_share": 0.1155,
           "code_lines": 1332,
-          "code_line_share": 0.1152
+          "code_line_share": 0.115
         }
       }
     }
@@ -530,8 +530,8 @@
       "refined_closure_code_lines": 0
     },
     "core/crates/auths-model": {
-      "decision_functions": 544,
-      "decision_code_lines": 3927,
+      "decision_functions": 545,
+      "decision_code_lines": 3944,
       "translated": 75,
       "refined_closure": 75,
       "refined_closure_code_lines": 695
@@ -595,17 +595,17 @@
   },
   "second_parser": {
     "parser": "syn 2 (full syntax tree), independent of the scanner's tokenizer",
-    "decision_functions": 1039,
+    "decision_functions": 1040,
     "decision_files": 31,
-    "agreements": 1022,
-    "agreement_share": 0.9836,
+    "agreements": 1023,
+    "agreement_share": 0.9837,
     "disagreements": [
       {
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::parse",
         "scanner_span": [
           138,
-          140
+          143
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -613,8 +613,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::as_str",
         "scanner_span": [
-          143,
-          145
+          146,
+          148
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -622,8 +622,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::fmt",
         "scanner_span": [
-          149,
-          151
+          152,
+          154
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -631,8 +631,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::new",
         "scanner_span": [
-          267,
-          269
+          270,
+          272
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -640,8 +640,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::from_digest",
         "scanner_span": [
-          272,
-          274
+          275,
+          277
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -649,8 +649,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::digest",
         "scanner_span": [
-          277,
-          279
+          280,
+          282
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -658,8 +658,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::as_bytes",
         "scanner_span": [
-          282,
-          284
+          285,
+          287
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -667,8 +667,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "name::from",
         "scanner_span": [
-          288,
-          290
+          291,
+          293
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -676,8 +676,8 @@
         "file": "core/crates/auths-model/src/lib.rs",
         "function": "Digest::from",
         "scanner_span": [
-          294,
-          296
+          297,
+          299
         ],
         "reason": "inside a macro_rules! body (syn parses it as a token tree)"
       },
@@ -758,158 +758,158 @@
   },
   "check_sites": {
     "total": 82,
-    "covered": 15,
-    "share": 0.1829,
+    "covered": 23,
+    "share": 0.2805,
     "sites": [
       {
         "site": "decode.action-bytes",
         "code": "resource-limit-exceeded",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "Whole canonical-action input over the action-bytes limit; codec_failure maps LimitExceeded to resource-limit-exceeded.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.action-map",
         "code": "malformed-proof",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "A canonical-action map header with the wrong number of pairs, as when the first pair is duplicated; map returns Malformed.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "map",
-            "begin_line": 40,
-            "refined_closure": false
+            "begin_line": 44,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.action-key",
         "code": "non-canonical-proof",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "A canonical-action map key out of the canonical order; key returns NonCanonical.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "key",
-            "begin_line": 66,
-            "refined_closure": false
+            "begin_line": 70,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.action-field",
         "code": "malformed-proof",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "A canonical-action field that does not decode as its type: truncated input, a zero profile version, a media type with whitespace, a body sent as text, or an indefinite-length attachment array.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "profile_ref",
-            "begin_line": 118,
-            "refined_closure": false
+            "begin_line": 128,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "text",
-            "begin_line": 74,
-            "refined_closure": false
+            "begin_line": 78,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "bounded_bytes",
-            "begin_line": 78,
-            "refined_closure": false
+            "begin_line": 85,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "array",
-            "begin_line": 48,
-            "refined_closure": false
+            "begin_line": 52,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.action-body-bytes",
         "code": "resource-limit-exceeded",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "Canonical body byte string over the canonical-body-bytes limit passed by decode_canonical_action.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "bounded_bytes",
-            "begin_line": 78,
-            "refined_closure": false
+            "begin_line": 85,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.attachment-bytes",
         "code": "resource-limit-exceeded",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "Single detached attachment over the attachment-bytes limit, rejected per attachment before the cumulative check.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "bounded_bytes",
-            "begin_line": 78,
-            "refined_closure": false
+            "begin_line": 85,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
@@ -924,61 +924,61 @@
             "role": "refusal",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "CanonicalAction::with_detached_attachments",
-            "begin_line": 1670,
+            "begin_line": 1692,
             "refined_closure": false
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.action-trailing",
         "code": "malformed-proof",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "Bytes after the canonical action's map; ensure_complete returns Malformed.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "ensure_complete",
-            "begin_line": 1284,
-            "refined_closure": false
+            "begin_line": 1286,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           }
         ]
       },
       {
         "site": "decode.action-canonical",
         "code": "non-canonical-proof",
-        "covered": false,
-        "stage": "codec: AP-SPEC-061",
+        "covered": true,
+        "stage": "covered",
         "note": "Input that decodes but is not the canonical encoding, as with a non-shortest key or attachments out of order; the re-encoding comparison returns NonCanonical.",
         "functions": [
           {
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1548,
-            "refined_closure": false
+            "begin_line": 1604,
+            "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/encode.rs",
             "function": "encode_canonical_action",
             "begin_line": 380,
-            "refined_closure": false
+            "refined_closure": true
           }
         ]
       },
@@ -1096,7 +1096,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_profile",
-            "begin_line": 4109,
+            "begin_line": 4128,
             "refined_closure": false
           }
         ]
@@ -1151,7 +1151,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "ValidityWindow::contains",
-            "begin_line": 401,
+            "begin_line": 404,
             "refined_closure": false
           }
         ]
@@ -1213,7 +1213,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4103,
+            "begin_line": 4122,
             "refined_closure": false
           }
         ]
@@ -1456,7 +1456,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4103,
+            "begin_line": 4122,
             "refined_closure": false
           },
           {
@@ -1546,7 +1546,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::accepts_critical_extension",
-            "begin_line": 4103,
+            "begin_line": 4122,
             "refined_closure": false
           },
           {
@@ -1811,7 +1811,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "AcceptedRegistries::profile_budget_expression",
-            "begin_line": 4132,
+            "begin_line": 4151,
             "refined_closure": false
           }
         ]
@@ -1968,7 +1968,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "optional_grant_id_equal",
-            "begin_line": 509,
+            "begin_line": 512,
             "refined_closure": true
           }
         ]
@@ -2028,7 +2028,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "profile_ref_equal",
-            "begin_line": 474,
+            "begin_line": 477,
             "refined_closure": true
           },
           {
@@ -2058,14 +2058,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "permission_set_is_subset",
-            "begin_line": 600,
+            "begin_line": 603,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "permission_set_contains",
-            "begin_line": 586,
+            "begin_line": 589,
             "refined_closure": true
           },
           {
@@ -2095,14 +2095,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "validity_window_contains",
-            "begin_line": 431,
+            "begin_line": 434,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "inclusive_window_contains",
-            "begin_line": 419,
+            "begin_line": 422,
             "refined_closure": true
           },
           {
@@ -2132,14 +2132,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "audience_set_is_subset",
-            "begin_line": 667,
+            "begin_line": 670,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "audience_set_contains",
-            "begin_line": 653,
+            "begin_line": 656,
             "refined_closure": true
           },
           {
@@ -2169,7 +2169,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "action_constraint_attenuates",
-            "begin_line": 823,
+            "begin_line": 826,
             "refined_closure": true
           },
           {
@@ -2199,7 +2199,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "status_policy_attenuates",
-            "begin_line": 1022,
+            "begin_line": 1025,
             "refined_closure": true
           },
           {
@@ -2229,7 +2229,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "assurance_policy_id_equal",
-            "begin_line": 495,
+            "begin_line": 498,
             "refined_closure": true
           },
           {
@@ -2389,7 +2389,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "optional_grant_id_equal",
-            "begin_line": 509,
+            "begin_line": 512,
             "refined_closure": true
           }
         ]
@@ -2419,7 +2419,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "profile_ref_equal",
-            "begin_line": 474,
+            "begin_line": 477,
             "refined_closure": true
           }
         ]
@@ -2442,7 +2442,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "permission_set_contains",
-            "begin_line": 586,
+            "begin_line": 589,
             "refined_closure": true
           }
         ]
@@ -2465,14 +2465,14 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "validity_window_contains",
-            "begin_line": 431,
+            "begin_line": 434,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "inclusive_window_contains",
-            "begin_line": 419,
+            "begin_line": 422,
             "refined_closure": true
           }
         ]
@@ -2495,7 +2495,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "audience_set_contains",
-            "begin_line": 653,
+            "begin_line": 656,
             "refined_closure": true
           }
         ]
@@ -2518,7 +2518,7 @@
             "role": "guard",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "action_constraint_allows",
-            "begin_line": 812,
+            "begin_line": 815,
             "refined_closure": true
           }
         ]
@@ -2594,7 +2594,7 @@
             "role": "also",
             "file": "core/crates/auths-model/src/lib.rs",
             "function": "principal_id_equal",
-            "begin_line": 197,
+            "begin_line": 200,
             "refined_closure": true
           }
         ]
@@ -2932,6 +2932,8 @@
   "translated_outside_closure": [],
   "theorem_kinds": {
     "classified": {
+      "Auths.Codec.Action.accepted_encoding_unique": "partial",
+      "Auths.Codec.Action.decode_encode_exact": "partial",
       "Auths.Codec.Refinement.Encoder.append_tail_exact": "partial",
       "Auths.Codec.Refinement.Encoder.encode_head_byte_bound": "partial",
       "Auths.Codec.Refinement.Encoder.encode_head_refines": "exact",
@@ -2985,6 +2987,7 @@
       "Auths.Refinement.Approval.translated_principal_ids_subset_refines_model": "exact",
       "Auths.Refinement.Identifier.forbidden_at_exact": "exact",
       "Auths.Refinement.Identifier.identifier_exact": "exact",
+      "Auths.Refinement.Identifier.identifier_string_exact": "partial",
       "Auths.Refinement.Identifier.identifier_unicode_exact": "partial",
       "Auths.Refinement.Identifier.scan_exact": "exact",
       "Auths.Refinement.Observation.translated_condition_test_equal_refines_model": "exact",
@@ -3027,19 +3030,19 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 336,
+    "aeneas_local_definitions": 401,
     "by_kind": {
-      "function": 222,
-      "loop": 98,
-      "derived": 16
+      "function": 282,
+      "derived": 17,
+      "loop": 102
     },
-    "refined_direct": 81,
-    "refined_closure": 227,
-    "theorems_naming_translated_functions": 92
+    "refined_direct": 83,
+    "refined_closure": 288,
+    "theorems_naming_translated_functions": 95
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "b5367e57f0386351f5faa6c58c813dfdf99743ec22eb9c744abe788812d8dff1",
+    "current_formal_inputs_sha256": "600a7da2243198e927e3a523cae34564d12155ab021cb0127b70d65d9dcbed11",
     "fresh": false,
     "campaigns": {
       "s1": {

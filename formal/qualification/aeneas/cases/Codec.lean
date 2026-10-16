@@ -1,4 +1,6 @@
 import Auths.Codec.Encoder
+import Auths.Codec.String
+import Auths.Refinement.Identifier
 import Auths.Codec.Refinement
 
 open Aeneas Aeneas.Std Result
@@ -58,5 +60,24 @@ example : auths_codec.cbor.encode_head 7#u8 18446744073709551615#u64 ⦃ result 
     ∃ output, result = .Ok output ∧
       byteList output.val = [251, 255, 255, 255, 255, 255, 255, 255, 255] ⦄ := by
   apply encoding_case <;> decide
+
+-- These exercise the exact models used by the full action extraction.
+example : alloc.string.String.Insts.CoreConvertFromShared0Str.from
+    (toStr "auths" (by change 5 ≤ U32.max; scalar_tac)) = ok "auths" := by
+  apply Auths.Codec.StringRefinement.string_copy_exact
+
+example : core.str.converts.from_utf8 (toStr "λ" (by change 2 ≤ U32.max; scalar_tac)) =
+    ok (.Ok (toStr "λ" (by change 2 ≤ U32.max; scalar_tac))) := by
+  apply Auths.Codec.StringRefinement.utf8_accepts_string
+
+private def overlongUtf8 : Slice Std.U8 := ⟨[192#u8, 128#u8], by scalar_tac⟩
+
+example : core.str.converts.from_utf8 overlongUtf8 = ok (.Err ()) := by
+  rfl
+
+private def surrogateUtf8 : Slice Std.U8 := ⟨[237#u8, 160#u8, 128#u8], by scalar_tac⟩
+
+example : core.str.converts.from_utf8 surrogateUtf8 = ok (.Err ()) := by
+  rfl
 
 end qualification.aeneas.cases

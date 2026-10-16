@@ -1,5 +1,5 @@
 import qualification.aeneas.generated.model.Funs
-import Auths.Model.IdentifierSemantics
+import Auths.Model.IdentifierString
 open Aeneas Aeneas.Std Result
 set_option maxHeartbeats 1000000
 namespace Auths.Refinement.Identifier
@@ -209,5 +209,35 @@ theorem identifier_unicode_exact (value : Str) (maximum : Std.Usize)
   rw [scan_view, represented, Auths.Model.Identifier.contains_encoded_scalars scalars bounded]
     at resultEq
   exact resultEq
+
+theorem string_representation (value : String)
+    (bounded : value.toByteArray.size ≤ U32.max) :
+    (toStr value bounded).val.map (·.val) =
+      (value.toList.map Char.toNat).flatMap Auths.Model.Identifier.utf8 := by
+  have carrier : (toStr value bounded).val.map (·.val) =
+      value.toByteArray.toList.map UInt8.toNat := by
+    unfold toStr
+    rw [List.map_map]
+    apply List.map_congr_left
+    intro byte _
+    rfl
+  rw [carrier]
+  simpa only [List.flatMap_map] using Auths.Model.Identifier.string_encoding value
+
+/-- The actual validated string carrier supplies its own UTF-8 representation;
+no caller assertion about raw `Str` bytes is needed. -/
+theorem identifier_string_exact (value : String) (maximum : Std.Usize)
+    (bounded : value.toByteArray.size ≤ U32.max) :
+    auths_model.identifier.bounded_identifier_valid (toStr value bounded) maximum
+      ⦃ result => result =
+        (!(toStr value bounded).val.isEmpty &&
+          decide ((toStr value bounded).val.length ≤ maximum.val) &&
+          !((value.toList.map Char.toNat).any
+            (fun scalar => decide (Auths.Model.Identifier.excluded scalar)))) ⦄ := by
+  apply identifier_unicode_exact _ _ (value.toList.map Char.toNat)
+    (string_representation value bounded)
+  intro scalar present
+  obtain ⟨character, _, rfl⟩ := List.mem_map.mp present
+  exact Auths.Model.Identifier.character_bound character
 
 end Auths.Refinement.Identifier

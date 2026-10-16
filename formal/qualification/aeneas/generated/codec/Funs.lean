@@ -2,6 +2,7 @@
 -- [auths_codec]: function definitions
 import Aeneas
 import qualification.aeneas.generated.codec.Types
+import qualification.aeneas.generated.codec.FunsExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -13,10 +14,1361 @@ set_option maxHeartbeats 1000000
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
 
+/- You can remove the following line by using the CLI option `-all-computable`: -/
+noncomputable section
+
 namespace auths_codec
 
+/-- Trait implementation: [core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}]
+    Source: '/rustc/library/core/src/option.rs', lines 2438:0-2438:56
+    Name pattern: [core::cmp::PartialEq<core::option::Option<@T>, core::option::Option<@T>>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialEq<core::option::Option<@T>, core::option::Option<@T>>"]
+impl_def core.option.Option.Insts.CoreCmpPartialEqOption {T : Type}
+  (cmpPartialEqInst : core.cmp.PartialEq T T) : core.cmp.PartialEq (Option T)
+  (Option T) := {
+  eq := core.option.Option.Insts.CoreCmpPartialEqOption.eq cmpPartialEqInst
+  ne := core.cmp.PartialEq.ne.trait_default
+    (core.option.Option.Insts.CoreCmpPartialEqOption cmpPartialEqInst)
+}
+
+/-- Trait implementation: [core::slice::cmp::{impl core::cmp::PartialEq<[U]> for [T]}]
+    Source: '/rustc/library/core/src/slice/cmp.rs', lines 14:0-16:28
+    Name pattern: [core::cmp::PartialEq<[@T], [@U]>] -/
+@[reducible, rust_trait_impl "core::cmp::PartialEq<[@T], [@U]>"]
+impl_def Slice.Insts.CoreCmpPartialEqSlice {T : Type} {U : Type}
+  (cmpPartialEqInst : core.cmp.PartialEq T U) : core.cmp.PartialEq (Slice T)
+  (Slice U) := {
+  eq := core.slice.cmp.PartialEqSlice.eq cmpPartialEqInst
+  ne := core.cmp.PartialEq.ne.trait_default (Slice.Insts.CoreCmpPartialEqSlice
+    cmpPartialEqInst)
+}
+
+/-- [auths_model::identifier::forbidden_three_byte_prefix]:
+    Source: 'core/crates/auths-model/src/identifier.rs', lines 9:0-9:72
+    Name pattern: [auths_model::identifier::forbidden_three_byte_prefix] -/
+@[rust_fun "auths_model::identifier::forbidden_three_byte_prefix"]
+def auths_model.identifier.forbidden_three_byte_prefix
+  (first : Std.U8) (second : Std.U8) (third : Std.U8) : Result Bool := do
+  if first = 225#u8
+  then if second = 154#u8
+       then ok (third = 128#u8)
+       else ok false
+  else
+    if first = 226#u8
+    then
+      if second = 128#u8
+      then
+        let b ←
+          if 128#u8 <= third
+          then if third <= 138#u8
+               then ok true
+               else ok false
+          else ok false
+        if b
+        then ok true
+        else
+          if third = 168#u8
+          then ok true
+          else if third = 169#u8
+               then ok true
+               else ok (third = 175#u8)
+      else if second = 129#u8
+           then ok (third = 159#u8)
+           else ok false
+    else
+      if first = 227#u8
+      then if second = 128#u8
+           then ok (third = 128#u8)
+           else ok false
+      else ok false
+
+/-- [auths_model::identifier::forbidden_identifier_at]:
+    Source: 'core/crates/auths-model/src/identifier.rs', lines 23:0-23:65
+    Name pattern: [auths_model::identifier::forbidden_identifier_at] -/
+@[rust_fun "auths_model::identifier::forbidden_identifier_at"]
+def auths_model.identifier.forbidden_identifier_at
+  (input : Slice Std.U8) (position : Std.Usize) : Result Bool := do
+  let o ←
+    core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice Std.U8) input
+      position
+  match o with
+  | none => ok false
+  | some byte =>
+    if byte <= 32#u8
+    then ok true
+    else
+      if byte = 127#u8
+      then ok true
+      else
+        let i := Slice.len input
+        let i1 ← i - position
+        if i1 < 2#usize
+        then ok false
+        else
+          let i2 ← position + 1#usize
+          let second ← Slice.index_usize input i2
+          if byte = 194#u8
+          then
+            if 128#u8 <= second
+            then if second <= 160#u8
+                 then ok true
+                 else ok false
+            else ok false
+          else
+            let i3 := Slice.len input
+            let i4 ← i3 - position
+            if i4 < 3#usize
+            then ok false
+            else
+              let i5 ← position + 2#usize
+              let i6 ← Slice.index_usize input i5
+              auths_model.identifier.forbidden_three_byte_prefix byte second i6
+
+/-- [auths_model::identifier::contains_forbidden_identifier]: loop body 0:
+    Source: 'core/crates/auths-model/src/identifier.rs', lines 46:4-53:1
+    Name pattern: [auths_model::identifier::contains_forbidden_identifier] -/
+@[rust_loop_body, rust_fun
+  "auths_model::identifier::contains_forbidden_identifier"]
+def auths_model.identifier.contains_forbidden_identifier_loop.body
+  (input : Slice Std.U8) (position : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len input
+  if position < i
+  then
+    let b ← auths_model.identifier.forbidden_identifier_at input position
+    if b
+    then ok (done true)
+    else let position1 ← position + 1#usize
+         ok (cont position1)
+  else ok (done false)
+
+/-- [auths_model::identifier::contains_forbidden_identifier]: loop 0:
+    Source: 'core/crates/auths-model/src/identifier.rs', lines 46:4-53:1
+    Name pattern: [auths_model::identifier::contains_forbidden_identifier] -/
+@[rust_loop, rust_fun "auths_model::identifier::contains_forbidden_identifier"]
+def auths_model.identifier.contains_forbidden_identifier_loop
+  (input : Slice Std.U8) (position : Std.Usize) : Result Bool := do
+  loop
+    (fun position1 =>
+      auths_model.identifier.contains_forbidden_identifier_loop.body input
+      position1)
+    position
+
+/-- [auths_model::identifier::contains_forbidden_identifier]:
+    Source: 'core/crates/auths-model/src/identifier.rs', lines 44:0-44:54
+    Name pattern: [auths_model::identifier::contains_forbidden_identifier] -/
+@[reducible, rust_fun "auths_model::identifier::contains_forbidden_identifier"]
+def auths_model.identifier.contains_forbidden_identifier
+  (input : Slice Std.U8) : Result Bool := do
+  auths_model.identifier.contains_forbidden_identifier_loop input 0#usize
+
+/-- [auths_model::identifier::bounded_identifier_valid]:
+    Source: 'core/crates/auths-model/src/identifier.rs', lines 55:0-55:75
+    Name pattern: [auths_model::identifier::bounded_identifier_valid] -/
+@[rust_fun "auths_model::identifier::bounded_identifier_valid"]
+def auths_model.identifier.bounded_identifier_valid
+  (value : Str) (maximum : Std.Usize) : Result Bool := do
+  let b ← core.str.Str.is_empty value
+  if b
+  then ok false
+  else
+    let i ← core.str.Str.len value
+    if i <= maximum
+    then
+      let s ← core.str.Str.as_bytes value
+      let b1 ← auths_model.identifier.contains_forbidden_identifier s
+      ok (¬ b1)
+    else ok false
+
+/-- [auths_model::HARD_MAX_BUNDLE_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 23:0-23:38
+    Name pattern: [auths_model::HARD_MAX_BUNDLE_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_BUNDLE_BYTES"]
+def auths_model.HARD_MAX_BUNDLE_BYTES : Result Std.Usize := do
+  let i ← 8#usize * 1024#usize
+  i * 1024#usize
+
+/-- [auths_model::HARD_MAX_ACTION_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 25:0-25:38
+    Name pattern: [auths_model::HARD_MAX_ACTION_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_ACTION_BYTES"]
+def auths_model.HARD_MAX_ACTION_BYTES : Result Std.Usize := do
+  let i ← 16#usize * 1024#usize
+  i * 1024#usize
+
+/-- [auths_model::HARD_MAX_CONTEXT_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 27:0-27:39
+    Name pattern: [auths_model::HARD_MAX_CONTEXT_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_CONTEXT_BYTES"]
+def auths_model.HARD_MAX_CONTEXT_BYTES : Result Std.Usize := do
+  let i ← 16#usize * 1024#usize
+  i * 1024#usize
+
+/-- [auths_model::HARD_MAX_GRANTS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 29:0-29:32
+    Name pattern: [auths_model::HARD_MAX_GRANTS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_GRANTS"]
+def auths_model.HARD_MAX_GRANTS : Std.Usize := 256#usize
+
+/-- [auths_model::HARD_MAX_ACTIONS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 31:0-31:33
+    Name pattern: [auths_model::HARD_MAX_ACTIONS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_ACTIONS"]
+def auths_model.HARD_MAX_ACTIONS : Std.Usize := 128#usize
+
+/-- [auths_model::HARD_MAX_PLAN_LEAVES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 33:0-33:37
+    Name pattern: [auths_model::HARD_MAX_PLAN_LEAVES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_PLAN_LEAVES"]
+def auths_model.HARD_MAX_PLAN_LEAVES : Std.Usize := 128#usize
+
+/-- [auths_model::HARD_MAX_PLAN_DEPTH]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 35:0-35:36
+    Name pattern: [auths_model::HARD_MAX_PLAN_DEPTH]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_PLAN_DEPTH"]
+def auths_model.HARD_MAX_PLAN_DEPTH : Std.Usize := 16#usize
+
+/-- [auths_model::HARD_MAX_PLAN_BRANCHING]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 37:0-37:40
+    Name pattern: [auths_model::HARD_MAX_PLAN_BRANCHING]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_PLAN_BRANCHING"]
+def auths_model.HARD_MAX_PLAN_BRANCHING : Std.Usize := 128#usize
+
+/-- [auths_model::HARD_MAX_EVIDENCE]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 39:0-39:34
+    Name pattern: [auths_model::HARD_MAX_EVIDENCE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_EVIDENCE"]
+def auths_model.HARD_MAX_EVIDENCE : Std.Usize := 512#usize
+
+/-- [auths_model::HARD_MAX_EVIDENCE_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 41:0-41:40
+    Name pattern: [auths_model::HARD_MAX_EVIDENCE_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_EVIDENCE_BYTES"]
+def auths_model.HARD_MAX_EVIDENCE_BYTES : Result Std.Usize := do
+  let i ← 2#usize * 1024#usize
+  i * 1024#usize
+
+/-- [auths_model::HARD_MAX_BINDINGS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 43:0-43:34
+    Name pattern: [auths_model::HARD_MAX_BINDINGS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_BINDINGS"]
+def auths_model.HARD_MAX_BINDINGS : Std.Usize := 512#usize
+
+/-- [auths_model::HARD_MAX_PRINCIPAL_STATUS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 45:0-45:42
+    Name pattern: [auths_model::HARD_MAX_PRINCIPAL_STATUS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_PRINCIPAL_STATUS"]
+def auths_model.HARD_MAX_PRINCIPAL_STATUS : Std.Usize := 512#usize
+
+/-- [auths_model::HARD_MAX_GRANT_STATUS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 47:0-47:38
+    Name pattern: [auths_model::HARD_MAX_GRANT_STATUS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_GRANT_STATUS"]
+def auths_model.HARD_MAX_GRANT_STATUS : Std.Usize := 512#usize
+
+/-- [auths_model::HARD_MAX_ATTACHMENTS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 49:0-49:37
+    Name pattern: [auths_model::HARD_MAX_ATTACHMENTS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_ATTACHMENTS"]
+def auths_model.HARD_MAX_ATTACHMENTS : Std.Usize := 512#usize
+
+/-- [auths_model::HARD_MAX_ATTACHMENT_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 51:0-51:42
+    Name pattern: [auths_model::HARD_MAX_ATTACHMENT_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_ATTACHMENT_BYTES"]
+def auths_model.HARD_MAX_ATTACHMENT_BYTES : Result Std.Usize := do
+  let i ← 8#usize * 1024#usize
+  i * 1024#usize
+
+/-- [auths_model::HARD_MAX_SIGNATURES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 53:0-53:36
+    Name pattern: [auths_model::HARD_MAX_SIGNATURES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_SIGNATURES"]
+def auths_model.HARD_MAX_SIGNATURES : Std.Usize := 1024#usize
+
+/-- [auths_model::HARD_MAX_SIGNATURE_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 55:0-55:41
+    Name pattern: [auths_model::HARD_MAX_SIGNATURE_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_SIGNATURE_BYTES"]
+def auths_model.HARD_MAX_SIGNATURE_BYTES : Std.Usize := 4096#usize
+
+/-- [auths_model::HARD_MAX_PERMISSIONS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 57:0-57:37
+    Name pattern: [auths_model::HARD_MAX_PERMISSIONS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_PERMISSIONS"]
+def auths_model.HARD_MAX_PERMISSIONS : Std.Usize := 1024#usize
+
+/-- [auths_model::HARD_MAX_AUDIENCES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 59:0-59:35
+    Name pattern: [auths_model::HARD_MAX_AUDIENCES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_AUDIENCES"]
+def auths_model.HARD_MAX_AUDIENCES : Std.Usize := 256#usize
+
+/-- [auths_model::HARD_MAX_EXTENSIONS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 61:0-61:36
+    Name pattern: [auths_model::HARD_MAX_EXTENSIONS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_EXTENSIONS"]
+def auths_model.HARD_MAX_EXTENSIONS : Std.Usize := 32#usize
+
+/-- [auths_model::HARD_MAX_EXTENSION_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 63:0-63:41
+    Name pattern: [auths_model::HARD_MAX_EXTENSION_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_EXTENSION_BYTES"]
+def auths_model.HARD_MAX_EXTENSION_BYTES : Std.Usize := 65536#usize
+
+/-- [auths_model::HARD_MAX_BODY_DIGESTS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 65:0-65:38
+    Name pattern: [auths_model::HARD_MAX_BODY_DIGESTS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_BODY_DIGESTS"]
+def auths_model.HARD_MAX_BODY_DIGESTS : Std.Usize := 256#usize
+
+/-- [auths_model::HARD_MAX_BINDING_EVIDENCE]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 67:0-67:42
+    Name pattern: [auths_model::HARD_MAX_BINDING_EVIDENCE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_BINDING_EVIDENCE"]
+def auths_model.HARD_MAX_BINDING_EVIDENCE : Std.Usize := 32#usize
+
+/-- [auths_model::HARD_MAX_CANONICAL_BODY_BYTES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 69:0-69:46
+    Name pattern: [auths_model::HARD_MAX_CANONICAL_BODY_BYTES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_CANONICAL_BODY_BYTES"]
+def auths_model.HARD_MAX_CANONICAL_BODY_BYTES : Result Std.Usize := do
+  let i ← 8#usize * 1024#usize
+  i * 1024#usize
+
+/-- [auths_model::HARD_MAX_WORK_UNITS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 71:0-71:34
+    Name pattern: [auths_model::HARD_MAX_WORK_UNITS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_WORK_UNITS"]
+def auths_model.HARD_MAX_WORK_UNITS : Std.U64 := 1000000#u64
+
+/-- [auths_model::HARD_MAX_REGISTRY_ENTRIES]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 73:0-73:42
+    Name pattern: [auths_model::HARD_MAX_REGISTRY_ENTRIES]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_REGISTRY_ENTRIES"]
+def auths_model.HARD_MAX_REGISTRY_ENTRIES : Std.Usize := 1024#usize
+
+/-- [auths_model::HARD_MAX_TRUST_ANCHORS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 75:0-75:39
+    Name pattern: [auths_model::HARD_MAX_TRUST_ANCHORS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_TRUST_ANCHORS"]
+def auths_model.HARD_MAX_TRUST_ANCHORS : Std.Usize := 1024#usize
+
+/-- [auths_model::HARD_MAX_APPROVALS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 78:0-78:35
+    Name pattern: [auths_model::HARD_MAX_APPROVALS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "auths_model::HARD_MAX_APPROVALS"]
+def auths_model.HARD_MAX_APPROVALS : Std.Usize := 128#usize
+
+/-- [auths_model::HARD_MAX_APPROVER_ANCHORS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 81:0-81:42
+    Name pattern: [auths_model::HARD_MAX_APPROVER_ANCHORS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_APPROVER_ANCHORS"]
+def auths_model.HARD_MAX_APPROVER_ANCHORS : Std.Usize := 32#usize
+
+/-- [auths_model::HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 84:0-84:55
+    Name pattern: [auths_model::HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "auths_model::HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS"]
+def auths_model.HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS : Std.Usize := 4#usize
+
+/-- [auths_model::{auths_model::MediaType}::parse]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Name pattern: [auths_model::{auths_model::MediaType}::parse]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::MediaType}::parse"]
+def auths_model.MediaType.parse
+  (value : Str) :
+  Result (core.result.Result auths_model.MediaType auths_model.ModelError)
+  := do
+  let b ← auths_model.identifier.bounded_identifier_valid value 128#usize
+  if b
+  then
+    let s ← alloc.string.String.Insts.CoreConvertFromShared0Str.from value
+    ok (core.result.Result.Ok s)
+  else ok (core.result.Result.Err auths_model.ModelError.InvalidMediaType)
+
+/-- [auths_model::{auths_model::ProfileId}::parse]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Name pattern: [auths_model::{auths_model::ProfileId}::parse]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ProfileId}::parse"]
+def auths_model.ProfileId.parse
+  (value : Str) :
+  Result (core.result.Result auths_model.ProfileId auths_model.ModelError)
+  := do
+  let b ← auths_model.identifier.bounded_identifier_valid value 128#usize
+  if b
+  then
+    let s ← alloc.string.String.Insts.CoreConvertFromShared0Str.from value
+    ok (core.result.Result.Ok s)
+  else ok (core.result.Result.Err auths_model.ModelError.InvalidProfile)
+
+/-- [auths_model::{auths_model::CapabilityId}::parse]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Name pattern: [auths_model::{auths_model::CapabilityId}::parse]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CapabilityId}::parse"]
+def auths_model.CapabilityId.parse
+  (value : Str) :
+  Result (core.result.Result auths_model.CapabilityId auths_model.ModelError)
+  := do
+  let b ← auths_model.identifier.bounded_identifier_valid value 128#usize
+  if b
+  then
+    let s ← alloc.string.String.Insts.CoreConvertFromShared0Str.from value
+    ok (core.result.Result.Ok s)
+  else ok (core.result.Result.Err auths_model.ModelError.InvalidCapability)
+
+/-- [auths_model::{auths_model::ResourceId}::parse]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Name pattern: [auths_model::{auths_model::ResourceId}::parse]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ResourceId}::parse"]
+def auths_model.ResourceId.parse
+  (value : Str) :
+  Result (core.result.Result auths_model.ResourceId auths_model.ModelError)
+  := do
+  let b ← auths_model.identifier.bounded_identifier_valid value 1024#usize
+  if b
+  then
+    let s ← alloc.string.String.Insts.CoreConvertFromShared0Str.from value
+    ok (core.result.Result.Ok s)
+  else ok (core.result.Result.Err auths_model.ModelError.InvalidResource)
+
+/-- [auths_model::{auths_model::BudgetAlgebraId}::parse]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 138:12-138:65
+    Name pattern: [auths_model::{auths_model::BudgetAlgebraId}::parse]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::BudgetAlgebraId}::parse"]
+def auths_model.BudgetAlgebraId.parse
+  (value : Str) :
+  Result (core.result.Result auths_model.BudgetAlgebraId
+    auths_model.ModelError)
+  := do
+  let b ← auths_model.identifier.bounded_identifier_valid value 128#usize
+  if b
+  then
+    let s ← alloc.string.String.Insts.CoreConvertFromShared0Str.from value
+    ok (core.result.Result.Ok s)
+  else ok (core.result.Result.Err auths_model.ModelError.InvalidRegistryId)
+
+/-- [auths_model::{auths_model::MediaType}::as_str]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Name pattern: [auths_model::{auths_model::MediaType}::as_str]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::MediaType}::as_str"]
+def auths_model.MediaType.as_str
+  (self : auths_model.MediaType) : Result Str := do
+  alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
+
+/-- [auths_model::{auths_model::ProfileId}::as_str]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Name pattern: [auths_model::{auths_model::ProfileId}::as_str]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ProfileId}::as_str"]
+def auths_model.ProfileId.as_str
+  (self : auths_model.ProfileId) : Result Str := do
+  alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
+
+/-- [auths_model::{auths_model::CapabilityId}::as_str]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Name pattern: [auths_model::{auths_model::CapabilityId}::as_str]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CapabilityId}::as_str"]
+def auths_model.CapabilityId.as_str
+  (self : auths_model.CapabilityId) : Result Str := do
+  alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
+
+/-- [auths_model::{auths_model::ResourceId}::as_str]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Name pattern: [auths_model::{auths_model::ResourceId}::as_str]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ResourceId}::as_str"]
+def auths_model.ResourceId.as_str
+  (self : auths_model.ResourceId) : Result Str := do
+  alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
+
+/-- [auths_model::{auths_model::BudgetAlgebraId}::as_str]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 146:12-146:40
+    Name pattern: [auths_model::{auths_model::BudgetAlgebraId}::as_str]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::BudgetAlgebraId}::as_str"]
+def auths_model.BudgetAlgebraId.as_str
+  (self : auths_model.BudgetAlgebraId) : Result Str := do
+  alloc.string.String.Insts.CoreOpsDerefDerefStr.deref self
+
+/-- [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 246:33-246:42
+    Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::PartialEq<auths_model::Digest, auths_model::Digest>}::eq"]
+def auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq
+  (self : auths_model.Digest) (other : auths_model.Digest) : Result Bool := do
+  core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 self other
+
+/-- [auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 246:44-246:47
+    Name pattern: [auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp]
+    Visibility: public -/
+@[rust_fun "auths_model::{core::cmp::Ord<auths_model::Digest>}::cmp"]
+def auths_model.Digest.Insts.CoreCmpOrd.cmp
+  (self : auths_model.Digest) (other : auths_model.Digest) :
+  Result Ordering
+  := do
+  Array.Insts.CoreCmpOrd.cmp core.cmp.OrdU8 self other
+
+/-- [auths_model::{auths_model::Digest}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 253:4-253:45
+    Name pattern: [auths_model::{auths_model::Digest}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::Digest}::new"]
+def auths_model.Digest.new
+  (bytes : Array Std.U8 32#usize) : Result auths_model.Digest := do
+  ok bytes
+
+/-- [auths_model::{auths_model::Digest}::as_bytes]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 258:4-258:45
+    Name pattern: [auths_model::{auths_model::Digest}::as_bytes]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::Digest}::as_bytes"]
+def auths_model.Digest.as_bytes
+  (self : auths_model.Digest) : Result (Array Std.U8 32#usize) := do
+  ok self
+
+/-- [auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::eq]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Name pattern: [auths_model::{core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>}::eq"]
+def auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest.eq
+  (self : auths_model.AttachmentDigest) (other : auths_model.AttachmentDigest)
+  :
+  Result Bool
+  := do
+  auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq self other
+
+/-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:41-265:50
+    Name pattern: [core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialEq<auths_model::AttachmentDigest, auths_model::AttachmentDigest>"]
+impl_def auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest :
+  core.cmp.PartialEq auths_model.AttachmentDigest auths_model.AttachmentDigest
+  := {
+  eq := auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest
+}
+
+/-- [auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}::assert_fields_are_eq]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Name pattern: [auths_model::{core::cmp::Eq<auths_model::AttachmentDigest>}::assert_fields_are_eq]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::Eq<auths_model::AttachmentDigest>}::assert_fields_are_eq"]
+def auths_model.AttachmentDigest.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : auths_model.AttachmentDigest) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:37-265:39
+    Name pattern: [core::cmp::Eq<auths_model::AttachmentDigest>] -/
+@[reducible, rust_trait_impl "core::cmp::Eq<auths_model::AttachmentDigest>"]
+def auths_model.AttachmentDigest.Insts.CoreCmpEq : core.cmp.Eq
+  auths_model.AttachmentDigest := {
+  partialEqInst :=
+    auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest
+  assert_fields_are_eq :=
+    auths_model.AttachmentDigest.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- [auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}::cmp]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Name pattern: [auths_model::{core::cmp::Ord<auths_model::AttachmentDigest>}::cmp]
+    Visibility: public -/
+@[rust_fun "auths_model::{core::cmp::Ord<auths_model::AttachmentDigest>}::cmp"]
+def auths_model.AttachmentDigest.Insts.CoreCmpOrd.cmp
+  (self : auths_model.AttachmentDigest) (other : auths_model.AttachmentDigest)
+  :
+  Result Ordering
+  := do
+  auths_model.Digest.Insts.CoreCmpOrd.cmp self other
+
+/-- [auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::partial_cmp]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Name pattern: [auths_model::{core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>}::partial_cmp]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>}::partial_cmp"]
+def
+  auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest.partial_cmp
+  (self : auths_model.AttachmentDigest) (other : auths_model.AttachmentDigest)
+  :
+  Result (Option Ordering)
+  := do
+  let o ← auths_model.AttachmentDigest.Insts.CoreCmpOrd.cmp self other
+  ok (some o)
+
+/-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:57-265:67
+    Name pattern: [core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialOrd<auths_model::AttachmentDigest, auths_model::AttachmentDigest>"]
+def auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest :
+  core.cmp.PartialOrd auths_model.AttachmentDigest auths_model.AttachmentDigest
+  := {
+  partialEqInst :=
+    auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest
+  partial_cmp :=
+    auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest.partial_cmp
+}
+
+/-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 265:52-265:55
+    Name pattern: [core::cmp::Ord<auths_model::AttachmentDigest>] -/
+@[reducible, rust_trait_impl "core::cmp::Ord<auths_model::AttachmentDigest>"]
+def auths_model.AttachmentDigest.Insts.CoreCmpOrd : core.cmp.Ord
+  auths_model.AttachmentDigest := {
+  eqInst := auths_model.AttachmentDigest.Insts.CoreCmpEq
+  partialOrdInst :=
+    auths_model.AttachmentDigest.Insts.CoreCmpPartialOrdAttachmentDigest
+  cmp := auths_model.AttachmentDigest.Insts.CoreCmpOrd.cmp
+}
+
+/-- [auths_model::{auths_model::AttachmentDigest}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 270:12-270:53
+    Name pattern: [auths_model::{auths_model::AttachmentDigest}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::AttachmentDigest}::new"]
+def auths_model.AttachmentDigest.new
+  (bytes : Array Std.U8 32#usize) : Result auths_model.AttachmentDigest := do
+  let d ← auths_model.Digest.new bytes
+  ok d
+
+/-- [auths_model::{auths_model::AttachmentDigest}::as_bytes]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 285:12-285:53
+    Name pattern: [auths_model::{auths_model::AttachmentDigest}::as_bytes]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::AttachmentDigest}::as_bytes"]
+def auths_model.AttachmentDigest.as_bytes
+  (self : auths_model.AttachmentDigest) : Result (Array Std.U8 32#usize) := do
+  auths_model.Digest.as_bytes self
+
+/-- [auths_model::{auths_model::ProfileRef}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 456:4-456:71
+    Name pattern: [auths_model::{auths_model::ProfileRef}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ProfileRef}::new"]
+def auths_model.ProfileRef.new
+  (id : auths_model.ProfileId) (version : Std.U16) :
+  Result (core.result.Result auths_model.ProfileRef auths_model.ModelError)
+  := do
+  if version = 0#u16
+  then ok (core.result.Result.Err auths_model.ModelError.InvalidProfile)
+  else ok (core.result.Result.Ok { id, version })
+
+/-- [auths_model::{auths_model::ProfileRef}::id]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 464:4-464:40
+    Name pattern: [auths_model::{auths_model::ProfileRef}::id]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ProfileRef}::id"]
+def auths_model.ProfileRef.impl.id
+  (self : auths_model.ProfileRef) : Result auths_model.ProfileId := do
+  ok self.id
+
+/-- [auths_model::{auths_model::ProfileRef}::version]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 469:4-469:38
+    Name pattern: [auths_model::{auths_model::ProfileRef}::version]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::ProfileRef}::version"]
+def auths_model.ProfileRef.impl.version
+  (self : auths_model.ProfileRef) : Result Std.U16 := do
+  ok self.version
+
+/-- [auths_model::{auths_model::Permission}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 528:4-528:76
+    Name pattern: [auths_model::{auths_model::Permission}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::Permission}::new"]
+def auths_model.Permission.new
+  (capability : auths_model.CapabilityId) (resource : auths_model.ResourceId) :
+  Result auths_model.Permission
+  := do
+  ok { capability, resource }
+
+/-- [auths_model::{auths_model::Permission}::capability]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 536:4-536:51
+    Name pattern: [auths_model::{auths_model::Permission}::capability]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::Permission}::capability"]
+def auths_model.Permission.impl.capability
+  (self : auths_model.Permission) : Result auths_model.CapabilityId := do
+  ok self.capability
+
+/-- [auths_model::{auths_model::Permission}::resource]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 541:4-541:47
+    Name pattern: [auths_model::{auths_model::Permission}::resource]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::Permission}::resource"]
+def auths_model.Permission.impl.resource
+  (self : auths_model.Permission) : Result auths_model.ResourceId := do
+  ok self.resource
+
+/-- [auths_model::{auths_model::BudgetCeiling}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 856:4-856:66
+    Name pattern: [auths_model::{auths_model::BudgetCeiling}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::BudgetCeiling}::new"]
+def auths_model.BudgetCeiling.new
+  (algebra : auths_model.BudgetAlgebraId) (value : Std.U64) :
+  Result auths_model.BudgetCeiling
+  := do
+  ok { algebra, value }
+
+/-- [auths_model::{auths_model::BudgetCeiling}::algebra]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 861:4-861:51
+    Name pattern: [auths_model::{auths_model::BudgetCeiling}::algebra]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::BudgetCeiling}::algebra"]
+def auths_model.BudgetCeiling.impl.algebra
+  (self : auths_model.BudgetCeiling) : Result auths_model.BudgetAlgebraId := do
+  ok self.algebra
+
+/-- [auths_model::{auths_model::BudgetCeiling}::value]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 866:4-866:36
+    Name pattern: [auths_model::{auths_model::BudgetCeiling}::value]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::BudgetCeiling}::value"]
+def auths_model.BudgetCeiling.impl.value
+  (self : auths_model.BudgetCeiling) : Result Std.U64 := do
+  ok self.value
+
+/-- [auths_model::{auths_model::DetachedAttachment}::bytes]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2847:4-2847:32
+    Name pattern: [auths_model::{auths_model::DetachedAttachment}::bytes]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::DetachedAttachment}::bytes"]
+def auths_model.DetachedAttachment.impl.bytes
+  (self : auths_model.DetachedAttachment) : Result (Slice Std.U8) := do
+  ok (alloc.vec.Vec.deref self.bytes)
+
+/-- [auths_model::{auths_model::DetachedAttachment}::digest]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2841:4-2841:50
+    Name pattern: [auths_model::{auths_model::DetachedAttachment}::digest]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::DetachedAttachment}::digest"]
+def auths_model.DetachedAttachment.impl.digest
+  (self : auths_model.DetachedAttachment) :
+  Result auths_model.AttachmentDigest
+  := do
+  ok self.digest
+
+/-- [auths_model::canonical_attachments_valid]: loop body 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1642:4-1656:1
+    Name pattern: [auths_model::canonical_attachments_valid] -/
+@[rust_loop_body, rust_fun "auths_model::canonical_attachments_valid"]
+def auths_model.canonical_attachments_valid_loop.body
+  (attachments : Slice auths_model.DetachedAttachment) (index : Std.Usize)
+  (total : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Bool)
+  := do
+  let i := Slice.len attachments
+  if index < i
+  then
+    if index > 0#usize
+    then
+      let i1 ← index - 1#usize
+      let da ← Slice.index_usize attachments i1
+      let ad ← auths_model.DetachedAttachment.impl.digest da
+      let da1 ← Slice.index_usize attachments index
+      let ad1 ← auths_model.DetachedAttachment.impl.digest da1
+      let b ←
+        auths_model.AttachmentDigest.Insts.CoreCmpPartialEqAttachmentDigest.eq
+          ad ad1
+      if b
+      then ok (done false)
+      else
+        let s ← auths_model.DetachedAttachment.impl.bytes da1
+        let i2 := Slice.len s
+        let o ← lift (Usize.checked_add total i2)
+        match o with
+        | none => ok (done false)
+        | some value =>
+          let i3 ← auths_model.HARD_MAX_ATTACHMENT_BYTES
+          if value > i3
+          then ok (done false)
+          else let index1 ← index + 1#usize
+               ok (cont (index1, value))
+    else
+      let da ← Slice.index_usize attachments index
+      let s ← auths_model.DetachedAttachment.impl.bytes da
+      let i1 := Slice.len s
+      let o ← lift (Usize.checked_add total i1)
+      match o with
+      | none => ok (done false)
+      | some value =>
+        let i2 ← auths_model.HARD_MAX_ATTACHMENT_BYTES
+        if value > i2
+        then ok (done false)
+        else let index1 ← index + 1#usize
+             ok (cont (index1, value))
+  else ok (done true)
+
+/-- [auths_model::canonical_attachments_valid]: loop 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1642:4-1656:1
+    Name pattern: [auths_model::canonical_attachments_valid] -/
+@[rust_loop, rust_fun "auths_model::canonical_attachments_valid"]
+def auths_model.canonical_attachments_valid_loop
+  (attachments : Slice auths_model.DetachedAttachment) (index : Std.Usize)
+  (total : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (index1, total1) => auths_model.canonical_attachments_valid_loop.body
+      attachments index1 total1)
+    (index, total)
+
+/-- [auths_model::canonical_attachments_valid]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1639:0-1639:74
+    Name pattern: [auths_model::canonical_attachments_valid] -/
+@[reducible, rust_fun "auths_model::canonical_attachments_valid"]
+def auths_model.canonical_attachments_valid
+  (attachments : Slice auths_model.DetachedAttachment) : Result Bool := do
+  auths_model.canonical_attachments_valid_loop attachments 0#usize 0#usize
+
+/-- [auths_model::{auths_model::CanonicalAction}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1665:4-1671:33
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::new"]
+def auths_model.CanonicalAction.new
+  (profile : auths_model.ProfileRef) (media_type : auths_model.MediaType)
+  (body : alloc.vec.Vec Std.U8) (permission : auths_model.Permission)
+  (requested_budget : Option auths_model.BudgetCeiling) :
+  Result (core.result.Result auths_model.CanonicalAction
+    auths_model.ModelError)
+  := do
+  let b ← alloc.vec.Vec.is_empty Global body
+  if b
+  then
+    ok (core.result.Result.Err auths_model.ModelError.InvalidCanonicalAction)
+  else
+    let i := alloc.vec.Vec.len body
+    let i1 ← auths_model.HARD_MAX_CANONICAL_BODY_BYTES
+    if i > i1
+    then
+      ok (core.result.Result.Err auths_model.ModelError.InvalidCanonicalAction)
+    else
+      ok (core.result.Result.Ok
+        {
+          profile,
+          media_type,
+          body,
+          permission,
+          requested_budget,
+          detached_attachments :=
+            (alloc.vec.Vec.new auths_model.DetachedAttachment)
+        })
+
+/-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_mut]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_mut] -/
+@[rust_fun
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_mut"]
+def
+  auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest.call_mut
+  (c : auths_model.CanonicalAction.with_detached_attachments.closure)
+  (tupled_args : auths_model.DetachedAttachment) :
+  Result (auths_model.AttachmentDigest ×
+    auths_model.CanonicalAction.with_detached_attachments.closure)
+  := do
+  let ad ← auths_model.DetachedAttachment.impl.digest tupled_args
+  ok (ad, c)
+
+/-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_once]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_once] -/
+@[rust_fun
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>}::call_once"]
+def
+  auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnOnceTupleSharedDetachedAttachmentAttachmentDigest.call_once
+  (c : auths_model.CanonicalAction.with_detached_attachments.closure)
+  (da : auths_model.DetachedAttachment) :
+  Result auths_model.AttachmentDigest
+  := do
+  let (ad, _) ←
+    auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest.call_mut
+      c da
+  ok ad
+
+/-- Trait implementation: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Name pattern: [core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnOnce<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>"]
+def
+  auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnOnceTupleSharedDetachedAttachmentAttachmentDigest
+  : core.ops.function.FnOnce
+  auths_model.CanonicalAction.with_detached_attachments.closure
+  auths_model.DetachedAttachment auths_model.AttachmentDigest := {
+  call_once :=
+    auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnOnceTupleSharedDetachedAttachmentAttachmentDigest.call_once
+}
+
+/-- Trait implementation: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1701:32-1701:44
+    Name pattern: [core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>] -/
+@[reducible, rust_trait_impl
+  "core::ops::function::FnMut<auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure, (&'_ auths_model::DetachedAttachment), auths_model::AttachmentDigest>"]
+def
+  auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest
+  : core.ops.function.FnMut
+  auths_model.CanonicalAction.with_detached_attachments.closure
+  auths_model.DetachedAttachment auths_model.AttachmentDigest := {
+  FnOnceInst :=
+    auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnOnceTupleSharedDetachedAttachmentAttachmentDigest
+  call_mut :=
+    auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest.call_mut
+}
+
+/-- [auths_model::{auths_model::CanonicalAction}::with_detached_attachments]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1692:4-1695:33
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::with_detached_attachments]
+    Visibility: public -/
+@[rust_fun
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments"]
+def auths_model.CanonicalAction.with_detached_attachments
+  (self : auths_model.CanonicalAction)
+  (attachments : alloc.vec.Vec auths_model.DetachedAttachment) :
+  Result (core.result.Result auths_model.CanonicalAction
+    auths_model.ModelError)
+  := do
+  let i := alloc.vec.Vec.len attachments
+  if i > auths_model.HARD_MAX_ATTACHMENTS
+  then ok (core.result.Result.Err auths_model.ModelError.InvalidAttachment)
+  else
+    let (s, deref_mut_back) ← lift (alloc.vec.Vec.deref_mut attachments)
+    let s1 ←
+      alloc.slice.Slice.sort_by_key
+        auths_model.CanonicalAction.with_detached_attachments.closure.Insts.CoreOpsFunctionFnMutTupleSharedDetachedAttachmentAttachmentDigest
+        auths_model.AttachmentDigest.Insts.CoreCmpOrd s ()
+    let attachments1 := deref_mut_back s1
+    let s2 := alloc.vec.Vec.deref attachments1
+    let b ← auths_model.canonical_attachments_valid s2
+    if b
+    then
+      ok (core.result.Result.Ok
+        { self with detached_attachments := attachments1 })
+    else ok (core.result.Result.Err auths_model.ModelError.InvalidAttachment)
+
+/-- [auths_model::{auths_model::CanonicalAction}::profile]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1713:4-1713:46
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::profile]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::profile"]
+def auths_model.CanonicalAction.impl.profile
+  (self : auths_model.CanonicalAction) : Result auths_model.ProfileRef := do
+  ok self.profile
+
+/-- [auths_model::{auths_model::CanonicalAction}::media_type]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1719:4-1719:48
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::media_type]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::media_type"]
+def auths_model.CanonicalAction.impl.media_type
+  (self : auths_model.CanonicalAction) : Result auths_model.MediaType := do
+  ok self.media_type
+
+/-- [auths_model::{auths_model::CanonicalAction}::body]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1725:4-1725:31
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::body]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::body"]
+def auths_model.CanonicalAction.impl.body
+  (self : auths_model.CanonicalAction) : Result (Slice Std.U8) := do
+  ok (alloc.vec.Vec.deref self.body)
+
+/-- [auths_model::{auths_model::CanonicalAction}::permission]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1731:4-1731:49
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::permission]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::permission"]
+def auths_model.CanonicalAction.impl.permission
+  (self : auths_model.CanonicalAction) : Result auths_model.Permission := do
+  ok self.permission
+
+/-- [auths_model::{auths_model::CanonicalAction}::requested_budget]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1737:4-1737:66
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::requested_budget]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::requested_budget"]
+def auths_model.CanonicalAction.impl.requested_budget
+  (self : auths_model.CanonicalAction) :
+  Result (Option auths_model.BudgetCeiling)
+  := do
+  core.option.Option.as_ref self.requested_budget
+
+/-- [auths_model::{auths_model::CanonicalAction}::detached_attachments]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1743:4-1743:63
+    Name pattern: [auths_model::{auths_model::CanonicalAction}::detached_attachments]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::CanonicalAction}::detached_attachments"]
+def auths_model.CanonicalAction.impl.detached_attachments
+  (self : auths_model.CanonicalAction) :
+  Result (Slice auths_model.DetachedAttachment)
+  := do
+  ok (alloc.vec.Vec.deref self.detached_attachments)
+
+/-- [auths_model::{auths_model::DetachedAttachment}::new]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 2832:4-2832:84
+    Name pattern: [auths_model::{auths_model::DetachedAttachment}::new]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::DetachedAttachment}::new"]
+def auths_model.DetachedAttachment.new
+  (digest : auths_model.AttachmentDigest) (bytes : alloc.vec.Vec Std.U8) :
+  Result (core.result.Result auths_model.DetachedAttachment
+    auths_model.ModelError)
+  := do
+  let b ← alloc.vec.Vec.is_empty Global bytes
+  if b
+  then ok (core.result.Result.Err auths_model.ModelError.InvalidAttachment)
+  else
+    let i := alloc.vec.Vec.len bytes
+    let i1 ← auths_model.HARD_MAX_BUNDLE_BYTES
+    if i > i1
+    then ok (core.result.Result.Err auths_model.ModelError.InvalidAttachment)
+    else ok (core.result.Result.Ok { digest, bytes })
+
+/-- [auths_model::{auths_model::VerifierLimits}::hard]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3683:4-3683:31
+    Name pattern: [auths_model::{auths_model::VerifierLimits}::hard]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::VerifierLimits}::hard"]
+def auths_model.VerifierLimits.hard : Result auths_model.VerifierLimits := do
+  let i ← auths_model.HARD_MAX_BUNDLE_BYTES
+  let i1 ← auths_model.HARD_MAX_ACTION_BYTES
+  let i2 ← auths_model.HARD_MAX_CONTEXT_BYTES
+  let i3 ← auths_model.HARD_MAX_EVIDENCE_BYTES
+  let i4 ← auths_model.HARD_MAX_ATTACHMENT_BYTES
+  let i5 ← auths_model.HARD_MAX_CANONICAL_BODY_BYTES
+  ok
+    {
+      bundle_bytes := i,
+      action_bytes := i1,
+      context_bytes := i2,
+      grants := auths_model.HARD_MAX_GRANTS,
+      actions := auths_model.HARD_MAX_ACTIONS,
+      plan_leaves := auths_model.HARD_MAX_PLAN_LEAVES,
+      plan_depth := auths_model.HARD_MAX_PLAN_DEPTH,
+      plan_branching := auths_model.HARD_MAX_PLAN_BRANCHING,
+      evidence := auths_model.HARD_MAX_EVIDENCE,
+      evidence_bytes := i3,
+      bindings := auths_model.HARD_MAX_BINDINGS,
+      principal_status := auths_model.HARD_MAX_PRINCIPAL_STATUS,
+      grant_status := auths_model.HARD_MAX_GRANT_STATUS,
+      attachments := auths_model.HARD_MAX_ATTACHMENTS,
+      attachment_bytes := i4,
+      signatures := auths_model.HARD_MAX_SIGNATURES,
+      signature_bytes := auths_model.HARD_MAX_SIGNATURE_BYTES,
+      permissions := auths_model.HARD_MAX_PERMISSIONS,
+      audiences := auths_model.HARD_MAX_AUDIENCES,
+      extensions := auths_model.HARD_MAX_EXTENSIONS,
+      extension_bytes := auths_model.HARD_MAX_EXTENSION_BYTES,
+      body_digests := auths_model.HARD_MAX_BODY_DIGESTS,
+      binding_evidence := auths_model.HARD_MAX_BINDING_EVIDENCE,
+      canonical_body_bytes := i5,
+      registry_entries := auths_model.HARD_MAX_REGISTRY_ENTRIES,
+      trust_anchors := auths_model.HARD_MAX_TRUST_ANCHORS,
+      work_units := auths_model.HARD_MAX_WORK_UNITS,
+      approvals := auths_model.HARD_MAX_APPROVALS,
+      approver_anchors := auths_model.HARD_MAX_APPROVER_ANCHORS,
+      approval_requirements :=
+        auths_model.HARD_MAX_CONTEXT_APPROVAL_REQUIREMENTS
+    }
+
+/-- [auths_model::{auths_model::VerifierLimits}::get]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3774:4-3774:53
+    Name pattern: [auths_model::{auths_model::VerifierLimits}::get]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::VerifierLimits}::get"]
+def auths_model.VerifierLimits.get
+  (self : auths_model.VerifierLimits) (kind : auths_model.LimitKind) :
+  Result Std.Usize
+  := do
+  match kind with
+  | auths_model.LimitKind.BundleBytes => ok self.bundle_bytes
+  | auths_model.LimitKind.ActionBytes => ok self.action_bytes
+  | auths_model.LimitKind.ContextBytes => ok self.context_bytes
+  | auths_model.LimitKind.Grants => ok self.grants
+  | auths_model.LimitKind.Actions => ok self.actions
+  | auths_model.LimitKind.PlanLeaves => ok self.plan_leaves
+  | auths_model.LimitKind.PlanDepth => ok self.plan_depth
+  | auths_model.LimitKind.PlanBranching => ok self.plan_branching
+  | auths_model.LimitKind.EvidenceObjects => ok self.evidence
+  | auths_model.LimitKind.EvidenceBytes => ok self.evidence_bytes
+  | auths_model.LimitKind.ControlBindings => ok self.bindings
+  | auths_model.LimitKind.PrincipalStatusStatements => ok self.principal_status
+  | auths_model.LimitKind.GrantStatusStatements => ok self.grant_status
+  | auths_model.LimitKind.Attachments => ok self.attachments
+  | auths_model.LimitKind.AttachmentBytes => ok self.attachment_bytes
+  | auths_model.LimitKind.Signatures => ok self.signatures
+  | auths_model.LimitKind.SignatureBytes => ok self.signature_bytes
+  | auths_model.LimitKind.Permissions => ok self.permissions
+  | auths_model.LimitKind.Audiences => ok self.audiences
+  | auths_model.LimitKind.CriticalExtensions => ok self.extensions
+  | auths_model.LimitKind.CriticalExtensionBytes => ok self.extension_bytes
+  | auths_model.LimitKind.AllowedBodyDigests => ok self.body_digests
+  | auths_model.LimitKind.BindingEvidence => ok self.binding_evidence
+  | auths_model.LimitKind.CanonicalBodyBytes => ok self.canonical_body_bytes
+  | auths_model.LimitKind.RegistryEntries => ok self.registry_entries
+  | auths_model.LimitKind.TrustAnchors => ok self.trust_anchors
+  | auths_model.LimitKind.Approvals => ok self.approvals
+  | auths_model.LimitKind.ApproverAnchors => ok self.approver_anchors
+  | auths_model.LimitKind.ApprovalRequirements => ok self.approval_requirements
+
+/-- [auths_model::{auths_model::VerifierLimits}::validate]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 3821:4-3821:52
+    Name pattern: [auths_model::{auths_model::VerifierLimits}::validate]
+    Visibility: public -/
+@[rust_fun "auths_model::{auths_model::VerifierLimits}::validate"]
+def auths_model.VerifierLimits.validate
+  (self : auths_model.VerifierLimits) :
+  Result (core.result.Result Unit auths_model.ModelError)
+  := do
+  let hard ← auths_model.VerifierLimits.hard
+  if self.bundle_bytes > hard.bundle_bytes
+  then
+    ok (core.result.Result.Err auths_model.ModelError.CollectionLimitExceeded)
+  else
+    if self.action_bytes > hard.action_bytes
+    then
+      ok (core.result.Result.Err
+        auths_model.ModelError.CollectionLimitExceeded)
+    else
+      if self.context_bytes > hard.context_bytes
+      then
+        ok (core.result.Result.Err
+          auths_model.ModelError.CollectionLimitExceeded)
+      else
+        if self.grants > hard.grants
+        then
+          ok (core.result.Result.Err
+            auths_model.ModelError.CollectionLimitExceeded)
+        else
+          if self.actions > hard.actions
+          then
+            ok (core.result.Result.Err
+              auths_model.ModelError.CollectionLimitExceeded)
+          else
+            if self.plan_leaves > hard.plan_leaves
+            then
+              ok (core.result.Result.Err
+                auths_model.ModelError.CollectionLimitExceeded)
+            else
+              if self.plan_depth > hard.plan_depth
+              then
+                ok (core.result.Result.Err
+                  auths_model.ModelError.CollectionLimitExceeded)
+              else
+                if self.plan_branching > hard.plan_branching
+                then
+                  ok (core.result.Result.Err
+                    auths_model.ModelError.CollectionLimitExceeded)
+                else
+                  if self.evidence > hard.evidence
+                  then
+                    ok (core.result.Result.Err
+                      auths_model.ModelError.CollectionLimitExceeded)
+                  else
+                    if self.evidence_bytes > hard.evidence_bytes
+                    then
+                      ok (core.result.Result.Err
+                        auths_model.ModelError.CollectionLimitExceeded)
+                    else
+                      if self.bindings > hard.bindings
+                      then
+                        ok (core.result.Result.Err
+                          auths_model.ModelError.CollectionLimitExceeded)
+                      else
+                        if self.principal_status > hard.principal_status
+                        then
+                          ok (core.result.Result.Err
+                            auths_model.ModelError.CollectionLimitExceeded)
+                        else
+                          if self.grant_status > hard.grant_status
+                          then
+                            ok (core.result.Result.Err
+                              auths_model.ModelError.CollectionLimitExceeded)
+                          else
+                            if self.attachments > hard.attachments
+                            then
+                              ok (core.result.Result.Err
+                                auths_model.ModelError.CollectionLimitExceeded)
+                            else
+                              if self.attachment_bytes > hard.attachment_bytes
+                              then
+                                ok (core.result.Result.Err
+                                  auths_model.ModelError.CollectionLimitExceeded)
+                              else
+                                if self.signatures > hard.signatures
+                                then
+                                  ok (core.result.Result.Err
+                                    auths_model.ModelError.CollectionLimitExceeded)
+                                else
+                                  if self.signature_bytes >
+                                    hard.signature_bytes
+                                  then
+                                    ok (core.result.Result.Err
+                                      auths_model.ModelError.CollectionLimitExceeded)
+                                  else
+                                    if self.permissions > hard.permissions
+                                    then
+                                      ok (core.result.Result.Err
+                                        auths_model.ModelError.CollectionLimitExceeded)
+                                    else
+                                      if self.audiences > hard.audiences
+                                      then
+                                        ok (core.result.Result.Err
+                                          auths_model.ModelError.CollectionLimitExceeded)
+                                      else
+                                        if self.extensions > hard.extensions
+                                        then
+                                          ok (core.result.Result.Err
+                                            auths_model.ModelError.CollectionLimitExceeded)
+                                        else
+                                          if self.extension_bytes >
+                                            hard.extension_bytes
+                                          then
+                                            ok (core.result.Result.Err
+                                              auths_model.ModelError.CollectionLimitExceeded)
+                                          else
+                                            if self.body_digests >
+                                              hard.body_digests
+                                            then
+                                              ok (core.result.Result.Err
+                                                auths_model.ModelError.CollectionLimitExceeded)
+                                            else
+                                              if self.binding_evidence >
+                                                hard.binding_evidence
+                                              then
+                                                ok (core.result.Result.Err
+                                                  auths_model.ModelError.CollectionLimitExceeded)
+                                              else
+                                                if self.canonical_body_bytes >
+                                                  hard.canonical_body_bytes
+                                                then
+                                                  ok (core.result.Result.Err
+                                                    auths_model.ModelError.CollectionLimitExceeded)
+                                                else
+                                                  if self.registry_entries >
+                                                    hard.registry_entries
+                                                  then
+                                                    ok (core.result.Result.Err
+                                                      auths_model.ModelError.CollectionLimitExceeded)
+                                                  else
+                                                    if self.trust_anchors >
+                                                      hard.trust_anchors
+                                                    then
+                                                      ok
+                                                        (core.result.Result.Err
+                                                        auths_model.ModelError.CollectionLimitExceeded)
+                                                    else
+                                                      if self.approvals >
+                                                        hard.approvals
+                                                      then
+                                                        ok
+                                                          (core.result.Result.Err
+                                                          auths_model.ModelError.CollectionLimitExceeded)
+                                                      else
+                                                        if
+                                                          self.approver_anchors
+                                                          >
+                                                          hard.approver_anchors
+                                                        then
+                                                          ok
+                                                            (core.result.Result.Err
+                                                            auths_model.ModelError.CollectionLimitExceeded)
+                                                        else
+                                                          if
+                                                            self.approval_requirements
+                                                            >
+                                                            hard.approval_requirements
+                                                          then
+                                                            ok
+                                                              (core.result.Result.Err
+                                                              auths_model.ModelError.CollectionLimitExceeded)
+                                                          else
+                                                            if self.work_units
+                                                              > hard.work_units
+                                                            then
+                                                              ok
+                                                                (core.result.Result.Err
+                                                                auths_model.ModelError.CollectionLimitExceeded)
+                                                            else
+                                                              ok
+                                                                (core.result.Result.Ok
+                                                                ())
+
+/-- [auths_codec::cbor::malformed]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 14:0-16:1 -/
+def cbor.malformed {T : Type} (_error : T) : Result cbor.Error := do
+  ok ()
+
+/-- [auths_codec::cbor::{impl core::cmp::PartialEq<auths_codec::cbor::Type> for auths_codec::cbor::Type}::eq]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 19:33-19:42
+    Visibility: public -/
+def cbor.Type.Insts.CoreCmpPartialEqType.eq
+  (self : cbor.Type) (other : cbor.Type) : Result Bool := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
 /-- [auths_codec::cbor::read_tail]: loop body 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 42:4-58:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 46:4-62:1 -/
 @[rust_loop_body]
 def cbor.read_tail_loop.body
   (input : Slice Std.U8) (position : Std.Usize) (remaining : Std.U8)
@@ -47,7 +1399,7 @@ def cbor.read_tail_loop.body
   else ok (done (core.result.Result.Ok (value, position)))
 
 /-- [auths_codec::cbor::read_tail]: loop 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 42:4-58:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 46:4-62:1 -/
 @[rust_loop]
 def cbor.read_tail_loop
   (input : Slice Std.U8) (position : Std.Usize) (remaining : Std.U8)
@@ -60,7 +1412,7 @@ def cbor.read_tail_loop
     (position, remaining, value)
 
 /-- [auths_codec::cbor::read_tail]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 36:0-58:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 40:0-62:1 -/
 @[reducible]
 def cbor.read_tail
   (input : Slice Std.U8) (position : Std.Usize) (remaining : Std.U8)
@@ -70,7 +1422,7 @@ def cbor.read_tail
   cbor.read_tail_loop input position remaining value
 
 /-- [auths_codec::cbor::read_head]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 64:0-88:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 68:0-92:1 -/
 def cbor.read_head
   (input : Slice Std.U8) (position : Std.Usize) :
   Result (core.result.Result cbor.Head cbor.Error)
@@ -137,7 +1489,7 @@ def cbor.read_head
       | _ => ok (core.result.Result.Err ())
 
 /-- [auths_codec::cbor::append_tail]: loop body 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 95:4-98:5 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 99:4-102:5 -/
 @[rust_loop_body]
 def cbor.append_tail_loop.body
   (value : Std.U64) (output : alloc.vec.Vec Std.U8) (remaining : Std.U8) :
@@ -156,7 +1508,7 @@ def cbor.append_tail_loop.body
   else ok (done output)
 
 /-- [auths_codec::cbor::append_tail]: loop 0:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 95:4-98:5 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 99:4-102:5 -/
 @[rust_loop]
 def cbor.append_tail_loop
   (output : alloc.vec.Vec Std.U8) (value : Std.U64) (remaining : Std.U8) :
@@ -168,7 +1520,7 @@ def cbor.append_tail_loop
     (output, remaining)
 
 /-- [auths_codec::cbor::append_tail]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 94:0-100:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 98:0-104:1 -/
 @[reducible]
 def cbor.append_tail
   (output : alloc.vec.Vec Std.U8) (value : Std.U64) (remaining : Std.U8) :
@@ -177,7 +1529,7 @@ def cbor.append_tail
   cbor.append_tail_loop output value remaining
 
 /-- [auths_codec::cbor::encode_head]:
-    Source: 'core/crates/auths-codec/src/cbor.rs', lines 107:0-130:1 -/
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 111:0-134:1 -/
 def cbor.encode_head
   (major : Std.U8) (argument : Std.U64) :
   Result (core.result.Result (alloc.vec.Vec Std.U8) cbor.Error)
@@ -222,5 +1574,1883 @@ def cbor.encode_head
               ok (output2, 8#u8)
       let v ← cbor.append_tail output1 argument width
       ok (core.result.Result.Ok v)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::new]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 143:4-145:5 -/
+def cbor.Decoder.new (input : Slice Std.U8) : Result cbor.Decoder := do
+  ok { input, position := 0#usize }
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::at]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 147:4-152:5 -/
+def cbor.Decoder.at
+  (input : Slice Std.U8) (position : Std.Usize) :
+  Result (core.result.Result cbor.Decoder cbor.Error)
+  := do
+  let i := Slice.len input
+  if position > i
+  then ok (core.result.Result.Err ())
+  else ok (core.result.Result.Ok { input, position })
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::position]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 154:4-156:5 -/
+def cbor.Decoder.impl.position (self : cbor.Decoder) : Result Std.Usize := do
+  ok self.position
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 158:4-165:5 -/
+def cbor.Decoder.head
+  (self : cbor.Decoder) (major : Std.U8) :
+  Result ((core.result.Result Std.U64 cbor.Error) × cbor.Decoder)
+  := do
+  let r ← cbor.read_head self.input self.position
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    if val.major != major
+    then ok (core.result.Result.Err (), self)
+    else
+      ok (core.result.Result.Ok val.argument,
+        { self with position := val.next })
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Std.U64 (core.convert.FromSame cbor.Error) residual
+    ok (r1, self)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 167:4-173:5 -/
+def cbor.Decoder.collection
+  (self : cbor.Decoder) (major : Std.U8) :
+  Result ((core.result.Result (Option Std.U64) cbor.Error) × cbor.Decoder)
+  := do
+  let o ←
+    core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice Std.U8)
+      self.input self.position
+  let i ← major <<< 5#i32
+  let i1 ← lift (i ||| 31#u8)
+  let b ←
+    core.option.Option.Insts.CoreCmpPartialEqOption.eq
+      (core.cmp.PartialEqShared core.cmp.PartialEqU8) o (some i1)
+  if b
+  then
+    let i2 ← self.position + 1#usize
+    ok (core.result.Result.Ok none, { self with position := i2 })
+  else
+    let (r, self1) ← cbor.Decoder.head self major
+    let r1 ←
+      core.result.Result.map (BuiltinFnOnce Std.U64 (Option Std.U64)) r
+        (core.option.Option.Some)
+    ok (r1, self1)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 175:4-177:5 -/
+def cbor.Decoder.map
+  (self : cbor.Decoder) :
+  Result ((core.result.Result (Option Std.U64) cbor.Error) × cbor.Decoder)
+  := do
+  cbor.Decoder.collection self 5#u8
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 179:4-181:5 -/
+def cbor.Decoder.array
+  (self : cbor.Decoder) :
+  Result ((core.result.Result (Option Std.U64) cbor.Error) × cbor.Decoder)
+  := do
+  cbor.Decoder.collection self 4#u8
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 183:4-185:5 -/
+def cbor.Decoder.u64
+  (self : cbor.Decoder) :
+  Result ((core.result.Result Std.U64 cbor.Error) × cbor.Decoder)
+  := do
+  cbor.Decoder.head self 0#u8
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u16]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 191:4-193:5 -/
+def cbor.Decoder.u16
+  (self : cbor.Decoder) :
+  Result ((core.result.Result Std.U16 cbor.Error) × cbor.Decoder)
+  := do
+  let (r, self1) ← cbor.Decoder.u64 self
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← U16.Insts.CoreConvertTryFromU64TryFromIntError.try_from val
+    let r2 ←
+      core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+        cbor.Error) r1 (cbor.malformed)
+    ok (r2, self1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Std.U16 (core.convert.FromSame cbor.Error) residual
+    ok (r1, self1)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 195:4-197:5 -/
+def cbor.Decoder.u8
+  (self : cbor.Decoder) :
+  Result ((core.result.Result Std.U8 cbor.Error) × cbor.Decoder)
+  := do
+  let (r, self1) ← cbor.Decoder.u64 self
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← U8.Insts.CoreConvertTryFromU64TryFromIntError.try_from val
+    let r2 ←
+      core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+        cbor.Error) r1 (cbor.malformed)
+    ok (r2, self1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Std.U8 (core.convert.FromSame cbor.Error) residual
+    ok (r1, self1)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 199:4-205:5 -/
+def cbor.Decoder.payload
+  (self : cbor.Decoder) (major : Std.U8) :
+  Result ((core.result.Result (Slice Std.U8) cbor.Error) × cbor.Decoder)
+  := do
+  let (r, self1) ← cbor.Decoder.head self major
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from val
+    let r2 ←
+      core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+        cbor.Error) r1 (cbor.malformed)
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let o ← lift (Usize.checked_add self1.position val1)
+      let r3 ← core.option.Option.ok_or o ()
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r3
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        let o1 ←
+          core.slice.Slice.get (core.slice.index.SliceIndexRangeUsizeSlice
+            Std.U8) self1.input { start := self1.position, «end» := val2 }
+        let r4 ← core.option.Option.ok_or o1 ()
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r4
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val3 =>
+          ok (core.result.Result.Ok val3, { self1 with position := val2 })
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r5 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              (Slice Std.U8) (core.convert.FromSame cbor.Error) residual
+          ok (r5, self1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r4 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (Slice Std.U8) (core.convert.FromSame cbor.Error) residual
+        ok (r4, self1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r3 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          (Slice Std.U8) (core.convert.FromSame cbor.Error) residual
+      ok (r3, self1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        (Slice Std.U8) (core.convert.FromSame cbor.Error) residual
+    ok (r1, self1)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::bytes]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 207:4-209:5 -/
+def cbor.Decoder.bytes
+  (self : cbor.Decoder) :
+  Result ((core.result.Result (Slice Std.U8) cbor.Error) × cbor.Decoder)
+  := do
+  cbor.Decoder.payload self 2#u8
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 211:4-216:5 -/
+def cbor.Decoder.str
+  (self : cbor.Decoder) :
+  Result ((core.result.Result Str cbor.Error) × cbor.Decoder)
+  := do
+  let (r, self1) ← cbor.Decoder.payload self 3#u8
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r1 ← core.str.converts.from_utf8 val
+    match r1 with
+    | core.result.Result.Ok value => ok (core.result.Result.Ok value, self1)
+    | core.result.Result.Err _ => ok (core.result.Result.Err (), self1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Str (core.convert.FromSame cbor.Error) residual
+    ok (r1, self1)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::null]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 228:4-234:5 -/
+def cbor.Decoder.null
+  (self : cbor.Decoder) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Decoder)
+  := do
+  let o ←
+    core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice Std.U8)
+      self.input self.position
+  let b ←
+    core.cmp.PartialEq.ne.trait_default
+      (core.option.Option.Insts.CoreCmpPartialEqOption
+      (core.cmp.PartialEqShared core.cmp.PartialEqU8)) o (some 246#u8)
+  if b
+  then ok (core.result.Result.Err (), self)
+  else
+    let i ← self.position + 1#usize
+    ok (core.result.Result.Ok (), { self with position := i })
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::datatype]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 236:4-248:5 -/
+def cbor.Decoder.datatype
+  (self : cbor.Decoder) :
+  Result (core.result.Result cbor.Type cbor.Error)
+  := do
+  let o ←
+    core.slice.Slice.get (core.slice.index.SliceIndexUsizeSlice Std.U8)
+      self.input self.position
+  let r ← core.option.Option.ok_or o ()
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    if 0#u8 <= val
+    then
+      if val <= 24#u8
+      then ok (core.result.Result.Ok cbor.Type.U8)
+      else
+        match val with
+        | 25#uscalar => ok (core.result.Result.Ok cbor.Type.U16)
+        | 26#uscalar => ok (core.result.Result.Ok cbor.Type.U32)
+        | 27#uscalar => ok (core.result.Result.Ok cbor.Type.U64)
+        | 246#uscalar => ok (core.result.Result.Ok cbor.Type.Null)
+        | _ =>
+          if 64#u8 <= val
+          then
+            if val <= 91#u8
+            then ok (core.result.Result.Ok cbor.Type.Bytes)
+            else
+              if 96#u8 <= val
+              then
+                if val <= 123#u8
+                then ok (core.result.Result.Ok cbor.Type.String)
+                else ok (core.result.Result.Ok cbor.Type.Other)
+              else ok (core.result.Result.Ok cbor.Type.Other)
+          else
+            if 96#u8 <= val
+            then
+              if val <= 123#u8
+              then ok (core.result.Result.Ok cbor.Type.String)
+              else ok (core.result.Result.Ok cbor.Type.Other)
+            else ok (core.result.Result.Ok cbor.Type.Other)
+    else
+      match val with
+      | 25#uscalar => ok (core.result.Result.Ok cbor.Type.U16)
+      | 26#uscalar => ok (core.result.Result.Ok cbor.Type.U32)
+      | 27#uscalar => ok (core.result.Result.Ok cbor.Type.U64)
+      | 246#uscalar => ok (core.result.Result.Ok cbor.Type.Null)
+      | _ =>
+        if 64#u8 <= val
+        then
+          if val <= 91#u8
+          then ok (core.result.Result.Ok cbor.Type.Bytes)
+          else
+            if 96#u8 <= val
+            then
+              if val <= 123#u8
+              then ok (core.result.Result.Ok cbor.Type.String)
+              else ok (core.result.Result.Ok cbor.Type.Other)
+            else ok (core.result.Result.Ok cbor.Type.Other)
+        else
+          if 96#u8 <= val
+          then
+            if val <= 123#u8
+            then ok (core.result.Result.Ok cbor.Type.String)
+            else ok (core.result.Result.Ok cbor.Type.Other)
+          else ok (core.result.Result.Ok cbor.Type.Other)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      cbor.Type (core.convert.FromSame cbor.Error) residual
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::new]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 257:4-259:5 -/
+def cbor.Encoder.new
+  (output : alloc.vec.Vec Std.U8) : Result cbor.Encoder := do
+  ok { output }
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::into_writer]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 261:4-263:5 -/
+def cbor.Encoder.into_writer
+  (self : cbor.Encoder) : Result (alloc.vec.Vec Std.U8) := do
+  ok self.output
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::head]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 265:4-269:5 -/
+def cbor.Encoder.head
+  (self : cbor.Encoder) (major : Std.U8) (argument : Std.U64) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  let r ← cbor.encode_head major argument
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let s := alloc.vec.Vec.deref val
+    let v ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 self.output s
+    ok (core.result.Result.Ok (), { output := v })
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame cbor.Error) residual
+    ok (r1, self)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::map]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 271:4-273:5 -/
+def cbor.Encoder.map
+  (self : cbor.Encoder) (entries : Std.U64) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  cbor.Encoder.head self 5#u8 entries
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::array]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 275:4-277:5 -/
+def cbor.Encoder.array
+  (self : cbor.Encoder) (entries : Std.U64) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  cbor.Encoder.head self 4#u8 entries
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::u64]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 279:4-281:5 -/
+def cbor.Encoder.u64
+  (self : cbor.Encoder) (value : Std.U64) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  cbor.Encoder.head self 0#u8 value
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::u16]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 287:4-289:5 -/
+def cbor.Encoder.u16
+  (self : cbor.Encoder) (value : Std.U16) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  let i ← lift (core.convert.num.FromU64U16.from value)
+  cbor.Encoder.u64 self i
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::u8]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 291:4-293:5 -/
+def cbor.Encoder.u8
+  (self : cbor.Encoder) (value : Std.U8) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  let i ← lift (core.convert.num.FromU64U8.from value)
+  cbor.Encoder.u64 self i
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::payload]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 295:4-299:5 -/
+def cbor.Encoder.payload
+  (self : cbor.Encoder) (major : Std.U8) (bytes : Slice Std.U8) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  let i := Slice.len bytes
+  let r ← U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from i
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+      cbor.Error) r (cbor.malformed)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r2, self1) ← cbor.Encoder.head self major val
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let v ←
+        alloc.vec.Vec.extend_from_slice core.clone.CloneU8 self1.output bytes
+      ok (core.result.Result.Ok (), { output := v })
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r3 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Unit (core.convert.FromSame cbor.Error) residual
+      ok (r3, self1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame cbor.Error) residual
+    ok (r2, self)
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::bytes]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 301:4-303:5 -/
+def cbor.Encoder.bytes
+  (self : cbor.Encoder) (bytes : Slice Std.U8) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  cbor.Encoder.payload self 2#u8 bytes
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::str]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 305:4-307:5 -/
+def cbor.Encoder.str
+  (self : cbor.Encoder) (text : Str) :
+  Result ((core.result.Result Unit cbor.Error) × cbor.Encoder)
+  := do
+  let s ← core.str.Str.as_bytes text
+  cbor.Encoder.payload self 3#u8 s
+
+/-- [auths_codec::cbor::{auths_codec::cbor::Encoder}::null]:
+    Source: 'core/crates/auths-codec/src/cbor.rs', lines 313:4-315:5 -/
+def cbor.Encoder.null (self : cbor.Encoder) : Result cbor.Encoder := do
+  let v ← alloc.vec.Vec.push self.output 246#u8
+  ok { output := v }
+
+/-- [auths_codec::decode::decode_error]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 40:0-42:1 -/
+def decode.decode_error {T : Type} (_error : T) : Result error.CodecError := do
+  ok error.CodecError.Malformed
+
+/-- [auths_codec::decode::map]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 44:0-50:1 -/
+def decode.map
+  (decoder : cbor.Decoder) (expected : Std.U64) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.map decoder
+  let o ← core.result.Result.unwrap_or r none
+  let b ←
+    core.option.Option.Insts.CoreCmpPartialEqOption.eq core.cmp.PartialEqU64 o
+      (some expected)
+  if b
+  then ok (core.result.Result.Ok (), decoder1)
+  else ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
+
+/-- [auths_codec::error::limit_error]:
+    Source: 'core/crates/auths-codec/src/error.rs', lines 23:0-25:1 -/
+def error.limit_error
+  (_error : core.num.error.TryFromIntError) : Result error.CodecError := do
+  ok error.CodecError.LimitExceeded
+
+/-- [auths_codec::decode::array]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 52:0-60:1 -/
+def decode.array
+  (decoder : cbor.Decoder) (maximum : Std.Usize) :
+  Result ((core.result.Result Std.Usize error.CodecError) × cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.array decoder
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (decode.decode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r2 ← core.option.Option.ok_or val error.CodecError.Malformed
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue val1 =>
+      let r3 ← Usize.Insts.CoreConvertTryFromU64TryFromIntError.try_from val1
+      let r4 ←
+        core.result.Result.map_err (BuiltinFnOnce
+          core.num.error.TryFromIntError error.CodecError) r3
+          (error.limit_error)
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r4
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val2 =>
+        if val2 > maximum
+        then
+          ok (core.result.Result.Err error.CodecError.LimitExceeded, decoder1)
+        else ok (core.result.Result.Ok val2, decoder1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r5 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            Std.Usize (core.convert.FromSame error.CodecError) residual
+        ok (r5, decoder1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r3 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Std.Usize (core.convert.FromSame error.CodecError) residual
+      ok (r3, decoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Std.Usize (core.convert.FromSame error.CodecError) residual
+    ok (r2, decoder1)
+
+/-- [auths_codec::decode::key]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 70:0-76:1 -/
+def decode.key
+  (decoder : cbor.Decoder) (expected : Std.U8) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.u8 decoder
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (decode.decode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    if val = expected
+    then ok (core.result.Result.Ok (), decoder1)
+    else ok (core.result.Result.Err error.CodecError.NonCanonical, decoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r2, decoder1)
+
+/-- [auths_codec::decode::text]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 78:0-83:1 -/
+def decode.text
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result Str error.CodecError) × cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.str decoder
+  match r with
+  | core.result.Result.Ok value => ok (core.result.Result.Ok value, decoder1)
+  | core.result.Result.Err _ =>
+    ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
+
+/-- [auths_codec::decode::bounded_bytes]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 85:0-98:1 -/
+def decode.bounded_bytes
+  (decoder : cbor.Decoder) (maximum : Std.Usize) (non_empty : Bool) :
+  Result ((core.result.Result (alloc.vec.Vec Std.U8) error.CodecError) ×
+    cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.bytes decoder
+  match r with
+  | core.result.Result.Ok value =>
+    let i := Slice.len value
+    if i > maximum
+    then ok (core.result.Result.Err error.CodecError.LimitExceeded, decoder1)
+    else
+      if non_empty
+      then
+        let b ← core.slice.Slice.is_empty value
+        if b
+        then
+          ok (core.result.Result.Err error.CodecError.LimitExceeded, decoder1)
+        else
+          let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 value
+          ok (core.result.Result.Ok v, decoder1)
+      else
+        let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 value
+        ok (core.result.Result.Ok v, decoder1)
+  | core.result.Result.Err _ =>
+    ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
+
+/-- [auths_codec::decode::digest_bytes]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 100:0-106:1 -/
+def decode.digest_bytes
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result (Array Std.U8 32#usize) error.CodecError) ×
+    cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.bytes decoder
+  match r with
+  | core.result.Result.Ok value =>
+    let r1 ←
+      core.array.TryFromArrayCopySlice.try_from 32#usize core.marker.CopyU8
+        value
+    let r2 ←
+      core.result.Result.map_err (BuiltinFnOnce core.array.TryFromSliceError
+        error.CodecError) r1 (decode.decode_error)
+    ok (r2, decoder1)
+  | core.result.Result.Err _ =>
+    ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
+
+/-- [auths_codec::decode::is_null]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 108:0-110:1 -/
+def decode.is_null
+  (decoder : cbor.Decoder) :
+  Result (core.result.Result Bool error.CodecError)
+  := do
+  let r ← cbor.Decoder.datatype decoder
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (decode.decode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let b ← cbor.Type.Insts.CoreCmpPartialEqType.eq val cbor.Type.Null
+    ok (core.result.Result.Ok b)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      Bool (core.convert.FromSame error.CodecError) residual
+
+/-- [auths_codec::decode::null]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 112:0-114:1 -/
+def decode.null
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Decoder)
+  := do
+  let (r, decoder1) ← cbor.Decoder.null decoder
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (decode.decode_error)
+  ok (r1, decoder1)
+
+/-- [auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from]:
+    Source: 'core/crates/auths-codec/src/error.rs', lines 28:4-30:5
+    Visibility: public -/
+def error.CodecError.Insts.CoreConvertFromModelError.from
+  (model_error : auths_model.ModelError) : Result error.CodecError := do
+  ok (error.CodecError.Model model_error)
+
+/-- [auths_codec::decode::profile_ref]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 128:0-135:1 -/
+def decode.profile_ref
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result auths_model.ProfileRef error.CodecError) ×
+    cbor.Decoder)
+  := do
+  let (r, decoder1) ← decode.map decoder 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, decoder2) ← decode.key decoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let (r2, decoder3) ← decode.text decoder2
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let r3 ← auths_model.ProfileId.parse val
+        let r4 ←
+          core.result.Result.map_err (BuiltinFnOnce auths_model.ModelError
+            error.CodecError) r3
+            (error.CodecError.Insts.CoreConvertFromModelError.from)
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r4
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          let (r5, decoder4) ← decode.key decoder3 1#u8
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r5
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (r6, decoder5) ← cbor.Decoder.u16 decoder4
+            let r7 ←
+              core.result.Result.map_err (BuiltinFnOnce cbor.Error
+                error.CodecError) r6 (decode.decode_error)
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r7
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val2 =>
+              let r8 ← auths_model.ProfileRef.new val1 val2
+              let r9 ←
+                core.result.Result.map_err (BuiltinFnOnce
+                  auths_model.ModelError error.CodecError) r8
+                  (error.CodecError.Insts.CoreConvertFromModelError.from)
+              ok (r9, decoder5)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r8 ←
+                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                  auths_model.ProfileRef (core.convert.FromSame
+                  error.CodecError) residual
+              ok (r8, decoder5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r6 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                auths_model.ProfileRef (core.convert.FromSame error.CodecError)
+                residual
+            ok (r6, decoder4)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r5 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              auths_model.ProfileRef (core.convert.FromSame error.CodecError)
+              residual
+          ok (r5, decoder3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            auths_model.ProfileRef (core.convert.FromSame error.CodecError)
+            residual
+        ok (r3, decoder3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          auths_model.ProfileRef (core.convert.FromSame error.CodecError)
+          residual
+      ok (r2, decoder2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        auths_model.ProfileRef (core.convert.FromSame error.CodecError)
+        residual
+    ok (r1, decoder1)
+
+/-- [auths_codec::decode::permission]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 137:0-144:1 -/
+def decode.permission
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result auths_model.Permission error.CodecError) ×
+    cbor.Decoder)
+  := do
+  let (r, decoder1) ← decode.map decoder 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, decoder2) ← decode.key decoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let (r2, decoder3) ← decode.text decoder2
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let r3 ← auths_model.CapabilityId.parse val
+        let r4 ←
+          core.result.Result.map_err (BuiltinFnOnce auths_model.ModelError
+            error.CodecError) r3
+            (error.CodecError.Insts.CoreConvertFromModelError.from)
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r4
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          let (r5, decoder4) ← decode.key decoder3 1#u8
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r5
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (r6, decoder5) ← decode.text decoder4
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r6
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val2 =>
+              let r7 ← auths_model.ResourceId.parse val2
+              let r8 ←
+                core.result.Result.map_err (BuiltinFnOnce
+                  auths_model.ModelError error.CodecError) r7
+                  (error.CodecError.Insts.CoreConvertFromModelError.from)
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r8
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue val3 =>
+                let p ← auths_model.Permission.new val1 val3
+                ok (core.result.Result.Ok p, decoder5)
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                let r9 ←
+                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                    auths_model.Permission (core.convert.FromSame
+                    error.CodecError) residual
+                ok (r9, decoder5)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r7 ←
+                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                  auths_model.Permission (core.convert.FromSame
+                  error.CodecError) residual
+              ok (r7, decoder5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r6 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                auths_model.Permission (core.convert.FromSame error.CodecError)
+                residual
+            ok (r6, decoder4)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r5 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              auths_model.Permission (core.convert.FromSame error.CodecError)
+              residual
+          ok (r5, decoder3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            auths_model.Permission (core.convert.FromSame error.CodecError)
+            residual
+        ok (r3, decoder3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          auths_model.Permission (core.convert.FromSame error.CodecError)
+          residual
+      ok (r2, decoder2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        auths_model.Permission (core.convert.FromSame error.CodecError)
+        residual
+    ok (r1, decoder1)
+
+/-- [auths_codec::decode::budget]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 189:0-196:1 -/
+def decode.budget
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result auths_model.BudgetCeiling error.CodecError) ×
+    cbor.Decoder)
+  := do
+  let (r, decoder1) ← decode.map decoder 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, decoder2) ← decode.key decoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let (r2, decoder3) ← decode.text decoder2
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue val =>
+        let r3 ← auths_model.BudgetAlgebraId.parse val
+        let r4 ←
+          core.result.Result.map_err (BuiltinFnOnce auths_model.ModelError
+            error.CodecError) r3
+            (error.CodecError.Insts.CoreConvertFromModelError.from)
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r4
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue val1 =>
+          let (r5, decoder4) ← decode.key decoder3 1#u8
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r5
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (r6, decoder5) ← cbor.Decoder.u64 decoder4
+            let r7 ←
+              core.result.Result.map_err (BuiltinFnOnce cbor.Error
+                error.CodecError) r6 (decode.decode_error)
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r7
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue val2 =>
+              let bc ← auths_model.BudgetCeiling.new val1 val2
+              ok (core.result.Result.Ok bc, decoder5)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              let r8 ←
+                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                  auths_model.BudgetCeiling (core.convert.FromSame
+                  error.CodecError) residual
+              ok (r8, decoder5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r6 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                auths_model.BudgetCeiling (core.convert.FromSame
+                error.CodecError) residual
+            ok (r6, decoder4)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r5 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              auths_model.BudgetCeiling (core.convert.FromSame
+              error.CodecError) residual
+          ok (r5, decoder3)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            auths_model.BudgetCeiling (core.convert.FromSame error.CodecError)
+            residual
+        ok (r3, decoder3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          auths_model.BudgetCeiling (core.convert.FromSame error.CodecError)
+          residual
+      ok (r2, decoder2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        auths_model.BudgetCeiling (core.convert.FromSame error.CodecError)
+        residual
+    ok (r1, decoder1)
+
+/-- [auths_codec::decode::optional_budget]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 198:0-207:1 -/
+def decode.optional_budget
+  (decoder : cbor.Decoder) :
+  Result ((core.result.Result (Option auths_model.BudgetCeiling)
+    error.CodecError) × cbor.Decoder)
+  := do
+  let r ← decode.is_null decoder
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    if val
+    then
+      let (r1, decoder1) ← decode.null decoder
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        ok (core.result.Result.Ok none, decoder1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r2 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (Option auths_model.BudgetCeiling) (core.convert.FromSame
+            error.CodecError) residual
+        ok (r2, decoder1)
+    else
+      let (r1, decoder1) ← decode.budget decoder
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue val1 =>
+        ok (core.result.Result.Ok (some val1), decoder1)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r2 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (Option auths_model.BudgetCeiling) (core.convert.FromSame
+            error.CodecError) residual
+        ok (r2, decoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        (Option auths_model.BudgetCeiling) (core.convert.FromSame
+        error.CodecError) residual
+    ok (r1, decoder)
+
+/-- [auths_codec::decode::ensure_complete]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1286:0-1292:1 -/
+def decode.ensure_complete
+  (decoder : cbor.Decoder) (input : Slice Std.U8) :
+  Result (core.result.Result Unit error.CodecError)
+  := do
+  let i ← cbor.Decoder.impl.position decoder
+  let i1 := Slice.len input
+  if i = i1
+  then ok (core.result.Result.Ok ())
+  else ok (core.result.Result.Err error.CodecError.Malformed)
+
+/-- Trait implementation: [auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}]
+    Source: 'core/crates/auths-codec/src/error.rs', lines 27:0-31:1 -/
+@[reducible]
+def error.CodecError.Insts.CoreConvertFromModelError : core.convert.From
+  error.CodecError auths_model.ModelError := {
+  «from» := error.CodecError.Insts.CoreConvertFromModelError.from
+}
+
+/-- [auths_codec::decode::attachment_batch_step]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1550:0-1578:1 -/
+def decode.attachment_batch_step
+  (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
+  (state : core.result.Result decode.AttachmentBatch error.CodecError) :
+  Result (core.result.Result decode.AttachmentBatch error.CodecError)
+  := do
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch state
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let r ← cbor.Decoder.at input val.position
+    match r with
+    | core.result.Result.Ok d =>
+      let (r1, decoder) ← decode.map d 2#u64
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let (r2, decoder1) ← decode.key decoder 0#u8
+        let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+        match cf2 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let (r3, decoder2) ← decode.digest_bytes decoder1
+          let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+          match cf3 with
+          | core.ops.control_flow.ControlFlow.Continue val1 =>
+            let digest ← auths_model.AttachmentDigest.new val1
+            let (r4, decoder3) ← decode.key decoder2 1#u8
+            let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+            match cf4 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let i ←
+                auths_model.VerifierLimits.get limits
+                  auths_model.LimitKind.AttachmentBytes
+              let (r5, decoder4) ← decode.bounded_bytes decoder3 i true
+              let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+              match cf5 with
+              | core.ops.control_flow.ControlFlow.Continue val2 =>
+                let i1 := alloc.vec.Vec.len val2
+                let o ← lift (Usize.checked_add val.attachment_bytes i1)
+                let r6 ←
+                  core.option.Option.ok_or o error.CodecError.LimitExceeded
+                let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+                match cf6 with
+                | core.ops.control_flow.ControlFlow.Continue val3 =>
+                  if val3 > i
+                  then
+                    ok (core.result.Result.Err error.CodecError.LimitExceeded)
+                  else
+                    let r7 ← auths_model.DetachedAttachment.new digest val2
+                    let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                    match cf7 with
+                    | core.ops.control_flow.ControlFlow.Continue val4 =>
+                      let v ← alloc.vec.Vec.push val.attachments val4
+                      let i2 ← cbor.Decoder.impl.position decoder4
+                      ok (core.result.Result.Ok
+                        {
+                          attachments := v,
+                          attachment_bytes := val3,
+                          position := i2
+                        })
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                        decode.AttachmentBatch
+                        error.CodecError.Insts.CoreConvertFromModelError
+                        residual
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                    decode.AttachmentBatch (core.convert.FromSame
+                    error.CodecError) residual
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                  decode.AttachmentBatch (core.convert.FromSame
+                  error.CodecError) residual
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                decode.AttachmentBatch (core.convert.FromSame error.CodecError)
+                residual
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              decode.AttachmentBatch (core.convert.FromSame error.CodecError)
+              residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            decode.AttachmentBatch (core.convert.FromSame error.CodecError)
+            residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          decode.AttachmentBatch (core.convert.FromSame error.CodecError)
+          residual
+    | core.result.Result.Err _ =>
+      ok (core.result.Result.Err error.CodecError.Malformed)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      decode.AttachmentBatch (core.convert.FromSame error.CodecError) residual
+
+/-- [auths_codec::decode::attachment_batch]: loop body 0:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1591:4-1594:5 -/
+@[rust_loop_body]
+def decode.attachment_batch_loop.body
+  (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
+  (remaining : Std.Usize)
+  (state : core.result.Result decode.AttachmentBatch error.CodecError) :
+  Result (ControlFlow (Std.Usize × (core.result.Result decode.AttachmentBatch
+    error.CodecError)) (core.result.Result decode.AttachmentBatch
+    error.CodecError))
+  := do
+  if remaining > 0#usize
+  then
+    let state1 ← decode.attachment_batch_step input limits state
+    let remaining1 ← remaining - 1#usize
+    ok (cont (remaining1, state1))
+  else ok (done state)
+
+/-- [auths_codec::decode::attachment_batch]: loop 0:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1591:4-1594:5 -/
+@[rust_loop]
+def decode.attachment_batch_loop
+  (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
+  (remaining : Std.Usize)
+  (state : core.result.Result decode.AttachmentBatch error.CodecError) :
+  Result (core.result.Result decode.AttachmentBatch error.CodecError)
+  := do
+  loop
+    (fun (remaining1, state1) => decode.attachment_batch_loop.body input limits
+      remaining1 state1)
+    (remaining, state)
+
+/-- [auths_codec::decode::attachment_batch]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1580:0-1596:1 -/
+def decode.attachment_batch
+  (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
+  (position : Std.Usize) (remaining : Std.Usize) :
+  Result (core.result.Result decode.AttachmentBatch error.CodecError)
+  := do
+  let v := alloc.vec.Vec.with_capacity auths_model.DetachedAttachment remaining
+  decode.attachment_batch_loop input limits remaining (core.result.Result.Ok
+    { attachments := v, attachment_bytes := 0#usize, position })
+
+/-- [auths_codec::encode::encode_error]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 27:0-29:1 -/
+def encode.encode_error (_error : cbor.Error) : Result error.CodecError := do
+  ok error.CodecError.Malformed
+
+/-- [auths_codec::encode::bytes]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 63:0-66:1 -/
+def encode.bytes
+  (encoder : cbor.Encoder) (value : Slice Std.U8) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← cbor.Encoder.bytes encoder value
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (encode.encode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    ok (core.result.Result.Ok (), encoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r2, encoder1)
+
+/-- [auths_codec::encode::key]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 53:0-56:1 -/
+def encode.key
+  (encoder : cbor.Encoder) (value : Std.U8) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← cbor.Encoder.u8 encoder value
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (encode.encode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    ok (core.result.Result.Ok (), encoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r2, encoder1)
+
+/-- [auths_codec::encode::map]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 43:0-46:1 -/
+def encode.map
+  (encoder : cbor.Encoder) (entries : Std.U64) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← cbor.Encoder.map encoder entries
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (encode.encode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    ok (core.result.Result.Ok (), encoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r2, encoder1)
+
+/-- [auths_codec::encode::encode_canonical_attachment]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 402:0-413:1 -/
+def encode.encode_canonical_attachment
+  (state : core.result.Result cbor.Encoder error.CodecError)
+  (attachment : auths_model.DetachedAttachment) :
+  Result (core.result.Result cbor.Encoder error.CodecError)
+  := do
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch state
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r, val1) ← encode.map val 2#u64
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let (r1, val2) ← encode.key val1 0#u8
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let ad ← auths_model.DetachedAttachment.impl.digest attachment
+        let a ← auths_model.AttachmentDigest.as_bytes ad
+        let s ← lift (Array.to_slice a)
+        let (r2, val3) ← encode.bytes val2 s
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r2
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let (r3, val4) ← encode.key val3 1#u8
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r3
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let s1 ← auths_model.DetachedAttachment.impl.bytes attachment
+            let (r4, val5) ← encode.bytes val4 s1
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r4
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              ok (core.result.Result.Ok val5)
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                cbor.Encoder (core.convert.FromSame error.CodecError) residual
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              cbor.Encoder (core.convert.FromSame error.CodecError) residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            cbor.Encoder (core.convert.FromSame error.CodecError) residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          cbor.Encoder (core.convert.FromSame error.CodecError) residual
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        cbor.Encoder (core.convert.FromSame error.CodecError) residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      cbor.Encoder (core.convert.FromSame error.CodecError) residual
+
+/-- [auths_codec::encode::text]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 58:0-61:1 -/
+def encode.text
+  (encoder : cbor.Encoder) (value : Str) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← cbor.Encoder.str encoder value
+  let r1 ←
+    core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r
+      (encode.encode_error)
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r1
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    ok (core.result.Result.Ok (), encoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r2 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r2, encoder1)
+
+/-- [auths_codec::encode::encode_budget]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 120:0-127:1 -/
+def encode.encode_budget
+  (encoder : cbor.Encoder) (budget : auths_model.BudgetCeiling) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← encode.map encoder 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, encoder2) ← encode.key encoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let bai ← auths_model.BudgetCeiling.impl.algebra budget
+      let s ← auths_model.BudgetAlgebraId.as_str bai
+      let (r2, encoder3) ← encode.text encoder2 s
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let (r3, encoder4) ← encode.key encoder3 1#u8
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let i ← auths_model.BudgetCeiling.impl.value budget
+          let (r4, encoder5) ← cbor.Encoder.u64 encoder4 i
+          let r5 ←
+            core.result.Result.map_err (BuiltinFnOnce cbor.Error
+              error.CodecError) r4 (encode.encode_error)
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r5
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            ok (core.result.Result.Ok (), encoder5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r6 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                Unit (core.convert.FromSame error.CodecError) residual
+            ok (r6, encoder5)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              Unit (core.convert.FromSame error.CodecError) residual
+          ok (r4, encoder4)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            Unit (core.convert.FromSame error.CodecError) residual
+        ok (r3, encoder3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Unit (core.convert.FromSame error.CodecError) residual
+      ok (r2, encoder2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r1, encoder1)
+
+/-- [auths_codec::encode::encode_optional_budget]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 129:0-139:1 -/
+def encode.encode_optional_budget
+  (encoder : cbor.Encoder) (budget : Option auths_model.BudgetCeiling) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  match budget with
+  | none =>
+    let encoder1 ← cbor.Encoder.null encoder
+    ok (core.result.Result.Ok (), encoder1)
+  | some budget1 => encode.encode_budget encoder budget1
+
+/-- [auths_codec::encode::encode_permission]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 77:0-84:1 -/
+def encode.encode_permission
+  (encoder : cbor.Encoder) (permission : auths_model.Permission) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← encode.map encoder 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, encoder2) ← encode.key encoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let ci ← auths_model.Permission.impl.capability permission
+      let s ← auths_model.CapabilityId.as_str ci
+      let (r2, encoder3) ← encode.text encoder2 s
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let (r3, encoder4) ← encode.key encoder3 1#u8
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let ri ← auths_model.Permission.impl.resource permission
+          let s1 ← auths_model.ResourceId.as_str ri
+          let (r4, encoder5) ← encode.text encoder4 s1
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            ok (core.result.Result.Ok (), encoder5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r5 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                Unit (core.convert.FromSame error.CodecError) residual
+            ok (r5, encoder5)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              Unit (core.convert.FromSame error.CodecError) residual
+          ok (r4, encoder4)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            Unit (core.convert.FromSame error.CodecError) residual
+        ok (r3, encoder3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Unit (core.convert.FromSame error.CodecError) residual
+      ok (r2, encoder2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r1, encoder1)
+
+/-- [auths_codec::encode::encode_profile_ref]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 68:0-75:1 -/
+def encode.encode_profile_ref
+  (encoder : cbor.Encoder) (profile : auths_model.ProfileRef) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let (r, encoder1) ← encode.map encoder 2#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, encoder2) ← encode.key encoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let pi ← auths_model.ProfileRef.impl.id profile
+      let s ← auths_model.ProfileId.as_str pi
+      let (r2, encoder3) ← encode.text encoder2 s
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let (r3, encoder4) ← encode.key encoder3 1#u8
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let i ← auths_model.ProfileRef.impl.version profile
+          let (r4, encoder5) ← cbor.Encoder.u16 encoder4 i
+          let r5 ←
+            core.result.Result.map_err (BuiltinFnOnce cbor.Error
+              error.CodecError) r4 (encode.encode_error)
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r5
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            ok (core.result.Result.Ok (), encoder5)
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            let r6 ←
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                Unit (core.convert.FromSame error.CodecError) residual
+            ok (r6, encoder5)
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          let r4 ←
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              Unit (core.convert.FromSame error.CodecError) residual
+          ok (r4, encoder4)
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r3 ←
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            Unit (core.convert.FromSame error.CodecError) residual
+        ok (r3, encoder3)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r2 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Unit (core.convert.FromSame error.CodecError) residual
+      ok (r2, encoder2)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r1, encoder1)
+
+/-- [auths_codec::encode::length]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 31:0-33:1 -/
+def encode.length
+  (value : Std.Usize) :
+  Result (core.result.Result Std.U64 error.CodecError)
+  := do
+  let r ← U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from value
+  core.result.Result.map_err (BuiltinFnOnce core.num.error.TryFromIntError
+    error.CodecError) r (error.limit_error)
+
+/-- [auths_codec::encode::array]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 48:0-51:1 -/
+def encode.array
+  (encoder : cbor.Encoder) (entries : Std.Usize) :
+  Result ((core.result.Result Unit error.CodecError) × cbor.Encoder)
+  := do
+  let r ← encode.length entries
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue val =>
+    let (r1, encoder1) ← cbor.Encoder.array encoder val
+    let r2 ←
+      core.result.Result.map_err (BuiltinFnOnce cbor.Error error.CodecError) r1
+        (encode.encode_error)
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r2
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      ok (core.result.Result.Ok (), encoder1)
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      let r3 ←
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          Unit (core.convert.FromSame error.CodecError) residual
+      ok (r3, encoder1)
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    let r1 ←
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        Unit (core.convert.FromSame error.CodecError) residual
+    ok (r1, encoder)
+
+/-- [auths_codec::encode::encode_canonical_action]: loop body 0:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 396:4-398:5
+    Visibility: public -/
+@[rust_loop_body]
+def encode.encode_canonical_action_loop.body
+  (iter : core.slice.iter.Iter auths_model.DetachedAttachment)
+  (state : core.result.Result cbor.Encoder error.CodecError) :
+  Result (ControlFlow ((core.slice.iter.Iter auths_model.DetachedAttachment) ×
+    (core.result.Result cbor.Encoder error.CodecError)) (core.result.Result
+    cbor.Encoder error.CodecError))
+  := do
+  let (o, iter1) ← core.slice.iter.IteratorSliceIter.next iter
+  match o with
+  | none => ok (done state)
+  | some attachment =>
+    let state1 ← encode.encode_canonical_attachment state attachment
+    ok (cont (iter1, state1))
+
+/-- [auths_codec::encode::encode_canonical_action]: loop 0:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 396:4-398:5
+    Visibility: public -/
+@[rust_loop]
+def encode.encode_canonical_action_loop
+  (iter : core.slice.iter.Iter auths_model.DetachedAttachment)
+  (state : core.result.Result cbor.Encoder error.CodecError) :
+  Result (core.result.Result cbor.Encoder error.CodecError)
+  := do
+  loop
+    (fun (iter1, state1) => encode.encode_canonical_action_loop.body iter1
+      state1)
+    (iter, state)
+
+/-- [auths_codec::encode::encode_canonical_action]:
+    Source: 'core/crates/auths-codec/src/encode.rs', lines 380:0-400:1
+    Visibility: public -/
+def encode.encode_canonical_action
+  (action : auths_model.CanonicalAction) :
+  Result (core.result.Result (alloc.vec.Vec Std.U8) error.CodecError)
+  := do
+  let encoder ← cbor.Encoder.new (alloc.vec.Vec.new Std.U8)
+  let (r, encoder1) ← encode.map encoder 6#u64
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let (r1, encoder2) ← encode.key encoder1 0#u8
+    let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+    match cf1 with
+    | core.ops.control_flow.ControlFlow.Continue _ =>
+      let pr ← auths_model.CanonicalAction.impl.profile action
+      let (r2, encoder3) ← encode.encode_profile_ref encoder2 pr
+      let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+      match cf2 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let (r3, encoder4) ← encode.key encoder3 1#u8
+        let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+        match cf3 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let mt ← auths_model.CanonicalAction.impl.media_type action
+          let s ← auths_model.MediaType.as_str mt
+          let (r4, encoder5) ← encode.text encoder4 s
+          let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+          match cf4 with
+          | core.ops.control_flow.ControlFlow.Continue _ =>
+            let (r5, encoder6) ← encode.key encoder5 2#u8
+            let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+            match cf5 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let s1 ← auths_model.CanonicalAction.impl.body action
+              let (r6, encoder7) ← encode.bytes encoder6 s1
+              let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r6
+              match cf6 with
+              | core.ops.control_flow.ControlFlow.Continue _ =>
+                let (r7, encoder8) ← encode.key encoder7 3#u8
+                let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                match cf7 with
+                | core.ops.control_flow.ControlFlow.Continue _ =>
+                  let p ← auths_model.CanonicalAction.impl.permission action
+                  let (r8, encoder9) ← encode.encode_permission encoder8 p
+                  let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r8
+                  match cf8 with
+                  | core.ops.control_flow.ControlFlow.Continue _ =>
+                    let (r9, encoder10) ← encode.key encoder9 4#u8
+                    let cf9 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                    match cf9 with
+                    | core.ops.control_flow.ControlFlow.Continue _ =>
+                      let o ←
+                        auths_model.CanonicalAction.impl.requested_budget
+                          action
+                      let (r10, encoder11) ←
+                        encode.encode_optional_budget encoder10 o
+                      let cf10 ←
+                        core.result.Result.Insts.CoreOpsTry.branch r10
+                      match cf10 with
+                      | core.ops.control_flow.ControlFlow.Continue _ =>
+                        let (r11, encoder12) ← encode.key encoder11 5#u8
+                        let cf11 ←
+                          core.result.Result.Insts.CoreOpsTry.branch r11
+                        match cf11 with
+                        | core.ops.control_flow.ControlFlow.Continue _ =>
+                          let s2 ←
+                            auths_model.CanonicalAction.impl.detached_attachments
+                              action
+                          let i := Slice.len s2
+                          let (r12, encoder13) ← encode.array encoder12 i
+                          let cf12 ←
+                            core.result.Result.Insts.CoreOpsTry.branch r12
+                          match cf12 with
+                          | core.ops.control_flow.ControlFlow.Continue _ =>
+                            let iter ←
+                              SharedSlice.Insts.CoreIterTraitsCollectIntoIteratorSharedIter.into_iter
+                                s2
+                            let state ←
+                              encode.encode_canonical_action_loop iter
+                                (core.result.Result.Ok encoder13)
+                            let cf13 ←
+                              core.result.Result.Insts.CoreOpsTry.branch state
+                            match cf13 with
+                            | core.ops.control_flow.ControlFlow.Continue val =>
+                              let v ← cbor.Encoder.into_writer val
+                              ok (core.result.Result.Ok v)
+                            | core.ops.control_flow.ControlFlow.Break residual
+                              =>
+                              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                                error.CodecError) residual
+                          | core.ops.control_flow.ControlFlow.Break residual =>
+                            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                              (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                              error.CodecError) residual
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                            (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                            error.CodecError) residual
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                          (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                          error.CodecError) residual
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                        (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                        error.CodecError) residual
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                      (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                      error.CodecError) residual
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                    (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                    error.CodecError) residual
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                  (alloc.vec.Vec Std.U8) (core.convert.FromSame
+                  error.CodecError) residual
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+                residual
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+              residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+            residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+          residual
+    | core.ops.control_flow.ControlFlow.Break residual =>
+      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+        (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError)
+        residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError) residual
+
+/-- [auths_codec::decode::decode_canonical_action]:
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1604:0-1642:1
+    Visibility: public -/
+def decode.decode_canonical_action
+  (input : Slice Std.U8) (limits : auths_model.VerifierLimits) :
+  Result (core.result.Result auths_model.CanonicalAction error.CodecError)
+  := do
+  let r ← auths_model.VerifierLimits.validate limits
+  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+  match cf with
+  | core.ops.control_flow.ControlFlow.Continue _ =>
+    let i := Slice.len input
+    let i1 ←
+      auths_model.VerifierLimits.get limits auths_model.LimitKind.ActionBytes
+    if i > i1
+    then ok (core.result.Result.Err error.CodecError.LimitExceeded)
+    else
+      let decoder ← cbor.Decoder.new input
+      let (r1, decoder1) ← decode.map decoder 6#u64
+      let cf1 ← core.result.Result.Insts.CoreOpsTry.branch r1
+      match cf1 with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let (r2, decoder2) ← decode.key decoder1 0#u8
+        let cf2 ← core.result.Result.Insts.CoreOpsTry.branch r2
+        match cf2 with
+        | core.ops.control_flow.ControlFlow.Continue _ =>
+          let (r3, decoder3) ← decode.profile_ref decoder2
+          let cf3 ← core.result.Result.Insts.CoreOpsTry.branch r3
+          match cf3 with
+          | core.ops.control_flow.ControlFlow.Continue val =>
+            let (r4, decoder4) ← decode.key decoder3 1#u8
+            let cf4 ← core.result.Result.Insts.CoreOpsTry.branch r4
+            match cf4 with
+            | core.ops.control_flow.ControlFlow.Continue _ =>
+              let (r5, decoder5) ← decode.text decoder4
+              let cf5 ← core.result.Result.Insts.CoreOpsTry.branch r5
+              match cf5 with
+              | core.ops.control_flow.ControlFlow.Continue val1 =>
+                let r6 ← auths_model.MediaType.parse val1
+                let r7 ←
+                  core.result.Result.map_err (BuiltinFnOnce
+                    auths_model.ModelError error.CodecError) r6
+                    (error.CodecError.Insts.CoreConvertFromModelError.from)
+                let cf6 ← core.result.Result.Insts.CoreOpsTry.branch r7
+                match cf6 with
+                | core.ops.control_flow.ControlFlow.Continue val2 =>
+                  let (r8, decoder6) ← decode.key decoder5 2#u8
+                  let cf7 ← core.result.Result.Insts.CoreOpsTry.branch r8
+                  match cf7 with
+                  | core.ops.control_flow.ControlFlow.Continue _ =>
+                    let i2 ←
+                      auths_model.VerifierLimits.get limits
+                        auths_model.LimitKind.CanonicalBodyBytes
+                    let (r9, decoder7) ←
+                      decode.bounded_bytes decoder6 i2 true
+                    let cf8 ← core.result.Result.Insts.CoreOpsTry.branch r9
+                    match cf8 with
+                    | core.ops.control_flow.ControlFlow.Continue val3 =>
+                      let (r10, decoder8) ← decode.key decoder7 3#u8
+                      let cf9 ←
+                        core.result.Result.Insts.CoreOpsTry.branch r10
+                      match cf9 with
+                      | core.ops.control_flow.ControlFlow.Continue _ =>
+                        let (r11, decoder9) ← decode.permission decoder8
+                        let cf10 ←
+                          core.result.Result.Insts.CoreOpsTry.branch r11
+                        match cf10 with
+                        | core.ops.control_flow.ControlFlow.Continue val4 =>
+                          let (r12, decoder10) ← decode.key decoder9 4#u8
+                          let cf11 ←
+                            core.result.Result.Insts.CoreOpsTry.branch r12
+                          match cf11 with
+                          | core.ops.control_flow.ControlFlow.Continue _ =>
+                            let (r13, decoder11) ←
+                              decode.optional_budget decoder10
+                            let cf12 ←
+                              core.result.Result.Insts.CoreOpsTry.branch r13
+                            match cf12 with
+                            | core.ops.control_flow.ControlFlow.Continue val5
+                              =>
+                              let (r14, decoder12) ←
+                                decode.key decoder11 5#u8
+                              let cf13 ←
+                                core.result.Result.Insts.CoreOpsTry.branch r14
+                              match cf13 with
+                              | core.ops.control_flow.ControlFlow.Continue _ =>
+                                let i3 ←
+                                  auths_model.VerifierLimits.get limits
+                                    auths_model.LimitKind.Attachments
+                                let (r15, decoder13) ←
+                                  decode.array decoder12 i3
+                                let cf14 ←
+                                  core.result.Result.Insts.CoreOpsTry.branch
+                                    r15
+                                match cf14 with
+                                | core.ops.control_flow.ControlFlow.Continue
+                                  val6 =>
+                                  let i4 ←
+                                    cbor.Decoder.impl.position decoder13
+                                  let r16 ←
+                                    decode.attachment_batch input limits i4
+                                      val6
+                                  let cf15 ←
+                                    core.result.Result.Insts.CoreOpsTry.branch
+                                      r16
+                                  match cf15 with
+                                  | core.ops.control_flow.ControlFlow.Continue
+                                    val7 =>
+                                    let r17 ←
+                                      cbor.Decoder.at input val7.position
+                                    match r17 with
+                                    | core.result.Result.Ok d =>
+                                      let r18 ←
+                                        auths_model.CanonicalAction.new val
+                                          val2 val3 val4 val5
+                                      let cf16 ←
+                                        core.result.Result.Insts.CoreOpsTry.branch
+                                          r18
+                                      match cf16 with
+                                      |
+                                        core.ops.control_flow.ControlFlow.Continue
+                                        val8 =>
+                                        let r19 ←
+                                          auths_model.CanonicalAction.with_detached_attachments
+                                            val8 val7.attachments
+                                        let cf17 ←
+                                          core.result.Result.Insts.CoreOpsTry.branch
+                                            r19
+                                        match cf17 with
+                                        |
+                                          core.ops.control_flow.ControlFlow.Continue
+                                          val9 =>
+                                          let r20 ←
+                                            decode.ensure_complete d input
+                                          let cf18 ←
+                                            core.result.Result.Insts.CoreOpsTry.branch
+                                              r20
+                                          match cf18 with
+                                          |
+                                            core.ops.control_flow.ControlFlow.Continue
+                                            _ =>
+                                            let r21 ←
+                                              encode.encode_canonical_action
+                                                val9
+                                            let cf19 ←
+                                              core.result.Result.Insts.CoreOpsTry.branch
+                                                r21
+                                            match cf19 with
+                                            |
+                                              core.ops.control_flow.ControlFlow.Continue
+                                              val10 =>
+                                              let s ←
+                                                alloc.vec.Vec.as_slice Global
+                                                  val10
+                                              let b ←
+                                                core.cmp.impls.PartialEqShared.ne
+                                                  (Slice.Insts.CoreCmpPartialEqSlice
+                                                  core.cmp.PartialEqU8) s input
+                                              if b
+                                              then
+                                                ok (core.result.Result.Err
+                                                  error.CodecError.NonCanonical)
+                                              else
+                                                ok (core.result.Result.Ok val9)
+                                            |
+                                              core.ops.control_flow.ControlFlow.Break
+                                              residual =>
+                                              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                                auths_model.CanonicalAction
+                                                (core.convert.FromSame
+                                                error.CodecError) residual
+                                          |
+                                            core.ops.control_flow.ControlFlow.Break
+                                            residual =>
+                                            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                              auths_model.CanonicalAction
+                                              (core.convert.FromSame
+                                              error.CodecError) residual
+                                        |
+                                          core.ops.control_flow.ControlFlow.Break
+                                          residual =>
+                                          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                            auths_model.CanonicalAction
+                                            error.CodecError.Insts.CoreConvertFromModelError
+                                            residual
+                                      | core.ops.control_flow.ControlFlow.Break
+                                        residual =>
+                                        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                          auths_model.CanonicalAction
+                                          error.CodecError.Insts.CoreConvertFromModelError
+                                          residual
+                                    | core.result.Result.Err _ =>
+                                      ok (core.result.Result.Err
+                                        error.CodecError.Malformed)
+                                  | core.ops.control_flow.ControlFlow.Break
+                                    residual =>
+                                    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                      auths_model.CanonicalAction
+                                      (core.convert.FromSame error.CodecError)
+                                      residual
+                                | core.ops.control_flow.ControlFlow.Break
+                                  residual =>
+                                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                    auths_model.CanonicalAction
+                                    (core.convert.FromSame error.CodecError)
+                                    residual
+                              | core.ops.control_flow.ControlFlow.Break
+                                residual =>
+                                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                  auths_model.CanonicalAction
+                                  (core.convert.FromSame error.CodecError)
+                                  residual
+                            | core.ops.control_flow.ControlFlow.Break residual
+                              =>
+                              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                                auths_model.CanonicalAction
+                                (core.convert.FromSame error.CodecError)
+                                residual
+                          | core.ops.control_flow.ControlFlow.Break residual =>
+                            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                              auths_model.CanonicalAction
+                              (core.convert.FromSame error.CodecError) residual
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                            auths_model.CanonicalAction (core.convert.FromSame
+                            error.CodecError) residual
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                          auths_model.CanonicalAction (core.convert.FromSame
+                          error.CodecError) residual
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                        auths_model.CanonicalAction (core.convert.FromSame
+                        error.CodecError) residual
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                      auths_model.CanonicalAction (core.convert.FromSame
+                      error.CodecError) residual
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                    auths_model.CanonicalAction (core.convert.FromSame
+                    error.CodecError) residual
+              | core.ops.control_flow.ControlFlow.Break residual =>
+                core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                  auths_model.CanonicalAction (core.convert.FromSame
+                  error.CodecError) residual
+            | core.ops.control_flow.ControlFlow.Break residual =>
+              core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+                auths_model.CanonicalAction (core.convert.FromSame
+                error.CodecError) residual
+          | core.ops.control_flow.ControlFlow.Break residual =>
+            core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+              auths_model.CanonicalAction (core.convert.FromSame
+              error.CodecError) residual
+        | core.ops.control_flow.ControlFlow.Break residual =>
+          core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+            auths_model.CanonicalAction (core.convert.FromSame
+            error.CodecError) residual
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+          auths_model.CanonicalAction (core.convert.FromSame error.CodecError)
+          residual
+  | core.ops.control_flow.ControlFlow.Break residual =>
+    core.result.Result.Insts.CoreOpsTryTraitFromResidualResultInfallible.from_residual
+      auths_model.CanonicalAction
+      error.CodecError.Insts.CoreConvertFromModelError residual
 
 end auths_codec
