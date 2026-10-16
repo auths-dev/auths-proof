@@ -7,7 +7,7 @@
 At the commit that contains this document, 114 of 1,040 decision-scope functions (11.0%) and 1,335 of 11,579 code lines (11.5%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `ebb0dd63a4d345d8256d6b5fb94bbe798de7abadd2b3129e2c6a15847eb94045` over the 100 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `a007e2f5ffe2114d95578fafce1abf06d10dbab5d134bdeb316883a6f7278537` over the 100 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `04a9d7749c23058f02595d94d0faf64023dd89e423c825a136f29ab709852a09`. Figures computed under a different role table are not comparable.
@@ -56,8 +56,8 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,040 | 114 (11.0%) | 59 (5.7%) | 114 (11.0%) | 11,579 | 1,335 (11.5%) | 889 (7.7%) | 1,335 (11.5%) |
 | verifier-core | 794 | 90 (11.3%) | 44 (5.5%) | 90 (11.3%) | 9,028 | 953 (10.6%) | 591 (6.5%) | 953 (10.6%) |
-| translated-crates | 1,513 | 282 (18.6%) | 83 (5.5%) | 282 (18.6%) | 16,777 | 3,063 (18.3%) | 1,221 (7.3%) | 3,063 (18.3%) |
-| verifier-closure | 1,136 | 154 (13.6%) | 50 (4.4%) | 154 (13.6%) | 14,254 | 1,437 (10.1%) | 730 (5.1%) | 1,437 (10.1%) |
+| translated-crates | 1,513 | 282 (18.6%) | 83 (5.5%) | 282 (18.6%) | 16,774 | 3,060 (18.2%) | 1,221 (7.3%) | 3,060 (18.2%) |
+| verifier-closure | 1,136 | 154 (13.6%) | 50 (4.4%) | 154 (13.6%) | 14,251 | 1,434 (10.1%) | 730 (5.1%) | 1,434 (10.1%) |
 | decision-nontrivial | 451 | 84 (18.6%) | 46 (10.2%) | 84 (18.6%) | 9,812 | 1,245 (12.7%) | 850 (8.7%) | 1,245 (12.7%) |
 
 Decision scope by crate:
@@ -182,7 +182,7 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `600a7da2243198e927e3a523cae34564d12155ab021cb0127b70d65d9dcbed11`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `d3d56aba4c7553c88e0b112108e9e12f5d6b3737e26a6d9bf1a9f96701e2d99c`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |

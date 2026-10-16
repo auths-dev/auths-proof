@@ -2082,7 +2082,7 @@
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
         "begin_line": 85,
-        "end_line": 98
+        "end_line": 97
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2098,8 +2098,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 100,
-        "end_line": 106
+        "begin_line": 99,
+        "end_line": 104
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2115,8 +2115,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 108,
-        "end_line": 110
+        "begin_line": 106,
+        "end_line": 108
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2132,8 +2132,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 112,
-        "end_line": 114
+        "begin_line": 110,
+        "end_line": 112
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2166,8 +2166,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 128,
-        "end_line": 135
+        "begin_line": 126,
+        "end_line": 133
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2183,8 +2183,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 137,
-        "end_line": 144
+        "begin_line": 135,
+        "end_line": 142
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2200,8 +2200,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 189,
-        "end_line": 196
+        "begin_line": 187,
+        "end_line": 194
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2217,8 +2217,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 198,
-        "end_line": 207
+        "begin_line": 196,
+        "end_line": 205
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2234,8 +2234,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1286,
-        "end_line": 1292
+        "begin_line": 1284,
+        "end_line": 1290
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2251,8 +2251,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1550,
-        "end_line": 1578
+        "begin_line": 1548,
+        "end_line": 1575
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2268,8 +2268,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1591,
-        "end_line": 1594
+        "begin_line": 1588,
+        "end_line": 1591
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2293,8 +2293,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1591,
-        "end_line": 1594
+        "begin_line": 1588,
+        "end_line": 1591
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2318,8 +2318,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1580,
-        "end_line": 1596
+        "begin_line": 1577,
+        "end_line": 1593
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2606,8 +2606,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1604,
-        "end_line": 1642
+        "begin_line": 1601,
+        "end_line": 1639
       },
       "is_opaque": false,
       "can_fail": true,
@@ -2901,8 +2901,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-codec/src/decode.rs",
-        "begin_line": 1544,
-        "end_line": 1548
+        "begin_line": 1542,
+        "end_line": 1546
       }
     }
   ],

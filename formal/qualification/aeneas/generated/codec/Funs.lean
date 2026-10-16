@@ -2111,7 +2111,7 @@ def decode.text
     ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
 
 /-- [auths_codec::decode::bounded_bytes]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 85:0-98:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 85:0-97:1 -/
 def decode.bounded_bytes
   (decoder : cbor.Decoder) (maximum : Std.Usize) (non_empty : Bool) :
   Result ((core.result.Result (alloc.vec.Vec Std.U8) error.CodecError) ×
@@ -2119,28 +2119,28 @@ def decode.bounded_bytes
   := do
   let (r, decoder1) ← cbor.Decoder.bytes decoder
   match r with
-  | core.result.Result.Ok value =>
-    let i := Slice.len value
+  | core.result.Result.Ok bytes =>
+    let i := Slice.len bytes
     if i > maximum
     then ok (core.result.Result.Err error.CodecError.LimitExceeded, decoder1)
     else
       if non_empty
       then
-        let b ← core.slice.Slice.is_empty value
+        let b ← core.slice.Slice.is_empty bytes
         if b
         then
           ok (core.result.Result.Err error.CodecError.LimitExceeded, decoder1)
         else
-          let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 value
+          let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 bytes
           ok (core.result.Result.Ok v, decoder1)
       else
-        let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 value
+        let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 bytes
         ok (core.result.Result.Ok v, decoder1)
   | core.result.Result.Err _ =>
     ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
 
 /-- [auths_codec::decode::digest_bytes]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 100:0-106:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 99:0-104:1 -/
 def decode.digest_bytes
   (decoder : cbor.Decoder) :
   Result ((core.result.Result (Array Std.U8 32#usize) error.CodecError) ×
@@ -2148,10 +2148,10 @@ def decode.digest_bytes
   := do
   let (r, decoder1) ← cbor.Decoder.bytes decoder
   match r with
-  | core.result.Result.Ok value =>
+  | core.result.Result.Ok bytes =>
     let r1 ←
       core.array.TryFromArrayCopySlice.try_from 32#usize core.marker.CopyU8
-        value
+        bytes
     let r2 ←
       core.result.Result.map_err (BuiltinFnOnce core.array.TryFromSliceError
         error.CodecError) r1 (decode.decode_error)
@@ -2160,7 +2160,7 @@ def decode.digest_bytes
     ok (core.result.Result.Err error.CodecError.Malformed, decoder1)
 
 /-- [auths_codec::decode::is_null]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 108:0-110:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 106:0-108:1 -/
 def decode.is_null
   (decoder : cbor.Decoder) :
   Result (core.result.Result Bool error.CodecError)
@@ -2179,7 +2179,7 @@ def decode.is_null
       Bool (core.convert.FromSame error.CodecError) residual
 
 /-- [auths_codec::decode::null]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 112:0-114:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 110:0-112:1 -/
 def decode.null
   (decoder : cbor.Decoder) :
   Result ((core.result.Result Unit error.CodecError) × cbor.Decoder)
@@ -2198,7 +2198,7 @@ def error.CodecError.Insts.CoreConvertFromModelError.from
   ok (error.CodecError.Model model_error)
 
 /-- [auths_codec::decode::profile_ref]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 128:0-135:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 126:0-133:1 -/
 def decode.profile_ref
   (decoder : cbor.Decoder) :
   Result ((core.result.Result auths_model.ProfileRef error.CodecError) ×
@@ -2279,7 +2279,7 @@ def decode.profile_ref
     ok (r1, decoder1)
 
 /-- [auths_codec::decode::permission]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 137:0-144:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 135:0-142:1 -/
 def decode.permission
   (decoder : cbor.Decoder) :
   Result ((core.result.Result auths_model.Permission error.CodecError) ×
@@ -2367,7 +2367,7 @@ def decode.permission
     ok (r1, decoder1)
 
 /-- [auths_codec::decode::budget]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 189:0-196:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 187:0-194:1 -/
 def decode.budget
   (decoder : cbor.Decoder) :
   Result ((core.result.Result auths_model.BudgetCeiling error.CodecError) ×
@@ -2444,7 +2444,7 @@ def decode.budget
     ok (r1, decoder1)
 
 /-- [auths_codec::decode::optional_budget]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 198:0-207:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 196:0-205:1 -/
 def decode.optional_budget
   (decoder : cbor.Decoder) :
   Result ((core.result.Result (Option auths_model.BudgetCeiling)
@@ -2487,7 +2487,7 @@ def decode.optional_budget
     ok (r1, decoder)
 
 /-- [auths_codec::decode::ensure_complete]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1286:0-1292:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1284:0-1290:1 -/
 def decode.ensure_complete
   (decoder : cbor.Decoder) (input : Slice Std.U8) :
   Result (core.result.Result Unit error.CodecError)
@@ -2507,7 +2507,7 @@ def error.CodecError.Insts.CoreConvertFromModelError : core.convert.From
 }
 
 /-- [auths_codec::decode::attachment_batch_step]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1550:0-1578:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1548:0-1575:1 -/
 def decode.attachment_batch_step
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
   (state : core.result.Result decode.AttachmentBatch error.CodecError) :
@@ -2602,7 +2602,7 @@ def decode.attachment_batch_step
       decode.AttachmentBatch (core.convert.FromSame error.CodecError) residual
 
 /-- [auths_codec::decode::attachment_batch]: loop body 0:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1591:4-1594:5 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1588:4-1591:5 -/
 @[rust_loop_body]
 def decode.attachment_batch_loop.body
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
@@ -2620,7 +2620,7 @@ def decode.attachment_batch_loop.body
   else ok (done state)
 
 /-- [auths_codec::decode::attachment_batch]: loop 0:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1591:4-1594:5 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1588:4-1591:5 -/
 @[rust_loop]
 def decode.attachment_batch_loop
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
@@ -2634,7 +2634,7 @@ def decode.attachment_batch_loop
     (remaining, state)
 
 /-- [auths_codec::decode::attachment_batch]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1580:0-1596:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1577:0-1593:1 -/
 def decode.attachment_batch
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits)
   (position : Std.Usize) (remaining : Std.Usize) :
@@ -3187,7 +3187,7 @@ def encode.encode_canonical_action
       (alloc.vec.Vec Std.U8) (core.convert.FromSame error.CodecError) residual
 
 /-- [auths_codec::decode::decode_canonical_action]:
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1604:0-1642:1
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1601:0-1639:1
     Visibility: public -/
 def decode.decode_canonical_action
   (input : Slice Std.U8) (limits : auths_model.VerifierLimits) :

@@ -291,7 +291,7 @@ inductive error.CodecError where
 | Model : auths_model.ModelError → error.CodecError
 
 /-- [auths_codec::decode::AttachmentBatch]
-    Source: 'core/crates/auths-codec/src/decode.rs', lines 1544:0-1548:1 -/
+    Source: 'core/crates/auths-codec/src/decode.rs', lines 1542:0-1546:1 -/
 structure decode.AttachmentBatch where
   attachments : alloc.vec.Vec auths_model.DetachedAttachment
   attachment_bytes : Std.Usize

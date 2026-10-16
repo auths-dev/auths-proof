@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "04a9d7749c23058f02595d94d0faf64023dd89e423c825a136f29ab709852a09",
-  "inputs_sha256": "ebb0dd63a4d345d8256d6b5fb94bbe798de7abadd2b3129e2c6a15847eb94045",
+  "inputs_sha256": "a007e2f5ffe2114d95578fafce1abf06d10dbab5d134bdeb316883a6f7278537",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -30,7 +30,7 @@
     "core/crates/auths-codec/src/approval.rs": "sha256:eb0a867ab26c151f9f947090dd81b5802541e818104ac2b363634e2c8f568005",
     "core/crates/auths-codec/src/bounded_policy.rs": "sha256:5c84447f057e2bf356323c6d83cab4daf64fcce221051a0863350f414ad0fb85",
     "core/crates/auths-codec/src/cbor.rs": "sha256:03f43d462fe39a45c7ad5ef487376ce109ae359b7874ec2b0200601ad0563361",
-    "core/crates/auths-codec/src/decode.rs": "sha256:b86092621720e83e7fc3537a28b14f143d8cd44b1808d6f40a99be090d197757",
+    "core/crates/auths-codec/src/decode.rs": "sha256:9b23c5ab3540877b19befca2a271617164c06e777747ebbeaf6e32ce30d2ce18",
     "core/crates/auths-codec/src/encode.rs": "sha256:163dcb12f640eb63fbdb872e75bab1ee9e01571797cdf3a10b77cfd0b02a0c0b",
     "core/crates/auths-codec/src/error.rs": "sha256:80c1e7fdd190a0d050c69fbcde9836a4702d9b98e8effd76bc659c3d75ea8175",
     "core/crates/auths-codec/src/hash.rs": "sha256:f88e111f1dbb2cef6b7b5e9c948cb45ff92e366710c8a5f5c636138aa748479e",
@@ -68,8 +68,8 @@
     "formal/qualification/aeneas/generated/authority/translation.json": "sha256:73998f4c391f5c2037f153a3bda1768fb43d9da9b3b5975fd30088735cc6f7d9",
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "sha256:ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
     "formal/qualification/aeneas/generated/bounded_policy/translation.json": "sha256:3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
-    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:7e586b90af4515b0a196171f77010d28c4143cba3518ba0523c1125de211cb37",
-    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:df66081bef20e9879c1fbdcc5f70df81a606eba379662de37f6ff0c506ac0025",
+    "formal/qualification/aeneas/generated/codec/Funs.lean": "sha256:03c45cd0c055b48ee7120d0ecbfbd5d3e60ece84e23c55ca0e954273c97becf7",
+    "formal/qualification/aeneas/generated/codec/translation.json": "sha256:98618f620a31ae79d1ed132c33d3d7de0d48764a00d728f881999f64742fe577",
     "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
     "formal/qualification/aeneas/generated/connections/translation.json": "sha256:c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:e11741469961d3a068b04e59d31b3f45351b3daf8cbd54dc9376a94b74b9c89c",
@@ -263,16 +263,16 @@
       "scope": "translated-crates",
       "minimum_code_lines": 0,
       "functions": 1513,
-      "span_lines": 16832,
-      "code_lines": 16777,
+      "span_lines": 16829,
+      "code_lines": 16774,
       "by_level": {
         "translated": {
           "functions": 282,
           "function_share": 0.1864,
-          "span_lines": 3075,
-          "span_line_share": 0.1827,
-          "code_lines": 3063,
-          "code_line_share": 0.1826
+          "span_lines": 3072,
+          "span_line_share": 0.1825,
+          "code_lines": 3060,
+          "code_line_share": 0.1824
         },
         "direct": {
           "functions": 83,
@@ -285,10 +285,10 @@
         "closure": {
           "functions": 282,
           "function_share": 0.1864,
-          "span_lines": 3075,
-          "span_line_share": 0.1827,
-          "code_lines": 3063,
-          "code_line_share": 0.1826
+          "span_lines": 3072,
+          "span_line_share": 0.1825,
+          "code_lines": 3060,
+          "code_line_share": 0.1824
         }
       }
     },
@@ -296,16 +296,16 @@
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
       "functions": 1136,
-      "span_lines": 14322,
-      "code_lines": 14254,
+      "span_lines": 14319,
+      "code_lines": 14251,
       "by_level": {
         "translated": {
           "functions": 154,
           "function_share": 0.1356,
-          "span_lines": 1449,
-          "span_line_share": 0.1012,
-          "code_lines": 1437,
-          "code_line_share": 0.1008
+          "span_lines": 1446,
+          "span_line_share": 0.101,
+          "code_lines": 1434,
+          "code_line_share": 0.1006
         },
         "direct": {
           "functions": 50,
@@ -318,10 +318,10 @@
         "closure": {
           "functions": 154,
           "function_share": 0.1356,
-          "span_lines": 1449,
-          "span_line_share": 0.1012,
-          "code_lines": 1437,
-          "code_line_share": 0.1008
+          "span_lines": 1446,
+          "span_line_share": 0.101,
+          "code_lines": 1434,
+          "code_line_share": 0.1006
         }
       }
     },
@@ -772,7 +772,7 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -795,7 +795,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -818,7 +818,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -834,14 +834,14 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "profile_ref",
-            "begin_line": 128,
+            "begin_line": 126,
             "refined_closure": true
           },
           {
@@ -885,7 +885,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -908,7 +908,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -931,7 +931,7 @@
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -947,14 +947,14 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "ensure_complete",
-            "begin_line": 1286,
+            "begin_line": 1284,
             "refined_closure": true
           },
           {
             "role": "also",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           }
         ]
@@ -970,7 +970,7 @@
             "role": "refusal",
             "file": "core/crates/auths-codec/src/decode.rs",
             "function": "decode_canonical_action",
-            "begin_line": 1604,
+            "begin_line": 1601,
             "refined_closure": true
           },
           {
@@ -3042,7 +3042,7 @@
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "600a7da2243198e927e3a523cae34564d12155ab021cb0127b70d65d9dcbed11",
+    "current_formal_inputs_sha256": "d3d56aba4c7553c88e0b112108e9e12f5d6b3737e26a6d9bf1a9f96701e2d99c",
     "fresh": false,
     "campaigns": {
       "s1": {

@@ -219,7 +219,7 @@ native codec/model/authority/author tests and two byte-identical translations.
 The expanded codec has 73 local and 75 imported function records, including
 its actual constructors, with zero opaque Auths functions. Its six reviewed
 external models introduce no compiled axiom. The exact production source
-closure is `f76cc84b76e807cafdfbbb2abe08fbe64d999838a523396d62af332ec6450237`.
+closure is `26c7debdb132b8c1ee4c5d5dd9dd9886922802b00dae31ae71385443b1029ea6`.
 The hosted gates for the expanded checkpoint remain required.
 
 Native tests retain the former action codec and attachment checks only as

@@ -87,9 +87,8 @@ pub(crate) fn bounded_bytes(
     maximum: usize,
     non_empty: bool,
 ) -> Result<Vec<u8>, CodecError> {
-    let bytes = match decoder.bytes() {
-        Ok(value) => value,
-        Err(_) => return Err(CodecError::Malformed),
+    let Ok(bytes) = decoder.bytes() else {
+        return Err(CodecError::Malformed);
     };
     if bytes.len() > maximum || (non_empty && bytes.is_empty()) {
         return Err(CodecError::LimitExceeded);
@@ -98,9 +97,8 @@ pub(crate) fn bounded_bytes(
 }
 
 pub(crate) fn digest_bytes(decoder: &mut V1Decoder<'_>) -> Result<[u8; 32], CodecError> {
-    let bytes = match decoder.bytes() {
-        Ok(value) => value,
-        Err(_) => return Err(CodecError::Malformed),
+    let Ok(bytes) = decoder.bytes() else {
+        return Err(CodecError::Malformed);
     };
     bytes.try_into().map_err(decode_error)
 }
@@ -1553,9 +1551,8 @@ fn attachment_batch_step(
     state: Result<AttachmentBatch, CodecError>,
 ) -> Result<AttachmentBatch, CodecError> {
     let mut state = state?;
-    let mut decoder = match Decoder::at(input, state.position) {
-        Ok(value) => value,
-        Err(_) => return Err(CodecError::Malformed),
+    let Ok(mut decoder) = Decoder::at(input, state.position) else {
+        return Err(CodecError::Malformed);
     };
     map(&mut decoder, 2)?;
     key(&mut decoder, 0)?;
