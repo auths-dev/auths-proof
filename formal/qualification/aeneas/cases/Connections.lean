@@ -1,3 +1,4 @@
+import Auths.Product.StrictOrderRefinement
 import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
 import Auths.Product.RecoveryGateRefinement
@@ -189,3 +190,27 @@ example : kernel.record_times_valid .Revoked 1#u64 3#u64 none = ok false := by r
 example : kernel.record_times_valid .Revoked 1#u64 3#u64 (some 0#u64) = ok false := by rfl
 example : kernel.record_times_valid .Active 3#u64 1#u64 none = ok false := by rfl
 end qualification.aeneas.cases.RecordTimes
+
+namespace qualification.aeneas.cases.StrictOrdering
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_connections
+open Auths.Product.StrictOrder.Refinement
+private def ascending : Slice U64 := ⟨[1#u64, 2#u64, 3#u64], by simp; scalar_tac⟩
+private def repeated : Slice U64 := ⟨[1#u64, 2#u64, 2#u64], by simp; scalar_tac⟩
+private def less (a b : U64) : Bool := decide (a.val < b.val)
+
+example (order : core.cmp.Ord U64)
+    (comparison : ∀ a b, order.partialOrdInst.lt a b ⦃ actual => actual = less a b ⦄) :
+    kernel.strictly_sorted_unique order ascending ⦃ actual => actual = true ⦄ := by
+  step with strict_order_exact order less comparison as ⟨actual, meaning⟩
+  change actual = true at meaning
+  exact meaning
+
+example (order : core.cmp.Ord U64)
+    (comparison : ∀ a b, order.partialOrdInst.lt a b ⦃ actual => actual = less a b ⦄) :
+    kernel.strictly_sorted_unique order repeated ⦃ actual => actual = false ⦄ := by
+  step with strict_order_exact order less comparison as ⟨actual, meaning⟩
+  change actual = false at meaning
+  exact meaning
+end qualification.aeneas.cases.StrictOrdering

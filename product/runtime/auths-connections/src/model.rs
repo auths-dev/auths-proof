@@ -522,7 +522,7 @@ impl ConnectionRecord {
 
     fn validate(&self) -> Result<(), ConnectionRecordError> {
         if !(1..=MAX_WORKLOADS).contains(&self.allowed_workloads.len())
-            || !strictly_sorted_unique(&self.allowed_workloads)
+            || !kernel::strictly_sorted_unique(&self.allowed_workloads)
             || self
                 .allowed_workloads
                 .iter()
@@ -531,7 +531,7 @@ impl ConnectionRecord {
             return Err(ConnectionRecordError::InvalidWorkloads);
         }
         if !(1..=MAX_PROFILES).contains(&self.allowed_profiles.len())
-            || !strictly_sorted_unique(&self.allowed_profiles)
+            || !kernel::strictly_sorted_unique(&self.allowed_profiles)
         {
             return Err(ConnectionRecordError::InvalidProfiles);
         }
@@ -1088,10 +1088,6 @@ fn is_ascii_graphic(value: &str, maximum: usize) -> bool {
     kernel::ascii_graphic_valid(value.as_bytes(), maximum)
 }
 
-fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
-    values.windows(2).all(|pair| pair[0] < pair[1])
-}
-
 fn encode_text(
     encoder: &mut Encoder<Vec<u8>>,
     key: u8,
@@ -1405,3 +1401,7 @@ mod string_constructor_tests;
 #[cfg(test)]
 #[path = "record_time_tests.rs"]
 mod record_time_tests;
+
+#[cfg(test)]
+#[path = "strict_order_tests.rs"]
+mod strict_order_tests;

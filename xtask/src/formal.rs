@@ -1829,6 +1829,14 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             }
         };
         claim.lean_statement_sha256 = statement_digest;
+        if declaration.name == "Auths.Product.StrictOrder.Refinement.ordered_implies_pairwise"
+            || declaration.name
+                == "Auths.Product.StrictOrder.Refinement.ordered_implies_no_duplicates"
+        {
+            claim.claim_text = "The independent adjacent-chain model earns global pairwise ordering and duplicate absence under the displayed primitive relation laws.".to_owned();
+            claim.scope = "Every list and Boolean comparison relation with the displayed transitivity/irreflexivity properties. This is a model law; separate source refinement earns the model predicate.".to_owned();
+        }
+
         if declaration.name
             == "Auths.Product.RecordTimes.Refinement.state_change_preserves_valid_time"
             || declaration.name
@@ -4768,6 +4776,27 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
             residual_assumptions: &[
                 "Lean's kernel, pinned toolchain and permitted foundational axioms are trusted. No new external model, native axiom or expected-validity premise is introduced.",
                 "The complete record codec, all allowlist/resource checks, timestamp/caller projection and full runtime histories remain separate. Frozen full-record and actual canonical-decoder parity tests support the temporal validation cutover. These are integer/time-shape laws, not a proof of a physical clock.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.StrictOrder.Refinement.") {
+        let claim_text = match declaration {
+            "Auths.Product.StrictOrder.Refinement.strict_order_exact" => {
+                "The complete actual generic strict-order checker returns exactly the independent adjacent-chain scan for every slice under the displayed primitive comparator contract; empty/singleton behavior and every index are covered."
+            }
+            "Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates" => {
+                "An accepted actual strict-order check earns no duplicates under the displayed primitive comparator meaning, transitivity and irreflexivity laws."
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols: &["auths_connections::kernel::strictly_sorted_unique"],
+            scope: "Every represented slice and native Ord dictionary satisfying the displayed lower-level comparison contract. The no-duplicate consequence also requires the stated strict-order laws; no expected checker result or already-sorted input is assumed.",
+            residual_assumptions: &[
+                "Lean's kernel, pinned toolchain, foundational axioms and displayed primitive comparator contract/laws are trusted. The entire Auths scan and index arithmetic are translated; no opaque iterator algorithm or new std model is introduced.",
+                "Closed String/profile comparator-instance correspondence, complete record bounds/text validity, actual caller projection and complete codec/runtime composition remain separate. Frozen native checks compare the two real comparators and full record/decoder behavior to the previous windows predicate.",
             ],
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
         });

@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
 - **Status:** Implementation in progress. The latest qualified development
-  checkpoint has 882 compiled claims on 17 October 2026. E1–E5 and M6 remain
-  open; see §13.5 and §§13.25–13.33 for exact completed components, evidence
+  checkpoint has 886 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.35 for exact completed components, evidence
   boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -1836,3 +1836,58 @@ allowlist ordering has a private source-exact loop proof with explicit comparato
 contracts and independent pairwise/no-duplicate laws; the shipping iterator
 predicate has not yet been cut over. Continue with that component and remaining
 codec, verifier, caller/backend/history obligations without waiting on hosted CI.
+
+### 13.34 Source-exact strict allowlist ordering — implementation batch
+
+The existing generic ordering helper has moved from the record model to its
+translated kernel and uses an explicit adjacent-pair loop. Both existing
+consumers use it directly; the shipping windows/iterator implementation is
+removed. Its exact source proof covers every slice, including empty/singleton
+inputs, every safe subtraction/index/increment and early refusal. It assumes a
+specified lower-level comparator contract, not an expected checker result or
+an already sorted list. Independent transitivity/irreflexivity laws turn the
+adjacent-chain model into global pairwise ordering and duplicate absence; the
+source no-duplicate theorem earns that conclusion from actual acceptance.
+
+This is a relocation of an existing mechanism, not new shared domain policy.
+Workload strings and profile identifier/version pairs already consumed precisely
+the same generic strict-order contract. Their identities and 256/32-element
+bounds differ and remain record-owned; no credential, profile or provider
+semantics are generalized. The replacement allocates nothing, retains the same
+n-1 comparator calls/order and preserves native errors and wire representations.
+
+Frozen native comparison covers all 5,461 sequences of length 0–6 over four
+ordered keys for integers, Strings and real ConnectionProfiles: each comparator
+has exactly 16 accepted sequences. The full validator and canonical decoder
+also agree on 344 workload and 344 profile records, including exact limits and
+limit-plus-one, with 17 useful successes per family and unchanged typed refusals.
+All 42 connection library tests pass. Previous temporal parity retains its own
+frozen iterator oracle, so it cannot silently adopt the new scan as its reference.
+
+Four proofs compile and qualify in the 886-claim checkpoint in §13.35.
+No opaque iterator model, Auths algorithm model or external axiom is introduced.
+Closed String/profile comparator-instance correspondence and the complete
+record/caller/codec/runtime program remain separate. The generic primitive
+comparison contract and strict-order laws are explicit; they do not prove that
+an arbitrary user-supplied unlawful Ord dictionary satisfies those laws.
+
+
+### 13.35 Qualified strict-order checkpoint — 17 October 2026
+
+The §13.34 source component qualifies **886 compiled/audited claims**, preserving
+all 882 preceding complete declaration records. The full 3,524-job Lean build,
+transitive axiom audit, **18/18 qualification cases**, and **two byte-identical
+clean full Rust-to-Lean replays** pass. There are still **25 reviewed external
+models**, no unreviewed models and zero compiled external axioms. All 42
+connection and 232 active gateway tests pass; the 26 previously ignored gateway
+tests retain that status. Affected connections/gateway/xtask linting passes.
+
+Source closure: `1a15772736daa1ab26f69e4859691cb0316e5232cdb2f54925142ff68ca79255`.
+Statement review: `ap-spec-069-strict-allowlist-order-2026-10-17`.
+Inventory digest: `dc748ef710367d4817f350f08dc1fccba042d454fa20af73eef1136d6a536cfe`.
+Boundary contract: `e3c0b057f86b94b84182655b8cd8b4b923a5f54b50ba7031923891976758c375`.
+The generic comparator and law premises remain explicit. Closed native String
+and profile comparator correspondence and the full record validator are the
+next source batch; their private prototype is not included in this checkpoint.
+The wider E1–E5 and M6 obligations in §13.5 remain open. Hosted exact-revision
+release gates remain required; no GitHub CI wait is part of implementation.

@@ -314,6 +314,25 @@ pub fn record_times_valid(
     }
 }
 
+/// Whether every adjacent pair is strictly ordered by T's native comparator.
+/// Empty and singleton slices are ordered. The scan allocates nothing and
+/// preserves comparator invocation order; the caller enforces collection bounds.
+#[must_use]
+pub fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
+    if values.is_empty() {
+        return true;
+    }
+    let mut index = 1;
+    while index < values.len() {
+        if values[index - 1] < values[index] {
+            index += 1;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

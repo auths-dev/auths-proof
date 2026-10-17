@@ -12,6 +12,8 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.StrictOrder.Refinement.strict_order_exact" = "exact"
+"Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates" = "partial"
 "Auths.Product.RecordTimes.Refinement.record_times_exact" = "exact"
 "Auths.Product.RecordTimes.Refinement.success_earns_order" = "partial"
 "Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape" = "partial"

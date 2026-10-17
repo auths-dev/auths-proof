@@ -7,10 +7,10 @@
 At the commit that contains this document, 134 of 1,047 decision-scope functions (12.8%) and 1,833 of 11,563 code lines (15.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `72fe536722a8144262c04b20e9ee23e19c4b35787f874f04e5b8b94640071493` over the 139 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `315b9a42bd18fb9437a5b9b7d5888689a0f7bdbf336c1f85be0e16ddcd330de5` over the 140 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 4.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `4d6e32d875f788289971a757671546c63ec32dc698ecd5b5fe6f923c51ac1e5e`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `ed030ce60262669dce62637a8f8016799e07f45e468055c2087b0e6a9ebab885`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -54,6 +54,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `formal/qualification/aeneas/entrypoints/profile_construction.rs` | interface |
 | `product/runtime/auths-connections/src/record_time_tests.rs` | test-support |
 | `product/runtime/auths-connections/src/recovery_guard_tests.rs` | test-support |
+| `product/runtime/auths-connections/src/strict_order_tests.rs` | test-support |
 | `product/runtime/auths-connections/src/string_constructor_tests.rs` | test-support |
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
 | `product/runtime/auths-lifecycle/src/sealed.rs` | storage |
@@ -68,7 +69,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,047 | 134 (12.8%) | 77 (7.4%) | 134 (12.8%) | 11,563 | 1,833 (15.9%) | 1,356 (11.7%) | 1,833 (15.9%) |
 | verifier-core | 800 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,993 | 1,432 (15.9%) | 1,033 (11.5%) | 1,432 (15.9%) |
-| translated-crates | 1,837 | 385 (21.0%) | 178 (9.7%) | 385 (21.0%) | 22,522 | 4,495 (20.0%) | 2,616 (11.6%) | 4,495 (20.0%) |
+| translated-crates | 1,837 | 386 (21.0%) | 179 (9.7%) | 386 (21.0%) | 22,533 | 4,509 (20.0%) | 2,630 (11.7%) | 4,509 (20.0%) |
 | verifier-closure | 1,147 | 182 (15.9%) | 75 (6.5%) | 182 (15.9%) | 14,272 | 2,065 (14.5%) | 1,334 (9.3%) | 2,065 (14.5%) |
 | decision-nontrivial | 456 | 104 (22.8%) | 64 (14.0%) | 104 (22.8%) | 9,790 | 1,743 (17.8%) | 1,317 (13.5%) | 1,743 (17.8%) |
 
@@ -200,7 +201,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `d51ca1444289a8cd91e807a53891a9debd27b9aae5a107d0fca0dac5f02067ae`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `039d31af4ed667b00b50f610b69e2fb5162a856f519908c0fc643a4781482430`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -213,7 +214,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 175 exact, 12 verdict-exact, 117 partial, 84 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 176 exact, 12 verdict-exact, 118 partial, 84 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 128 of 1,047 functions (12.2%) and 1,584 of 11,563 code lines (13.7%).
 
@@ -498,6 +499,8 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Product.SlotRecord.Refinement.source_accepted_binds_record` | partial |
 | `Auths.Product.SlotRecord.Refinement.source_invalid_record_refused` | partial |
 | `Auths.Product.SlotRecord.Refinement.validate_cumulative_exact` | exact |
+| `Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates` | partial |
+| `Auths.Product.StrictOrder.Refinement.strict_order_exact` | exact |
 | `Auths.Product.StringConstructors.Refinement.actual_alias_exact` | exact |
 | `Auths.Product.StringConstructors.Refinement.actual_provider_exact` | exact |
 | `Auths.Product.StringConstructors.Refinement.actual_semantic_exact` | exact |

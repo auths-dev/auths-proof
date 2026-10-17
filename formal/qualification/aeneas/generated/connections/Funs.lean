@@ -461,4 +461,52 @@ def kernel.record_times_valid
         then ok (value <= updated)
         else ok false
 
+/-- [auths_connections::kernel::strictly_sorted_unique]: loop body 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 326:4-334:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.strictly_sorted_unique_loop.body
+  {T : Type} (corecmpOrdInst : core.cmp.Ord T) (values : Slice T)
+  (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len values
+  if index < i
+  then
+    let i1 ← index - 1#usize
+    let t ← Slice.index_usize values i1
+    let t1 ← Slice.index_usize values index
+    let b ← corecmpOrdInst.partialOrdInst.lt t t1
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_connections::kernel::strictly_sorted_unique]: loop 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 326:4-334:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.strictly_sorted_unique_loop
+  {T : Type} (corecmpOrdInst : core.cmp.Ord T) (values : Slice T)
+  (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => kernel.strictly_sorted_unique_loop.body corecmpOrdInst
+      values index1)
+    index
+
+/-- [auths_connections::kernel::strictly_sorted_unique]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 321:0-334:1
+    Visibility: public -/
+def kernel.strictly_sorted_unique
+  {T : Type} (corecmpOrdInst : core.cmp.Ord T) (values : Slice T) :
+  Result Bool
+  := do
+  let b ← core.slice.Slice.is_empty values
+  if b
+  then ok true
+  else kernel.strictly_sorted_unique_loop corecmpOrdInst values 1#usize
+
 end auths_connections

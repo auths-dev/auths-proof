@@ -5,6 +5,29 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified strict-order checkpoint — 17 October 2026
+
+**886 compiled/audited claims** qualify, preserving all 882 preceding full
+records and the existing axiom basis. The 3,524-job Lean build, 18/18 cases,
+two byte-identical full translations, 42 connection tests, 232 active gateway
+tests, affected-target linting and nine coverage/historical regressions pass.
+The existing 26 ignored gateway tests and 25 reviewed model basis are unchanged.
+
+Both real allowlist consumers now call the source-proved allocation-free
+ordering scan. Its exact result and earned duplicate absence expose the
+comparator contract and strict-order laws. Frozen parity covers 5,461 sequences
+per integer/String/profile comparator and 688 complete allowlist/decoder cases.
+The temporal oracle retains its own frozen ordering helper.
+
+Source: `1a15772736daa1ab26f69e4859691cb0316e5232cdb2f54925142ff68ca79255`.
+Review: `ap-spec-069-strict-allowlist-order-2026-10-17`; inventory:
+`dc748ef710367d4817f350f08dc1fccba042d454fa20af73eef1136d6a536cfe`;
+boundary: `e3c0b057f86b94b84182655b8cd8b4b923a5f54b50ba7031923891976758c375`.
+
+Next: close the actual String/profile comparator instances and compose the
+complete record validator; its private construction prototype is not qualified.
+Full E1–E5/M6 and exact-release hosted gates remain open. See spec §§13.34–13.35.
+
 ## Qualified complete record-time checkpoint — 17 October 2026
 
 The latest batch qualifies **882 compiled claims**, all 877 preceding full

@@ -1,3 +1,4 @@
+import Auths.Product.StrictOrderRefinement
 import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
 import Auths.Product.RecoveryGateRefinement
@@ -962,7 +963,11 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.RecordTimes.Refinement.success_earns_order,
     `Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape,
     `Auths.Product.RecordTimes.Refinement.state_change_preserves_valid_time,
-    `Auths.Product.RecordTimes.Refinement.data_change_preserves_valid_time
+    `Auths.Product.RecordTimes.Refinement.data_change_preserves_valid_time,
+    `Auths.Product.StrictOrder.Refinement.strict_order_exact,
+    `Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates,
+    `Auths.Product.StrictOrder.Refinement.ordered_implies_pairwise,
+    `Auths.Product.StrictOrder.Refinement.ordered_implies_no_duplicates
   ]
 
 end Auths

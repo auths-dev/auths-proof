@@ -3,7 +3,7 @@ use super::*;
 
 fn original_validate(record: &ConnectionRecord) -> Result<(), ConnectionRecordError> {
     if !(1..=MAX_WORKLOADS).contains(&record.allowed_workloads.len())
-        || !strictly_sorted_unique(&record.allowed_workloads)
+        || !original_order(&record.allowed_workloads)
         || record
             .allowed_workloads
             .iter()
@@ -12,7 +12,7 @@ fn original_validate(record: &ConnectionRecord) -> Result<(), ConnectionRecordEr
         return Err(ConnectionRecordError::InvalidWorkloads);
     }
     if !(1..=MAX_PROFILES).contains(&record.allowed_profiles.len())
-        || !strictly_sorted_unique(&record.allowed_profiles)
+        || !original_order(&record.allowed_profiles)
     {
         return Err(ConnectionRecordError::InvalidProfiles);
     }
@@ -78,4 +78,8 @@ fn complete_record_times_preserve_validation_and_decoder_behavior() {
     // Two non-revoked states * fifteen ordered pairs, plus thirty-five
     // created/revoked/updated triples with repetition among five values.
     assert_eq!((accepted, refused), (65, 385));
+}
+
+fn original_order<T: Ord>(values: &[T]) -> bool {
+    values.windows(2).all(|pair| pair[0] < pair[1])
 }

@@ -26036,6 +26036,103 @@
         "auths_connections.model.ConnectionState.Revoked",
         "Auths.Product.RecordTimes.Refinement.valid"
       ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.StrictOrderRefinement",
+      "name": "Auths.Product.StrictOrder.Refinement.strict_order_exact",
+      "statement": "∀ {T : Type} (order : Aeneas.Std.core.cmp.Ord T) (less : T → T → Bool),\n  (∀ (a b : T), Aeneas.Std.WP.spec (order.partialOrdInst.lt a b) fun actual => actual = less a b) →\n    ∀ (values : Aeneas.Std.Slice T),\n      Aeneas.Std.WP.spec (auths_connections.kernel.strictly_sorted_unique order values) fun actual =>\n        actual = Auths.Product.StrictOrder.Refinement.ordered less ↑values",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "LE.le",
+        "List.length",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "auths_connections.kernel.strictly_sorted_unique",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Aeneas.Std.core.cmp.Ord",
+        "Auths.Product.StrictOrder.Refinement.ordered",
+        "Aeneas.Std.core.cmp.Ord.partialOrdInst",
+        "Aeneas.Std.core.cmp.PartialOrd.lt"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.StrictOrderRefinement",
+      "name": "Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates",
+      "statement": "∀ {T : Type} (order : Aeneas.Std.core.cmp.Ord T) (less : T → T → Bool),\n  (∀ (a b : T), Aeneas.Std.WP.spec (order.partialOrdInst.lt a b) fun actual => actual = less a b) →\n    (∀ (a b c : T), less a b = true → less b c = true → less a c = true) →\n      (∀ (value : T), less value value = false) →\n        ∀ (values : Aeneas.Std.Slice T),\n          Aeneas.Std.WP.spec (auths_connections.kernel.strictly_sorted_unique order values) fun actual =>\n            actual = true → (↑values).Nodup",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "Bool.false",
+        "Bool.true",
+        "LE.le",
+        "List.Nodup",
+        "List.length",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "auths_connections.kernel.strictly_sorted_unique",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Aeneas.Std.core.cmp.Ord",
+        "Aeneas.Std.core.cmp.Ord.partialOrdInst",
+        "Aeneas.Std.core.cmp.PartialOrd.lt"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.StrictOrderRefinement",
+      "name": "Auths.Product.StrictOrder.Refinement.ordered_implies_pairwise",
+      "statement": "∀ {T : Type} (less : T → T → Bool),\n  (∀ (a b c : T), less a b = true → less b c = true → less a c = true) →\n    ∀ (values : List T),\n      Auths.Product.StrictOrder.Refinement.ordered less values = true →\n        List.Pairwise (fun a b => less a b = true) values",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Bool.true",
+        "List.Pairwise",
+        "Auths.Product.StrictOrder.Refinement.ordered"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.StrictOrderRefinement",
+      "name": "Auths.Product.StrictOrder.Refinement.ordered_implies_no_duplicates",
+      "statement": "∀ {T : Type} (less : T → T → Bool),\n  (∀ (a b c : T), less a b = true → less b c = true → less a c = true) →\n    (∀ (value : T), less value value = false) →\n      ∀ (values : List T), Auths.Product.StrictOrder.Refinement.ordered less values = true → values.Nodup",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Bool.false",
+        "Bool.true",
+        "List.Nodup",
+        "Auths.Product.StrictOrder.Refinement.ordered"
+      ]
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

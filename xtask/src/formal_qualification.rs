@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "fc09192a131ddba7b342418e42f24f58e141d0a740c2a73b0ed01ad4af1c7256";
+    "e3c0b057f86b94b84182655b8cd8b4b923a5f54b50ba7031923891976758c375";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -3335,7 +3335,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_connections::kernel::record_times_valid,auths_connections::kernel::record_change_allows,auths_connections::kernel::recovery_lease,auths_connections::kernel::recovery_binding_requirement,auths_connections::kernel::state_transition_allows,auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
+            "auths_connections::kernel::strictly_sorted_unique,auths_connections::kernel::record_times_valid,auths_connections::kernel::record_change_allows,auths_connections::kernel::recovery_lease,auths_connections::kernel::recovery_binding_requirement,auths_connections::kernel::state_transition_allows,auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
             &stable_llbc.join("auths_connections.llbc"),
             "product/runtime/auths-connections/Cargo.toml",
             &[],
