@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
 - **Status:** Implementation in progress. The latest qualified development
-  checkpoint has 861 compiled claims on 17 October 2026. E1–E5 and M6 remain
-  open; see §13.5 and §§13.25–13.27 for exact completed components, evidence
+  checkpoint has 871 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.29 for exact completed components, evidence
   boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -1651,3 +1651,71 @@ This completes the stated components, not the full §13.5 program. Complete
 record decoding, String/caller projection, actual reload/lease/write association,
 backend histories and exact-revision hosted evidence remain open. Continue with
 the private recovery-lease work and source obligations without waiting on CI.
+
+### 13.28 Recovery and administrative record guards — implementation batch
+
+Five actual record methods now consume pure source-proved guards: recovery lease
+authorization, current-versus-recorded recovery credential selection, state
+transition, credential rotation and authorization replacement. Revocation refuses
+recovery before generation checks. Successful recovery earns a positive operation
+generation no newer than the durable record. The binding classifier earns either
+the exact current credential generation, or an older operation with a positive
+recorded credential generation no newer than that operation. The existing native
+constant-time commitment comparison remains on the current-credential path.
+
+Administrative guards earn a non-revoked source record and nondecreasing time;
+state transitions additionally require a changed state. Rotation and authorization
+replacement share their identical existing state/time rule. Generation increment,
+credential-generation preservation/rotation and constructor validation retain their
+existing implementations and previously proved arithmetic.
+
+The native frozen pre-cutover algorithms compare complete constructor-valid
+records, every returned binding field, typed refusals and refusal order: 2,250
+recovery bindings (210 accepted, 2,040 refused), 450 state transitions, 450
+rotations and 600 authorization replacements. Rotation/replacement have 30 useful
+successes each, covering every administrative state, zero and maximum timestamps,
+generation overflow and malformed payloads. All 38 connection library tests pass.
+
+Ten general source proofs compile and qualify in the 871-claim checkpoint in
+§13.29. Both clean translations are byte-identical. Enum context normalization only qualifies the three
+native discriminant attributes; a regression preserves every enum body and
+rejects inventory drift. This adds no external standard-library model, Auths
+opaque algorithm or axiom. The exploratory direct method translation exposed
+unnecessary NonZero representation interfaces; they were kept out of shipping
+proofs. The actual methods instead consume the proved scalar policy guards.
+
+Complete String/NonZero/caller projection, record decoding, authentication of the
+recorded operation, constant-time primitive correspondence, actual credential
+store lease and reload/write histories remain separate obligations in §13.5.
+These are proof boundaries, not assertions that the existing product behavior is
+missing. Finish the assembled batch checks, then continue those source obligations.
+
+### 13.29 Qualified recovery and administration checkpoint
+
+The §13.28 batch qualifies **871 compiled/audited claims**, preserving all 861
+preceding complete declaration records. The full 3,520-job Lean build, 18/18
+qualification cases and two byte-identical clean full translations pass. The
+reviewed model inventory remains 25, none unreviewed, with no new axioms and
+zero compiled external axioms. Only the three permitted foundations occur.
+
+Shipping source closure:
+`016c236971e9cd58ab0d6fd762ac7febf2e86919bda2a376e95802a80d10c8aa`.
+Review: `ap-spec-069-connection-recovery-administration-2026-10-17`;
+inventory:
+`978677ea2fd11b7b04029f70566e6b7711650b907006a5057ac21de7b9349e6d`;
+boundary:
+`e47a70caeb2efe34fdbd8936cbf4091c81d191de15000389ba457434c699df5d`.
+
+All 38 connection library tests, 232 active gateway tests and affected-target/
+xtask linting pass; the 26 existing ignored gateway tests remain unchanged.
+The earlier 40 gateway-kernel tests are unaffected. Frozen native parity and
+useful positive/refusal source cases are detailed in §13.28. Coverage v4 and
+historical reproduction retain the primary 134/1047 function, 1833/11563 line
+and 23/82 check-site scope.
+
+The complete §13.5/E1–E5/M6 program is still open. Direct actual String constructor
+proofs are now prepared privately, reusing the reviewed string/UTF-8 interface
+models with their explicit portable representation bound. They are not yet
+included in this checkpoint. Continue with that constructor/caller boundary and
+the remaining decoder, verifier, backend/history and release obligations without
+waiting for hosted CI.

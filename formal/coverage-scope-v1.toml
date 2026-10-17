@@ -60,6 +60,7 @@ name = "the stateful gateway store backends"
 crates = ["product/stores/auths-stores"]
 
 [files]
+"product/runtime/auths-connections/src/recovery_guard_tests.rs" = "test-support"
 "formal/qualification/aeneas/entrypoints/profile_construction.rs" = "interface"
 "product/runtime/auths-gateway-kernel/src/reservation_batch.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/slot_record.rs" = "decision"

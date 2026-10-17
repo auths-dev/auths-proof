@@ -10,9 +10,8 @@
 //! secret stored at exactly `credential_generation`, found as the newest
 //! stored generation not after `generation`.
 //!
-//! This module is a translated leaf: closed `Copy` structs, `match`
-//! dispatch, one index loop over a slice, and no standard-library call
-//! beyond checked addition.
+//! These translated leaves use closed structs/enums, scalar decisions and
+//! bounded byte/generation loops. They perform no credential or provider I/O.
 
 /// The two generations of one connection record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -189,6 +188,109 @@ pub fn semantic_id_valid(value: &[u8], maximum: usize) -> bool {
         index += 1;
     }
     true
+}
+
+use crate::model::{ConnectionRecordError, ConnectionState};
+/// Authorizes recovery at a positive generation no newer than the record.
+/// Revocation takes precedence and always refuses. Zero raw generations refuse
+/// even though the typed shipping caller already excludes them.
+///
+/// # Errors
+/// Returns `Revoked` for a tombstone and `InvalidGeneration` for invalid bounds.
+pub fn recovery_lease(
+    state: ConnectionState,
+    record_generation: u64,
+    requested_generation: u64,
+) -> Result<(), ConnectionRecordError> {
+    match state {
+        ConnectionState::Revoked => Err(ConnectionRecordError::Revoked),
+        ConnectionState::Active | ConnectionState::Disabled => {
+            if record_generation == 0
+                || requested_generation == 0
+                || requested_generation > record_generation
+            {
+                Err(ConnectionRecordError::InvalidGeneration)
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Which credential commitment a recovery binding must authenticate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecoveryBindingRequirement {
+    /// The generation tuple is malformed or inconsistent.
+    Refuse,
+    /// The operation predates the current credential; use its authenticated record.
+    RecordedCommitment,
+    /// The operation uses the current credential; compare the current commitment.
+    CurrentCommitment,
+}
+
+/// Selects which authenticated credential commitment recovery must check.
+/// Invalid tuples refuse. An operation before the current credential generation
+/// uses its recorded pair; later operations must name the exact current one.
+#[must_use]
+pub fn recovery_binding_requirement(
+    current_credential_generation: u64,
+    operation_generation: u64,
+    operation_credential_generation: u64,
+) -> RecoveryBindingRequirement {
+    if current_credential_generation == 0
+        || operation_generation == 0
+        || operation_credential_generation == 0
+        || operation_credential_generation > operation_generation
+    {
+        return RecoveryBindingRequirement::Refuse;
+    }
+    if operation_generation >= current_credential_generation {
+        if operation_credential_generation == current_credential_generation {
+            RecoveryBindingRequirement::CurrentCommitment
+        } else {
+            RecoveryBindingRequirement::Refuse
+        }
+    } else {
+        RecoveryBindingRequirement::RecordedCommitment
+    }
+}
+
+/// Allows only a changed administrative state from a non-revoked record at a
+/// nondecreasing timestamp. Revocation is a terminal state.
+#[must_use]
+pub fn state_transition_allows(
+    current: ConnectionState,
+    next: ConnectionState,
+    previous_time: u64,
+    proposed_time: u64,
+) -> bool {
+    if proposed_time < previous_time {
+        return false;
+    }
+    matches!(
+        (current, next),
+        (
+            ConnectionState::Active,
+            ConnectionState::Disabled | ConnectionState::Revoked
+        ) | (
+            ConnectionState::Disabled,
+            ConnectionState::Active | ConnectionState::Revoked
+        )
+    )
+}
+
+/// Allows administrative data changes only from a non-revoked record at a
+/// nondecreasing timestamp. Rotation and authorization replacement share this rule.
+#[must_use]
+pub fn record_change_allows(
+    state: ConnectionState,
+    previous_time: u64,
+    proposed_time: u64,
+) -> bool {
+    match state {
+        ConnectionState::Revoked => false,
+        ConnectionState::Active | ConnectionState::Disabled => proposed_time >= previous_time,
+    }
 }
 
 #[cfg(test)]

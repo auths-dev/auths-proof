@@ -31,7 +31,7 @@ structure auths_connections.model.ConnectionProfile where
   version : Std.U16
 
 /-- [auths_connections::model::ConnectionRecordError]
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 1013:0-1013:30
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 1019:0-1019:30
     Name pattern: [auths_connections::model::ConnectionRecordError]
     Visibility: public -/
 @[discriminant isize, rust_type

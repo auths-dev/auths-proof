@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "ada035cb570ab2e48c436485e519193661c31a57c23028e244c6a11b83b66052",
-  "inputs_sha256": "88001736582434acf04e4c61ad14cae09dc627893732b2adfc08827cf7e13ac3",
+  "scope_definition_sha256": "3f812ebd5268128064fd5d8b25b9cf248450dd6c228def7899e4410d9de4e115",
+  "inputs_sha256": "0336c871a7c527d902f56fd200b64f581ea41618523e3a5c23f611b1baaa23b0",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -69,8 +69,8 @@
     "core/crates/auths-verifier/src/temporal_tests.rs": "sha256:c242d8bed72936ea7437e45ab88b98b28f0d82f9f92a6f750ef8b27fa71e8fef",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:fed8e34c73ffde17881c8c8fc36bf943e7db699f042c7a0f0f3ce54afe74143c",
-    "formal/coverage-scope-v1.toml": "sha256:ada035cb570ab2e48c436485e519193661c31a57c23028e244c6a11b83b66052",
-    "formal/lean-assurance-audit-v1.json": "sha256:40d57ed073b363efa70e3adceabfe59ee582630bcc687567d3d39c25f8009dec",
+    "formal/coverage-scope-v1.toml": "sha256:3f812ebd5268128064fd5d8b25b9cf248450dd6c228def7899e4410d9de4e115",
+    "formal/lean-assurance-audit-v1.json": "sha256:c08c0c8437011c5f5d2f56be03ddfd75a28629051f9e1c1db418d7b166cd09aa",
     "formal/qualification/aeneas/entrypoints/profile_construction.rs": "sha256:4367225002727acf127d93eaa3d0e3a2eca264484c6a49840584e8b25c575da3",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
@@ -82,8 +82,8 @@
     "formal/qualification/aeneas/generated/codec/translation.json": "sha256:6fd8a876a79974627ef75f2bcf183f2e1d46cd4f7f9c6bdc6267d65024e0959b",
     "formal/qualification/aeneas/generated/composition/Funs.lean": "sha256:85d068a17e9d5b07f1907f6f48b0868205257b410c080e582fcfc797bfcf4a9d",
     "formal/qualification/aeneas/generated/composition/translation.json": "sha256:deb6125b39bd66978479466eb44f2e38e3c1458f48e5c606ceee3f3283000e5e",
-    "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:afde8d598bd8b10b0d9762783df3586200066440b2365f43a3d8b93cc4159b7e",
-    "formal/qualification/aeneas/generated/connections/translation.json": "sha256:190d229840f7a3498fe1a08e452c944bb45013a2dad5f06d9553f0958e654828",
+    "formal/qualification/aeneas/generated/connections/Funs.lean": "sha256:9a244fa4a1b24d5984c5326d49e7725659dd557ca3103ee4201d7b8b93bd7285",
+    "formal/qualification/aeneas/generated/connections/translation.json": "sha256:672c9008741da303dd49e622e2fcd96951f7abde893a7860e69d59e89e972e23",
     "formal/qualification/aeneas/generated/gateway/Funs.lean": "sha256:f75ffa59bd706a8156798baafef37aa4763ac82627d11bdbad0ba3851c5a0789",
     "formal/qualification/aeneas/generated/gateway/translation.json": "sha256:0691e5433497a5dfe7bfa80994cb43c40ad99ae4e886c9267c2a8d8e4f76ba6e",
     "formal/qualification/aeneas/generated/lifecycle/Funs.lean": "sha256:817dcbb854a599fb14c89854d8023809a390f7a00e1cc70dbc7151d7b254649f",
@@ -93,7 +93,7 @@
     "formal/qualification/aeneas/generated/p256/Funs.lean": "sha256:d2d7d4ecaec037e905f86b66ac902103562ff38124469b1c1dbc8c099cccf29f",
     "formal/qualification/aeneas/generated/p256/translation.json": "sha256:e2887ab5a96302d086e224c568a6c0d25eff8206f680217d80a669e6b8c7756c",
     "formal/qualification/aeneas/generated/profile_construction/Funs.lean": "sha256:a64f570020bd7e1939516a60fc248a7e1aca16796850a29c986616892e171563",
-    "formal/qualification/aeneas/generated/profile_construction/translation.json": "sha256:c13096c28fec96468eb142ae18340b80da1625035c66960ada939fcafc8aa4a2",
+    "formal/qualification/aeneas/generated/profile_construction/translation.json": "sha256:5850fd94edeeff7324aed7e867158cb6d837276d833a203c7681f6e360a1c568",
     "formal/qualification/aeneas/generated/scope_codec/Funs.lean": "sha256:7ce527b9e194e8470f9355dba67b31ce9efbbea8bec7d9c1e6a9b58fe037abed",
     "formal/qualification/aeneas/generated/scope_codec/translation.json": "sha256:d19dddc8ecf98120d9035f514bc8310c90fb8c197bffa8958ef34097c4411beb",
     "formal/qualification/aeneas/generated/sha256/Funs.lean": "sha256:ac717d96e3eb922e16e6fe25f5d64076a9c3adc0a0b9be20e0966e136b81100a",
@@ -108,8 +108,8 @@
     "formal/qualification/aeneas/generated/suite_adapter/translation.json": "sha256:58efad7d457adcb1808658075f5e4ef504f54398563a42a3f824e864d47557b6",
     "formal/qualification/aeneas/generated/temporal_witness/Funs.lean": "sha256:05aad591f331d9e6c6c0f33e75f062a048d390a99b5cee4c43ce52343dc030de",
     "formal/qualification/aeneas/generated/temporal_witness/translation.json": "sha256:068ff2fe97c4abe40ab641ca6ce6f150320da3a52513d63f025807f5ee57cd0f",
-    "formal/qualification/aeneas/qualification.toml": "sha256:f6e9a0cc450ac07774b8e7b100db56c8829acda24b8cec35d11c593f811d9d85",
-    "formal/theorem-kinds-v1.toml": "sha256:180658d5ac1b0ad22857d885fdcc1cbfbca33d1d121237256626015b466189b5",
+    "formal/qualification/aeneas/qualification.toml": "sha256:6c16824276d865d7697f1c96946f96ddf91060190304f39d160b1c21a9a83e9d",
+    "formal/theorem-kinds-v1.toml": "sha256:585d354d73c5accdddec599392f1d525d308540afde5cc227b46a647f3a92c42",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -119,9 +119,10 @@
     "product/policy/auths-bounded-policy/src/receipt.rs": "sha256:3b9eae82f349956d3e7f29b57b254bff5ce67cc703e6cf43445ce2827676d1ad",
     "product/policy/auths-bounded-policy/src/registry.rs": "sha256:4e251ea5833559841f8ee0bd9b66c0c01c39fa5e3a21720a19c4e8adbfcb99d0",
     "product/runtime/auths-connections/src/credential.rs": "sha256:82921413bb053f0f6c7931fbd4e6a86c8cc1d8c6b51debd9c2cef33a8d5b1c51",
-    "product/runtime/auths-connections/src/kernel.rs": "sha256:2d029059dd341fea3b2846ca0a3cfcf09dd9a0b16cd113220b4e38e3b104e206",
+    "product/runtime/auths-connections/src/kernel.rs": "sha256:bfba5aeb9d67f6e067766cffd1173607dacdb1530c673f0d1dceba74b5598b2b",
     "product/runtime/auths-connections/src/lib.rs": "sha256:79209249a0acba0e854d9937255ea0e30a9a6f8e1c2baad77ab83646d392de22",
-    "product/runtime/auths-connections/src/model.rs": "sha256:fb19e83413bf84c938a1c09bbc02608a048b1aec55d70b10340aa2180a087dcd",
+    "product/runtime/auths-connections/src/model.rs": "sha256:927d3df0041a5bbca85950170ddbd4369f0d3d73ec037569bbeb9ee89ea32969",
+    "product/runtime/auths-connections/src/recovery_guard_tests.rs": "sha256:ce918bca22cd4f1d2d430951ba191e76ee5dc2b0fa145acf13da08ba52274a62",
     "product/runtime/auths-connections/src/registry.rs": "sha256:e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946",
     "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:ba592901a463c2cd81dc434ae62f33efeccc5e13f441a0dff65d60162a588b61",
     "product/runtime/auths-gateway-kernel/src/counter_aggregation.rs": "sha256:4bc970895b118f71c074a091ede8d0c558ed43d912ae5d0aebdc03aa64a8f78c",
@@ -232,6 +233,7 @@
       "core/crates/auths-verifier/src/temporal_tests.rs": "test-support",
       "core/crates/auths-verifier/src/trace.rs": "explanation",
       "formal/qualification/aeneas/entrypoints/profile_construction.rs": "interface",
+      "product/runtime/auths-connections/src/recovery_guard_tests.rs": "test-support",
       "product/runtime/auths-lifecycle/src/codec.rs": "decoding",
       "product/runtime/auths-lifecycle/src/sealed.rs": "storage",
       "product/runtime/auths-lifecycle/src/test_support.rs": "test-support",
@@ -310,33 +312,33 @@
     "translated-crates": {
       "scope": "translated-crates",
       "minimum_code_lines": 0,
-      "functions": 1832,
-      "span_lines": 22530,
-      "code_lines": 22433,
+      "functions": 1836,
+      "span_lines": 22607,
+      "code_lines": 22510,
       "by_level": {
         "translated": {
-          "functions": 377,
-          "function_share": 0.2058,
-          "span_lines": 4409,
-          "span_line_share": 0.1957,
-          "code_lines": 4386,
-          "code_line_share": 0.1955
+          "functions": 381,
+          "function_share": 0.2075,
+          "span_lines": 4480,
+          "span_line_share": 0.1982,
+          "code_lines": 4457,
+          "code_line_share": 0.198
         },
         "direct": {
-          "functions": 170,
-          "function_share": 0.0928,
-          "span_lines": 2529,
-          "span_line_share": 0.1123,
-          "code_lines": 2507,
-          "code_line_share": 0.1118
+          "functions": 174,
+          "function_share": 0.0948,
+          "span_lines": 2600,
+          "span_line_share": 0.115,
+          "code_lines": 2578,
+          "code_line_share": 0.1145
         },
         "closure": {
-          "functions": 377,
-          "function_share": 0.2058,
-          "span_lines": 4409,
-          "span_line_share": 0.1957,
-          "code_lines": 4386,
-          "code_line_share": 0.1955
+          "functions": 381,
+          "function_share": 0.2075,
+          "span_lines": 4480,
+          "span_line_share": 0.1982,
+          "code_lines": 4457,
+          "code_line_share": 0.198
         }
       }
     },
@@ -634,11 +636,11 @@
       "refined_closure_code_lines": 201
     },
     "product/runtime/auths-connections": {
-      "decision_functions": 159,
-      "decision_code_lines": 1942,
-      "translated": 12,
-      "refined_closure": 12,
-      "refined_closure_code_lines": 121
+      "decision_functions": 163,
+      "decision_code_lines": 2019,
+      "translated": 16,
+      "refined_closure": 16,
+      "refined_closure_code_lines": 192
     },
     "product/runtime/auths-gateway-kernel": {
       "decision_functions": 132,
@@ -3243,6 +3245,16 @@
       "Auths.Product.ProfileConstructor.Refinement.constructor_exact": "exact",
       "Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields": "partial",
       "Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused": "partial",
+      "Auths.Product.RecoveryGate.Refinement.binding_requirement_exact": "exact",
+      "Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation": "partial",
+      "Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time": "partial",
+      "Auths.Product.RecoveryGate.Refinement.record_change_exact": "exact",
+      "Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation": "partial",
+      "Auths.Product.RecoveryGate.Refinement.recovery_exact": "exact",
+      "Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation": "partial",
+      "Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time": "partial",
+      "Auths.Product.RecoveryGate.Refinement.state_transition_exact": "exact",
+      "Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state": "partial",
       "Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model": "exact",
       "Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model": "exact",
       "Auths.Product.Refinement.CollectionFence.translated_advance_refines_model": "exact",
@@ -3411,20 +3423,20 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 573,
+    "aeneas_local_definitions": 577,
     "by_kind": {
-      "function": 400,
+      "function": 404,
       "loop": 144,
       "closure-shim": 11,
       "derived": 18
     },
-    "refined_direct": 175,
-    "refined_closure": 417,
-    "theorems_naming_translated_functions": 369
+    "refined_direct": 179,
+    "refined_closure": 421,
+    "theorems_naming_translated_functions": 379
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "06377f901cf78b65bf4740407533f8f97c2ddc234c8100d584c7a203d5711855",
+    "current_formal_inputs_sha256": "e8f059cb993f8cfd82db0d3c8d45d534fe6c446c064fec120ed5c1b57fb46511",
     "fresh": false,
     "campaigns": {
       "s1": {

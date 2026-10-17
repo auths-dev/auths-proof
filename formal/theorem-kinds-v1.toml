@@ -12,6 +12,17 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.RecoveryGate.Refinement.record_change_exact" = "exact"
+"Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time" = "partial"
+"Auths.Product.RecoveryGate.Refinement.recovery_exact" = "exact"
+"Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation" = "partial"
+"Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state" = "partial"
+"Auths.Product.RecoveryGate.Refinement.binding_requirement_exact" = "exact"
+"Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation" = "partial"
+"Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation" = "partial"
+"Auths.Product.RecoveryGate.Refinement.state_transition_exact" = "exact"
+"Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time" = "partial"
+
 "Auths.Product.SemanticId.Refinement.semantic_head_exact" = "exact"
 "Auths.Product.SemanticId.Refinement.semantic_tail_exact" = "exact"
 "Auths.Product.SemanticId.Refinement.semantic_valid_exact" = "exact"

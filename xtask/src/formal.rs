@@ -4635,6 +4635,63 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
         });
     }
+    if declaration.starts_with("Auths.Product.RecoveryGate.Refinement.") {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Product.RecoveryGate.Refinement.record_change_exact" => (
+                "The actual rotation/authorization-replacement guard permits exactly a non-revoked record and a nondecreasing timestamp.",
+                &["auths_connections::kernel::record_change_allows"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time" => (
+                "An accepted actual administrative record change earns non-revocation and monotone time.",
+                &["auths_connections::kernel::record_change_allows"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.recovery_exact" => (
+                "The complete actual recovery-lease guard returns exactly the specified ordered typed failures or success for every state and generation pair, including raw zeros.",
+                &["auths_connections::kernel::recovery_lease"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation" => (
+                "A revoked connection refuses every actual recovery-lease request before generation checks.",
+                &["auths_connections::kernel::recovery_lease"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state" => (
+                "Successful actual recovery authorization earns a non-revoked state and a positive requested generation no newer than the record.",
+                &["auths_connections::kernel::recovery_lease"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.binding_requirement_exact" => (
+                "The complete actual recovery-binding classifier returns exactly the independently stated current/recorded/refused generation policy on every tuple.",
+                &["auths_connections::kernel::recovery_binding_requirement"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation" => (
+                "Requiring the current commitment earns the exact current credential generation, its positivity and coverage by the operation generation.",
+                &["auths_connections::kernel::recovery_binding_requirement"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation" => {
+                (
+                    "Selecting the authenticated recorded commitment earns a positive credential generation no newer than the operation, which strictly predates the current credential.",
+                    &["auths_connections::kernel::recovery_binding_requirement"],
+                )
+            }
+            "Auths.Product.RecoveryGate.Refinement.state_transition_exact" => (
+                "The actual administrative state guard exactly permits changed state from a non-revoked record at a nondecreasing timestamp.",
+                &["auths_connections::kernel::state_transition_allows"],
+            ),
+            "Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time" => (
+                "Successful actual state-transition validation earns terminal revocation, changed state and monotone time constraints.",
+                &["auths_connections::kernel::state_transition_allows"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Every represented actual ConnectionState, u64 generation tuple and u64 timestamp pair. The typed record methods consume these guards; Native frozen full-record parity checks cover their projection and commitment dispatch.",
+            residual_assumptions: &[
+                "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain and the listed foundational axioms are trusted. No new external model is introduced.",
+                "The complete record decoder, NonZero.get/caller projection, authentication of the recorded operation, the existing constant-time commitment comparison, actual credential-store lease and runtime reload/write association remain separate. Current-versus-recorded selection proves policy, not possession or authenticity of the supplied commitment.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     const UNCONDITIONAL: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted; the theorem has no premise.";
     if declaration.starts_with("Auths.Product.ConnectionBytes.Refinement.") {
         const BYTE_BOUNDARY: &str = "This proves the actual byte classifiers, not complete String constructors, the canonical record decoder or runtime caller composition. Native frozen byte-pair parity supports the production constructor cutover; string-to-byte projection, allocation and whole constructor validity remain separate. No hash or commitment assumption is needed for the byte properties.";

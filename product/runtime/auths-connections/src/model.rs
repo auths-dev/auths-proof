@@ -676,13 +676,7 @@ impl ConnectionRecord {
         &self,
         generation: NonZeroU64,
     ) -> Result<(), ConnectionRecordError> {
-        if self.state == ConnectionState::Revoked {
-            return Err(ConnectionRecordError::Revoked);
-        }
-        if generation > self.generation {
-            return Err(ConnectionRecordError::InvalidGeneration);
-        }
-        Ok(())
+        kernel::recovery_lease(self.state, self.generation.get(), generation.get())
     }
 
     /// Reconstructs the sealed binding of an unresolved operation at
@@ -710,14 +704,20 @@ impl ConnectionRecord {
         credential_reference_commitment: CredentialReferenceCommitment,
     ) -> Result<ConnectionBinding, ConnectionRecordError> {
         self.authorize_recovery_lease(generation)?;
-        if credential_generation > generation {
-            return Err(ConnectionRecordError::InvalidGeneration);
-        }
-        if generation >= self.credential_generation
-            && (credential_generation != self.credential_generation
-                || !credential_reference_commitment.matches(&self.credential_reference_commitment))
-        {
-            return Err(ConnectionRecordError::InvalidGeneration);
+        match kernel::recovery_binding_requirement(
+            self.credential_generation.get(),
+            generation.get(),
+            credential_generation.get(),
+        ) {
+            kernel::RecoveryBindingRequirement::Refuse => {
+                return Err(ConnectionRecordError::InvalidGeneration);
+            }
+            kernel::RecoveryBindingRequirement::CurrentCommitment => {
+                if !credential_reference_commitment.matches(&self.credential_reference_commitment) {
+                    return Err(ConnectionRecordError::InvalidGeneration);
+                }
+            }
+            kernel::RecoveryBindingRequirement::RecordedCommitment => {}
         }
         Ok(ConnectionBinding {
             provider_kind: self.provider_kind.clone(),
@@ -751,10 +751,12 @@ impl ConnectionRecord {
         state: ConnectionState,
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
-        if state == self.state
-            || self.state == ConnectionState::Revoked
-            || updated_at_unix_seconds < self.updated_at_unix_seconds
-        {
+        if !kernel::state_transition_allows(
+            self.state,
+            state,
+            self.updated_at_unix_seconds,
+            updated_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidState);
         }
         let generations = kernel::state_change(self.generations())
@@ -793,9 +795,11 @@ impl ConnectionRecord {
         credential_reference_commitment: [u8; 32],
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
-        if self.state == ConnectionState::Revoked
-            || updated_at_unix_seconds < self.updated_at_unix_seconds
-        {
+        if !kernel::record_change_allows(
+            self.state,
+            self.updated_at_unix_seconds,
+            updated_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidState);
         }
         let generations =
@@ -833,9 +837,11 @@ impl ConnectionRecord {
         allowed_profiles: Vec<ConnectionProfile>,
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
-        if self.state == ConnectionState::Revoked
-            || updated_at_unix_seconds < self.updated_at_unix_seconds
-        {
+        if !kernel::record_change_allows(
+            self.state,
+            self.updated_at_unix_seconds,
+            updated_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidState);
         }
         let generations = kernel::state_change(self.generations())
@@ -1391,3 +1397,7 @@ pub(crate) mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "recovery_guard_tests.rs"]
+mod recovery_guard_tests;

@@ -1,3 +1,4 @@
+import Auths.Product.RecoveryGateRefinement
 import Auths.Product.SemanticIdRefinement
 import Auths.Product.ConnectionFrameRefinement
 import Auths.Product.ProfileConstructorRefinement
@@ -103,3 +104,28 @@ example : kernel.semantic_id_valid accepted 2#usize ⦃ actual => actual = false
   have refused : ¬ Auths.Product.SemanticId.valid [65, 58, 49] 2 := by decide
   simpa [refused] using exactMeaning
 end qualification.aeneas.cases.SemanticIdentifier
+
+namespace qualification.aeneas.cases.RecoveryGuards
+open Aeneas Aeneas.Std Result
+open auths_connections
+example : kernel.recovery_lease .Disabled 3#u64 2#u64 = ok (.Ok ()) := by rfl
+example : kernel.recovery_lease .Revoked 0#u64 0#u64 = ok (.Err .Revoked) := by rfl
+example : kernel.recovery_lease .Active 3#u64 0#u64 = ok (.Err .InvalidGeneration) := by rfl
+example : kernel.recovery_lease .Active 3#u64 4#u64 = ok (.Err .InvalidGeneration) := by rfl
+example : kernel.recovery_binding_requirement 4#u64 5#u64 4#u64 = ok .CurrentCommitment := by rfl
+example : kernel.recovery_binding_requirement 4#u64 3#u64 2#u64 = ok .RecordedCommitment := by rfl
+example : kernel.recovery_binding_requirement 4#u64 5#u64 3#u64 = ok .Refuse := by rfl
+example : kernel.recovery_binding_requirement 4#u64 2#u64 3#u64 = ok .Refuse := by rfl
+example : kernel.state_transition_allows .Active .Disabled 10#u64 10#u64 = ok true := by rfl
+example : kernel.state_transition_allows .Revoked .Active 10#u64 11#u64 = ok false := by rfl
+example : kernel.state_transition_allows .Disabled .Disabled 10#u64 11#u64 = ok false := by rfl
+example : kernel.state_transition_allows .Active .Revoked 10#u64 9#u64 = ok false := by rfl
+end qualification.aeneas.cases.RecoveryGuards
+
+namespace qualification.aeneas.cases.AdministrativeChanges
+open Aeneas Aeneas.Std Result
+open auths_connections
+example : kernel.record_change_allows .Disabled 10#u64 10#u64 = ok true := by rfl
+example : kernel.record_change_allows .Revoked 10#u64 11#u64 = ok false := by rfl
+example : kernel.record_change_allows .Active 10#u64 9#u64 = ok false := by rfl
+end qualification.aeneas.cases.AdministrativeChanges

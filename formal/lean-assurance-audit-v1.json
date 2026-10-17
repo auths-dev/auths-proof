@@ -25385,6 +25385,313 @@
         "Auths.Product.Refinement.Gateway.sliceBytes",
         "Auths.Product.Refinement.Gateway.vecBytes"
       ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.recovery_exact",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (current requested : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.recovery_lease state current requested) fun actual =>\n    actual =\n      if state = auths_connections.model.ConnectionState.Revoked then\n        Aeneas.Std.core.result.Result.Err auths_connections.model.ConnectionRecordError.Revoked\n      else\n        if ↑current = 0 ∨ ↑requested = 0 ∨ ↑current < ↑requested then\n          Aeneas.Std.core.result.Result.Err auths_connections.model.ConnectionRecordError.InvalidGeneration\n        else Aeneas.Std.core.result.Result.Ok ()",
+      "statement_constants": [
+        "Eq",
+        "Nat",
+        "Or",
+        "Unit",
+        "instDecidableEqNat",
+        "instDecidableOr",
+        "instLTNat",
+        "instOfNatNat",
+        "ite",
+        "LT.lt",
+        "Nat.decLt",
+        "OfNat.ofNat",
+        "Unit.unit",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.recovery_lease",
+        "auths_connections.model.ConnectionRecordError",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionRecordError.InvalidGeneration",
+        "auths_connections.model.ConnectionRecordError.Revoked",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Aeneas.Std.core.result.Result",
+        "Auths.Product.RecoveryGate.Refinement.instDecidableEqConnectionState_auths",
+        "Aeneas.Std.core.result.Result.Err",
+        "Aeneas.Std.core.result.Result.Ok"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation",
+      "statement": "∀ (current requested : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec\n    (auths_connections.kernel.recovery_lease auths_connections.model.ConnectionState.Revoked current requested)\n    fun actual => actual = Aeneas.Std.core.result.Result.Err auths_connections.model.ConnectionRecordError.Revoked",
+      "statement_constants": [
+        "Eq",
+        "Unit",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.recovery_lease",
+        "auths_connections.model.ConnectionRecordError",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionRecordError.Revoked",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Aeneas.Std.core.result.Result",
+        "Aeneas.Std.core.result.Result.Err"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (current requested : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.recovery_lease state current requested) fun actual =>\n    actual = Aeneas.Std.core.result.Result.Ok () →\n      state ≠ auths_connections.model.ConnectionState.Revoked ∧ 0 < ↑requested ∧ ↑requested ≤ ↑current",
+      "statement_constants": [
+        "And",
+        "Eq",
+        "Nat",
+        "Ne",
+        "Unit",
+        "instLENat",
+        "instLTNat",
+        "instOfNatNat",
+        "LE.le",
+        "LT.lt",
+        "OfNat.ofNat",
+        "Unit.unit",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.recovery_lease",
+        "auths_connections.model.ConnectionRecordError",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Aeneas.Std.core.result.Result",
+        "Aeneas.Std.core.result.Result.Ok"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.binding_requirement_exact",
+      "statement": "∀ (current operation credential : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.recovery_binding_requirement current operation credential) fun actual =>\n    actual =\n      if ↑current = 0 ∨ ↑operation = 0 ∨ ↑credential = 0 ∨ ↑operation < ↑credential then\n        auths_connections.kernel.RecoveryBindingRequirement.Refuse\n      else\n        if ↑operation < ↑current then auths_connections.kernel.RecoveryBindingRequirement.RecordedCommitment\n        else\n          if ↑credential = ↑current then auths_connections.kernel.RecoveryBindingRequirement.CurrentCommitment\n          else auths_connections.kernel.RecoveryBindingRequirement.Refuse",
+      "statement_constants": [
+        "Eq",
+        "Nat",
+        "Or",
+        "instDecidableEqNat",
+        "instDecidableOr",
+        "instLTNat",
+        "instOfNatNat",
+        "ite",
+        "LT.lt",
+        "Nat.decLt",
+        "OfNat.ofNat",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.RecoveryBindingRequirement",
+        "auths_connections.kernel.recovery_binding_requirement",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.kernel.RecoveryBindingRequirement.CurrentCommitment",
+        "auths_connections.kernel.RecoveryBindingRequirement.RecordedCommitment",
+        "auths_connections.kernel.RecoveryBindingRequirement.Refuse"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation",
+      "statement": "∀ (current operation credential : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.recovery_binding_requirement current operation credential) fun actual =>\n    actual = auths_connections.kernel.RecoveryBindingRequirement.CurrentCommitment →\n      credential = current ∧ 0 < ↑current ∧ ↑current ≤ ↑operation",
+      "statement_constants": [
+        "And",
+        "Eq",
+        "Nat",
+        "instLENat",
+        "instLTNat",
+        "instOfNatNat",
+        "LE.le",
+        "LT.lt",
+        "OfNat.ofNat",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.RecoveryBindingRequirement",
+        "auths_connections.kernel.recovery_binding_requirement",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.kernel.RecoveryBindingRequirement.CurrentCommitment"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation",
+      "statement": "∀ (current operation credential : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.recovery_binding_requirement current operation credential) fun actual =>\n    actual = auths_connections.kernel.RecoveryBindingRequirement.RecordedCommitment →\n      0 < ↑credential ∧ ↑credential ≤ ↑operation ∧ ↑operation < ↑current",
+      "statement_constants": [
+        "And",
+        "Eq",
+        "Nat",
+        "instLENat",
+        "instLTNat",
+        "instOfNatNat",
+        "LE.le",
+        "LT.lt",
+        "OfNat.ofNat",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.RecoveryBindingRequirement",
+        "auths_connections.kernel.recovery_binding_requirement",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.kernel.RecoveryBindingRequirement.RecordedCommitment"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.state_transition_exact",
+      "statement": "∀ (current next : auths_connections.model.ConnectionState) (previous proposed : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.state_transition_allows current next previous proposed) fun actual =>\n    actual = decide (current ≠ auths_connections.model.ConnectionState.Revoked ∧ current ≠ next ∧ ↑previous ≤ ↑proposed)",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "Nat",
+        "Ne",
+        "instDecidableAnd",
+        "instDecidableNot",
+        "instLENat",
+        "Decidable.decide",
+        "LE.le",
+        "Nat.decLe",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.state_transition_allows",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Auths.Product.RecoveryGate.Refinement.instDecidableEqConnectionState_auths"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time",
+      "statement": "∀ (current next : auths_connections.model.ConnectionState) (previous proposed : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.state_transition_allows current next previous proposed) fun actual =>\n    actual = true → current ≠ auths_connections.model.ConnectionState.Revoked ∧ current ≠ next ∧ ↑previous ≤ ↑proposed",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "Nat",
+        "Ne",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.state_transition_allows",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionState.Revoked"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.record_change_exact",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (previous proposed : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.record_change_allows state previous proposed) fun actual =>\n    actual = decide (state ≠ auths_connections.model.ConnectionState.Revoked ∧ ↑previous ≤ ↑proposed)",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "Nat",
+        "Ne",
+        "instDecidableAnd",
+        "instDecidableNot",
+        "instLENat",
+        "Decidable.decide",
+        "LE.le",
+        "Nat.decLe",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.record_change_allows",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Auths.Product.RecoveryGate.Refinement.instDecidableEqConnectionState_auths"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecoveryGateRefinement",
+      "name": "Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (previous proposed : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.record_change_allows state previous proposed) fun actual =>\n    actual = true → state ≠ auths_connections.model.ConnectionState.Revoked ∧ ↑previous ≤ ↑proposed",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "Nat",
+        "Ne",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.record_change_allows",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionState.Revoked"
+      ]
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

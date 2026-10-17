@@ -16,14 +16,14 @@ set_option maxRecDepth 2048
 namespace auths_connections
 
 /-- [auths_connections::kernel::next_generation]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 29:0-31:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 28:0-30:1
     Visibility: public -/
 def kernel.next_generation
   (generation : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_add generation 1#u64)
 
 /-- [auths_connections::kernel::state_change]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 36:0-44:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 35:0-43:1
     Visibility: public -/
 def kernel.state_change
   (current : kernel.Generations) : Result (Option kernel.Generations) := do
@@ -33,7 +33,7 @@ def kernel.state_change
   | some generation => ok (some { current with generation })
 
 /-- [auths_connections::kernel::rotation]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 49:0-57:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 48:0-56:1
     Visibility: public -/
 def kernel.rotation
   (current : kernel.Generations) : Result (Option kernel.Generations) := do
@@ -44,7 +44,7 @@ def kernel.rotation
     ok (some { generation, credential_generation := generation })
 
 /-- [auths_connections::kernel::retained_generation]: loop body 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 66:4-73:5
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 65:4-72:5
     Visibility: public -/
 @[rust_loop_body]
 def kernel.retained_generation_loop.body
@@ -73,7 +73,7 @@ def kernel.retained_generation_loop.body
   else ok (done (found, best))
 
 /-- [auths_connections::kernel::retained_generation]: loop 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 66:4-73:5
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 65:4-72:5
     Visibility: public -/
 @[rust_loop]
 def kernel.retained_generation_loop
@@ -87,7 +87,7 @@ def kernel.retained_generation_loop
     (found, best, index)
 
 /-- [auths_connections::kernel::retained_generation]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 62:0-75:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 61:0-74:1
     Visibility: public -/
 def kernel.retained_generation
   (record_generation : Std.U64) (stored : Slice Std.U64) :
@@ -101,7 +101,7 @@ def kernel.retained_generation
   else ok none
 
 /-- [auths_connections::kernel::lease_generation]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 86:0-101:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 85:0-100:1
     Visibility: public -/
 def kernel.lease_generation
   (record_generation : Std.U64) (credential_generation : Std.U64)
@@ -116,7 +116,7 @@ def kernel.lease_generation
                      else ok none
 
 /-- [auths_connections::kernel::lower_tail_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 107:0-109:1 -/
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 106:0-108:1 -/
 def kernel.lower_tail_valid (byte : Std.U8) : Result Bool := do
   if byte >= 97#u8
   then
@@ -136,7 +136,7 @@ def kernel.lower_tail_valid (byte : Std.U8) : Result Bool := do
     else ok (byte = 45#u8)
 
 /-- [auths_connections::kernel::lower_token_valid]: loop body 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 126:4-134:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 125:4-133:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.lower_token_valid_loop.body
@@ -155,7 +155,7 @@ def kernel.lower_token_valid_loop.body
   else ok (done true)
 
 /-- [auths_connections::kernel::lower_token_valid]: loop 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 126:4-134:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 125:4-133:1
     Visibility: public -/
 @[rust_loop]
 def kernel.lower_token_valid_loop
@@ -165,7 +165,7 @@ def kernel.lower_token_valid_loop
     index
 
 /-- [auths_connections::kernel::lower_token_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 117:0-134:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 116:0-133:1
     Visibility: public -/
 def kernel.lower_token_valid
   (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
@@ -186,7 +186,7 @@ def kernel.lower_token_valid
         else kernel.lower_token_valid_loop value 0#usize
 
 /-- [auths_connections::kernel::ascii_graphic_valid]: loop body 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 147:4-155:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 146:4-154:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.ascii_graphic_valid_loop.body
@@ -207,7 +207,7 @@ def kernel.ascii_graphic_valid_loop.body
   else ok (done true)
 
 /-- [auths_connections::kernel::ascii_graphic_valid]: loop 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 147:4-155:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 146:4-154:1
     Visibility: public -/
 @[rust_loop]
 def kernel.ascii_graphic_valid_loop
@@ -217,7 +217,7 @@ def kernel.ascii_graphic_valid_loop
     index
 
 /-- [auths_connections::kernel::ascii_graphic_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 142:0-155:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 141:0-154:1
     Visibility: public -/
 def kernel.ascii_graphic_valid
   (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
@@ -231,7 +231,7 @@ def kernel.ascii_graphic_valid
     else kernel.ascii_graphic_valid_loop value 0#usize
 
 /-- [auths_connections::kernel::semantic_head_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 161:0-165:1 -/
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 160:0-164:1 -/
 def kernel.semantic_head_valid (byte : Std.U8) : Result Bool := do
   if byte >= 97#u8
   then
@@ -261,7 +261,7 @@ def kernel.semantic_head_valid (byte : Std.U8) : Result Bool := do
          else ok false
 
 /-- [auths_connections::kernel::semantic_tail_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 166:0-173:1 -/
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 165:0-172:1 -/
 def kernel.semantic_tail_valid (byte : Std.U8) : Result Bool := do
   let b ← kernel.semantic_head_valid byte
   if b
@@ -280,7 +280,7 @@ def kernel.semantic_tail_valid (byte : Std.U8) : Result Bool := do
              else ok (byte = 45#u8)
 
 /-- [auths_connections::kernel::semantic_id_valid]: loop body 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 185:4-192:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 184:4-191:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.semantic_id_valid_loop.body
@@ -299,7 +299,7 @@ def kernel.semantic_id_valid_loop.body
   else ok (done true)
 
 /-- [auths_connections::kernel::semantic_id_valid]: loop 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 185:4-192:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 184:4-191:1
     Visibility: public -/
 @[rust_loop]
 def kernel.semantic_id_valid_loop
@@ -309,7 +309,7 @@ def kernel.semantic_id_valid_loop
     index
 
 /-- [auths_connections::kernel::semantic_id_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 177:0-192:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 176:0-191:1
     Visibility: public -/
 def kernel.semantic_id_valid
   (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
@@ -326,5 +326,111 @@ def kernel.semantic_id_valid
       if b1
       then kernel.semantic_id_valid_loop value 0#usize
       else ok false
+
+/-- [auths_connections::kernel::recovery_lease]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 200:0-218:1
+    Visibility: public -/
+def kernel.recovery_lease
+  (state : model.ConnectionState) (record_generation : Std.U64)
+  (requested_generation : Std.U64) :
+  Result (core.result.Result Unit model.ConnectionRecordError)
+  := do
+  match state with
+  | model.ConnectionState.Active =>
+    if record_generation = 0#u64
+    then
+      ok (core.result.Result.Err model.ConnectionRecordError.InvalidGeneration)
+    else
+      if requested_generation = 0#u64
+      then
+        ok (core.result.Result.Err
+          model.ConnectionRecordError.InvalidGeneration)
+      else
+        if requested_generation > record_generation
+        then
+          ok (core.result.Result.Err
+            model.ConnectionRecordError.InvalidGeneration)
+        else ok (core.result.Result.Ok ())
+  | model.ConnectionState.Disabled =>
+    if record_generation = 0#u64
+    then
+      ok (core.result.Result.Err model.ConnectionRecordError.InvalidGeneration)
+    else
+      if requested_generation = 0#u64
+      then
+        ok (core.result.Result.Err
+          model.ConnectionRecordError.InvalidGeneration)
+      else
+        if requested_generation > record_generation
+        then
+          ok (core.result.Result.Err
+            model.ConnectionRecordError.InvalidGeneration)
+        else ok (core.result.Result.Ok ())
+  | model.ConnectionState.Revoked =>
+    ok (core.result.Result.Err model.ConnectionRecordError.Revoked)
+
+/-- [auths_connections::kernel::recovery_binding_requirement]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 235:0-256:1
+    Visibility: public -/
+def kernel.recovery_binding_requirement
+  (current_credential_generation : Std.U64) (operation_generation : Std.U64)
+  (operation_credential_generation : Std.U64) :
+  Result kernel.RecoveryBindingRequirement
+  := do
+  if current_credential_generation = 0#u64
+  then ok kernel.RecoveryBindingRequirement.Refuse
+  else
+    if operation_generation = 0#u64
+    then ok kernel.RecoveryBindingRequirement.Refuse
+    else
+      if operation_credential_generation = 0#u64
+      then ok kernel.RecoveryBindingRequirement.Refuse
+      else
+        if operation_credential_generation > operation_generation
+        then ok kernel.RecoveryBindingRequirement.Refuse
+        else
+          if operation_generation >= current_credential_generation
+          then
+            if operation_credential_generation = current_credential_generation
+            then ok kernel.RecoveryBindingRequirement.CurrentCommitment
+            else ok kernel.RecoveryBindingRequirement.Refuse
+          else ok kernel.RecoveryBindingRequirement.RecordedCommitment
+
+/-- [auths_connections::kernel::state_transition_allows]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 261:0-280:1
+    Visibility: public -/
+def kernel.state_transition_allows
+  (current : model.ConnectionState) (next : model.ConnectionState)
+  (previous_time : Std.U64) (proposed_time : Std.U64) :
+  Result Bool
+  := do
+  if proposed_time < previous_time
+  then ok false
+  else
+    match current with
+    | model.ConnectionState.Active =>
+      match next with
+      | model.ConnectionState.Active => ok false
+      | model.ConnectionState.Disabled => ok true
+      | model.ConnectionState.Revoked => ok true
+    | model.ConnectionState.Disabled =>
+      match next with
+      | model.ConnectionState.Active => ok true
+      | model.ConnectionState.Disabled => ok false
+      | model.ConnectionState.Revoked => ok true
+    | model.ConnectionState.Revoked => ok false
+
+/-- [auths_connections::kernel::record_change_allows]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 285:0-294:1
+    Visibility: public -/
+def kernel.record_change_allows
+  (state : model.ConnectionState) (previous_time : Std.U64)
+  (proposed_time : Std.U64) :
+  Result Bool
+  := do
+  match state with
+  | model.ConnectionState.Active => ok (proposed_time >= previous_time)
+  | model.ConnectionState.Disabled => ok (proposed_time >= previous_time)
+  | model.ConnectionState.Revoked => ok false
 
 end auths_connections

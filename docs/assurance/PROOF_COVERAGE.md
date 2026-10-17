@@ -7,10 +7,10 @@
 At the commit that contains this document, 134 of 1,047 decision-scope functions (12.8%) and 1,833 of 11,563 code lines (15.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `88001736582434acf04e4c61ad14cae09dc627893732b2adfc08827cf7e13ac3` over the 136 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `0336c871a7c527d902f56fd200b64f581ea41618523e3a5c23f611b1baaa23b0` over the 137 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 4.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `ada035cb570ab2e48c436485e519193661c31a57c23028e244c6a11b83b66052`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `3f812ebd5268128064fd5d8b25b9cf248450dd6c228def7899e4410d9de4e115`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -52,6 +52,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | `core/crates/auths-verifier/src/temporal_tests.rs` | test-support |
 | `core/crates/auths-verifier/src/trace.rs` | explanation |
 | `formal/qualification/aeneas/entrypoints/profile_construction.rs` | interface |
+| `product/runtime/auths-connections/src/recovery_guard_tests.rs` | test-support |
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
 | `product/runtime/auths-lifecycle/src/sealed.rs` | storage |
 | `product/runtime/auths-lifecycle/src/test_support.rs` | test-support |
@@ -65,7 +66,7 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | decision | 1,047 | 134 (12.8%) | 77 (7.4%) | 134 (12.8%) | 11,563 | 1,833 (15.9%) | 1,356 (11.7%) | 1,833 (15.9%) |
 | verifier-core | 800 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,993 | 1,432 (15.9%) | 1,033 (11.5%) | 1,432 (15.9%) |
-| translated-crates | 1,832 | 377 (20.6%) | 170 (9.3%) | 377 (20.6%) | 22,433 | 4,386 (19.6%) | 2,507 (11.2%) | 4,386 (19.6%) |
+| translated-crates | 1,836 | 381 (20.8%) | 174 (9.5%) | 381 (20.8%) | 22,510 | 4,457 (19.8%) | 2,578 (11.5%) | 4,457 (19.8%) |
 | verifier-closure | 1,147 | 182 (15.9%) | 75 (6.5%) | 182 (15.9%) | 14,272 | 2,065 (14.5%) | 1,334 (9.3%) | 2,065 (14.5%) |
 | decision-nontrivial | 456 | 104 (22.8%) | 64 (14.0%) | 104 (22.8%) | 9,790 | 1,743 (17.8%) | 1,317 (13.5%) | 1,743 (17.8%) |
 
@@ -194,7 +195,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `06377f901cf78b65bf4740407533f8f97c2ddc234c8100d584c7a203d5711855`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `e8f059cb993f8cfd82db0d3c8d45d534fe6c446c064fec120ed5c1b57fb46511`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -207,7 +208,7 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 167 exact, 12 verdict-exact, 106 partial, 84 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 171 exact, 12 verdict-exact, 112 partial, 84 case.
 
 Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 128 of 1,047 functions (12.2%) and 1,584 of 11,563 code lines (13.7%).
 
@@ -419,6 +420,16 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Product.ProfileConstructor.Refinement.constructor_exact` | exact |
 | `Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields` | partial |
 | `Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused` | partial |
+| `Auths.Product.RecoveryGate.Refinement.binding_requirement_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation` | partial |
+| `Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time` | partial |
+| `Auths.Product.RecoveryGate.Refinement.record_change_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation` | partial |
+| `Auths.Product.RecoveryGate.Refinement.recovery_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation` | partial |
+| `Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time` | partial |
+| `Auths.Product.RecoveryGate.Refinement.state_transition_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state` | partial |
 | `Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model` | exact |
 | `Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model` | exact |
 | `Auths.Product.Refinement.CollectionFence.translated_advance_refines_model` | exact |

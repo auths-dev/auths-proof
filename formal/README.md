@@ -14,10 +14,12 @@ declaration name, statement, transitive axiom set, source closure, and required
 evidence. This prevents a renamed, weakened, deleted, or `sorry`-backed theorem
 from satisfying the repository gate through a textual look-alike.
 
-The latest qualified development checkpoint has 861 compiled claims, 18/18
+The latest qualified development checkpoint has 871 compiled claims, 18/18
 qualification cases, 25 reviewed external models and two byte-identical full
-translation reproductions. Its latest batch proves complete connection text
-validation, actual profile construction and exact connection-key preimages.
+translation reproductions. Its latest batch proves recovery-credential selection, terminal revocation and
+monotone administrative state/time guards consumed by five actual record methods.
+The preceding batch proves complete connection text validation, actual profile
+construction and exact connection-key preimages.
 Earlier components cover reservation construction/admission, connection-entry
 membership, counter framing, principal/scope construction, field/identity
 binding, admission histories and frontier search. See the

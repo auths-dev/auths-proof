@@ -5,6 +5,40 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified recovery and administration checkpoint — 17 October 2026
+
+The latest batch qualifies **871 compiled claims**, with all 861 previous full
+declaration records unchanged and no new axioms. Two clean full translations
+are byte-identical; all 18 qualification cases pass. There remain 25 reviewed
+external models, none unreviewed and no compiled external axioms. Source closure:
+`016c236971e9cd58ab0d6fd762ac7febf2e86919bda2a376e95802a80d10c8aa`.
+
+Five actual record methods consume source-proved recovery/administration guards.
+Revocation always refuses recovery first. Successful recovery earns a positive
+operation generation bounded by the durable record; binding selection earns the
+exact current pair or a valid older recorded pair. The actual constant-time
+commitment check is preserved. State changes, rotation and authorization
+replacement earn terminal revocation and nondecreasing timestamps.
+
+The 3,520-job full Lean build, 38 connection tests, 232 active gateway tests and
+affected-target/xtask linting pass; 26 existing ignored gateway tests stay unchanged.
+Frozen full-record/native parity covers 2,250 bindings (210 successes), 450 state
+transitions, 450 rotations and 600 authorization replacements. Rotation and
+replacement each have 30 useful successes. Source qualification also exercises
+success, zero/future generation refusal, terminal revocation, commitment selection,
+no-op state changes and time regression. The enum-context regression preserves
+all native enum bodies and rejects inventory drift.
+
+Review: `ap-spec-069-connection-recovery-administration-2026-10-17`; inventory:
+`978677ea2fd11b7b04029f70566e6b7711650b907006a5057ac21de7b9349e6d`;
+boundary: `e47a70caeb2efe34fdbd8936cbf4091c81d191de15000389ba457434c699df5d`.
+
+Complete record/caller projection, operation authentication, primitive comparison
+correspondence, actual credential-store lease and reload/write histories remain
+open under §13.5/E1–E5/M6, as does exact-revision hosted evidence. Direct String
+constructor proofs are being prepared privately using the existing reviewed
+standard-interface models. See spec §§13.28–13.29; continue without waiting on CI.
+
 ## Qualified constructor and connection-key checkpoint — 17 October 2026
 
 The latest batch qualifies **861 compiled claims**, with all 838 previously

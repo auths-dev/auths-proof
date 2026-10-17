@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "94d0a3fefdb75a3344bb2822641bdefff372d261deef3ebd81a2a55c1abeca49";
+    "e47a70caeb2efe34fdbd8936cbf4091c81d191de15000389ba457434c699df5d";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -1159,6 +1159,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "status-selection-qualified-discriminants-v1",
             "status-selection-recursive-loops-v1",
             "profile-selection-source-paths-v1",
+            "connections-qualified-discriminants-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -3308,7 +3309,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
+            "auths_connections::kernel::record_change_allows,auths_connections::kernel::recovery_lease,auths_connections::kernel::recovery_binding_requirement,auths_connections::kernel::state_transition_allows,auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
             &stable_llbc.join("auths_connections.llbc"),
             "product/runtime/auths-connections/Cargo.toml",
             &[],
@@ -3584,6 +3585,7 @@ fn reproduce(
     normalize_temporal_context(output)?;
     normalize_scope_codec_context(output)?;
     normalize_status_selection_context(output)?;
+    normalize_connections_context(output)?;
     Ok(())
 }
 
@@ -4019,6 +4021,48 @@ mod scope_codec_context_tests {
                 1
             ))
             .is_err()
+        );
+    }
+}
+
+fn normalize_connections_context(output: &Path) -> Result<(), String> {
+    let path = output.join("connections-run/qualification/aeneas/generated/connections/Types.lean");
+    let source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    fs::write(path, connections_type_context(&source)?).map_err(|error| error.to_string())
+}
+fn connections_type_context(source: &str) -> Result<String, String> {
+    if source.matches("namespace auths_connections\n").count() != 1
+        || source.matches("import Aeneas\n").count() != 1
+        || source.contains("qualified_discriminant")
+        || source.matches("@[discriminant isize").count() != 3
+    {
+        return Err("connections type context input drifted".to_owned());
+    }
+    Ok(source
+        .replace(
+            "import Aeneas\n",
+            "import Aeneas\nimport Auths.Support.Discriminant\n",
+        )
+        .replace("discriminant isize", "qualified_discriminant isize"))
+}
+#[cfg(test)]
+mod connections_context_tests {
+    use super::connections_type_context;
+    #[test]
+    fn context_preserves_enum_bodies_and_rejects_inventory_drift() {
+        let reviewed =
+            include_str!("../../formal/qualification/aeneas/generated/connections/Types.lean");
+        let raw = reviewed
+            .replace("import Auths.Support.Discriminant\n", "")
+            .replace("qualified_discriminant isize", "discriminant isize");
+        assert_eq!(connections_type_context(&raw).unwrap(), reviewed);
+        assert!(connections_type_context(reviewed).is_err());
+        assert!(
+            connections_type_context(&raw.replace("namespace auths_connections\n", "")).is_err()
+        );
+        assert!(
+            connections_type_context(&raw.replacen("@[discriminant isize", "@[other isize", 1))
+                .is_err()
         );
     }
 }

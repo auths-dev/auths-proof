@@ -1,3 +1,4 @@
+import Auths.Product.RecoveryGateRefinement
 import Auths.Product.SemanticIdRefinement
 import Auths.Product.ConnectionFrameRefinement
 import Auths.Product.ProfileConstructorRefinement
@@ -938,7 +939,17 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.SemanticId.valid_is_ascii,
     `Auths.Product.ConnectionFrame.preimage_injective,
     `Auths.Product.ConnectionFrame.validated_names_bind_both_fields,
-    `Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact
+    `Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact,
+    `Auths.Product.RecoveryGate.Refinement.recovery_exact,
+    `Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation,
+    `Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state,
+    `Auths.Product.RecoveryGate.Refinement.binding_requirement_exact,
+    `Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation,
+    `Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation,
+    `Auths.Product.RecoveryGate.Refinement.state_transition_exact,
+    `Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time,
+    `Auths.Product.RecoveryGate.Refinement.record_change_exact,
+    `Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time
   ]
 
 end Auths

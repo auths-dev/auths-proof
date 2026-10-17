@@ -71,8 +71,8 @@
       "is_local": false,
       "source": {
         "file": "product/runtime/auths-connections/src/model.rs",
-        "begin_line": 1013,
-        "end_line": 1013
+        "begin_line": 1019,
+        "end_line": 1019
       }
     }
   ],

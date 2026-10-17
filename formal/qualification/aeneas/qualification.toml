@@ -10,7 +10,7 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["scope-codec-qualified-discriminants-v1", "scope-codec-recursive-loops-v1", "composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1", "profile-selection-source-paths-v1"]
+codegen_normalizations = ["scope-codec-qualified-discriminants-v1", "scope-codec-recursive-loops-v1", "composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1", "profile-selection-source-paths-v1", "connections-qualified-discriminants-v1"]
 
 source_files = [
   "product/runtime/auths-gateway-kernel/src/reservation_batch.rs",
@@ -1145,10 +1145,10 @@ allowed_external_symbols = ["core::convert::num::ptr_try_from_impls::{impl core:
 [[translations]]
 crate_name = "auths_connections"
 translation_json = "formal/qualification/aeneas/generated/connections/translation.json"
-local_functions = 19
+local_functions = 23
 external_functions = 0
 opaque_local_functions = 0
-required_symbols = ["auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change"]
+required_symbols = ["auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::record_change_allows", "auths_connections::kernel::recovery_binding_requirement", "auths_connections::kernel::recovery_lease", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change", "auths_connections::kernel::state_transition_allows"]
 allowed_external_symbols = []
 
 [[template_axioms]]
