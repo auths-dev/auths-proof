@@ -25905,6 +25905,137 @@
         "auths_profile_construction.auths_connections.model.SemanticId.parse",
         "Aeneas.Std.core.result.Result.Ok"
       ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecordTimesRefinement",
+      "name": "Auths.Product.RecordTimes.Refinement.record_times_exact",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (created updated : Aeneas.Std.U64)\n  (revoked : Option Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.record_times_valid state created updated revoked) fun actual =>\n    actual =\n      decide (Auths.Product.RecordTimes.Refinement.valid state (↑created) (↑updated) (Option.map (fun x => ↑x) revoked))",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Nat",
+        "Option",
+        "Decidable.decide",
+        "Option.map",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.record_times_valid",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.RecordTimes.Refinement.instDecidableValid",
+        "Auths.Product.RecordTimes.Refinement.valid"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecordTimesRefinement",
+      "name": "Auths.Product.RecordTimes.Refinement.success_earns_order",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (created updated : Aeneas.Std.U64)\n  (revoked : Option Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.record_times_valid state created updated revoked) fun actual =>\n    actual = true → ↑created ≤ ↑updated",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Nat",
+        "Option",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.record_times_valid",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecordTimesRefinement",
+      "name": "Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (created updated : Aeneas.Std.U64)\n  (revoked : Option Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.record_times_valid state created updated revoked) fun actual =>\n    actual = true →\n      (state = auths_connections.model.ConnectionState.Revoked ↔ revoked.isSome = true) ∧\n        ∀ (atTime : Aeneas.Std.U64), revoked = some atTime → ↑created ≤ ↑atTime ∧ ↑atTime ≤ ↑updated",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "Iff",
+        "Nat",
+        "Option",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "Option.isSome",
+        "Option.some",
+        "Aeneas.Std.U64",
+        "auths_connections.kernel.record_times_valid",
+        "auths_connections.model.ConnectionState",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U64",
+        "Aeneas.Std.WP.spec",
+        "auths_connections.model.ConnectionState.Revoked"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecordTimesRefinement",
+      "name": "Auths.Product.RecordTimes.Refinement.state_change_preserves_valid_time",
+      "statement": "∀ (current next : auths_connections.model.ConnectionState) (created previous proposed : ℕ) (revoked : Option ℕ),\n  Auths.Product.RecordTimes.Refinement.valid current created previous revoked →\n    current ≠ auths_connections.model.ConnectionState.Revoked ∧ current ≠ next ∧ previous ≤ proposed →\n      Auths.Product.RecordTimes.Refinement.valid next created proposed\n        (if next = auths_connections.model.ConnectionState.Revoked then some proposed else none)",
+      "statement_constants": [
+        "And",
+        "Eq",
+        "Nat",
+        "Ne",
+        "Option",
+        "instLENat",
+        "ite",
+        "LE.le",
+        "Option.none",
+        "Option.some",
+        "auths_connections.model.ConnectionState",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Auths.Product.RecordTimes.Refinement.valid",
+        "Auths.Product.RecoveryGate.Refinement.instDecidableEqConnectionState_auths"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RecordTimesRefinement",
+      "name": "Auths.Product.RecordTimes.Refinement.data_change_preserves_valid_time",
+      "statement": "∀ (state : auths_connections.model.ConnectionState) (created previous proposed : ℕ) (revoked : Option ℕ),\n  Auths.Product.RecordTimes.Refinement.valid state created previous revoked →\n    state ≠ auths_connections.model.ConnectionState.Revoked ∧ previous ≤ proposed →\n      Auths.Product.RecordTimes.Refinement.valid state created proposed none",
+      "statement_constants": [
+        "And",
+        "Nat",
+        "Ne",
+        "Option",
+        "instLENat",
+        "LE.le",
+        "Option.none",
+        "auths_connections.model.ConnectionState",
+        "auths_connections.model.ConnectionState.Revoked",
+        "Auths.Product.RecordTimes.Refinement.valid"
+      ]
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

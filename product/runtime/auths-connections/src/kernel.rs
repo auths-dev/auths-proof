@@ -293,6 +293,27 @@ pub fn record_change_allows(
     }
 }
 
+/// Validates the complete temporal shape of a durable connection record.
+/// Creation never follows update; only revoked records carry a revocation
+/// timestamp, and that timestamp lies within the inclusive record lifetime.
+#[must_use]
+pub fn record_times_valid(
+    state: ConnectionState,
+    created: u64,
+    updated: u64,
+    revoked_at: Option<u64>,
+) -> bool {
+    if created > updated {
+        return false;
+    }
+    match (state, revoked_at) {
+        (ConnectionState::Revoked, Some(value)) => created <= value && value <= updated,
+        (ConnectionState::Revoked, None)
+        | (ConnectionState::Active | ConnectionState::Disabled, Some(_)) => false,
+        (ConnectionState::Active | ConnectionState::Disabled, None) => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

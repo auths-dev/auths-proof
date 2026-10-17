@@ -12,6 +12,10 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.RecordTimes.Refinement.record_times_exact" = "exact"
+"Auths.Product.RecordTimes.Refinement.success_earns_order" = "partial"
+"Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape" = "partial"
+
 "Auths.Product.StringConstructors.Refinement.actual_provider_exact" = "exact"
 "Auths.Product.StringConstructors.Refinement.actual_alias_exact" = "exact"
 "Auths.Product.StringConstructors.Refinement.actual_semantic_exact" = "exact"

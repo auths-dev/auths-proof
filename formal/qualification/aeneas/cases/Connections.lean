@@ -1,3 +1,4 @@
+import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
 import Auths.Product.RecoveryGateRefinement
 import Auths.Product.SemanticIdRefinement
@@ -177,3 +178,14 @@ example :
     decide
   simpa [accepted] using exactMeaning
 end qualification.aeneas.cases.OwnedStringConstructors
+
+namespace qualification.aeneas.cases.RecordTimes
+open Aeneas Aeneas.Std Result
+open auths_connections
+example : kernel.record_times_valid .Revoked 1#u64 3#u64 (some 2#u64) = ok true := by rfl
+example : kernel.record_times_valid .Revoked 1#u64 3#u64 (some 3#u64) = ok true := by rfl
+example : kernel.record_times_valid .Active 1#u64 3#u64 (some 2#u64) = ok false := by rfl
+example : kernel.record_times_valid .Revoked 1#u64 3#u64 none = ok false := by rfl
+example : kernel.record_times_valid .Revoked 1#u64 3#u64 (some 0#u64) = ok false := by rfl
+example : kernel.record_times_valid .Active 3#u64 1#u64 none = ok false := by rfl
+end qualification.aeneas.cases.RecordTimes

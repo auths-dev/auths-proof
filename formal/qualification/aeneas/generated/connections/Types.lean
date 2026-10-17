@@ -23,7 +23,7 @@ structure kernel.Generations where
   credential_generation : Std.U64
 
 /-- [auths_connections::model::ConnectionRecordError]
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 1019:0-1085:1
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 1015:0-1081:1
     Visibility: public -/
 @[qualified_discriminant isize]
 inductive model.ConnectionRecordError where

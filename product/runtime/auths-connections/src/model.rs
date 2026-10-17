@@ -535,17 +535,13 @@ impl ConnectionRecord {
         {
             return Err(ConnectionRecordError::InvalidProfiles);
         }
-        if self.created_at_unix_seconds > self.updated_at_unix_seconds {
+        if !kernel::record_times_valid(
+            self.state,
+            self.created_at_unix_seconds,
+            self.updated_at_unix_seconds,
+            self.revoked_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidTimestamps);
-        }
-        match (self.state, self.revoked_at_unix_seconds) {
-            (ConnectionState::Revoked, Some(value))
-                if (self.created_at_unix_seconds..=self.updated_at_unix_seconds)
-                    .contains(&value) => {}
-            (ConnectionState::Revoked, _) | (_, Some(_)) => {
-                return Err(ConnectionRecordError::InvalidTimestamps);
-            }
-            _ => {}
         }
         Ok(())
     }
@@ -1405,3 +1401,7 @@ mod recovery_guard_tests;
 #[cfg(test)]
 #[path = "string_constructor_tests.rs"]
 mod string_constructor_tests;
+
+#[cfg(test)]
+#[path = "record_time_tests.rs"]
+mod record_time_tests;

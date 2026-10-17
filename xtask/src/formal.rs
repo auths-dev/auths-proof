@@ -1829,6 +1829,15 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             }
         };
         claim.lean_statement_sha256 = statement_digest;
+        if declaration.name
+            == "Auths.Product.RecordTimes.Refinement.state_change_preserves_valid_time"
+            || declaration.name
+                == "Auths.Product.RecordTimes.Refinement.data_change_preserves_valid_time"
+        {
+            claim.claim_text = "The independent record-time model proves that the stated administrative state/time conditions preserve complete lifetime and revocation-timestamp validity.".to_owned();
+            claim.scope = "Every natural-number lifetime, optional revocation timestamp and actual state carrier satisfying the displayed independent before-state and administrative conditions. Separate source refinements earn those conditions; this does not claim the whole native caller was translated.".to_owned();
+        }
+
         claim.formal_review.clone_from(&manifest.statement_review);
         if declaration.name == "Auths.Codec.readHead_encodeHead" {
             claim.claim_text = "The independent CBOR head grammar reads every valid shortest head encoding and preserves arbitrary following bytes.".to_owned();
@@ -4735,6 +4744,30 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
             residual_assumptions: &[
                 "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain and the listed foundational axioms are trusted. No new external model is introduced.",
                 "The complete record decoder, NonZero.get/caller projection, authentication of the recorded operation, the existing constant-time commitment comparison, actual credential-store lease and runtime reload/write association remain separate. Current-versus-recorded selection proves policy, not possession or authenticity of the supplied commitment.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.RecordTimes.Refinement.") {
+        let claim_text = match declaration {
+            "Auths.Product.RecordTimes.Refinement.record_times_exact" => {
+                "The complete actual durable-record time validator returns exactly the independent lifetime/revocation-shape predicate for every state, timestamp pair and optional revocation timestamp."
+            }
+            "Auths.Product.RecordTimes.Refinement.success_earns_order" => {
+                "Successful actual record time validation earns creation no later than update."
+            }
+            "Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape" => {
+                "Successful actual record validation earns revocation timestamp presence exactly for revoked state and every present timestamp within the inclusive lifetime."
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols: &["auths_connections::kernel::record_times_valid"],
+            scope: "Every actual represented ConnectionState, two u64 timestamps and optional u64 revocation timestamp. The actual constructor/decoder validation consumes this predicate after unchanged allowlist checks.",
+            residual_assumptions: &[
+                "Lean's kernel, pinned toolchain and permitted foundational axioms are trusted. No new external model, native axiom or expected-validity premise is introduced.",
+                "The complete record codec, all allowlist/resource checks, timestamp/caller projection and full runtime histories remain separate. Frozen full-record and actual canonical-decoder parity tests support the temporal validation cutover. These are integer/time-shape laws, not a proof of a physical clock.",
             ],
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
         });

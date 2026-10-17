@@ -247,8 +247,8 @@
       "is_local": false,
       "source": {
         "file": "product/runtime/auths-connections/src/model.rs",
-        "begin_line": 1087,
-        "end_line": 1087
+        "begin_line": 1083,
+        "end_line": 1083
       },
       "is_opaque": false,
       "can_fail": true,
@@ -414,8 +414,8 @@
       "is_local": false,
       "source": {
         "file": "product/runtime/auths-connections/src/model.rs",
-        "begin_line": 1019,
-        "end_line": 1019
+        "begin_line": 1015,
+        "end_line": 1015
       }
     },
     {

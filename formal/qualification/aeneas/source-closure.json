@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "00e36a422d77f9710709d41550f7fe4c7918d5173b4552bafcd023e4168b88d9",
+  "digest": "10abedf6c85d16e017b07b4177983a0e58db46a099995b01c8a7b56f6c4e26ec",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -545,7 +545,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Connections.lean",
-      "sha256": "bc880eab0090cfe68c1b04b9cb8c34c45d146032e0989c822264c0acfa6d58c0"
+      "sha256": "a415e3c1904b3b3e4b76fd32924c6a620e6effcda5ddd8f3f236d6a42b7fe339"
     },
     {
       "path": "formal/qualification/aeneas/cases/Gateway.lean",
@@ -597,7 +597,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "dcab571b63f75f107cb93de81f729f7c61a9f17eccca74d3ed1a19fd3bff9e33"
+      "sha256": "8f24e015e9b2ef4c78fe6856b6763ff95a099a2fbb004a26b161684f32a32b00"
     },
     {
       "path": "formal/tools/SourceClosure.lean",
@@ -753,7 +753,7 @@
     },
     {
       "path": "product/runtime/auths-connections/src/kernel.rs",
-      "sha256": "bfba5aeb9d67f6e067766cffd1173607dacdb1530c673f0d1dceba74b5598b2b"
+      "sha256": "b20ab4a23a15daaf676b8da9dcc71f0b1128715aab687d13f3625172970631e3"
     },
     {
       "path": "product/runtime/auths-connections/src/lib.rs",
@@ -761,7 +761,11 @@
     },
     {
       "path": "product/runtime/auths-connections/src/model.rs",
-      "sha256": "ce9893776b59bc0b8fd84e4f973a1c540bbd17dd28a7274ebb303d8e126ea071"
+      "sha256": "f7e936f034c566b76b5560bddd2fa7dff7dc82864b28312c3e031c9ccb3c597b"
+    },
+    {
+      "path": "product/runtime/auths-connections/src/record_time_tests.rs",
+      "sha256": "c586ac5159c006a00d7b25afeb5bc014244bdc2e6ae367ccb62feec30c00a920"
     },
     {
       "path": "product/runtime/auths-connections/src/recovery_guard_tests.rs",
@@ -1057,7 +1061,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "0be5d1a901cd400beb3024a8094a6dfc9bcaee09cd1d910824494fcf17d8f95f"
+      "sha256": "d5e0104cdd90b62fb04c0f8ad22931a20a9ca3abaca273c18e6adc13b8a903e4"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
@@ -1069,7 +1073,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "e7ab4416aacf34b25a26ca7dc3c6ead31a3cfb7db8e331d7b982f8372fa9c14b"
+      "sha256": "e9ad567b4632c04ecc8e2ac69fea6f17d5823cee6af091022b71eb5071a23864"
     },
     {
       "path": "xtask/src/fuzz.rs",

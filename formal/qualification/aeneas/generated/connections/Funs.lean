@@ -433,4 +433,32 @@ def kernel.record_change_allows
   | model.ConnectionState.Disabled => ok (proposed_time >= previous_time)
   | model.ConnectionState.Revoked => ok false
 
+/-- [auths_connections::kernel::record_times_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 300:0-315:1
+    Visibility: public -/
+def kernel.record_times_valid
+  (state : model.ConnectionState) (created : Std.U64) (updated : Std.U64)
+  (revoked_at : Option Std.U64) :
+  Result Bool
+  := do
+  if created > updated
+  then ok false
+  else
+    match state with
+    | model.ConnectionState.Active =>
+      match revoked_at with
+      | none => ok true
+      | some _ => ok false
+    | model.ConnectionState.Disabled =>
+      match revoked_at with
+      | none => ok true
+      | some _ => ok false
+    | model.ConnectionState.Revoked =>
+      match revoked_at with
+      | none => ok false
+      | some value =>
+        if created <= value
+        then ok (value <= updated)
+        else ok false
+
 end auths_connections

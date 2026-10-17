@@ -5,6 +5,37 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified complete record-time checkpoint — 17 October 2026
+
+The latest batch qualifies **882 compiled claims**, all 877 preceding full
+records unchanged and no new axioms. The full 3,523-job Lean build, 18/18 cases
+and two byte-identical clean translations pass; there remain 25 reviewed models,
+none unreviewed and zero compiled external axioms. Source closure:
+`10abedf6c85d16e017b07b4177983a0e58db46a099995b01c8a7b56f6c4e26ec`.
+
+Actual constructor/decoder validation consumes the complete proved temporal
+shape: ordered creation/update, revocation timestamp exactly for revoked state,
+and inclusive lifetime bounds on every present revocation timestamp. Two
+independent model laws preserve that shape through the existing administrative
+conditions and field updates. Neither claims a whole native I/O caller proof.
+
+All 40 connection tests, 232 active gateway tests and affected-target/xtask linting
+pass; 26 ignored gateway tests stay unchanged. A frozen complete validator and the
+real canonical decoder agree on 450 combinations: 65 accepted complete records
+and 385 typed refusals. Source cases cover useful success and malformed shapes.
+Coverage v4 and historical reproduction retain the primary 134/1047 function,
+1833/11563 line and 23/82 check-site scope.
+
+Review: `ap-spec-069-complete-record-times-2026-10-17`; inventory:
+`b4353da77341c99dd42adde58ed8777272ca301797322aa29978145f7e796bca`;
+boundary: `fc09192a131ddba7b342418e42f24f58e141d0a740c2a73b0ed01ad4af1c7256`.
+
+Full record/resource/caller closure, physical-clock correspondence and the rest
+of §13.5/E1–E5/M6 remain open, including hosted exact-revision evidence. Strict
+allowlist ordering is prepared privately with a source-exact generic loop and
+independent pairwise/no-duplicate laws under explicit comparator contracts.
+Continue that cutover without waiting on CI. See spec §§13.32–13.33.
+
 ## Qualified actual String-constructor checkpoint — 17 October 2026
 
 The latest checkpoint qualifies **877 compiled claims**, all 871 preceding full

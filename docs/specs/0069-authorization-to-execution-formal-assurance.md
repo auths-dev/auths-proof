@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
 - **Status:** Implementation in progress. The latest qualified development
-  checkpoint has 877 compiled claims on 17 October 2026. E1–E5 and M6 remain
-  open; see §13.5 and §§13.25–13.31 for exact completed components, evidence
+  checkpoint has 882 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.33 for exact completed components, evidence
   boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -1783,3 +1783,56 @@ preservation proofs are prepared privately for the next cutover. Full record
 codec/resource closure, verifier/caller composition, backend histories and
 exact-revision hosted evidence remain open. Continue implementation without
 waiting on hosted CI.
+
+### 13.32 Complete durable-record temporal shape — implementation batch
+
+Actual constructor/decoder validation now consumes a complete pure temporal
+predicate: creation precedes update; revocation timestamp presence is equivalent
+to revoked state; every present revocation timestamp lies within the inclusive
+record lifetime. Exact source refinement and success-earned order/shape theorems
+cover every state, u64 pair and optional timestamp. Two independent preservation
+proofs show that the existing state-change and data-change conditions preserve
+this complete temporal shape under the stated field updates. They are model
+composition results, not claims that an entire I/O caller was translated.
+
+A frozen complete validator and the real canonical decoder agree on all 450
+state/time/optional-time combinations, with independently derived 65 accepted
+and 385 refused records. Every accepted decoder result equals the complete input
+record; refusals retain their typed category. All 40 connection library tests
+pass. Allowlist checks retain their original order before temporal validation;
+no schema, timestamp rule or product limit changes.
+
+Five proofs compile and qualify in the 882-claim checkpoint in §13.33.
+Full clean replay, closure and integration checks pass.
+The primitive uses only existing native enums and scalar comparisons, adding
+no external model, opaque Auths body or axiom. Complete record codec/resource
+closure, field/caller projection, physical-clock assumptions and actual runtime
+histories remain separate under §13.5. Continue with the batch checks and those
+remaining source obligations without waiting on hosted CI.
+
+### 13.33 Qualified complete record-time checkpoint
+
+The §13.32 component qualifies **882 compiled/audited claims**, preserving all
+877 preceding complete declaration records. The full 3,523-job Lean build,
+18/18 qualification cases and two byte-identical clean full translations pass.
+There remain 25 reviewed models, none unreviewed, zero compiled external axioms
+and no new axioms beyond the three permitted foundations.
+
+Source closure:
+`10abedf6c85d16e017b07b4177983a0e58db46a099995b01c8a7b56f6c4e26ec`.
+Review: `ap-spec-069-complete-record-times-2026-10-17`; inventory:
+`b4353da77341c99dd42adde58ed8777272ca301797322aa29978145f7e796bca`;
+boundary:
+`fc09192a131ddba7b342418e42f24f58e141d0a740c2a73b0ed01ad4af1c7256`.
+
+All 40 connection tests, 232 active gateway tests and affected-target/xtask linting
+pass; 26 ignored gateway tests remain unchanged. Native validation/decoder parity
+and useful source witnesses are detailed in §13.32. Coverage v4 and byte-identical
+historical reproduction keep the primary scope at 134/1047 functions,
+1833/11563 code lines and 23/82 check sites.
+
+The full §13.5 program and exact-revision hosted evidence remain open. Strict
+allowlist ordering has a private source-exact loop proof with explicit comparator
+contracts and independent pairwise/no-duplicate laws; the shipping iterator
+predicate has not yet been cut over. Continue with that component and remaining
+codec, verifier, caller/backend/history obligations without waiting on hosted CI.

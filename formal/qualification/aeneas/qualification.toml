@@ -1147,10 +1147,10 @@ allowed_external_symbols = ["core::convert::num::ptr_try_from_impls::{impl core:
 [[translations]]
 crate_name = "auths_connections"
 translation_json = "formal/qualification/aeneas/generated/connections/translation.json"
-local_functions = 23
+local_functions = 24
 external_functions = 0
 opaque_local_functions = 0
-required_symbols = ["auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::record_change_allows", "auths_connections::kernel::recovery_binding_requirement", "auths_connections::kernel::recovery_lease", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change", "auths_connections::kernel::state_transition_allows"]
+required_symbols = ["auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::record_change_allows", "auths_connections::kernel::record_times_valid", "auths_connections::kernel::recovery_binding_requirement", "auths_connections::kernel::recovery_lease", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change", "auths_connections::kernel::state_transition_allows"]
 allowed_external_symbols = []
 
 [[template_axioms]]

@@ -206,7 +206,7 @@ def auths_connections.kernel.semantic_id_valid
       else ok false
 
 /-- [auths_connections::model::is_lower_token]:
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 1087:0-1087:54
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 1083:0-1083:54
     Name pattern: [auths_connections::model::is_lower_token] -/
 @[rust_fun "auths_connections::model::is_lower_token"]
 def auths_connections.model.is_lower_token

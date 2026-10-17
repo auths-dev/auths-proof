@@ -1,3 +1,4 @@
+import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
 import Auths.Product.RecoveryGateRefinement
 import Auths.Product.SemanticIdRefinement
@@ -956,7 +957,12 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.StringConstructors.Refinement.actual_semantic_exact,
     `Auths.Product.StringConstructors.Refinement.provider_success_earns_exact_valid_payload,
     `Auths.Product.StringConstructors.Refinement.alias_success_earns_exact_valid_payload,
-    `Auths.Product.StringConstructors.Refinement.semantic_success_earns_exact_valid_payload
+    `Auths.Product.StringConstructors.Refinement.semantic_success_earns_exact_valid_payload,
+    `Auths.Product.RecordTimes.Refinement.record_times_exact,
+    `Auths.Product.RecordTimes.Refinement.success_earns_order,
+    `Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape,
+    `Auths.Product.RecordTimes.Refinement.state_change_preserves_valid_time,
+    `Auths.Product.RecordTimes.Refinement.data_change_preserves_valid_time
   ]
 
 end Auths
