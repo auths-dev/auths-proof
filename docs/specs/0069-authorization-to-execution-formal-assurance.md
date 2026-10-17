@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
 - **Status:** Implementation in progress. The latest qualified development
-  checkpoint has 886 compiled claims on 17 October 2026. E1–E5 and M6 remain
-  open; see §13.5 and §§13.25–13.35 for exact completed components, evidence
+  checkpoint has 902 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.39 for exact completed components, evidence
   boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -1891,3 +1891,101 @@ and profile comparator correspondence and the full record validator are the
 next source batch; their private prototype is not included in this checkpoint.
 The wider E1–E5 and M6 obligations in §13.5 remain open. Hosted exact-revision
 release gates remain required; no GitHub CI wait is part of implementation.
+
+
+### 13.36 Complete existing record-validator source batch
+
+`ConnectionRecord::validate` now calls one translated composition over its exact
+stored workload/profile/state/time fields. The complete workload checker proves
+1–256 entries, strict native String ordering and every 1–128-byte printable-ASCII
+name; the profile checker proves 1–32 entries in strict identifier/version order.
+Concrete generated String and profile dictionaries close the generic comparator
+premises from §13.34. The composed verdict preserves workload, profile, then
+timestamp error precedence and earns all collection/text/duplicate/time facts
+from actual success. These are refinements of existing enforcement behavior.
+
+The construction proof uses the existing explicit portable String UTF-8 carrier
+bound and five transparent standard interfaces. Two additional standard method
+bodies spell out `String::partial_cmp = Some(cmp)` and the inert Eq marker in the
+existing reviewed ordering model. All Auths comparison/scan/validation bodies are
+translated; there is no opaque Auths predicate, comparator-result premise,
+assumed valid list, global axiom or native-evaluation admission.
+
+The frozen original complete validator and actual decoder check 43,200 combined
+records. Validation has 1,040 useful successes and 42,160 typed refusals, including
+simultaneous bad guards, Unicode, exact/over text and collection limits and full
+u64 timestamp boundaries. The unchanged decoder rejects collection bounds while
+reading, before complete semantic validation; the regression preserves that
+existing earlier error precedence independently. All 43 connection tests and 232 active gateway tests pass; the existing 26 ignored
+gateway tests are unchanged. The source acceptance theorem is an iff with an
+independent global-pairwise collection/text/time specification and additionally
+earns explicit bounds and duplicate absence. Full build/audit and clean replay
+pass in §13.39. Descriptor/hash/generation assembly, complete record codec/caller
+projection and full E1–E5/M6/runtime/backend histories remain separate.
+
+### 13.37 Test-module path handling in the shipping-call inventory
+
+The final formal gate exposed a source-inventory limitation: it rejected the
+existing flat `#[path = "..."]` test modules before checking the real Kani
+harnesses. The inventory now resolves plain relative Rust file paths in file and
+inline modules, excludes those exact test files, and continues to reject test
+helpers as shipping proof targets. It rejects ambiguous, escaping, conditional,
+missing, escaped/raw-string paths and explicit-path files with unresolved external
+child modules or code inclusion. It does not claim to implement a general Rust
+module resolver. Compiler-checked path fixtures, nine targeted regressions and the
+real inventory of 48 harnesses across six packages pass. This is an inventory
+repair, not a new Kani solver result.
+
+### 13.38 Exact decoder cursor, integer and null behavior
+
+Ten new source refinements cover the actual decoder's constructor, explicit
+cursor constructor, position getter, typed head, u64/u8/u16 readers, null reader,
+first-byte type query and completion guard. The independent list grammar gives
+exact success/refusal and cursor/input behavior for every represented input and
+arbitrary cursor; valid input, parse success and the expected answer are not
+premises. All 256 first bytes agree with an independent major/additional-tag
+classification through ordinary kernel-checked finite reasoning.
+
+A wide integer consumes its head before a u8/u16 narrowing refusal. A malformed,
+truncated or wrong-major head leaves the cursor unchanged. The regression cases
+exercise useful success, both narrowing boundaries, wrong-major/truncated heads,
+null acceptance/refusal, indefinite-byte peeking and the distinctions below.
+Peeking a U16 does not establish that its payload exists; the completion helper
+compares the cursor with the explicitly supplied input's length and does not
+establish input identity. Complete callers must supply that binding. Neither
+behavior is silently strengthened into a full-object canonicality claim.
+
+No shipping codec algorithm, translation root or external model is changed in
+this decoder batch. Payload/UTF-8/collection/object decoding, allocation/work
+bounds, constructor closure, inverse completeness and the byte-to-authority
+composition remain open. The broader E1–E5/M6 work in §13.5 remains open.
+
+### 13.39 Qualified record-validator and cursor checkpoint — 17 October 2026
+
+The combined batch qualifies **902 compiled/audited claims**, preserving all 886
+previous complete declaration records. The full 3,531-job Lean build, transitive
+axiom audit, 18/18 qualification cases and two byte-identical clean full
+Rust-to-Lean replays pass. There are 25 reviewed models, none unreviewed, and zero
+compiled external axioms. The two additional String standard methods in §13.36
+expand an existing model's interface; the unchanged model-row count is not a
+claim that its logical surface was unchanged. The inventory has 101 generated
+artifacts and 22 explicitly uncompiled standard-interface template stubs.
+
+Source closure: `b5aa6810c742d3ee53b37b18d2d7a9b5a3f25c5cf5f2af83cf398ede95e33814`.
+Statement review: `ap-spec-069-record-and-cursor-2026-10-17`.
+Inventory digest: `9ca7caa5ab864d0bcc5936fd696f7beeefdbf1b34a51599357d558e2ca7a5d69`.
+Boundary contract: `33fbd99ec34b7e232db2b65d19c55419a4ff5c82b1d7e371a0ed6bb35d96ea18`.
+
+All 173 xtask tests and affected-target/xtask linting pass. Native connection and
+gateway results are recorded in §13.36; the complete native-refinement vector
+suite and all 48 shipping-call harness inventory checks pass in the final formal
+gate. Kani solver execution was explicitly skipped; no new solver result is
+claimed. Coverage
+v4 and historical reproduction retain the primary 134/1047-function,
+1833/11563-line and 23/82-check-site scope, which excludes codec roles.
+
+Continue with payload/UTF-8/collection and complete object-codec source proofs,
+then the remaining verifier, caller, backend-history and cryptographic integration
+obligations in §13.5. A private payload prototype is not part of this qualified
+checkpoint. The full E1–E5/M6 program and exact-release hosted gates remain open;
+implementation does not wait on GitHub CI.

@@ -1,3 +1,5 @@
+import Auths.Codec.Cursor
+import Auths.Product.RecordShapeRefinement
 import Auths.Product.StrictOrderRefinement
 import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
@@ -967,7 +969,24 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.StrictOrder.Refinement.strict_order_exact,
     `Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates,
     `Auths.Product.StrictOrder.Refinement.ordered_implies_pairwise,
-    `Auths.Product.StrictOrder.Refinement.ordered_implies_no_duplicates
+    `Auths.Product.StrictOrder.Refinement.ordered_implies_no_duplicates,
+    `Auths.Product.RecordShape.Refinement.text_order_exact,
+    `Auths.Product.RecordShape.Refinement.profile_order_exact,
+    `Auths.Product.RecordShape.Refinement.workloads_exact,
+    `Auths.Product.RecordShape.Refinement.profiles_exact,
+    `Auths.Product.RecordShape.Refinement.record_shape_exact,
+    `Auths.Product.RecordShape.Refinement.success_earns_all_invariants,
+    `Auths.Codec.Cursor.new_exact,
+    `Auths.Codec.Cursor.at_exact,
+    `Auths.Codec.Cursor.position_exact,
+    `Auths.Codec.Cursor.head_exact,
+    `Auths.Codec.Cursor.u64_exact,
+    `Auths.Codec.Cursor.u8_exact,
+    `Auths.Codec.Cursor.u16_exact,
+    `Auths.Codec.Cursor.null_exact,
+    `Auths.Codec.Cursor.datatype_exact,
+    `Auths.Codec.Cursor.ensure_complete_exact
   ]
 
 end Auths
+

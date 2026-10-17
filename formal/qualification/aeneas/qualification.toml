@@ -226,6 +226,8 @@ generated_files = [
   "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
   "formal/qualification/aeneas/generated/gateway/translation.json",
   "formal/qualification/aeneas/generated/connections/Types.lean",
+  "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/connections/FunsExternal.lean",
   "formal/qualification/aeneas/generated/connections/Funs.lean",
   "formal/qualification/aeneas/generated/connections/translation.json",
   "formal/qualification/aeneas/generated/profile_construction/Types.lean",
@@ -523,6 +525,8 @@ id = "aeneas-standard-ordering-and-bytes"
 kind = "transparent-standard-library-model"
 artifact = "formal/qualification/aeneas/generated/model/FunsExternal.lean"
 rust_symbols = [
+  "alloc::string::{impl core::cmp::Eq for alloc::string::String}::assert_fields_are_eq",
+  "alloc::string::{impl core::cmp::PartialOrd<alloc::string::String> for alloc::string::String}::partial_cmp",
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq",
   "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp",
@@ -534,7 +538,7 @@ rust_symbols = [
 authority_semantics = false
 reviewed = true
 axiom = false
-scope = "Exact equality and lexicographic ordering for strings and fixed arrays, plus exact UTF-8 bytes for constructor-validated Auths strings; byte conversion fails outside Aeneas' U32 string carrier bound. Borrowed str length, emptiness, and byte projection are exact operations on the Aeneas byte-slice carrier, without assuming UTF-8 validity."
+scope = "String PartialOrd returns Some of the same exact lexicographic comparison; the Eq marker returns unit without state. Exact equality and lexicographic ordering for strings and fixed arrays, plus exact UTF-8 bytes for constructor-validated Auths strings; byte conversion fails outside Aeneas' U32 string carrier bound. Borrowed str length, emptiness, and byte projection are exact operations on the Aeneas byte-slice carrier, without assuming UTF-8 validity."
 
 [[external_models]]
 id = "authority-carrier-link"
@@ -1147,11 +1151,11 @@ allowed_external_symbols = ["core::convert::num::ptr_try_from_impls::{impl core:
 [[translations]]
 crate_name = "auths_connections"
 translation_json = "formal/qualification/aeneas/generated/connections/translation.json"
-local_functions = 27
-external_functions = 0
+local_functions = 38
+external_functions = 5
 opaque_local_functions = 0
-required_symbols = ["auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::record_change_allows", "auths_connections::kernel::record_times_valid", "auths_connections::kernel::recovery_binding_requirement", "auths_connections::kernel::recovery_lease", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change", "auths_connections::kernel::state_transition_allows", "auths_connections::kernel::strictly_sorted_unique"]
-allowed_external_symbols = []
+required_symbols = ["auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::profiles_valid", "auths_connections::kernel::record_change_allows", "auths_connections::kernel::record_times_valid", "auths_connections::kernel::recovery_binding_requirement", "auths_connections::kernel::recovery_lease", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change", "auths_connections::kernel::state_transition_allows", "auths_connections::kernel::strictly_sorted_unique", "auths_connections::kernel::validate_record_shape", "auths_connections::kernel::workloads_valid", "auths_connections::model::{impl core::cmp::Eq for auths_connections::model::ConnectionProfile}::assert_fields_are_eq", "auths_connections::model::{impl core::cmp::Ord for auths_connections::model::ConnectionProfile}::cmp", "auths_connections::model::{impl core::cmp::Ord for auths_connections::model::SemanticId}::cmp", "auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}::eq", "auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::SemanticId> for auths_connections::model::SemanticId}::eq", "auths_connections::model::{impl core::cmp::PartialOrd<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}::partial_cmp"]
+allowed_external_symbols = ["alloc::string::{alloc::string::String}::as_bytes", "alloc::string::{impl core::cmp::Eq for alloc::string::String}::assert_fields_are_eq", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::cmp::PartialOrd<alloc::string::String> for alloc::string::String}::partial_cmp"]
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean"
@@ -1276,4 +1280,10 @@ allowed_external_symbols = ["alloc::string::{alloc::string::String}::as_bytes", 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean"
 count = 3
+compiled = false
+
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean"
+count = 5
 compiled = false

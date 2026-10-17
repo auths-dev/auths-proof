@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "e3c0b057f86b94b84182655b8cd8b4b923a5f54b50ba7031923891976758c375";
+    "33fbd99ec34b7e232db2b65d19c55419a4ff5c82b1d7e371a0ed6bb35d96ea18";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -301,6 +301,10 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
         "formal/qualification/aeneas/generated/connections/Types.lean",
     ),
     (
+        "connections-run/qualification/aeneas/generated/connections/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean",
+    ),
+    (
         "connections-run/qualification/aeneas/generated/connections/Funs.lean",
         "formal/qualification/aeneas/generated/connections/Funs.lean",
     ),
@@ -327,6 +331,7 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/connections/FunsExternal.lean",
     "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
     "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
     "formal/qualification/aeneas/generated/gateway/FunsExternal.lean",
@@ -447,6 +452,8 @@ const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/gateway/translation.json",
     "formal/qualification/aeneas/generated/connections/Types.lean",
+    "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/connections/FunsExternal.lean",
     "formal/qualification/aeneas/generated/connections/Funs.lean",
     "formal/qualification/aeneas/generated/connections/translation.json",
     "formal/qualification/aeneas/generated/profile_construction/Types.lean",
@@ -651,6 +658,7 @@ const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
     "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean",
 ];
 
 #[derive(Deserialize)]
@@ -1139,7 +1147,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
         || qualification.translations.len() != 18
         || qualification.external_models.len() != 25
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 21
+        || qualification.template_axioms.len() != 22
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -1607,6 +1615,10 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/connections/FunsExternal.lean",
+            render_connections_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
             render_profile_construction_functions_external(),
         ),
@@ -1724,6 +1736,30 @@ def core.result.Result.unwrap_or {T E : Type} (value : core.result.Result T E) (
     Result T := ok (match value with | .Ok value => value | .Err _ => fallback)
 "##
     .to_owned()
+}
+
+fn render_connections_functions_external() -> String {
+    r##"-- Reuse the reviewed exact String ordering/UTF-8 models; all Auths bodies remain translated.
+import qualification.aeneas.generated.connections.Types
+import qualification.aeneas.generated.model.FunsExternal
+open Aeneas Aeneas.Std Result
+namespace auths_connections
+@[trait_default]
+def core.cmp.PartialOrd.lt.default {Self Rhs : Type}
+    (implementation : Aeneas.Std.core.cmp.PartialOrd Self Rhs)
+    (left : Self) (right : Rhs) : Result Bool :=
+  Aeneas.Std.core.cmp.PartialOrd.lt.default implementation.partial_cmp left right
+abbrev alloc.string.String.Insts.CoreCmpPartialEqString.eq :=
+  _root_.alloc.string.String.Insts.CoreCmpPartialEqString.eq
+abbrev alloc.string.String.Insts.CoreCmpPartialOrdString.partial_cmp :=
+  _root_.alloc.string.String.Insts.CoreCmpPartialOrdString.partial_cmp
+abbrev alloc.string.String.Insts.CoreCmpEq.assert_fields_are_eq :=
+  _root_.alloc.string.String.Insts.CoreCmpEq.assert_fields_are_eq
+abbrev alloc.string.String.Insts.CoreCmpOrd.cmp :=
+  _root_.alloc.string.String.Insts.CoreCmpOrd.cmp
+abbrev alloc.string.String.as_bytes := _root_.alloc.string.String.as_bytes
+end auths_connections
+"##.to_owned()
 }
 
 fn render_profile_construction_functions_external() -> String {
@@ -2231,6 +2267,16 @@ ok (left == right)
 def alloc.string.String.Insts.CoreCmpOrd.cmp
 (left right : String) : Result Ordering :=
 ok (compare left right)
+
+
+-- String implements a total order; PartialOrd returns that same comparison.
+@[rust_fun "alloc::string::{core::cmp::PartialOrd<alloc::string::String, alloc::string::String>}::partial_cmp"]
+def alloc.string.String.Insts.CoreCmpPartialOrdString.partial_cmp
+    (left right : String) : Result (Option Ordering) := ok (some (compare left right))
+
+-- Eq's marker method has no runtime observation or state change.
+@[rust_fun "alloc::string::{core::cmp::Eq<alloc::string::String>}::assert_fields_are_eq"]
+def alloc.string.String.Insts.CoreCmpEq.assert_fields_are_eq (_ : String) : Result Unit := ok ()
 
 @[rust_fun "alloc::string::{alloc::string::String}::as_bytes"]
 def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=
@@ -3335,7 +3381,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_connections::kernel::strictly_sorted_unique,auths_connections::kernel::record_times_valid,auths_connections::kernel::record_change_allows,auths_connections::kernel::recovery_lease,auths_connections::kernel::recovery_binding_requirement,auths_connections::kernel::state_transition_allows,auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
+            "auths_connections::kernel::strictly_sorted_unique,auths_connections::kernel::record_times_valid,auths_connections::kernel::record_change_allows,auths_connections::kernel::recovery_lease,auths_connections::kernel::recovery_binding_requirement,auths_connections::kernel::state_transition_allows,auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation,auths_connections::kernel::workloads_valid,auths_connections::kernel::profiles_valid,auths_connections::kernel::validate_record_shape",
             &stable_llbc.join("auths_connections.llbc"),
             "product/runtime/auths-connections/Cargo.toml",
             &[],

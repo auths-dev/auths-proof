@@ -65,6 +65,16 @@ def alloc.string.String.Insts.CoreCmpOrd.cmp
 (left right : String) : Result Ordering :=
 ok (compare left right)
 
+
+-- String implements a total order; PartialOrd returns that same comparison.
+@[rust_fun "alloc::string::{core::cmp::PartialOrd<alloc::string::String, alloc::string::String>}::partial_cmp"]
+def alloc.string.String.Insts.CoreCmpPartialOrdString.partial_cmp
+    (left right : String) : Result (Option Ordering) := ok (some (compare left right))
+
+-- Eq's marker method has no runtime observation or state change.
+@[rust_fun "alloc::string::{core::cmp::Eq<alloc::string::String>}::assert_fields_are_eq"]
+def alloc.string.String.Insts.CoreCmpEq.assert_fields_are_eq (_ : String) : Result Unit := ok ()
+
 @[rust_fun "alloc::string::{alloc::string::String}::as_bytes"]
 def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=
 if h : value.toByteArray.size ≤ U32.max then

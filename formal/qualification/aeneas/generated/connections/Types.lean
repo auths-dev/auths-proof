@@ -23,7 +23,7 @@ structure kernel.Generations where
   credential_generation : Std.U64
 
 /-- [auths_connections::model::ConnectionRecordError]
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 1015:0-1081:1
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 1000:0-1066:1
     Visibility: public -/
 @[qualified_discriminant isize]
 inductive model.ConnectionRecordError where
@@ -59,12 +59,25 @@ inductive model.ConnectionState where
 | Revoked : model.ConnectionState
 
 /-- [auths_connections::kernel::RecoveryBindingRequirement]
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 222:0-229:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 224:0-231:1
     Visibility: public -/
 @[qualified_discriminant isize]
 inductive kernel.RecoveryBindingRequirement where
 | Refuse : kernel.RecoveryBindingRequirement
 | RecordedCommitment : kernel.RecoveryBindingRequirement
 | CurrentCommitment : kernel.RecoveryBindingRequirement
+
+/-- [auths_connections::model::SemanticId]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 70:0-70:30
+    Visibility: public -/
+@[reducible]
+def model.SemanticId := String
+
+/-- [auths_connections::model::ConnectionProfile]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 151:0-154:1
+    Visibility: public -/
+structure model.ConnectionProfile where
+  id : model.SemanticId
+  version : Std.U16
 
 end auths_connections

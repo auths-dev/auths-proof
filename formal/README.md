@@ -14,10 +14,14 @@ declaration name, statement, transitive axiom set, source closure, and required
 evidence. This prevents a renamed, weakened, deleted, or `sorry`-backed theorem
 from satisfying the repository gate through a textual look-alike.
 
-The latest qualified development checkpoint has 886 compiled claims, 18/18
+The latest qualified development checkpoint has 902 compiled claims, 18/18
 qualification cases, 25 reviewed external models and two byte-identical full
-translation reproductions. Its latest batch proves the complete durable-record temporal shape and its
-administrative preservation conditions. Earlier batches directly prove
+translation reproductions. Its latest batch proves the complete record validator
+under the explicit portable String bound, closes concrete String/profile ordering
+premises, and proves exact decoder cursor, integer, null and type-query behavior.
+Completion length and input identity remain distinct caller obligations. Earlier
+batches prove durable-record temporal shape and administrative preservation, and
+directly prove
 owned-String constructors under the existing
 reviewed portable UTF-8 representation bound. Earlier batches prove
 recovery-credential selection, terminal revocation and

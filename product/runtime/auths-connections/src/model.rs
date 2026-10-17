@@ -12,8 +12,8 @@ const OBSOLETE_RECORD_SCHEMA_VERSION: u8 = 1;
 const RECORD_FIELD_COUNT: u64 = 18;
 const MAX_RECORD_BYTES: usize = 262_144;
 const MAX_DESCRIPTOR_BYTES: usize = 65_536;
-const MAX_WORKLOADS: usize = 256;
-const MAX_PROFILES: usize = 32;
+pub(crate) const MAX_WORKLOADS: usize = 256;
+pub(crate) const MAX_PROFILES: usize = 32;
 
 /// Lowercase provider kind.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -521,29 +521,14 @@ impl ConnectionRecord {
     }
 
     fn validate(&self) -> Result<(), ConnectionRecordError> {
-        if !(1..=MAX_WORKLOADS).contains(&self.allowed_workloads.len())
-            || !kernel::strictly_sorted_unique(&self.allowed_workloads)
-            || self
-                .allowed_workloads
-                .iter()
-                .any(|value| !is_ascii_graphic(value, 128))
-        {
-            return Err(ConnectionRecordError::InvalidWorkloads);
-        }
-        if !(1..=MAX_PROFILES).contains(&self.allowed_profiles.len())
-            || !kernel::strictly_sorted_unique(&self.allowed_profiles)
-        {
-            return Err(ConnectionRecordError::InvalidProfiles);
-        }
-        if !kernel::record_times_valid(
+        kernel::validate_record_shape(
+            &self.allowed_workloads,
+            &self.allowed_profiles,
             self.state,
             self.created_at_unix_seconds,
             self.updated_at_unix_seconds,
             self.revoked_at_unix_seconds,
-        ) {
-            return Err(ConnectionRecordError::InvalidTimestamps);
-        }
-        Ok(())
+        )
     }
 
     /// Returns the provider kind.
@@ -1082,10 +1067,6 @@ pub enum ConnectionRecordError {
 
 fn is_lower_token(value: &str, maximum: usize) -> bool {
     kernel::lower_token_valid(value.as_bytes(), maximum)
-}
-
-fn is_ascii_graphic(value: &str, maximum: usize) -> bool {
-    kernel::ascii_graphic_valid(value.as_bytes(), maximum)
 }
 
 fn encode_text(

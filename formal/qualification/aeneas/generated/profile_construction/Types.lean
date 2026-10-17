@@ -22,7 +22,7 @@ namespace auths_profile_construction
 def auths_connections.model.ProviderKind := String
 
 /-- [auths_connections::model::ConnectionRecordError]
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 1015:0-1015:30
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 1000:0-1000:30
     Name pattern: [auths_connections::model::ConnectionRecordError]
     Visibility: public -/
 @[discriminant isize, rust_type

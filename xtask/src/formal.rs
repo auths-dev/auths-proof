@@ -4756,6 +4756,102 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
         });
     }
+    if let Some(leaf) = declaration.strip_prefix("Auths.Codec.Cursor.") {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match leaf {
+            "new_exact" => (
+                "The actual decoder constructor preserves the exact borrowed input and initializes its cursor to zero.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::new"],
+            ),
+            "at_exact" => (
+                "The actual explicit-cursor constructor accepts exactly positions at most the input length and preserves both fields.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::at"],
+            ),
+            "position_exact" => (
+                "The actual position accessor returns exactly the stored cursor.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::position"],
+            ),
+            "head_exact" => (
+                "The actual typed-head decoder is total over every represented cursor and refines the independent byte grammar, exact decoded value, refusal cursor and preserved input.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head"],
+            ),
+            "u64_exact" => (
+                "The actual unsigned-word reader refines the independent major-zero grammar and exact cursor/input behavior, including malformed and wrong-major heads.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64"],
+            ),
+            "u8_exact" => (
+                "The actual u8 reader accepts exactly grammar-decoded words within 255 and preserves the consumed head cursor even when narrowing refuses.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8"],
+            ),
+            "u16_exact" => (
+                "The actual u16 reader accepts exactly grammar-decoded words within 65535 and preserves the consumed head cursor even when narrowing refuses.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u16"],
+            ),
+            "null_exact" => (
+                "The actual null reader accepts exactly the CBOR null byte, advances by one only on success and preserves the input.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::null"],
+            ),
+            "datatype_exact" => (
+                "The actual first-byte query returns exactly the independent major/additional-tag classification for every byte; it does not establish availability or validity of a complete head or payload.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::datatype"],
+            ),
+            "ensure_complete_exact" => (
+                "The actual completion guard accepts exactly cursor equality with the explicitly supplied input length and otherwise returns Malformed; input identity is a separate caller obligation.",
+                &["auths_codec::decode::ensure_complete"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Every represented byte slice, arbitrary machine-word cursor and requested major tag. Reserved/truncated/wrong-major input and narrowing failures are included; no successful parse, valid cursor, expected output or honest input is a premise. The datatype query is checked for all 256 first-byte values against a separate major/additional-tag interpretation.",
+            residual_assumptions: &[
+                "Lean's kernel, pinned Rust/Charon/Aeneas/Lean toolchain, listed foundational axioms and existing exact standard-library Slice/Option/Result/checked-integer interfaces are trusted. No new external model, opaque Auths body or native-evaluation axiom is introduced.",
+                "The raw head reader intentionally permits wider integer encodings; complete canonical object acceptance remains the enclosing codec's responsibility. Peeking a type is not decoding a payload. ensure_complete compares the explicitly supplied length and does not prove that the caller supplied the decoder's own input. Full payload/UTF-8/collection/object codecs, constructor closure, allocation/work limits and byte-to-authority composition remain separate.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.RecordShape.Refinement.") {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Product.RecordShape.Refinement.text_comparison"
+            | "Auths.Product.RecordShape.Refinement.text_order_exact" => (
+                "The actual String comparison dictionary and complete strict-order scan refine String lexicographic order without a caller-supplied comparison or order-law premise.",
+                &["auths_connections::kernel::strictly_sorted_unique"],
+            ),
+            "Auths.Product.RecordShape.Refinement.profile_comparison"
+            | "Auths.Product.RecordShape.Refinement.profile_order_exact" => (
+                "The actual derived profile comparison dictionary and complete strict-order scan refine lexicographic identifier-then-version order without a comparison or order-law premise.",
+                &[
+                    "auths_connections::kernel::strictly_sorted_unique",
+                    "auths_connections::model::{impl core::cmp::Ord for auths_connections::model::ConnectionProfile}::cmp",
+                ],
+            ),
+            "Auths.Product.RecordShape.Refinement.workloads_exact" => (
+                "The actual complete workload allowlist validator returns exactly nonempty bounded strict String ordering and printable-ASCII text validity on the represented UTF-8 carrier.",
+                &["auths_connections::kernel::workloads_valid"],
+            ),
+            "Auths.Product.RecordShape.Refinement.profiles_exact" => (
+                "The actual complete profile allowlist validator returns exactly nonempty bounded strict identifier/version ordering, with no comparator premise.",
+                &["auths_connections::kernel::profiles_valid"],
+            ),
+            "Auths.Product.RecordShape.Refinement.record_shape_exact"
+            | "Auths.Product.RecordShape.Refinement.success_earns_all_invariants" => (
+                "The composed validator called by ConnectionRecord::validate returns the exact workload/profile/timestamp verdict with native error precedence; success earns all displayed collection, text, duplicate-absence and temporal invariants.",
+                &["auths_connections::kernel::validate_record_shape"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Every actual String/profile slice and actual record state/time tuple on the explicit portable String UTF-8 byte-size carrier. Empty, unsorted, duplicate, oversized, malformed text and contradictory timestamp inputs are included. No valid allowlist, comparator result, order law or desired validator result is assumed.",
+            residual_assumptions: &[
+                "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain and listed foundational axioms are trusted. The five reviewed transparent std String interfaces implement exact equality, total/partial ordering, the inert Eq marker and UTF-8 byte projection. The explicit U32 carrier bound is the existing representation boundary, not a new product text limit.",
+                "The full ConnectionRecord field projection, descriptor/hash/generation assembly, canonical codec and caller/runtime/backend histories remain separate. Profile field validity belongs to the typed constructors; this allowlist validator earns collection validity and ordering, not validity of an arbitrary forged profile carrier. Native tests compare frozen complete validation and real decoder behavior, including the decoder's earlier collection-bound refusal precedence.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     if declaration.starts_with("Auths.Product.RecordTimes.Refinement.") {
         let claim_text = match declaration {
             "Auths.Product.RecordTimes.Refinement.record_times_exact" => {

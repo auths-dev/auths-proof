@@ -190,7 +190,9 @@ pub fn semantic_id_valid(value: &[u8], maximum: usize) -> bool {
     true
 }
 
-use crate::model::{ConnectionRecordError, ConnectionState};
+use crate::model::{
+    ConnectionProfile, ConnectionRecordError, ConnectionState, MAX_PROFILES, MAX_WORKLOADS,
+};
 /// Authorizes recovery at a positive generation no newer than the record.
 /// Revocation takes precedence and always refuses. Zero raw generations refuse
 /// even though the typed shipping caller already excludes them.
@@ -331,6 +333,58 @@ pub fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
         }
     }
     true
+}
+
+/// Validates the complete workload allowlist: 1–256 strictly ordered, unique
+/// names, each 1–128 bytes of printable ASCII. Invalid length refuses before
+/// ordering or scanning text, and no allocation is performed.
+#[must_use]
+pub fn workloads_valid(values: &[String]) -> bool {
+    if values.is_empty() || values.len() > MAX_WORKLOADS || !strictly_sorted_unique(values) {
+        return false;
+    }
+    let mut index = 0;
+    while index < values.len() {
+        if !ascii_graphic_valid(values[index].as_bytes(), 128) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Validates the complete profile allowlist: 1–32 strictly ordered, unique
+/// identifier/version pairs. Profile field validity is earned by their constructors.
+#[must_use]
+pub fn profiles_valid(values: &[ConnectionProfile]) -> bool {
+    !values.is_empty() && values.len() <= MAX_PROFILES && strictly_sorted_unique(values)
+}
+
+/// Composes every check made by `ConnectionRecord::validate` over its actual
+/// stored fields. Workload, profile and timestamp errors retain that precedence.
+/// Descriptor, generation and commitment checks belong to assembly/decoding.
+///
+/// # Errors
+/// Returns `InvalidWorkloads`, `InvalidProfiles`, or `InvalidTimestamps` for the
+/// first invalid record component.
+pub fn validate_record_shape(
+    workloads: &[String],
+    profiles: &[ConnectionProfile],
+    state: ConnectionState,
+    created: u64,
+    updated: u64,
+    revoked: Option<u64>,
+) -> Result<(), ConnectionRecordError> {
+    if !workloads_valid(workloads) {
+        return Err(ConnectionRecordError::InvalidWorkloads);
+    }
+    if !profiles_valid(profiles) {
+        return Err(ConnectionRecordError::InvalidProfiles);
+    }
+    if !record_times_valid(state, created, updated, revoked) {
+        return Err(ConnectionRecordError::InvalidTimestamps);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

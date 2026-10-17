@@ -2,6 +2,7 @@
 -- [auths_connections]: function definitions
 import Aeneas
 import qualification.aeneas.generated.connections.Types
+import qualification.aeneas.generated.connections.FunsExternal
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
 set_option linter.hashCommand false
@@ -13,7 +14,53 @@ set_option maxHeartbeats 1000000
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
 
+/- You can remove the following line by using the CLI option `-all-computable`: -/
+noncomputable section
+
 namespace auths_connections
+
+/-- Trait implementation: [alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}]
+    Source: '/rustc/library/alloc/src/string.rs', lines 350:9-350:18
+    Name pattern: [core::cmp::PartialEq<alloc::string::String, alloc::string::String>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialEq<alloc::string::String, alloc::string::String>"]
+def alloc.string.String.Insts.CoreCmpPartialEqString : core.cmp.PartialEq
+  String String := {
+  eq := alloc.string.String.Insts.CoreCmpPartialEqString.eq
+}
+
+/-- Trait implementation: [alloc::string::{impl core::cmp::PartialOrd<alloc::string::String> for alloc::string::String}]
+    Source: '/rustc/library/alloc/src/string.rs', lines 350:20-350:30
+    Name pattern: [core::cmp::PartialOrd<alloc::string::String, alloc::string::String>] -/
+@[reducible, rust_trait_impl
+  "core::cmp::PartialOrd<alloc::string::String, alloc::string::String>"]
+impl_def alloc.string.String.Insts.CoreCmpPartialOrdString :
+  core.cmp.PartialOrd String String := {
+  partialEqInst := alloc.string.String.Insts.CoreCmpPartialEqString
+  partial_cmp := alloc.string.String.Insts.CoreCmpPartialOrdString.partial_cmp
+  lt := core.cmp.PartialOrd.lt.default
+    alloc.string.String.Insts.CoreCmpPartialOrdString
+}
+
+/-- Trait implementation: [alloc::string::{impl core::cmp::Eq for alloc::string::String}]
+    Source: '/rustc/library/alloc/src/string.rs', lines 350:32-350:34
+    Name pattern: [core::cmp::Eq<alloc::string::String>] -/
+@[reducible, rust_trait_impl "core::cmp::Eq<alloc::string::String>"]
+def alloc.string.String.Insts.CoreCmpEq : core.cmp.Eq String := {
+  partialEqInst := alloc.string.String.Insts.CoreCmpPartialEqString
+  assert_fields_are_eq :=
+    alloc.string.String.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- Trait implementation: [alloc::string::{impl core::cmp::Ord for alloc::string::String}]
+    Source: '/rustc/library/alloc/src/string.rs', lines 350:36-350:39
+    Name pattern: [core::cmp::Ord<alloc::string::String>] -/
+@[reducible, rust_trait_impl "core::cmp::Ord<alloc::string::String>"]
+def alloc.string.String.Insts.CoreCmpOrd : core.cmp.Ord String := {
+  eqInst := alloc.string.String.Insts.CoreCmpEq
+  partialOrdInst := alloc.string.String.Insts.CoreCmpPartialOrdString
+  cmp := alloc.string.String.Insts.CoreCmpOrd.cmp
+}
 
 /-- [auths_connections::kernel::next_generation]:
     Source: 'product/runtime/auths-connections/src/kernel.rs', lines 28:0-30:1
@@ -328,7 +375,7 @@ def kernel.semantic_id_valid
       else ok false
 
 /-- [auths_connections::kernel::recovery_lease]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 200:0-218:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 202:0-220:1
     Visibility: public -/
 def kernel.recovery_lease
   (state : model.ConnectionState) (record_generation : Std.U64)
@@ -370,7 +417,7 @@ def kernel.recovery_lease
     ok (core.result.Result.Err model.ConnectionRecordError.Revoked)
 
 /-- [auths_connections::kernel::recovery_binding_requirement]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 235:0-256:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 237:0-258:1
     Visibility: public -/
 def kernel.recovery_binding_requirement
   (current_credential_generation : Std.U64) (operation_generation : Std.U64)
@@ -397,7 +444,7 @@ def kernel.recovery_binding_requirement
           else ok kernel.RecoveryBindingRequirement.RecordedCommitment
 
 /-- [auths_connections::kernel::state_transition_allows]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 261:0-280:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 263:0-282:1
     Visibility: public -/
 def kernel.state_transition_allows
   (current : model.ConnectionState) (next : model.ConnectionState)
@@ -421,7 +468,7 @@ def kernel.state_transition_allows
     | model.ConnectionState.Revoked => ok false
 
 /-- [auths_connections::kernel::record_change_allows]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 285:0-294:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 287:0-296:1
     Visibility: public -/
 def kernel.record_change_allows
   (state : model.ConnectionState) (previous_time : Std.U64)
@@ -434,7 +481,7 @@ def kernel.record_change_allows
   | model.ConnectionState.Revoked => ok false
 
 /-- [auths_connections::kernel::record_times_valid]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 300:0-315:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 302:0-317:1
     Visibility: public -/
 def kernel.record_times_valid
   (state : model.ConnectionState) (created : Std.U64) (updated : Std.U64)
@@ -462,7 +509,7 @@ def kernel.record_times_valid
         else ok false
 
 /-- [auths_connections::kernel::strictly_sorted_unique]: loop body 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 326:4-334:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 328:4-336:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.strictly_sorted_unique_loop.body
@@ -484,7 +531,7 @@ def kernel.strictly_sorted_unique_loop.body
   else ok (done true)
 
 /-- [auths_connections::kernel::strictly_sorted_unique]: loop 0:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 326:4-334:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 328:4-336:1
     Visibility: public -/
 @[rust_loop]
 def kernel.strictly_sorted_unique_loop
@@ -498,7 +545,7 @@ def kernel.strictly_sorted_unique_loop
     index
 
 /-- [auths_connections::kernel::strictly_sorted_unique]:
-    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 321:0-334:1
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 323:0-336:1
     Visibility: public -/
 def kernel.strictly_sorted_unique
   {T : Type} (corecmpOrdInst : core.cmp.Ord T) (values : Slice T) :
@@ -508,5 +555,202 @@ def kernel.strictly_sorted_unique
   if b
   then ok true
   else kernel.strictly_sorted_unique_loop corecmpOrdInst values 1#usize
+
+/-- [auths_connections::model::MAX_WORKLOADS]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 15:0-15:44 -/
+@[global_simps, irreducible] def model.MAX_WORKLOADS : Std.Usize := 256#usize
+
+/-- [auths_connections::kernel::workloads_valid]: loop body 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 347:4-354:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.workloads_valid_loop.body
+  (values : Slice String) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len values
+  if index < i
+  then
+    let s ← Slice.index_usize values index
+    let s1 ← alloc.string.String.as_bytes s
+    let b ← kernel.ascii_graphic_valid s1 128#usize
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_connections::kernel::workloads_valid]: loop 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 347:4-354:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.workloads_valid_loop
+  (values : Slice String) (index : Std.Usize) : Result Bool := do
+  loop
+    (fun index1 => kernel.workloads_valid_loop.body values index1)
+    index
+
+/-- [auths_connections::kernel::workloads_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 342:0-354:1
+    Visibility: public -/
+def kernel.workloads_valid (values : Slice String) : Result Bool := do
+  let b ← core.slice.Slice.is_empty values
+  if b
+  then ok false
+  else
+    let i := Slice.len values
+    if i > model.MAX_WORKLOADS
+    then ok false
+    else
+      let b1 ←
+        kernel.strictly_sorted_unique alloc.string.String.Insts.CoreCmpOrd
+          values
+      if b1
+      then kernel.workloads_valid_loop values 0#usize
+      else ok false
+
+/-- [auths_connections::model::{impl core::cmp::Ord for auths_connections::model::SemanticId}::cmp]:
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 69:27-69:30
+    Visibility: public -/
+def model.SemanticId.Insts.CoreCmpOrd.cmp
+  (self : model.SemanticId) (other : model.SemanticId) : Result Ordering := do
+  alloc.string.String.Insts.CoreCmpOrd.cmp self other
+
+/-- [auths_connections::model::{impl core::cmp::Ord for auths_connections::model::ConnectionProfile}::cmp]:
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:27-150:30
+    Visibility: public -/
+def model.ConnectionProfile.Insts.CoreCmpOrd.cmp
+  (self : model.ConnectionProfile) (other : model.ConnectionProfile) :
+  Result Ordering
+  := do
+  let o ← model.SemanticId.Insts.CoreCmpOrd.cmp self.id other.id
+  match o with
+  | Ordering.lt => ok Ordering.lt
+  | Ordering.eq => ok (core.cmp.impls.OrdU16.cmp self.version other.version)
+  | Ordering.gt => ok Ordering.gt
+
+/-- [auths_connections::model::{impl core::cmp::PartialOrd<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}::partial_cmp]:
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:43-150:53
+    Visibility: public -/
+def
+  model.ConnectionProfile.Insts.CoreCmpPartialOrdConnectionProfile.partial_cmp
+  (self : model.ConnectionProfile) (other : model.ConnectionProfile) :
+  Result (Option Ordering)
+  := do
+  let o ← model.ConnectionProfile.Insts.CoreCmpOrd.cmp self other
+  ok (some o)
+
+/-- [auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::SemanticId> for auths_connections::model::SemanticId}::eq]:
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 69:32-69:41
+    Visibility: public -/
+def model.SemanticId.Insts.CoreCmpPartialEqSemanticId.eq
+  (self : model.SemanticId) (other : model.SemanticId) : Result Bool := do
+  alloc.string.String.Insts.CoreCmpPartialEqString.eq self other
+
+/-- [auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}::eq]:
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:32-150:41
+    Visibility: public -/
+def model.ConnectionProfile.Insts.CoreCmpPartialEqConnectionProfile.eq
+  (self : model.ConnectionProfile) (other : model.ConnectionProfile) :
+  Result Bool
+  := do
+  if self.version = other.version
+  then model.SemanticId.Insts.CoreCmpPartialEqSemanticId.eq self.id other.id
+  else ok false
+
+/-- Trait implementation: [auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:32-150:41 -/
+@[reducible]
+def model.ConnectionProfile.Insts.CoreCmpPartialEqConnectionProfile :
+  core.cmp.PartialEq model.ConnectionProfile model.ConnectionProfile := {
+  eq := model.ConnectionProfile.Insts.CoreCmpPartialEqConnectionProfile.eq
+}
+
+/-- Trait implementation: [auths_connections::model::{impl core::cmp::PartialOrd<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:43-150:53 -/
+@[reducible]
+impl_def model.ConnectionProfile.Insts.CoreCmpPartialOrdConnectionProfile :
+  core.cmp.PartialOrd model.ConnectionProfile model.ConnectionProfile := {
+  partialEqInst :=
+    model.ConnectionProfile.Insts.CoreCmpPartialEqConnectionProfile
+  partial_cmp :=
+    model.ConnectionProfile.Insts.CoreCmpPartialOrdConnectionProfile.partial_cmp
+  lt := core.cmp.PartialOrd.lt.default
+    model.ConnectionProfile.Insts.CoreCmpPartialOrdConnectionProfile
+}
+
+/-- [auths_connections::model::{impl core::cmp::Eq for auths_connections::model::ConnectionProfile}::assert_fields_are_eq]:
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:23-150:25
+    Visibility: public -/
+def model.ConnectionProfile.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : model.ConnectionProfile) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [auths_connections::model::{impl core::cmp::Eq for auths_connections::model::ConnectionProfile}]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:23-150:25 -/
+@[reducible]
+def model.ConnectionProfile.Insts.CoreCmpEq : core.cmp.Eq
+  model.ConnectionProfile := {
+  partialEqInst :=
+    model.ConnectionProfile.Insts.CoreCmpPartialEqConnectionProfile
+  assert_fields_are_eq :=
+    model.ConnectionProfile.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- Trait implementation: [auths_connections::model::{impl core::cmp::Ord for auths_connections::model::ConnectionProfile}]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 150:27-150:30 -/
+@[reducible]
+def model.ConnectionProfile.Insts.CoreCmpOrd : core.cmp.Ord
+  model.ConnectionProfile := {
+  eqInst := model.ConnectionProfile.Insts.CoreCmpEq
+  partialOrdInst :=
+    model.ConnectionProfile.Insts.CoreCmpPartialOrdConnectionProfile
+  cmp := model.ConnectionProfile.Insts.CoreCmpOrd.cmp
+}
+
+/-- [auths_connections::model::MAX_PROFILES]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 16:0-16:42 -/
+@[global_simps, irreducible] def model.MAX_PROFILES : Std.Usize := 32#usize
+
+/-- [auths_connections::kernel::profiles_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 359:0-361:1
+    Visibility: public -/
+def kernel.profiles_valid
+  (values : Slice model.ConnectionProfile) : Result Bool := do
+  let b ← core.slice.Slice.is_empty values
+  if b
+  then ok false
+  else
+    let i := Slice.len values
+    if i <= model.MAX_PROFILES
+    then
+      kernel.strictly_sorted_unique model.ConnectionProfile.Insts.CoreCmpOrd
+        values
+    else ok false
+
+/-- [auths_connections::kernel::validate_record_shape]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 370:0-388:1
+    Visibility: public -/
+def kernel.validate_record_shape
+  (workloads : Slice String) (profiles : Slice model.ConnectionProfile)
+  (state : model.ConnectionState) (created : Std.U64) (updated : Std.U64)
+  (revoked : Option Std.U64) :
+  Result (core.result.Result Unit model.ConnectionRecordError)
+  := do
+  let b ← kernel.workloads_valid workloads
+  if b
+  then
+    let b1 ← kernel.profiles_valid profiles
+    if b1
+    then
+      let b2 ← kernel.record_times_valid state created updated revoked
+      if b2
+      then ok (core.result.Result.Ok ())
+      else
+        ok (core.result.Result.Err
+          model.ConnectionRecordError.InvalidTimestamps)
+    else
+      ok (core.result.Result.Err model.ConnectionRecordError.InvalidProfiles)
+  else ok (core.result.Result.Err model.ConnectionRecordError.InvalidWorkloads)
 
 end auths_connections

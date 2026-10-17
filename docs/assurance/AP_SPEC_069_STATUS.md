@@ -5,6 +5,40 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified record-validator and cursor checkpoint — 17 October 2026
+
+**902 compiled/audited claims** qualify, with all 886 previous full declaration
+records unchanged and no new axioms. The complete 3,531-job Lean build, 18/18
+qualification cases, two byte-identical full translations, all 173 xtask tests
+and affected-target linting pass. There are 25 reviewed external models and zero
+compiled external axioms. Two transparent String methods extend the existing
+ordering model's interface; the logical interface change is explicitly reviewed.
+
+The shipping complete record validator now earns nonempty bounded collections,
+global ordering, text validity, duplicate absence and temporal shape from actual
+acceptance, with exact typed refusal precedence. Concrete native String/profile
+comparison dictionaries close the prior generic premises. Frozen native parity
+covers 43,200 complete records; 43 connection and 232 active gateway tests pass,
+with 26 existing gateway tests still ignored.
+
+The source-exact cursor batch covers construction, head/integer/null reads,
+first-byte classification and completion. It preserves refusal cursor semantics
+and exposes two caller limits: peeking is not payload validation and a completion
+length check does not establish input identity. The harness inventory now safely
+excludes flat explicit-path test modules and checks all 48 real harnesses without
+counting test helpers as shipping targets. It still fails closed on unresolved
+module/include constructs.
+
+Source: `b5aa6810c742d3ee53b37b18d2d7a9b5a3f25c5cf5f2af83cf398ede95e33814`.
+Review: `ap-spec-069-record-and-cursor-2026-10-17`; inventory:
+`9ca7caa5ab864d0bcc5936fd696f7beeefdbf1b34a51599357d558e2ca7a5d69`;
+boundary: `33fbd99ec34b7e232db2b65d19c55419a4ff5c82b1d7e371a0ed6bb35d96ea18`.
+
+Next: payload/UTF-8/collection and full object-codec source proofs. The private
+payload prototype is not included in this checkpoint. Full E1–E5/M6 and
+exact-release hosted gates remain open. See spec §§13.36–13.39; keep coding
+without waiting on CI.
+
 ## Qualified strict-order checkpoint — 17 October 2026
 
 **886 compiled/audited claims** qualify, preserving all 882 preceding full

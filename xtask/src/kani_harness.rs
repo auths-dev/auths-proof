@@ -31,12 +31,14 @@ struct Lexed {
     tokens: Vec<Token>,
     lines: Vec<usize>,
     closing: Vec<Option<usize>>,
+    strings: BTreeMap<usize, String>,
 }
 
 fn lex(source: &str) -> Result<Lexed, String> {
     let characters: Vec<char> = source.chars().collect();
     let mut tokens = Vec::new();
     let mut lines = Vec::new();
+    let mut strings = BTreeMap::new();
     let mut line = 1;
     let mut index = 0;
     while let Some(&character) = characters.get(index) {
@@ -60,6 +62,7 @@ fn lex(source: &str) -> Result<Lexed, String> {
             index = skip_block_comment(&characters, index, &mut line)?;
             continue;
         }
+        let mut string_value = None;
         let token = if character.is_alphabetic() || character == '_' {
             let start = index;
             while characters
@@ -93,7 +96,9 @@ fn lex(source: &str) -> Result<Lexed, String> {
             }
             Token::Literal
         } else if character == '"' {
+            let start = index + 1;
             index = skip_quoted(&characters, index, &mut line)?;
+            string_value = Some(characters[start..index - 1].iter().collect());
             Token::Literal
         } else if character == '\'' {
             if characters.get(index + 1) == Some(&'\\') {
@@ -116,6 +121,9 @@ fn lex(source: &str) -> Result<Lexed, String> {
             index += 1;
             Token::Punct(character)
         };
+        if let Some(value) = string_value {
+            strings.insert(tokens.len(), value);
+        }
         tokens.push(token);
         lines.push(start_line);
     }
@@ -124,6 +132,7 @@ fn lex(source: &str) -> Result<Lexed, String> {
         tokens,
         lines,
         closing,
+        strings,
     })
 }
 
@@ -273,7 +282,12 @@ struct FileItems {
     helpers: BTreeMap<String, BTreeMap<String, Range<usize>>>,
     /// File modules declared under a test or Kani configuration, as inline
     /// module paths ending in the declared name.
-    excluded_modules: Vec<Vec<String>>,
+    excluded_modules: Vec<ExcludedModule>,
+}
+
+struct ExcludedModule {
+    module: Vec<String>,
+    relative_path: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -546,15 +560,47 @@ impl Scanner<'_> {
         module.push(name.clone());
         if self.punct(keyword + 2, ';') {
             if excluded {
-                if attributes.iter().any(|range| {
-                    matches!(self.attribute(range).first(), Some(Token::Ident(first)) if first == "path")
-                }) {
-                    return Err(format!(
-                        "test or Kani module {name} at line {} uses #[path], which this lint cannot resolve",
-                        self.line(keyword)
-                    ));
+                let mut relative_path = None;
+                for range in attributes {
+                    let attribute = self.attribute(range);
+                    if matches!(attribute.first(), Some(Token::Ident(first)) if first == "cfg_attr")
+                        && attribute
+                            .iter()
+                            .any(|token| matches!(token, Token::Ident(name) if name == "path"))
+                    {
+                        return Err(
+                            "conditional test/Kani module paths are not supported".to_owned()
+                        );
+                    }
+                    if !matches!(attribute.first(), Some(Token::Ident(first)) if first == "path") {
+                        continue;
+                    }
+                    let [Token::Ident(_), Token::Punct('='), Token::Literal] = attribute else {
+                        return Err(
+                            "test/Kani module path must be one plain relative string literal"
+                                .to_owned(),
+                        );
+                    };
+                    let value = self.lexed.strings.get(&(range.start + 2)).ok_or_else(|| {
+                        "test/Kani module path must use a plain quoted string".to_owned()
+                    })?;
+                    let path = Path::new(value);
+                    if relative_path.is_some()
+                        || value.is_empty()
+                        || value.contains(['\\', '\0'])
+                        || path.extension().is_none_or(|extension| extension != "rs")
+                        || path
+                            .components()
+                            .any(|part| !matches!(part, std::path::Component::Normal(_)))
+                    {
+                        return Err("test/Kani module path must name one unescaped relative Rust source without parent traversal".to_owned());
+                    }
+                    relative_path = Some(path.to_path_buf());
                 }
-                self.items.excluded_modules.push(module);
+                self.items.excluded_modules.push(ExcludedModule {
+                    module,
+                    relative_path,
+                });
             } else {
                 self.items.namespaces.insert(name);
             }
@@ -743,16 +789,45 @@ fn scan_sources(source_root: &Path, sources: Vec<(PathBuf, String)>) -> Result<C
     for (path, lexed) in &lexed_files {
         let items =
             scan_file(lexed, false).map_err(|error| format!("{}: {error}", path.display()))?;
-        for module in items.excluded_modules {
+        for excluded in items.excluded_modules {
             let mut base = module_directory(path);
-            let Some((name, inline)) = module.split_last() else {
+            let Some((name, inline)) = excluded.module.split_last() else {
                 continue;
             };
+            // At file scope Rust resolves an explicit path beside that source,
+            // including non-mod.rs files. Inside inline modules it uses the
+            // owning module directory followed by the inline module path.
+            if excluded.relative_path.is_some() && inline.is_empty() {
+                base = path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
+            }
             for segment in inline {
                 base.push(segment);
             }
-            excluded_paths.push(base.join(format!("{name}.rs")));
-            excluded_paths.push(base.join(name));
+            if let Some(relative) = excluded.relative_path {
+                let target = base.join(relative);
+                let target_lexed = lexed_files
+                    .iter()
+                    .find_map(|(path, lexed)| (path == &target).then_some(lexed))
+                    .ok_or_else(|| {
+                        format!(
+                            "{}: test/Kani module path has no inventoried Rust source",
+                            path.display()
+                        )
+                    })?;
+                // A flat explicit-path file has an exact source boundary. Rust
+                // gives its children different ownership rules from ordinary
+                // foo.rs modules, so do not infer a subtree by filename.
+                if !scan_file(target_lexed, true)?.excluded_modules.is_empty()
+                    || target_lexed.tokens.windows(2).any(|tokens|
+                        matches!(tokens, [Token::Ident(name), Token::Punct('!')] if name == "include"))
+                {
+                    return Err(format!("{}: explicit test/Kani module paths with external child modules or include! require a source resolver", path.display()));
+                }
+                excluded_paths.push(target);
+            } else {
+                excluded_paths.push(base.join(format!("{name}.rs")));
+                excluded_paths.push(base.join(name));
+            }
         }
     }
     let library = source_root.join("src");
@@ -1120,5 +1195,97 @@ mod proofs {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn explicit_test_module_paths_never_supply_production_targets() {
+        let scan = scan(&[
+            (
+                "src/lib.rs",
+                r#"
+                pub fn shipping() {}
+                #[cfg(test)] #[path = "custom.rs"] mod tests;
+                #[cfg(kani)] mod proofs {
+                    @proof fn helper_only() { helper(); }
+                    @proof fn actual_shipping() { crate::shipping(); }
+                }
+            "#,
+            ),
+            ("src/custom.rs", "pub fn helper() {}"),
+        ]);
+        assert_eq!(vacuous_names(&scan), ["helper_only"]);
+        assert!(!scan.free_functions.contains("helper"));
+        assert!(scan.free_functions.contains("shipping"));
+    }
+
+    #[test]
+    fn explicit_paths_at_non_root_file_scope_are_relative_to_the_file() {
+        let scan = scan(&[
+            ("src/lib.rs", "mod model;"),
+            (
+                "src/model.rs",
+                r#"
+                pub fn shipping() {}
+                #[cfg(test)] #[path = "custom.rs"] mod tests;
+            "#,
+            ),
+            ("src/custom.rs", "pub fn helper() {}"),
+        ]);
+        assert!(!scan.free_functions.contains("helper"));
+        assert!(scan.free_functions.contains("shipping"));
+    }
+
+    #[test]
+    fn explicit_paths_in_inline_modules_use_the_owning_module_directory() {
+        let scan = scan(&[
+            ("src/lib.rs", "mod model;"),
+            (
+                "src/model.rs",
+                r#"
+                mod inline {
+                    #[cfg(test)] #[path = "custom.rs"] mod tests;
+                }
+            "#,
+            ),
+            ("src/model/inline/custom.rs", "pub fn helper() {}"),
+        ]);
+        assert!(!scan.free_functions.contains("helper"));
+    }
+
+    #[test]
+    fn unsupported_or_escaping_test_module_paths_fail_closed() {
+        for attribute in [
+            r#"#[path = "../outside.rs"]"#,
+            r#"#[path = "/outside.rs"]"#,
+            r#"#[path = "custom\x2ers"]"#,
+            r##"#[path = r#"custom.rs"#]"##,
+            r#"#[path = concat!("custom", ".rs")]"#,
+            r#"#[path = "custom.rs"] #[path = "other.rs"]"#,
+            r#"#[cfg_attr(test, path = "custom.rs")]"#,
+            r#"#[path = "missing.rs"]"#,
+        ] {
+            let sources = vec![(
+                PathBuf::from("/fixture/src/lib.rs"),
+                format!("#[cfg(test)]\n{attribute}\nmod tests;"),
+            )];
+            assert!(scan_sources(Path::new("/fixture"), sources).is_err());
+        }
+    }
+    #[test]
+    fn explicit_test_paths_with_unresolved_external_code_fail_closed() {
+        for source in ["mod child;", r#"include!("child.rs");"#] {
+            let sources = vec![
+                (
+                    PathBuf::from("/fixture/src/lib.rs"),
+                    r#"#[cfg(test)] #[path = "custom.rs"] mod tests;"#.to_owned(),
+                ),
+                (PathBuf::from("/fixture/src/custom.rs"), source.to_owned()),
+                (
+                    PathBuf::from("/fixture/src/child.rs"),
+                    "pub fn helper() {}".to_owned(),
+                ),
+            ];
+            assert!(scan_sources(Path::new("/fixture"), sources).is_err());
+        }
     }
 }

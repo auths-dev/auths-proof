@@ -5,6 +5,7 @@ import Auths.Codec.Encoder
 import Auths.Codec.String
 import Auths.Refinement.Identifier
 import Auths.Codec.Refinement
+import Auths.Codec.Cursor
 
 open Aeneas Aeneas.Std Result
 open Aeneas.Std.WP
@@ -99,5 +100,87 @@ example : auths_codec.hash.signing_preimage .Grant
     (⟨[1#u8], by scalar_tac⟩ : Slice Std.U8) =
       ok (.Ok Auths.Crypto.Examples.minimalPreimage) :=
   Auths.Crypto.Examples.minimal_preimage_exact
+
+
+-- These cases exercise the translated decoder and its actual cursor. A wide
+-- integer consumes its head before narrowing fails; a wrong major/truncated
+-- head refuses before committing the cursor.
+private def cursorInput (bytes : List Std.U8) (bounded : bytes.length ≤ Usize.max) :
+    auths_codec.cbor.Decoder := ⟨⟨bytes, bounded⟩, 0#usize⟩
+
+example : auths_codec.cbor.Decoder.u8 (cursorInput [24#u8, 255#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.wordView actual.1, actual.2.position.val) = (some 255, 2) ⦄ := by
+  apply spec_mono (Cursor.u8_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning
+
+example : auths_codec.cbor.Decoder.u8 (cursorInput [25#u8, 1#u8, 0#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.wordView actual.1, actual.2.position.val) = (none, 3) ⦄ := by
+  apply spec_mono (Cursor.u8_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  norm_num [Cursor.narrowHead, Cursor.typedHead, cursorInput, byteList,
+    readHead, readArgument, unsigned, Option.filter] at meaning
+  simpa only [Prod.mk.injEq] using meaning
+
+example : auths_codec.cbor.Decoder.u16
+    (cursorInput [26#u8, 0#u8, 1#u8, 0#u8, 0#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.wordView actual.1, actual.2.position.val) = (none, 5) ⦄ := by
+  apply spec_mono (Cursor.u16_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  norm_num [Cursor.narrowHead, Cursor.typedHead, cursorInput, byteList,
+    readHead, readArgument, unsigned, Option.filter] at meaning
+  simpa only [Prod.mk.injEq] using meaning
+
+example : auths_codec.cbor.Decoder.u64 (cursorInput [65#u8, 0#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.wordView actual.1, actual.2.position.val) = (none, 0) ⦄ := by
+  apply spec_mono (Cursor.u64_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning
+
+example : auths_codec.cbor.Decoder.u16 (cursorInput [25#u8, 1#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.wordView actual.1, actual.2.position.val) = (none, 0) ⦄ := by
+  apply spec_mono (Cursor.u16_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning
+
+example : auths_codec.cbor.Decoder.null (cursorInput [246#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.unitView actual.1, actual.2.position.val) = (true, 1) ⦄ := by
+  apply spec_mono (Cursor.null_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning
+
+example : auths_codec.cbor.Decoder.null (cursorInput [0#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.unitView actual.1, actual.2.position.val) = (false, 0) ⦄ := by
+  apply spec_mono (Cursor.null_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning
+
+-- A type peek is not a successful parse: this U16 has no payload.
+example : auths_codec.cbor.Decoder.datatype (cursorInput [25#u8] (by scalar_tac))
+    ⦃ actual => actual = .Ok .U16 ⦄ := by
+  apply spec_mono (Cursor.datatype_exact _)
+  intro actual meaning
+  exact meaning
+
+example : auths_codec.cbor.Decoder.u16 (cursorInput [25#u8] (by scalar_tac))
+    ⦃ actual => (Cursor.wordView actual.1, actual.2.position.val) = (none, 0) ⦄ := by
+  apply spec_mono (Cursor.u16_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning
+
+example : auths_codec.cbor.Decoder.datatype (cursorInput [95#u8] (by scalar_tac))
+    ⦃ actual => actual = .Ok .Other ⦄ := by
+  apply spec_mono (Cursor.datatype_exact _)
+  intro actual meaning
+  exact meaning
+
+-- This helper compares lengths only. Binding the supplied input to the
+-- decoder's input is a separate caller obligation, made visible here.
+example : auths_codec.decode.ensure_complete
+    ⟨⟨[1#u8], by scalar_tac⟩, 1#usize⟩ ⟨[2#u8], by scalar_tac⟩
+    ⦃ actual => actual = .Ok () ⦄ := by
+  apply spec_mono (Cursor.ensure_complete_exact _ _)
+  intro actual meaning
+  simpa using meaning
 
 end qualification.aeneas.cases

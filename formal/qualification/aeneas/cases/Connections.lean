@@ -1,3 +1,4 @@
+import Auths.Product.RecordShapeRefinement
 import Auths.Product.StrictOrderRefinement
 import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
@@ -214,3 +215,53 @@ example (order : core.cmp.Ord U64)
   change actual = false at meaning
   exact meaning
 end qualification.aeneas.cases.StrictOrdering
+
+namespace qualification.aeneas.cases.CompleteRecordShape
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_connections
+open Auths.Product.RecordShape.Refinement
+private def taskName := String.ofList ['a']
+private def taskNames : Slice String := ⟨[taskName], by simp; scalar_tac⟩
+private def profile : Profile := ⟨String.ofList ['p'], 1#u16⟩
+private def profiles : Slice Profile := ⟨[profile], by simp; scalar_tac⟩
+private theorem bounded : ∀ value ∈ taskNames.val, value.toByteArray.size ≤ U32.max := by
+  intro value member
+  have same : value = taskName := by simpa [taskNames] using member
+  subst value
+  change 1 ≤ U32.max
+  scalar_tac
+private theorem goodWork : workloadsValid taskNames.val = true := by
+  have printable : textValid taskName := by
+    unfold textValid Auths.Product.StringConstructors.Refinement.utf8Bytes taskName
+    simp only [String.toByteArray_ofList]
+    unfold ByteArray.toList
+    iterate 2 (rw [ByteArray.toList.loop]; norm_num only)
+    change Auths.Product.ConnectionBytes.graphicValid [97] 128
+    decide
+  simp [workloadsValid, taskNames, Auths.Product.StrictOrder.Refinement.ordered,
+    Auths.Product.StrictOrder.Refinement.chain, allText, printable]
+private theorem goodProfiles : profilesValid profiles.val = true := by
+  simp [profilesValid, profiles, Auths.Product.StrictOrder.Refinement.ordered,
+    Auths.Product.StrictOrder.Refinement.chain]
+
+example : kernel.validate_record_shape taskNames profiles .Active 0#u64 0#u64 none
+    ⦃ actual => actual = .Ok () ⦄ := by
+  step with record_shape_exact taskNames profiles .Active 0#u64 0#u64 none bounded as ⟨actual, meaning⟩
+  simpa [verdict, goodWork, goodProfiles, stateView, Auths.Product.RecordTimes.Refinement.valid] using meaning
+
+example : kernel.validate_record_shape taskNames profiles .Active 2#u64 1#u64 none
+    ⦃ actual => actual = .Err .InvalidTimestamps ⦄ := by
+  step with record_shape_exact taskNames profiles .Active 2#u64 1#u64 none bounded as ⟨actual, meaning⟩
+  simpa [verdict, goodWork, goodProfiles, stateView, Auths.Product.RecordTimes.Refinement.valid] using meaning
+
+example (someProfiles : Slice Profile) :
+    kernel.validate_record_shape ⟨[], by simp⟩ someProfiles .Revoked 2#u64 1#u64 none =
+      ok (.Err .InvalidWorkloads) := by rfl
+
+private def duplicates : Slice Profile := ⟨[profile, profile], by simp; scalar_tac⟩
+example : kernel.profiles_valid duplicates ⦃ actual => actual = false ⦄ := by
+  step with profiles_exact duplicates as ⟨actual, meaning⟩
+  simpa [profilesValid, duplicates, Auths.Product.StrictOrder.Refinement.ordered,
+    Auths.Product.StrictOrder.Refinement.chain, profileLess] using meaning
+end qualification.aeneas.cases.CompleteRecordShape
