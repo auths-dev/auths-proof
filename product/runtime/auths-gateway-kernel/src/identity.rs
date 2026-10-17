@@ -34,11 +34,44 @@ pub fn logical_operation_preimage(namespace: &[u8], operation: &[u8]) -> Vec<u8>
     append_bytes(output, operation)
 }
 
+/// Exact domain-separated bytes hashed for a gateway connection key.
+/// The shipping caller supplies validated provider and alias tokens of at most
+/// 64 bytes each. Their NUL-free grammar makes the separator unambiguous.
+#[must_use]
+pub fn connection_record_preimage(provider: &[u8], alias: &[u8]) -> Vec<u8> {
+    let mut output = copy_bytes(b"auths.gateway-connection/1\0");
+    output = append_bytes(output, provider);
+    output.push(0);
+    append_bytes(output, alias)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{logical_operation_preimage, valid_token};
+    use super::{connection_record_preimage, logical_operation_preimage, valid_token};
     use alloc::vec;
     use alloc::vec::Vec;
+
+    #[test]
+    fn exact_frozen_preimage_for_binary_components() {
+        for first in 0..=u8::MAX {
+            for second in 0..=u8::MAX {
+                let provider = [first, second];
+                let alias = [second, first];
+                for p_len in 0..=2 {
+                    for a_len in 0..=2 {
+                        let mut expected = Vec::from(b"auths.gateway-connection/1\0".as_slice());
+                        expected.extend_from_slice(&provider[..p_len]);
+                        expected.push(0);
+                        expected.extend_from_slice(&alias[..a_len]);
+                        assert_eq!(
+                            connection_record_preimage(&provider[..p_len], &alias[..a_len]),
+                            expected
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     fn reference(value: &[u8], maximum: usize) -> bool {
         !value.is_empty()

@@ -8,7 +8,9 @@
 //! in the refined closure (trait-instance records included), the two weights,
 //! and the five scopes. `reproduces_the_study_at_its_pinned_commit` holds the
 //! port to byte-identical output on the vendored inputs of the study's commit.
-//! Live version 3 uses compiled statement constants for theorem mentions and
+//! Live version 4 also inventories declared non-shipping extraction selectors
+//! and fully translated imported bodies; historical inputs retain their scanner.
+//! Compiled statement constants are used for theorem mentions and
 //! explicit translator metadata for numbered loops. Dot notation and pretty
 //! printing cannot hide or invent edges; loop wrappers retain their real kind.
 
@@ -16,7 +18,7 @@ use crate::*;
 use std::cell::RefCell;
 use std::io::Read as _;
 
-pub(crate) const TOOL_VERSION: &str = "3";
+pub(crate) const TOOL_VERSION: &str = "4";
 pub(crate) const PIN: &str = "8bf2970c68ef01302a70b52861ecc256cf1bb06a";
 const QUALIFICATION: &str = "formal/qualification/aeneas/qualification.toml";
 pub(crate) const SCOPE_PATH: &str = "formal/coverage-scope-v1.toml";
@@ -40,6 +42,13 @@ pub(crate) trait Tree {
     fn read_bytes(&self, path: &str) -> Result<Vec<u8>, String>;
     fn list_files(&self, directory: &str) -> Result<Vec<String>, String>;
     fn reads(&self) -> &RefCell<BTreeMap<String, String>>;
+
+    fn live_source_inventory(&self) -> bool {
+        false
+    }
+    fn relative_source_path(&self, path: &str) -> String {
+        path.to_owned()
+    }
 
     fn read(&self, path: &str) -> Result<String, String> {
         let bytes = self.read_bytes(path)?;
@@ -65,6 +74,17 @@ impl WorkTree {
 }
 
 impl Tree for WorkTree {
+    fn live_source_inventory(&self) -> bool {
+        true
+    }
+    fn relative_source_path(&self, path: &str) -> String {
+        Path::new(path)
+            .strip_prefix(&self.root)
+            .ok()
+            .and_then(Path::to_str)
+            .unwrap_or(path)
+            .replace('\\', "/")
+    }
     fn read_bytes(&self, path: &str) -> Result<Vec<u8>, String> {
         fs::read(self.root.join(path)).map_err(|error| format!("could not read {path}: {error}"))
     }
@@ -432,6 +452,7 @@ pub(crate) struct RustFunction {
     pub(crate) qualified: String,
     pub(crate) begin_line: usize,
     pub(crate) end_line: usize,
+    pub(crate) signature_end_line: usize,
     pub(crate) code_lines: usize,
     pub(crate) in_macro: bool,
 }
@@ -679,6 +700,7 @@ pub(crate) fn scan_rust(path: &str, source: &str) -> ScanResult {
                     qualified: qualified(&stack, &name_token.text),
                     begin_line: qualifier_start(&tokens, index),
                     end_line: tokens[end].line,
+                    signature_end_line: tokens[body].line,
                     code_lines: 0,
                     in_macro: in_macro(&stack),
                 });
@@ -915,6 +937,8 @@ pub(crate) struct ScopeDefinition {
     pub(crate) every_file_listed: bool,
     #[serde(default)]
     pub(crate) components: Vec<Component>,
+    #[serde(default)]
+    pub(crate) extraction_selectors: BTreeMap<String, String>,
     pub(crate) files: BTreeMap<String, String>,
 }
 
@@ -944,6 +968,18 @@ impl ScopeDefinition {
                 ));
             }
         }
+        for (path, namespace) in &scope.extraction_selectors {
+            if !path.starts_with("formal/qualification/aeneas/entrypoints/")
+                || !path.ends_with(".rs")
+                || path.split('/').any(|part| part == "..")
+                || namespace.is_empty()
+                || scope.role(path) != "interface"
+            {
+                return Err(format!(
+                    "extraction selector {path} must be declared non-shipping formal interface source"
+                ));
+            }
+        }
         Ok(scope)
     }
 
@@ -966,6 +1002,7 @@ pub(crate) struct Translated {
     pub(crate) end_line: usize,
     pub(crate) kind: &'static str,
     pub(crate) funs_path: String,
+    pub(crate) declaration_span: bool,
 }
 
 #[derive(Deserialize)]
@@ -977,6 +1014,8 @@ struct QualificationTranslations {
 struct QualificationTranslation {
     translation_json: String,
     local_functions: usize,
+    #[serde(default)]
+    required_symbols: Vec<String>,
 }
 
 type Translations = (Vec<Translated>, Vec<(String, String)>);
@@ -1030,6 +1069,18 @@ fn is_translated_loop(item: &Value, lean_name: &str) -> bool {
     second_last.contains("_loop") || lean_name.ends_with("_loop")
 }
 
+fn has_translated_source_body(item: &Value, required_import: bool) -> bool {
+    item["is_local"].as_bool() == Some(true)
+        || (required_import
+            && item["is_opaque"].as_bool() == Some(false)
+            && item["lean_file"]
+                .as_str()
+                .is_some_and(|path| path.ends_with("/Funs.lean"))
+            && item["rust_name"]
+                .as_str()
+                .is_some_and(|name| name.starts_with("auths_")))
+}
+
 fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
     let qualification: QualificationTranslations = toml::from_str(&tree.read(QUALIFICATION)?)
         .map_err(|error| format!("invalid {QUALIFICATION}: {error}"))?;
@@ -1075,7 +1126,28 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
         if !funs_files.iter().any(|(_, path)| *path == funs_path) {
             funs_files.push((namespace.to_owned(), funs_path.clone()));
         }
-        for item in local {
+        // Selection-only units expose actual inherent methods as transparent
+        // imported roots. Ordinary units keep their existing local inventory;
+        // delegated imports there are inventoried in their owning unit.
+        let selection_only = local.iter().all(|item| {
+            item["source"]["file"].as_str().is_some_and(|path| {
+                tree.relative_source_path(path)
+                    .starts_with("formal/qualification/aeneas/entrypoints/")
+            })
+        });
+        let selected = document["functions"]
+            .as_array()
+            .ok_or("translation lists no functions")?
+            .iter()
+            .filter(|item| {
+                let required_import = tree.live_source_inventory()
+                    && selection_only
+                    && item["rust_name"].as_str().is_some_and(|name| {
+                        entry.required_symbols.iter().any(|symbol| symbol == name)
+                    });
+                has_translated_source_body(item, required_import)
+            });
+        for item in selected {
             let lean_name = item["lean_name"]
                 .as_str()
                 .ok_or("translation without lean_name")?;
@@ -1083,7 +1155,8 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 .as_str()
                 .ok_or("translation without rust_name")?;
             let source = &item["source"];
-            let file = source["file"].as_str().ok_or("translation without file")?;
+            let reported_file = source["file"].as_str().ok_or("translation without file")?;
+            let file = tree.relative_source_path(reported_file);
             let begin_line = usize::try_from(source["begin_line"].as_u64().ok_or("no begin_line")?)
                 .map_err(|error| error.to_string())?;
             let end_line = usize::try_from(source["end_line"].as_u64().ok_or("no end_line")?)
@@ -1094,7 +1167,7 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 "closure-shim"
             } else if begin_line == end_line
                 && tree
-                    .read(file)?
+                    .read(&file)?
                     .lines()
                     .nth(begin_line.saturating_sub(1))
                     .is_some_and(|line| line.contains("#[derive("))
@@ -1112,6 +1185,7 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 end_line,
                 kind,
                 funs_path: funs_path.clone(),
+                declaration_span: item["is_local"].as_bool() == Some(false),
             });
         }
     }
@@ -1129,15 +1203,15 @@ pub(crate) fn translated_functions(tree: &dyn Tree) -> Result<Vec<Translated>, S
 
 /// Every translated Lean name (loop helpers included) mapped to its function's name.
 fn owner_of(translated: &[Translated]) -> BTreeMap<String, String> {
-    let mut function_by_rust: BTreeMap<&str, &str> = BTreeMap::new();
+    let mut function_by_rust: BTreeMap<(&str, &str), &str> = BTreeMap::new();
     for item in translated.iter().filter(|item| item.kind != "loop") {
-        function_by_rust.insert(&item.rust_name, &item.lean_name);
+        function_by_rust.insert((&item.funs_path, &item.rust_name), &item.lean_name);
     }
     translated
         .iter()
         .filter_map(|item| {
             function_by_rust
-                .get(item.rust_name.as_str())
+                .get(&(item.funs_path.as_str(), item.rust_name.as_str()))
                 .map(|owner| (item.lean_name.clone(), (*owner).to_owned()))
         })
         .collect()
@@ -1411,6 +1485,13 @@ pub(crate) fn measure(
             files.insert(path, crate_path.clone());
         }
     }
+    for (path, namespace) in &scope.extraction_selectors {
+        if files.contains_key(path) {
+            return Err(format!("selector {path} overlaps production source"));
+        }
+        file_order.push(path.clone());
+        files.insert(path.clone(), format!("extraction-selector:{namespace}"));
+    }
     let mut scans = BTreeMap::new();
     for path in &file_order {
         scans.insert(path.clone(), scan_rust(path, &tree.read(path)?));
@@ -1441,35 +1522,57 @@ pub(crate) fn measure(
         by_span.insert((function.file.clone(), function.begin_line), function);
     }
     let mut validation = Vec::new();
-    let mut status = BTreeMap::new();
+    let mut status: BTreeMap<(String, usize), Status> = BTreeMap::new();
     for item in translated.iter().filter(|item| item.kind == "function") {
         let found = by_span.get(&(item.file.clone(), item.begin_line));
         let outcome = match found {
             None => "not-found",
-            Some(function) if function.end_line != item.end_line => "end-line-differs",
+            Some(function)
+                if function.end_line != item.end_line
+                    && !(item.declaration_span
+                        && item.end_line == function.signature_end_line
+                        && item.rust_name.rsplit("::").next()
+                            == function.qualified.rsplit("::").next()) =>
+            {
+                "end-line-differs"
+            }
             Some(_) => "matched",
         };
-        validation.push(json!({
+        let mut row = json!({
             "rust_name": item.rust_name,
             "file": item.file,
             "charon_span": [item.begin_line, item.end_line],
             "scanner_span": found.map(|function| json!([function.begin_line, function.end_line])),
             "outcome": outcome,
-        }));
+        });
+        if item.declaration_span {
+            row["span_kind"] = json!("imported-declaration; full Rust body supplied by scanner");
+        }
+        validation.push(row);
         if let Some(function) = found {
-            status.insert(
-                (function.file.clone(), function.begin_line),
-                Status {
-                    lean_name: item.lean_name.clone(),
-                    refined_direct: direct.contains(&item.lean_name),
-                    refined_closure: reached.contains(&item.lean_name),
-                    theorems: mentions
-                        .iter()
-                        .find(|(name, _)| *name == item.lean_name)
-                        .map(|(_, theorems)| theorems.clone())
-                        .unwrap_or_default(),
-                },
-            );
+            let key = (function.file.clone(), function.begin_line);
+            let incoming = Status {
+                lean_name: item.lean_name.clone(),
+                refined_direct: direct.contains(&item.lean_name),
+                refined_closure: reached.contains(&item.lean_name),
+                theorems: mentions
+                    .iter()
+                    .find(|(name, _)| *name == item.lean_name)
+                    .map(|(_, theorems)| theorems.clone())
+                    .unwrap_or_default(),
+            };
+            if let Some(previous) = status.get_mut(&key) {
+                if incoming.refined_direct && !previous.refined_direct {
+                    previous.lean_name.clone_from(&incoming.lean_name);
+                }
+                previous.refined_direct |= incoming.refined_direct;
+                previous.refined_closure |= incoming.refined_closure;
+                previous.theorems.extend(incoming.theorems);
+                previous.theorems.sort();
+                previous.theorems.dedup();
+            } else {
+                status.insert(key, incoming);
+            }
         }
     }
     let audit_sha256 = hex::encode(Sha256::digest(audit_text.as_bytes()));
@@ -3712,6 +3815,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn transparent_auths_imports_are_source_bodies_only_in_live_inventory() {
+        let imported = json!({"is_local": false, "is_opaque": false, "rust_name": "auths_connections::profile::new", "lean_file": "generated/profile/Funs.lean"});
+        assert!(has_translated_source_body(&imported, true));
+        assert!(!has_translated_source_body(&imported, false));
+        assert!(!has_translated_source_body(
+            &json!({"is_local": false, "is_opaque": true, "rust_name": "auths_connections::profile::new", "lean_file": "generated/profile/Funs.lean"}),
+            true
+        ));
+        assert!(!has_translated_source_body(
+            &json!({"is_local": false, "is_opaque": false, "rust_name": "core::word", "lean_file": "generated/profile/Funs.lean"}),
+            true
+        ));
+        assert!(!has_translated_source_body(
+            &json!({"is_local": false, "is_opaque": false, "rust_name": "auths_ports::Trait::method", "lean_file": "generated/profile/Types.lean"}),
+            true
+        ));
+    }
+
+    #[test]
+    fn source_paths_are_normalized_and_selectors_cannot_hide_production() {
+        let tree = WorkTree::new(PathBuf::from("/reviewed"));
+        assert_eq!(
+            tree.relative_source_path("/reviewed/formal/entry.rs"),
+            "formal/entry.rs"
+        );
+        assert_eq!(
+            tree.relative_source_path("core/src/lib.rs"),
+            "core/src/lib.rs"
+        );
+        let base = "schema = \"auths-proof-coverage-scope/v1\"\nverifier_crate = \"core/test\"\ndecision_kernel_crates = []\ntranslated_crates = []\nexcluded_roles = [\"interface\"]\nnontrivial_code_lines = 4\nevery_file_listed = true\n";
+        let selector = "formal/qualification/aeneas/entrypoints/profile.rs";
+        let valid = format!(
+            "{base}[files]\n\"{selector}\" = \"interface\"\n[extraction_selectors]\n\"{selector}\" = \"auths_profile\"\n"
+        );
+        assert!(ScopeDefinition::parse(&valid).is_ok());
+        assert!(
+            ScopeDefinition::parse(&valid.replace(selector, "product/runtime/source.rs")).is_err()
+        );
+        assert!(
+            ScopeDefinition::parse(&valid.replace("= \"interface\"", "= \"decision\"")).is_err()
+        );
+    }
+
+    #[test]
     fn two_units_of_one_rust_crate_keep_both_lean_namespaces_and_function_files() {
         let directory = tempfile::tempdir().expect("temporary input tree");
         let manifest = directory.path().join(QUALIFICATION);
@@ -3771,6 +3918,7 @@ mod tests {
             end_line: 1,
             kind: "function",
             funs_path: "native/Funs.lean".to_owned(),
+            declaration_span: false,
         }];
         let audit = Audit {
             declarations: vec![
@@ -3862,6 +4010,7 @@ mod tests {
             qualified: "verify_branch".to_owned(),
             begin_line: 1,
             end_line: 2,
+            signature_end_line: 1,
             code_lines: 2,
             in_macro: false,
         }];

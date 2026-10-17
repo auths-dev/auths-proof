@@ -77,12 +77,7 @@ impl SemanticId {
     /// Returns [`ConnectionRecordError::InvalidSemanticId`] for an invalid value.
     pub fn parse(value: impl Into<String>) -> Result<Self, ConnectionRecordError> {
         let value = value.into();
-        let valid = (1..=128).contains(&value.len())
-            && value.is_ascii()
-            && value.bytes().enumerate().all(|(index, byte)| {
-                byte.is_ascii_alphanumeric()
-                    || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'/' | b'-'))
-            });
+        let valid = kernel::semantic_id_valid(value.as_bytes(), 128);
         if !valid {
             return Err(ConnectionRecordError::InvalidSemanticId);
         }
@@ -1084,15 +1079,11 @@ pub enum ConnectionRecordError {
 }
 
 fn is_lower_token(value: &str, maximum: usize) -> bool {
-    (1..=maximum).contains(&value.len())
-        && value.is_ascii()
-        && value.bytes().enumerate().all(|(index, byte)| {
-            byte.is_ascii_lowercase() || (index > 0 && (byte.is_ascii_digit() || byte == b'-'))
-        })
+    kernel::lower_token_valid(value.as_bytes(), maximum)
 }
 
 fn is_ascii_graphic(value: &str, maximum: usize) -> bool {
-    (1..=maximum).contains(&value.len()) && value.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+    kernel::ascii_graphic_valid(value.as_bytes(), maximum)
 }
 
 fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {

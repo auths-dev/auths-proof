@@ -115,4 +115,216 @@ def kernel.lease_generation
                      then ok o
                      else ok none
 
+/-- [auths_connections::kernel::lower_tail_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 107:0-109:1 -/
+def kernel.lower_tail_valid (byte : Std.U8) : Result Bool := do
+  if byte >= 97#u8
+  then
+    if byte <= 122#u8
+    then ok true
+    else
+      if byte >= 48#u8
+      then if byte <= 57#u8
+           then ok true
+           else ok (byte = 45#u8)
+      else ok (byte = 45#u8)
+  else
+    if byte >= 48#u8
+    then if byte <= 57#u8
+         then ok true
+         else ok (byte = 45#u8)
+    else ok (byte = 45#u8)
+
+/-- [auths_connections::kernel::lower_token_valid]: loop body 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 126:4-134:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.lower_token_valid_loop.body
+  (value : Slice Std.U8) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len value
+  if index < i
+  then
+    let byte ← Slice.index_usize value index
+    let b ← kernel.lower_tail_valid byte
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_connections::kernel::lower_token_valid]: loop 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 126:4-134:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.lower_token_valid_loop
+  (value : Slice Std.U8) (index : Std.Usize) : Result Bool := do
+  loop
+    (fun index1 => kernel.lower_token_valid_loop.body value index1)
+    index
+
+/-- [auths_connections::kernel::lower_token_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 117:0-134:1
+    Visibility: public -/
+def kernel.lower_token_valid
+  (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
+  let b ← core.slice.Slice.is_empty value
+  if b
+  then ok false
+  else
+    let i := Slice.len value
+    if i > maximum
+    then ok false
+    else
+      let first ← Slice.index_usize value 0#usize
+      if first < 97#u8
+      then ok false
+      else
+        if first > 122#u8
+        then ok false
+        else kernel.lower_token_valid_loop value 0#usize
+
+/-- [auths_connections::kernel::ascii_graphic_valid]: loop body 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 147:4-155:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.ascii_graphic_valid_loop.body
+  (value : Slice Std.U8) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len value
+  if index < i
+  then
+    let byte ← Slice.index_usize value index
+    if byte < 33#u8
+    then ok (done false)
+    else
+      if byte > 126#u8
+      then ok (done false)
+      else let index1 ← index + 1#usize
+           ok (cont index1)
+  else ok (done true)
+
+/-- [auths_connections::kernel::ascii_graphic_valid]: loop 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 147:4-155:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.ascii_graphic_valid_loop
+  (value : Slice Std.U8) (index : Std.Usize) : Result Bool := do
+  loop
+    (fun index1 => kernel.ascii_graphic_valid_loop.body value index1)
+    index
+
+/-- [auths_connections::kernel::ascii_graphic_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 142:0-155:1
+    Visibility: public -/
+def kernel.ascii_graphic_valid
+  (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
+  let b ← core.slice.Slice.is_empty value
+  if b
+  then ok false
+  else
+    let i := Slice.len value
+    if i > maximum
+    then ok false
+    else kernel.ascii_graphic_valid_loop value 0#usize
+
+/-- [auths_connections::kernel::semantic_head_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 161:0-165:1 -/
+def kernel.semantic_head_valid (byte : Std.U8) : Result Bool := do
+  if byte >= 97#u8
+  then
+    if byte <= 122#u8
+    then ok true
+    else
+      if byte >= 65#u8
+      then
+        if byte <= 90#u8
+        then ok true
+        else if byte >= 48#u8
+             then ok (byte <= 57#u8)
+             else ok false
+      else if byte >= 48#u8
+           then ok (byte <= 57#u8)
+           else ok false
+  else
+    if byte >= 65#u8
+    then
+      if byte <= 90#u8
+      then ok true
+      else if byte >= 48#u8
+           then ok (byte <= 57#u8)
+           else ok false
+    else if byte >= 48#u8
+         then ok (byte <= 57#u8)
+         else ok false
+
+/-- [auths_connections::kernel::semantic_tail_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 166:0-173:1 -/
+def kernel.semantic_tail_valid (byte : Std.U8) : Result Bool := do
+  let b ← kernel.semantic_head_valid byte
+  if b
+  then ok true
+  else
+    if byte = 46#u8
+    then ok true
+    else
+      if byte = 95#u8
+      then ok true
+      else
+        if byte = 58#u8
+        then ok true
+        else if byte = 47#u8
+             then ok true
+             else ok (byte = 45#u8)
+
+/-- [auths_connections::kernel::semantic_id_valid]: loop body 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 185:4-192:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.semantic_id_valid_loop.body
+  (value : Slice Std.U8) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len value
+  if index < i
+  then
+    let i1 ← Slice.index_usize value index
+    let b ← kernel.semantic_tail_valid i1
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_connections::kernel::semantic_id_valid]: loop 0:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 185:4-192:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.semantic_id_valid_loop
+  (value : Slice Std.U8) (index : Std.Usize) : Result Bool := do
+  loop
+    (fun index1 => kernel.semantic_id_valid_loop.body value index1)
+    index
+
+/-- [auths_connections::kernel::semantic_id_valid]:
+    Source: 'product/runtime/auths-connections/src/kernel.rs', lines 177:0-192:1
+    Visibility: public -/
+def kernel.semantic_id_valid
+  (value : Slice Std.U8) (maximum : Std.Usize) : Result Bool := do
+  let b ← core.slice.Slice.is_empty value
+  if b
+  then ok false
+  else
+    let i := Slice.len value
+    if i > maximum
+    then ok false
+    else
+      let i1 ← Slice.index_usize value 0#usize
+      let b1 ← kernel.semantic_head_valid i1
+      if b1
+      then kernel.semantic_id_valid_loop value 0#usize
+      else ok false
+
 end auths_connections

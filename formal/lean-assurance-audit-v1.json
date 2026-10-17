@@ -24726,6 +24726,665 @@
         "Auths.Product.ConnectionEntry.allows",
         "Auths.Product.ConnectionEntry.State.active"
       ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.lower_tail_exact",
+      "statement": "∀ (byte : Aeneas.Std.U8),\n  Aeneas.Std.WP.spec (auths_connections.kernel.lower_tail_valid byte) fun actual =>\n    actual = decide (Auths.Product.ConnectionBytes.lowerTail ↑byte)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Decidable.decide",
+        "Aeneas.Std.U8",
+        "auths_connections.kernel.lower_tail_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U8",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionBytes.instDecidableLowerTail",
+        "Auths.Product.ConnectionBytes.lowerTail"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.graphic_valid_exact",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.ascii_graphic_valid value maximum) fun actual =>\n    actual =\n      decide\n        (Auths.Product.ConnectionBytes.graphicValid (Auths.Product.ConnectionBytes.Refinement.bytes ↑value) ↑maximum)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "Decidable.decide",
+        "LE.le",
+        "List.length",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.ascii_graphic_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.Usize",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionBytes.graphicValid",
+        "Auths.Product.ConnectionBytes.instDecidableGraphicValid",
+        "Auths.Product.ConnectionBytes.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.lower_valid_exact",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.lower_token_valid value maximum) fun actual =>\n    actual =\n      decide (Auths.Product.ConnectionBytes.lowerValid (Auths.Product.ConnectionBytes.Refinement.bytes ↑value) ↑maximum)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "Decidable.decide",
+        "LE.le",
+        "List.length",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.lower_token_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.Usize",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionBytes.instDecidableLowerValid",
+        "Auths.Product.ConnectionBytes.lowerValid",
+        "Auths.Product.ConnectionBytes.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.source_lower_earns_no_nul",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.lower_token_valid value maximum) fun actual =>\n    actual = true → 0 ∉ Auths.Product.ConnectionBytes.Refinement.bytes ↑value",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Not",
+        "instLENat",
+        "instOfNatNat",
+        "Bool.true",
+        "LE.le",
+        "List.instMembership",
+        "List.length",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.lower_token_valid",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionBytes.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_no_nul",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.ascii_graphic_valid value maximum) fun actual =>\n    actual = true → 0 ∉ Auths.Product.ConnectionBytes.Refinement.bytes ↑value",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Not",
+        "instLENat",
+        "instOfNatNat",
+        "Bool.true",
+        "LE.le",
+        "List.instMembership",
+        "List.length",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.ascii_graphic_valid",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionBytes.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.source_lower_earns_size_bound",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.lower_token_valid value maximum) fun actual =>\n    actual = true → ↑value ≠ [] ∧ (↑value).length ≤ ↑maximum",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Ne",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "List.length",
+        "List.nil",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.lower_token_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.Usize",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytesRefinement",
+      "name": "Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_size_bound",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.ascii_graphic_valid value maximum) fun actual =>\n    actual = true → ↑value ≠ [] ∧ (↑value).length ≤ ↑maximum",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Ne",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "List.length",
+        "List.nil",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.ascii_graphic_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.Usize",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec"
+      ]
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytes",
+      "name": "Auths.Product.ConnectionBytes.lower_has_no_nul",
+      "statement": "∀ (value : Auths.Product.ConnectionBytes.Bytes) (maximum : ℕ),\n  Auths.Product.ConnectionBytes.lowerValid value maximum → 0 ∉ value",
+      "statement_constants": [
+        "Nat",
+        "Not",
+        "instOfNatNat",
+        "List.instMembership",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Auths.Product.ConnectionBytes.Bytes",
+        "Auths.Product.ConnectionBytes.lowerValid"
+      ]
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionBytes",
+      "name": "Auths.Product.ConnectionBytes.graphic_has_no_nul",
+      "statement": "∀ (value : Auths.Product.ConnectionBytes.Bytes) (maximum : ℕ),\n  Auths.Product.ConnectionBytes.graphicValid value maximum → 0 ∉ value",
+      "statement_constants": [
+        "Nat",
+        "Not",
+        "instOfNatNat",
+        "List.instMembership",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Auths.Product.ConnectionBytes.Bytes",
+        "Auths.Product.ConnectionBytes.graphicValid"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ProfileConstructorRefinement",
+      "name": "Auths.Product.ProfileConstructor.Refinement.constructor_exact",
+      "statement": "∀ (id : auths_profile_construction.auths_connections.model.SemanticId) (version : Aeneas.Std.U16),\n  Aeneas.Std.WP.spec (auths_profile_construction.auths_connections.model.ConnectionProfile.new id version) fun actual =>\n    actual =\n      if ↑version = 0 then\n        Aeneas.Std.core.result.Result.Err\n          auths_profile_construction.auths_connections.model.ConnectionRecordError.InvalidProfile\n      else Aeneas.Std.core.result.Result.Ok { id := id, version := version }",
+      "statement_constants": [
+        "Eq",
+        "Nat",
+        "instDecidableEqNat",
+        "instOfNatNat",
+        "ite",
+        "OfNat.ofNat",
+        "Aeneas.Std.U16",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U16",
+        "Aeneas.Std.WP.spec",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile",
+        "auths_profile_construction.auths_connections.model.ConnectionRecordError",
+        "auths_profile_construction.auths_connections.model.SemanticId",
+        "Aeneas.Std.core.result.Result",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile.mk",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile.new",
+        "auths_profile_construction.auths_connections.model.ConnectionRecordError.InvalidProfile",
+        "Aeneas.Std.core.result.Result.Err",
+        "Aeneas.Std.core.result.Result.Ok"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ProfileConstructorRefinement",
+      "name": "Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields",
+      "statement": "∀ (id : auths_profile_construction.auths_connections.model.SemanticId) (version : Aeneas.Std.U16),\n  Aeneas.Std.WP.spec (auths_profile_construction.auths_connections.model.ConnectionProfile.new id version) fun actual =>\n    ∀ (profile : auths_profile_construction.auths_connections.model.ConnectionProfile),\n      actual = Aeneas.Std.core.result.Result.Ok profile →\n        profile.id = id ∧ profile.version = version ∧ 0 < ↑profile.version",
+      "statement_constants": [
+        "And",
+        "Eq",
+        "Nat",
+        "instLTNat",
+        "instOfNatNat",
+        "LT.lt",
+        "OfNat.ofNat",
+        "Aeneas.Std.U16",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U16",
+        "Aeneas.Std.WP.spec",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile",
+        "auths_profile_construction.auths_connections.model.ConnectionRecordError",
+        "auths_profile_construction.auths_connections.model.SemanticId",
+        "Aeneas.Std.core.result.Result",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile.id",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile.new",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile.version",
+        "Aeneas.Std.core.result.Result.Ok"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ProfileConstructorRefinement",
+      "name": "Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused",
+      "statement": "∀ (id : auths_profile_construction.auths_connections.model.SemanticId),\n  Aeneas.Std.WP.spec (auths_profile_construction.auths_connections.model.ConnectionProfile.new id 0#u16) fun actual =>\n    actual =\n      Aeneas.Std.core.result.Result.Err\n        auths_profile_construction.auths_connections.model.ConnectionRecordError.InvalidProfile",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Nat",
+        "id",
+        "instLENat",
+        "instOfNatNat",
+        "of_decide_eq_true",
+        "Bool.true",
+        "Decidable.decide",
+        "Eq.refl",
+        "LE.le",
+        "Nat.decLe",
+        "OfNat.ofNat",
+        "Aeneas.Std.U16.ofNat",
+        "Aeneas.Std.UScalar.cMax",
+        "Aeneas.Std.UScalarTy.U16",
+        "Aeneas.Std.WP.spec",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile",
+        "auths_profile_construction.auths_connections.model.ConnectionRecordError",
+        "auths_profile_construction.auths_connections.model.SemanticId",
+        "Aeneas.Std.core.result.Result",
+        "auths_profile_construction.auths_connections.model.ConnectionProfile.new",
+        "auths_profile_construction.auths_connections.model.ConnectionRecordError.InvalidProfile",
+        "Aeneas.Std.core.result.Result.Err"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticIdRefinement",
+      "name": "Auths.Product.SemanticId.Refinement.semantic_head_exact",
+      "statement": "∀ (byte : Aeneas.Std.U8),\n  Aeneas.Std.WP.spec (auths_connections.kernel.semantic_head_valid byte) fun actual =>\n    actual = decide (Auths.Product.SemanticId.head ↑byte)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Decidable.decide",
+        "Aeneas.Std.U8",
+        "auths_connections.kernel.semantic_head_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U8",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.SemanticId.head",
+        "Auths.Product.SemanticId.instDecidableHead"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticIdRefinement",
+      "name": "Auths.Product.SemanticId.Refinement.semantic_tail_exact",
+      "statement": "∀ (byte : Aeneas.Std.U8),\n  Aeneas.Std.WP.spec (auths_connections.kernel.semantic_tail_valid byte) fun actual =>\n    actual = decide (Auths.Product.SemanticId.tail ↑byte)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "Decidable.decide",
+        "Aeneas.Std.U8",
+        "auths_connections.kernel.semantic_tail_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.U8",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.SemanticId.instDecidableTail",
+        "Auths.Product.SemanticId.tail"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticIdRefinement",
+      "name": "Auths.Product.SemanticId.Refinement.semantic_valid_exact",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.semantic_id_valid value maximum) fun actual =>\n    actual = decide (Auths.Product.SemanticId.valid (Auths.Product.SemanticId.Refinement.bytes ↑value) ↑maximum)",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "Decidable.decide",
+        "LE.le",
+        "List.length",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.semantic_id_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.Usize",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.SemanticId.instDecidableValid",
+        "Auths.Product.SemanticId.valid",
+        "Auths.Product.SemanticId.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticIdRefinement",
+      "name": "Auths.Product.SemanticId.Refinement.source_earns_no_nul",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.semantic_id_valid value maximum) fun actual =>\n    actual = true → 0 ∉ Auths.Product.SemanticId.Refinement.bytes ↑value",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Not",
+        "instLENat",
+        "instOfNatNat",
+        "Bool.true",
+        "LE.le",
+        "List.instMembership",
+        "List.length",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.semantic_id_valid",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.SemanticId.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticIdRefinement",
+      "name": "Auths.Product.SemanticId.Refinement.source_earns_ascii",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.semantic_id_valid value maximum) fun actual =>\n    actual = true → ∀ byte ∈ Auths.Product.SemanticId.Refinement.bytes ↑value, byte < 128",
+      "statement_constants": [
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "instLTNat",
+        "instOfNatNat",
+        "Bool.true",
+        "LE.le",
+        "LT.lt",
+        "List.instMembership",
+        "List.length",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.semantic_id_valid",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.SemanticId.Refinement.bytes"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticIdRefinement",
+      "name": "Auths.Product.SemanticId.Refinement.source_earns_bounds",
+      "statement": "∀ (value : Aeneas.Std.Slice Aeneas.Std.U8) (maximum : Aeneas.Std.Usize),\n  Aeneas.Std.WP.spec (auths_connections.kernel.semantic_id_valid value maximum) fun actual =>\n    actual = true → ↑value ≠ [] ∧ (↑value).length ≤ ↑maximum",
+      "statement_constants": [
+        "And",
+        "Bool",
+        "Eq",
+        "List",
+        "Nat",
+        "Ne",
+        "instLENat",
+        "Bool.true",
+        "LE.le",
+        "List.length",
+        "List.nil",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "Aeneas.Std.Usize",
+        "auths_connections.kernel.semantic_id_valid",
+        "Aeneas.Std.UScalar.val",
+        "Aeneas.Std.UScalarTy.Usize",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec"
+      ]
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticId",
+      "name": "Auths.Product.SemanticId.valid_has_no_nul",
+      "statement": "∀ (value : Auths.Product.SemanticId.Bytes) (maximum : ℕ), Auths.Product.SemanticId.valid value maximum → 0 ∉ value",
+      "statement_constants": [
+        "Nat",
+        "Not",
+        "instOfNatNat",
+        "List.instMembership",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Auths.Product.SemanticId.Bytes",
+        "Auths.Product.SemanticId.valid"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SemanticId",
+      "name": "Auths.Product.SemanticId.valid_is_ascii",
+      "statement": "∀ (value : Auths.Product.SemanticId.Bytes) (maximum : ℕ),\n  Auths.Product.SemanticId.valid value maximum → ∀ byte ∈ value, byte < 128",
+      "statement_constants": [
+        "Nat",
+        "instLTNat",
+        "instOfNatNat",
+        "LT.lt",
+        "List.instMembership",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Auths.Product.SemanticId.Bytes",
+        "Auths.Product.SemanticId.valid"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionFrame",
+      "name": "Auths.Product.ConnectionFrame.preimage_injective",
+      "statement": "∀ (left right : Auths.Product.ConnectionFrame.Key),\n  0 ∉ left.provider →\n    0 ∉ right.provider →\n      Auths.Product.ConnectionFrame.preimage left = Auths.Product.ConnectionFrame.preimage right → left = right",
+      "statement_constants": [
+        "Eq",
+        "Nat",
+        "Not",
+        "instOfNatNat",
+        "List.instMembership",
+        "Membership.mem",
+        "OfNat.ofNat",
+        "Auths.Product.ConnectionFrame.Bytes",
+        "Auths.Product.ConnectionFrame.Key",
+        "Auths.Product.ConnectionFrame.preimage",
+        "Auths.Product.ConnectionFrame.Key.provider"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionFrame",
+      "name": "Auths.Product.ConnectionFrame.validated_names_bind_both_fields",
+      "statement": "∀ (left right : Auths.Product.ConnectionFrame.Key),\n  Auths.Product.ConnectionBytes.lowerValid left.provider 64 →\n    Auths.Product.ConnectionBytes.lowerValid right.provider 64 →\n      Auths.Product.ConnectionFrame.preimage left = Auths.Product.ConnectionFrame.preimage right → left = right",
+      "statement_constants": [
+        "Eq",
+        "Nat",
+        "instOfNatNat",
+        "OfNat.ofNat",
+        "Auths.Product.ConnectionBytes.lowerValid",
+        "Auths.Product.ConnectionFrame.Bytes",
+        "Auths.Product.ConnectionFrame.Key",
+        "Auths.Product.ConnectionFrame.preimage",
+        "Auths.Product.ConnectionFrame.Key.provider"
+      ]
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionFrameRefinement",
+      "name": "Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact",
+      "statement": "∀ (provider aliasBytes : Aeneas.Std.Slice Aeneas.Std.U8),\n  (↑provider).length ≤ 64 →\n    (↑aliasBytes).length ≤ 64 →\n      Aeneas.Std.WP.spec (auths_gateway_kernel.identity.connection_record_preimage provider aliasBytes) fun output =>\n        Auths.Product.Refinement.Gateway.vecBytes output =\n          Auths.Product.ConnectionFrame.preimage\n            { provider := Auths.Product.Refinement.Gateway.sliceBytes provider,\n              aliasBytes := Auths.Product.Refinement.Gateway.sliceBytes aliasBytes }",
+      "statement_constants": [
+        "Eq",
+        "List",
+        "Nat",
+        "instLENat",
+        "instOfNatNat",
+        "LE.le",
+        "List.length",
+        "OfNat.ofNat",
+        "Subtype.val",
+        "Aeneas.Std.Slice",
+        "Aeneas.Std.U8",
+        "auths_gateway_kernel.identity.connection_record_preimage",
+        "Aeneas.Std.Usize.max",
+        "Aeneas.Std.WP.spec",
+        "Auths.Product.ConnectionFrame.preimage",
+        "Aeneas.Std.alloc.vec.Vec",
+        "Auths.Product.ConnectionFrame.Key.mk",
+        "Auths.Product.Refinement.Gateway.sliceBytes",
+        "Auths.Product.Refinement.Gateway.vecBytes"
+      ]
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

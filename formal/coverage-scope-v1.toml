@@ -60,6 +60,7 @@ name = "the stateful gateway store backends"
 crates = ["product/stores/auths-stores"]
 
 [files]
+"formal/qualification/aeneas/entrypoints/profile_construction.rs" = "interface"
 "product/runtime/auths-gateway-kernel/src/reservation_batch.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/slot_record.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/entry_authorization.rs" = "decision"
@@ -145,3 +146,7 @@ crates = ["product/stores/auths-stores"]
 "product/stores/auths-stores/src/gateway_attempt.rs" = "storage"
 "product/stores/auths-stores/src/lifecycle.rs" = "storage"
 "product/stores/auths-stores/src/lib.rs" = "interface"
+
+
+[extraction_selectors]
+"formal/qualification/aeneas/entrypoints/profile_construction.rs" = "auths_profile_construction"

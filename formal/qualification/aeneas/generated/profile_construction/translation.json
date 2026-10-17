@@ -1,0 +1,82 @@
+{
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
+  "charon_version": "0.1.225",
+  "crate": "auths_profile_construction",
+  "functions": [
+    {
+      "def_id": 1,
+      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionProfile.new",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::model::{auths_connections::model::ConnectionProfile}::new",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 162,
+        "end_line": 162
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_profile_construction.construct",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_profile_construction::construct",
+      "is_local": true,
+      "source": {
+        "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+        "begin_line": 5,
+        "end_line": 10
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_profile_construction.auths_connections.model.SemanticId",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
+      "rust_name": "auths_connections::model::SemanticId",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 70,
+        "end_line": 70
+      }
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionProfile",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
+      "rust_name": "auths_connections::model::ConnectionProfile",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 151,
+        "end_line": 151
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionRecordError",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
+      "rust_name": "auths_connections::model::ConnectionRecordError",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 1013,
+        "end_line": 1013
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

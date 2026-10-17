@@ -2417,6 +2417,8 @@ struct ProductionRefinementMetadata {
 const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/authority/Funs.lean";
 const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
 const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
+const PROFILE_CONSTRUCTION_TRANSLATION: &str =
+    "formal/qualification/aeneas/generated/profile_construction/Funs.lean";
 const CONNECTIONS_TRANSLATION: &str = "formal/qualification/aeneas/generated/connections/Funs.lean";
 const CODEC_TRANSLATION: &str = "formal/qualification/aeneas/generated/codec/Funs.lean";
 const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/Funs.lean";
@@ -2535,6 +2537,14 @@ fn qualified_refinement_metadata(
         .or_else(|| {
             connections_refinement_metadata(declaration)
                 .map(|metadata| (metadata, CONNECTIONS_TRANSLATION))
+        })
+        .or_else(|| {
+            connection_frame_refinement_metadata(declaration)
+                .map(|metadata| (metadata, GATEWAY_TRANSLATION))
+        })
+        .or_else(|| {
+            profile_construction_refinement_metadata(declaration)
+                .map(|metadata| (metadata, PROFILE_CONSTRUCTION_TRANSLATION))
         })
         .or_else(|| {
             codec_refinement_metadata(declaration).map(|metadata| (metadata, CODEC_TRANSLATION))
@@ -4540,8 +4550,145 @@ fn bounded_policy_link_refinement_metadata(
     })
 }
 
+fn connection_frame_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    if declaration != "Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact" {
+        return None;
+    }
+    Some(ProductionRefinementMetadata {
+        claim_text: "The actual connection-key builder returns precisely the registered domain, exact provider bytes, NUL separator and exact alias bytes within the shipping constructor bounds; no field or separator is omitted.",
+        rust_symbols: &["auths_gateway_kernel::identity::connection_record_preimage"],
+        scope: "All represented provider/alias byte buffers of at most 64 bytes each, including empty and binary inputs. The separate independent framing theorem earns field injectivity from NUL-free provider validation.",
+        residual_assumptions: &[
+            "Lean's kernel, the pinned toolchain and foundational axioms are trusted. The actual SHA-256 primitive, String-to-byte mapping and complete runtime association remain separate; no global hash injectivity is assumed.",
+            "Native gateway parity checks compare the shipping hash caller against the frozen streaming preimage. Allocation failure remains outside the translated machine model; the proved builder bounds are below the portable usize limit.",
+        ],
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
+}
+
+fn profile_construction_refinement_metadata(
+    declaration: &str,
+) -> Option<ProductionRefinementMetadata> {
+    let claim_text = match declaration {
+        "Auths.Product.ProfileConstructor.Refinement.constructor_exact" => {
+            "The unchanged actual inherent profile constructor returns exactly InvalidProfile at version zero and otherwise constructs exactly the supplied semantic identifier and version. No result or nonzero-version premise is assumed."
+        }
+        "Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields" => {
+            "Every successful actual profile construction earns a positive version and preserves both exact supplied fields; successful construction is an output condition, not an input premise."
+        }
+        "Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused" => {
+            "The actual profile constructor refuses version zero for every represented semantic identifier."
+        }
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols: &[
+            "auths_connections::model::{auths_connections::model::ConnectionProfile}::new",
+        ],
+        scope: "Every represented typed SemanticId and u16 version. The actual shipping method body is translated transparently through a non-shipping selector; no constructor algorithm is duplicated or replaced.",
+        residual_assumptions: &[
+            "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted. The offline selector uses only checksum-identical shipping lock identities and locked compilation.",
+            "The string-to-SemanticId parser, full record codec, projection and runtime caller composition remain separate. This proves constructor field/version behavior, not validity of an arbitrary represented SemanticId string.",
+        ],
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
+}
+
 fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    if declaration.starts_with("Auths.Product.SemanticId.Refinement.") {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Product.SemanticId.Refinement.semantic_head_exact" => (
+                "The actual semantic-identifier head classifier exactly accepts ASCII letters and digits for every byte.",
+                &["auths_connections::kernel::semantic_head_valid"],
+            ),
+            "Auths.Product.SemanticId.Refinement.semantic_tail_exact" => (
+                "The actual semantic-identifier tail classifier exactly accepts ASCII letters/digits and the five registered punctuation bytes.",
+                &["auths_connections::kernel::semantic_tail_valid"],
+            ),
+            "Auths.Product.SemanticId.Refinement.semantic_valid_exact" => (
+                "The complete actual identifier validator returns exactly the independent nonempty bounded initial-alphanumeric/full-tail language on every slice and maximum, without a validity premise.",
+                &["auths_connections::kernel::semantic_id_valid"],
+            ),
+            "Auths.Product.SemanticId.Refinement.source_earns_no_nul" => (
+                "Successful actual semantic-identifier validation earns NUL absence throughout the complete byte buffer.",
+                &["auths_connections::kernel::semantic_id_valid"],
+            ),
+            "Auths.Product.SemanticId.Refinement.source_earns_ascii" => (
+                "Successful actual semantic-identifier validation earns that every byte is ASCII.",
+                &["auths_connections::kernel::semantic_id_valid"],
+            ),
+            "Auths.Product.SemanticId.Refinement.source_earns_bounds" => (
+                "Successful actual semantic-identifier validation earns a nonempty buffer within the supplied size bound.",
+                &["auths_connections::kernel::semantic_id_valid"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Every represented byte buffer and usize maximum; helper claims cover every u8. The shipping SemanticId parser consumes this byte predicate with maximum 128.",
+            residual_assumptions: &[
+                "Lean's kernel, pinned Rust/Charon/Aeneas/Lean toolchain and listed foundational axioms are trusted. All useful byte properties are earned from the source result.",
+                "String conversion and the complete typed constructor/record decoder remain separate. The cutover has frozen native grammar parity across all byte pairs and every byte mutation at lengths 127, 128 and 129; no hash assumption is used.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     const UNCONDITIONAL: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted; the theorem has no premise.";
+    if declaration.starts_with("Auths.Product.ConnectionBytes.Refinement.") {
+        const BYTE_BOUNDARY: &str = "This proves the actual byte classifiers, not complete String constructors, the canonical record decoder or runtime caller composition. Native frozen byte-pair parity supports the production constructor cutover; string-to-byte projection, allocation and whole constructor validity remain separate. No hash or commitment assumption is needed for the byte properties.";
+        let (claim_text, rust_symbol) = match declaration {
+            "Auths.Product.ConnectionBytes.Refinement.lower_tail_exact" => (
+                "The actual scalar token-tail classifier returns exactly the independent lowercase/digit/hyphen predicate for every u8.",
+                "auths_connections::kernel::lower_tail_valid",
+            ),
+            "Auths.Product.ConnectionBytes.Refinement.graphic_valid_exact" => (
+                "The complete actual printable-ASCII validator returns exactly the independent nonempty length-bounded full-buffer predicate for every slice and maximum, without an expected validity premise.",
+                "auths_connections::kernel::ascii_graphic_valid",
+            ),
+            "Auths.Product.ConnectionBytes.Refinement.lower_valid_exact" => (
+                "The complete actual lowercase token validator returns exactly the independent bounded first-letter and complete-tail language for every slice and maximum, without an expected validity premise.",
+                "auths_connections::kernel::lower_token_valid",
+            ),
+            "Auths.Product.ConnectionBytes.Refinement.source_lower_earns_no_nul" => (
+                "Every successful actual lowercase token validation earns that the entire buffer contains no NUL byte; NUL absence is not assumed.",
+                "auths_connections::kernel::lower_token_valid",
+            ),
+            "Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_no_nul" => (
+                "Every successful actual printable-ASCII validation earns that the entire buffer contains no NUL byte; NUL absence is not assumed.",
+                "auths_connections::kernel::ascii_graphic_valid",
+            ),
+            "Auths.Product.ConnectionBytes.Refinement.source_lower_earns_size_bound" => (
+                "Every successful actual lowercase token validation earns a nonempty buffer within its supplied size bound.",
+                "auths_connections::kernel::lower_token_valid",
+            ),
+            "Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_size_bound" => (
+                "Every successful actual printable-ASCII validation earns a nonempty buffer within its supplied size bound.",
+                "auths_connections::kernel::ascii_graphic_valid",
+            ),
+            _ => return None,
+        };
+        let rust_symbols: &[&str] = match rust_symbol {
+            "auths_connections::kernel::lower_tail_valid" => {
+                &["auths_connections::kernel::lower_tail_valid"]
+            }
+            "auths_connections::kernel::lower_token_valid" => {
+                &["auths_connections::kernel::lower_token_valid"]
+            }
+            "auths_connections::kernel::ascii_graphic_valid" => {
+                &["auths_connections::kernel::ascii_graphic_valid"]
+            }
+            _ => unreachable!("closed byte-classifier inventory"),
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Every represented byte buffer and usize maximum; the scalar helper covers every u8. Acceptance properties are conclusions of the source result, not input validity premises.",
+            residual_assumptions: &[UNCONDITIONAL, BYTE_BOUNDARY],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     const BOUNDARY: &str = "The canonical record codec, the shared store's compare-and-swap, the local credential store's persistence, and the constant-time commitment comparison are outside this theorem; they are covered by the record round-trip and obsolete-state tests, the store conformance suite, and the cross-process connection tests on both stores. The reference commitment is assumed collision-resistant.";
     const RESIDUAL: &[&str] = &[UNCONDITIONAL, BOUNDARY];
     const NEXT: &str = "auths_connections::kernel::next_generation";

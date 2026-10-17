@@ -1,9 +1,9 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
-- **Status:** Implementation in progress; resumed on 16 October 2026 after
-  the owner's checkpoint pause. E1–E5 and M6 remain incomplete. See §13 for
-  the saved checkpoint, evidence limits, and next implementation slice. This
-  document does not itself add a proved claim.
+- **Status:** Implementation in progress. The latest qualified development
+  checkpoint has 861 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.27 for exact completed components, evidence
+  boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
   narrowly authorized work without receiving the provider credential. Cover
@@ -1559,3 +1559,95 @@ Coverage remains 134/1047 decision functions, 1833/11563 code lines and 23/82
 check sites, with byte-identical historical reproduction. Hosted evidence and
 the whole E1–E5/M6 program remain open. Constructor byte predicates are prepared
 privately for the next component; they are not yet qualified shipping code.
+
+
+### 13.25 Connection text validation and actual profile construction — implementation batch
+
+Provider-kind and alias parsing, and connection workload validation, now consume
+pure bounded byte predicates in the existing connection kernel. Exact source
+proofs cover every byte buffer and maximum: lowercase first-letter tokens,
+complete lowercase/digit/hyphen tails, and printable-ASCII workloads. Successful
+results earn nonempty length bounds and whole-buffer NUL absence. Native parity
+checks all 65,536 byte pairs at lengths 0–2 and five maxima, including zero and
+usize max. All 34 connection library tests pass. Three narrowly scoped range
+lint allowances preserve explicit translated scalar operations, consistent with
+the existing request-construction boundary.
+
+The actual unchanged `ConnectionProfile::new` method also has a direct source
+proof: zero versions return InvalidProfile, and success preserves the exact
+supplied identifier and nonzero version. Charon cannot reliably seed this
+inherent method by its name; nominal-path extraction was rejected when its
+metadata contained zero functions. A non-shipping selector calls the actual
+method, whose complete body remains transparent in the translation. The
+selector introduces no runtime API, duplicate constructor or semantic cfg. Its
+temporary Cargo manifest clones the shipping lock, resolves offline, refuses
+unknown dependency identities/checksums and compiles locked. A regression test
+checks these boundaries. String-to-SemanticId parsing remains separate.
+
+This component is included in the qualified 861-claim checkpoint in §13.27. E1's complete
+constructor/decoder/allocation closure, E4's runtime correspondence and the
+remaining §13.5 program are still open. This component proves the stated byte
+rules and actual profile field/version behavior, not whole record validity.
+
+### 13.26 Semantic identifiers and connection-key input binding — implementation batch
+
+The actual SemanticId parser now consumes the kernel's complete byte grammar:
+ASCII letter/digit first, then ASCII letters/digits or `._:/-`, nonempty and at
+most 128 bytes. General source proofs fix both scalar classifiers and the full
+loop on every buffer/maximum. Successful validation earns the size bound,
+whole-buffer ASCII and NUL absence. Independent native parity covers every byte
+pair and five maxima, plus every byte mutation at lengths 127, 128 and 129.
+The 35 connection library tests pass, including existing durable record cases.
+
+The actual gateway connection-key caller now hashes an extracted exact
+preimage builder: the registered domain, complete provider bytes, NUL, complete
+alias bytes. Its source proof preserves every input byte within the existing
+64-byte constructor bounds. An independent framing theorem proves that equal
+preimages identify both fields, using NUL absence earned by the provider-name
+validator. It assumes no injective hash. Native tests compare 589,824 binary
+preimages and 64 actual typed gateway keys with frozen preceding algorithms;
+all 40 kernel tests and four connection adapter tests pass.
+
+These proofs passed privately before shipping cutover and now qualify together
+in the 861-claim checkpoint in §13.27. The preceding
+850-claim replay produced identical translations but stopped at an inventory
+error: a non-shipping selector was incorrectly required to be a workspace
+package. Both source-closure consumers now map only that reviewed selector to
+its sole shipping dependency, with a regression test; selector source and
+checksum-identical dependencies remain hashed. Generated file-name metadata
+is normalized without changing bodies, spans, options or embedded source.
+
+The complete String/record decoder, actual reload/lease/write association,
+backend history and remaining §13.5 program remain open. Continue with the
+combined batch checks and then those source obligations; do not wait on hosted
+CI during implementation or equate claim counts with completion.
+
+### 13.27 Qualified constructor, identifier and connection-key checkpoint
+
+The batch in §§13.25–13.26 qualifies **861 compiled/audited claims**, preserving
+all 838 previously pushed complete declaration records. All 850 records from
+the intermediate constructor audit are also unchanged. The full 3,519-job Lean
+build, 18/18 qualification cases and two byte-identical clean full translations
+pass. There are 25 reviewed models, none unreviewed, no compiled external axioms
+and only the three permitted foundational axioms.
+
+Shipping source closure:
+`390c119b23d2172f15bc6b026236af76a28d9f0f3d13e705b770de7914e9ee0c`.
+Review: `ap-spec-069-connection-byte-framing-2026-10-17`; inventory:
+`1b4a2587677994a404e5f8808c10d0f1fbc2288e10d1b8c13d3e42fffbf1beb2`;
+boundary:
+`94d0a3fefdb75a3344bb2822641bdefff372d261deef3ebd81a2a55c1abeca49`.
+
+The 35 connection, 40 kernel and 232 active gateway tests, plus affected-target/
+xtask linting, pass; 26 existing ignored gateway tests remain unchanged. The
+source-closure selector regression and checksum/path normalization regressions
+pass. Coverage v4 includes the actual transparent constructor selected by the
+non-shipping entrypoint, validates imported declaration spans against the Rust
+scanner and retains strict complete spans for ordinary local functions. The
+historical study reproduces byte-identically; primary scope remains 134/1047
+functions, 1833/11563 code lines and 23/82 check sites.
+
+This completes the stated components, not the full §13.5 program. Complete
+record decoding, String/caller projection, actual reload/lease/write association,
+backend histories and exact-revision hosted evidence remain open. Continue with
+the private recovery-lease work and source obligations without waiting on CI.

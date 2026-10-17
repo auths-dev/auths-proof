@@ -1,3 +1,7 @@
+import Auths.Product.SemanticIdRefinement
+import Auths.Product.ConnectionFrameRefinement
+import Auths.Product.ProfileConstructorRefinement
+import Auths.Product.ConnectionBytesRefinement
 import qualification.aeneas.generated.connections.Funs
 
 open Aeneas Aeneas.Std Result
@@ -21,3 +25,81 @@ example :
 example : kernel.next_generation 18446744073709551615#u64 = ok none := by rfl
 
 end qualification.aeneas.cases
+
+#check Auths.Product.ConnectionBytes.Refinement.lower_tail_exact
+#check Auths.Product.ConnectionBytes.Refinement.graphic_valid_exact
+#check Auths.Product.ConnectionBytes.Refinement.lower_valid_exact
+#check Auths.Product.ConnectionBytes.Refinement.source_lower_earns_no_nul
+#check Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_no_nul
+#check Auths.Product.ConnectionBytes.Refinement.source_lower_earns_size_bound
+#check Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_size_bound
+
+#check Auths.Product.ProfileConstructor.Refinement.constructor_exact
+#check Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields
+#check Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused
+
+namespace qualification.aeneas.cases.ConnectionBytes
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_connections
+open Auths.Product.ConnectionBytes.Refinement
+private def token : Slice U8 := ⟨[115#u8, 116#u8, 114#u8, 105#u8, 112#u8, 101#u8], by simp; scalar_tac⟩
+private def injected : Slice U8 := ⟨[97#u8, 0#u8, 98#u8], by simp; scalar_tac⟩
+
+example : kernel.lower_token_valid token 64#usize ⦃ actual => actual = true ⦄ := by
+  step with lower_valid_exact as ⟨actual, exactMeaning⟩
+  change actual = decide (Auths.Product.ConnectionBytes.lowerValid [115, 116, 114, 105, 112, 101] 64) at exactMeaning
+  have allowed : Auths.Product.ConnectionBytes.lowerValid [115, 116, 114, 105, 112, 101] 64 := by decide
+  simpa [allowed] using exactMeaning
+
+example : kernel.lower_token_valid injected 64#usize ⦃ actual => actual = false ⦄ := by
+  step with lower_valid_exact as ⟨actual, exactMeaning⟩
+  change actual = decide (Auths.Product.ConnectionBytes.lowerValid [97, 0, 98] 64) at exactMeaning
+  have denied : ¬ Auths.Product.ConnectionBytes.lowerValid [97, 0, 98] 64 := by decide
+  simpa [denied] using exactMeaning
+
+example : kernel.ascii_graphic_valid injected 128#usize ⦃ actual => actual = false ⦄ := by
+  step with graphic_valid_exact as ⟨actual, exactMeaning⟩
+  change actual = decide (Auths.Product.ConnectionBytes.graphicValid [97, 0, 98] 128) at exactMeaning
+  have denied : ¬ Auths.Product.ConnectionBytes.graphicValid [97, 0, 98] 128 := by decide
+  simpa [denied] using exactMeaning
+end qualification.aeneas.cases.ConnectionBytes
+
+namespace qualification.aeneas.cases.ProfileConstruction
+open Aeneas Aeneas.Std Result
+open auths_profile_construction.auths_connections
+open Auths.Product.ProfileConstructor.Refinement
+example : model.ConnectionProfile.new "auths.test" 1#u16
+    ⦃ actual => actual = .Ok ⟨"auths.test", 1#u16⟩ ⦄ := by
+  exact constructor_exact "auths.test" 1#u16
+example : model.ConnectionProfile.new "auths.test" 0#u16
+    ⦃ actual => actual = .Err .InvalidProfile ⦄ := by
+  exact source_zero_version_refused "auths.test"
+end qualification.aeneas.cases.ProfileConstruction
+
+namespace qualification.aeneas.cases.SemanticIdentifier
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_connections
+open Auths.Product.SemanticId.Refinement
+private def accepted : Slice U8 := ⟨[65#u8, 58#u8, 49#u8], by simp; scalar_tac⟩
+private def badHead : Slice U8 := ⟨[58#u8, 65#u8], by simp; scalar_tac⟩
+
+example : kernel.semantic_id_valid accepted 128#usize ⦃ actual => actual = true ⦄ := by
+  step with semantic_valid_exact as ⟨actual, exactMeaning⟩
+  change actual = decide (Auths.Product.SemanticId.valid [65, 58, 49] 128) at exactMeaning
+  have allowed : Auths.Product.SemanticId.valid [65, 58, 49] 128 := by decide
+  simpa [allowed] using exactMeaning
+
+example : kernel.semantic_id_valid badHead 128#usize ⦃ actual => actual = false ⦄ := by
+  step with semantic_valid_exact as ⟨actual, exactMeaning⟩
+  change actual = decide (Auths.Product.SemanticId.valid [58, 65] 128) at exactMeaning
+  have refused : ¬ Auths.Product.SemanticId.valid [58, 65] 128 := by decide
+  simpa [refused] using exactMeaning
+
+example : kernel.semantic_id_valid accepted 2#usize ⦃ actual => actual = false ⦄ := by
+  step with semantic_valid_exact as ⟨actual, exactMeaning⟩
+  change actual = decide (Auths.Product.SemanticId.valid [65, 58, 49] 2) at exactMeaning
+  have refused : ¬ Auths.Product.SemanticId.valid [65, 58, 49] 2 := by decide
+  simpa [refused] using exactMeaning
+end qualification.aeneas.cases.SemanticIdentifier

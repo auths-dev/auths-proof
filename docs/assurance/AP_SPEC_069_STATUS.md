@@ -5,6 +5,41 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified constructor and connection-key checkpoint — 17 October 2026
+
+The latest batch qualifies **861 compiled claims**, with all 838 previously
+pushed complete declaration records unchanged. Two clean full translations are
+byte-identical; all 18 qualification cases pass, with 25 reviewed external
+models, none unreviewed and no compiled external axioms. Source closure:
+`390c119b23d2172f15bc6b026236af76a28d9f0f3d13e705b770de7914e9ee0c`.
+
+Shipping constructors consume proved full-buffer provider/alias, workload and
+semantic-identifier grammars. Acceptance earns the stated size bounds and NUL
+absence; semantic identifiers also earn whole-buffer ASCII. The actual unchanged
+profile constructor has a direct transparent source proof of its version refusal
+and exact field preservation. The gateway hashes a source-proved domain/provider/
+separator/alias preimage whose independent framing proof binds both fields under
+the earned provider grammar. No hash-injectivity axiom is added.
+
+The complete 3,519-job Lean build, 35 connection tests, 40 kernel tests, 232 active
+gateway tests and affected-target/xtask linting pass. Existing ignored gateway
+tests remain 26. Native tests compare every byte pair and size boundaries,
+589,824 binary preimages and 64 typed gateway keys with frozen preceding behavior.
+Coverage v4 inventories the actual transparent constructor selected by a
+non-shipping entrypoint, preserves full local spans and validates its imported
+declaration span separately. Historical coverage reproduction stays byte-identical;
+headline scope remains 134/1047 decision functions, 1833/11563 lines and 23/82 sites.
+
+Review: `ap-spec-069-connection-byte-framing-2026-10-17`; inventory:
+`1b4a2587677994a404e5f8808c10d0f1fbc2288e10d1b8c13d3e42fffbf1beb2`;
+boundary: `94d0a3fefdb75a3344bb2822641bdefff372d261deef3ebd81a2a55c1abeca49`.
+
+The complete String/record decoder, actual reload/lease/write association, backend
+history and whole §13.5/E1–E5/M6 program remain open, including exact-revision
+hosted evidence. A recovery-lease component is being prepared privately; it is
+not part of this qualified checkpoint. Continue implementation without waiting
+on hosted CI. See spec §§13.25–13.27.
+
 ## Qualified connection-entry checkpoint — 17 October 2026
 
 The latest batch qualifies **838 compiled claims**, preserving all 832 previous

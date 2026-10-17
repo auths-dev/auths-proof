@@ -2039,6 +2039,25 @@ def identity.logical_operation_preimage
   let output2 ← alloc.vec.Vec.push output1 0#u8
   construct.append_bytes output2 operation
 
+/-- [auths_gateway_kernel::identity::connection_record_preimage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/identity.rs', lines 41:0-46:1
+    Visibility: public -/
+def identity.connection_record_preimage
+  (provider : Slice Std.U8) (alias1 : Slice Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let s ←
+    lift (Array.to_slice
+      (Array.make 27#usize [
+        97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8,
+        101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 99#u8, 111#u8, 110#u8, 110#u8,
+        101#u8, 99#u8, 116#u8, 105#u8, 111#u8, 110#u8, 47#u8, 49#u8, 0#u8
+        ]))
+  let output ← construct.copy_bytes s
+  let output1 ← construct.append_bytes output provider
+  let output2 ← alloc.vec.Vec.push output1 0#u8
+  construct.append_bytes output2 alias1
+
 /-- [auths_gateway_kernel::order::start]:
     Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 387:0-393:1
     Visibility: public -/

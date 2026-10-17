@@ -19,9 +19,6 @@ use std::num::NonZeroU64;
 use std::sync::Arc;
 use thiserror::Error;
 
-/// The hash domain of the connection record's key.
-const KEY_DOMAIN: &[u8] = b"auths.gateway-connection/1\0";
-
 /// Why the shared connection record could not be read or changed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
 pub enum SharedConnectionError {
@@ -71,10 +68,10 @@ impl LoadedConnection {
 #[must_use]
 pub fn connection_key(provider: &ProviderKind, alias: &ConnectionAlias) -> GatewayAttemptKey {
     let mut hash = Sha256::new();
-    hash.update(KEY_DOMAIN);
-    hash.update(provider.as_str().as_bytes());
-    hash.update([0]);
-    hash.update(alias.as_str().as_bytes());
+    hash.update(auths_gateway_kernel::identity::connection_record_preimage(
+        provider.as_str().as_bytes(),
+        alias.as_str().as_bytes(),
+    ));
     GatewayAttemptKey::from_bytes(hash.finalize().into())
 }
 
@@ -590,5 +587,33 @@ mod tests {
             key("stripe", "refunds").as_bytes(),
             &<[u8; 32]>::from(hash.finalize())
         );
+    }
+
+    #[test]
+    fn connection_keys_preserve_the_frozen_streaming_hash_caller() {
+        let tokens = [
+            "a".to_owned(),
+            "ab".to_owned(),
+            "bc".to_owned(),
+            "a-b".to_owned(),
+            "stripe".to_owned(),
+            "billing-01".to_owned(),
+            "x".repeat(63),
+            "z".repeat(64),
+        ];
+        for provider in &tokens {
+            for alias in &tokens {
+                let mut frozen = Sha256::new();
+                frozen.update(b"auths.gateway-connection/1\0");
+                frozen.update(provider.as_bytes());
+                frozen.update([0]);
+                frozen.update(alias.as_bytes());
+                let key = connection_key(
+                    &ProviderKind::parse(provider.clone()).expect("valid provider"),
+                    &ConnectionAlias::parse(alias.clone()).expect("valid alias"),
+                );
+                assert_eq!(key.as_bytes(), &<[u8; 32]>::from(frozen.finalize()));
+            }
+        }
     }
 }

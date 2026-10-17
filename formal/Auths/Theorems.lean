@@ -1,3 +1,7 @@
+import Auths.Product.SemanticIdRefinement
+import Auths.Product.ConnectionFrameRefinement
+import Auths.Product.ProfileConstructorRefinement
+import Auths.Product.ConnectionBytesRefinement
 import Auths.Product.ConnectionEntryRefinement
 import Auths.Product.ReservationAdmissionRefinement
 import Auths.Product.SlotRecordRefinement
@@ -911,7 +915,30 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile,
     `Auths.Product.ConnectionEntry.Refinement.source_disabled_refused,
     `Auths.Product.ConnectionEntry.Refinement.source_revoked_refused,
-    `Auths.Product.ConnectionEntry.admitted_binds_all
+    `Auths.Product.ConnectionEntry.admitted_binds_all,
+    `Auths.Product.ConnectionBytes.Refinement.lower_tail_exact,
+    `Auths.Product.ConnectionBytes.Refinement.graphic_valid_exact,
+    `Auths.Product.ConnectionBytes.Refinement.lower_valid_exact,
+    `Auths.Product.ConnectionBytes.Refinement.source_lower_earns_no_nul,
+    `Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_no_nul,
+    `Auths.Product.ConnectionBytes.Refinement.source_lower_earns_size_bound,
+    `Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_size_bound,
+    `Auths.Product.ConnectionBytes.lower_has_no_nul,
+    `Auths.Product.ConnectionBytes.graphic_has_no_nul,
+    `Auths.Product.ProfileConstructor.Refinement.constructor_exact,
+    `Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields,
+    `Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused,
+    `Auths.Product.SemanticId.Refinement.semantic_head_exact,
+    `Auths.Product.SemanticId.Refinement.semantic_tail_exact,
+    `Auths.Product.SemanticId.Refinement.semantic_valid_exact,
+    `Auths.Product.SemanticId.Refinement.source_earns_no_nul,
+    `Auths.Product.SemanticId.Refinement.source_earns_ascii,
+    `Auths.Product.SemanticId.Refinement.source_earns_bounds,
+    `Auths.Product.SemanticId.valid_has_no_nul,
+    `Auths.Product.SemanticId.valid_is_ascii,
+    `Auths.Product.ConnectionFrame.preimage_injective,
+    `Auths.Product.ConnectionFrame.validated_names_bind_both_fields,
+    `Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact
   ]
 
 end Auths

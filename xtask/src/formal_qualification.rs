@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "327f3b20152464c5d7e9d6d6295cdb47c576b24a1a00fd88c12d7414ac82a6ed";
+    "94d0a3fefdb75a3344bb2822641bdefff372d261deef3ebd81a2a55c1abeca49";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -308,6 +308,18 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
         "connections-run/translation.json",
         "formal/qualification/aeneas/generated/connections/translation.json",
     ),
+    (
+        "profile_construction-run/qualification/aeneas/generated/profile_construction/Types.lean",
+        "formal/qualification/aeneas/generated/profile_construction/Types.lean",
+    ),
+    (
+        "profile_construction-run/qualification/aeneas/generated/profile_construction/Funs.lean",
+        "formal/qualification/aeneas/generated/profile_construction/Funs.lean",
+    ),
+    (
+        "profile_construction-run/translation.json",
+        "formal/qualification/aeneas/generated/profile_construction/translation.json",
+    ),
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
@@ -432,6 +444,9 @@ const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/connections/Types.lean",
     "formal/qualification/aeneas/generated/connections/Funs.lean",
     "formal/qualification/aeneas/generated/connections/translation.json",
+    "formal/qualification/aeneas/generated/profile_construction/Types.lean",
+    "formal/qualification/aeneas/generated/profile_construction/Funs.lean",
+    "formal/qualification/aeneas/generated/profile_construction/translation.json",
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
@@ -470,6 +485,8 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
     "product/runtime/auths-gateway/src/recipe/tests.rs",
     "product/runtime/auths-gateway/src/store.rs",
     "product/runtime/auths-gateway/src/connection.rs",
+    "product/runtime/auths-connections/src/kernel.rs",
+    "product/runtime/auths-connections/src/model.rs",
     "core/crates/auths-model/src/principal_scheme_tests.rs",
     "core/crates/auths-model/src/scope_constructor_tests.rs",
     "core/crates/auths-codec/src/scope_decode_tests.rs",
@@ -527,6 +544,7 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
     "formal/qualification/aeneas/cases/Lifecycle.lean",
     "formal/qualification/aeneas/cases/Gateway.lean",
     "formal/qualification/aeneas/cases/Connections.lean",
+    "formal/qualification/aeneas/entrypoints/profile_construction.rs",
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
@@ -597,6 +615,10 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
     (
         "auths_connections",
         "formal/qualification/aeneas/generated/connections/translation.json",
+    ),
+    (
+        "auths_profile_construction",
+        "formal/qualification/aeneas/generated/profile_construction/translation.json",
     ),
 ];
 
@@ -1106,7 +1128,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
         return Err("qualified source delegation inventory drifted".to_owned());
     }
     if qualification.case_modules.len() != 17
-        || qualification.translations.len() != 17
+        || qualification.translations.len() != 18
         || qualification.external_models.len() != 25
         || qualification.warning_inventory.len() != 4
         || qualification.template_axioms.len() != 20
@@ -1136,6 +1158,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "temporal-recursive-loops-v1",
             "status-selection-qualified-discriminants-v1",
             "status-selection-recursive-loops-v1",
+            "profile-selection-source-paths-v1",
         ]
     {
         return Err("Aeneas code generation normalization inventory drifted".to_owned());
@@ -2477,6 +2500,14 @@ fn validate_translation_reports(root: &Path, qualification: &Qualification) -> R
                     .to_owned(),
             );
         }
+        if report.crate_name == "auths_profile_construction"
+            && report
+                .functions
+                .iter()
+                .any(|function| function.rust_name.starts_with("auths_") && function.is_opaque)
+        {
+            return Err("profile construction selection must translate the actual Auths constructor and every helper body".to_owned());
+        }
         let local = report
             .functions
             .iter()
@@ -3266,7 +3297,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_gateway_kernel::entry_authorization::entry_allows,auths_gateway_kernel::counter_aggregation::linked_sum_contribution,auths_gateway_kernel::slot_record::validate_cumulative,auths_gateway_kernel::reservation_batch::build_batch,auths_gateway_kernel::reservation_retry::retry_target,auths_gateway_kernel::counter_aggregation::aggregate_sum,auths_gateway_kernel::counter_aggregation::aggregate,auths_gateway_kernel::counter_preimages::count_counter_preimage,auths_gateway_kernel::counter_preimages::sum_counter_preimage,auths_gateway_kernel::counter_preimages::count_slot_preimage,auths_gateway_kernel::counter_preimages::sum_slot_preimage,auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
+            "auths_gateway_kernel::identity::connection_record_preimage,auths_gateway_kernel::entry_authorization::entry_allows,auths_gateway_kernel::counter_aggregation::linked_sum_contribution,auths_gateway_kernel::slot_record::validate_cumulative,auths_gateway_kernel::reservation_batch::build_batch,auths_gateway_kernel::reservation_retry::retry_target,auths_gateway_kernel::counter_aggregation::aggregate_sum,auths_gateway_kernel::counter_aggregation::aggregate,auths_gateway_kernel::counter_preimages::count_counter_preimage,auths_gateway_kernel::counter_preimages::sum_counter_preimage,auths_gateway_kernel::counter_preimages::count_slot_preimage,auths_gateway_kernel::counter_preimages::sum_slot_preimage,auths_gateway_kernel::frontier::_::new,auths_gateway_kernel::frontier::_::probe,auths_gateway_kernel::frontier::_::observe,auths_gateway_kernel::frontier::_::candidate,auths_gateway_kernel::deadline::entry_time_allows,auths_gateway_kernel::deadline::intersect_entry_bounds,auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::identity::valid_token,auths_gateway_kernel::identity::logical_operation_preimage,auths_gateway_kernel::construct::field_index,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
             &stable_llbc.join("auths_gateway_kernel.llbc"),
             "product/runtime/auths-gateway-kernel/Cargo.toml",
             &[],
@@ -3277,7 +3308,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
+            "auths_connections::kernel::semantic_id_valid,auths_connections::kernel::lower_token_valid,auths_connections::kernel::ascii_graphic_valid,auths_connections::kernel::next_generation,auths_connections::kernel::state_change,auths_connections::kernel::rotation,auths_connections::kernel::retained_generation,auths_connections::kernel::lease_generation",
             &stable_llbc.join("auths_connections.llbc"),
             "product/runtime/auths-connections/Cargo.toml",
             &[],
@@ -3367,6 +3398,21 @@ fn reproduce(
         root,
         &[],
     )?;
+    let profile_manifest = profile_selection_manifest(root, stable_llbc)?;
+    let mut profile_arguments = charon_arguments(
+        "auths_profile_construction::construct",
+        &stable_llbc.join("auths_profile_construction.llbc"),
+        &profile_manifest.display().to_string(),
+        &["--include", "auths_connections"],
+    );
+    profile_arguments.push("--locked".to_owned());
+    run_checked(charon, &profile_arguments, root, &[])?;
+    let profile_llbc = stable_llbc.join("auths_profile_construction.llbc");
+    let mut profile_document: Value =
+        serde_json::from_slice(&fs::read(&profile_llbc).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())?;
+    normalize_profile_source_paths(&mut profile_document, root)?;
+    write_pretty_json(&profile_llbc, &profile_document)?;
     normalize_p256_llbc_names(
         &stable_llbc.join("auths_signature_core_p256.llbc"),
         output,
@@ -3398,6 +3444,7 @@ fn reproduce(
         "auths_lifecycle",
         "auths_gateway_kernel",
         "auths_connections",
+        "auths_profile_construction",
     ] {
         let snapshot = llbc.join(format!("{crate_name}.llbc"));
         fs::copy(stable_llbc.join(format!("{crate_name}.llbc")), &snapshot).map_err(|error| {
@@ -3433,6 +3480,7 @@ fn reproduce(
         ("auths_lifecycle", "lifecycle"),
         ("auths_gateway_kernel", "gateway"),
         ("auths_connections", "connections"),
+        ("auths_profile_construction", "profile_construction"),
     ] {
         let destination = output.join(format!("{subdir}-run"));
         fs::create_dir_all(&destination).map_err(|error| {
@@ -3522,6 +3570,7 @@ fn reproduce(
         "auths_lifecycle",
         "auths_gateway_kernel",
         "auths_connections",
+        "auths_profile_construction",
     ] {
         fs::remove_file(llbc.join(format!("{crate_name}.llbc")))
             .map_err(|error| format!("could not remove raw nondeterministic LLBC: {error}"))?;
@@ -4191,6 +4240,111 @@ fn signature_primitive_context(source: &str) -> Result<String, String> {
         marker,
         "noncomputable section\n\nvariable [primitives : Auths.Crypto.Ed25519Primitives]\n",
     ))
+}
+
+/// A selector crate keeps method extraction outside production APIs. Its
+/// dependencies must remain a checksum-identical subset of the shipping lock.
+fn profile_selection_manifest(root: &Path, stable_llbc: &Path) -> Result<PathBuf, String> {
+    let directory = stable_llbc.join("profile-selection");
+    fs::create_dir_all(&directory)
+        .map_err(|e| format!("could not create profile selector: {e}"))?;
+    let source = root.join("formal/qualification/aeneas/entrypoints/profile_construction.rs");
+    let dependency = root.join("product/runtime/auths-connections");
+    let manifest = directory.join("Cargo.toml");
+    let contents = format!(
+        "[package]\nname = \"auths-profile-construction\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n[lib]\npath = {}\n[dependencies]\nauths-connections = {{ path = {} }}\n[workspace]\nresolver = \"3\"\n",
+        toml::Value::String(source.display().to_string()),
+        toml::Value::String(dependency.display().to_string()),
+    );
+    fs::write(&manifest, contents).map_err(|e| format!("could not write profile selector: {e}"))?;
+    fs::copy(root.join("Cargo.lock"), directory.join("Cargo.lock"))
+        .map_err(|e| format!("could not pin profile selector dependencies: {e}"))?;
+    run_checked(
+        "cargo",
+        &[
+            "metadata".to_owned(),
+            "--offline".to_owned(),
+            "--format-version".to_owned(),
+            "1".to_owned(),
+            "--manifest-path".to_owned(),
+            manifest.display().to_string(),
+        ],
+        root,
+        &[],
+    )?;
+    let original = fs::read_to_string(root.join("Cargo.lock")).map_err(|e| e.to_string())?;
+    let selected = fs::read_to_string(directory.join("Cargo.lock")).map_err(|e| e.to_string())?;
+    validate_profile_selection_lock(&original, &selected)?;
+    Ok(manifest)
+}
+
+/// Charon resolves a temporary manifest's source and dependency paths to
+/// absolute paths. Only its file-name metadata is made repository relative;
+/// function bodies, spans, options and embedded source bytes stay untouched.
+fn normalize_profile_source_paths(document: &mut Value, root: &Path) -> Result<(), String> {
+    let files = document["translated"]["files"]
+        .as_array_mut()
+        .ok_or("profile LLBC omits source file metadata")?;
+    let mut count = 0;
+    for file in files {
+        let Some(name) = file["name"]["Local"].as_str() else {
+            continue;
+        };
+        if let Ok(relative) = Path::new(name).strip_prefix(root) {
+            let relative = relative.to_str().ok_or("non-UTF8 profile source path")?;
+            file["name"]["Local"] = json!(relative);
+            count += 1;
+        }
+    }
+    if count != 3 {
+        return Err(format!(
+            "profile selection source inventory drifted: {count} files"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_profile_selection_lock(original: &str, selected: &str) -> Result<(), String> {
+    fn packages(source: &str) -> Result<Vec<toml::Value>, String> {
+        let document: toml::Value =
+            toml::from_str(source).map_err(|e| format!("invalid selector lock: {e}"))?;
+        document
+            .get("package")
+            .and_then(toml::Value::as_array)
+            .cloned()
+            .ok_or_else(|| "selector lock has no package inventory".to_owned())
+    }
+    fn identity(mut package: toml::Value) -> toml::Value {
+        if let Some(table) = package.as_table_mut() {
+            table.remove("dependencies");
+        }
+        package
+    }
+    let pinned: Vec<_> = packages(original)?.into_iter().map(identity).collect();
+    let mut selectors = 0;
+    for package in packages(selected)? {
+        if package.get("name").and_then(toml::Value::as_str) == Some("auths-profile-construction") {
+            if package.get("version").and_then(toml::Value::as_str) != Some("0.0.0")
+                || package.get("source").is_some()
+                || package.get("checksum").is_some()
+                || package.get("dependencies")
+                    != Some(&toml::Value::Array(vec![toml::Value::String(
+                        "auths-connections".to_owned(),
+                    )]))
+            {
+                return Err("profile selector is not the reviewed local selection crate".to_owned());
+            }
+            selectors += 1;
+        } else if !pinned.contains(&identity(package)) {
+            return Err(
+                "profile selector changed a shipping dependency identity or checksum".to_owned(),
+            );
+        }
+    }
+    if selectors != 1 {
+        return Err("profile selection lock must contain exactly one selector".to_owned());
+    }
+    Ok(())
 }
 
 fn charon_arguments(
@@ -5578,4 +5732,49 @@ def core.ops.range.RangeInclusive.contains {Idx U : Type}
 abbrev core.result.Result.unwrap_or := @_root_.core.result.Result.unwrap_or
 end AuthsScopeCodec
 "##.to_owned()
+}
+
+#[cfg(test)]
+mod profile_selection_lock_tests {
+    use super::{normalize_profile_source_paths, validate_profile_selection_lock};
+    use serde_json::json;
+    use std::path::Path;
+
+    #[test]
+    fn source_path_normalization_only_changes_file_names() {
+        let mut original = json!({"translated": {
+            "files": [
+                {"name": {"Local": "/reviewed/formal/selector.rs"}, "contents": "/reviewed/literal"},
+                {"name": {"Local": "/reviewed/product/model.rs"}},
+                {"name": {"Local": "/reviewed/product/lib.rs"}},
+                {"name": {"Local": "/rustc/core.rs"}}
+            ], "fun_decls": [{"body": "/reviewed/literal"}], "options": {"unchanged": true}
+        }});
+        let mut expected = original.clone();
+        for (index, relative) in ["formal/selector.rs", "product/model.rs", "product/lib.rs"]
+            .iter()
+            .enumerate()
+        {
+            expected["translated"]["files"][index]["name"]["Local"] = json!(relative);
+        }
+        normalize_profile_source_paths(&mut original, Path::new("/reviewed")).unwrap();
+        assert_eq!(original, expected);
+        assert!(normalize_profile_source_paths(&mut original, Path::new("/reviewed")).is_err());
+    }
+    const PINNED: &str = "[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\nsource = \"registry+test\"\nchecksum = \"aaa\"\n";
+    const SELECTOR: &str = "[[package]]\nname = \"auths-profile-construction\"\nversion = \"0.0.0\"\ndependencies = [\"auths-connections\"]\n";
+    #[test]
+    fn selection_accepts_only_pinned_dependency_identities_and_checksums() {
+        let valid = format!("{PINNED}{SELECTOR}");
+        assert!(validate_profile_selection_lock(PINNED, &valid).is_ok());
+        for mutation in [
+            valid.replace("1.0.0", "2.0.0"),
+            valid.replace("aaa", "bbb"),
+            valid.replace("auths-connections", "unreviewed"),
+        ] {
+            assert!(validate_profile_selection_lock(PINNED, &mutation).is_err());
+        }
+        assert!(validate_profile_selection_lock(PINNED, PINNED).is_err());
+        assert!(validate_profile_selection_lock(PINNED, &format!("{valid}{SELECTOR}")).is_err());
+    }
 }

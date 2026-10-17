@@ -12,6 +12,26 @@
 schema = "auths-proof-theorem-kinds/v1"
 
 [kinds]
+"Auths.Product.SemanticId.Refinement.semantic_head_exact" = "exact"
+"Auths.Product.SemanticId.Refinement.semantic_tail_exact" = "exact"
+"Auths.Product.SemanticId.Refinement.semantic_valid_exact" = "exact"
+"Auths.Product.SemanticId.Refinement.source_earns_no_nul" = "partial"
+"Auths.Product.SemanticId.Refinement.source_earns_ascii" = "partial"
+"Auths.Product.SemanticId.Refinement.source_earns_bounds" = "partial"
+"Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact" = "exact"
+
+"Auths.Product.ProfileConstructor.Refinement.constructor_exact" = "exact"
+"Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields" = "partial"
+"Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused" = "partial"
+
+"Auths.Product.ConnectionBytes.Refinement.lower_tail_exact" = "exact"
+"Auths.Product.ConnectionBytes.Refinement.graphic_valid_exact" = "exact"
+"Auths.Product.ConnectionBytes.Refinement.lower_valid_exact" = "exact"
+"Auths.Product.ConnectionBytes.Refinement.source_lower_earns_no_nul" = "partial"
+"Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_no_nul" = "partial"
+"Auths.Product.ConnectionBytes.Refinement.source_lower_earns_size_bound" = "partial"
+"Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_size_bound" = "partial"
+
 "Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact" = "exact"
 "Auths.Product.ConnectionEntry.Refinement.entry_allows_exact" = "exact"
 "Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile" = "partial"

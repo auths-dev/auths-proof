@@ -100,10 +100,163 @@ pub fn lease_generation(
     }
 }
 
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+fn lower_tail_valid(byte: u8) -> bool {
+    (byte >= b'a' && byte <= b'z') || (byte >= b'0' && byte <= b'9') || byte == b'-'
+}
+/// Whether bytes form a nonempty bounded `[a-z][a-z0-9-]*` token.
+/// Oversized buffers refuse before scanning; no string allocation is performed.
+#[must_use]
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+pub fn lower_token_valid(value: &[u8], maximum: usize) -> bool {
+    if value.is_empty() || value.len() > maximum {
+        return false;
+    }
+    let first = value[0];
+    if first < b'a' || first > b'z' {
+        return false;
+    }
+    let mut index = 0;
+    while index < value.len() {
+        let byte = value[index];
+        if !lower_tail_valid(byte) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+/// Whether bytes are nonempty, bounded and entirely printable ASCII.
+/// NUL, whitespace, control bytes and UTF-8 multibyte sequences refuse.
+#[must_use]
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+pub fn ascii_graphic_valid(value: &[u8], maximum: usize) -> bool {
+    if value.is_empty() || value.len() > maximum {
+        return false;
+    }
+    let mut index = 0;
+    while index < value.len() {
+        let byte = value[index];
+        if byte < 0x21 || byte > 0x7e {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+fn semantic_head_valid(byte: u8) -> bool {
+    (byte >= b'a' && byte <= b'z')
+        || (byte >= b'A' && byte <= b'Z')
+        || (byte >= b'0' && byte <= b'9')
+}
+fn semantic_tail_valid(byte: u8) -> bool {
+    semantic_head_valid(byte)
+        || byte == b'.'
+        || byte == b'_'
+        || byte == b':'
+        || byte == b'/'
+        || byte == b'-'
+}
+/// Whether bytes form a nonempty bounded `[A-Za-z0-9][A-Za-z0-9._:/-]*` identifier.
+/// Oversized input refuses before scanning; no allocation is performed.
+#[must_use]
+pub fn semantic_id_valid(value: &[u8], maximum: usize) -> bool {
+    if value.is_empty() || value.len() > maximum {
+        return false;
+    }
+    if !semantic_head_valid(value[0]) {
+        return false;
+    }
+    let mut index = 0;
+    while index < value.len() {
+        if !semantic_tail_valid(value[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn original(value: &[u8], maximum: usize) -> bool {
+        (1..=maximum).contains(&value.len())
+            && value.is_ascii()
+            && value.iter().copied().enumerate().all(|(index, byte)| {
+                byte.is_ascii_alphanumeric()
+                    || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'/' | b'-'))
+            })
+    }
+    #[test]
+    fn original_semantic_grammar_for_all_byte_pairs_and_length_boundaries() {
+        for first in 0..=u8::MAX {
+            for second in 0..=u8::MAX {
+                let pair = [first, second];
+                for length in 0..=2 {
+                    for maximum in [0, 1, 2, 128, usize::MAX] {
+                        assert_eq!(
+                            semantic_id_valid(&pair[..length], maximum),
+                            original(&pair[..length], maximum)
+                        );
+                    }
+                }
+            }
+        }
+        for length in [127, 128, 129] {
+            let mut value = vec![b'a'; length];
+            for index in 0..length {
+                for byte in 0..=u8::MAX {
+                    value[index] = byte;
+                    assert_eq!(semantic_id_valid(&value, 128), original(&value, 128));
+                }
+                value[index] = b'a';
+            }
+        }
+    }
+
+    fn oracle_lower(value: &[u8], maximum: usize) -> bool {
+        (1..=maximum).contains(&value.len())
+            && value.is_ascii()
+            && value.iter().copied().enumerate().all(|(index, byte)| {
+                byte.is_ascii_lowercase() || (index > 0 && (byte.is_ascii_digit() || byte == b'-'))
+            })
+    }
+    #[test]
+    fn all_byte_pairs_preserve_the_original_ascii_predicates() {
+        for first in 0..=u8::MAX {
+            for second in 0..=u8::MAX {
+                let bytes = [first, second];
+                for length in 0..=2 {
+                    for maximum in [0, 1, 2, 64, usize::MAX] {
+                        let value = &bytes[..length];
+                        assert_eq!(
+                            lower_token_valid(value, maximum),
+                            oracle_lower(value, maximum)
+                        );
+                        let expected = (1..=maximum).contains(&value.len())
+                            && value.iter().all(u8::is_ascii_graphic);
+                        assert_eq!(ascii_graphic_valid(value, maximum), expected);
+                    }
+                }
+            }
+        }
+    }
     #[test]
     fn state_changes_keep_and_rotations_set_the_credential_generation() {
         let installed = Generations {
