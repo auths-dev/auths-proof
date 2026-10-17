@@ -10,7 +10,7 @@ extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
 # Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
-codegen_normalizations = ["scope-codec-qualified-discriminants-v1", "scope-codec-recursive-loops-v1", "composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1", "profile-selection-source-paths-v1", "connections-qualified-discriminants-v1"]
+codegen_normalizations = ["scope-codec-qualified-discriminants-v1", "scope-codec-recursive-loops-v1", "composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1", "connection-construction-source-paths-v2", "connections-qualified-discriminants-v1"]
 
 source_files = [
   "product/runtime/auths-gateway-kernel/src/reservation_batch.rs",
@@ -229,6 +229,8 @@ generated_files = [
   "formal/qualification/aeneas/generated/connections/Funs.lean",
   "formal/qualification/aeneas/generated/connections/translation.json",
   "formal/qualification/aeneas/generated/profile_construction/Types.lean",
+  "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
   "formal/qualification/aeneas/generated/profile_construction/Funs.lean",
   "formal/qualification/aeneas/generated/profile_construction/translation.json",
 ]
@@ -1265,8 +1267,13 @@ compiled = false
 [[translations]]
 crate_name = "auths_profile_construction"
 translation_json = "formal/qualification/aeneas/generated/profile_construction/translation.json"
-local_functions = 1
-external_functions = 1
+local_functions = 4
+external_functions = 17
 opaque_local_functions = 0
-required_symbols = ["auths_connections::model::{auths_connections::model::ConnectionProfile}::new", "auths_profile_construction::construct"]
-allowed_external_symbols = ["auths_connections::model::{auths_connections::model::ConnectionProfile}::new"]
+required_symbols = ["auths_connections::model::{auths_connections::model::ConnectionAlias}::parse", "auths_connections::model::{auths_connections::model::ConnectionProfile}::new", "auths_connections::model::{auths_connections::model::ProviderKind}::parse", "auths_connections::model::{auths_connections::model::SemanticId}::parse", "auths_profile_construction::construct", "auths_profile_construction::parse_alias", "auths_profile_construction::parse_provider", "auths_profile_construction::parse_semantic"]
+allowed_external_symbols = ["alloc::string::{alloc::string::String}::as_bytes", "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::model::is_lower_token", "auths_connections::model::{auths_connections::model::ConnectionAlias}::parse", "auths_connections::model::{auths_connections::model::ConnectionProfile}::new", "auths_connections::model::{auths_connections::model::ProviderKind}::parse", "auths_connections::model::{auths_connections::model::SemanticId}::parse", "core::str::{str}::as_bytes"]
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean"
+count = 3
+compiled = false

@@ -4,7 +4,311 @@
   "crate": "auths_profile_construction",
   "functions": [
     {
-      "def_id": 1,
+      "def_id": 16,
+      "lean_name": "auths_profile_construction.core.str.Str.as_bytes",
+      "lean_file": "qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+      "rust_name": "core::str::{str}::as_bytes",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/str/mod.rs",
+        "begin_line": 498,
+        "end_line": 498
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 14,
+      "lean_name": "auths_profile_construction.alloc.string.String.as_bytes",
+      "lean_file": "qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+      "rust_name": "alloc::string::{alloc::string::String}::as_bytes",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/alloc/src/string.rs",
+        "begin_line": 1454,
+        "end_line": 1454
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_profile_construction.alloc.string.String.Insts.CoreOpsDerefDerefStr.deref",
+      "lean_file": "qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+      "rust_name": "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/alloc/src/string.rs",
+        "begin_line": 2835,
+        "end_line": 2835
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.lower_tail_valid",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::lower_tail_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 106,
+        "end_line": 106
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.lower_token_valid_loop.body",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::lower_token_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 125,
+        "end_line": 133
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_profile_construction.auths_connections.kernel.lower_token_valid"
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.lower_token_valid_loop",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::lower_token_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 125,
+        "end_line": 133
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_profile_construction.auths_connections.kernel.lower_token_valid"
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.lower_token_valid",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::lower_token_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 116,
+        "end_line": 116
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 20,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.semantic_head_valid",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::semantic_head_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 160,
+        "end_line": 160
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 21,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.semantic_tail_valid",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::semantic_tail_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 165,
+        "end_line": 165
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.semantic_id_valid_loop.body",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::semantic_id_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 184,
+        "end_line": 191
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_profile_construction.auths_connections.kernel.semantic_id_valid"
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.semantic_id_valid_loop",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::semantic_id_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 184,
+        "end_line": 191
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_profile_construction.auths_connections.kernel.semantic_id_valid"
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_profile_construction.auths_connections.kernel.semantic_id_valid",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::kernel::semantic_id_valid",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 176,
+        "end_line": 176
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_profile_construction.auths_connections.model.is_lower_token",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::model::is_lower_token",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 1087,
+        "end_line": 1087
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_profile_construction.auths_connections.model.ProviderKind.parse",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::model::{auths_connections::model::ProviderKind}::parse",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 28,
+        "end_line": 28
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionAlias.parse",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::model::{auths_connections::model::ConnectionAlias}::parse",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 53,
+        "end_line": 53
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 7,
+      "lean_name": "auths_profile_construction.auths_connections.model.SemanticId.parse",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_connections::model::{auths_connections::model::SemanticId}::parse",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 78,
+        "end_line": 78
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
       "lean_name": "auths_profile_construction.auths_connections.model.ConnectionProfile.new",
       "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
       "rust_name": "auths_connections::model::{auths_connections::model::ConnectionProfile}::new",
@@ -36,9 +340,96 @@
       "can_diverge": false,
       "is_rec": false,
       "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_profile_construction.parse_provider",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_profile_construction::parse_provider",
+      "is_local": true,
+      "source": {
+        "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+        "begin_line": 13,
+        "end_line": 17
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_profile_construction.parse_alias",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_profile_construction::parse_alias",
+      "is_local": true,
+      "source": {
+        "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+        "begin_line": 20,
+        "end_line": 24
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_profile_construction.parse_semantic",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Funs.lean",
+      "rust_name": "auths_profile_construction::parse_semantic",
+      "is_local": true,
+      "source": {
+        "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+        "begin_line": 27,
+        "end_line": 31
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
     }
   ],
   "types": [
+    {
+      "def_id": 5,
+      "lean_name": "auths_profile_construction.auths_connections.model.ProviderKind",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
+      "rust_name": "auths_connections::model::ProviderKind",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 20,
+        "end_line": 20
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionRecordError",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
+      "rust_name": "auths_connections::model::ConnectionRecordError",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 1019,
+        "end_line": 1019
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionAlias",
+      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
+      "rust_name": "auths_connections::model::ConnectionAlias",
+      "is_local": false,
+      "source": {
+        "file": "product/runtime/auths-connections/src/model.rs",
+        "begin_line": 45,
+        "end_line": 45
+      }
+    },
     {
       "def_id": 0,
       "lean_name": "auths_profile_construction.auths_connections.model.SemanticId",
@@ -61,18 +452,6 @@
         "file": "product/runtime/auths-connections/src/model.rs",
         "begin_line": 151,
         "end_line": 151
-      }
-    },
-    {
-      "def_id": 3,
-      "lean_name": "auths_profile_construction.auths_connections.model.ConnectionRecordError",
-      "lean_file": "qualification/aeneas/generated/profile_construction/Types.lean",
-      "rust_name": "auths_connections::model::ConnectionRecordError",
-      "is_local": false,
-      "source": {
-        "file": "product/runtime/auths-connections/src/model.rs",
-        "begin_line": 1019,
-        "end_line": 1019
       }
     }
   ],

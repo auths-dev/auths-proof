@@ -1186,6 +1186,9 @@ core/crates/auths-verifier/src/trace.rs	258	290	33	TraceCollector::record_with_p
 core/crates/auths-verifier/src/trace.rs	292	296	5	TraceCollector::set_final_node	core/crates/auths-verifier	explanation	0	0		0	0	0	0
 core/crates/auths-verifier/src/trace.rs	298	305	8	TraceCollector::finish	core/crates/auths-verifier	explanation	0	0		0	0	0	0
 formal/qualification/aeneas/entrypoints/profile_construction.rs	5	10	6	construct	extraction-selector:auths_profile_construction	interface	0	0		1	0	0	0
+formal/qualification/aeneas/entrypoints/profile_construction.rs	13	17	5	parse_provider	extraction-selector:auths_profile_construction	interface	0	0		1	0	0	0
+formal/qualification/aeneas/entrypoints/profile_construction.rs	20	24	5	parse_alias	extraction-selector:auths_profile_construction	interface	0	0		1	0	0	0
+formal/qualification/aeneas/entrypoints/profile_construction.rs	27	31	5	parse_semantic	extraction-selector:auths_profile_construction	interface	0	0		1	0	0	0
 product/policy/auths-bounded-policy/src/arithmetic.rs	16	18	3	UnitQuantity::new	product/policy/auths-bounded-policy	decision	1	0	1	0	0	0	0
 product/policy/auths-bounded-policy/src/arithmetic.rs	22	24	3	UnitQuantity::unit	product/policy/auths-bounded-policy	decision	1	0	1	0	0	0	0
 product/policy/auths-bounded-policy/src/arithmetic.rs	28	30	3	UnitQuantity::amount	product/policy/auths-bounded-policy	decision	1	0	1	0	0	0	0
@@ -1375,11 +1378,11 @@ product/runtime/auths-connections/src/lib.rs	108	117	10	ProviderCredentialLease:
 product/runtime/auths-connections/src/lib.rs	124	129	6	ProviderCredentialLease::expose	product/runtime/auths-connections	decision	0	0		0	0	0	0
 product/runtime/auths-connections/src/lib.rs	133	135	3	ProviderCredentialLease::fmt	product/runtime/auths-connections	decision	0	0		0	0	0	0
 product/runtime/auths-connections/src/lib.rs	139	141	3	ProviderCredentialLease::drop	product/runtime/auths-connections	decision	0	0		0	0	0	0
-product/runtime/auths-connections/src/model.rs	28	34	7	ProviderKind::parse	product/runtime/auths-connections	decision	0	0		0	0	0	0
+product/runtime/auths-connections/src/model.rs	28	34	7	ProviderKind::parse	product/runtime/auths-connections	decision	0	0		1	1	1	2
 product/runtime/auths-connections/src/model.rs	38	40	3	ProviderKind::as_str	product/runtime/auths-connections	decision	0	0		0	0	0	0
-product/runtime/auths-connections/src/model.rs	53	59	7	ConnectionAlias::parse	product/runtime/auths-connections	decision	0	0		0	0	0	0
+product/runtime/auths-connections/src/model.rs	53	59	7	ConnectionAlias::parse	product/runtime/auths-connections	decision	0	0		1	1	1	2
 product/runtime/auths-connections/src/model.rs	63	65	3	ConnectionAlias::as_str	product/runtime/auths-connections	decision	0	0		0	0	0	0
-product/runtime/auths-connections/src/model.rs	78	85	8	SemanticId::parse	product/runtime/auths-connections	decision	0	0		0	0	0	0
+product/runtime/auths-connections/src/model.rs	78	85	8	SemanticId::parse	product/runtime/auths-connections	decision	0	0		1	1	1	2
 product/runtime/auths-connections/src/model.rs	89	91	3	SemanticId::as_str	product/runtime/auths-connections	decision	0	0		0	0	0	0
 product/runtime/auths-connections/src/model.rs	105	112	8	ConnectionId::generate	product/runtime/auths-connections	decision	0	0		0	0	0	0
 product/runtime/auths-connections/src/model.rs	119	131	13	ConnectionId::parse	product/runtime/auths-connections	decision	0	0		0	0	0	0

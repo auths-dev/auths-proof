@@ -15,8 +15,8 @@
     "lean_toolchain": "leanprover/lean4:v4.31.0",
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
-  "scope_definition_sha256": "3f812ebd5268128064fd5d8b25b9cf248450dd6c228def7899e4410d9de4e115",
-  "inputs_sha256": "0336c871a7c527d902f56fd200b64f581ea41618523e3a5c23f611b1baaa23b0",
+  "scope_definition_sha256": "924afe1aad5bb049343ddb47be952864220fda6ded4185759aca7640d8741154",
+  "inputs_sha256": "db80153ef097facd7595d735eb6a2baa3fa8887606b3969fac475c0df352f06b",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -69,9 +69,9 @@
     "core/crates/auths-verifier/src/temporal_tests.rs": "sha256:c242d8bed72936ea7437e45ab88b98b28f0d82f9f92a6f750ef8b27fa71e8fef",
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:fed8e34c73ffde17881c8c8fc36bf943e7db699f042c7a0f0f3ce54afe74143c",
-    "formal/coverage-scope-v1.toml": "sha256:3f812ebd5268128064fd5d8b25b9cf248450dd6c228def7899e4410d9de4e115",
-    "formal/lean-assurance-audit-v1.json": "sha256:c08c0c8437011c5f5d2f56be03ddfd75a28629051f9e1c1db418d7b166cd09aa",
-    "formal/qualification/aeneas/entrypoints/profile_construction.rs": "sha256:4367225002727acf127d93eaa3d0e3a2eca264484c6a49840584e8b25c575da3",
+    "formal/coverage-scope-v1.toml": "sha256:924afe1aad5bb049343ddb47be952864220fda6ded4185759aca7640d8741154",
+    "formal/lean-assurance-audit-v1.json": "sha256:f2182bdc5743a83d11e4f6b3bfea26d8360f6f5ed971182192684dbaf1f0ddae",
+    "formal/qualification/aeneas/entrypoints/profile_construction.rs": "sha256:4e6c4a3bfbd147a5ceab64e24a80fe10f08b0715210343b6be63fecaffdbd5ee",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
     "formal/qualification/aeneas/generated/authority/Funs.lean": "sha256:2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
@@ -92,8 +92,8 @@
     "formal/qualification/aeneas/generated/model/translation.json": "sha256:4252f051b873e98cd1c7cbd198017bcbf23d7e7a87389616731f2271c84670b8",
     "formal/qualification/aeneas/generated/p256/Funs.lean": "sha256:d2d7d4ecaec037e905f86b66ac902103562ff38124469b1c1dbc8c099cccf29f",
     "formal/qualification/aeneas/generated/p256/translation.json": "sha256:e2887ab5a96302d086e224c568a6c0d25eff8206f680217d80a669e6b8c7756c",
-    "formal/qualification/aeneas/generated/profile_construction/Funs.lean": "sha256:a64f570020bd7e1939516a60fc248a7e1aca16796850a29c986616892e171563",
-    "formal/qualification/aeneas/generated/profile_construction/translation.json": "sha256:5850fd94edeeff7324aed7e867158cb6d837276d833a203c7681f6e360a1c568",
+    "formal/qualification/aeneas/generated/profile_construction/Funs.lean": "sha256:bdecf66a81de6b554a06baed53ad119d503dd5857162d60bff411271d8ce66c3",
+    "formal/qualification/aeneas/generated/profile_construction/translation.json": "sha256:b1017fcc0f6986ee71ae0a6131ecaeb57f4ecfc2a134668aa9463adb11c5e358",
     "formal/qualification/aeneas/generated/scope_codec/Funs.lean": "sha256:7ce527b9e194e8470f9355dba67b31ce9efbbea8bec7d9c1e6a9b58fe037abed",
     "formal/qualification/aeneas/generated/scope_codec/translation.json": "sha256:d19dddc8ecf98120d9035f514bc8310c90fb8c197bffa8958ef34097c4411beb",
     "formal/qualification/aeneas/generated/sha256/Funs.lean": "sha256:ac717d96e3eb922e16e6fe25f5d64076a9c3adc0a0b9be20e0966e136b81100a",
@@ -108,8 +108,8 @@
     "formal/qualification/aeneas/generated/suite_adapter/translation.json": "sha256:58efad7d457adcb1808658075f5e4ef504f54398563a42a3f824e864d47557b6",
     "formal/qualification/aeneas/generated/temporal_witness/Funs.lean": "sha256:05aad591f331d9e6c6c0f33e75f062a048d390a99b5cee4c43ce52343dc030de",
     "formal/qualification/aeneas/generated/temporal_witness/translation.json": "sha256:068ff2fe97c4abe40ab641ca6ce6f150320da3a52513d63f025807f5ee57cd0f",
-    "formal/qualification/aeneas/qualification.toml": "sha256:6c16824276d865d7697f1c96946f96ddf91060190304f39d160b1c21a9a83e9d",
-    "formal/theorem-kinds-v1.toml": "sha256:585d354d73c5accdddec599392f1d525d308540afde5cc227b46a647f3a92c42",
+    "formal/qualification/aeneas/qualification.toml": "sha256:dcab571b63f75f107cb93de81f729f7c61a9f17eccca74d3ed1a19fd3bff9e33",
+    "formal/theorem-kinds-v1.toml": "sha256:5d6fef3498a9f2b526be3e15faac28eba07275054aca4e70786d9e3d4cc1b1c9",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -121,9 +121,10 @@
     "product/runtime/auths-connections/src/credential.rs": "sha256:82921413bb053f0f6c7931fbd4e6a86c8cc1d8c6b51debd9c2cef33a8d5b1c51",
     "product/runtime/auths-connections/src/kernel.rs": "sha256:bfba5aeb9d67f6e067766cffd1173607dacdb1530c673f0d1dceba74b5598b2b",
     "product/runtime/auths-connections/src/lib.rs": "sha256:79209249a0acba0e854d9937255ea0e30a9a6f8e1c2baad77ab83646d392de22",
-    "product/runtime/auths-connections/src/model.rs": "sha256:927d3df0041a5bbca85950170ddbd4369f0d3d73ec037569bbeb9ee89ea32969",
+    "product/runtime/auths-connections/src/model.rs": "sha256:ce9893776b59bc0b8fd84e4f973a1c540bbd17dd28a7274ebb303d8e126ea071",
     "product/runtime/auths-connections/src/recovery_guard_tests.rs": "sha256:ce918bca22cd4f1d2d430951ba191e76ee5dc2b0fa145acf13da08ba52274a62",
     "product/runtime/auths-connections/src/registry.rs": "sha256:e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946",
+    "product/runtime/auths-connections/src/string_constructor_tests.rs": "sha256:7af0e6b75baef268c9b11ea8aa551e8e7793d26378b11455ead7dcb7f2493008",
     "product/runtime/auths-gateway-kernel/src/construct.rs": "sha256:ba592901a463c2cd81dc434ae62f33efeccc5e13f441a0dff65d60162a588b61",
     "product/runtime/auths-gateway-kernel/src/counter_aggregation.rs": "sha256:4bc970895b118f71c074a091ede8d0c558ed43d912ae5d0aebdc03aa64a8f78c",
     "product/runtime/auths-gateway-kernel/src/counter_preimages.rs": "sha256:d364f9c9955dbbda5e18dba547169a3ec61f5147153308b14eb85456bd04c175",
@@ -234,6 +235,7 @@
       "core/crates/auths-verifier/src/trace.rs": "explanation",
       "formal/qualification/aeneas/entrypoints/profile_construction.rs": "interface",
       "product/runtime/auths-connections/src/recovery_guard_tests.rs": "test-support",
+      "product/runtime/auths-connections/src/string_constructor_tests.rs": "test-support",
       "product/runtime/auths-lifecycle/src/codec.rs": "decoding",
       "product/runtime/auths-lifecycle/src/sealed.rs": "storage",
       "product/runtime/auths-lifecycle/src/test_support.rs": "test-support",
@@ -317,28 +319,28 @@
       "code_lines": 22510,
       "by_level": {
         "translated": {
-          "functions": 381,
-          "function_share": 0.2075,
-          "span_lines": 4480,
-          "span_line_share": 0.1982,
-          "code_lines": 4457,
-          "code_line_share": 0.198
+          "functions": 384,
+          "function_share": 0.2092,
+          "span_lines": 4502,
+          "span_line_share": 0.1991,
+          "code_lines": 4479,
+          "code_line_share": 0.199
         },
         "direct": {
-          "functions": 174,
-          "function_share": 0.0948,
-          "span_lines": 2600,
-          "span_line_share": 0.115,
-          "code_lines": 2578,
-          "code_line_share": 0.1145
+          "functions": 177,
+          "function_share": 0.0964,
+          "span_lines": 2622,
+          "span_line_share": 0.116,
+          "code_lines": 2600,
+          "code_line_share": 0.1155
         },
         "closure": {
-          "functions": 381,
-          "function_share": 0.2075,
-          "span_lines": 4480,
-          "span_line_share": 0.1982,
-          "code_lines": 4457,
-          "code_line_share": 0.198
+          "functions": 384,
+          "function_share": 0.2092,
+          "span_lines": 4502,
+          "span_line_share": 0.1991,
+          "code_lines": 4479,
+          "code_line_share": 0.199
         }
       }
     },
@@ -638,9 +640,9 @@
     "product/runtime/auths-connections": {
       "decision_functions": 163,
       "decision_code_lines": 2019,
-      "translated": 16,
-      "refined_closure": 16,
-      "refined_closure_code_lines": 192
+      "translated": 19,
+      "refined_closure": 19,
+      "refined_closure_code_lines": 214
     },
     "product/runtime/auths-gateway-kernel": {
       "decision_functions": 132,
@@ -3037,6 +3039,36 @@
         10
       ],
       "decision_scope": false
+    },
+    {
+      "rust_name": "auths_profile_construction::parse_provider",
+      "lean_name": "auths_profile_construction.parse_provider",
+      "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+      "span": [
+        13,
+        17
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_profile_construction::parse_alias",
+      "lean_name": "auths_profile_construction.parse_alias",
+      "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+      "span": [
+        20,
+        24
+      ],
+      "decision_scope": false
+    },
+    {
+      "rust_name": "auths_profile_construction::parse_semantic",
+      "lean_name": "auths_profile_construction.parse_semantic",
+      "file": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+      "span": [
+        27,
+        31
+      ],
+      "decision_scope": false
     }
   ],
   "theorem_kinds": {
@@ -3315,6 +3347,12 @@
       "Auths.Product.SlotRecord.Refinement.source_accepted_binds_record": "partial",
       "Auths.Product.SlotRecord.Refinement.source_invalid_record_refused": "partial",
       "Auths.Product.SlotRecord.Refinement.validate_cumulative_exact": "exact",
+      "Auths.Product.StringConstructors.Refinement.actual_alias_exact": "exact",
+      "Auths.Product.StringConstructors.Refinement.actual_provider_exact": "exact",
+      "Auths.Product.StringConstructors.Refinement.actual_semantic_exact": "exact",
+      "Auths.Product.StringConstructors.Refinement.alias_success_earns_exact_valid_payload": "partial",
+      "Auths.Product.StringConstructors.Refinement.provider_success_earns_exact_valid_payload": "partial",
+      "Auths.Product.StringConstructors.Refinement.semantic_success_earns_exact_valid_payload": "partial",
       "Auths.Refinement.Approval.translated_approval_counts_refines_model": "exact",
       "Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model": "exact",
       "Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model": "exact",
@@ -3423,20 +3461,20 @@
     }
   },
   "translation_inventory": {
-    "aeneas_local_definitions": 577,
+    "aeneas_local_definitions": 583,
     "by_kind": {
-      "function": 404,
+      "function": 410,
       "loop": 144,
       "closure-shim": 11,
       "derived": 18
     },
-    "refined_direct": 179,
-    "refined_closure": 421,
-    "theorems_naming_translated_functions": 379
+    "refined_direct": 182,
+    "refined_closure": 424,
+    "theorems_naming_translated_functions": 385
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "e8f059cb993f8cfd82db0d3c8d45d534fe6c446c064fec120ed5c1b57fb46511",
+    "current_formal_inputs_sha256": "2c725c09c1ae046210a3f874c4c706bb0efc829716e4e54bd5116a1ceead72ab",
     "fresh": false,
     "campaigns": {
       "s1": {

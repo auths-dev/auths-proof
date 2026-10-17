@@ -4569,6 +4569,53 @@ fn connection_frame_refinement_metadata(declaration: &str) -> Option<ProductionR
 fn profile_construction_refinement_metadata(
     declaration: &str,
 ) -> Option<ProductionRefinementMetadata> {
+    if declaration.starts_with("Auths.Product.StringConstructors.Refinement.") {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Product.StringConstructors.Refinement.actual_provider_exact" => (
+                "The actual ProviderKind String constructor returns exactly the independent complete lowercase provider language decision and typed error, preserving the supplied string on success.",
+                &["auths_connections::model::{auths_connections::model::ProviderKind}::parse"],
+            ),
+            "Auths.Product.StringConstructors.Refinement.provider_success_earns_exact_valid_payload" => {
+                (
+                    "Successful actual ProviderKind construction earns its complete UTF-8 byte grammar and exact input-payload preservation; no valid-input premise is assumed.",
+                    &["auths_connections::model::{auths_connections::model::ProviderKind}::parse"],
+                )
+            }
+            "Auths.Product.StringConstructors.Refinement.actual_alias_exact" => (
+                "The actual ConnectionAlias String constructor returns exactly the independent complete lowercase alias language decision and typed error, preserving the supplied string on success.",
+                &["auths_connections::model::{auths_connections::model::ConnectionAlias}::parse"],
+            ),
+            "Auths.Product.StringConstructors.Refinement.alias_success_earns_exact_valid_payload" => {
+                (
+                    "Successful actual ConnectionAlias construction earns its complete UTF-8 byte grammar and exact input-payload preservation; no valid-input premise is assumed.",
+                    &[
+                        "auths_connections::model::{auths_connections::model::ConnectionAlias}::parse",
+                    ],
+                )
+            }
+            "Auths.Product.StringConstructors.Refinement.actual_semantic_exact" => (
+                "The actual SemanticId String constructor returns exactly the independent complete semantic identifier language decision and typed error, preserving the supplied string on success.",
+                &["auths_connections::model::{auths_connections::model::SemanticId}::parse"],
+            ),
+            "Auths.Product.StringConstructors.Refinement.semantic_success_earns_exact_valid_payload" => {
+                (
+                    "Successful actual SemanticId construction earns its complete UTF-8 byte grammar and exact input-payload preservation; no valid-input premise is assumed.",
+                    &["auths_connections::model::{auths_connections::model::SemanticId}::parse"],
+                )
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Actual generic constructors specialized to the standard owned-String identity conversion. Every String within the existing reviewed UTF-8 model's portable U32 byte-size bound is covered, including arbitrary malformed identifiers and all Unicode strings in that bound.",
+            residual_assumptions: &[
+                "Lean's kernel, pinned toolchain, foundational axioms and existing reviewed String/UTF-8 standard interfaces are trusted. The String representation bound is an explicit input premise, not a validity or desired-result premise. Explicit bounds avoid the native-default proof in the upstream toStr helper.",
+                "Every Auths constructor and byte helper is transparently translated. Byte-helper reuse is by definitional equality with the already qualified owner, and std projections are direct aliases to reviewed models. Other Into<String> implementations, larger modeled String carriers, complete protocol decoding, allocation failure and whole runtime caller composition remain separate.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     let claim_text = match declaration {
         "Auths.Product.ProfileConstructor.Refinement.constructor_exact" => {
             "The unchanged actual inherent profile constructor returns exactly InvalidProfile at version zero and otherwise constructs exactly the supplied semantic identifier and version. No result or nonzero-version premise is assumed."

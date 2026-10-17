@@ -1,3 +1,4 @@
+import Auths.Product.StringConstructorsRefinement
 import Auths.Product.RecoveryGateRefinement
 import Auths.Product.SemanticIdRefinement
 import Auths.Product.ConnectionFrameRefinement
@@ -129,3 +130,50 @@ example : kernel.record_change_allows .Disabled 10#u64 10#u64 = ok true := by rf
 example : kernel.record_change_allows .Revoked 10#u64 11#u64 = ok false := by rfl
 example : kernel.record_change_allows .Active 10#u64 9#u64 = ok false := by rfl
 end qualification.aeneas.cases.AdministrativeChanges
+
+namespace qualification.aeneas.cases.OwnedStringConstructors
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open Auths.Product.StringConstructors.Refinement
+private def provider := String.ofList ['s', 't', 'r', 'i', 'p', 'e']
+private def unicodeAlias := String.ofList ['é']
+private def semantic := String.ofList ['A', ':', '1']
+example :
+    auths_profile_construction.auths_connections.model.ProviderKind.parse
+      (core.convert.IntoFrom (core.convert.FromSame String)) provider ⦃ actual => actual = .Ok provider ⦄ := by
+  step with actual_provider_exact provider (by change 6 ≤ U32.max; scalar_tac) as ⟨actual, exactMeaning⟩
+  have accepted : Auths.Product.ConnectionBytes.lowerValid (utf8Bytes provider) 64 := by
+    unfold utf8Bytes provider
+    simp only [String.toByteArray_ofList]
+    unfold ByteArray.toList
+    iterate 7 (rw [ByteArray.toList.loop]; norm_num only)
+    change Auths.Product.ConnectionBytes.lowerValid [115, 116, 114, 105, 112, 101] 64
+    decide
+  simpa [accepted] using exactMeaning
+
+example :
+    auths_profile_construction.auths_connections.model.ConnectionAlias.parse
+      (core.convert.IntoFrom (core.convert.FromSame String)) unicodeAlias ⦃ actual => actual = .Err .InvalidAlias ⦄ := by
+  step with actual_alias_exact unicodeAlias (by change 2 ≤ U32.max; scalar_tac) as ⟨actual, exactMeaning⟩
+  have refused : ¬ Auths.Product.ConnectionBytes.lowerValid (utf8Bytes unicodeAlias) 64 := by
+    unfold utf8Bytes unicodeAlias
+    simp only [String.toByteArray_ofList]
+    unfold ByteArray.toList
+    iterate 3 (rw [ByteArray.toList.loop]; norm_num only)
+    change ¬ Auths.Product.ConnectionBytes.lowerValid [195, 169] 64
+    decide
+  simpa [refused] using exactMeaning
+
+example :
+    auths_profile_construction.auths_connections.model.SemanticId.parse
+      (core.convert.IntoFrom (core.convert.FromSame String)) semantic ⦃ actual => actual = .Ok semantic ⦄ := by
+  step with actual_semantic_exact semantic (by change 3 ≤ U32.max; scalar_tac) as ⟨actual, exactMeaning⟩
+  have accepted : Auths.Product.SemanticId.valid (utf8Bytes semantic) 128 := by
+    unfold utf8Bytes semantic
+    simp only [String.toByteArray_ofList]
+    unfold ByteArray.toList
+    iterate 4 (rw [ByteArray.toList.loop]; norm_num only)
+    change Auths.Product.SemanticId.valid [65, 58, 49] 128
+    decide
+  simpa [accepted] using exactMeaning
+end qualification.aeneas.cases.OwnedStringConstructors

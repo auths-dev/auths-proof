@@ -5,6 +5,41 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified actual String-constructor checkpoint — 17 October 2026
+
+The latest checkpoint qualifies **877 compiled claims**, all 871 preceding full
+declaration records unchanged, with no new axioms. The 3,522-job Lean build,
+18/18 qualification cases and two byte-identical clean full translations pass.
+There remain 25 reviewed models, none unreviewed and zero compiled external
+axioms. Source closure:
+`00e36a422d77f9710709d41550f7fe4c7918d5173b4552bafcd023e4168b88d9`.
+
+The actual ProviderKind, ConnectionAlias and SemanticId owned-String constructors
+now have exact source language/error proofs and success-earned payload validity.
+Their explicit portable U32 representation bound belongs to the existing reviewed
+String/UTF-8 interface. It assumes no valid identifier or desired parser result.
+The three standard projections are direct aliases to existing reviewed models;
+all Auths constructors/helpers are transparent. Positive/Unicode-refusal witnesses
+are kernel-checked without native axioms.
+
+All 39 connection tests and affected-target/xtask linting pass. Character-language
+oracles check 116,608 UTF-8 cases, with 7,618 provider, 7,618 alias and 20,026 semantic
+successes, exact payloads/errors, additional Unicode/NUL and size boundaries.
+Selector checksum/path regressions pass. The expanded unit contains four
+non-shipping selectors, 17 imported function records and three uncompiled standard
+interface template stubs; the artifact inventory has 99 files. Coverage v4 and
+historical reproduction retain 134/1047 functions, 1833/11563 lines and 23/82 sites.
+
+Review: `ap-spec-069-actual-string-constructors-2026-10-17`; inventory:
+`9450e7c2b425e8691d8eb74bafe494b3863715961aea74549ff7ed4b59892ef2`;
+boundary: `730bcc49302621155bf0ed66b4a3eb493b43b0595a69a17584f6017df083a040`.
+
+Other Into<String> paths, complete record/codec/caller closure and the remaining
+§13.5/E1–E5/M6 program stay open, including exact-revision hosted evidence. The
+complete durable-record timestamp predicate and preservation proofs are prepared
+privately, outside this checkpoint. Continue with that cutover without waiting
+for hosted CI. See spec §§13.30–13.31.
+
 ## Qualified recovery and administration checkpoint — 17 October 2026
 
 The latest batch qualifies **871 compiled claims**, with all 861 previous full

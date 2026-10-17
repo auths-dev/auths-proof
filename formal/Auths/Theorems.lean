@@ -1,3 +1,4 @@
+import Auths.Product.StringConstructorsRefinement
 import Auths.Product.RecoveryGateRefinement
 import Auths.Product.SemanticIdRefinement
 import Auths.Product.ConnectionFrameRefinement
@@ -949,7 +950,13 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.RecoveryGate.Refinement.state_transition_exact,
     `Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time,
     `Auths.Product.RecoveryGate.Refinement.record_change_exact,
-    `Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time
+    `Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time,
+    `Auths.Product.StringConstructors.Refinement.actual_provider_exact,
+    `Auths.Product.StringConstructors.Refinement.actual_alias_exact,
+    `Auths.Product.StringConstructors.Refinement.actual_semantic_exact,
+    `Auths.Product.StringConstructors.Refinement.provider_success_earns_exact_valid_payload,
+    `Auths.Product.StringConstructors.Refinement.alias_success_earns_exact_valid_payload,
+    `Auths.Product.StringConstructors.Refinement.semantic_success_earns_exact_valid_payload
   ]
 
 end Auths

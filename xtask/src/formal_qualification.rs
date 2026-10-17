@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "e47a70caeb2efe34fdbd8936cbf4091c81d191de15000389ba457434c699df5d";
+    "730bcc49302621155bf0ed66b4a3eb493b43b0595a69a17584f6017df083a040";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -313,6 +313,10 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
         "formal/qualification/aeneas/generated/profile_construction/Types.lean",
     ),
     (
+        "profile_construction-run/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+        "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+    ),
+    (
         "profile_construction-run/qualification/aeneas/generated/profile_construction/Funs.lean",
         "formal/qualification/aeneas/generated/profile_construction/Funs.lean",
     ),
@@ -323,6 +327,7 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
+    "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
     "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
     "formal/qualification/aeneas/generated/gateway/FunsExternal.lean",
     "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
@@ -445,6 +450,8 @@ const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/connections/Funs.lean",
     "formal/qualification/aeneas/generated/connections/translation.json",
     "formal/qualification/aeneas/generated/profile_construction/Types.lean",
+    "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
     "formal/qualification/aeneas/generated/profile_construction/Funs.lean",
     "formal/qualification/aeneas/generated/profile_construction/translation.json",
 ];
@@ -643,6 +650,7 @@ const EXPECTED_TEMPLATE_AXIOMS: &[&str] = &[
     "formal/qualification/aeneas/generated/authority/TypesExternal_Template.lean",
     "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean",
     "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
+    "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
 ];
 
 #[derive(Deserialize)]
@@ -1131,7 +1139,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
         || qualification.translations.len() != 18
         || qualification.external_models.len() != 25
         || qualification.warning_inventory.len() != 4
-        || qualification.template_axioms.len() != 20
+        || qualification.template_axioms.len() != 21
     {
         return Err("Aeneas qualification inventory cardinality drifted".to_owned());
     }
@@ -1158,7 +1166,7 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
             "temporal-recursive-loops-v1",
             "status-selection-qualified-discriminants-v1",
             "status-selection-recursive-loops-v1",
-            "profile-selection-source-paths-v1",
+            "connection-construction-source-paths-v2",
             "connections-qualified-discriminants-v1",
         ]
     {
@@ -1599,6 +1607,10 @@ fn synchronize_reviewed_bridges(
 ) -> Result<(), String> {
     for (relative, expected) in [
         (
+            "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
+            render_profile_construction_functions_external(),
+        ),
+        (
             "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
             render_checked_result_interfaces(),
         ),
@@ -1710,6 +1722,20 @@ def U64.Insts.CoreConvertTryFromUsizeTryFromIntError.try_from (value : Std.Usize
 
 def core.result.Result.unwrap_or {T E : Type} (value : core.result.Result T E) (fallback : T) :
     Result T := ok (match value with | .Ok value => value | .Err _ => fallback)
+"##
+    .to_owned()
+}
+
+fn render_profile_construction_functions_external() -> String {
+    r##"-- Reuse only the existing reviewed UTF-8/String projections; no Auths body is modeled.
+import qualification.aeneas.generated.profile_construction.Types
+import qualification.aeneas.generated.codec.FunsExternal
+namespace auths_profile_construction
+abbrev core.str.Str.as_bytes := _root_.core.str.Str.as_bytes
+abbrev alloc.string.String.as_bytes := _root_.alloc.string.String.as_bytes
+abbrev alloc.string.String.Insts.CoreOpsDerefDerefStr.deref :=
+  _root_.alloc.string.String.Insts.CoreOpsDerefDerefStr.deref
+end auths_profile_construction
 "##
     .to_owned()
 }
@@ -3401,7 +3427,7 @@ fn reproduce(
     )?;
     let profile_manifest = profile_selection_manifest(root, stable_llbc)?;
     let mut profile_arguments = charon_arguments(
-        "auths_profile_construction::construct",
+        "auths_profile_construction::construct,auths_profile_construction::parse_provider,auths_profile_construction::parse_alias,auths_profile_construction::parse_semantic",
         &stable_llbc.join("auths_profile_construction.llbc"),
         &profile_manifest.display().to_string(),
         &["--include", "auths_connections"],
@@ -4340,7 +4366,7 @@ fn normalize_profile_source_paths(document: &mut Value, root: &Path) -> Result<(
             count += 1;
         }
     }
-    if count != 3 {
+    if count != 4 {
         return Err(format!(
             "profile selection source inventory drifted: {count} files"
         ));
@@ -5791,13 +5817,19 @@ mod profile_selection_lock_tests {
                 {"name": {"Local": "/reviewed/formal/selector.rs"}, "contents": "/reviewed/literal"},
                 {"name": {"Local": "/reviewed/product/model.rs"}},
                 {"name": {"Local": "/reviewed/product/lib.rs"}},
+                {"name": {"Local": "/reviewed/product/kernel.rs"}},
                 {"name": {"Local": "/rustc/core.rs"}}
             ], "fun_decls": [{"body": "/reviewed/literal"}], "options": {"unchanged": true}
         }});
         let mut expected = original.clone();
-        for (index, relative) in ["formal/selector.rs", "product/model.rs", "product/lib.rs"]
-            .iter()
-            .enumerate()
+        for (index, relative) in [
+            "formal/selector.rs",
+            "product/model.rs",
+            "product/lib.rs",
+            "product/kernel.rs",
+        ]
+        .iter()
+        .enumerate()
         {
             expected["translated"]["files"][index]["name"]["Local"] = json!(relative);
         }

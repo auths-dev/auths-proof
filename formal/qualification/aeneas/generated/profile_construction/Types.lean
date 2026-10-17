@@ -14,21 +14,12 @@ set_option maxRecDepth 2048
 
 namespace auths_profile_construction
 
-/-- [auths_connections::model::SemanticId]
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 70:0-70:21
-    Name pattern: [auths_connections::model::SemanticId]
+/-- [auths_connections::model::ProviderKind]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 20:0-20:23
+    Name pattern: [auths_connections::model::ProviderKind]
     Visibility: public -/
-@[reducible, rust_type "auths_connections::model::SemanticId"]
-def auths_connections.model.SemanticId := String
-
-/-- [auths_connections::model::ConnectionProfile]
-    Source: 'product/runtime/auths-connections/src/model.rs', lines 151:0-151:28
-    Name pattern: [auths_connections::model::ConnectionProfile]
-    Visibility: public -/
-@[rust_type "auths_connections::model::ConnectionProfile"]
-structure auths_connections.model.ConnectionProfile where
-  id : auths_connections.model.SemanticId
-  version : Std.U16
+@[reducible, rust_type "auths_connections::model::ProviderKind"]
+def auths_connections.model.ProviderKind := String
 
 /-- [auths_connections::model::ConnectionRecordError]
     Source: 'product/runtime/auths-connections/src/model.rs', lines 1019:0-1019:30
@@ -58,5 +49,28 @@ inductive auths_connections.model.ConnectionRecordError where
 | TrailingBytes : auths_connections.model.ConnectionRecordError
 | Encoding : auths_connections.model.ConnectionRecordError
 | Decoding : auths_connections.model.ConnectionRecordError
+
+/-- [auths_connections::model::ConnectionAlias]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 45:0-45:26
+    Name pattern: [auths_connections::model::ConnectionAlias]
+    Visibility: public -/
+@[reducible, rust_type "auths_connections::model::ConnectionAlias"]
+def auths_connections.model.ConnectionAlias := String
+
+/-- [auths_connections::model::SemanticId]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 70:0-70:21
+    Name pattern: [auths_connections::model::SemanticId]
+    Visibility: public -/
+@[reducible, rust_type "auths_connections::model::SemanticId"]
+def auths_connections.model.SemanticId := String
+
+/-- [auths_connections::model::ConnectionProfile]
+    Source: 'product/runtime/auths-connections/src/model.rs', lines 151:0-151:28
+    Name pattern: [auths_connections::model::ConnectionProfile]
+    Visibility: public -/
+@[rust_type "auths_connections::model::ConnectionProfile"]
+structure auths_connections.model.ConnectionProfile where
+  id : auths_connections.model.SemanticId
+  version : Std.U16
 
 end auths_profile_construction

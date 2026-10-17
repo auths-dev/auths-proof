@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
 - **Status:** Implementation in progress. The latest qualified development
-  checkpoint has 871 compiled claims on 17 October 2026. E1–E5 and M6 remain
-  open; see §13.5 and §§13.25–13.29 for exact completed components, evidence
+  checkpoint has 877 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.31 for exact completed components, evidence
   boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -1719,3 +1719,67 @@ models with their explicit portable representation bound. They are not yet
 included in this checkpoint. Continue with that constructor/caller boundary and
 the remaining decoder, verifier, backend/history and release obligations without
 waiting for hosted CI.
+
+### 13.30 Actual owned-String constructors — implementation batch
+
+The actual generic ProviderKind, ConnectionAlias and SemanticId constructors,
+specialized to String's standard identity conversion, now have direct source
+proofs. Three exact theorems fix the complete UTF-8 language decision and closed
+error category. Three success theorems earn both the full byte grammar and exact
+input-payload preservation; none assumes that the input is a valid identifier.
+Every Auths constructor and helper remains transparently translated. The copied
+byte helpers reuse the qualified owner proofs by definitional equality.
+
+The proof reuses the three existing reviewed String/UTF-8 projection models
+through direct aliases, without changing their semantics or adding a model or
+axiom. Its explicit premise is the existing portable U32 byte-size representation
+bound. That is a proof-interface boundary, not a new product limit or a premise
+that parsing succeeds. Other Into<String> implementations, larger modeled String
+carriers, complete protocol decoding and allocation failure remain separate.
+The upstream toStr native-default proof is avoided by supplying the bound.
+
+Native checks exercise every valid UTF-8 case at lengths 0–2 from all byte pairs:
+116,608 cases, with independently derived positive counts of 7,618 provider names,
+7,618 aliases and 20,026 semantic identifiers. They compare exact preserved
+payloads and distinct error categories against character-language oracles, with
+additional Unicode, NUL and 63/64/65/127/128/129-byte cases. All 39 connection tests
+pass. Kernel-checked constructor witnesses cover acceptance and Unicode refusal;
+explicit character-list strings and finite UTF-8 list-loop equations avoid native
+axioms for closed String literal evaluation.
+
+The assembled 877-claim audit passes, with all 871 preceding complete records
+unchanged and no new axioms. Selector lock/path tests and affected-target/xtask
+linting pass. The expanded selection unit has four non-shipping entrypoints and
+17 imported function records; no Auths algorithm is opaque. Its three generated
+standard-interface template stubs stay uncompiled; the bridge aliases reviewed
+definitions. Full clean replay and source-closure qualification pass as recorded in §13.31.
+Continue with the remaining §13.5 program.
+
+### 13.31 Qualified actual String-constructor checkpoint
+
+The §13.30 component qualifies **877 compiled/audited claims**, with all 871
+preceding complete declaration records unchanged. The full 3,522-job Lean build,
+18/18 cases and two byte-identical clean full translations pass. The reviewed
+model inventory remains 25, none unreviewed, with zero compiled external axioms
+and no new axioms beyond the three permitted foundations.
+
+Source closure:
+`00e36a422d77f9710709d41550f7fe4c7918d5173b4552bafcd023e4168b88d9`.
+Review: `ap-spec-069-actual-string-constructors-2026-10-17`; inventory:
+`9450e7c2b425e8691d8eb74bafe494b3863715961aea74549ff7ed4b59892ef2`;
+boundary:
+`730bcc49302621155bf0ed66b4a3eb493b43b0595a69a17584f6017df083a040`.
+
+The 39 connection tests, selector checksum/path regressions and affected-target/
+xtask linting pass. This batch changes no shipping constructor algorithm; the
+preceding 232-active gateway and 40 gateway-kernel results are unaffected. Closed
+source witnesses use finite UTF-8 list-loop equations, avoiding native axioms.
+Coverage v4 and byte-identical historical reproduction keep the primary scope at
+134/1047 functions, 1833/11563 code lines and 23/82 check sites.
+
+The portable String bound, other Into<String> implementations and full §13.5
+program remain explicit. A complete record-timestamp validator and its source/
+preservation proofs are prepared privately for the next cutover. Full record
+codec/resource closure, verifier/caller composition, backend histories and
+exact-revision hosted evidence remain open. Continue implementation without
+waiting on hosted CI.

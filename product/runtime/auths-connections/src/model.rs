@@ -1401,3 +1401,7 @@ pub(crate) mod tests {
 #[cfg(test)]
 #[path = "recovery_guard_tests.rs"]
 mod recovery_guard_tests;
+
+#[cfg(test)]
+#[path = "string_constructor_tests.rs"]
+mod string_constructor_tests;
