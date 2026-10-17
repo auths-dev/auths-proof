@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "ed030ce60262669dce62637a8f8016799e07f45e468055c2087b0e6a9ebab885",
-  "inputs_sha256": "122efb8c87567234cdb716a2f65a0da5c5ffe5b2558e22a7d85e1875e001f94f",
+  "inputs_sha256": "a0ea986d5dc60e711d5f43033c2b45a0c5715e880576aa36001273fdf2785857",
   "inputs": {
     "Cargo.toml": "sha256:2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -70,7 +70,7 @@
     "core/crates/auths-verifier/src/trace.rs": "sha256:2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8",
     "formal/check-site-functions-v1.toml": "sha256:fed8e34c73ffde17881c8c8fc36bf943e7db699f042c7a0f0f3ce54afe74143c",
     "formal/coverage-scope-v1.toml": "sha256:ed030ce60262669dce62637a8f8016799e07f45e468055c2087b0e6a9ebab885",
-    "formal/lean-assurance-audit-v1.json": "sha256:231645479e8151cc702683169c266e9dbacb9d3907b1dc4303bd1981b07ad50e",
+    "formal/lean-assurance-audit-v1.json": "sha256:42d728e048e5aba4a829d177327ac2fe464c46b9448697fd5fd77000681192a7",
     "formal/qualification/aeneas/entrypoints/profile_construction.rs": "sha256:4e6c4a3bfbd147a5ceab64e24a80fe10f08b0715210343b6be63fecaffdbd5ee",
     "formal/qualification/aeneas/generated/algebra/Funs.lean": "sha256:f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
     "formal/qualification/aeneas/generated/algebra/translation.json": "sha256:7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
@@ -109,7 +109,7 @@
     "formal/qualification/aeneas/generated/temporal_witness/Funs.lean": "sha256:05aad591f331d9e6c6c0f33e75f062a048d390a99b5cee4c43ce52343dc030de",
     "formal/qualification/aeneas/generated/temporal_witness/translation.json": "sha256:068ff2fe97c4abe40ab641ca6ce6f150320da3a52513d63f025807f5ee57cd0f",
     "formal/qualification/aeneas/qualification.toml": "sha256:0bc0b2d28f762aae45bf5045c97750e1d2990fce0133cc97de2678bed752f2ca",
-    "formal/theorem-kinds-v1.toml": "sha256:1cd3616ad9e8971392d60549953be0f928b0726b2aa59cd8f6edcea967864b6c",
+    "formal/theorem-kinds-v1.toml": "sha256:0648a6e025422ab69ef0e19697dfeeebc607c3517cc186bcb6bf42ae51c53272",
     "product/policy/auths-bounded-policy/src/arithmetic.rs": "sha256:75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
     "product/policy/auths-bounded-policy/src/commitment.rs": "sha256:c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
     "product/policy/auths-bounded-policy/src/eligibility.rs": "sha256:c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
@@ -331,12 +331,12 @@
           "code_line_share": 0.2015
         },
         "direct": {
-          "functions": 192,
-          "function_share": 0.1044,
-          "span_lines": 2743,
-          "span_line_share": 0.1211,
-          "code_lines": 2721,
-          "code_line_share": 0.1207
+          "functions": 205,
+          "function_share": 0.1115,
+          "span_lines": 2813,
+          "span_line_share": 0.1242,
+          "code_lines": 2791,
+          "code_line_share": 0.1238
         },
         "closure": {
           "functions": 389,
@@ -364,12 +364,12 @@
           "code_line_share": 0.1447
         },
         "direct": {
-          "functions": 85,
-          "function_share": 0.0741,
-          "span_lines": 1408,
-          "span_line_share": 0.0981,
-          "code_lines": 1390,
-          "code_line_share": 0.0974
+          "functions": 98,
+          "function_share": 0.0854,
+          "span_lines": 1478,
+          "span_line_share": 0.103,
+          "code_lines": 1460,
+          "code_line_share": 0.1023
         },
         "closure": {
           "functions": 182,
@@ -3082,6 +3082,9 @@
       "Auths.Codec.Action.decode_encode_exact": "partial",
       "Auths.Codec.Action.decoded_body_valid": "partial",
       "Auths.Codec.Action.decoded_body_within_deployment": "partial",
+      "Auths.Codec.Collection.array_exact": "exact",
+      "Auths.Codec.Collection.collection_exact": "exact",
+      "Auths.Codec.Collection.map_exact": "exact",
       "Auths.Codec.Cursor.at_exact": "exact",
       "Auths.Codec.Cursor.datatype_exact": "exact",
       "Auths.Codec.Cursor.ensure_complete_exact": "exact",
@@ -3101,6 +3104,18 @@
       "Auths.Codec.Examples.nonminimal_integer_refused": "case",
       "Auths.Codec.Examples.trailing_byte_refused": "case",
       "Auths.Codec.Examples.truncated_refused": "case",
+      "Auths.Codec.Fields.array_exact": "exact",
+      "Auths.Codec.Fields.bounded_bytes_exact": "exact",
+      "Auths.Codec.Fields.digest_bytes_exact": "exact",
+      "Auths.Codec.Fields.is_null_exact": "exact",
+      "Auths.Codec.Fields.key_exact": "exact",
+      "Auths.Codec.Fields.map_exact": "exact",
+      "Auths.Codec.Fields.null_exact": "exact",
+      "Auths.Codec.Fields.text_exact": "exact",
+      "Auths.Codec.Payload.bytes_exact": "exact",
+      "Auths.Codec.Payload.payload_exact": "exact",
+      "Auths.Codec.Payload.str_exact": "exact",
+      "Auths.Codec.Payload.success_earns_span": "partial",
       "Auths.Codec.Refinement.Encoder.append_tail_exact": "partial",
       "Auths.Codec.Refinement.Encoder.encode_head_byte_bound": "partial",
       "Auths.Codec.Refinement.Encoder.encode_head_refines": "exact",
@@ -3493,13 +3508,13 @@
       "closure-shim": 11,
       "derived": 24
     },
-    "refined_direct": 198,
+    "refined_direct": 211,
     "refined_closure": 431,
-    "theorems_naming_translated_functions": 406
+    "theorems_naming_translated_functions": 421
   },
   "mutation_adequacy": {
     "results": "formal/model-mutations-v1.json",
-    "current_formal_inputs_sha256": "401f2e420915e119deca17cfdfaf8ef970f2c66df6dc636702a2eaed268d5c78",
+    "current_formal_inputs_sha256": "bae0cd9f691cdc246d4b82603c819912a7fe18ec83a52ddb2cffadbdba354e44",
     "fresh": false,
     "campaigns": {
       "s1": {

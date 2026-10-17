@@ -14,9 +14,12 @@ declaration name, statement, transitive axiom set, source closure, and required
 evidence. This prevents a renamed, weakened, deleted, or `sorry`-backed theorem
 from satisfying the repository gate through a textual look-alike.
 
-The latest qualified development checkpoint has 902 compiled claims, 18/18
+The latest qualified development checkpoint has 917 compiled claims, 18/18
 qualification cases, 25 reviewed external models and two byte-identical full
-translation reproductions. Its latest batch proves the complete record validator
+translation reproductions. Its latest batch proves exact payload, UTF-8, collection
+and protocol-field decoding, including bounds, error categories and cursor
+behavior. Full protocol-object codecs and inverse completeness remain open. The
+preceding batch proves the complete record validator
 under the explicit portable String bound, closes concrete String/profile ordering
 premises, and proves exact decoder cursor, integer, null and type-query behavior.
 Completion length and input identity remain distinct caller obligations. Earlier

@@ -5,6 +5,31 @@ This is the implementation ledger for
 It is not an assurance claim. Completion requires the specification's exact
 shipping-source refinement and hosted evidence gates.
 
+## Qualified payload and protocol-field checkpoint — 17 October 2026
+
+**917 compiled/audited claims** qualify, with all 902 previous complete declaration
+records unchanged. The 3,534-job Lean build, 18/18 cases, two byte-identical full
+translations, all 173 xtask tests and xtask linting pass. No shipping Rust
+algorithm, external model, generated artifact inventory or axiom basis changes.
+
+The new source proofs cover borrowed payloads, bytes and text; raw definite and
+indefinite collection heads; protocol map/array/key/null/text helpers; bounded
+owned byte copying and exactly 32-byte digests. Accepted payloads earn their exact
+contiguous input span and bounds. Thirty-one source-composed cases check large
+length/overflow/truncation, UTF-8, cursor, collection, key and digest boundaries.
+Standard UTF-8, allocation and copying remain explicit leaf contracts.
+
+Source: `182ce049a050aeef56cb3ac53dad37a08f5ef9b35d1fbf27816471bd22ca3ac0`.
+Review: `ap-spec-069-payload-and-fields-2026-10-17`; inventory:
+`0925d275cd5b9885ad2598fc031238737b8e5f2c7ed04ed3226a5bfd02e81d84`;
+boundary: `33fbd99ec34b7e232db2b65d19c55419a4ff5c82b1d7e371a0ed6bb35d96ea18`.
+
+Next: compose these helpers into full object codecs with constructor closure and
+inverse completeness, then complete §13.5's verifier, caller, backend history and
+cryptographic integration. The private owned-String/profile composition prototype
+is not included here. E1–E5/M6 and exact-release hosted gates remain open. See
+spec §§13.40–13.41; keep coding without waiting on CI.
+
 ## Qualified record-validator and cursor checkpoint — 17 October 2026
 
 **902 compiled/audited claims** qualify, with all 886 previous full declaration

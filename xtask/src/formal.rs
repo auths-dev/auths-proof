@@ -4756,6 +4756,84 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
         });
     }
+    if declaration.starts_with("Auths.Codec.Payload.")
+        || declaration.starts_with("Auths.Codec.Collection.")
+        || declaration.starts_with("Auths.Codec.Fields.")
+    {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.Payload.payload_exact" => (
+                "The actual payload reader returns exactly the grammar-selected contiguous bytes and cursor, including failed length conversion, addition overflow and truncated payloads.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload"],
+            ),
+            "Auths.Codec.Payload.bytes_exact" => (
+                "The actual byte-string reader returns exactly the definite major-two payload and its source cursor/input behavior.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::bytes"],
+            ),
+            "Auths.Codec.Payload.str_exact" => (
+                "The actual text reader returns exactly the definite major-three payload accepted by the explicit UTF-8 primitive contract, preserving cursor behavior on UTF-8 refusal.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str"],
+            ),
+            "Auths.Codec.Payload.success_earns_span" => (
+                "Actual payload acceptance earns the exact contiguous source span, requested length, final cursor and input bounds without a successful-parse premise.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload"],
+            ),
+            "Auths.Codec.Collection.collection_exact" => (
+                "For every valid CBOR major tag, the actual collection reader exactly distinguishes malformed input, indefinite collection heads and definite lengths with exact cursor/input preservation.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection"],
+            ),
+            "Auths.Codec.Collection.map_exact" => (
+                "The actual raw map-head reader refines the independent collection grammar, including its indefinite form and exact cursor/input behavior.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map"],
+            ),
+            "Auths.Codec.Collection.array_exact" => (
+                "The actual raw array-head reader refines the independent collection grammar, including its indefinite form and exact cursor/input behavior.",
+                &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array"],
+            ),
+            "Auths.Codec.Fields.key_exact" => (
+                "The actual field-key reader returns exactly Malformed, NonCanonical or success according to the independently decoded bounded integer and expected key, with exact cursor/input behavior.",
+                &["auths_codec::decode::key"],
+            ),
+            "Auths.Codec.Fields.map_exact" => (
+                "The actual protocol map guard accepts exactly a definite head with the required field count and otherwise returns Malformed with exact cursor/input behavior.",
+                &["auths_codec::decode::map"],
+            ),
+            "Auths.Codec.Fields.text_exact" => (
+                "The actual protocol text helper returns exactly the decoded UTF-8 bytes or Malformed with exact cursor/input behavior.",
+                &["auths_codec::decode::text"],
+            ),
+            "Auths.Codec.Fields.null_exact" => (
+                "The actual protocol null helper accepts exactly the CBOR null byte and maps primitive refusal to Malformed with exact cursor/input behavior.",
+                &["auths_codec::decode::null"],
+            ),
+            "Auths.Codec.Fields.is_null_exact" => (
+                "The actual optional-field null query exactly refines the independent first-byte type query and maps missing input to Malformed.",
+                &["auths_codec::decode::is_null"],
+            ),
+            "Auths.Codec.Fields.array_exact" => (
+                "The actual protocol array guard accepts exactly definite lengths within its supplied bound, rejects indefinite or malformed heads as Malformed, and rejects excessive lengths as LimitExceeded.",
+                &["auths_codec::decode::array"],
+            ),
+            "Auths.Codec.Fields.bounded_bytes_exact" => (
+                "The actual bounded-byte helper returns an exact owned copy only within the supplied size and nonempty requirements, preserving Malformed versus LimitExceeded and exact cursor/input behavior.",
+                &["auths_codec::decode::bounded_bytes"],
+            ),
+            "Auths.Codec.Fields.digest_bytes_exact" => (
+                "The actual digest-byte helper accepts exactly a definite 32-byte payload and preserves its exact bytes, cursor and Malformed refusals.",
+                &["auths_codec::decode::digest_bytes"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Every represented input slice and arbitrary machine-word cursor, with exact typed success/refusal, returned bytes or length, cursor and preserved input. Collection's generic major-tag premise is explicitly less than eight and is discharged for the actual array/map callers. Payload availability alone determines the independent list model; native length-conversion or addition failure is proved unable to discard an available in-bounds payload. Accepted-span is an earned partial safety property, not a separate exact verdict theorem.",
+            residual_assumptions: &[
+                "Lean's kernel, pinned Rust/Charon/Aeneas/Lean toolchain, listed foundational axioms and existing reviewed standard-library slice, checked-integer, UTF-8, cloning and array-copy contracts are trusted. No new external model, opaque Auths algorithm or native-evaluation axiom is introduced. The standard UTF-8 predicate is a named leaf contract; this does not prove the UTF-8 library implementation itself.",
+                "Raw collection readers accept indefinite heads and raw integer heads permit wider encodings. Protocol array/map guards reject indefinite forms; full-object canonical re-encoding, constructor-valid object closure, parser completeness, aggregate allocation/work bounds and byte-to-authority composition remain separate. Copying here proves exact values under the existing allocation model, not physical allocator availability or runtime I/O behavior.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     if let Some(leaf) = declaration.strip_prefix("Auths.Codec.Cursor.") {
         let (claim_text, rust_symbols): (&str, &[&str]) = match leaf {
             "new_exact" => (

@@ -1,3 +1,6 @@
+import Auths.Codec.Payload
+import Auths.Codec.Collection
+import Auths.Codec.Fields
 import Auths.Crypto.Examples
 import Auths.Codec.Examples
 import Auths.Codec.ActionValidity
@@ -182,5 +185,195 @@ example : auths_codec.decode.ensure_complete
   apply spec_mono (Cursor.ensure_complete_exact _ _)
   intro actual meaning
   simpa using meaning
+
+-- Source-composed payload and protocol-field cases. These deliberately
+-- distinguish borrowed payload success from complete-object canonicality,
+-- raw indefinite collection heads from protocol acceptance, and the cursor
+-- already consumed before a payload/UTF-8/size refusal.
+example : auths_codec.cbor.Decoder.bytes (cursorInput [66#u8, 1#u8, 2#u8, 0#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (some [1, 2], 3) ⦄ := by
+  apply spec_mono (Payload.bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.bytes (cursorInput [66#u8, 1#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (none, 1) ⦄ := by
+  apply spec_mono (Payload.bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.bytes (cursorInput [64#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (some [], 1) ⦄ := by
+  apply spec_mono (Payload.bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.bytes (cursorInput [0#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (none, 0) ⦄ := by
+  apply spec_mono (Payload.bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.bytes (cursorInput [91#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8, 255#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (none, 9) ⦄ := by
+  apply spec_mono (Payload.bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.str (cursorInput [98#u8, 194#u8, 163#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (some [194, 163], 3) ⦄ := by
+  apply spec_mono (Payload.str_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.str (cursorInput [98#u8, 192#u8, 128#u8] (by scalar_tac))
+    ⦃ actual => (Payload.bytesView actual.1, actual.2.position.val) = (none, 3) ⦄ := by
+  apply spec_mono (Payload.str_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.array (cursorInput [159#u8] (by scalar_tac))
+    ⦃ actual => (Collection.collectionView actual.1, actual.2.position.val) = (some none, 1) ⦄ := by
+  apply spec_mono (Collection.array_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.map (cursorInput [191#u8] (by scalar_tac))
+    ⦃ actual => (Collection.collectionView actual.1, actual.2.position.val) = (some none, 1) ⦄ := by
+  apply spec_mono (Collection.map_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.array (cursorInput [130#u8] (by scalar_tac))
+    ⦃ actual => (Collection.collectionView actual.1, actual.2.position.val) = (some (some 2), 1) ⦄ := by
+  apply spec_mono (Collection.array_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.cbor.Decoder.array (cursorInput [255#u8] (by scalar_tac))
+    ⦃ actual => (Collection.collectionView actual.1, actual.2.position.val) = (none, 0) ⦄ := by
+  apply spec_mono (Collection.array_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.array (cursorInput [159#u8] (by scalar_tac)) 10#usize
+    ⦃ actual => (Fields.sizeView actual.1, actual.2.position.val) = (.Err .Malformed, 1) ⦄ := by
+  apply spec_mono (Fields.array_exact _ 10#usize)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.array (cursorInput [130#u8] (by scalar_tac)) 1#usize
+    ⦃ actual => (Fields.sizeView actual.1, actual.2.position.val) = (.Err .LimitExceeded, 1) ⦄ := by
+  apply spec_mono (Fields.array_exact _ 1#usize)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.array (cursorInput [130#u8] (by scalar_tac)) 2#usize
+    ⦃ actual => (Fields.sizeView actual.1, actual.2.position.val) = (.Ok 2, 1) ⦄ := by
+  apply spec_mono (Fields.array_exact _ 2#usize)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.map (cursorInput [162#u8] (by scalar_tac)) 2#u64
+    ⦃ actual => (actual.1, actual.2.position.val) = (.Ok (), 1) ⦄ := by
+  apply spec_mono (Fields.map_exact _ 2#u64)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.map (cursorInput [162#u8] (by scalar_tac)) 3#u64
+    ⦃ actual => (actual.1, actual.2.position.val) = (.Err .Malformed, 1) ⦄ := by
+  apply spec_mono (Fields.map_exact _ 3#u64)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.map (cursorInput [191#u8] (by scalar_tac)) 2#u64
+    ⦃ actual => (actual.1, actual.2.position.val) = (.Err .Malformed, 1) ⦄ := by
+  apply spec_mono (Fields.map_exact _ 2#u64)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.key (cursorInput [0#u8] (by scalar_tac)) 1#u8
+    ⦃ actual => (actual.1, actual.2.position.val) = (.Err .NonCanonical, 1) ⦄ := by
+  apply spec_mono (Fields.key_exact _ 1#u8)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.key (cursorInput [24#u8, 0#u8] (by scalar_tac)) 0#u8
+    ⦃ actual => (actual.1, actual.2.position.val) = (.Ok (), 2) ⦄ := by
+  apply spec_mono (Fields.key_exact _ 0#u8)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.key (cursorInput [25#u8, 1#u8, 0#u8] (by scalar_tac)) 0#u8
+    ⦃ actual => (actual.1, actual.2.position.val) = (.Err .Malformed, 3) ⦄ := by
+  apply spec_mono (Fields.key_exact _ 0#u8)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.bounded_bytes (cursorInput [64#u8] (by scalar_tac)) 0#usize false
+    ⦃ actual => (Fields.vecView actual.1, actual.2.position.val) = (.Ok [], 1) ⦄ := by
+  apply spec_mono (Fields.bounded_bytes_exact _ 0#usize false)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.bounded_bytes (cursorInput [64#u8] (by scalar_tac)) 0#usize true
+    ⦃ actual => (Fields.vecView actual.1, actual.2.position.val) = (.Err .LimitExceeded, 1) ⦄ := by
+  apply spec_mono (Fields.bounded_bytes_exact _ 0#usize true)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.bounded_bytes (cursorInput [66#u8, 1#u8, 2#u8] (by scalar_tac)) 1#usize false
+    ⦃ actual => (Fields.vecView actual.1, actual.2.position.val) = (.Err .LimitExceeded, 3) ⦄ := by
+  apply spec_mono (Fields.bounded_bytes_exact _ 1#usize false)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.bounded_bytes (cursorInput [66#u8, 1#u8, 2#u8] (by scalar_tac)) 2#usize true
+    ⦃ actual => (Fields.vecView actual.1, actual.2.position.val) = (.Ok [1, 2], 3) ⦄ := by
+  apply spec_mono (Fields.bounded_bytes_exact _ 2#usize true)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.bounded_bytes (cursorInput [66#u8, 1#u8] (by scalar_tac)) 2#usize false
+    ⦃ actual => (Fields.vecView actual.1, actual.2.position.val) = (.Err .Malformed, 1) ⦄ := by
+  apply spec_mono (Fields.bounded_bytes_exact _ 2#usize false)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.digest_bytes (cursorInput ([88#u8, 32#u8] ++ List.replicate 32 0#u8) (by scalar_tac))
+    ⦃ actual => (Fields.digestView actual.1, actual.2.position.val) = (.Ok (List.replicate 32 0), 34) ⦄ := by
+  apply spec_mono (Fields.digest_bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.digest_bytes (cursorInput ([88#u8, 31#u8] ++ List.replicate 31 0#u8) (by scalar_tac))
+    ⦃ actual => (Fields.digestView actual.1, actual.2.position.val) = (.Err .Malformed, 33) ⦄ := by
+  apply spec_mono (Fields.digest_bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.digest_bytes (cursorInput ([88#u8, 33#u8] ++ List.replicate 33 0#u8) (by scalar_tac))
+    ⦃ actual => (Fields.digestView actual.1, actual.2.position.val) = (.Err .Malformed, 35) ⦄ := by
+  apply spec_mono (Fields.digest_bytes_exact _)
+  rintro ⟨result, next⟩ ⟨meaning, _⟩
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.is_null (cursorInput [246#u8] (by scalar_tac))
+    ⦃ actual => actual = (.Ok true) ⦄ := by
+  apply spec_mono (Fields.is_null_exact _)
+  intro actual meaning
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.is_null (cursorInput [25#u8] (by scalar_tac))
+    ⦃ actual => actual = (.Ok false) ⦄ := by
+  apply spec_mono (Fields.is_null_exact _)
+  intro actual meaning
+  exact meaning.trans (by cbv)
+
+example : auths_codec.decode.is_null (cursorInput [] (by scalar_tac))
+    ⦃ actual => actual = (.Err .Malformed) ⦄ := by
+  apply spec_mono (Fields.is_null_exact _)
+  intro actual meaning
+  exact meaning.trans (by cbv)
 
 end qualification.aeneas.cases

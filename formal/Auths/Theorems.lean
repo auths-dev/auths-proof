@@ -1,3 +1,6 @@
+import Auths.Codec.Payload
+import Auths.Codec.Collection
+import Auths.Codec.Fields
 import Auths.Codec.Cursor
 import Auths.Product.RecordShapeRefinement
 import Auths.Product.StrictOrderRefinement
@@ -985,7 +988,22 @@ def theoremInventory : List Lean.Name :=
     `Auths.Codec.Cursor.u16_exact,
     `Auths.Codec.Cursor.null_exact,
     `Auths.Codec.Cursor.datatype_exact,
-    `Auths.Codec.Cursor.ensure_complete_exact
+    `Auths.Codec.Cursor.ensure_complete_exact,
+    `Auths.Codec.Payload.payload_exact,
+    `Auths.Codec.Payload.bytes_exact,
+    `Auths.Codec.Payload.str_exact,
+    `Auths.Codec.Payload.success_earns_span,
+    `Auths.Codec.Collection.collection_exact,
+    `Auths.Codec.Collection.map_exact,
+    `Auths.Codec.Collection.array_exact,
+    `Auths.Codec.Fields.key_exact,
+    `Auths.Codec.Fields.map_exact,
+    `Auths.Codec.Fields.text_exact,
+    `Auths.Codec.Fields.null_exact,
+    `Auths.Codec.Fields.is_null_exact,
+    `Auths.Codec.Fields.array_exact,
+    `Auths.Codec.Fields.bounded_bytes_exact,
+    `Auths.Codec.Fields.digest_bytes_exact
   ]
 
 end Auths

@@ -1,8 +1,8 @@
 # AP-SPEC-069: Formal assurance from authorization to execution
 
 - **Status:** Implementation in progress. The latest qualified development
-  checkpoint has 902 compiled claims on 17 October 2026. E1–E5 and M6 remain
-  open; see §13.5 and §§13.25–13.39 for exact completed components, evidence
+  checkpoint has 917 compiled claims on 17 October 2026. E1–E5 and M6 remain
+  open; see §13.5 and §§13.25–13.41 for exact completed components, evidence
   boundaries and the next source obligations. This document itself adds no proof.
 - **Source baseline:** `3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c`.
 - **Purpose:** strengthen the claim that a person or agent can perform useful,
@@ -1989,3 +1989,57 @@ then the remaining verifier, caller, backend-history and cryptographic integrati
 obligations in §13.5. A private payload prototype is not part of this qualified
 checkpoint. The full E1–E5/M6 program and exact-release hosted gates remain open;
 implementation does not wait on GitHub CI.
+
+### 13.40 Exact payload, collection and protocol-field decoding
+
+Fifteen source claims connect the actual borrowed payload/byte/text readers,
+collection/map/array heads and protocol field helpers to independent list
+semantics. Every represented input and arbitrary cursor is covered, including
+failed word conversion, addition overflow, truncation and malformed UTF-8. The
+payload model needs only that the requested span is available: the proof shows
+that machine-width refusal cannot discard an available in-bounds span. Actual
+success additionally earns the exact contiguous source span, declared length,
+final cursor and input bounds.
+
+Raw map/array heads accept their indefinite forms; the protocol guards reject
+those forms. Exact field proofs preserve expected map counts, bounded array
+lengths, key mismatches, null queries, UTF-8 bytes, bounded nonempty owned byte
+copies and exactly 32-byte digest payloads. Refusals retain Malformed,
+NonCanonical or LimitExceeded and the precise already-consumed cursor. Raw
+nonminimal heads still need the enclosing canonical re-encoding check.
+
+The 31 added source-composed boundary cases include UINT64_MAX payload lengths,
+truncated and trailing payloads, valid and malformed UTF-8, indefinite collections,
+exact/over array limits, wrong/nonminimal/oversized keys, empty/nonempty byte
+policy and 31/32/33-byte digest payloads. Ordinary kernel-checked computation
+verifies these cases; no native-evaluation axiom is introduced. The UTF-8,
+cloning, checked-word, array-copy and allocation interfaces retain their existing
+explicit standard-library contracts. Physical allocator availability is not proved.
+
+### 13.41 Qualified payload/field checkpoint — 17 October 2026
+
+**917 compiled/audited claims** qualify, all 902 preceding full declaration
+records unchanged. The complete 3,534-job Lean build, 18/18 qualification cases,
+two byte-identical clean full Rust-to-Lean replays, all 173 xtask tests and xtask
+linting pass. There are still 25 reviewed external models, no unreviewed models,
+zero compiled external axioms and no new foundational axioms. Shipping Rust
+algorithms, the 101-artifact translation inventory and the reviewed boundary
+contract are unchanged in this batch.
+
+Source closure: `182ce049a050aeef56cb3ac53dad37a08f5ef9b35d1fbf27816471bd22ca3ac0`.
+Statement review: `ap-spec-069-payload-and-fields-2026-10-17`.
+Inventory digest: `0925d275cd5b9885ad2598fc031238737b8e5f2c7ed04ed3226a5bfd02e81d84`.
+Boundary contract: `33fbd99ec34b7e232db2b65d19c55419a4ff5c82b1d7e371a0ed6bb35d96ea18`.
+
+The source-exact helpers are prerequisites for complete protocol-object
+parsers and inverse completeness; this checkpoint does not claim those complete
+object results. A private next prototype has a checked owned-String byte bridge from valid UTF-8;
+profile-field composition with existing identifier/version constructors is still
+in development. It is outside this qualified checkpoint.
+Continue object codecs, constructor closure, aggregate allocation/work bounds,
+then the verifier/caller/backend-history/crypto composition in §13.5. E1–E5/M6
+and exact-release hosted gates remain open. Do not wait on GitHub CI.
+
+The final combined formal gate also passes native Rust refinement vectors,
+byte-stable generated semantic vectors and all 48 shipping-call inventory checks.
+Kani solver execution was explicitly skipped; no new solver result is claimed.
