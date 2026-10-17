@@ -94,7 +94,7 @@ def expand(args):
     target = tuple_value['target']
     require(target['os'] == 'linux' and target['arch'] == 'x86_64'
             and target['store_kind'] == 'postgresql-v1'
-            and target['store_schema'] == 'auths.lifecycle.postgresql/6'
+            and target['store_schema'] == 'auths.lifecycle.postgresql/7'
             and target['credential_store_kind'] == 'aws-secrets-manager-v1',
             'qualification.reference.production-target')
     require(sha256(read(args.candidate, 256 * 1024 * 1024)) == target['gateway_build_sha256'],

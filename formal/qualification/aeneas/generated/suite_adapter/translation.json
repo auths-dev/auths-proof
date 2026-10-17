@@ -1,0 +1,270 @@
+{
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
+  "charon_version": "0.1.225",
+  "crate": "auths_signature",
+  "functions": [
+    {
+      "def_id": 7,
+      "lean_name": "AuthsSuiteAdapters.core.result.Result.map_err",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+      "rust_name": "core::result::{core::result::Result<T, E>}::map_err",
+      "is_local": false,
+      "source": {
+        "file": "/rustc/library/core/src/result.rs",
+        "begin_line": 962,
+        "end_line": 964
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 6,
+      "lean_name": "AuthsSuiteAdapters.auths_signature_core.verify_ed25519",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+      "rust_name": "auths_signature_core::verify_ed25519",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 261,
+        "end_line": 265
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 12,
+      "lean_name": "AuthsSuiteAdapters.auths_signature_core.verify_p256_sha256",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+      "rust_name": "auths_signature_core::verify_p256_sha256",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 381,
+        "end_line": 385
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 17,
+      "lean_name": "AuthsSuiteAdapters.SignatureSuiteEd25519Suite.verify.closure.Insts.CoreOpsFunctionFnOnceTupleEd25519ErrorSignatureError.call_once",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Funs.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::Ed25519Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_once",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 52,
+        "end_line": 56
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "AuthsSuiteAdapters.Ed25519Suite.Insts.Auths_portsSignatureSuite.verify",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Funs.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 46,
+        "end_line": 57
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 20,
+      "lean_name": "AuthsSuiteAdapters.SignatureSuiteP256Sha256Suite.verify.closure.Insts.CoreOpsFunctionFnOnceTupleP256ErrorSignatureError.call_once",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Funs.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::P256Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 102,
+        "end_line": 106
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "AuthsSuiteAdapters.P256Sha256Suite.Insts.Auths_portsSignatureSuite.verify",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Funs.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 96,
+        "end_line": 107
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 10,
+      "lean_name": "AuthsSuiteAdapters.auths_model.SignatureSuiteId",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+      "rust_name": "auths_model::SignatureSuiteId",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 120,
+        "end_line": 120
+      }
+    },
+    {
+      "def_id": 1,
+      "lean_name": "AuthsSuiteAdapters.auths_ports.SignatureInput",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_ports::SignatureInput",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-ports/src/lib.rs",
+        "begin_line": 247,
+        "end_line": 247
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "AuthsSuiteAdapters.auths_ports.SignatureError",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_ports::SignatureError",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-ports/src/lib.rs",
+        "begin_line": 603,
+        "end_line": 603
+      }
+    },
+    {
+      "def_id": 4,
+      "lean_name": "AuthsSuiteAdapters.auths_signature_core.Ed25519Error",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_signature_core::Ed25519Error",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 128,
+        "end_line": 128
+      }
+    },
+    {
+      "def_id": 7,
+      "lean_name": "AuthsSuiteAdapters.auths_signature_core.P256Error",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_signature_core::P256Error",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-signature-core/src/lib.rs",
+        "begin_line": 151,
+        "end_line": 151
+      }
+    },
+    {
+      "def_id": 0,
+      "lean_name": "AuthsSuiteAdapters.Ed25519Suite",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_signature::Ed25519Suite",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 15,
+        "end_line": 17
+      }
+    },
+    {
+      "def_id": 5,
+      "lean_name": "AuthsSuiteAdapters.SignatureSuiteEd25519Suite.verify.closure",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 52,
+        "end_line": 56
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "AuthsSuiteAdapters.P256Sha256Suite",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_signature::P256Sha256Suite",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 65,
+        "end_line": 67
+      }
+    },
+    {
+      "def_id": 8,
+      "lean_name": "AuthsSuiteAdapters.SignatureSuiteP256Sha256Suite.verify.closure",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Types.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 102,
+        "end_line": 106
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": [
+    {
+      "def_id": 2,
+      "lean_name": "AuthsSuiteAdapters.SignatureSuiteEd25519Suite.verify.closure.Insts.CoreOpsFunctionFnOnceTupleEd25519ErrorSignatureError",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Funs.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::Ed25519Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 52,
+        "end_line": 56
+      },
+      "impl_trait_def_id": 1,
+      "impl_trait_rust_name": "core::ops::function::FnOnce",
+      "impl_trait_is_builtin": true
+    },
+    {
+      "def_id": 4,
+      "lean_name": "AuthsSuiteAdapters.SignatureSuiteP256Sha256Suite.verify.closure.Insts.CoreOpsFunctionFnOnceTupleP256ErrorSignatureError",
+      "lean_file": "qualification/aeneas/generated/suite_adapter/Funs.lean",
+      "rust_name": "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::P256Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-signature/src/lib.rs",
+        "begin_line": 102,
+        "end_line": 106
+      },
+      "impl_trait_def_id": 1,
+      "impl_trait_rust_name": "core::ops::function::FnOnce",
+      "impl_trait_is_builtin": true
+    }
+  ]
+}

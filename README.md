@@ -71,15 +71,15 @@ own test key.
   verifiers agree on a shared corpus of test vectors.
 - **Proof coverage, measured.**
   <!-- proof-coverage:begin -->
-  110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines
-  (11.4%) are translated to Lean and reached from audited theorem statements,
-  and 15 of 82 kernel check sites map only to such functions. The rest of the
-  decision path, including the staged verifier control flow, the composition
-  evaluator, the registry handlers, the codec, and the signature suites, is
-  tested, not proved. For K-of-N approval the proofs cover the approval count
-  and per-approver verdict functions and the requirement attenuation law, not
-  the verifier step that classifies each approval (binding, window, signature,
-  status). Figures, method, and what they do not mean:
+  134 of 1,047 decision-scope functions (12.8%) and 1,833 of 11,563 code lines
+  (15.9%) are translated to Lean and reached from audited theorem statements,
+  and 23 of 82 kernel check sites map only to such functions. The rest of the
+  decision path, including the staged verifier control flow, the registry
+  handlers, and the codec, is tested, not proved. For K-of-N approval the proofs
+  cover the approval count and per-approver verdict functions and the
+  requirement attenuation law, not the verifier step that classifies each
+  approval (binding, window, signature, status). Figures, method, and what they
+  do not mean:
   [`docs/assurance/PROOF_COVERAGE.md`](docs/assurance/PROOF_COVERAGE.md).
   <!-- proof-coverage:end -->
 

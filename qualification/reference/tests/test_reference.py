@@ -211,7 +211,7 @@ class References(unittest.TestCase):
             tuple_value['recipe_family'] = stripe.FAMILY
             tuple_value['compiled_recipe_sha256'] = DIGEST
             tuple_value['target']['gateway_build_sha256'] = sha256((work / 'candidate').read_bytes())
-            tuple_value['target']['store_schema'] = 'auths.lifecycle.postgresql/6'
+            tuple_value['target']['store_schema'] = 'auths.lifecycle.postgresql/7'
             (work / 'tuple.json').write_bytes(canonical(tuple_value))
             tuple_digest = sha256(b'auths.qualification-tuple/1\0' + canonical(tuple_value))
             for member_name in ['conformance', 'differential']:

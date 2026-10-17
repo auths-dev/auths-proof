@@ -769,8 +769,12 @@ impl SubmitIo for HarnessIo<'_> {
         None
     }
 
-    fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
-        self.now <= evaluated_at.saturating_add(crate::recipe::ENTRY_DEADLINE_SECONDS)
+    fn within_entry_deadline(
+        &self,
+        evaluated_at: u64,
+        bound: auths_gateway_kernel::deadline::EntryBound,
+    ) -> bool {
+        auths_gateway_kernel::deadline::entry_time_allows(evaluated_at, self.now, bound)
     }
 
     async fn write(

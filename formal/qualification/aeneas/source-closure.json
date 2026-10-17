@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "cdfc1e60823a53d8ed627e77d9bdaee386faa45e1d8bd440f8d69645a96dc6cc",
+  "digest": "182ce049a050aeef56cb3ac53dad37a08f5ef9b35d1fbf27816471bd22ca3ac0",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,108 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "f84825e2ac0d4af57a406ab4b49ae5ce4e9360caf0a23e092906257743509b04",
+      "sha256": "17f4875379c53e15d1b196286aa0b83a2d2c854891759aa563a6c3c2f589c595",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "6e0240aa432bcdb5b4f855618994582d2e428afe5ee4e4f6a3f8d21a518f8d24"
+      "sha256": "2cc6fc79bfa459cedad6237ed79064dfd13683232940d63d5778a2e994fbb30d"
+    },
+    {
+      "path": "bindings/independent/go/auths/p256_corpus_test.go",
+      "sha256": "72b7daff20df43d920f9fdd31f616d4b6ef5053c98448efe153c3469da226845"
+    },
+    {
+      "path": "bindings/independent/typescript/p256-corpus.test.ts",
+      "sha256": "76482387905f1a9f4e4e38e9b94074e9f2f156aaf99ad014cbd5580bb31922b1"
+    },
+    {
+      "path": "bindings/independent/typescript/semantic-verifier.ts",
+      "sha256": "76006567974f717da4e46f7d96dd06ee35ef58f83f7844c6298259f5aa2b0d91"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/Cargo.toml",
+      "sha256": "86ba3e3f9a0a70d970568bfb3113b7ba7bbdd81c3eebbb52743dd574a0c0ecaa"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/src/lib.rs",
+      "sha256": "a75674842f8a7142004369ccd206ab43e476459293f0ff4bed4d4e659031b3e3"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.icp.att",
+      "sha256": "b960b8ddbae13e5bb0d8c2ed4e5e0365132435bb0f064aa38ea3e3222d484143"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.icp.json",
+      "sha256": "675c8be7338cd0d377b84f997d88b04cc69d0350c61a603aa3d1c971cd0723fc"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.rot.att",
+      "sha256": "be3fe05e9a745b1b42ce19a3232c03cac48a351bb1fc748a20b6bb52f00eba54"
+    },
+    {
+      "path": "core/adapters/auths-did-keri/tests/fixtures/keripy/rot_remove.rot.json",
+      "sha256": "a13d665078292b6e3348680740558410d4d47257533f5530c6d4f200f72cc89e"
+    },
+    {
+      "path": "core/adapters/auths-did-key/Cargo.toml",
+      "sha256": "d5a3ae07ecde83f91eed4c3785051dd0f44eab6c891754f3309b6b40596707d7"
+    },
+    {
+      "path": "core/adapters/auths-did-key/src/lib.rs",
+      "sha256": "b76a3f4528a725df53cfa9242e6e414e1d26caa48468aaed497e28b121f4497c"
+    },
+    {
+      "path": "core/adapters/auths-did-web/Cargo.toml",
+      "sha256": "851692ce82a034de341faa08c2043e0ce759dd41daf9d2591e983a3b8c1b6fb2"
+    },
+    {
+      "path": "core/adapters/auths-did-web/src/lib.rs",
+      "sha256": "2524f33979429214c1282c7fbd8823f19ca6b0ec4997e4bbea8a9472749be099"
+    },
+    {
+      "path": "core/adapters/auths-hsm-attested/Cargo.toml",
+      "sha256": "55b1581f654bfc62c3a838212e8d034a05066afd7ea382efeb6254a26a8da98a"
+    },
+    {
+      "path": "core/adapters/auths-hsm-attested/src/lib.rs",
+      "sha256": "42594b26a7d6ebc47b44096ad5e3472c677c64f3b470b85b91e55334f3899bb6"
+    },
+    {
+      "path": "core/adapters/auths-raw-key/Cargo.toml",
+      "sha256": "f49616bc18c19e6aaa7e6a02ccebcdb9f5c1422c1278ef9869e0dbf22ceda7be"
+    },
+    {
+      "path": "core/adapters/auths-raw-key/src/lib.rs",
+      "sha256": "45eec1b295dac3bed65cd79c942870b926b06b3f5d38eaebaeb6140ac69315fa"
+    },
+    {
+      "path": "core/adapters/auths-signature-ed25519/Cargo.toml",
+      "sha256": "47a70030633b264bacc5d0d301ba6ca19f9c7dfb88cdb70ed2acb0dbf3731ce9"
+    },
+    {
+      "path": "core/adapters/auths-signature-ed25519/README.md",
+      "sha256": "db674be2735e49a47264790d09205cb3e8c681c2cca8b69e787de997bca1ddc0"
+    },
+    {
+      "path": "core/adapters/auths-signature-ed25519/src/lib.rs",
+      "sha256": "ab30df01217858dfceb6d6a20341d1cd66ba56323d164da696a335bf4dd78053"
+    },
+    {
+      "path": "core/adapters/auths-spiffe-x509/Cargo.toml",
+      "sha256": "6201e1d823d1ce7f6bf63bcc11b20699dae0c3a0df6e3ab5fbf32158c8088827"
+    },
+    {
+      "path": "core/adapters/auths-spiffe-x509/src/lib.rs",
+      "sha256": "724808ac4fdbc1a912ac31b6af36789041be2ca8b9d80ec10df598130e961932"
+    },
+    {
+      "path": "core/adapters/auths-webauthn/Cargo.toml",
+      "sha256": "53c91387dc2f44da35f30477b3a2e5daab374ea27e64784519df5df60f71d5af"
+    },
+    {
+      "path": "core/adapters/auths-webauthn/src/lib.rs",
+      "sha256": "d660d8881d60808461f1f6fcdbd5f6bd17b27f5f86799ab3e2212a6eb1817719"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -28,12 +124,116 @@
       "sha256": "6654667eeb9b353d6648954c9fd2e8838462a82ce6b2803eb49e1366892c68c6"
     },
     {
+      "path": "core/crates/auths-assurance/Cargo.toml",
+      "sha256": "afcb12a97ddd09d7a264b9ecd3fcaefc865ff2c9b4539ee85b00883420ba333a"
+    },
+    {
+      "path": "core/crates/auths-assurance/src/lib.rs",
+      "sha256": "0fb2ec844d674b25a9e20b1601452c89c2454901fa506adfa9bb38ef9a7fa213"
+    },
+    {
+      "path": "core/crates/auths-author/Cargo.toml",
+      "sha256": "1e6f0e3bc079ddb558decf0db26b291c6e72fc47327b6df1b7650d41689b215f"
+    },
+    {
+      "path": "core/crates/auths-author/src/lib.rs",
+      "sha256": "e14475f2f49715a1869d5fa6b11ff1fbb72497e39097e09f833b0bae7e5b3f2b"
+    },
+    {
+      "path": "core/crates/auths-author/src/observations.rs",
+      "sha256": "dda7d6bfa6f4bd7e95a480ca283c2c0e996f69c5c15cb0c7197af328131a7066"
+    },
+    {
       "path": "core/crates/auths-authority/Cargo.toml",
       "sha256": "4f68212938029f79ebd857b4f3038494eb85d0163d49f07e51376715cf959815"
     },
     {
       "path": "core/crates/auths-authority/src/lib.rs",
       "sha256": "da88d5194de4e17449e69972c0fb042afa3c39798a8f570f30771e77c384f1eb"
+    },
+    {
+      "path": "core/crates/auths-codec/Cargo.toml",
+      "sha256": "b164e44179704bcb76d32f7e25281ed17f738e434290997e979739ebe49b4f77"
+    },
+    {
+      "path": "core/crates/auths-codec/src/approval.rs",
+      "sha256": "eb0a867ab26c151f9f947090dd81b5802541e818104ac2b363634e2c8f568005"
+    },
+    {
+      "path": "core/crates/auths-codec/src/bounded_policy.rs",
+      "sha256": "5c84447f057e2bf356323c6d83cab4daf64fcce221051a0863350f414ad0fb85"
+    },
+    {
+      "path": "core/crates/auths-codec/src/cbor.rs",
+      "sha256": "03f43d462fe39a45c7ad5ef487376ce109ae359b7874ec2b0200601ad0563361"
+    },
+    {
+      "path": "core/crates/auths-codec/src/decode.rs",
+      "sha256": "41b1e08a76ba4fc841c80f81994e78a23f4692eab9262604080c36bb8d1be3bd"
+    },
+    {
+      "path": "core/crates/auths-codec/src/encode.rs",
+      "sha256": "163dcb12f640eb63fbdb872e75bab1ee9e01571797cdf3a10b77cfd0b02a0c0b"
+    },
+    {
+      "path": "core/crates/auths-codec/src/error.rs",
+      "sha256": "80c1e7fdd190a0d050c69fbcde9836a4702d9b98e8effd76bc659c3d75ea8175"
+    },
+    {
+      "path": "core/crates/auths-codec/src/hash.rs",
+      "sha256": "db5e7773c8c1f6193c2494c95e3575d712c573e737ceb16b547f0f105efe1236"
+    },
+    {
+      "path": "core/crates/auths-codec/src/lib.rs",
+      "sha256": "09688b7ffb9527cd89e3182ca556b2cbb0fb0c924d7e1e9889686b81b2bdf601"
+    },
+    {
+      "path": "core/crates/auths-codec/src/observation.rs",
+      "sha256": "fb2d1151558b144a9d10dbc9a028c48f19c96344e396d0c292ff59be473b2149"
+    },
+    {
+      "path": "core/crates/auths-codec/src/scope_decode_tests.rs",
+      "sha256": "61720a13ba4e2fefabcc492778348aaca5b3052e2570302de5ebc92efce12ab5"
+    },
+    {
+      "path": "core/crates/auths-codec/tests/formal_action_witness.rs",
+      "sha256": "f8e5e7af2f5cb6198547767e9bd173c74aed85af05fbead360a8a7ce69575853"
+    },
+    {
+      "path": "core/crates/auths-composition/Cargo.toml",
+      "sha256": "331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e"
+    },
+    {
+      "path": "core/crates/auths-composition/src/lib.rs",
+      "sha256": "e8a0f96ae904d831042f2284c5b8a7a8c9ccb030b4d6ac4b9912229039d4f535"
+    },
+    {
+      "path": "core/crates/auths-composition/src/oracle.rs",
+      "sha256": "423c08f866797759fce7daeeb6316f15da870052a915504cbbd8954498cf942a"
+    },
+    {
+      "path": "core/crates/auths-composition/src/summary.rs",
+      "sha256": "57ddc0376ae1182f73105147aa068d5b1e411444658f8da4ade56a5d0d4b4c6d"
+    },
+    {
+      "path": "core/crates/auths-identity/Cargo.toml",
+      "sha256": "4c0b69816e1c00caee21927a39ea2daf55d24d77cf60c216d9cb8a0e2622c993"
+    },
+    {
+      "path": "core/crates/auths-identity/README.md",
+      "sha256": "1e9efc35b80410ca4a79cfa6d3a417f44c1aac5d309cde34506de38d264e0516"
+    },
+    {
+      "path": "core/crates/auths-identity/examples/custom-method.rs",
+      "sha256": "2efca1ffbaf35348d0567d66100af7690c18ef32bf54ec1ad45ef3e1eb3d614d"
+    },
+    {
+      "path": "core/crates/auths-identity/examples/signed_message.rs",
+      "sha256": "a29bf595ee99f36fa77f89fe104803bdc9877ccc97b1dbf7c8fc9346a50a7168"
+    },
+    {
+      "path": "core/crates/auths-identity/src/lib.rs",
+      "sha256": "09e84bd7743a76c4656aa2e531f69dbe76e0e67207ac5c7615d9b8e4fa04da5c"
     },
     {
       "path": "core/crates/auths-model/Cargo.toml",
@@ -52,12 +252,272 @@
       "sha256": "306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450"
     },
     {
+      "path": "core/crates/auths-model/src/identifier.rs",
+      "sha256": "fcfb49e42682de6358980e4d86ca7763bba6a9a04967a4a6022b9ca8157103de"
+    },
+    {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "e7cfe6bb9574c6b016aa63e70658c31e0b90903ec6479a49f4a2ceb64f5bad97"
+      "sha256": "238d198437a9f4cc1ad180181d4409809071e8e92e1cc056c3b4431738ed4168"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",
-      "sha256": "b3ed3e3cc090afca2896a7d3de7988afccc1ee1ea0ebd91b51a8bc0f20ad8dbb"
+      "sha256": "0f0a8a4bd942867f168c0e411a8bca5d7f57e94065beaebe919b26b08ddd2108"
+    },
+    {
+      "path": "core/crates/auths-model/src/principal_scheme_tests.rs",
+      "sha256": "d64588a32503cd70b954c21f8582e46a20292ec918ea8e3f7278c0b99c1528c9"
+    },
+    {
+      "path": "core/crates/auths-model/src/scope_constructor_tests.rs",
+      "sha256": "a107fce37f38b5db2d9ae5c5585b49f011f88a5120c6a72c5a141da49f698c82"
+    },
+    {
+      "path": "core/crates/auths-multikey/Cargo.toml",
+      "sha256": "858756c1197befcada06134742bffe8d58cf674cadd6c046bf710570e96efaf2"
+    },
+    {
+      "path": "core/crates/auths-multikey/src/lib.rs",
+      "sha256": "f5177fffb11e40eeaaa665ba886c541fc1f24d5eacdd6983fb03dc20148733f0"
+    },
+    {
+      "path": "core/crates/auths-path-webpki/Cargo.toml",
+      "sha256": "b1b3e498fde58392f039d05b3abc41cedf76e2c033cb2bc4fbcd3f02ecc25a43"
+    },
+    {
+      "path": "core/crates/auths-path-webpki/src/lib.rs",
+      "sha256": "4e80058649340dbd961ac3f5567e2370f15ed30ed064965b54e6e86fb5e9ad1a"
+    },
+    {
+      "path": "core/crates/auths-ports/Cargo.toml",
+      "sha256": "596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c"
+    },
+    {
+      "path": "core/crates/auths-ports/src/binding.rs",
+      "sha256": "a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d"
+    },
+    {
+      "path": "core/crates/auths-ports/src/diagnostics.rs",
+      "sha256": "aa596572503b5a65a918bb2ff38281c144ff53821ee914e9325c852828d852df"
+    },
+    {
+      "path": "core/crates/auths-ports/src/lib.rs",
+      "sha256": "e7f7fdcb480de4d69d488af5234915542627eb2fbc987232c4b5c47363a491dc"
+    },
+    {
+      "path": "core/crates/auths-ports/src/path.rs",
+      "sha256": "b68fc547b4e4d97a60cbbc1cc1939fc6b34a8233b81f840bd396914a707e3ea1"
+    },
+    {
+      "path": "core/crates/auths-raw-key-core/Cargo.toml",
+      "sha256": "98c0bc8527a537512e43a74dd6ba9658c6f0cdc16610cf938e3f9b43785d836d"
+    },
+    {
+      "path": "core/crates/auths-raw-key-core/src/lib.rs",
+      "sha256": "98c0500c41697aae28708ad0bf970b9a97583d96a3d2c18d23e7fa351e0f7d12"
+    },
+    {
+      "path": "core/crates/auths-registries/Cargo.toml",
+      "sha256": "590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2"
+    },
+    {
+      "path": "core/crates/auths-registries/src/lib.rs",
+      "sha256": "0e94b31ddb24d57c2d0d82f479fcc138a677b606b89c8f16a8e9dc5497afc5c5"
+    },
+    {
+      "path": "core/crates/auths-registries/src/status_selection_tests.rs",
+      "sha256": "456d830b1c65db272f337e0dacc12aaaeefa99071ff3251d19b2f0417bf0a284"
+    },
+    {
+      "path": "core/crates/auths-registries/src/template.rs",
+      "sha256": "1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4"
+    },
+    {
+      "path": "core/crates/auths-signature-core/Cargo.toml",
+      "sha256": "6bee2230eb30af1be0bd5c2d57bd3e1903497a70028d47290d4ac6e9e0e8bca0"
+    },
+    {
+      "path": "core/crates/auths-signature-core/src/lib.rs",
+      "sha256": "d8f9465b337deabf3dedc4337223913aa637a10192d6b504281f28475a13ea11"
+    },
+    {
+      "path": "core/crates/auths-signature/Cargo.toml",
+      "sha256": "7f7b5682466ba439d8c59579022cb61068cad9fb4bd2d73e1cc21327c902b450"
+    },
+    {
+      "path": "core/crates/auths-signature/src/lib.rs",
+      "sha256": "b3d9ac4cc3ba0797b9e1c09f2d6ac05089b25dac4e285a5af28c0165b33d925b"
+    },
+    {
+      "path": "core/crates/auths-signature/tests/p256_corpus.rs",
+      "sha256": "c707b21495f32dc1192033b24fdd56aa46f79f968f069ced84d442fa03ca5234"
+    },
+    {
+      "path": "core/crates/auths-verifier/Cargo.toml",
+      "sha256": "c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/approval.rs",
+      "sha256": "2826a5227945a3e0ea000584f1e1c794bec3b313b13843f4284e0e716f830d33"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/causal.rs",
+      "sha256": "9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/lib.rs",
+      "sha256": "7d3ae3a95680018ae7d709b5fd64f1fa48ef838e3d389ee727b8087fbc4d9d50"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/observation.rs",
+      "sha256": "2b43ee60e1f105d33b325914ae723f91fe191675f27a9a9c04ea812c2fe27785"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/temporal_tests.rs",
+      "sha256": "c242d8bed72936ea7437e45ab88b98b28f0d82f9f92a6f750ef8b27fa71e8fef"
+    },
+    {
+      "path": "core/crates/auths-verifier/src/trace.rs",
+      "sha256": "2213d72023a1d9e0413a2cf2c51c3dad9e04775d86033a0caaa9d29a8f0036f8"
+    },
+    {
+      "path": "core/crates/auths-verifier/tests/approval_properties.rs",
+      "sha256": "ade9928d0efd1544fe0c6af909b6ac4ea6905e8210d3f0315a6df3b40a830de1"
+    },
+    {
+      "path": "core/crates/auths-verifier/tests/observation_action_facts.rs",
+      "sha256": "a1889530553e1313abb256ff51f5901bd18dfdad47f24dfe9faa933035ad8dde"
+    },
+    {
+      "path": "core/crates/auths-verifier/tests/portable_conformance.rs",
+      "sha256": "06130c2b403eca87a3be3edeab5395e80db96c87faa5d14c2878a78250fe958e"
+    },
+    {
+      "path": "core/fixtures/crypto/README.md",
+      "sha256": "d03594fddca61115ec52405a8c604b33f37dde2b848392206c50e3ecba634d87"
+    },
+    {
+      "path": "core/fixtures/crypto/import_p256_wycheproof.py",
+      "sha256": "d0162fa1e8045d5b42e7af82227c0e83e683b604b628421b286579a5df5c9ace"
+    },
+    {
+      "path": "core/fixtures/crypto/p256-sha256-v1.tsv",
+      "sha256": "52ca4cb96b873e9f6ead20abcb3e7fc78e795f746bae88ed6a9f18b68ffd256f"
+    },
+    {
+      "path": "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json",
+      "sha256": "c60de693930e386c3a5472d08081623ef8504decc54b38ac01ec6b2a2575c986"
+    },
+    {
+      "path": "core/testkit/auths-testkit/Cargo.toml",
+      "sha256": "d2c38ae2edfed6bcb8c3e3fa83bc4d62d88441026302c99c237a4c6c32724986"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/action_decode.rs",
+      "sha256": "510057e80afec42aefe89e2229dcb781109f926d3a059ba1e518ce18dc361ae0"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/context.rs",
+      "sha256": "ce3bd4638d8a3fba4b72d8a2e54a3f4e865ac185c905c5d9e9f7f93f9b36526a"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/mod.rs",
+      "sha256": "184728c6aa4fd2e6a3ad3153388b8f85e380974e09a8f61fbcd438c1871dc2b4"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/mutation.rs",
+      "sha256": "eee0a6a94b28dba4fa7b4877151543e014c242dd5b7dd742ce907e33c645e3ed"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/oracle.rs",
+      "sha256": "05fb0738ccf2939457eda356d76cd55e42a3c238c60e88895212df2aa196e778"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/adversarial/shrink.rs",
+      "sha256": "b947731dc50c7b79f3850c7c4637c1a1855a76c458a14b5b07caaf78c2ab7fc7"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/approval.rs",
+      "sha256": "07c6035ef4fd1ca32029696bff4b60f556acba12d41e42e3f598a119e48f4433"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/bounded_policy.rs",
+      "sha256": "98f465d5eef8cc103dcf84acd744909176760f5e756a70eb218e41095e3d0ed4"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/check_sites.rs",
+      "sha256": "b8068f7025e85ca74a88ec8b014566f752f26c0b61b5d6459d1f688dd6517586"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/conformance.rs",
+      "sha256": "6c6c5bf61003e6837cc3a99b60196ab78931cf3e3fa154b995843a7dd7081ad1"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/kernel_checks.rs",
+      "sha256": "43787567221fb1868e465634ad73d71e8ff527b275dacff6e3584a39345983f8"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/lib.rs",
+      "sha256": "8a5d42d0bddc59f883ff1207efb9a4389c181b86cfe26ea8a858d25ebbe5b0ea"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/mechanism_conformance.rs",
+      "sha256": "da5ca5e080fcf4c0ca1fd3f1fd77317653d924e87b1b50864df795a2d684f150"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/observation.rs",
+      "sha256": "d9e3e85da180dbc975dbc1a4052b0824d8d20a7f3da7fc0c8f87e9df416ab97d"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/product_waist.rs",
+      "sha256": "9a47bd772b6974b1da08c06b5883e77b6ed3ed9fdc761507b3461a18792e75de"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/status_extensions.rs",
+      "sha256": "c1de567ab6f2dd4075a07d988e3cfb190f5d2ee1143e4c73be8d0a2d4064def4"
+    },
+    {
+      "path": "core/testkit/auths-testkit/src/status_scope.rs",
+      "sha256": "2a1566884515030b2062eb193d747ec3d74c97e310f7776e98ebead3522b5f79"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-model/Cargo.toml",
+      "sha256": "34b2db64f93a288e942b5a3918d28cdcbef906e0dc9074ce848018d3d5f7a1fa"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-model/src/lib.rs",
+      "sha256": "49fac5aff2339d3a57c41cb8bb2a82852538e8f77ecc4b157c88e264ff31fb55"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-port/Cargo.toml",
+      "sha256": "7ff660f1b7579dc570c791090aeb450404fbbf44c92781e289f5ccdde746d739"
+    },
+    {
+      "path": "exchange/crates/auths-proof-exchange-port/src/lib.rs",
+      "sha256": "b408fb40c6432edc1facb3d8b3e9433a033f8dc73fe2e0ba5a88c972ca675021"
+    },
+    {
+      "path": "formal/Auths/Crypto/NativePrimitives.lean",
+      "sha256": "8d73a3205320a2306a4e1bd59121c039e8e2cc2848f63f64474a69b1d05ac601"
+    },
+    {
+      "path": "formal/Auths/Crypto/P256Primitives.lean",
+      "sha256": "6280c8cb79eb16d89f812f88dbb845bf3b8b40867256d16b3c38c130c0807dae"
+    },
+    {
+      "path": "formal/Auths/Crypto/Sha256Primitives.lean",
+      "sha256": "9cdb232550b3b620d588810e384f729f22eb314a0a165cd8aa1d83adda7dbedd"
+    },
+    {
+      "path": "formal/Auths/Support/Discriminant.lean",
+      "sha256": "d0c9b2b98232238d7c5f23579114ea9146f2e8a274b5b4e06783068490cbf88c"
+    },
+    {
+      "path": "formal/Auths/Support/PositiveVec.lean",
+      "sha256": "246c314719867482a10057612dc199e605e38189c67a59cf4e57a274b5ad0bb5"
+    },
+    {
+      "path": "formal/Auths/Support/UnitCallback.lean",
+      "sha256": "d109873a6dd0b27d2dc8a555b303a1d39adf25543dc9f9a1ba6c970801059d25"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -73,15 +533,23 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/BoundedPolicy.lean",
-      "sha256": "715bf2b8fc224e5cb80fe46f930b323af962832d8eab6fd2bcbab884ada85b28"
+      "sha256": "35b36202f49130d7ebb55363a7280afe0e22d52eea136ce9b9e1fb2d9541d195"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/Codec.lean",
+      "sha256": "577239d7a0de2a907a3d98289f7ae6d6fe79fe8e98b498e6d6e7f75a18a13882"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/Composition.lean",
+      "sha256": "bb179bff1e876947ed8632fcdc92b2c2996a1175deafddcd5c7ba26e158ce72e"
     },
     {
       "path": "formal/qualification/aeneas/cases/Connections.lean",
-      "sha256": "d85f77492deae33b8c8d3b6ad7bd876130077caae6440e3f9cad34ddc06bfa2f"
+      "sha256": "9c1285c7e6d81f185f20d4b3fb7bf8252bc0f77f0ace8e4e73b5b3cac6548be1"
     },
     {
       "path": "formal/qualification/aeneas/cases/Gateway.lean",
-      "sha256": "a6d3148ab9ad313a0d00b92313d6fb2bc70a131759e5ccffb9d6f5e028738264"
+      "sha256": "c8c66fa9123cdee3d97d7d7887576095a0c37ba548d5e6c02a11f1fba623b074"
     },
     {
       "path": "formal/qualification/aeneas/cases/Lifecycle.lean",
@@ -89,15 +557,95 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Model.lean",
-      "sha256": "b27e252238449bcee87a3d4d4deeca5537e8af380e2559ca24ea04fa88265793"
+      "sha256": "ebd31a481094b891fc64a924e12581ad516c0bed153238f3f2b7b97d1b914724"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/P256.lean",
+      "sha256": "d471138de5d7fb81fb34097e378250466e6abfa890d3f18034ab3646fdbc720c"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/ScopeCodec.lean",
+      "sha256": "48c0ad57f71ff15bf7a11a669782ab05c9e3d910584edb7161be0ebb899b0f3d"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/Sha256.lean",
+      "sha256": "a9ded04b2ebee0b5120532ec659fa48711931b6e67514b3c4c26263297db0baf"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/Signature.lean",
+      "sha256": "22a78fb9f640ef2e2f24c581fdbc04a7fa4bbbcbaf8e6bcf18317dff757cf869"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/StatusSelection.lean",
+      "sha256": "4338ad7661a6a6617aef295397a1f7bbb192e2ab5488465f076880fec38b6faa"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/Stores.lean",
+      "sha256": "7cb57dba378673e1ad581380d738d35978fd0ee97c5d5a62af4190f9938167ee"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/SuiteAdapters.lean",
+      "sha256": "e567da83843387e0cdb5031c2791b9c6d4df7a3ffc65c4be4edb1e8488c99c54"
+    },
+    {
+      "path": "formal/qualification/aeneas/cases/TemporalWitness.lean",
+      "sha256": "777a4aa448ef5e28e9cf9f41ef94da623f342f2899351c67a0f532df42872788"
+    },
+    {
+      "path": "formal/qualification/aeneas/entrypoints/profile_construction.rs",
+      "sha256": "4e6c4a3bfbd147a5ceab64e24a80fe10f08b0715210343b6be63fecaffdbd5ee"
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "38aa0babb5be3ac958c7e91f0640ad0ae3b6e4f265257642976dfe8bd3330850"
+      "sha256": "0bc0b2d28f762aae45bf5045c97750e1d2990fce0133cc97de2678bed752f2ca"
+    },
+    {
+      "path": "formal/tools/SourceClosure.lean",
+      "sha256": "1c5c6aa4abf38e31ad4f5fdaac275ecf0d651a65e97c0acf96abec12229133dc"
     },
     {
       "path": "formal/translation-toolchain.lock",
       "sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+    },
+    {
+      "path": "product/config/auths-config/Cargo.toml",
+      "sha256": "e4b568ab9f6d84f7d7e6d66443fe825f360db9c27bc7c31d6ddc0647ba3ab304"
+    },
+    {
+      "path": "product/config/auths-config/src/lib.rs",
+      "sha256": "fecf00ea65cef9018fda9af2063326d7065b869266d0d9e73a4f06816f1102cc"
+    },
+    {
+      "path": "product/errors/auths-errors/Cargo.toml",
+      "sha256": "3b3a199b6460ba75bda84475bb5accd35e1485448a3981038db85bf4772dd350"
+    },
+    {
+      "path": "product/errors/auths-errors/src/lib.rs",
+      "sha256": "7feeb9069fa4003f94f1f07c1c94619cf1c883e0dbaaf2187f04d0f742264bdd"
+    },
+    {
+      "path": "product/operations/auths-operations/Cargo.toml",
+      "sha256": "73dde1e914ba5e1386f8d49c0d730423cc72ae77ec44c6554a6a75cc8e8922b1"
+    },
+    {
+      "path": "product/operations/auths-operations/src/explanation.rs",
+      "sha256": "b4a39bcbd5712cb9e735ee7deeb281f3fa6af5ddca973735bf3d87dce427ef11"
+    },
+    {
+      "path": "product/operations/auths-operations/src/lib.rs",
+      "sha256": "3f401a56555113b98f57bca172a2660eaecedf76247b83a3fdbb089c133a29cd"
+    },
+    {
+      "path": "product/operations/auths-operations/src/render/json.rs",
+      "sha256": "2ae042639960afee123730e945d373bc5dda1d2b3af20ae16c939a7e99b9e418"
+    },
+    {
+      "path": "product/operations/auths-operations/src/render/mod.rs",
+      "sha256": "b3b7f6fe473f49227ace5a68bfc3d8dc14b5db8dd9888fd9e207070337b1b8bf"
+    },
+    {
+      "path": "product/operations/auths-operations/src/render/text.rs",
+      "sha256": "f216cf3bdb00e264523271b16e7059535ac6b1aabf271cebd7935af155e4bfec"
     },
     {
       "path": "product/policy/auths-bounded-policy/Cargo.toml",
@@ -137,7 +685,7 @@
     },
     {
       "path": "product/policy/auths-bounded-policy/src/kernel.rs",
-      "sha256": "99187c28b161ac70bee1afed60711f7f645adb4d1671a01863f9849b369811d5"
+      "sha256": "00f66e91381dc53fbb5753dcb22276f41667529f584fe00770fe388b979a73f7"
     },
     {
       "path": "product/policy/auths-bounded-policy/src/lib.rs",
@@ -152,6 +700,50 @@
       "sha256": "4e251ea5833559841f8ee0bd9b66c0c01c39fa5e3a21720a19c4e8adbfcb99d0"
     },
     {
+      "path": "product/profiles/auths-profile-api/Cargo.toml",
+      "sha256": "7ae85761f58625b5d678f961fd052eebf3e000ef565c7312e3ac857763c0017f"
+    },
+    {
+      "path": "product/profiles/auths-profile-api/src/lib.rs",
+      "sha256": "a194b82b20bf8aa864c2334ef6c6aec30b2154ded972862252d5dcefa488ab95"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/Cargo.toml",
+      "sha256": "db264fc25242f7b7e4133cbe5782545b3107b406c87168ae072683cfb59eac66"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/profile-v1.json",
+      "sha256": "fd46beeda8b55b802f8d4e61d4f5d0b1b74db77fcbeebddafab54bc06098df31"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/profile-v2.json",
+      "sha256": "2547772b2c38a28efef13adc789f9a55d13edfedbd301ff80a3216571dd6918e"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/src/arguments.rs",
+      "sha256": "a5de696586d507e2aee4a49fee99ef1ef4c51a2e46603f8838f1af6d9009833f"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/src/lib.rs",
+      "sha256": "d0f8b733a09ef8408336cdebc8948d6a5861012ce6878598b11be7084dfd4280"
+    },
+    {
+      "path": "product/profiles/auths-profile-mcp/src/session.rs",
+      "sha256": "166c281fa66333388e4760d6098dad02d3359e1d5de4b8f93312c014f97abb03"
+    },
+    {
+      "path": "product/receipts/auths-receipts/Cargo.toml",
+      "sha256": "6001fa1375899953aafcb07c23a6da0c8f57ea7ec08bb9c950b12a60a8cc6f0f"
+    },
+    {
+      "path": "product/receipts/auths-receipts/src/disclosure.rs",
+      "sha256": "ba9ed439be0a320c8a01f5b6e9b51361c1a37e076947490d8e4a484ba6bb119c"
+    },
+    {
+      "path": "product/receipts/auths-receipts/src/lib.rs",
+      "sha256": "547a57c4160256719cafb7d0ab972d9fc80b0da14fbbce4148c70c414070ff36"
+    },
+    {
       "path": "product/runtime/auths-connections/Cargo.toml",
       "sha256": "babeb6e1dda3dfb66291713ce1e43dce5c349833d0b50ea4dccbf986030026b2"
     },
@@ -161,7 +753,7 @@
     },
     {
       "path": "product/runtime/auths-connections/src/kernel.rs",
-      "sha256": "a456af19526ef7b19278551fd8d97606b6e7aa5a195e70bdd85d1e0786090ce8"
+      "sha256": "d53bf8df4e1343e8e798f0ab2d9d092059db7b266b0d1bad3ae4e6d463abce74"
     },
     {
       "path": "product/runtime/auths-connections/src/lib.rs",
@@ -169,11 +761,27 @@
     },
     {
       "path": "product/runtime/auths-connections/src/model.rs",
-      "sha256": "de34a089cac9702acb889b7602b3e4732306c9e61029ec892582b7e02b73fc77"
+      "sha256": "f6af1c15fc10a904eb598d30827d24ca202f52853a5a8d2af2164a5dc025959c"
+    },
+    {
+      "path": "product/runtime/auths-connections/src/record_time_tests.rs",
+      "sha256": "201c61940d95f84ea4e125d672c6244f4cd1fefb414e9e583db509d2db5d175b"
+    },
+    {
+      "path": "product/runtime/auths-connections/src/recovery_guard_tests.rs",
+      "sha256": "ce918bca22cd4f1d2d430951ba191e76ee5dc2b0fa145acf13da08ba52274a62"
     },
     {
       "path": "product/runtime/auths-connections/src/registry.rs",
       "sha256": "e57640e003e72ad3235c567c2bb944a262bd64e673f023b62ea091094cc7e946"
+    },
+    {
+      "path": "product/runtime/auths-connections/src/strict_order_tests.rs",
+      "sha256": "2aa297d2955cdaedc0abbc118ba1027c363803d4bc825091b2e1db1121dc865c"
+    },
+    {
+      "path": "product/runtime/auths-connections/src/string_constructor_tests.rs",
+      "sha256": "7af0e6b75baef268c9b11ea8aa551e8e7793d26378b11455ead7dcb7f2493008"
     },
     {
       "path": "product/runtime/auths-gateway-kernel/Cargo.toml",
@@ -181,11 +789,35 @@
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/construct.rs",
-      "sha256": "e9d65744bae273d65face4285e5d2da75c06a92ab48f7b8333d496604e31c63c"
+      "sha256": "ba592901a463c2cd81dc434ae62f33efeccc5e13f441a0dff65d60162a588b61"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/counter_aggregation.rs",
+      "sha256": "4bc970895b118f71c074a091ede8d0c558ed43d912ae5d0aebdc03aa64a8f78c"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/counter_preimages.rs",
+      "sha256": "d364f9c9955dbbda5e18dba547169a3ec61f5147153308b14eb85456bd04c175"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/deadline.rs",
+      "sha256": "25c96a7ef2427f54930e90cf739e6149dc21de9454f5d6d20984f0d5735cca19"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/entry_authorization.rs",
+      "sha256": "4ee6c6a014bfc246f34fbcbc65c020b3329377ac2cd262481060c480efede129"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/frontier.rs",
+      "sha256": "09650383952c76180295ab471b4f9344e0714071c0f72ecd7d0e8081b447519d"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/identity.rs",
+      "sha256": "38b6226778fee35abe163a20be35fe7099de7ebc1a24f94f8ee2c27132ed2c36"
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/lib.rs",
-      "sha256": "cfda6f8453426564c085475f183b6f790b438768a19668f1b65d33ba59dc8632"
+      "sha256": "2707427b76ae35c7c44921433506dab1bad1306e2c59360756bf18e9c8d85aae"
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/order.rs",
@@ -204,8 +836,56 @@
       "sha256": "9f46dcd1685ab6e4d1ba04a3fc286a9f3afee8fb47829be1fbc670a7926a2dc6"
     },
     {
+      "path": "product/runtime/auths-gateway-kernel/src/reservation_batch.rs",
+      "sha256": "25770ea6be3dddf1d771ed4650c9678323795b82479d761ff6bfbf57b875c67e"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/reservation_retry.rs",
+      "sha256": "0feb8731a31b55bfcb4dececc6b79b76b2966e1bc8b4cb84ca4bca71eb75a319"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/slot_record.rs",
+      "sha256": "da9b30cec8d728282e7eefb6f5dee1606b27902fd19d204792c2d5ebb5c8b33a"
+    },
+    {
       "path": "product/runtime/auths-gateway-kernel/src/transition.rs",
       "sha256": "cefb8f01d915880f6921f2501ff881ad94b9de61072c34d9cd19220992f97374"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/bounds.rs",
+      "sha256": "c5f35c5abae551697b18443cb2ce9b04798adc32741efb0d71e1c0ba9731cb42"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/connection.rs",
+      "sha256": "3ea2c7f6b233e395a2ec0463f526a1b01de3a29c6790c2eca36f8ffc95470400"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/recipe.rs",
+      "sha256": "fc2c6581d80f880d1052c8a6d05a5368d2467669c57ba900358d3ccf80d25f16"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/recipe/lower.rs",
+      "sha256": "b7ed4742fff4ffa505b0edbe7f390ecb845b07fa5026ecdb24aa107b21ebf3a1"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+      "sha256": "59f6ab5e641d85f9429172023feed3d06566a87b700fbeee20fce79bd669ccb0"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/recipe/tests.rs",
+      "sha256": "411271b06f8a53ad406aa15d7aeb3c5c437f237502034ec1e62221d843498c3f"
+    },
+    {
+      "path": "product/runtime/auths-gateway/src/store.rs",
+      "sha256": "fb1a92a02cea9b47d4b9552918ac2f58381133be0b9ed3b2117df5073e94f1ce"
+    },
+    {
+      "path": "product/runtime/auths-kernel-runtime/Cargo.toml",
+      "sha256": "926bcd0053e5edd703be8f0027ad009e2982db013c8174c1366edbf38b48087d"
+    },
+    {
+      "path": "product/runtime/auths-kernel-runtime/src/lib.rs",
+      "sha256": "7108faae9ca4bc32dc093ddaf885ac8f74f3c9b8d317b7c7d0ed00d1d0ab5972"
     },
     {
       "path": "product/runtime/auths-lifecycle/Cargo.toml",
@@ -260,6 +940,66 @@
       "sha256": "735466062bd8f032f9a9d410384d62107e32bcff5457520426d7deca5aecd686"
     },
     {
+      "path": "product/runtime/auths-runtime/Cargo.toml",
+      "sha256": "dd29d80a8b4bb56c869f036a6c9998f6e6d1c0383ac5dc03fa42b24abe2a7ff7"
+    },
+    {
+      "path": "product/runtime/auths-runtime/src/lib.rs",
+      "sha256": "132ca03d58c14905d3a822a4972f42a22a5ad33a45f2ba9ca44f3a57d810b4b0"
+    },
+    {
+      "path": "product/runtime/auths-runtime/src/production.rs",
+      "sha256": "fd4eff4270c571c10fcff6cf27df28961ebf074de8a1a028f500fda1ca376820"
+    },
+    {
+      "path": "product/stores/auths-stores/Cargo.toml",
+      "sha256": "a32c4b76d17b264be5d40d24497ff237e1ed87822e8bab86229b3db93106dbe3"
+    },
+    {
+      "path": "product/stores/auths-stores/migrations/postgres_lifecycle_v7.sql",
+      "sha256": "1986577c5e1905e3c451bd8b272ffbd2a3b78852ba2c6a581d20848e2ee88657"
+    },
+    {
+      "path": "product/stores/auths-stores/src/gateway_attempt.rs",
+      "sha256": "81c5ed9dad20ef8d544299b111b496d4a2af3d234364482bc5f892de358fa0ad"
+    },
+    {
+      "path": "product/stores/auths-stores/src/gateway_fence.rs",
+      "sha256": "b3286828c65b8d0d9203c1ce2381eef709b8cd1ae89b9b3f5ddcf87707f2a906"
+    },
+    {
+      "path": "product/stores/auths-stores/src/lib.rs",
+      "sha256": "6cf1be4c3ea934531f920713db3b278b770cfa94c6b910e18c119bd5d70ff36a"
+    },
+    {
+      "path": "product/stores/auths-stores/src/lifecycle.rs",
+      "sha256": "0ecbb634275b0e468e35bbd90f9271741b6bb582a22b03b0b08fc29cffadff9d"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_lifecycle.rs",
+      "sha256": "4f51a0e27f2d96e0ed8acf7ec9055ddf993ee49f3af2e299c81539f7e065bc85"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/.gitignore",
+      "sha256": "f5c10da83055c0c3e72f3167971d1916e443dc90390e32b42844552cc37b81e0"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/README.md",
+      "sha256": "87d1549181a7524d2b13bc1e581b253849187f888e972fc894e6b31b1ff47fb6"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/compose.yaml",
+      "sha256": "66ce27e1b1156c3ed8acd26ffc0150c82de28b4d673866274bf0dc37f9d7557c"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/postgres_tls/generate-certificates.sh",
+      "sha256": "5785c6f975d340e0a6cbd2ddff9b924a1605d910b0e3a87a5ae4489fb14a8303"
+    },
+    {
+      "path": "product/stores/auths-stores/tests/production_recovery.rs",
+      "sha256": "605629e4f79d7c38c8acd86aad1fcd2c9d3fcfbbe0a2f56de411ce7937cea2e5"
+    },
+    {
       "path": "xtask/Cargo.toml",
       "sha256": "66b2989994cb878392e352a3c1a632b6cc64074aa4e37e8e77361a191a60a0c5"
     },
@@ -273,7 +1013,7 @@
     },
     {
       "path": "xtask/ci-plan/src/lib.rs",
-      "sha256": "aeae292998e347454a2396933d4e4968460c70c165f88b7a6586985582a0463c"
+      "sha256": "e67e98ea4139ac77d0008cfbf843bbc33dd4c5a31586ecf2231bc652407387b7"
     },
     {
       "path": "xtask/ci-plan/src/main.rs",
@@ -301,7 +1041,7 @@
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "d67a92a45d88be5d59e558b5fba1bd59a3ca676bfc57cc8fa9a587c2df6780f3"
+      "sha256": "7440763f146f138bda0d1f591f9af1555bc7760d792a962435f3e1830c861232"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -325,11 +1065,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "99d0378a44c59d6ce227033a5aa8af193d6b55fe76a519ba06e28d0f2ae2094d"
+      "sha256": "cd757c2013fe18aeab14d8d8d099cdf9a389797c9bfdf81284a11c7f1a783d61"
     },
     {
       "path": "xtask/src/formal_coverage.rs",
-      "sha256": "9736ece0a2c869d4cf0a498282925da9d306eb05d8dd8f60bd7e8f6bed1dcd0b"
+      "sha256": "cfe5b9e105b05eaa41f0199cad4a975b4740e3c2c0fb7bf3ec2f404ba5165fbd"
     },
     {
       "path": "xtask/src/formal_mutations.rs",
@@ -337,7 +1077,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "1826078f21dbf946801413cb6cf1f66dfd7495c9de3853455fbf2eb151f899e6"
+      "sha256": "97170293013da1b2678fe40e4b94f72caf47682435366697c2ec5dcf1c91ae15"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -345,7 +1085,7 @@
     },
     {
       "path": "xtask/src/kani_harness.rs",
-      "sha256": "33013cb22709e8ad557b8da626dc35ac455484f5f272d431c0ec151e708c6212"
+      "sha256": "7e2e429784d26e9d5542d063c98f496dbfa15fe49c2788825ffbdae76a3f93c4"
     },
     {
       "path": "xtask/src/live_demo.rs",
@@ -401,7 +1141,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "9e36c78ae7ed8ce11bbc545ef7db8c1741c826038d01a7fb66d6e7fa5c91b18b"
+      "sha256": "697005576d88fd595e9efeb9ca67465ac45f71beb5636a144741b7c54444eeb3"
     },
     {
       "path": "xtask/src/stripe.rs",

@@ -204,7 +204,8 @@ struct CertificateOptions {
     root: PathBuf,
     #[arg(long)]
     signer_id: String,
-    #[arg(long)]
+    // Base64url public keys may start with '-', which is part of the value.
+    #[arg(long, allow_hyphen_values = true)]
     public_key: String,
     #[arg(long)]
     issued_at: Option<u64>,
@@ -812,6 +813,46 @@ fn main() -> ExitCode {
         Err(Failure(line)) => {
             eprintln!("{line}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Command};
+    use auths_recipe_qualification::PublicKeyB64;
+    use clap::Parser;
+
+    #[test]
+    fn certificate_commands_accept_public_keys_starting_with_a_hyphen() {
+        let public_key = PublicKeyB64::from_bytes(&[0xfb; 32]);
+        assert!(public_key.as_str().starts_with('-'));
+        for command in ["certify", "certify-commissioner"] {
+            let parsed = Cli::try_parse_from([
+                "auths-qualification",
+                command,
+                "--root-key",
+                "synthetic-root.key",
+                "--root",
+                "synthetic-root.json",
+                "--signer-id",
+                "synthetic-signer",
+                "--public-key",
+                public_key.as_str(),
+                "--not-before",
+                "1",
+                "--not-after",
+                "2",
+                "--out",
+                "synthetic-certificate.json",
+            ])
+            .expect("base64url public key is one argument");
+            let (Command::Certify(options) | Command::CertifyCommissioner(options)) =
+                parsed.command
+            else {
+                panic!("expected a certificate command");
+            };
+            assert_eq!(options.public_key, public_key.as_str());
         }
     }
 }

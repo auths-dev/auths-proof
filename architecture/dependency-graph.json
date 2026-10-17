@@ -1786,7 +1786,7 @@
       "target": "minicbor",
       "target_layer": null,
       "scope": "external",
-      "kind": "normal",
+      "kind": "dev",
       "target_condition": null,
       "optional": false,
       "default_features": false,

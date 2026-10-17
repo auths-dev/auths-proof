@@ -10,9 +10,8 @@
 //! secret stored at exactly `credential_generation`, found as the newest
 //! stored generation not after `generation`.
 //!
-//! This module is a translated leaf: closed `Copy` structs, `match`
-//! dispatch, one index loop over a slice, and no standard-library call
-//! beyond checked addition.
+//! These translated leaves use closed structs/enums, scalar decisions and
+//! bounded byte/generation loops. They perform no credential or provider I/O.
 
 /// The two generations of one connection record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -100,10 +99,360 @@ pub fn lease_generation(
     }
 }
 
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+fn lower_tail_valid(byte: u8) -> bool {
+    (byte >= b'a' && byte <= b'z') || (byte >= b'0' && byte <= b'9') || byte == b'-'
+}
+/// Whether bytes form a nonempty bounded `[a-z][a-z0-9-]*` token.
+/// Oversized buffers refuse before scanning; no string allocation is performed.
+#[must_use]
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+pub fn lower_token_valid(value: &[u8], maximum: usize) -> bool {
+    if value.is_empty() || value.len() > maximum {
+        return false;
+    }
+    let first = value[0];
+    if first < b'a' || first > b'z' {
+        return false;
+    }
+    let mut index = 0;
+    while index < value.len() {
+        let byte = value[index];
+        if !lower_tail_valid(byte) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+/// Whether bytes are nonempty, bounded and entirely printable ASCII.
+/// NUL, whitespace, control bytes and UTF-8 multibyte sequences refuse.
+#[must_use]
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+pub fn ascii_graphic_valid(value: &[u8], maximum: usize) -> bool {
+    if value.is_empty() || value.len() > maximum {
+        return false;
+    }
+    let mut index = 0;
+    while index < value.len() {
+        let byte = value[index];
+        if byte < 0x21 || byte > 0x7e {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+#[allow(
+    clippy::manual_range_contains,
+    reason = "explicit scalar comparisons keep this mechanically translated boundary free of RangeInclusive interfaces"
+)]
+fn semantic_head_valid(byte: u8) -> bool {
+    (byte >= b'a' && byte <= b'z')
+        || (byte >= b'A' && byte <= b'Z')
+        || (byte >= b'0' && byte <= b'9')
+}
+fn semantic_tail_valid(byte: u8) -> bool {
+    semantic_head_valid(byte)
+        || byte == b'.'
+        || byte == b'_'
+        || byte == b':'
+        || byte == b'/'
+        || byte == b'-'
+}
+/// Whether bytes form a nonempty bounded `[A-Za-z0-9][A-Za-z0-9._:/-]*` identifier.
+/// Oversized input refuses before scanning; no allocation is performed.
+#[must_use]
+pub fn semantic_id_valid(value: &[u8], maximum: usize) -> bool {
+    if value.is_empty() || value.len() > maximum {
+        return false;
+    }
+    if !semantic_head_valid(value[0]) {
+        return false;
+    }
+    let mut index = 0;
+    while index < value.len() {
+        if !semantic_tail_valid(value[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+use crate::model::{
+    ConnectionProfile, ConnectionRecordError, ConnectionState, MAX_PROFILES, MAX_WORKLOADS,
+};
+/// Authorizes recovery at a positive generation no newer than the record.
+/// Revocation takes precedence and always refuses. Zero raw generations refuse
+/// even though the typed shipping caller already excludes them.
+///
+/// # Errors
+/// Returns `Revoked` for a tombstone and `InvalidGeneration` for invalid bounds.
+pub fn recovery_lease(
+    state: ConnectionState,
+    record_generation: u64,
+    requested_generation: u64,
+) -> Result<(), ConnectionRecordError> {
+    match state {
+        ConnectionState::Revoked => Err(ConnectionRecordError::Revoked),
+        ConnectionState::Active | ConnectionState::Disabled => {
+            if record_generation == 0
+                || requested_generation == 0
+                || requested_generation > record_generation
+            {
+                Err(ConnectionRecordError::InvalidGeneration)
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Which credential commitment a recovery binding must authenticate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecoveryBindingRequirement {
+    /// The generation tuple is malformed or inconsistent.
+    Refuse,
+    /// The operation predates the current credential; use its authenticated record.
+    RecordedCommitment,
+    /// The operation uses the current credential; compare the current commitment.
+    CurrentCommitment,
+}
+
+/// Selects which authenticated credential commitment recovery must check.
+/// Invalid tuples refuse. An operation before the current credential generation
+/// uses its recorded pair; later operations must name the exact current one.
+#[must_use]
+pub fn recovery_binding_requirement(
+    current_credential_generation: u64,
+    operation_generation: u64,
+    operation_credential_generation: u64,
+) -> RecoveryBindingRequirement {
+    if current_credential_generation == 0
+        || operation_generation == 0
+        || operation_credential_generation == 0
+        || operation_credential_generation > operation_generation
+    {
+        return RecoveryBindingRequirement::Refuse;
+    }
+    if operation_generation >= current_credential_generation {
+        if operation_credential_generation == current_credential_generation {
+            RecoveryBindingRequirement::CurrentCommitment
+        } else {
+            RecoveryBindingRequirement::Refuse
+        }
+    } else {
+        RecoveryBindingRequirement::RecordedCommitment
+    }
+}
+
+/// Allows only a changed administrative state from a non-revoked record at a
+/// nondecreasing timestamp. Revocation is a terminal state.
+#[must_use]
+pub fn state_transition_allows(
+    current: ConnectionState,
+    next: ConnectionState,
+    previous_time: u64,
+    proposed_time: u64,
+) -> bool {
+    if proposed_time < previous_time {
+        return false;
+    }
+    matches!(
+        (current, next),
+        (
+            ConnectionState::Active,
+            ConnectionState::Disabled | ConnectionState::Revoked
+        ) | (
+            ConnectionState::Disabled,
+            ConnectionState::Active | ConnectionState::Revoked
+        )
+    )
+}
+
+/// Allows administrative data changes only from a non-revoked record at a
+/// nondecreasing timestamp. Rotation and authorization replacement share this rule.
+#[must_use]
+pub fn record_change_allows(
+    state: ConnectionState,
+    previous_time: u64,
+    proposed_time: u64,
+) -> bool {
+    match state {
+        ConnectionState::Revoked => false,
+        ConnectionState::Active | ConnectionState::Disabled => proposed_time >= previous_time,
+    }
+}
+
+/// Validates the complete temporal shape of a durable connection record.
+/// Creation never follows update; only revoked records carry a revocation
+/// timestamp, and that timestamp lies within the inclusive record lifetime.
+#[must_use]
+pub fn record_times_valid(
+    state: ConnectionState,
+    created: u64,
+    updated: u64,
+    revoked_at: Option<u64>,
+) -> bool {
+    if created > updated {
+        return false;
+    }
+    match (state, revoked_at) {
+        (ConnectionState::Revoked, Some(value)) => created <= value && value <= updated,
+        (ConnectionState::Revoked, None)
+        | (ConnectionState::Active | ConnectionState::Disabled, Some(_)) => false,
+        (ConnectionState::Active | ConnectionState::Disabled, None) => true,
+    }
+}
+
+/// Whether every adjacent pair is strictly ordered by T's native comparator.
+/// Empty and singleton slices are ordered. The scan allocates nothing and
+/// preserves comparator invocation order; the caller enforces collection bounds.
+#[must_use]
+pub fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
+    if values.is_empty() {
+        return true;
+    }
+    let mut index = 1;
+    while index < values.len() {
+        if values[index - 1] < values[index] {
+            index += 1;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validates the complete workload allowlist: 1–256 strictly ordered, unique
+/// names, each 1–128 bytes of printable ASCII. Invalid length refuses before
+/// ordering or scanning text, and no allocation is performed.
+#[must_use]
+pub fn workloads_valid(values: &[String]) -> bool {
+    if values.is_empty() || values.len() > MAX_WORKLOADS || !strictly_sorted_unique(values) {
+        return false;
+    }
+    let mut index = 0;
+    while index < values.len() {
+        if !ascii_graphic_valid(values[index].as_bytes(), 128) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Validates the complete profile allowlist: 1–32 strictly ordered, unique
+/// identifier/version pairs. Profile field validity is earned by their constructors.
+#[must_use]
+pub fn profiles_valid(values: &[ConnectionProfile]) -> bool {
+    !values.is_empty() && values.len() <= MAX_PROFILES && strictly_sorted_unique(values)
+}
+
+/// Composes every check made by `ConnectionRecord::validate` over its actual
+/// stored fields. Workload, profile and timestamp errors retain that precedence.
+/// Descriptor, generation and commitment checks belong to assembly/decoding.
+///
+/// # Errors
+/// Returns `InvalidWorkloads`, `InvalidProfiles`, or `InvalidTimestamps` for the
+/// first invalid record component.
+pub fn validate_record_shape(
+    workloads: &[String],
+    profiles: &[ConnectionProfile],
+    state: ConnectionState,
+    created: u64,
+    updated: u64,
+    revoked: Option<u64>,
+) -> Result<(), ConnectionRecordError> {
+    if !workloads_valid(workloads) {
+        return Err(ConnectionRecordError::InvalidWorkloads);
+    }
+    if !profiles_valid(profiles) {
+        return Err(ConnectionRecordError::InvalidProfiles);
+    }
+    if !record_times_valid(state, created, updated, revoked) {
+        return Err(ConnectionRecordError::InvalidTimestamps);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn original(value: &[u8], maximum: usize) -> bool {
+        (1..=maximum).contains(&value.len())
+            && value.is_ascii()
+            && value.iter().copied().enumerate().all(|(index, byte)| {
+                byte.is_ascii_alphanumeric()
+                    || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'/' | b'-'))
+            })
+    }
+    #[test]
+    fn original_semantic_grammar_for_all_byte_pairs_and_length_boundaries() {
+        for first in 0..=u8::MAX {
+            for second in 0..=u8::MAX {
+                let pair = [first, second];
+                for length in 0..=2 {
+                    for maximum in [0, 1, 2, 128, usize::MAX] {
+                        assert_eq!(
+                            semantic_id_valid(&pair[..length], maximum),
+                            original(&pair[..length], maximum)
+                        );
+                    }
+                }
+            }
+        }
+        for length in [127, 128, 129] {
+            let mut value = vec![b'a'; length];
+            for index in 0..length {
+                for byte in 0..=u8::MAX {
+                    value[index] = byte;
+                    assert_eq!(semantic_id_valid(&value, 128), original(&value, 128));
+                }
+                value[index] = b'a';
+            }
+        }
+    }
+
+    fn oracle_lower(value: &[u8], maximum: usize) -> bool {
+        (1..=maximum).contains(&value.len())
+            && value.is_ascii()
+            && value.iter().copied().enumerate().all(|(index, byte)| {
+                byte.is_ascii_lowercase() || (index > 0 && (byte.is_ascii_digit() || byte == b'-'))
+            })
+    }
+    #[test]
+    fn all_byte_pairs_preserve_the_original_ascii_predicates() {
+        for first in 0..=u8::MAX {
+            for second in 0..=u8::MAX {
+                let bytes = [first, second];
+                for length in 0..=2 {
+                    for maximum in [0, 1, 2, 64, usize::MAX] {
+                        let value = &bytes[..length];
+                        assert_eq!(
+                            lower_token_valid(value, maximum),
+                            oracle_lower(value, maximum)
+                        );
+                        let expected = (1..=maximum).contains(&value.len())
+                            && value.iter().all(u8::is_ascii_graphic);
+                        assert_eq!(ascii_graphic_valid(value, maximum), expected);
+                    }
+                }
+            }
+        }
+    }
     #[test]
     fn state_changes_keep_and_rotations_set_the_credential_generation() {
         let installed = Generations {

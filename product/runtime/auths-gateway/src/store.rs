@@ -18,14 +18,16 @@ use crate::{
 };
 use auths_gateway_kernel::transition::{self, AttemptView, Link, Reading, Stage};
 use auths_lifecycle::StoreError;
-use auths_stores::{GatewayRecordInsert, PostgresLifecycleStore};
+use auths_stores::{
+    GatewayRecordInsert, PostgresLifecycleStore, advance_gateway_collection, gateway_window_open,
+};
 use base64ct::{Base64, Encoding as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
-    io::Write as _,
+    io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
@@ -40,6 +42,9 @@ const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
 const BATCH_FILE: &str = ".batch.json";
 const LOCK_FILE: &str = ".replace.lock";
+const COLLECTION_FILE: &str = ".collection.json";
+const FILE_STORE_SCHEMA: &str = "auths.gateway-file-store/1";
+const MAX_COLLECTION_FILE_BYTES: usize = 512;
 /// A load that keeps finding a crashed batch gives up after this many
 /// rollbacks rather than spin.
 const MAX_RECOVERY_ROUNDS: usize = 8;
@@ -859,12 +864,11 @@ impl GatewayAttemptKey {
     /// Derives the key of `operation_id` in `namespace`.
     #[must_use]
     pub fn for_operation(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> Self {
-        let mut hash = Sha256::new();
-        hash.update(b"auths.gateway-logical-operation/1\0");
-        hash.update(namespace.as_str().as_bytes());
-        hash.update([0]);
-        hash.update(operation_id.as_str().as_bytes());
-        Self(hash.finalize().into())
+        let preimage = auths_gateway_kernel::identity::logical_operation_preimage(
+            namespace.as_str().as_bytes(),
+            operation_id.as_str().as_bytes(),
+        );
+        Self(Sha256::digest(preimage).into())
     }
 
     /// Uses `bytes`, a key derived under another record kind's hash domain.
@@ -920,6 +924,11 @@ pub enum GatewayInsert {
         /// The index, in the caller's order, of an entry whose key existed.
         index: usize,
     },
+    /// At least one slot belongs to a closed window; nothing was inserted.
+    ClosedWindow {
+        /// The shared durable cutoff checked atomically with this batch.
+        collected_through: u64,
+    },
 }
 
 /// Durable storage of opaque gateway records of five closed kinds.
@@ -930,12 +939,15 @@ pub enum GatewayInsert {
 /// sweeps of expired slots only, and fail-closed reads that never report
 /// unreadable state as absent.
 pub trait GatewayAttemptStore: Send + Sync {
-    /// Inserts every entry, or none when any key already exists.
+    /// Inserts every entry only when every key is absent and every slot's
+    /// expiry is strictly after the shared durable collection cutoff. The
+    /// cutoff check and insertion have one ordered linearization point.
     ///
     /// # Errors
     /// Returns [`GatewayAttemptError::Corrupt`] for an entry outside its
-    /// bounds and [`GatewayAttemptError::Unavailable`] when storage fails;
-    /// nothing is inserted in either case.
+    /// bounds and [`GatewayAttemptError::Unavailable`] when storage fails.
+    /// An unavailable result may follow an all-or-none commit whose
+    /// acknowledgement was lost; it must never produce an execution handle.
     fn insert_all(
         &self,
         entries: &[GatewayRecordEntry],
@@ -945,11 +957,13 @@ pub trait GatewayAttemptStore: Send + Sync {
     ///
     /// # Errors
     /// Returns [`GatewayAttemptError::Replay`] when the key already exists,
-    /// including a record left by a crashed claim.
+    /// including a record left by a crashed claim, and
+    /// [`GatewayAttemptError::InvalidTransition`] for a slot in a closed window.
     fn insert(&self, entry: &GatewayRecordEntry) -> Result<(), GatewayAttemptError> {
         match self.insert_all(std::slice::from_ref(entry))? {
             GatewayInsert::Inserted => Ok(()),
             GatewayInsert::Exists { .. } => Err(GatewayAttemptError::Replay),
+            GatewayInsert::ClosedWindow { .. } => Err(GatewayAttemptError::InvalidTransition),
         }
     }
 
@@ -979,7 +993,9 @@ pub trait GatewayAttemptStore: Send + Sync {
     ) -> Result<(), GatewayAttemptError>;
 
     /// Deletes at most `limit` count and sum slots whose expiry is at or
-    /// before `now`, and returns how many were deleted.
+    /// before `now`, and returns how many were deleted. Durably advances a
+    /// shared monotone cutoff before deletion (or atomically with it), even
+    /// when `limit` is zero. Claims and the cutoff are never collected.
     ///
     /// # Errors
     /// Returns [`GatewayAttemptError::Unavailable`] when storage fails.
@@ -1028,6 +1044,13 @@ struct SlotFile {
     record_b64: String,
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CollectionFile {
+    schema: String,
+    collected_through: Option<u64>,
+}
+
 /// Where a conformance test stops a batch, to leave the state a crash at
 /// that step would leave. Production batches never stop early.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1046,7 +1069,8 @@ impl FileGatewayAttemptStore {
     ///
     /// # Errors
     /// Rejects symlinks, broad permissions, foreign ownership, a malformed
-    /// batch file, and I/O errors.
+    /// batch file, obsolete unmarked state, missing security metadata or
+    /// lock state, and I/O errors. It initializes only a fresh empty directory.
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, GatewayAttemptError> {
         let root = root.into();
         if !is_normalized_absolute(&root) {
@@ -1069,8 +1093,100 @@ impl FileGatewayAttemptStore {
             _ => GatewayAttemptError::UnsafeDirectory,
         })?;
         let store = Self { root };
+        store.initialize_collection()?;
         store.recover()?;
         Ok(store)
+    }
+
+    fn initialize_collection(&self) -> Result<(), GatewayAttemptError> {
+        let (lock, fresh) = if self.root.join(COLLECTION_FILE).exists() {
+            (
+                Self::lock_options()
+                    .open(self.root.join(LOCK_FILE))
+                    .map_err(|error| {
+                        if error.kind() == std::io::ErrorKind::NotFound {
+                            GatewayAttemptError::Corrupt
+                        } else {
+                            GatewayAttemptError::Unavailable
+                        }
+                    })?,
+                false,
+            )
+        } else {
+            match Self::lock_options()
+                .create_new(true)
+                .open(self.root.join(LOCK_FILE))
+            {
+                Ok(lock) => (lock, true),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => (
+                    Self::lock_options()
+                        .open(self.root.join(LOCK_FILE))
+                        .map_err(|_| GatewayAttemptError::Unavailable)?,
+                    false,
+                ),
+                Err(_) => return Err(GatewayAttemptError::Unavailable),
+            }
+        };
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if self.root.join(COLLECTION_FILE).exists() {
+            if fresh {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+            self.collection_cutoff()?;
+            return Ok(());
+        }
+        if !fresh {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        // An unmarked nonempty store is obsolete or lost security state.
+        // Never interpret a missing cutoff as an empty collection history.
+        for entry in fs::read_dir(&self.root).map_err(|_| GatewayAttemptError::Unavailable)? {
+            let entry = entry.map_err(|_| GatewayAttemptError::Unavailable)?;
+            if entry.file_name().to_str() != Some(LOCK_FILE) {
+                return Err(GatewayAttemptError::Corrupt);
+            }
+        }
+        let bytes = canonical(&CollectionFile {
+            schema: FILE_STORE_SCHEMA.to_owned(),
+            collected_through: None,
+        })?;
+        self.pending(&bytes)?
+            .persist_noclobber(self.root.join(COLLECTION_FILE))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        sync_directory(&self.root)
+    }
+
+    fn collection_cutoff(&self) -> Result<Option<u64>, GatewayAttemptError> {
+        let bytes = Self::read_file(&self.root.join(COLLECTION_FILE), MAX_COLLECTION_FILE_BYTES)?
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let state: CollectionFile =
+            serde_json::from_slice(&bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+        if state.schema != FILE_STORE_SCHEMA || canonical(&state)? != bytes {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        if state
+            .collected_through
+            .is_some_and(|cutoff| i64::try_from(cutoff).is_err())
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(state.collected_through)
+    }
+
+    fn publish_collection(&self, now: u64) -> Result<(), GatewayAttemptError> {
+        i64::try_from(now).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let next = advance_gateway_collection(self.collection_cutoff()?, now);
+        let bytes = canonical(&CollectionFile {
+            schema: FILE_STORE_SCHEMA.to_owned(),
+            collected_through: Some(next),
+        })?;
+        self.pending(&bytes)?
+            .persist(self.root.join(COLLECTION_FILE))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        // No deletion can begin until both the replacement file and its
+        // directory entry have been synchronized successfully.
+        sync_directory(&self.root)
     }
 
     fn file_name(kind: GatewayRecordKind, key: &GatewayAttemptKey) -> String {
@@ -1088,13 +1204,42 @@ impl FileGatewayAttemptStore {
         self.root.join(Self::file_name(kind, key))
     }
 
+    fn key_exists(&self, key: &GatewayAttemptKey) -> Result<bool, GatewayAttemptError> {
+        for kind in [
+            GatewayRecordKind::Attempt,
+            GatewayRecordKind::CountSlot,
+            GatewayRecordKind::SumSlot,
+            GatewayRecordKind::Connection,
+            GatewayRecordKind::CommissioningBudget,
+        ] {
+            match fs::symlink_metadata(self.path_for(kind, key)) {
+                Ok(_) => return Ok(true),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err(GatewayAttemptError::Unavailable),
+            }
+        }
+        Ok(false)
+    }
+
     fn read_file(path: &Path, maximum: usize) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
+        let file = match File::open(path) {
+            Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(GatewayAttemptError::Unavailable),
         };
-        if bytes.is_empty() || bytes.len() > maximum {
+        let maximum = u64::try_from(maximum).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let metadata = file
+            .metadata()
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if !metadata.is_file() || metadata.len() > maximum {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let read_limit = maximum.checked_add(1).ok_or(GatewayAttemptError::Corrupt)?;
+        let mut bytes = Vec::new();
+        file.take(read_limit)
+            .read_to_end(&mut bytes)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        if bytes.is_empty() || u64::try_from(bytes.len()).map_or(true, |length| length > maximum) {
             return Err(GatewayAttemptError::Corrupt);
         }
         Ok(Some(bytes))
@@ -1134,15 +1279,19 @@ impl FileGatewayAttemptStore {
         Ok(pending)
     }
 
-    fn lock(&self, operation: rustix::fs::FlockOperation) -> Result<File, GatewayAttemptError> {
+    fn lock_options() -> OpenOptions {
         let mut options = OpenOptions::new();
-        options.read(true).write(true).create(true).truncate(false);
+        options.read(true).write(true);
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt as _;
             options.mode(0o600);
         }
-        let lock = options
+        options
+    }
+
+    fn lock(&self, operation: rustix::fs::FlockOperation) -> Result<File, GatewayAttemptError> {
+        let lock = Self::lock_options()
             .open(self.root.join(LOCK_FILE))
             .map_err(|_| GatewayAttemptError::Unavailable)?;
         rustix::fs::flock(&lock, operation).map_err(|_| GatewayAttemptError::Unavailable)?;
@@ -1152,6 +1301,7 @@ impl FileGatewayAttemptStore {
     /// Serializes mutations across every process on this host.
     fn exclusive(&self) -> Result<File, GatewayAttemptError> {
         let lock = self.lock(rustix::fs::FlockOperation::LockExclusive)?;
+        self.collection_cutoff()?;
         self.recover_locked()?;
         Ok(lock)
     }
@@ -1163,6 +1313,7 @@ impl FileGatewayAttemptStore {
     fn shared(&self) -> Result<File, GatewayAttemptError> {
         for _ in 0..MAX_RECOVERY_ROUNDS {
             let lock = self.lock(rustix::fs::FlockOperation::LockShared)?;
+            self.collection_cutoff()?;
             if !self.root.join(BATCH_FILE).exists() {
                 return Ok(lock);
             }
@@ -1226,8 +1377,18 @@ impl FileGatewayAttemptStore {
             })
             .collect::<Result<Vec<_>, GatewayAttemptError>>()?;
         let _lock = self.exclusive()?;
-        for (index, (name, _)) in files.iter().enumerate() {
-            if self.root.join(name).exists() {
+        let cutoff = self.collection_cutoff()?;
+        for entry in entries {
+            if let Some(expiry) = entry.expires_at
+                && !gateway_window_open(expiry, cutoff)
+            {
+                return Ok(GatewayInsert::ClosedWindow {
+                    collected_through: cutoff.ok_or(GatewayAttemptError::Corrupt)?,
+                });
+            }
+        }
+        for (index, entry) in entries.iter().enumerate() {
+            if self.key_exists(&entry.key)? {
                 return Ok(GatewayInsert::Exists { index });
             }
         }
@@ -1310,6 +1471,14 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
         validate_batch(std::slice::from_ref(entry))?;
         let bytes = Self::file_bytes(entry)?;
         let _lock = self.exclusive()?;
+        if let Some(expiry) = entry.expires_at
+            && !gateway_window_open(expiry, self.collection_cutoff()?)
+        {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        if self.key_exists(&entry.key)? {
+            return Err(GatewayAttemptError::Replay);
+        }
         match self
             .pending(&bytes)?
             .persist_noclobber(self.path_for(entry.kind, &entry.key))
@@ -1329,13 +1498,17 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
     ) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
         let _lock = self.shared()?;
         let path = self.path_for(kind, key);
-        if kind.expires() {
+        let record = if kind.expires() {
             Self::read_file(&path, MAX_SLOT_FILE_BYTES)?
                 .map(|bytes| Self::decode_slot(&bytes).map(|(_, record)| record))
                 .transpose()
         } else {
             Self::read_file(&path, MAX_RECORD_BYTES)
+        }?;
+        if record.is_none() && self.key_exists(key)? {
+            return Err(GatewayAttemptError::Corrupt);
         }
+        Ok(record)
     }
 
     fn replace(
@@ -1364,6 +1537,7 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
 
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
         let _lock = self.exclusive()?;
+        self.publish_collection(now)?;
         let mut names: Vec<String> = fs::read_dir(&self.root)
             .map_err(|_| GatewayAttemptError::Unavailable)?
             .map(|entry| {
@@ -1471,6 +1645,9 @@ impl GatewayAttemptStore for PostgresGatewayAttemptStore {
         match self.store()?.insert_gateway_records(&mechanism) {
             Ok(GatewayRecordInsert::Inserted) => Ok(GatewayInsert::Inserted),
             Ok(GatewayRecordInsert::Exists { index }) => Ok(GatewayInsert::Exists { index }),
+            Ok(GatewayRecordInsert::ClosedWindow { collected_through }) => {
+                Ok(GatewayInsert::ClosedWindow { collected_through })
+            }
             Err(error) => Err(postgres_error(error)),
         }
     }
@@ -2044,7 +2221,8 @@ fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
 const COUNT_SLOT_SCHEMA: &str = "auths.gateway-bounded-count/2";
 const SUM_SLOT_SCHEMA: &str = "auths.gateway-bounded-sum/1";
 /// A claim that keeps losing slot races gives up after this many rounds and
-/// stores nothing.
+/// grants no execution handle. Storage may have committed before reporting
+/// an error; retries must retain the same logical operation identity.
 const MAX_CLAIM_ROUNDS: usize = 32;
 
 /// Slot record `auths.gateway-bounded-count/2`.
@@ -2110,17 +2288,13 @@ fn frontier(
     bound: u64,
     slot_key: fn(&[u8; 32], u64) -> [u8; 32],
 ) -> Result<u64, GatewayAttemptError> {
-    let (mut low, mut high) = (0_u64, bound);
-    while low < high {
-        let middle = low + (high - low) / 2;
-        let key = GatewayAttemptKey(slot_key(counter, middle));
-        if store.load(kind, &key)?.is_some() {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
+    let mut search = auths_gateway_kernel::frontier::FrontierSearch::new(bound);
+    while let Some(slot) = search.probe() {
+        let key = GatewayAttemptKey(slot_key(counter, slot));
+        let occupied = store.load(kind, &key)?.is_some();
+        search = search.observe(occupied);
     }
-    Ok(low)
+    Ok(search.candidate())
 }
 
 /// The cumulative sum stored in slot `slot` of sum counter `counter`. An
@@ -2136,14 +2310,19 @@ fn cumulative(
         .ok_or(GatewayAttemptError::Corrupt)?;
     let record: SumSlotRecord =
         serde_json::from_slice(&bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
-    if record.schema != SUM_SLOT_SCHEMA
-        || record.counter != hex::encode(counter)
-        || record.slot != slot
-        || record.amount > record.cumulative
-    {
-        return Err(GatewayAttemptError::Corrupt);
-    }
-    Ok(record.cumulative)
+    auths_gateway_kernel::slot_record::validate_cumulative(
+        record.schema.as_bytes(),
+        SUM_SLOT_SCHEMA.as_bytes(),
+        record.counter.as_bytes(),
+        counter,
+        slot,
+        auths_gateway_kernel::slot_record::SumValues {
+            slot: record.slot,
+            amount: record.amount,
+            cumulative: record.cumulative,
+        },
+    )
+    .ok_or(GatewayAttemptError::Corrupt)
 }
 
 /// Stores `base` alone as `not-entered` with `code`.
@@ -2177,28 +2356,31 @@ fn claim_batch(
     totals: &[u64],
 ) -> Result<(Record, Vec<u8>, Vec<GatewayRecordEntry>), GatewayAttemptError> {
     use crate::bounds::{count_slot_key, sum_slot_key};
+    use auths_gateway_kernel::reservation_batch::{SlotEntry, build_batch};
+    let batch = build_batch(
+        *key.as_bytes(),
+        &bound.counts,
+        counts,
+        &bound.sums,
+        sums,
+        totals,
+        bound.argument,
+    )
+    .ok_or(GatewayAttemptError::Corrupt)?;
     let mut record = base.clone();
-    let mut counters: Vec<GatewayCounterEntry> = bound
-        .counts
-        .iter()
-        .zip(counts)
-        .map(|(counter, slot)| GatewayCounterEntry {
-            kind: GatewayCounterKind::Count,
-            counter: counter.key,
-            slot: *slot,
-        })
-        .chain(
-            bound
-                .sums
-                .iter()
-                .zip(sums)
-                .map(|(counter, slot)| GatewayCounterEntry {
-                    kind: GatewayCounterKind::Sum,
-                    counter: counter.key,
-                    slot: *slot,
-                }),
-        )
-        .collect();
+    let mut counters = Vec::new();
+    for entry in &batch {
+        let (kind, counter, slot) = match entry {
+            SlotEntry::Claim { .. } => continue,
+            SlotEntry::Count { counter, slot } => (GatewayCounterKind::Count, *counter, *slot),
+            SlotEntry::Sum { counter, slot, .. } => (GatewayCounterKind::Sum, *counter, *slot),
+        };
+        counters.push(GatewayCounterEntry {
+            kind,
+            counter,
+            slot,
+        });
+    }
     counters.sort_unstable();
     record.counters = counters
         .iter()
@@ -2211,63 +2393,90 @@ fn claim_batch(
     record.snapshot(false)?;
     let stored = encode(&record)?;
     let claim = hex::encode(key.as_bytes());
-    let mut entries = Vec::with_capacity(1 + counts.len() + sums.len());
-    entries.push(GatewayRecordEntry {
-        kind: GatewayRecordKind::Attempt,
-        key,
-        record: stored.clone(),
-        expires_at: None,
-    });
-    for (counter, slot) in bound.counts.iter().zip(counts) {
-        let slot_record = CountSlotRecord {
-            schema: COUNT_SLOT_SCHEMA.to_owned(),
-            counter: hex::encode(counter.key),
-            slot: *slot,
-            window_seconds: bound.window_seconds,
-            window_index: bound.window_index,
-            window_end: bound.window_end,
-            namespace: base.namespace.clone(),
-            operation_id: base.operation_id.clone(),
-            claim: claim.clone(),
-        };
-        entries.push(GatewayRecordEntry {
-            kind: GatewayRecordKind::CountSlot,
-            key: GatewayAttemptKey(count_slot_key(&counter.key, *slot)),
-            record: canonical(&slot_record)?,
-            expires_at: Some(bound.expires_at()),
-        });
-    }
-    for ((counter, slot), total) in bound.sums.iter().zip(sums).zip(totals) {
-        let slot_record = SumSlotRecord {
-            schema: SUM_SLOT_SCHEMA.to_owned(),
-            counter: hex::encode(counter.key),
-            slot: *slot,
-            amount: bound.argument,
-            cumulative: total
-                .checked_add(bound.argument)
-                .ok_or(GatewayAttemptError::Corrupt)?,
-            window_seconds: bound.window_seconds,
-            window_index: bound.window_index,
-            window_end: bound.window_end,
-            namespace: base.namespace.clone(),
-            operation_id: base.operation_id.clone(),
-            claim: claim.clone(),
-        };
-        entries.push(GatewayRecordEntry {
-            kind: GatewayRecordKind::SumSlot,
-            key: GatewayAttemptKey(sum_slot_key(&counter.key, *slot)),
-            record: canonical(&slot_record)?,
-            expires_at: Some(bound.expires_at()),
-        });
+    let mut entries = Vec::with_capacity(batch.len());
+    for entry in batch {
+        match entry {
+            SlotEntry::Claim { key: claim_key } => entries.push(GatewayRecordEntry {
+                kind: GatewayRecordKind::Attempt,
+                key: GatewayAttemptKey(claim_key),
+                record: stored.clone(),
+                expires_at: None,
+            }),
+            SlotEntry::Count { counter, slot } => {
+                let slot_record = CountSlotRecord {
+                    schema: COUNT_SLOT_SCHEMA.to_owned(),
+                    counter: hex::encode(counter),
+                    slot,
+                    window_seconds: bound.window_seconds,
+                    window_index: bound.window_index,
+                    window_end: bound.window_end,
+                    namespace: base.namespace.clone(),
+                    operation_id: base.operation_id.clone(),
+                    claim: claim.clone(),
+                };
+                entries.push(GatewayRecordEntry {
+                    kind: GatewayRecordKind::CountSlot,
+                    key: GatewayAttemptKey(count_slot_key(&counter, slot)),
+                    record: canonical(&slot_record)?,
+                    expires_at: Some(bound.expires_at()),
+                });
+            }
+            SlotEntry::Sum {
+                counter,
+                slot,
+                amount,
+                cumulative,
+            } => {
+                let slot_record = SumSlotRecord {
+                    schema: SUM_SLOT_SCHEMA.to_owned(),
+                    counter: hex::encode(counter),
+                    slot,
+                    amount,
+                    cumulative,
+                    window_seconds: bound.window_seconds,
+                    window_index: bound.window_index,
+                    window_end: bound.window_end,
+                    namespace: base.namespace.clone(),
+                    operation_id: base.operation_id.clone(),
+                    claim: claim.clone(),
+                };
+                entries.push(GatewayRecordEntry {
+                    kind: GatewayRecordKind::SumSlot,
+                    key: GatewayAttemptKey(sum_slot_key(&counter, slot)),
+                    record: canonical(&slot_record)?,
+                    expires_at: Some(bound.expires_at()),
+                });
+            }
+        }
     }
     Ok((record, stored, entries))
+}
+
+/// Parallel capacity views for the pure reservation decision. Compute them
+/// once per reservation, retaining them across every slot-conflict retry.
+struct ReservationLimits {
+    counts: Vec<u64>,
+    sums: Vec<u64>,
+    slots: Vec<u64>,
+}
+
+fn reservation_limits(bound: &crate::bounds::BoundAdmission) -> ReservationLimits {
+    ReservationLimits {
+        counts: bound
+            .counts
+            .iter()
+            .map(|counter| counter.capacity)
+            .collect(),
+        sums: bound.sums.iter().map(|counter| counter.capacity).collect(),
+        slots: bound.sums.iter().map(|counter| counter.slots).collect(),
+    }
 }
 
 /// Finds each counter's frontier, then inserts the claim and one slot per
 /// count and sum counter in one all-or-none batch. A full counter stores
 /// the claim alone as `not-entered`; a lost race advances that counter and
 /// retries, at most [`MAX_CLAIM_ROUNDS`] times. The count and sum checks are
-/// the translated leaves `chain_counts_admit` and `chain_sums_admit`.
+/// combined by the translated complete `reservation_admission` decision.
 fn reserve_with_claim(
     store: &dyn GatewayAttemptStore,
     key: GatewayAttemptKey,
@@ -2275,7 +2484,7 @@ fn reserve_with_claim(
     bound: &crate::bounds::BoundAdmission,
 ) -> Result<Reserved, GatewayAttemptError> {
     use crate::bounds::{count_slot_key, sum_slot_key};
-    use auths_bounded_policy::kernel::{chain_counts_admit, chain_sums_admit};
+    use auths_bounded_policy::kernel::{ReservationCode, reservation_admission};
     let mut counts = bound
         .counts
         .iter()
@@ -2310,47 +2519,61 @@ fn reserve_with_claim(
             Some(previous) => cumulative(store, &counter.key, previous),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let count_capacities: Vec<u64> = bound
-        .counts
-        .iter()
-        .map(|counter| counter.capacity)
-        .collect();
-    let sum_capacities: Vec<u64> = bound.sums.iter().map(|counter| counter.capacity).collect();
+    let limits = reservation_limits(bound);
     for _ in 0..MAX_CLAIM_ROUNDS {
-        let sum_slots_left = sums
-            .iter()
-            .zip(&bound.sums)
-            .all(|(slot, counter)| *slot < counter.slots);
-        if !chain_counts_admit(&counts, &count_capacities) || !sum_slots_left {
-            return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
-        }
-        if !chain_sums_admit(&totals, bound.argument, &sum_capacities) {
-            return store_exhausted(store, key, base, "gateway.policy.sum-exhausted");
+        match reservation_admission(
+            &counts,
+            &limits.counts,
+            &sums,
+            &limits.slots,
+            &totals,
+            &limits.sums,
+            bound.argument,
+        ) {
+            ReservationCode::WindowExhausted => {
+                return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
+            }
+            ReservationCode::SumExhausted => {
+                return store_exhausted(store, key, base, "gateway.policy.sum-exhausted");
+            }
+            ReservationCode::Admit => {}
         }
         let (record, stored, entries) = claim_batch(key, base, bound, &counts, &sums, &totals)?;
         match store.insert_all(&entries)? {
+            GatewayInsert::ClosedWindow { .. } => {
+                return store_exhausted(store, key, base, "gateway.policy.window-exhausted");
+            }
             GatewayInsert::Inserted => {
                 return Ok(Reserved::Claimed {
                     stored,
                     record: Box::new(record),
                 });
             }
-            GatewayInsert::Exists { index: 0 } => return Err(GatewayAttemptError::Replay),
             GatewayInsert::Exists { index } => {
-                let position = index - 1;
-                if let Some(slot) = counts.get_mut(position) {
-                    *slot += 1;
-                } else {
-                    let position = position - counts.len();
-                    let (Some(slot), Some(total), Some(counter)) = (
-                        sums.get_mut(position),
-                        totals.get_mut(position),
-                        bound.sums.get(position),
-                    ) else {
-                        return Err(GatewayAttemptError::Corrupt);
-                    };
-                    *total = cumulative(store, &counter.key, *slot)?;
-                    *slot += 1;
+                use auths_gateway_kernel::reservation_retry::{RetryTarget, retry_target};
+                match retry_target(index, &counts, &sums, totals.len(), bound.sums.len()) {
+                    RetryTarget::Replay => return Err(GatewayAttemptError::Replay),
+                    RetryTarget::Corrupt => return Err(GatewayAttemptError::Corrupt),
+                    RetryTarget::Count { position, next } => {
+                        *counts
+                            .get_mut(position)
+                            .ok_or(GatewayAttemptError::Corrupt)? = next;
+                    }
+                    RetryTarget::Sum {
+                        position,
+                        read_slot,
+                        next,
+                    } => {
+                        let counter = bound
+                            .sums
+                            .get(position)
+                            .ok_or(GatewayAttemptError::Corrupt)?;
+                        let total = cumulative(store, &counter.key, read_slot)?;
+                        *totals
+                            .get_mut(position)
+                            .ok_or(GatewayAttemptError::Corrupt)? = total;
+                        *sums.get_mut(position).ok_or(GatewayAttemptError::Corrupt)? = next;
+                    }
                 }
             }
         }
@@ -2365,7 +2588,10 @@ impl GatewayAttempts {
     /// Slots are never released, and a replay consumes none.
     ///
     /// # Errors
-    /// An existing claim is `Replay`; a store failure stores nothing.
+    /// An existing claim is `Replay`. A store error grants no execution
+    /// handle and may follow a committed batch with a lost acknowledgement.
+    /// Retrying preserves the logical operation identity and cannot reclaim
+    /// ownership of a batch that already committed.
     pub(crate) async fn claim_bounded(
         &self,
         request: &ClosedProviderRequest,
@@ -2398,5 +2624,404 @@ impl GatewayAttempts {
             Reserved::Exhausted(code) => BoundedClaim::Exhausted(code),
             Reserved::Contended => BoundedClaim::Contended,
         })
+    }
+}
+
+#[cfg(test)]
+mod logical_identity_framing_tests {
+    use super::*;
+
+    #[test]
+    fn extracted_preimage_preserves_operation_keys() {
+        let maximum_namespace = "n".repeat(64);
+        let maximum_operation = "o".repeat(128);
+        for namespace in [
+            "operator",
+            "stripe-receivables-test",
+            maximum_namespace.as_str(),
+        ] {
+            for operation in [
+                "payment-1",
+                "allocation-pi_example",
+                maximum_operation.as_str(),
+            ] {
+                let parsed_namespace = OperatorNamespace::parse(namespace).unwrap();
+                let parsed_operation = LogicalOperationId::parse(operation).unwrap();
+                let mut reference = Sha256::new();
+                reference.update(b"auths.gateway-logical-operation/1\0");
+                reference.update(namespace.as_bytes());
+                reference.update([0]);
+                reference.update(operation.as_bytes());
+                let expected: [u8; 32] = reference.finalize().into();
+                assert_eq!(
+                    GatewayAttemptKey::for_operation(&parsed_namespace, &parsed_operation),
+                    GatewayAttemptKey(expected)
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod complete_batch_parity {
+    use super::*;
+
+    fn original_claim_batch(
+        key: GatewayAttemptKey,
+        base: &Record,
+        bound: &crate::bounds::BoundAdmission,
+        counts: &[u64],
+        sums: &[u64],
+        totals: &[u64],
+    ) -> Result<(Record, Vec<u8>, Vec<GatewayRecordEntry>), GatewayAttemptError> {
+        use crate::bounds::{count_slot_key, sum_slot_key};
+        let mut record = base.clone();
+        let mut counters: Vec<GatewayCounterEntry> = bound
+            .counts
+            .iter()
+            .zip(counts)
+            .map(|(counter, slot)| GatewayCounterEntry {
+                kind: GatewayCounterKind::Count,
+                counter: counter.key,
+                slot: *slot,
+            })
+            .chain(
+                bound
+                    .sums
+                    .iter()
+                    .zip(sums)
+                    .map(|(counter, slot)| GatewayCounterEntry {
+                        kind: GatewayCounterKind::Sum,
+                        counter: counter.key,
+                        slot: *slot,
+                    }),
+            )
+            .collect();
+        counters.sort_unstable();
+        record.counters = counters
+            .iter()
+            .map(|entry| CounterWire {
+                kind: entry.kind,
+                counter: hex::encode(entry.counter),
+                slot: entry.slot,
+            })
+            .collect();
+        record.snapshot(false)?;
+        let stored = encode(&record)?;
+        let claim = hex::encode(key.as_bytes());
+        let mut entries = Vec::with_capacity(1 + counts.len() + sums.len());
+        entries.push(GatewayRecordEntry {
+            kind: GatewayRecordKind::Attempt,
+            key,
+            record: stored.clone(),
+            expires_at: None,
+        });
+        for (counter, slot) in bound.counts.iter().zip(counts) {
+            let slot_record = CountSlotRecord {
+                schema: COUNT_SLOT_SCHEMA.to_owned(),
+                counter: hex::encode(counter.key),
+                slot: *slot,
+                window_seconds: bound.window_seconds,
+                window_index: bound.window_index,
+                window_end: bound.window_end,
+                namespace: base.namespace.clone(),
+                operation_id: base.operation_id.clone(),
+                claim: claim.clone(),
+            };
+            entries.push(GatewayRecordEntry {
+                kind: GatewayRecordKind::CountSlot,
+                key: GatewayAttemptKey(count_slot_key(&counter.key, *slot)),
+                record: canonical(&slot_record)?,
+                expires_at: Some(bound.expires_at()),
+            });
+        }
+        for ((counter, slot), total) in bound.sums.iter().zip(sums).zip(totals) {
+            let slot_record = SumSlotRecord {
+                schema: SUM_SLOT_SCHEMA.to_owned(),
+                counter: hex::encode(counter.key),
+                slot: *slot,
+                amount: bound.argument,
+                cumulative: total
+                    .checked_add(bound.argument)
+                    .ok_or(GatewayAttemptError::Corrupt)?,
+                window_seconds: bound.window_seconds,
+                window_index: bound.window_index,
+                window_end: bound.window_end,
+                namespace: base.namespace.clone(),
+                operation_id: base.operation_id.clone(),
+                claim: claim.clone(),
+            };
+            entries.push(GatewayRecordEntry {
+                kind: GatewayRecordKind::SumSlot,
+                key: GatewayAttemptKey(sum_slot_key(&counter.key, *slot)),
+                record: canonical(&slot_record)?,
+                expires_at: Some(bound.expires_at()),
+            });
+        }
+        Ok((record, stored, entries))
+    }
+
+    fn base() -> Record {
+        Record {
+            schema: SCHEMA.to_owned(),
+            namespace: "batch-parity".to_owned(),
+            operation_id: "operation-1".to_owned(),
+            action_commitment: hex::encode([3; 32]),
+            recipe_digest: hex::encode([4; 32]),
+            nonce: hex::encode([5; 16]),
+            evaluated_at: 100,
+            stage: GatewayAttemptStage::Attempting,
+            refusal: None,
+            counters: Vec::new(),
+            response_status: None,
+            response_digest: None,
+            response_locator: None,
+            observation_plan: None,
+            observation_match: None,
+            observation_fact: None,
+            provider_evidence: None,
+            pre_entry: None,
+        }
+    }
+
+    #[test]
+    fn complete_shipping_batch_preserves_all_records_keys_and_expiries() {
+        for count in 0..=crate::bounds::MAX_BOUNDED_LINKS {
+            for sum in 0..=crate::bounds::MAX_BOUNDED_LINKS {
+                let bound = crate::bounds::BoundAdmission {
+                    links: Vec::new(),
+                    argument: 5,
+                    window_seconds: 60,
+                    window_index: 1,
+                    window_end: 120,
+                    counts: (0..count)
+                        .map(|index| crate::bounds::CountCounter {
+                            key: [u8::try_from(index).expect("small index"); 32],
+                            capacity: u64::MAX,
+                        })
+                        .collect(),
+                    sums: (0..sum)
+                        .map(|index| crate::bounds::SumCounter {
+                            key: [128 + u8::try_from(index).expect("small index"); 32],
+                            capacity: u64::MAX,
+                            slots: u64::MAX,
+                        })
+                        .collect(),
+                };
+                let counts: Vec<_> = (0..count)
+                    .map(|index| u64::try_from(index).expect("small index"))
+                    .collect();
+                let sums: Vec<_> = (0..sum)
+                    .map(|index| u64::try_from(index).expect("small index"))
+                    .collect();
+                let totals = vec![10; sum];
+                let key = GatewayAttemptKey([42; 32]);
+                let actual =
+                    claim_batch(key, &base(), &bound, &counts, &sums, &totals).expect("batch");
+                let expected = original_claim_batch(key, &base(), &bound, &counts, &sums, &totals)
+                    .expect("old batch");
+                assert_eq!(
+                    encode(&actual.0).expect("record"),
+                    encode(&expected.0).expect("old record")
+                );
+                assert_eq!(actual.1, expected.1);
+                assert_eq!(actual.2, expected.2);
+                assert_eq!(actual.2.len(), 1 + count + sum);
+            }
+        }
+    }
+
+    #[test]
+    fn mismatched_vectors_cannot_omit_a_required_slot() {
+        let bound = crate::bounds::BoundAdmission {
+            links: Vec::new(),
+            argument: 1,
+            window_seconds: 60,
+            window_index: 1,
+            window_end: 120,
+            counts: vec![crate::bounds::CountCounter {
+                key: [1; 32],
+                capacity: 2,
+            }],
+            sums: vec![crate::bounds::SumCounter {
+                key: [2; 32],
+                capacity: 2,
+                slots: 2,
+            }],
+        };
+        for (counts, sums, totals) in [
+            (vec![], vec![0], vec![0]),
+            (vec![0], vec![], vec![0]),
+            (vec![0], vec![0], vec![]),
+        ] {
+            assert!(matches!(
+                claim_batch(
+                    GatewayAttemptKey([42; 32]),
+                    &base(),
+                    &bound,
+                    &counts,
+                    &sums,
+                    &totals
+                ),
+                Err(GatewayAttemptError::Corrupt)
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod cumulative_record_parity {
+    use super::*;
+
+    fn inject_decoded(store: &FileGatewayAttemptStore, key: GatewayAttemptKey, record: Vec<u8>) {
+        let entry = GatewayRecordEntry {
+            kind: GatewayRecordKind::SumSlot,
+            key,
+            record,
+            expires_at: Some(60),
+        };
+        fs::write(
+            store.path_for(GatewayRecordKind::SumSlot, &key),
+            FileGatewayAttemptStore::file_bytes(&entry).expect("slot expiry envelope"),
+        )
+        .expect("inject decoded fixture");
+    }
+
+    // Frozen pre-cutover reader: includes storage lookup and serde decoding,
+    // so parity exercises the shipping adapter as well as the pure predicate.
+    fn original_cumulative(
+        store: &dyn GatewayAttemptStore,
+        counter: &[u8; 32],
+        slot: u64,
+    ) -> Result<u64, GatewayAttemptError> {
+        let key = GatewayAttemptKey(crate::bounds::sum_slot_key(counter, slot));
+        let bytes = store
+            .load(GatewayRecordKind::SumSlot, &key)?
+            .ok_or(GatewayAttemptError::Corrupt)?;
+        let record: SumSlotRecord =
+            serde_json::from_slice(&bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+        if record.schema != SUM_SLOT_SCHEMA
+            || record.counter != hex::encode(counter)
+            || record.slot != slot
+            || record.amount > record.cumulative
+        {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(record.cumulative)
+    }
+
+    #[test]
+    fn shipping_cumulative_reader_preserves_exact_decoded_acceptance() {
+        let directory = tempfile::tempdir().expect("temporary state");
+        let store = FileGatewayAttemptStore::open(
+            fs::canonicalize(directory.path())
+                .expect("canonical")
+                .join("state"),
+        )
+        .expect("store");
+        let counter = [0xab; 32];
+        let canonical = hex::encode(counter);
+        let mut accepted = 0;
+        let mut refused = 0;
+        for expected_slot in [0, 1, u64::MAX] {
+            let key = GatewayAttemptKey(crate::bounds::sum_slot_key(&counter, expected_slot));
+            for schema in [SUM_SLOT_SCHEMA, "wrong"] {
+                for stored_counter in [canonical.as_str(), "wrong", &canonical.to_uppercase()] {
+                    for slot in [0, 1, u64::MAX] {
+                        for amount in [0, 1, u64::MAX] {
+                            for total in [0, 1, u64::MAX] {
+                                let record = SumSlotRecord {
+                                    schema: schema.to_owned(),
+                                    counter: stored_counter.to_owned(),
+                                    slot,
+                                    amount,
+                                    cumulative: total,
+                                    window_seconds: 60,
+                                    window_index: 0,
+                                    window_end: 60,
+                                    namespace: "test".to_owned(),
+                                    operation_id: "test".to_owned(),
+                                    claim: "00".repeat(32),
+                                };
+                                inject_decoded(
+                                    &store,
+                                    key,
+                                    serde_json::to_vec(&record).expect("encode"),
+                                );
+                                let expected = if schema == SUM_SLOT_SCHEMA
+                                    && stored_counter == canonical
+                                    && slot == expected_slot
+                                    && amount <= total
+                                {
+                                    accepted += 1;
+                                    Ok(total)
+                                } else {
+                                    refused += 1;
+                                    Err(GatewayAttemptError::Corrupt)
+                                };
+                                assert_eq!(
+                                    original_cumulative(&store, &counter, expected_slot),
+                                    expected
+                                );
+                                assert_eq!(cumulative(&store, &counter, expected_slot), expected);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!((accepted, refused), (18, 468));
+    }
+
+    #[test]
+    fn shipping_cumulative_reader_refuses_missing_and_malformed_records() {
+        let directory = tempfile::tempdir().expect("temporary state");
+        let store = FileGatewayAttemptStore::open(
+            fs::canonicalize(directory.path())
+                .expect("canonical")
+                .join("state"),
+        )
+        .expect("store");
+        let counter = [0; 32];
+        let key = GatewayAttemptKey(crate::bounds::sum_slot_key(&counter, 0));
+        assert_eq!(
+            cumulative(&store, &counter, 0),
+            Err(GatewayAttemptError::Corrupt)
+        );
+        let valid = serde_json::to_string(&SumSlotRecord {
+            schema: SUM_SLOT_SCHEMA.to_owned(),
+            counter: hex::encode(counter),
+            slot: 0,
+            amount: 3,
+            cumulative: 7,
+            window_seconds: 60,
+            window_index: 0,
+            window_end: 60,
+            namespace: "test".to_owned(),
+            operation_id: "test".to_owned(),
+            claim: "00".repeat(32),
+        })
+        .expect("valid baseline");
+        inject_decoded(&store, key, valid.as_bytes().to_vec());
+        assert_eq!(cumulative(&store, &counter, 0), Ok(7));
+        // Every mutation retains all other required fields, so it must fail
+        // for the mutated property rather than for an unrelated missing field.
+        for malformed in [
+            "not-json".to_owned(),
+            valid.replacen("\"schema\":", "\"schema\":\"wrong\",\"schema\":", 1),
+            valid.replacen("\"slot\":0", "\"slot\":18446744073709551616", 1),
+            valid.replacen("\"amount\":3", "\"amount\":-1", 1),
+            valid.replacen('{', "{\"unknown\":true,", 1),
+        ] {
+            inject_decoded(&store, key, malformed.into_bytes());
+            assert_eq!(
+                cumulative(&store, &counter, 0),
+                Err(GatewayAttemptError::Corrupt)
+            );
+            assert_eq!(
+                cumulative(&store, &counter, 0),
+                original_cumulative(&store, &counter, 0)
+            );
+        }
     }
 }

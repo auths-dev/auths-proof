@@ -14,10 +14,10 @@ std = ["auths-model/std"]
 
 [dependencies]
 auths-model.workspace = true
-minicbor.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]
+minicbor.workspace = true
 proptest.workspace = true
 
 [lints]

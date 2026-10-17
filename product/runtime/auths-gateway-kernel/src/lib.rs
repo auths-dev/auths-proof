@@ -18,8 +18,31 @@
 extern crate alloc;
 
 pub mod construct;
+pub mod deadline;
+pub mod identity;
 pub mod order;
 pub mod outcome;
 pub mod ratio;
 pub mod recovery;
 pub mod transition;
+
+/// Bounded slot-prefix search decisions; storage remains in the runtime.
+pub mod frontier;
+
+/// Exact bounded-counter and slot commitment bytes; hashing stays in the runtime.
+pub mod counter_preimages;
+
+/// Shared keyed minimum-capacity aggregation; no actor or process identity is added.
+pub mod counter_aggregation;
+
+/// Checked conflict retries for claim/count/sum reservation batches.
+pub mod reservation_retry;
+
+/// Complete checked claim/count/sum descriptions before record serialization.
+pub mod reservation_batch;
+
+/// Exact identity and numeric validation of decoded cumulative slot records.
+pub mod slot_record;
+
+/// Exact active-state, workload and profile/version checks for connection entry.
+pub mod entry_authorization;

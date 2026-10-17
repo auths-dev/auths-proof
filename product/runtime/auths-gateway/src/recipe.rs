@@ -24,6 +24,7 @@ mod lower;
 mod review;
 mod runtime;
 mod source;
+mod strict_json;
 mod validate;
 
 #[cfg(test)]
@@ -113,12 +114,7 @@ impl LogicalOperationId {
 }
 
 fn valid_token(value: &str, maximum: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= maximum
-        && value.is_ascii()
-        && value.bytes().enumerate().all(|(index, byte)| {
-            byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'.' | b'_' | b'-'))
-        })
+    auths_gateway_kernel::identity::valid_token(value.as_bytes(), maximum)
 }
 
 /// One supported credential injection requirement. The operator connection,
@@ -528,8 +524,8 @@ impl CompiledRecipe {
             return Err(GatewayRecipeError::InvalidSource);
         }
         let source: RecipeSource =
-            serde_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
-        let lock: ProfileLockFile = serde_json::from_slice(lock_bytes)
+            strict_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
+        let lock: ProfileLockFile = strict_json::from_slice(lock_bytes)
             .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
         if source.schema != RECIPE_SOURCE_SCHEMA {
             return Err(GatewayRecipeError::InvalidSource);

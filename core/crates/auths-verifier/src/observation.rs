@@ -17,7 +17,7 @@ use auths_model::{
     MAX_OBSERVATION_BYTES, MAX_OBSERVATION_REQUIREMENTS_PER_CHAIN, OBSERVATION_MEDIA_TYPE,
     ObservationRequirement, ObservationSatisfaction, ObservationSubject, ObserverAnchor,
     PrincipalId, Requirement, RequirementVerdict, ResourceId, SignedAction, SignedGrant,
-    SignedObservation, TrustedContext, observation_conditions_hold, observation_fresh,
+    SignedObservation, Timestamp, TrustedContext, observation_conditions_hold, observation_fresh,
     observation_schema_equal, observation_subject_equal, principal_id_equal,
     requirement_subject_equal, requirement_verdict,
 };
@@ -33,6 +33,12 @@ struct Candidate {
     digest: AttachmentDigest,
     observation: SignedObservation,
     authentic: Option<bool>,
+}
+
+/// The exact selected observation and its inclusive freshness endpoint.
+struct Satisfied {
+    record: ObservationSatisfaction,
+    valid_through: Timestamp,
 }
 
 /// Shared inputs of one branch's observation stage.
@@ -137,10 +143,10 @@ impl Stage<'_, '_> {
     pub(crate) fn evaluate(
         &self,
         meter: &mut WorkMeter,
-    ) -> Result<Vec<ObservationSatisfaction>, VerificationFailure> {
+    ) -> Result<(Vec<ObservationSatisfaction>, Timestamp), VerificationFailure> {
         let requirements = chain_requirements(self.chain)?;
         if requirements.is_empty() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Timestamp::new(u64::MAX)));
         }
         let mut anchors = Vec::with_capacity(requirements.len());
         for requirement in &requirements {
@@ -161,9 +167,13 @@ impl Stage<'_, '_> {
         let mut candidates = self.candidates()?;
         let mut satisfactions = Vec::with_capacity(requirements.len());
         let mut unavailable = None;
+        let mut valid_through = Timestamp::new(u64::MAX);
         for (requirement, anchor) in requirements.iter().zip(anchors) {
             match self.requirement(requirement, anchor, &mut candidates, meter)? {
-                Ok(satisfaction) => satisfactions.push(satisfaction),
+                Ok(satisfied) => {
+                    valid_through = valid_through.min(satisfied.valid_through);
+                    satisfactions.push(satisfied.record);
+                }
                 Err(VerificationFailure::Denied(reason)) => {
                     return Err(VerificationFailure::Denied(reason));
                 }
@@ -174,7 +184,7 @@ impl Stage<'_, '_> {
         }
         match unavailable {
             Some(failure) => Err(failure),
-            None => Ok(satisfactions),
+            None => Ok((satisfactions, valid_through)),
         }
     }
 
@@ -221,7 +231,7 @@ impl Stage<'_, '_> {
         anchor: Option<&ObserverAnchor>,
         candidates: &mut [Candidate],
         meter: &mut WorkMeter,
-    ) -> Result<Result<ObservationSatisfaction, VerificationFailure>, VerificationFailure> {
+    ) -> Result<Result<Satisfied, VerificationFailure>, VerificationFailure> {
         let Some(anchor) = anchor else {
             return Ok(Err(VerificationFailure::Indeterminate(
                 Requirement::ObservationMissing,
@@ -256,16 +266,26 @@ impl Stage<'_, '_> {
                 &action_values,
                 candidate.observation.statement().facts(),
             ) {
-                satisfying = Some(candidate.digest);
+                let statement = candidate.observation.statement();
+                let valid_through = anchor.validity().expires_at().min(Timestamp::new(
+                    statement
+                        .observed_at()
+                        .get()
+                        .saturating_add(u64::from(requirement.max_age_seconds())),
+                ));
+                satisfying = Some((candidate.digest, valid_through));
                 break;
             }
         }
         let verdict = requirement_verdict(any_eligible, satisfying.is_some());
         Ok(match (verdict, satisfying) {
-            (RequirementVerdict::Satisfied, Some(digest)) => {
+            (RequirementVerdict::Satisfied, Some((digest, valid_through))) => {
                 let id = auths_codec::observation_requirement_id(requirement)
                     .map_err(limit_or_malformed)?;
-                Ok(ObservationSatisfaction::new(id, digest))
+                Ok(Satisfied {
+                    record: ObservationSatisfaction::new(id, digest),
+                    valid_through,
+                })
             }
             (RequirementVerdict::ConditionFalse, _) => Err(VerificationFailure::Denied(
                 DenialReason::ObservationConditionFalse,

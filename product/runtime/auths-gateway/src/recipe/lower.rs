@@ -35,8 +35,8 @@ pub(super) struct Plans {
     pub(super) denied: Vec<CredentialReadPlan>,
 }
 
-struct Lowering<'a> {
-    fields: &'a BTreeMap<String, FieldSchema>,
+struct Lowering {
+    field_names: Vec<Vec<u8>>,
     origin: Vec<u8>,
     headers: HeaderPlan,
 }
@@ -124,11 +124,9 @@ fn form_encoded(text: &str) -> Vec<u8> {
     append_form_encoded(Vec::new(), text.as_bytes())
 }
 
-impl Lowering<'_> {
+impl Lowering {
     fn index(&self, name: &str) -> Result<usize, GatewayRecipeError> {
-        self.fields
-            .keys()
-            .position(|field| field == name)
+        auths_gateway_kernel::construct::field_index(&self.field_names, name.as_bytes())
             .ok_or(GatewayRecipeError::InvalidSource)
     }
 
@@ -345,7 +343,7 @@ pub(super) fn plans(
     fields: &BTreeMap<String, FieldSchema>,
 ) -> Result<Plans, GatewayRecipeError> {
     let lowering = Lowering {
-        fields,
+        field_names: fields.keys().map(|name| name.as_bytes().to_vec()).collect(),
         origin: source.origin.as_bytes().to_vec(),
         headers: header_plan(source, fields)?,
     };

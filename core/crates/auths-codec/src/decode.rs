@@ -1,5 +1,6 @@
 //! Strict, bounded target V1 decoders.
 
+use crate::cbor::{Decoder, Type};
 use crate::{
     CodecError,
     encode::{
@@ -33,9 +34,12 @@ use auths_model::{
     VerificationMethod, VerificationResources, VerificationResultDigest, VerificationStage,
     VerifierConfigurationId, VerifierLimits,
 };
-use minicbor::{Decoder, data::Type};
 
 pub(crate) type V1Decoder<'a> = Decoder<'a>;
+
+fn decode_error<T>(_error: T) -> CodecError {
+    CodecError::Malformed
+}
 
 pub(crate) fn map(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecError> {
     if decoder.map().unwrap_or(None) == Some(expected) {
@@ -46,9 +50,9 @@ pub(crate) fn map(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), Code
 }
 
 pub(crate) fn array(decoder: &mut V1Decoder<'_>, maximum: usize) -> Result<usize, CodecError> {
-    let length = decoder.array().map_err(|_| CodecError::Malformed)?;
+    let length = decoder.array().map_err(decode_error)?;
     let length = length.ok_or(CodecError::Malformed)?;
-    let length = usize::try_from(length).map_err(|_| CodecError::LimitExceeded)?;
+    let length = usize::try_from(length).map_err(crate::error::limit_error)?;
     if length > maximum {
         return Err(CodecError::LimitExceeded);
     }
@@ -56,7 +60,7 @@ pub(crate) fn array(decoder: &mut V1Decoder<'_>, maximum: usize) -> Result<usize
 }
 
 fn array_exact(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecError> {
-    if decoder.array().map_err(|_| CodecError::Malformed)? == Some(expected) {
+    if decoder.array().map_err(decode_error)? == Some(expected) {
         Ok(())
     } else {
         Err(CodecError::Malformed)
@@ -64,7 +68,7 @@ fn array_exact(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecEr
 }
 
 pub(crate) fn key(decoder: &mut V1Decoder<'_>, expected: u8) -> Result<(), CodecError> {
-    if decoder.u8().map_err(|_| CodecError::Malformed)? == expected {
+    if decoder.u8().map_err(decode_error)? == expected {
         Ok(())
     } else {
         Err(CodecError::NonCanonical)
@@ -72,7 +76,10 @@ pub(crate) fn key(decoder: &mut V1Decoder<'_>, expected: u8) -> Result<(), Codec
 }
 
 pub(crate) fn text<'a>(decoder: &mut V1Decoder<'a>) -> Result<&'a str, CodecError> {
-    decoder.str().map_err(|_| CodecError::Malformed)
+    match decoder.str() {
+        Ok(value) => Ok(value),
+        Err(_) => Err(CodecError::Malformed),
+    }
 }
 
 pub(crate) fn bounded_bytes(
@@ -80,7 +87,9 @@ pub(crate) fn bounded_bytes(
     maximum: usize,
     non_empty: bool,
 ) -> Result<Vec<u8>, CodecError> {
-    let bytes = decoder.bytes().map_err(|_| CodecError::Malformed)?;
+    let Ok(bytes) = decoder.bytes() else {
+        return Err(CodecError::Malformed);
+    };
     if bytes.len() > maximum || (non_empty && bytes.is_empty()) {
         return Err(CodecError::LimitExceeded);
     }
@@ -88,19 +97,18 @@ pub(crate) fn bounded_bytes(
 }
 
 pub(crate) fn digest_bytes(decoder: &mut V1Decoder<'_>) -> Result<[u8; 32], CodecError> {
-    decoder
-        .bytes()
-        .map_err(|_| CodecError::Malformed)?
-        .try_into()
-        .map_err(|_| CodecError::Malformed)
+    let Ok(bytes) = decoder.bytes() else {
+        return Err(CodecError::Malformed);
+    };
+    bytes.try_into().map_err(decode_error)
 }
 
 pub(crate) fn is_null(decoder: &V1Decoder<'_>) -> Result<bool, CodecError> {
-    Ok(decoder.datatype().map_err(|_| CodecError::Malformed)? == Type::Null)
+    Ok(decoder.datatype().map_err(decode_error)? == Type::Null)
 }
 
 pub(crate) fn null(decoder: &mut V1Decoder<'_>) -> Result<(), CodecError> {
-    decoder.null().map_err(|_| CodecError::Malformed)
+    decoder.null().map_err(decode_error)
 }
 
 macro_rules! parse_text {
@@ -120,7 +128,7 @@ fn profile_ref(decoder: &mut V1Decoder<'_>) -> Result<ProfileRef, CodecError> {
     key(decoder, 0)?;
     let id = parse_text!(decoder, ProfileId)?;
     key(decoder, 1)?;
-    let version = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let version = decoder.u16().map_err(decode_error)?;
     ProfileRef::new(id, version).map_err(CodecError::from)
 }
 
@@ -160,16 +168,16 @@ fn audiences(
 pub(crate) fn status_policy(decoder: &mut V1Decoder<'_>) -> Result<StatusPolicy, CodecError> {
     let entries = decoder
         .map()
-        .map_err(|_| CodecError::Malformed)?
+        .map_err(decode_error)?
         .ok_or(CodecError::Malformed)?;
     key(decoder, 0)?;
-    match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    match decoder.u8().map_err(decode_error)? {
         0 if entries == 1 => Ok(StatusPolicy::ExpiryOnly),
         1 if entries == 3 => {
             key(decoder, 1)?;
             let method = parse_text!(decoder, StatusMethodId)?;
             key(decoder, 2)?;
-            let max_age = FreshnessLimit::new(decoder.u64().map_err(|_| CodecError::Malformed)?)?;
+            let max_age = FreshnessLimit::new(decoder.u64().map_err(decode_error)?)?;
             Ok(StatusPolicy::SnapshotRequired { method, max_age })
         }
         _ => Err(CodecError::Malformed),
@@ -181,7 +189,7 @@ fn budget(decoder: &mut V1Decoder<'_>) -> Result<BudgetCeiling, CodecError> {
     key(decoder, 0)?;
     let algebra = parse_text!(decoder, BudgetAlgebraId)?;
     key(decoder, 1)?;
-    let value = decoder.u64().map_err(|_| CodecError::Malformed)?;
+    let value = decoder.u64().map_err(decode_error)?;
     Ok(BudgetCeiling::new(algebra, value))
 }
 
@@ -202,10 +210,10 @@ fn constraint(
 ) -> Result<ActionConstraint, CodecError> {
     let entries = decoder
         .map()
-        .map_err(|_| CodecError::Malformed)?
+        .map_err(decode_error)?
         .ok_or(CodecError::Malformed)?;
     key(decoder, 0)?;
-    match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    match decoder.u8().map_err(decode_error)? {
         0 if entries == 1 => Ok(ActionConstraint::AnyBody),
         1 if entries == 2 => {
             key(decoder, 1)?;
@@ -285,7 +293,7 @@ fn grant_statement(
 ) -> Result<GrantStatement, CodecError> {
     map(decoder, 16)?;
     key(decoder, 0)?;
-    ProtocolVersion::new(decoder.u16().map_err(|_| CodecError::Malformed)?)?;
+    ProtocolVersion::new(decoder.u16().map_err(decode_error)?)?;
     key(decoder, 1)?;
     let issuer = parse_text!(decoder, PrincipalId)?;
     key(decoder, 2)?;
@@ -293,16 +301,13 @@ fn grant_statement(
     key(decoder, 3)?;
     let profile_id = parse_text!(decoder, ProfileId)?;
     key(decoder, 4)?;
-    let profile = ProfileRef::new(
-        profile_id,
-        decoder.u16().map_err(|_| CodecError::Malformed)?,
-    )?;
+    let profile = ProfileRef::new(profile_id, decoder.u16().map_err(decode_error)?)?;
     key(decoder, 5)?;
     let permissions = permissions(decoder, limits)?;
     key(decoder, 6)?;
-    let not_before = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let not_before = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 7)?;
-    let expires_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let expires_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     let validity = ValidityWindow::new(not_before, expires_at)?;
     key(decoder, 8)?;
     let audiences = audiences(decoder, limits)?;
@@ -311,7 +316,7 @@ fn grant_statement(
     key(decoder, 10)?;
     let budget_ceiling = optional_budget(decoder)?;
     key(decoder, 11)?;
-    let remaining_depth = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let remaining_depth = decoder.u16().map_err(decode_error)?;
     key(decoder, 12)?;
     let parent = if is_null(decoder)? {
         null(decoder)?;
@@ -360,14 +365,11 @@ fn action_envelope(
 ) -> Result<ActionEnvelope, CodecError> {
     map(decoder, 19)?;
     key(decoder, 0)?;
-    ProtocolVersion::new(decoder.u16().map_err(|_| CodecError::Malformed)?)?;
+    ProtocolVersion::new(decoder.u16().map_err(decode_error)?)?;
     key(decoder, 1)?;
     let profile_id = parse_text!(decoder, ProfileId)?;
     key(decoder, 2)?;
-    let profile = ProfileRef::new(
-        profile_id,
-        decoder.u16().map_err(|_| CodecError::Malformed)?,
-    )?;
+    let profile = ProfileRef::new(profile_id, decoder.u16().map_err(decode_error)?)?;
     key(decoder, 3)?;
     let body_media_type = parse_text!(decoder, MediaType)?;
     key(decoder, 4)?;
@@ -384,9 +386,9 @@ fn action_envelope(
     key(decoder, 9)?;
     let challenge = Challenge::new(digest_bytes(decoder)?);
     key(decoder, 10)?;
-    let not_before = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let not_before = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 11)?;
-    let expires_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let expires_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     let validity = ValidityWindow::new(not_before, expires_at)?;
     key(decoder, 12)?;
     let actor = parse_text!(decoder, PrincipalId)?;
@@ -452,10 +454,10 @@ fn authorization_plan(
     }
     let entries = decoder
         .map()
-        .map_err(|_| CodecError::Malformed)?
+        .map_err(decode_error)?
         .ok_or(CodecError::Malformed)?;
     key(decoder, 0)?;
-    match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    match decoder.u8().map_err(decode_error)? {
         0 if entries == 2 => {
             key(decoder, 1)?;
             Ok(AuthorizationPlan::proof(digest_id!(decoder, ProofRef)?))
@@ -475,7 +477,7 @@ fn authorization_plan(
         }
         3 if entries == 3 => {
             key(decoder, 1)?;
-            let k = decoder.u16().map_err(|_| CodecError::Malformed)?;
+            let k = decoder.u16().map_err(decode_error)?;
             key(decoder, 2)?;
             let length = array(decoder, limits.get(LimitKind::PlanBranching))?;
             let mut members = Vec::with_capacity(length);
@@ -511,7 +513,7 @@ pub(crate) fn evidence(
 fn statement_ref(decoder: &mut V1Decoder<'_>) -> Result<StatementRef, CodecError> {
     map(decoder, 2)?;
     key(decoder, 0)?;
-    let kind = decoder.u8().map_err(|_| CodecError::Malformed)?;
+    let kind = decoder.u8().map_err(decode_error)?;
     key(decoder, 1)?;
     match kind {
         0 => Ok(StatementRef::Grant(digest_id!(decoder, GrantId)?)),
@@ -550,24 +552,24 @@ fn principal_status_statement(
 ) -> Result<PrincipalStatusStatement, CodecError> {
     map(decoder, 9)?;
     key(decoder, 0)?;
-    ProtocolVersion::new(decoder.u16().map_err(|_| CodecError::Malformed)?)?;
+    ProtocolVersion::new(decoder.u16().map_err(decode_error)?)?;
     key(decoder, 1)?;
     let method = parse_text!(decoder, StatusMethodId)?;
     key(decoder, 2)?;
     let principal = parse_text!(decoder, PrincipalId)?;
     key(decoder, 3)?;
-    let state = match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    let state = match decoder.u8().map_err(decode_error)? {
         0 => PrincipalState::Active,
         1 => PrincipalState::Revoked,
         2 => PrincipalState::Superseded,
         _ => return Err(CodecError::Malformed),
     };
     key(decoder, 4)?;
-    let sequence = decoder.u64().map_err(|_| CodecError::Malformed)?;
+    let sequence = decoder.u64().map_err(decode_error)?;
     key(decoder, 5)?;
-    let observed_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let observed_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 6)?;
-    let valid_until = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let valid_until = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 7)?;
     let issuer = parse_text!(decoder, PrincipalId)?;
     key(decoder, 8)?;
@@ -603,24 +605,24 @@ fn grant_status_statement(
 ) -> Result<GrantStatusStatement, CodecError> {
     map(decoder, 9)?;
     key(decoder, 0)?;
-    ProtocolVersion::new(decoder.u16().map_err(|_| CodecError::Malformed)?)?;
+    ProtocolVersion::new(decoder.u16().map_err(decode_error)?)?;
     key(decoder, 1)?;
     let method = parse_text!(decoder, StatusMethodId)?;
     key(decoder, 2)?;
     let grant_id = digest_id!(decoder, GrantId)?;
     key(decoder, 3)?;
-    let state = match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    let state = match decoder.u8().map_err(decode_error)? {
         0 => GrantState::Active,
         1 => GrantState::Revoked,
         2 => GrantState::Superseded,
         _ => return Err(CodecError::Malformed),
     };
     key(decoder, 4)?;
-    let sequence = decoder.u64().map_err(|_| CodecError::Malformed)?;
+    let sequence = decoder.u64().map_err(decode_error)?;
     key(decoder, 5)?;
-    let observed_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let observed_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 6)?;
-    let valid_until = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let valid_until = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 7)?;
     let issuer = parse_text!(decoder, PrincipalId)?;
     key(decoder, 8)?;
@@ -657,15 +659,15 @@ fn attachment(decoder: &mut V1Decoder<'_>) -> Result<AttachmentDescriptor, Codec
     key(decoder, 1)?;
     let media_type = parse_text!(decoder, MediaType)?;
     key(decoder, 2)?;
-    let byte_length = decoder.u64().map_err(|_| CodecError::Malformed)?;
+    let byte_length = decoder.u64().map_err(decode_error)?;
     key(decoder, 3)?;
     let disposition = parse_text!(decoder, DispositionId)?;
     key(decoder, 4)?;
-    let encrypted = decoder.bool().map_err(|_| CodecError::Malformed)?;
+    let encrypted = decoder.bool().map_err(decode_error)?;
     key(decoder, 5)?;
-    let required = decoder.bool().map_err(|_| CodecError::Malformed)?;
+    let required = decoder.bool().map_err(decode_error)?;
     key(decoder, 6)?;
-    let opaque_allowed = decoder.bool().map_err(|_| CodecError::Malformed)?;
+    let opaque_allowed = decoder.bool().map_err(decode_error)?;
     Ok(AttachmentDescriptor::new(
         digest,
         media_type,
@@ -697,9 +699,9 @@ fn bundle_from(
     key(decoder, 0)?;
     map(decoder, 2)?;
     key(decoder, 0)?;
-    let version = ProtocolVersion::new(decoder.u16().map_err(|_| CodecError::Malformed)?)?;
+    let version = ProtocolVersion::new(decoder.u16().map_err(decode_error)?)?;
     key(decoder, 1)?;
-    let header = BundleHeader::new(version, decoder.u64().map_err(|_| CodecError::Malformed)?)?;
+    let header = BundleHeader::new(version, decoder.u64().map_err(decode_error)?)?;
 
     key(decoder, 1)?;
     let length = array(decoder, limits.get(LimitKind::Grants))?;
@@ -800,7 +802,7 @@ fn bundle_from(
 }
 
 fn role(decoder: &mut V1Decoder<'_>) -> Result<auths_model::ParticipantRole, CodecError> {
-    match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    match decoder.u8().map_err(decode_error)? {
         0 => Ok(auths_model::ParticipantRole::Root),
         1 => Ok(auths_model::ParticipantRole::Intermediate),
         2 => Ok(auths_model::ParticipantRole::Actor),
@@ -854,19 +856,17 @@ fn assurance_policy(
             null(decoder)?;
             None
         } else {
-            Some(decoder.u16().map_err(|_| CodecError::Malformed)?)
+            Some(decoder.u16().map_err(decode_error)?)
         };
         key(decoder, 6)?;
         let maximum_age = if is_null(decoder)? {
             null(decoder)?;
             None
         } else {
-            Some(FreshnessLimit::new(
-                decoder.u64().map_err(|_| CodecError::Malformed)?,
-            )?)
+            Some(FreshnessLimit::new(decoder.u64().map_err(decode_error)?)?)
         };
         key(decoder, 7)?;
-        let quantifier = match decoder.u8().map_err(|_| CodecError::Malformed)? {
+        let quantifier = match decoder.u8().map_err(decode_error)? {
             0 => AssuranceQuantifier::Any,
             1 => AssuranceQuantifier::Every,
             _ => return Err(CodecError::Malformed),
@@ -935,14 +935,14 @@ fn anchor(decoder: &mut V1Decoder<'_>, limits: &VerifierLimits) -> Result<TrustA
     key(decoder, 6)?;
     let audiences = audiences(decoder, limits)?;
     key(decoder, 7)?;
-    let not_before = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let not_before = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 8)?;
-    let expires_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let expires_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     let validity = ValidityWindow::new(not_before, expires_at)?;
     key(decoder, 9)?;
     let budget_ceiling = optional_budget(decoder)?;
     key(decoder, 10)?;
-    let max_delegation_depth = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let max_delegation_depth = decoder.u16().map_err(decode_error)?;
     key(decoder, 11)?;
     let assurance_policy = parse_text!(decoder, AssurancePolicyId)?;
     key(decoder, 12)?;
@@ -1035,19 +1035,35 @@ fn status_trust(
 ) -> Result<Vec<StatusTrustRule>, CodecError> {
     let length = array(decoder, limits.get(LimitKind::RegistryEntries))?;
     let mut rules = Vec::with_capacity(length);
-    for _ in 0..length {
-        map(decoder, 4)?;
-        key(decoder, 0)?;
-        let method = parse_text!(decoder, StatusMethodId)?;
-        key(decoder, 1)?;
-        let issuer = parse_text!(decoder, PrincipalId)?;
-        key(decoder, 2)?;
-        let sequence_floor = decoder.u64().map_err(|_| CodecError::Malformed)?;
-        key(decoder, 3)?;
-        let scope = status_scope(decoder, limits)?;
-        rules.push(StatusTrustRule::new(method, issuer, sequence_floor, scope));
+    let mut position = 0;
+    let mut failure = None;
+    while position < length && failure.is_none() {
+        match status_trust_rule(decoder, limits) {
+            Ok(rule) => rules.push(rule),
+            Err(error) => failure = Some(error),
+        }
+        position += 1;
     }
-    Ok(rules)
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(rules),
+    }
+}
+
+fn status_trust_rule(
+    decoder: &mut V1Decoder<'_>,
+    limits: &VerifierLimits,
+) -> Result<StatusTrustRule, CodecError> {
+    map(decoder, 4)?;
+    key(decoder, 0)?;
+    let method = parse_text!(decoder, StatusMethodId)?;
+    key(decoder, 1)?;
+    let issuer = parse_text!(decoder, PrincipalId)?;
+    key(decoder, 2)?;
+    let sequence_floor = decoder.u64().map_err(decode_error)?;
+    key(decoder, 3)?;
+    let scope = status_scope(decoder, limits)?;
+    Ok(StatusTrustRule::new(method, issuer, sequence_floor, scope))
 }
 
 /// Reads `{0: 0}` (own), `{0: 1, 1: [ids]}` (listed anchors), or `{0: 2}`
@@ -1059,27 +1075,40 @@ fn status_scope(
 ) -> Result<StatusScope, CodecError> {
     let entries = decoder
         .map()
-        .map_err(|_| CodecError::Malformed)?
+        .map_err(decode_error)?
         .ok_or(CodecError::Malformed)?;
     if !(1..=2).contains(&entries) {
         return Err(CodecError::Malformed);
     }
     key(decoder, 0)?;
-    let tag = decoder.u8().map_err(|_| CodecError::Malformed)?;
+    let tag = decoder.u8().map_err(decode_error)?;
     match (tag, entries) {
         (0, 1) => Ok(StatusScope::OwnAnchor),
         (1, 2) => {
             key(decoder, 1)?;
             let length = array(decoder, limits.get(LimitKind::TrustAnchors))?;
             let mut anchors = Vec::with_capacity(length);
-            for _ in 0..length {
-                anchors.push(parse_text!(decoder, TrustAnchorId)?);
+            let mut position = 0;
+            let mut failure = None;
+            while position < length && failure.is_none() {
+                match status_scope_anchor(decoder) {
+                    Ok(anchor) => anchors.push(anchor),
+                    Err(error) => failure = Some(error),
+                }
+                position += 1;
             }
-            Ok(StatusScope::Anchors(StatusScopeAnchors::new(anchors)?))
+            match failure {
+                Some(error) => Err(error),
+                None => Ok(StatusScope::Anchors(StatusScopeAnchors::new(anchors)?)),
+            }
         }
         (2, 1) => Ok(StatusScope::AnyAnchor),
         _ => Err(CodecError::Malformed),
     }
+}
+
+fn status_scope_anchor(decoder: &mut V1Decoder<'_>) -> Result<TrustAnchorId, CodecError> {
+    parse_text!(decoder, TrustAnchorId)
 }
 
 fn principal_snapshot(
@@ -1090,9 +1119,9 @@ fn principal_snapshot(
     key(decoder, 0)?;
     let id = digest_id!(decoder, StatusSnapshotId)?;
     key(decoder, 1)?;
-    let observed_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let observed_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 2)?;
-    let valid_until = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let valid_until = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 3)?;
     let length = array(decoder, limits.get(LimitKind::PrincipalStatusStatements))?;
     let mut statements = Vec::with_capacity(length);
@@ -1122,9 +1151,9 @@ fn grant_snapshot(
     key(decoder, 0)?;
     let id = digest_id!(decoder, StatusSnapshotId)?;
     key(decoder, 1)?;
-    let observed_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let observed_at = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 2)?;
-    let valid_until = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let valid_until = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 3)?;
     let length = array(decoder, limits.get(LimitKind::GrantStatusStatements))?;
     let mut statements = Vec::with_capacity(length);
@@ -1174,14 +1203,14 @@ fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecE
     for (index, kind) in LIMIT_KINDS.into_iter().enumerate() {
         key(
             decoder,
-            u8::try_from(index).map_err(|_| CodecError::LimitExceeded)?,
+            u8::try_from(index).map_err(crate::error::limit_error)?,
         )?;
-        let value = decoder.u64().map_err(|_| CodecError::Malformed)?;
-        let value = usize::try_from(value).map_err(|_| CodecError::LimitExceeded)?;
+        let value = decoder.u64().map_err(decode_error)?;
+        let value = usize::try_from(value).map_err(crate::error::limit_error)?;
         limits = limits.with_limit(kind, value)?;
     }
     key(decoder, 26)?;
-    limits = limits.with_work_units(decoder.u64().map_err(|_| CodecError::Malformed)?)?;
+    limits = limits.with_work_units(decoder.u64().map_err(decode_error)?)?;
     for (index, kind) in [
         LimitKind::Approvals,
         LimitKind::ApproverAnchors,
@@ -1192,10 +1221,10 @@ fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecE
     {
         key(
             decoder,
-            u8::try_from(27 + index).map_err(|_| CodecError::LimitExceeded)?,
+            u8::try_from(27 + index).map_err(crate::error::limit_error)?,
         )?;
-        let value = decoder.u64().map_err(|_| CodecError::Malformed)?;
-        let value = usize::try_from(value).map_err(|_| CodecError::LimitExceeded)?;
+        let value = decoder.u64().map_err(decode_error)?;
+        let value = usize::try_from(value).map_err(crate::error::limit_error)?;
         limits = limits.with_limit(kind, value)?;
     }
     Ok(limits)
@@ -1217,11 +1246,11 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecErro
         Some(digest_id!(decoder, PlanId)?)
     };
     key(decoder, 1)?;
-    let minimum_authorized_branches = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let minimum_authorized_branches = decoder.u16().map_err(decode_error)?;
     key(decoder, 2)?;
-    let minimum_distinct_actors = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let minimum_distinct_actors = decoder.u16().map_err(decode_error)?;
     key(decoder, 3)?;
-    let minimum_distinct_roots = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let minimum_distinct_roots = decoder.u16().map_err(decode_error)?;
     let composition = CompositionRequirement::new(
         expected_plan,
         minimum_authorized_branches,
@@ -1241,7 +1270,7 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecErro
     key(decoder, 6)?;
     let expected_challenge = Challenge::new(digest_bytes(decoder)?);
     key(decoder, 7)?;
-    let evaluation_time = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
+    let evaluation_time = Timestamp::new(decoder.u64().map_err(decode_error)?);
     key(decoder, 8)?;
     let assurance_policy = assurance_policy(decoder, &limits)?;
     key(decoder, 9)?;
@@ -1539,6 +1568,59 @@ pub fn decode_grant_status_snapshot(
     Ok(snapshot)
 }
 
+struct AttachmentBatch {
+    attachments: Vec<DetachedAttachment>,
+    attachment_bytes: usize,
+    position: usize,
+}
+
+fn attachment_batch_step(
+    input: &[u8],
+    limits: &VerifierLimits,
+    state: Result<AttachmentBatch, CodecError>,
+) -> Result<AttachmentBatch, CodecError> {
+    let mut state = state?;
+    let Ok(mut decoder) = Decoder::at(input, state.position) else {
+        return Err(CodecError::Malformed);
+    };
+    map(&mut decoder, 2)?;
+    key(&mut decoder, 0)?;
+    let digest = AttachmentDigest::new(digest_bytes(&mut decoder)?);
+    key(&mut decoder, 1)?;
+    let bytes = bounded_bytes(&mut decoder, limits.get(LimitKind::AttachmentBytes), true)?;
+    state.attachment_bytes = state
+        .attachment_bytes
+        .checked_add(bytes.len())
+        .ok_or(CodecError::LimitExceeded)?;
+    if state.attachment_bytes > limits.get(LimitKind::AttachmentBytes) {
+        return Err(CodecError::LimitExceeded);
+    }
+    state
+        .attachments
+        .push(DetachedAttachment::new(digest, bytes)?);
+
+    state.position = decoder.position();
+    Ok(state)
+}
+
+fn attachment_batch(
+    input: &[u8],
+    limits: &VerifierLimits,
+    position: usize,
+    mut remaining: usize,
+) -> Result<AttachmentBatch, CodecError> {
+    let mut state = Ok(AttachmentBatch {
+        attachments: Vec::with_capacity(remaining),
+        attachment_bytes: 0,
+        position,
+    });
+    while remaining > 0 {
+        state = attachment_batch_step(input, limits, state);
+        remaining -= 1;
+    }
+    state
+}
+
 /// Decodes the complete portable canonical-action verifier input.
 ///
 /// # Errors
@@ -1571,24 +1653,13 @@ pub fn decode_canonical_action(
     let requested_budget = optional_budget(&mut decoder)?;
     key(&mut decoder, 5)?;
     let count = array(&mut decoder, limits.get(LimitKind::Attachments))?;
-    let mut attachments = Vec::with_capacity(count);
-    let mut attachment_bytes = 0usize;
-    for _ in 0..count {
-        map(&mut decoder, 2)?;
-        key(&mut decoder, 0)?;
-        let digest = digest_id!(&mut decoder, AttachmentDigest)?;
-        key(&mut decoder, 1)?;
-        let bytes = bounded_bytes(&mut decoder, limits.get(LimitKind::AttachmentBytes), true)?;
-        attachment_bytes = attachment_bytes
-            .checked_add(bytes.len())
-            .ok_or(CodecError::LimitExceeded)?;
-        if attachment_bytes > limits.get(LimitKind::AttachmentBytes) {
-            return Err(CodecError::LimitExceeded);
-        }
-        attachments.push(DetachedAttachment::new(digest, bytes)?);
-    }
+    let state = attachment_batch(input, limits, decoder.position(), count)?;
+    decoder = match Decoder::at(input, state.position) {
+        Ok(value) => value,
+        Err(_) => return Err(CodecError::Malformed),
+    };
     let action = CanonicalAction::new(profile, media_type, body, permission, requested_budget)?
-        .with_detached_attachments(attachments)?;
+        .with_detached_attachments(state.attachments)?;
     ensure_complete(&decoder, input)?;
     if crate::encode::encode_canonical_action(&action)?.as_slice() != input {
         return Err(CodecError::NonCanonical);
@@ -1615,9 +1686,7 @@ fn assurance_claim(decoder: &mut V1Decoder<'_>) -> Result<AssuranceClaim, CodecE
         null(decoder)?;
         None
     } else {
-        Some(Timestamp::new(
-            decoder.u64().map_err(|_| CodecError::Malformed)?,
-        ))
+        Some(Timestamp::new(decoder.u64().map_err(decode_error)?))
     };
     key(decoder, 3)?;
     let source = parse_text!(decoder, EvidenceSourceId)?;
@@ -1653,7 +1722,7 @@ fn assurance_report(decoder: &mut V1Decoder<'_>) -> Result<ParticipantAssurance,
     key(decoder, 4)?;
     let adapter = parse_text!(decoder, AdapterId)?;
     key(decoder, 5)?;
-    let adapter_version = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let adapter_version = decoder.u16().map_err(decode_error)?;
     ParticipantAssurance::new(
         principal,
         participant_role,
@@ -1670,7 +1739,7 @@ fn assurance_satisfaction(
 ) -> Result<AssuranceSatisfaction, CodecError> {
     map(decoder, 4)?;
     key(decoder, 0)?;
-    let requirement_index = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let requirement_index = decoder.u16().map_err(decode_error)?;
     key(decoder, 1)?;
     let principal = parse_text!(decoder, PrincipalId)?;
     key(decoder, 2)?;
@@ -1693,9 +1762,9 @@ fn verification_resources(
     for (index, value) in values.iter_mut().enumerate() {
         key(
             decoder,
-            u8::try_from(index).map_err(|_| CodecError::LimitExceeded)?,
+            u8::try_from(index).map_err(crate::error::limit_error)?,
         )?;
-        *value = decoder.u64().map_err(|_| CodecError::Malformed)?;
+        *value = decoder.u64().map_err(decode_error)?;
     }
     Ok(VerificationResources::new(
         values[0], values[1], values[2], values[3], values[4], values[5], values[6],
@@ -1716,14 +1785,14 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     let mut decoder = Decoder::new(input);
     map(&mut decoder, 18)?;
     key(&mut decoder, 0)?;
-    let decision = match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    let decision = match decoder.u8().map_err(decode_error)? {
         0 => VerificationDecision::Authorized,
         1 => VerificationDecision::Denied,
         2 => VerificationDecision::Indeterminate,
         _ => return Err(CodecError::Malformed),
     };
     key(&mut decoder, 1)?;
-    let stage = match decoder.u8().map_err(|_| CodecError::Malformed)? {
+    let stage = match decoder.u8().map_err(decode_error)? {
         0 => VerificationStage::Decode,
         1 => VerificationStage::Resolve,
         2 => VerificationStage::PrincipalControl,
@@ -1734,7 +1803,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     key(&mut decoder, 2)?;
     map(&mut decoder, 2)?;
     key(&mut decoder, 0)?;
-    let class = decoder.u8().map_err(|_| CodecError::Malformed)?;
+    let class = decoder.u8().map_err(decode_error)?;
     key(&mut decoder, 1)?;
     let code_text = text(&mut decoder)?;
     let code = match class {
@@ -1807,9 +1876,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     key(&mut decoder, 14)?;
     let local_configuration = digest_id!(&mut decoder, VerifierConfigurationId)?;
     key(&mut decoder, 15)?;
-    if decoder.u16().map_err(|_| CodecError::Malformed)?
-        != crate::encode::PORTABLE_RESULT_ABI_VERSION
-    {
+    if decoder.u16().map_err(decode_error)? != crate::encode::PORTABLE_RESULT_ABI_VERSION {
         return Err(CodecError::Malformed);
     }
     key(&mut decoder, 16)?;
@@ -2283,13 +2350,197 @@ mod tests {
         );
     }
 
+    // The previous fallible loop is a test-only control-flow oracle.
+    fn decode_canonical_action_reference(
+        input: &[u8],
+        limits: &VerifierLimits,
+    ) -> Result<CanonicalAction, CodecError> {
+        limits.validate()?;
+        if input.len() > limits.get(LimitKind::ActionBytes) {
+            return Err(CodecError::LimitExceeded);
+        }
+        let mut decoder = Decoder::new(input);
+        map(&mut decoder, 6)?;
+        key(&mut decoder, 0)?;
+        let profile = profile_ref(&mut decoder)?;
+        key(&mut decoder, 1)?;
+        let media_type = parse_text!(&mut decoder, MediaType)?;
+        key(&mut decoder, 2)?;
+        let body = bounded_bytes(
+            &mut decoder,
+            limits.get(LimitKind::CanonicalBodyBytes),
+            true,
+        )?;
+        key(&mut decoder, 3)?;
+        let permission = permission(&mut decoder)?;
+        key(&mut decoder, 4)?;
+        let requested_budget = optional_budget(&mut decoder)?;
+        key(&mut decoder, 5)?;
+        let count = array(&mut decoder, limits.get(LimitKind::Attachments))?;
+        let mut attachments = Vec::with_capacity(count);
+        let mut attachment_bytes = 0usize;
+        for _ in 0..count {
+            map(&mut decoder, 2)?;
+            key(&mut decoder, 0)?;
+            let digest = digest_id!(&mut decoder, AttachmentDigest)?;
+            key(&mut decoder, 1)?;
+            let bytes = bounded_bytes(&mut decoder, limits.get(LimitKind::AttachmentBytes), true)?;
+            attachment_bytes = attachment_bytes
+                .checked_add(bytes.len())
+                .ok_or(CodecError::LimitExceeded)?;
+            if attachment_bytes > limits.get(LimitKind::AttachmentBytes) {
+                return Err(CodecError::LimitExceeded);
+            }
+            attachments.push(DetachedAttachment::new(digest, bytes)?);
+        }
+        let action = CanonicalAction::new(profile, media_type, body, permission, requested_budget)?
+            .with_detached_attachments(attachments)?;
+        ensure_complete(&decoder, input)?;
+        if crate::encode::encode_canonical_action_reference(&action)?.as_slice() != input {
+            return Err(CodecError::NonCanonical);
+        }
+        Ok(action)
+    }
+
+    #[test]
+    fn canonical_action_mutations_match_the_previous_codec() {
+        let action = minimal_canonical_action()
+            .with_detached_attachments(vec![
+                DetachedAttachment::new(AttachmentDigest::new([2; 32]), vec![3, 4]).unwrap(),
+                DetachedAttachment::new(AttachmentDigest::new([1; 32]), vec![1, 2]).unwrap(),
+            ])
+            .unwrap();
+        let bytes = encode_canonical_action(&action).unwrap();
+        assert_eq!(
+            bytes,
+            crate::encode::encode_canonical_action_reference(&action).unwrap()
+        );
+        let limits = VerifierLimits::default();
+        assert_eq!(decode_canonical_action(&bytes, &limits).unwrap(), action);
+        for length in 0..bytes.len() {
+            let truncated = &bytes[..length];
+            assert_eq!(
+                decode_canonical_action(truncated, &limits),
+                decode_canonical_action_reference(truncated, &limits)
+            );
+        }
+        for index in 0..bytes.len() {
+            for mask in [1, 128, 255] {
+                let mut mutated = bytes.clone();
+                mutated[index] ^= mask;
+                assert_eq!(
+                    decode_canonical_action(&mutated, &limits),
+                    decode_canonical_action_reference(&mutated, &limits)
+                );
+            }
+        }
+    }
+
+    fn previous_attachment_checks(
+        mut attachments: Vec<DetachedAttachment>,
+    ) -> Result<Vec<DetachedAttachment>, auths_model::ModelError> {
+        attachments.sort_by_key(DetachedAttachment::digest);
+        if attachments.len() > auths_model::HARD_MAX_ATTACHMENTS
+            || attachments
+                .windows(2)
+                .any(|pair| pair[0].digest() == pair[1].digest())
+            || attachments
+                .iter()
+                .try_fold(0usize, |total, attachment| {
+                    total.checked_add(attachment.bytes().len())
+                })
+                .is_none_or(|total| total > auths_model::HARD_MAX_ATTACHMENT_BYTES)
+        {
+            return Err(auths_model::ModelError::InvalidAttachment);
+        }
+        Ok(attachments)
+    }
+
+    #[test]
+    fn canonical_attachment_hard_limits_match_previous_checks() {
+        let action = minimal_canonical_action();
+        let too_many = (0..=auths_model::HARD_MAX_ATTACHMENTS)
+            .map(|index| {
+                let mut key = [0; 32];
+                key[..8].copy_from_slice(&u64::try_from(index).unwrap().to_be_bytes());
+                DetachedAttachment::new(AttachmentDigest::new(key), vec![1]).unwrap()
+            })
+            .collect::<Vec<_>>();
+        let too_large = vec![
+            DetachedAttachment::new(
+                AttachmentDigest::new([1; 32]),
+                vec![1; auths_model::HARD_MAX_ATTACHMENT_BYTES / 2],
+            )
+            .unwrap(),
+            DetachedAttachment::new(
+                AttachmentDigest::new([2; 32]),
+                vec![2; auths_model::HARD_MAX_ATTACHMENT_BYTES / 2 + 1],
+            )
+            .unwrap(),
+        ];
+        for input in [too_many, too_large] {
+            let expected = previous_attachment_checks(input.clone());
+            let actual = action
+                .clone()
+                .with_detached_attachments(input)
+                .map(|action| action.detached_attachments().to_vec());
+            assert_eq!(actual, expected);
+            assert_eq!(actual, Err(auths_model::ModelError::InvalidAttachment));
+        }
+    }
+
     proptest! {
+        #[test]
+        fn canonical_attachments_match_previous_checks(
+            raw in proptest::collection::vec((any::<u8>(), proptest::collection::vec(any::<u8>(), 1..=32)), 0..=80),
+        ) {
+            let input = raw.into_iter().map(|(key, data)|
+                DetachedAttachment::new(AttachmentDigest::new([key; 32]), data).unwrap()
+            ).collect::<Vec<_>>();
+            let expected = previous_attachment_checks(input.clone());
+            let actual = minimal_canonical_action().with_detached_attachments(input)
+                .map(|action| action.detached_attachments().to_vec());
+            prop_assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn canonical_action_round_trips_match_the_previous_encoder(
+            body in proptest::collection::vec(any::<u8>(), 1..=128),
+            raw in proptest::collection::vec((any::<u8>(), proptest::collection::vec(any::<u8>(), 1..=32)), 0..=32),
+            budget in proptest::option::of(any::<u64>()),
+        ) {
+            let mut raw = raw;
+            raw.sort_by_key(|(key, _)| *key);
+            raw.dedup_by_key(|(key, _)| *key);
+            let base = minimal_canonical_action();
+            let budget = budget.map(|amount| BudgetCeiling::new(
+                BudgetAlgebraId::parse("units").unwrap(), amount));
+            let action = CanonicalAction::new(base.profile().clone(), base.media_type().clone(),
+                body, base.permission().clone(), budget).unwrap()
+                .with_detached_attachments(raw.into_iter().map(|(key, data)|
+                    DetachedAttachment::new(AttachmentDigest::new([key; 32]), data).unwrap()
+                ).collect()).unwrap();
+            let bytes = encode_canonical_action(&action).unwrap();
+            prop_assert_eq!(&bytes, &crate::encode::encode_canonical_action_reference(&action).unwrap());
+            let limits = VerifierLimits::default();
+            prop_assert_eq!(decode_canonical_action(&bytes, &limits),
+                decode_canonical_action_reference(&bytes, &limits));
+            prop_assert_eq!(decode_canonical_action(&bytes, &limits).unwrap(), action);
+        }
+
         #[test]
         fn arbitrary_bytes_never_panic(
             bytes in proptest::collection::vec(any::<u8>(), 0..4096)
         ) {
-            let _ = decode_bundle(&bytes, &VerifierLimits::default());
+            let limits = VerifierLimits::default();
+            prop_assert_eq!(decode_canonical_action(&bytes, &limits),
+                decode_canonical_action_reference(&bytes, &limits));
+            let _ = decode_bundle(&bytes, &limits);
             let _ = decode_verifier_context(&bytes);
         }
     }
 }
+
+#[cfg(test)]
+#[path = "scope_decode_tests.rs"]
+mod scope_decode_tests;

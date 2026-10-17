@@ -1,3 +1,4 @@
+import Auths.Product.ReservationAdmissionRefinement
 import qualification.aeneas.generated.bounded_policy.Funs
 
 open Aeneas Aeneas.Std Result
@@ -87,3 +88,37 @@ example : kernel.scope_tightens none
   rfl
 
 end qualification.aeneas.cases
+
+#check Auths.Product.ReservationAdmission.Refinement.reservation_admission_exact
+#check Auths.Product.ReservationAdmission.Refinement.source_admission_earns_bounds
+#check Auths.Product.ReservationAdmission.Refinement.source_window_refusal_precedes_sum
+#check Auths.Product.ReservationAdmission.Refinement.source_admitted_has_complete_vectors
+#check Auths.Product.ReservationAdmission.Refinement.source_admitted_sums_do_not_overflow
+
+namespace qualification.aeneas.cases.ReservationAdmission
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_bounded_policy
+open Auths.Product.ReservationAdmission.Refinement
+private def oneWord (value : U64) : Slice U64 := ⟨[value], by simp; scalar_tac⟩
+
+-- A nonempty count/slot reservation at the inclusive sum boundary admits.
+example : kernel.reservation_admission (oneWord 0#u64) (oneWord 1#u64)
+    (oneWord 0#u64) (oneWord 1#u64) (oneWord 400#u64) (oneWord 1000#u64) 600#u64
+      ⦃ actual => actual = .Admit ⦄ := by
+  step with reservation_admission_exact as ⟨actual, exactMeaning⟩
+  change codeView actual = Auths.Product.ReservationAdmission.decideReservation [0] [1] [0] [1] [400] [1000] 600 at exactMeaning
+  have model : Auths.Product.ReservationAdmission.decideReservation [0] [1] [0] [1] [400] [1000] 600 = .admit := by decide
+  rw [model] at exactMeaning
+  cases actual <;> simp_all [codeView]
+
+-- When both count and sum are exhausted, the shipping window code wins.
+example : kernel.reservation_admission (oneWord 1#u64) (oneWord 1#u64)
+    (oneWord 0#u64) (oneWord 1#u64) (oneWord 1000#u64) (oneWord 1000#u64) 1#u64
+      ⦃ actual => actual = .WindowExhausted ⦄ := by
+  step with reservation_admission_exact as ⟨actual, exactMeaning⟩
+  change codeView actual = Auths.Product.ReservationAdmission.decideReservation [1] [1] [0] [1] [1000] [1000] 1 at exactMeaning
+  have model : Auths.Product.ReservationAdmission.decideReservation [1] [1] [0] [1] [1000] [1000] 1 = .windowExhausted := by decide
+  rw [model] at exactMeaning
+  cases actual <;> simp_all [codeView]
+end qualification.aeneas.cases.ReservationAdmission

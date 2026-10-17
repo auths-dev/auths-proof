@@ -4,13 +4,13 @@
 
 ## 1. Claim
 
-At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
+At the commit that contains this document, 134 of 1,047 decision-scope functions (12.8%) and 1,833 of 11,563 code lines (15.9%) are translated to Lean and reached from audited theorem statements, and 23 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the registry handlers, and the codec, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `56f5f8df74c31a2554725ec967451d36bfa6e7c4a49004b3c83bb5cd32c35f52` over the 89 files listed in `formal/proof-coverage-v1.json`.
-- Tool: `cargo xtask formal coverage`, version 1.
+- Measurement inputs: sha256 `a0ea986d5dc60e711d5f43033c2b45a0c5715e880576aa36001273fdf2785857` over the 140 files listed in `formal/proof-coverage-v1.json`.
+- Tool: `cargo xtask formal coverage`, version 4.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
-- Role table: `formal/coverage-scope-v1.toml`, sha256 `053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5`. Figures computed under a different role table are not comparable.
+- Role table: `formal/coverage-scope-v1.toml`, sha256 `ed030ce60262669dce62637a8f8016799e07f45e468055c2087b0e6a9ebab885`. Figures computed under a different role table are not comparable.
 
 ## 2. Definitions and file roles
 
@@ -30,31 +30,48 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 | --- | --- |
 | `core/crates/auths-codec/src/approval.rs` | decoding |
 | `core/crates/auths-codec/src/bounded_policy.rs` | decoding |
+| `core/crates/auths-codec/src/cbor.rs` | decoding |
 | `core/crates/auths-codec/src/decode.rs` | decoding |
 | `core/crates/auths-codec/src/encode.rs` | decoding |
 | `core/crates/auths-codec/src/error.rs` | decoding |
 | `core/crates/auths-codec/src/hash.rs` | decoding |
 | `core/crates/auths-codec/src/lib.rs` | decoding |
 | `core/crates/auths-codec/src/observation.rs` | decoding |
+| `core/crates/auths-codec/src/scope_decode_tests.rs` | test-support |
+| `core/crates/auths-composition/src/oracle.rs` | test-support |
+| `core/crates/auths-model/src/principal_scheme_tests.rs` | test-support |
+| `core/crates/auths-model/src/scope_constructor_tests.rs` | test-support |
 | `core/crates/auths-ports/src/binding.rs` | interface |
 | `core/crates/auths-ports/src/diagnostics.rs` | interface |
 | `core/crates/auths-ports/src/lib.rs` | interface |
 | `core/crates/auths-ports/src/path.rs` | interface |
+| `core/crates/auths-registries/src/status_selection_tests.rs` | test-support |
+| `core/crates/auths-signature-core/src/lib.rs` | crypto |
+| `core/crates/auths-signature/src/lib.rs` | crypto |
 | `core/crates/auths-verifier/src/causal.rs` | explanation |
+| `core/crates/auths-verifier/src/temporal_tests.rs` | test-support |
 | `core/crates/auths-verifier/src/trace.rs` | explanation |
+| `formal/qualification/aeneas/entrypoints/profile_construction.rs` | interface |
+| `product/runtime/auths-connections/src/record_time_tests.rs` | test-support |
+| `product/runtime/auths-connections/src/recovery_guard_tests.rs` | test-support |
+| `product/runtime/auths-connections/src/strict_order_tests.rs` | test-support |
+| `product/runtime/auths-connections/src/string_constructor_tests.rs` | test-support |
 | `product/runtime/auths-lifecycle/src/codec.rs` | decoding |
 | `product/runtime/auths-lifecycle/src/sealed.rs` | storage |
 | `product/runtime/auths-lifecycle/src/test_support.rs` | test-support |
+| `product/stores/auths-stores/src/gateway_attempt.rs` | storage |
+| `product/stores/auths-stores/src/lib.rs` | interface |
+| `product/stores/auths-stores/src/lifecycle.rs` | storage |
 
 ## 3. Scope table
 
 | Scope | Functions | Translated | Refined directly | Refined closure | Code lines | Translated | Refined directly | Refined closure |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| decision | 1,031 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,353 | 1,289 (11.4%) | 856 (7.5%) | 1,289 (11.4%) |
-| verifier-core | 785 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,802 | 907 (10.3%) | 558 (6.3%) | 907 (10.3%) |
-| translated-crates | 1,138 | 210 (18.5%) | 70 (6.2%) | 210 (18.5%) | 10,662 | 2,508 (23.5%) | 1,024 (9.6%) | 2,508 (23.5%) |
-| verifier-closure | 1,083 | 86 (7.9%) | 41 (3.8%) | 86 (7.9%) | 13,762 | 907 (6.6%) | 558 (4.1%) | 907 (6.6%) |
-| decision-nontrivial | 443 | 81 (18.3%) | 44 (9.9%) | 81 (18.3%) | 9,589 | 1,202 (12.5%) | 820 (8.6%) | 1,202 (12.5%) |
+| decision | 1,047 | 134 (12.8%) | 77 (7.4%) | 134 (12.8%) | 11,563 | 1,833 (15.9%) | 1,356 (11.7%) | 1,833 (15.9%) |
+| verifier-core | 800 | 109 (13.6%) | 60 (7.5%) | 109 (13.6%) | 8,993 | 1,432 (15.9%) | 1,033 (11.5%) | 1,432 (15.9%) |
+| translated-crates | 1,839 | 389 (21.2%) | 205 (11.1%) | 389 (21.2%) | 22,550 | 4,544 (20.2%) | 2,791 (12.4%) | 4,544 (20.2%) |
+| verifier-closure | 1,147 | 182 (15.9%) | 98 (8.5%) | 182 (15.9%) | 14,272 | 2,065 (14.5%) | 1,460 (10.2%) | 2,065 (14.5%) |
+| decision-nontrivial | 456 | 104 (22.8%) | 64 (14.0%) | 104 (22.8%) | 9,790 | 1,743 (17.8%) | 1,317 (13.5%) | 1,743 (17.8%) |
 
 Decision scope by crate:
 
@@ -63,11 +80,11 @@ Decision scope by crate:
 | `core/crates/auths-algebra-kernel` | 15 | 73 | 2 | 2 | 17 |
 | `core/crates/auths-assurance` | 3 | 89 | 0 | 0 | 0 |
 | `core/crates/auths-authority` | 21 | 341 | 13 | 13 | 241 |
-| `core/crates/auths-composition` | 8 | 160 | 0 | 0 | 0 |
-| `core/crates/auths-model` | 540 | 3,886 | 71 | 71 | 649 |
-| `core/crates/auths-registries` | 82 | 1,152 | 0 | 0 | 0 |
-| `core/crates/auths-verifier` | 116 | 3,143 | 0 | 0 | 0 |
-| `product/policy/auths-bounded-policy` | 108 | 716 | 18 | 18 | 182 |
+| `core/crates/auths-composition` | 10 | 155 | 10 | 10 | 155 |
+| `core/crates/auths-model` | 548 | 3,944 | 75 | 75 | 695 |
+| `core/crates/auths-registries` | 83 | 1,202 | 6 | 6 | 262 |
+| `core/crates/auths-verifier` | 120 | 3,239 | 3 | 3 | 62 |
+| `product/policy/auths-bounded-policy` | 109 | 735 | 19 | 19 | 201 |
 | `product/runtime/auths-lifecycle` | 138 | 1,835 | 6 | 6 | 200 |
 
 Per-crate code lines are summed per function, so a function nested in another counts in both; the scope table counts each line once.
@@ -76,23 +93,26 @@ Sensitivities of the decision-scope refined-closure figure:
 
 | Reading | Functions | Code lines |
 | --- | ---: | ---: |
-| Headline | 110 of 1,031 (10.7%) | 1,289 of 11,353 (11.4%) |
-| Without functions defined in `macro_rules!` bodies | 109 of 1,014 (10.7%) | 1,286 of 11,300 (11.4%) |
-| Closure of exact and verdict-exact theorems only | 109 of 1,031 (10.6%) | 1,286 of 11,353 (11.3%) |
-| Closure of exact theorems only | 105 of 1,031 (10.2%) | 1,198 of 11,353 (10.6%) |
-| Closure without trait-instance records | 109 of 1,031 (10.6%) | 1,286 of 11,353 (11.3%) |
+| Headline | 134 of 1,047 (12.8%) | 1,833 of 11,563 (15.9%) |
+| Without functions defined in `macro_rules!` bodies | 133 of 1,027 (13.0%) | 1,830 of 11,498 (15.9%) |
+| Closure of exact and verdict-exact theorems only | 128 of 1,047 (12.2%) | 1,584 of 11,563 (13.7%) |
+| Closure of exact theorems only | 124 of 1,047 (11.8%) | 1,496 of 11,563 (12.9%) |
+| Closure without trait-instance records | 133 of 1,047 (12.7%) | 1,830 of 11,563 (15.8%) |
 
-**Second parser.** 1014 of 1031 decision-scope function spans (98.4%) agree with an independent parse by syn over 30 files. Disagreements:
+**Second parser.** 1027 of 1047 decision-scope function spans (98.1%) agree with an independent parse by syn over 32 files. Disagreements:
 
-- `core/crates/auths-model/src/lib.rs` `name::parse` (lines 142-144): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::as_str` (lines 147-149): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::fmt` (lines 153-155): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::new` (lines 271-273): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::from_digest` (lines 276-278): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::digest` (lines 281-283): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::as_bytes` (lines 286-288): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `name::from` (lines 292-294): inside a macro_rules! body (syn parses it as a token tree).
-- `core/crates/auths-model/src/lib.rs` `Digest::from` (lines 298-300): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::parse` (lines 131-136): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::as_str` (lines 139-141): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::fmt` (lines 145-147): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::new` (lines 253-255): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::from_digest` (lines 258-260): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::digest` (lines 263-265): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::as_bytes` (lines 268-270): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `name::from` (lines 274-276): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `Digest::from` (lines 280-282): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `code` (lines 4983-4985): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `code_precedes` (lines 4993-4995): inside a macro_rules! body (syn parses it as a token tree).
+- `core/crates/auths-model/src/lib.rs` `code_order` (lines 4997-4999): inside a macro_rules! body (syn parses it as a token tree).
 - `product/policy/auths-bounded-policy/src/identifier.rs` `name::parse` (lines 69-72): inside a macro_rules! body (syn parses it as a token tree).
 - `product/policy/auths-bounded-policy/src/identifier.rs` `name::as_str` (lines 76-78): inside a macro_rules! body (syn parses it as a token tree).
 - `product/runtime/auths-lifecycle/src/digest.rs` `name::from_bytes` (lines 28-30): inside a macro_rules! body (syn parses it as a token tree).
@@ -106,19 +126,11 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 4. Decision-critical coverage
 
-`formal/check-site-functions-v1.toml` maps each of the 82 `CHECK_SITES` entries (`core/testkit/auths-testkit/src/check_sites.rs`) to the function that constructs its refusal, the predicate its guard calls, and further deciding functions, by study 006's innermost-function rule. A site is covered when every one of those functions is in the refined closure. 15 of 82 are covered (18.3%).
+`formal/check-site-functions-v1.toml` maps each of the 82 `CHECK_SITES` entries (`core/testkit/auths-testkit/src/check_sites.rs`) to the function that constructs its refusal, the predicate its guard calls, and further deciding functions, by study 006's innermost-function rule. A site is covered when every one of those functions is in the refined closure. 23 of 82 are covered (28.0%).
 
 | Site | Code | Deciding functions outside the closure | Covering stage |
 | --- | --- | --- | --- |
-| `decode.action-bytes` | `resource-limit-exceeded` | `decode_canonical_action` (refusal) | codec: AP-SPEC-061 |
-| `decode.action-map` | `malformed-proof` | `map` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
-| `decode.action-key` | `non-canonical-proof` | `key` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
-| `decode.action-field` | `malformed-proof` | `decode_canonical_action` (refusal), `profile_ref` (also), `text` (also), `bounded_bytes` (also), `array` (also) | codec: AP-SPEC-061 |
-| `decode.action-body-bytes` | `resource-limit-exceeded` | `bounded_bytes` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
-| `decode.attachment-bytes` | `resource-limit-exceeded` | `bounded_bytes` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
-| `decode.action-attachment-duplicate` | `malformed-proof` | `CanonicalAction::with_detached_attachments` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
-| `decode.action-trailing` | `malformed-proof` | `ensure_complete` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
-| `decode.action-canonical` | `non-canonical-proof` | `decode_canonical_action` (refusal), `encode_canonical_action` (also) | codec: AP-SPEC-061 |
+| `decode.action-attachment-duplicate` | `malformed-proof` | `CanonicalAction::with_detached_attachments` (refusal) | codec: AP-SPEC-061 |
 | `binding.embedded-body` | `action-body-mismatch` | `validate_action_binding` (refusal) | stage 3 |
 | `binding.profile` | `action-body-mismatch` | `validate_action_binding` (refusal) | stage 3 |
 | `binding.media-type` | `action-body-mismatch` | `validate_action_binding` (refusal) | stage 3 |
@@ -146,11 +158,11 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 | `branch.untrusted-root` | `untrusted-root` | `verify_branch` (refusal) | stage 3 |
 | `branch.principal-status-extension-accepted` | `critical-extension-unknown` | `check_status_extensions` (refusal), `AcceptedRegistries::accepts_critical_extension` (guard), `check_principal_status` (also) | stages 2 and 3 |
 | `branch.principal-status-extension-handler` | `unsupported-critical-extension` | `check_status_extensions` (refusal), `check_principal_status` (also) | stage 3 |
-| `branch.anchor-principal-status` | `principal-revoked` | `status_decision` (refusal), `select_principal` (guard), `check_principal_status` (also), `ExactStatusMethod::principal` (also) | stages 2 and 3 |
+| `branch.anchor-principal-status` | `principal-revoked` | `check_principal_status` (also) | stages 2 and 3 |
 | `branch.grant-status-extension-accepted` | `critical-extension-unknown` | `check_status_extensions` (refusal), `AcceptedRegistries::accepts_critical_extension` (guard), `check_grant_status` (also) | stages 2 and 3 |
 | `branch.grant-status-extension-handler` | `unsupported-critical-extension` | `check_status_extensions` (refusal), `check_grant_status` (also) | stage 3 |
-| `branch.grant-status` | `grant-revoked` | `status_decision` (refusal), `select_grant` (guard), `check_grant_status` (also), `ExactStatusMethod::grant` (also) | stages 2 and 3 |
-| `branch.subject-principal-status` | `principal-revoked` | `status_decision` (refusal), `select_principal` (guard), `check_principal_status` (also), `ExactStatusMethod::principal` (also) | stages 2 and 3 |
+| `branch.grant-status` | `grant-revoked` | `check_grant_status` (also) | stages 2 and 3 |
+| `branch.subject-principal-status` | `principal-revoked` | `check_principal_status` (also) | stages 2 and 3 |
 | `branch.resource-matcher` | `unsupported-resource-matcher` | `validate_resource_constraints` (refusal), `ImmutableRegistries::resource_matcher` (guard) | stage 2 |
 | `branch.grant-namespace` | `resource-namespace-mismatch` | `validate_resource_constraints` (refusal), `UriNamespaceMatcher::matches` (guard) | stage 2 |
 | `branch.action-namespace` | `resource-namespace-mismatch` | `validate_resource_constraints` (refusal), `UriNamespaceMatcher::matches` (guard) | stage 2 |
@@ -180,13 +192,16 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 5. Translated functions outside the refined closure
 
-None: every function Aeneas translates is in the refined closure.
+- `auths_profile_construction::construct` (`formal/qualification/aeneas/entrypoints/profile_construction.rs`, lines 5-10)
+- `auths_profile_construction::parse_provider` (`formal/qualification/aeneas/entrypoints/profile_construction.rs`, lines 13-17)
+- `auths_profile_construction::parse_alias` (`formal/qualification/aeneas/entrypoints/profile_construction.rs`, lines 20-24)
+- `auths_profile_construction::parse_semantic` (`formal/qualification/aeneas/entrypoints/profile_construction.rs`, lines 27-31)
 
 ## 6. Mutation adequacy
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `f250c011aa84a978f1f65e91ead3ed8aee7e3b6502e7d80868a583381df305db`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `bae0cd9f691cdc246d4b82603c819912a7fe18ec83a52ddb2cffadbdba354e44`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -199,25 +214,275 @@ None: every function Aeneas translates is in the refined closure.
 
 ## 7. Theorem kinds
 
-Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 65 exact, 1 verdict-exact, 8 partial, 1 case.
+Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 205 exact, 12 verdict-exact, 120 partial, 84 case.
 
-Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 109 of 1,031 functions (10.6%) and 1,286 of 11,353 code lines (11.3%).
+Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 128 of 1,047 functions (12.2%) and 1,584 of 11,563 code lines (13.7%).
 
 The 33 theorems study 006 classified keep the kind both of its raters gave; theorems added since were classified by the agent that added them and await a second rater.
 
 | Theorem | Kind |
 | --- | --- |
+| `Auths.Codec.Action.accepted_encoding_unique` | partial |
+| `Auths.Codec.Action.bounded_bytes_valid` | partial |
+| `Auths.Codec.Action.decode_encode_exact` | partial |
+| `Auths.Codec.Action.decoded_body_valid` | partial |
+| `Auths.Codec.Action.decoded_body_within_deployment` | partial |
+| `Auths.Codec.Collection.array_exact` | exact |
+| `Auths.Codec.Collection.collection_exact` | exact |
+| `Auths.Codec.Collection.map_exact` | exact |
+| `Auths.Codec.Cursor.at_exact` | exact |
+| `Auths.Codec.Cursor.datatype_exact` | exact |
+| `Auths.Codec.Cursor.ensure_complete_exact` | exact |
+| `Auths.Codec.Cursor.head_exact` | exact |
+| `Auths.Codec.Cursor.new_exact` | exact |
+| `Auths.Codec.Cursor.null_exact` | exact |
+| `Auths.Codec.Cursor.position_exact` | exact |
+| `Auths.Codec.Cursor.u16_exact` | exact |
+| `Auths.Codec.Cursor.u64_exact` | exact |
+| `Auths.Codec.Cursor.u8_exact` | exact |
+| `Auths.Codec.Examples.action_byte_limit_exact` | case |
+| `Auths.Codec.Examples.action_byte_limit_refused` | case |
+| `Auths.Codec.Examples.duplicate_key_refused` | case |
+| `Auths.Codec.Examples.invalid_utf8_refused` | case |
+| `Auths.Codec.Examples.minimal_action_accepted` | case |
+| `Auths.Codec.Examples.minimal_encoding_exact` | case |
+| `Auths.Codec.Examples.nonminimal_integer_refused` | case |
+| `Auths.Codec.Examples.trailing_byte_refused` | case |
+| `Auths.Codec.Examples.truncated_refused` | case |
+| `Auths.Codec.Fields.array_exact` | exact |
+| `Auths.Codec.Fields.bounded_bytes_exact` | exact |
+| `Auths.Codec.Fields.digest_bytes_exact` | exact |
+| `Auths.Codec.Fields.is_null_exact` | exact |
+| `Auths.Codec.Fields.key_exact` | exact |
+| `Auths.Codec.Fields.map_exact` | exact |
+| `Auths.Codec.Fields.null_exact` | exact |
+| `Auths.Codec.Fields.text_exact` | exact |
+| `Auths.Codec.Payload.bytes_exact` | exact |
+| `Auths.Codec.Payload.payload_exact` | exact |
+| `Auths.Codec.Payload.str_exact` | exact |
+| `Auths.Codec.Payload.success_earns_span` | partial |
+| `Auths.Codec.Refinement.Encoder.append_tail_exact` | partial |
+| `Auths.Codec.Refinement.Encoder.encode_head_byte_bound` | partial |
+| `Auths.Codec.Refinement.Encoder.encode_head_refines` | exact |
+| `Auths.Codec.Refinement.Encoder.encode_head_roundtrip` | partial |
+| `Auths.Codec.Refinement.read_head_accepts_encoding` | partial |
+| `Auths.Codec.Refinement.read_head_refines` | exact |
+| `Auths.Codec.Refinement.read_tail_bounded` | exact |
+| `Auths.Composition.Bounds.source_bounded_events` | partial |
+| `Auths.Composition.Facade.evaluate_refines` | exact |
+| `Auths.Composition.Facade.event_outcome_exact` | exact |
+| `Auths.Composition.Facade.invalid_plan_preserves_callback` | partial |
+| `Auths.Composition.Facade.observer_mut_exact` | exact |
+| `Auths.Composition.Facade.observer_once_exact` | exact |
+| `Auths.Composition.FacadeExamples.conjunction_authorizes` | case |
+| `Auths.Composition.FacadeExamples.duplicate_refused` | case |
+| `Auths.Composition.FacadeExamples.threshold_indeterminate` | case |
+| `Auths.Composition.PlanExamples.all_visits_after_denial` | case |
+| `Auths.Composition.PlanExamples.any_visits_after_authorization` | case |
+| `Auths.Composition.PlanExamples.threshold_indeterminate` | case |
+| `Auths.Composition.PlanExamples.threshold_refused` | case |
+| `Auths.Composition.PlanExamples.two_leaf_conjunction` | case |
+| `Auths.Composition.Refinement.all_exact` | exact |
+| `Auths.Composition.Refinement.push_exact` | partial |
+| `Auths.Composition.Refinement.threshold_authorized_exact` | verdict-exact |
+| `Auths.Composition.Refinement.threshold_exact` | exact |
+| `Auths.Composition.Traversal.evaluator_refines` | exact |
+| `Auths.Composition.ValidationContract.invalid_plan_preserves_callbacks` | partial |
+| `Auths.Composition.ValidationContract.public_event_bound` | partial |
+| `Auths.Composition.ValidationContract.valid_public_evaluator_refines` | exact |
+| `Auths.Composition.ValidationExamples.duplicate_refused` | case |
+| `Auths.Composition.ValidationExamples.narrow_refused` | case |
+| `Auths.Composition.ValidationExamples.public_conjunction` | case |
+| `Auths.Composition.ValidationExamples.public_threshold_indeterminate` | case |
+| `Auths.Composition.ValidationExamples.shallow_refused` | case |
+| `Auths.Composition.ValidationExamples.zero_threshold_refused` | case |
+| `Auths.Composition.ValidationPublic.public_evaluator_refines` | exact |
+| `Auths.Composition.Work.source_event_count` | partial |
+| `Auths.Composition.Work.source_leaf_order` | partial |
+| `Auths.Crypto.BufferAllocation.accepted_capacity_fits` | partial |
+| `Auths.Crypto.BufferAllocation.accepted_empty` | partial |
+| `Auths.Crypto.BufferAllocation.buffer_refines` | exact |
+| `Auths.Crypto.CommitmentExamples.application_sample_admitted` | case |
+| `Auths.Crypto.CommitmentExamples.empty_domain_refused` | case |
+| `Auths.Crypto.CommitmentExamples.every_identifier_tag_admitted` | case |
+| `Auths.Crypto.CommitmentExamples.oversized_domain_refused` | case |
+| `Auths.Crypto.CommitmentRefinement.application_preimage_exact` | partial |
+| `Auths.Crypto.CommitmentRefinement.identifier_preimage_exact` | partial |
+| `Auths.Crypto.CommitmentValidity.accepted_application_inputs_bind` | partial |
+| `Auths.Crypto.CommitmentValidity.accepted_identifier_inputs_bind` | partial |
+| `Auths.Crypto.CommitmentValidity.application_accepted_frame_valid` | partial |
+| `Auths.Crypto.CommitmentValidity.application_output_length` | partial |
+| `Auths.Crypto.CommitmentValidity.identifier_accepted_frame_valid` | partial |
+| `Auths.Crypto.CommitmentValidity.identifier_output_length` | partial |
+| `Auths.Crypto.CoordinateContract.guard_refines` | exact |
+| `Auths.Crypto.CoordinateScan.loop_refines` | partial |
+| `Auths.Crypto.Encoding.Ed25519.guard_refines` | verdict-exact |
+| `Auths.Crypto.Encoding.Examples.canonical_identity_encoding_accepted` | case |
+| `Auths.Crypto.Encoding.Examples.compressed_form_accepted` | case |
+| `Auths.Crypto.Encoding.Examples.field_alias_refused` | case |
+| `Auths.Crypto.Encoding.Examples.negative_zero_refused` | case |
+| `Auths.Crypto.Encoding.Examples.rfc_key_encoding_accepted` | case |
+| `Auths.Crypto.Encoding.Examples.short_compressed_refused` | case |
+| `Auths.Crypto.Encoding.Examples.uncompressed_tag_refused` | case |
+| `Auths.Crypto.Encoding.P256.guard_refines` | verdict-exact |
+| `Auths.Crypto.Encoding.RootFlags.root_flags` | partial |
+| `Auths.Crypto.Encoding.Scan.loop_refines` | partial |
+| `Auths.Crypto.Examples.minimal_preimage_exact` | case |
+| `Auths.Crypto.Examples.unicode_preimage_exact` | case |
+| `Auths.Crypto.FramingTotality.application_accepts_iff` | exact |
+| `Auths.Crypto.FramingTotality.application_refuses_iff` | exact |
+| `Auths.Crypto.FramingTotality.application_total` | exact |
+| `Auths.Crypto.FramingTotality.identifier_accepts_iff` | exact |
+| `Auths.Crypto.FramingTotality.identifier_refuses_iff` | exact |
+| `Auths.Crypto.FramingTotality.identifier_total` | exact |
+| `Auths.Crypto.FramingTotality.signing_accepts_iff` | exact |
+| `Auths.Crypto.FramingTotality.signing_refuses_iff` | exact |
+| `Auths.Crypto.FramingTotality.signing_total` | exact |
+| `Auths.Crypto.LowContract.guard_refines` | exact |
+| `Auths.Crypto.LowContract.r_bytes_irrelevant` | partial |
+| `Auths.Crypto.LowScan.loop_refines` | partial |
+| `Auths.Crypto.Native.decode_leaf_refines` | exact |
+| `Auths.Crypto.Native.equation_leaf_refines` | exact |
+| `Auths.Crypto.Native.public_validate_refines` | exact |
+| `Auths.Crypto.Native.public_verify_accepts_iff` | verdict-exact |
+| `Auths.Crypto.Native.public_verify_refines` | exact |
+| `Auths.Crypto.NativeExamples.changed_message_is_refused` | case |
+| `Auths.Crypto.NativeExamples.malformed_key_refused_without_primitive_contract` | case |
+| `Auths.Crypto.NativeExamples.public_call_forwards_exact_bytes` | case |
+| `Auths.Crypto.P256Encoding.guard_refines` | exact |
+| `Auths.Crypto.P256Examples.changed_key_is_refused` | case |
+| `Auths.Crypto.P256Examples.changed_message_is_refused` | case |
+| `Auths.Crypto.P256Examples.changed_signature_is_refused` | case |
+| `Auths.Crypto.P256Examples.malformed_key_refused_without_primitive_contract` | case |
+| `Auths.Crypto.P256Examples.public_call_forwards_exact_bytes` | case |
+| `Auths.Crypto.P256LowContract.guard_refines` | exact |
+| `Auths.Crypto.P256LowContract.r_bytes_irrelevant` | partial |
+| `Auths.Crypto.P256LowScan.loop_refines` | exact |
+| `Auths.Crypto.P256Native.decode_leaf_refines` | exact |
+| `Auths.Crypto.P256Native.decode_refines` | exact |
+| `Auths.Crypto.P256Native.equation_leaf_refines` | exact |
+| `Auths.Crypto.P256Native.parse_leaf_refines` | exact |
+| `Auths.Crypto.P256Native.public_accepts_iff` | verdict-exact |
+| `Auths.Crypto.P256Native.public_validate_refines` | exact |
+| `Auths.Crypto.P256Native.public_verify_refines` | exact |
+| `Auths.Crypto.RContract.guard_refines` | exact |
+| `Auths.Crypto.Refinement.accepted_frame_valid` | partial |
+| `Auths.Crypto.Refinement.accepted_preimages_bind_inputs` | partial |
+| `Auths.Crypto.Refinement.object_domains_separate` | partial |
+| `Auths.Crypto.Refinement.preimage_length_exact` | partial |
+| `Auths.Crypto.Refinement.profile_limit_refused` | partial |
+| `Auths.Crypto.Refinement.signing_preimage_exact` | partial |
+| `Auths.Crypto.Sha256Examples.changed_input_reaches_selected_digest` | case |
+| `Auths.Crypto.Sha256Examples.exact_input_reaches_selected_digest` | case |
+| `Auths.Crypto.Sha256Native.raw_hash_refines` | exact |
+| `Auths.Crypto.Strict.Examples.above_half_s_refused` | case |
+| `Auths.Crypto.Strict.Examples.half_s_form_allowed` | case |
+| `Auths.Crypto.Strict.Examples.identity_coordinate_is_weak` | case |
+| `Auths.Crypto.Strict.Examples.maximum_s_refused` | case |
+| `Auths.Crypto.Strict.Examples.public_r_form_allowed` | case |
+| `Auths.Crypto.Strict.Examples.published_key_coordinate_is_not_weak` | case |
+| `Auths.Crypto.Strict.Examples.weak_r_form_refused` | case |
+| `Auths.Crypto.Strict.Examples.zero_s_form_allowed` | case |
+| `Auths.Crypto.Strict.SourceAcceptance.ed_source_accepts_iff` | verdict-exact |
+| `Auths.Crypto.Strict.SourceAcceptance.p256_source_accepts_iff` | verdict-exact |
+| `Auths.Crypto.Strict.SuiteRefinement.decode_ed25519_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.decode_p256_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.key_encoding_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.verify_ed25519_refines` | exact |
+| `Auths.Crypto.Strict.SuiteRefinement.verify_p256_refines` | exact |
+| `Auths.Crypto.SuiteAdapterExamples.ed_changed_message_refused` | case |
+| `Auths.Crypto.SuiteAdapterExamples.ed_exact_fields_admitted` | case |
+| `Auths.Crypto.SuiteAdapterExamples.p256_changed_message_refused` | case |
+| `Auths.Crypto.SuiteAdapterExamples.p256_exact_fields_admitted` | case |
+| `Auths.Crypto.SuiteAdapters.ed_accepts_iff` | verdict-exact |
+| `Auths.Crypto.SuiteAdapters.ed_public_refines` | exact |
+| `Auths.Crypto.SuiteAdapters.p256_accepts_iff` | verdict-exact |
+| `Auths.Crypto.SuiteAdapters.p256_public_refines` | exact |
+| `Auths.Crypto.WeakContract.guard_refines` | exact |
 | `Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_replay_refines_rich` | exact |
+| `Auths.Lifecycle.Refinement.translated_terminal_refines_rich` | exact |
 | `Auths.Lifecycle.Refinement.translated_transition_refines_rich` | exact |
+| `Auths.Product.ConnectionBytes.Refinement.graphic_valid_exact` | exact |
+| `Auths.Product.ConnectionBytes.Refinement.lower_tail_exact` | exact |
+| `Auths.Product.ConnectionBytes.Refinement.lower_valid_exact` | exact |
+| `Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_no_nul` | partial |
+| `Auths.Product.ConnectionBytes.Refinement.source_graphic_earns_size_bound` | partial |
+| `Auths.Product.ConnectionBytes.Refinement.source_lower_earns_no_nul` | partial |
+| `Auths.Product.ConnectionBytes.Refinement.source_lower_earns_size_bound` | partial |
+| `Auths.Product.ConnectionEntry.Refinement.entry_allows_exact` | exact |
+| `Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact` | exact |
+| `Auths.Product.ConnectionEntry.Refinement.source_disabled_refused` | partial |
+| `Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile` | partial |
+| `Auths.Product.ConnectionEntry.Refinement.source_revoked_refused` | partial |
+| `Auths.Product.ConnectionFrame.Refinement.connection_preimage_exact` | exact |
+| `Auths.Product.CounterAggregation.Refinement.aggregate_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.contribute_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.contribute_sum_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.count_capacity_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.counter_equal_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.counter_position_spec` | exact |
+| `Auths.Product.CounterAggregation.Refinement.linked_sum_contribution_exact` | exact |
+| `Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_aggregate_unique` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique` | partial |
+| `Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum` | exact |
+| `Auths.Product.CounterAggregation.Refinement.sum_position_spec` | exact |
+| `Auths.Product.CounterFrames.Refinement.component_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.coordinates_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.count_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.count_slot_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.count_source_binds_inputs` | partial |
+| `Auths.Product.CounterFrames.Refinement.sum_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.sum_slot_exact` | exact |
+| `Auths.Product.CounterFrames.Refinement.sum_source_binds_inputs` | partial |
+| `Auths.Product.CounterFrames.Refinement.word_exact` | exact |
+| `Auths.Product.Frontier.Refinement.candidate_exact` | exact |
+| `Auths.Product.Frontier.Refinement.observe_exact` | exact |
+| `Auths.Product.Frontier.Refinement.probe_exact` | exact |
+| `Auths.Product.Frontier.Refinement.source_work_bound` | partial |
+| `Auths.Product.Frontier.Refinement.start_exact` | exact |
+| `Auths.Product.OperationIdentity.Refinement.logical_preimage_exact` | exact |
+| `Auths.Product.OperationIdentity.Refinement.source_preimage_binds_identity` | partial |
+| `Auths.Product.OperationIdentity.Refinement.token_exact` | exact |
+| `Auths.Product.ProfileConstructor.Refinement.constructor_exact` | exact |
+| `Auths.Product.ProfileConstructor.Refinement.source_success_preserves_fields` | partial |
+| `Auths.Product.ProfileConstructor.Refinement.source_zero_version_refused` | partial |
+| `Auths.Product.RecordShape.Refinement.profile_order_exact` | exact |
+| `Auths.Product.RecordShape.Refinement.profiles_exact` | exact |
+| `Auths.Product.RecordShape.Refinement.record_shape_exact` | exact |
+| `Auths.Product.RecordShape.Refinement.success_earns_all_invariants` | partial |
+| `Auths.Product.RecordShape.Refinement.text_order_exact` | exact |
+| `Auths.Product.RecordShape.Refinement.workloads_exact` | exact |
+| `Auths.Product.RecordTimes.Refinement.record_times_exact` | exact |
+| `Auths.Product.RecordTimes.Refinement.success_earns_order` | partial |
+| `Auths.Product.RecordTimes.Refinement.success_earns_revocation_shape` | partial |
+| `Auths.Product.RecoveryGate.Refinement.binding_requirement_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.current_requirement_earns_exact_generation` | partial |
+| `Auths.Product.RecoveryGate.Refinement.record_change_earns_terminal_and_time` | partial |
+| `Auths.Product.RecoveryGate.Refinement.record_change_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.recorded_requirement_earns_older_generation` | partial |
+| `Auths.Product.RecoveryGate.Refinement.recovery_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.revoked_refuses_every_generation` | partial |
+| `Auths.Product.RecoveryGate.Refinement.state_transition_earns_terminal_and_time` | partial |
+| `Auths.Product.RecoveryGate.Refinement.state_transition_exact` | exact |
+| `Auths.Product.RecoveryGate.Refinement.success_earns_generation_and_state` | partial |
 | `Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model` | exact |
 | `Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model` | exact |
+| `Auths.Product.Refinement.CollectionFence.translated_advance_refines_model` | exact |
+| `Auths.Product.Refinement.CollectionFence.translated_closed_window_refuses` | partial |
+| `Auths.Product.Refinement.CollectionFence.translated_window_open_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_lease_generation_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_next_generation_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_retained_generation_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_rotation_refines_model` | exact |
 | `Auths.Product.Refinement.Connections.translated_state_change_refines_model` | exact |
+| `Auths.Product.Refinement.EntryDeadline.translated_clock_rollback_refuses` | partial |
+| `Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model` | exact |
+| `Auths.Product.Refinement.EntryDeadline.translated_intersection_refines_model` | exact |
 | `Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model` | exact |
 | `Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model` | exact |
 | `Auths.Product.Refinement.Gateway.translated_construct_write_refines_model` | exact |
@@ -238,6 +503,41 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Product.Refinement.translated_checked_sub_refines_nat` | exact |
 | `Auths.Product.Refinement.translated_configuration_refines_projection` | exact |
 | `Auths.Product.Refinement.translated_window_index_refines_nat` | exact |
+| `Auths.Product.ReservationAdmission.Refinement.reservation_admission_exact` | exact |
+| `Auths.Product.ReservationAdmission.Refinement.source_admission_earns_bounds` | partial |
+| `Auths.Product.ReservationAdmission.Refinement.source_admitted_has_complete_vectors` | partial |
+| `Auths.Product.ReservationAdmission.Refinement.source_admitted_sums_do_not_overflow` | partial |
+| `Auths.Product.ReservationAdmission.Refinement.source_window_refusal_precedes_sum` | partial |
+| `Auths.Product.ReservationRetry.Refinement.retry_target_exact` | exact |
+| `Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay` | partial |
+| `Auths.Product.ReservationRetry.Refinement.source_count_progress_safe` | partial |
+| `Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe` | partial |
+| `Auths.Product.SchemaIndex.Refinement.field_index_spec` | exact |
+| `Auths.Product.SchemaIndex.Refinement.field_name_equal_spec` | exact |
+| `Auths.Product.SemanticId.Refinement.semantic_head_exact` | exact |
+| `Auths.Product.SemanticId.Refinement.semantic_tail_exact` | exact |
+| `Auths.Product.SemanticId.Refinement.semantic_valid_exact` | exact |
+| `Auths.Product.SemanticId.Refinement.source_earns_ascii` | partial |
+| `Auths.Product.SemanticId.Refinement.source_earns_bounds` | partial |
+| `Auths.Product.SemanticId.Refinement.source_earns_no_nul` | partial |
+| `Auths.Product.SlotBatch.Refinement.build_exact` | exact |
+| `Auths.Product.SlotBatch.Refinement.count_loop_exact` | exact |
+| `Auths.Product.SlotBatch.Refinement.source_claim_first` | partial |
+| `Auths.Product.SlotBatch.Refinement.source_complete_entry_count` | partial |
+| `Auths.Product.SlotBatch.Refinement.source_invalid_shape_refused` | partial |
+| `Auths.Product.SlotBatch.Refinement.sum_loop_exact` | exact |
+| `Auths.Product.SlotRecord.Refinement.counter_hex_matches_spec` | exact |
+| `Auths.Product.SlotRecord.Refinement.source_accepted_binds_record` | partial |
+| `Auths.Product.SlotRecord.Refinement.source_invalid_record_refused` | partial |
+| `Auths.Product.SlotRecord.Refinement.validate_cumulative_exact` | exact |
+| `Auths.Product.StrictOrder.Refinement.source_earns_no_duplicates` | partial |
+| `Auths.Product.StrictOrder.Refinement.strict_order_exact` | exact |
+| `Auths.Product.StringConstructors.Refinement.actual_alias_exact` | exact |
+| `Auths.Product.StringConstructors.Refinement.actual_provider_exact` | exact |
+| `Auths.Product.StringConstructors.Refinement.actual_semantic_exact` | exact |
+| `Auths.Product.StringConstructors.Refinement.alias_success_earns_exact_valid_payload` | partial |
+| `Auths.Product.StringConstructors.Refinement.provider_success_earns_exact_valid_payload` | partial |
+| `Auths.Product.StringConstructors.Refinement.semantic_success_earns_exact_valid_payload` | partial |
 | `Auths.Refinement.Approval.translated_approval_counts_refines_model` | exact |
 | `Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model` | exact |
 | `Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model` | exact |
@@ -245,6 +545,11 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Refinement.Approval.translated_approver_verdict_refines_model` | exact |
 | `Auths.Refinement.Approval.translated_principal_ids_contain_refines_model` | exact |
 | `Auths.Refinement.Approval.translated_principal_ids_subset_refines_model` | exact |
+| `Auths.Refinement.Identifier.forbidden_at_exact` | exact |
+| `Auths.Refinement.Identifier.identifier_exact` | exact |
+| `Auths.Refinement.Identifier.identifier_string_exact` | partial |
+| `Auths.Refinement.Identifier.identifier_unicode_exact` | partial |
+| `Auths.Refinement.Identifier.scan_exact` | exact |
 | `Auths.Refinement.Observation.translated_condition_test_equal_refines_model` | exact |
 | `Auths.Refinement.Observation.translated_condition_value_holds_refines_model` | exact |
 | `Auths.Refinement.Observation.translated_fact_name_equal_refines_model` | exact |
@@ -282,6 +587,62 @@ The 33 theorems study 006 classified keep the kind both of its raters gave; theo
 | `Auths.Refinement.translated_inexpressible_absent_request_is_covered` | partial |
 | `Auths.Refinement.translated_rust_refines_rich_spec` | exact |
 | `Auths.Rich.Mutations.profile_version_equality` | case |
+| `Auths.ScopeConstructor.DecodeExamples.accepts_any` | case |
+| `Auths.ScopeConstructor.DecodeExamples.accepts_listed` | case |
+| `Auths.ScopeConstructor.DecodeExamples.accepts_own` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_collection_limit` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_duplicate_list` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_empty_list` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_invalid_id` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_truncation` | case |
+| `Auths.ScopeConstructor.DecodeExamples.refuses_unknown_tag` | case |
+| `Auths.ScopeConstructor.DecodeExamples.sorts_unsorted_list` | case |
+| `Auths.ScopeConstructor.accepted_rule_valid` | partial |
+| `Auths.ScopeConstructor.accepted_scope_valid` | partial |
+| `Auths.ScopeConstructor.accepted_trust_valid` | partial |
+| `Auths.ScopeConstructor.constructed_grant_selection` | partial |
+| `Auths.ScopeConstructor.constructed_principal_selection` | partial |
+| `Auths.ScopeConstructor.decoded_scope_covers` | partial |
+| `Auths.ScopeConstructor.decoded_trust_grant` | partial |
+| `Auths.ScopeConstructor.decoded_trust_principal` | partial |
+| `Auths.StatusSelection.AnchorExamples.other_anchor_hidden` | case |
+| `Auths.StatusSelection.AnchorExamples.own_anchor_active` | case |
+| `Auths.StatusSelection.Examples.active_selected_horizon` | case |
+| `Auths.StatusSelection.Examples.latest_ties_conservatively_revoke` | case |
+| `Auths.StatusSelection.Examples.missing_uses_snapshot_window` | case |
+| `Auths.StatusSelection.Examples.newer_discards_old_stale_revocation` | case |
+| `Auths.StatusSelection.Examples.revoked_selected_horizon` | case |
+| `Auths.StatusSelection.Examples.rollback_despite_newer` | case |
+| `Auths.StatusSelection.Examples.stale_selected_refused` | case |
+| `Auths.StatusSelection.Examples.unknown_issuer_refused` | case |
+| `Auths.StatusSelection.Examples.wrong_method_refused` | case |
+| `Auths.StatusSelection.freshness_exact` | partial |
+| `Auths.StatusSelection.grant_loop_refines` | partial |
+| `Auths.StatusSelection.grant_method_all_views` | partial |
+| `Auths.StatusSelection.grant_method_approver_independent` | partial |
+| `Auths.StatusSelection.grant_method_approver_refines` | partial |
+| `Auths.StatusSelection.grant_selector_approver_refines` | partial |
+| `Auths.StatusSelection.principal_loop_refines` | partial |
+| `Auths.StatusSelection.principal_method_all_views` | partial |
+| `Auths.StatusSelection.principal_method_approver_independent` | partial |
+| `Auths.StatusSelection.principal_method_approver_refines` | partial |
+| `Auths.StatusSelection.principal_selector_approver_refines` | partial |
+| `Auths.StatusSelection.sequence_floor_refines` | exact |
+| `Auths.TemporalWitness.Examples.expired_status_refused` | case |
+| `Auths.TemporalWitness.Examples.inclusive_status_endpoint` | case |
+| `Auths.TemporalWitness.Examples.revoked_grant_refused` | case |
+| `Auths.TemporalWitness.Examples.revoked_principal_refused` | case |
+| `Auths.TemporalWitness.Status.decision_refines` | exact |
+| `Auths.TemporalWitness.assurance_entry_refines` | exact |
+| `Auths.TemporalWitness.assurance_loop_refines` | exact |
+| `Auths.TemporalWitness.native_horizon_permits_iff` | partial |
+| `Auths.TemporalWitness.status_decision_accepts_iff` | verdict-exact |
+| `Auths.TemporalWitness.status_horizon_accepts_iff` | verdict-exact |
+| `Auths.TemporalWitness.status_horizon_exact` | exact |
+| `Auths.TemporalWitness.status_horizon_stale_refused` | partial |
+| `Auths.TemporalWitness.successful_native_horizon_exact` | partial |
+| `AuthsSuiteAdapters.ed25519_delegates` | partial |
+| `AuthsSuiteAdapters.p256_delegates` | partial |
 
 ## 8. Trusted base
 

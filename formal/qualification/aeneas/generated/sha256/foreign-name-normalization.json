@@ -1,0 +1,902 @@
+{
+  "schema": "auths-proof-foreign-name-normalization/v1",
+  "declarations": [
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 1,
+      "original_name": [
+        {
+          "Ident": [
+            "generic_array",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "GenericArray",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 462
+                },
+                {
+                  "Deduplicated": 674
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "generic_array",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_1",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 3,
+          "beg": {
+            "line": 179,
+            "col": 0
+          },
+          "end": {
+            "line": 179,
+            "col": 45
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 2,
+      "original_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "uint",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "UInt",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 673
+                },
+                {
+                  "Deduplicated": 669
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_2",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 4,
+          "beg": {
+            "line": 148,
+            "col": 0
+          },
+          "end": {
+            "line": 148,
+            "col": 21
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 3,
+      "original_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "uint",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "UInt",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 672
+                },
+                {
+                  "Deduplicated": 669
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_3",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 4,
+          "beg": {
+            "line": 148,
+            "col": 0
+          },
+          "end": {
+            "line": 148,
+            "col": 21
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 4,
+      "original_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "uint",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "UInt",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 671
+                },
+                {
+                  "Deduplicated": 669
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_4",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 4,
+          "beg": {
+            "line": 148,
+            "col": 0
+          },
+          "end": {
+            "line": 148,
+            "col": 21
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 5,
+      "original_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "uint",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "UInt",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 670
+                },
+                {
+                  "Deduplicated": 669
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_5",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 4,
+          "beg": {
+            "line": 148,
+            "col": 0
+          },
+          "end": {
+            "line": 148,
+            "col": 21
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 6,
+      "original_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "uint",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "UInt",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 667
+                },
+                {
+                  "Deduplicated": 669
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_6",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 4,
+          "beg": {
+            "line": 148,
+            "col": 0
+          },
+          "end": {
+            "line": 148,
+            "col": 21
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 7,
+      "original_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "uint",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "UInt",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 661
+                },
+                {
+                  "Deduplicated": 666
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "typenum",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_7",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 4,
+          "beg": {
+            "line": 148,
+            "col": 0
+          },
+          "end": {
+            "line": 148,
+            "col": 21
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 11,
+      "original_name": [
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "core_api",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "wrapper",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "CoreWrapper",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 1123
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_11",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 9,
+          "beg": {
+            "line": 24,
+            "col": 0
+          },
+          "end": {
+            "line": 24,
+            "col": 25
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "type_decls",
+      "declaration_id": 12,
+      "original_name": [
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "core_api",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "ct_variable",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "CtVariableCoreWrapper",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 1119
+                },
+                {
+                  "Deduplicated": 674
+                },
+                {
+                  "Deduplicated": 1122
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_type_decls_12",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 11,
+          "beg": {
+            "line": 25,
+            "col": 0
+          },
+          "end": {
+            "line": 25,
+            "col": 55
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "fun_decls",
+      "declaration_id": 1,
+      "original_name": [
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Impl": {
+            "Trait": 0
+          }
+        },
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 1124
+                },
+                {
+                  "Deduplicated": 1125
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "digest",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_fun_decls_1",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 7,
+          "beg": {
+            "line": 124,
+            "col": 4
+          },
+          "end": {
+            "line": 124,
+            "col": 53
+          }
+        },
+        "generated_from_span": null
+      }
+    },
+    {
+      "declaration_group": "fun_decls",
+      "declaration_id": 2,
+      "original_name": [
+        {
+          "Ident": [
+            "core",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "convert",
+            0
+          ]
+        },
+        {
+          "Impl": {
+            "Trait": 1
+          }
+        },
+        {
+          "Ident": [
+            "into",
+            0
+          ]
+        },
+        {
+          "Instantiated": {
+            "params": {
+              "regions": [],
+              "types": [],
+              "const_generics": [],
+              "trait_clauses": [],
+              "regions_outlive": [],
+              "types_outlive": [],
+              "trait_type_constraints": []
+            },
+            "skip_binder": {
+              "regions": [],
+              "types": [
+                {
+                  "Deduplicated": 675
+                },
+                {
+                  "Deduplicated": 479
+                }
+              ],
+              "const_generics": [],
+              "trait_refs": []
+            },
+            "kind": "Other"
+          }
+        }
+      ],
+      "normalized_name": [
+        {
+          "Ident": [
+            "core",
+            0
+          ]
+        },
+        {
+          "Ident": [
+            "qualified_sha256_fun_decls_2",
+            0
+          ]
+        }
+      ],
+      "source_span": {
+        "data": {
+          "file_id": 14,
+          "beg": {
+            "line": 777,
+            "col": 4
+          },
+          "end": {
+            "line": 777,
+            "col": 22
+          }
+        },
+        "generated_from_span": null
+      }
+    }
+  ],
+  "preserved": [
+    "Auths names",
+    "all function bodies",
+    "signatures",
+    "generics",
+    "layouts",
+    "source spans",
+    "call and type IDs"
+  ],
+  "canonicalization": "pinned-charon-pretty-print-v1",
+  "original_canonical_llbc_sha256": "5de57b55ce33f7dea7fd66299a0fb2cfe177e8c891e68cbad7bffd0bae695ce8",
+  "normalized_canonical_llbc_sha256": "4d9397664e59db4f8454a934e134df0621ee215f66cf77e3dee7d6749d07fad7"
+}

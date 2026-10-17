@@ -30,8 +30,8 @@ use auths_model::{
     ApprovalSatisfaction, ApprovalStatement, ApprovalVerdict, ApproverAnchor, CanonicalAction,
     DenialReason, MAX_APPROVAL_REQUIREMENTS_PER_CHAIN, MAX_APPROVAL_REQUIREMENTS_PER_VERIFICATION,
     PrincipalId, ProofBundle, Requirement, SignedApproval, SignedGrant, StatementRef, StatusPolicy,
-    StatusView, TrustedContext, approval_counts, principal_id_equal, principal_ids_contain,
-    status_issuer_visible,
+    StatusView, Timestamp, TrustedContext, approval_counts, principal_id_equal,
+    principal_ids_contain, status_issuer_visible,
 };
 use auths_ports::{ControlPurpose, StatusDecision};
 use auths_registries::{APPROVAL_REQUIREMENT_EXTENSION_V1, ImmutableRegistries};
@@ -58,6 +58,7 @@ pub(crate) struct Evaluated {
     pub(crate) verdict: Verdict,
     pub(crate) counts: ApprovalCounts,
     pub(crate) threshold: u16,
+    valid_through: Timestamp,
 }
 
 /// The proof's approvals, the authority principals, and every requirement
@@ -240,6 +241,19 @@ impl<'a> Approvals<'a> {
         satisfactions
     }
 
+    /// Horizon of only the requirements belonging to successful branches or
+    /// the context. Cached requirements from failed alternative branches do
+    /// not shorten the selected witness.
+    pub(crate) fn valid_through(&self, identifiers: &[ApprovalRequirementId]) -> Timestamp {
+        identifiers
+            .iter()
+            .filter_map(|identifier| self.get(*identifier))
+            .filter(|evaluated| matches!(evaluated.verdict, Verdict::Authorized(_)))
+            .fold(Timestamp::new(u64::MAX), |through, evaluated| {
+                through.min(evaluated.valid_through)
+            })
+    }
+
     fn evaluate(
         &mut self,
         identifier: ApprovalRequirementId,
@@ -258,6 +272,7 @@ impl<'a> Approvals<'a> {
         let evaluation_time = inputs.context.evaluation_time();
         let mut outcomes: Vec<ApprovalOutcome> = Vec::new();
         let mut counted = Vec::new();
+        let mut valid_through = Timestamp::new(u64::MAX);
         for (digest, approval) in &self.candidates {
             let statement = approval.statement();
             let approver = statement.approver();
@@ -282,15 +297,19 @@ impl<'a> Approvals<'a> {
             {
                 continue;
             }
-            let verdict = match signature_verdict(approval, inputs, meter)? {
+            let (verdict, status_not_after) = match signature_verdict(approval, inputs, meter)? {
                 ApprovalVerdict::Counted => status_verdict(anchor, inputs, meter)?,
-                other => other,
+                other => (other, evaluation_time),
             };
             if verdict == ApprovalVerdict::Ignored {
                 continue;
             }
             if verdict == ApprovalVerdict::Counted {
                 counted.push(*digest);
+                valid_through = valid_through
+                    .min(statement.validity().expires_at())
+                    .min(anchor.validity().expires_at())
+                    .min(status_not_after);
             }
             outcomes.push(ApprovalOutcome::new(approver.clone(), verdict));
         }
@@ -312,6 +331,7 @@ impl<'a> Approvals<'a> {
             verdict,
             counts,
             threshold: requirement.threshold(),
+            valid_through,
         };
         self.evaluated.push((identifier, evaluated.clone()));
         Ok(evaluated)
@@ -368,10 +388,10 @@ fn status_verdict(
     anchor: &ApproverAnchor,
     inputs: &Inputs<'_, '_>,
     meter: &mut WorkMeter,
-) -> Result<ApprovalVerdict, VerificationFailure> {
+) -> Result<(ApprovalVerdict, Timestamp), VerificationFailure> {
     let policy = anchor.status_policy();
     let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-        return Ok(ApprovalVerdict::Counted);
+        return Ok((ApprovalVerdict::Counted, Timestamp::new(u64::MAX)));
     };
     let context = inputs.context;
     let Some(implementation) =
@@ -379,7 +399,7 @@ fn status_verdict(
             .registries
             .status_method(context.accepted_registries(), method, true)
     else {
-        return Ok(ApprovalVerdict::Pending);
+        return Ok((ApprovalVerdict::Pending, context.evaluation_time()));
     };
     let principal = anchor.principal();
     let snapshot = context.principal_status_snapshot();
@@ -395,10 +415,10 @@ fn status_verdict(
         if let Err(failure) =
             control_for(inputs.controlled, StatementRef::PrincipalStatus(identifier))
         {
-            return classify(failure);
+            return classify(failure).map(|verdict| (verdict, context.evaluation_time()));
         }
         if let Err(failure) = check_status_extensions(status.statement().extensions(), context) {
-            return classify(failure);
+            return classify(failure).map(|verdict| (verdict, context.evaluation_time()));
         }
     }
     meter.reserve(implementation.maximum_work_units(snapshot.statements().len()))?;
@@ -410,16 +430,27 @@ fn status_verdict(
         context.evaluation_time(),
     ) {
         Ok(decision) => decision,
-        Err(error) => return classify(registry_operation_failure(error)),
+        Err(error) => {
+            return classify(registry_operation_failure(error))
+                .map(|verdict| (verdict, context.evaluation_time()));
+        }
     };
-    Ok(match decision {
-        StatusDecision::Active => ApprovalVerdict::Counted,
-        StatusDecision::Missing | StatusDecision::Stale => ApprovalVerdict::Pending,
-        StatusDecision::Revoked
-        | StatusDecision::Rollback
-        | StatusDecision::UntrustedIssuer
-        | StatusDecision::WrongMethod => ApprovalVerdict::Ignored,
-    })
+    if decision.decision() == StatusDecision::Active
+        && decision.valid_through() < context.evaluation_time()
+    {
+        return Ok((ApprovalVerdict::Pending, context.evaluation_time()));
+    }
+    Ok((
+        match decision.decision() {
+            StatusDecision::Active => ApprovalVerdict::Counted,
+            StatusDecision::Missing | StatusDecision::Stale => ApprovalVerdict::Pending,
+            StatusDecision::Revoked
+            | StatusDecision::Rollback
+            | StatusDecision::UntrustedIssuer
+            | StatusDecision::WrongMethod => ApprovalVerdict::Ignored,
+        },
+        decision.valid_through(),
+    ))
 }
 
 #[cfg(test)]

@@ -8,6 +8,7 @@ extern crate alloc;
 
 mod approval;
 mod bounded_policy;
+mod cbor;
 mod decode;
 mod encode;
 mod error;

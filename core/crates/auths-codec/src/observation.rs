@@ -1,6 +1,7 @@
 //! Deterministic encoding of signed observations, observation requirements,
 //! observer anchors, and reported observation satisfactions.
 
+use crate::cbor::{Decoder, Type};
 use crate::{
     CodecError,
     decode::{
@@ -24,7 +25,6 @@ use auths_model::{
     ObserverAnchorId, PrincipalId, PrincipalMethodId, ResourceId, SignatureDescriptor,
     SignedObservation, Timestamp, UintRange, ValidityWindow, VerifierLimits,
 };
-use minicbor::{Decoder, data::Type};
 
 /// Upper bound on reported observation satisfactions in one result.
 pub(crate) const MAX_OBSERVATION_SATISFACTIONS: usize = 1_024;

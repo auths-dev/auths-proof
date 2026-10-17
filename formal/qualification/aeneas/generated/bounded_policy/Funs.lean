@@ -196,8 +196,31 @@ def kernel.chain_sums_admit
   then ok false
   else kernel.chain_sums_admit_loop sums argument capacities 0#usize
 
+/-- [auths_bounded_policy::kernel::reservation_admission]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 192:0-210:1
+    Visibility: public -/
+def kernel.reservation_admission
+  (counts : Slice Std.U64) (count_capacities : Slice Std.U64)
+  (sum_slots : Slice Std.U64) (sum_slot_capacities : Slice Std.U64)
+  (totals : Slice Std.U64) (sum_capacities : Slice Std.U64)
+  (argument : Std.U64) :
+  Result kernel.ReservationCode
+  := do
+  let b ← kernel.chain_counts_admit counts count_capacities
+  if b
+  then
+    let b1 ← kernel.chain_counts_admit sum_slots sum_slot_capacities
+    if b1
+    then
+      let b2 ← kernel.chain_sums_admit totals argument sum_capacities
+      if b2
+      then ok kernel.ReservationCode.Admit
+      else ok kernel.ReservationCode.SumExhausted
+    else ok kernel.ReservationCode.WindowExhausted
+  else ok kernel.ReservationCode.WindowExhausted
+
 /-- [auths_bounded_policy::kernel::bytes_equal]: loop body 0:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 219:4-226:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 255:4-262:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.bytes_equal_loop.body
@@ -216,7 +239,7 @@ def kernel.bytes_equal_loop.body
   else ok (done true)
 
 /-- [auths_bounded_policy::kernel::bytes_equal]: loop 0:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 219:4-226:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 255:4-262:1
     Visibility: public -/
 @[rust_loop]
 def kernel.bytes_equal_loop
@@ -228,7 +251,7 @@ def kernel.bytes_equal_loop
     index
 
 /-- [auths_bounded_policy::kernel::bytes_equal]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 214:0-226:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 250:0-262:1
     Visibility: public -/
 def kernel.bytes_equal
   (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
@@ -239,7 +262,7 @@ def kernel.bytes_equal
   else kernel.bytes_equal_loop left right 0#usize
 
 /-- [auths_bounded_policy::kernel::values_contain]: loop body 0:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 232:4-239:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 268:4-275:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.values_contain_loop.body
@@ -260,7 +283,7 @@ def kernel.values_contain_loop.body
   else ok (done false)
 
 /-- [auths_bounded_policy::kernel::values_contain]: loop 0:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 232:4-239:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 268:4-275:1
     Visibility: public -/
 @[rust_loop]
 def kernel.values_contain_loop
@@ -273,7 +296,7 @@ def kernel.values_contain_loop
     index
 
 /-- [auths_bounded_policy::kernel::values_contain]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 230:0-239:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 266:0-275:1
     Visibility: public -/
 @[reducible]
 def kernel.values_contain
@@ -283,7 +306,7 @@ def kernel.values_contain
   kernel.values_contain_loop values value 0#usize
 
 /-- [auths_bounded_policy::kernel::values_subset]: loop body 0:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 245:4-252:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 281:4-288:1
     Visibility: public -/
 @[rust_loop_body]
 def kernel.values_subset_loop.body
@@ -304,7 +327,7 @@ def kernel.values_subset_loop.body
   else ok (done true)
 
 /-- [auths_bounded_policy::kernel::values_subset]: loop 0:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 245:4-252:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 281:4-288:1
     Visibility: public -/
 @[rust_loop]
 def kernel.values_subset_loop
@@ -317,7 +340,7 @@ def kernel.values_subset_loop
     index
 
 /-- [auths_bounded_policy::kernel::values_subset]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 243:0-252:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 279:0-288:1
     Visibility: public -/
 @[reducible]
 def kernel.values_subset
@@ -328,7 +351,7 @@ def kernel.values_subset
   kernel.values_subset_loop child parent 0#usize
 
 /-- [auths_bounded_policy::kernel::values_narrow]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 256:0-258:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 292:0-294:1
     Visibility: public -/
 def kernel.values_narrow
   (child : kernel.ValueList) (parent : kernel.ValueList) : Result Bool := do
@@ -343,7 +366,7 @@ def kernel.values_narrow
   else ok false
 
 /-- [auths_bounded_policy::kernel::partition_narrows]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 267:0-278:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 303:0-314:1
     Visibility: public -/
 def kernel.partition_narrows
   (child : Option kernel.ValueList) (parent : Option kernel.ValueList) :
@@ -359,7 +382,7 @@ def kernel.partition_narrows
     | some child1 => kernel.values_narrow child1 parent1
 
 /-- [auths_bounded_policy::kernel::sum_tightens]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 284:0-295:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 320:0-331:1
     Visibility: public -/
 def kernel.sum_tightens
   (child : Option kernel.SumBound) (parent : Option kernel.SumBound) :
@@ -376,7 +399,7 @@ def kernel.sum_tightens
       else ok false
 
 /-- [auths_bounded_policy::kernel::scope_tightens]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 300:0-308:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 336:0-344:1
     Visibility: public -/
 def kernel.scope_tightens
   (child : Option kernel.ValueList) (parent : Option kernel.ValueList) :
@@ -390,7 +413,7 @@ def kernel.scope_tightens
     | some child1 => kernel.values_narrow child1 parent1
 
 /-- [auths_bounded_policy::kernel::argument_policy_tightens]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 314:0-332:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 350:0-368:1
     Visibility: public -/
 def kernel.argument_policy_tightens
   (child : kernel.PolicyMembers) (parent : kernel.PolicyMembers) :

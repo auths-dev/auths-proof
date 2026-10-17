@@ -6,8 +6,9 @@
 //! owns every record format, its stages, and which replacements are valid.
 
 use crate::lifecycle::{PostgresLifecycleStore, map_postgres_error};
+use crate::{advance_gateway_collection, gateway_window_open};
 use auths_lifecycle::StoreError;
-use postgres::IsolationLevel;
+use postgres::{IsolationLevel, Transaction};
 use sha2::{Digest as _, Sha256};
 
 /// Largest gateway record the schema accepts.
@@ -131,6 +132,33 @@ pub enum GatewayRecordInsert {
         /// The index, in the caller's order, of an entry whose key existed.
         index: usize,
     },
+    /// A slot expires at or before the shared collection cutoff; no entry
+    /// was inserted, even if that slot's former row has already been deleted.
+    ClosedWindow {
+        /// The durable cutoff observed inside the insertion transaction.
+        collected_through: u64,
+    },
+}
+
+fn collection_cutoff(
+    sql: &mut Transaction<'_>,
+    exclusive: bool,
+) -> Result<Option<u64>, StoreError> {
+    let query = if exclusive {
+        "SELECT collected_through FROM auths_gateway_collection
+         WHERE singleton = TRUE FOR UPDATE"
+    } else {
+        "SELECT collected_through FROM auths_gateway_collection
+         WHERE singleton = TRUE FOR SHARE"
+    };
+    let row = sql
+        .query_opt(query, &[])
+        .map_err(|error| map_postgres_error(&error))?
+        .ok_or(StoreError::Corrupt)?;
+    let cutoff: Option<i64> = row.try_get(0).map_err(|_| StoreError::Corrupt)?;
+    cutoff
+        .map(|value| u64::try_from(value).map_err(|_| StoreError::Corrupt))
+        .transpose()
 }
 
 impl PostgresLifecycleStore {
@@ -141,7 +169,9 @@ impl PostgresLifecycleStore {
     /// # Errors
     ///
     /// Returns a bound failure before any database call, and a closed store
-    /// error when the database is unavailable.
+    /// error when the database is unavailable. An error may follow a commit
+    /// whose acknowledgement was lost; callers must not infer absent keys or
+    /// grant an execution handle from that error.
     pub fn insert_gateway_records(
         &self,
         entries: &[GatewayRecordEntry],
@@ -155,6 +185,18 @@ impl PostgresLifecycleStore {
             .isolation_level(IsolationLevel::ReadCommitted)
             .start()
             .map_err(|error| map_postgres_error(&error))?;
+        // The shared row lock orders this conditional batch against every
+        // collector. It is held until all inserts commit or roll back.
+        let cutoff = collection_cutoff(&mut sql, false)?;
+        for entry in entries {
+            if let Some(expiry) = entry.expires_at
+                && !gateway_window_open(expiry, cutoff)
+            {
+                let collected_through = cutoff.ok_or(StoreError::Corrupt)?;
+                sql.rollback().map_err(|error| map_postgres_error(&error))?;
+                return Ok(GatewayRecordInsert::ClosedWindow { collected_through });
+            }
+        }
         for index in order {
             let entry = &entries[index];
             let digest: [u8; 32] = Sha256::digest(&entry.record).into();
@@ -301,7 +343,8 @@ impl PostgresLifecycleStore {
 
     /// Deletes at most `limit` slots whose expiry is at or before `now`,
     /// through the expiry index, and returns how many were deleted. Attempts
-    /// and connection records are never swept.
+    /// and connection records are never swept. The same transaction publishes
+    /// a monotone collection cutoff, even when `limit` is zero.
     ///
     /// # Errors
     ///
@@ -312,10 +355,23 @@ impl PostgresLifecycleStore {
         now: u64,
         limit: usize,
     ) -> Result<usize, StoreError> {
-        let now = i64::try_from(now).map_err(|_| StoreError::LimitExceeded)?;
+        let now_sql = i64::try_from(now).map_err(|_| StoreError::LimitExceeded)?;
         let limit = i64::try_from(limit).map_err(|_| StoreError::LimitExceeded)?;
         let mut client = self.pool.get().map_err(|_| StoreError::PoolExhausted)?;
-        let deleted = client
+        let mut sql = client
+            .build_transaction()
+            .isolation_level(IsolationLevel::ReadCommitted)
+            .start()
+            .map_err(|error| map_postgres_error(&error))?;
+        let previous = collection_cutoff(&mut sql, true)?;
+        let next = i64::try_from(advance_gateway_collection(previous, now))
+            .map_err(|_| StoreError::Corrupt)?;
+        sql.execute(
+            "UPDATE auths_gateway_collection SET collected_through = $1 WHERE singleton = TRUE",
+            &[&next],
+        )
+        .map_err(|error| map_postgres_error(&error))?;
+        let deleted = sql
             .execute(
                 "DELETE FROM auths_gateway_records
                  WHERE record_key IN (
@@ -324,9 +380,12 @@ impl PostgresLifecycleStore {
                      ORDER BY expires_at
                      LIMIT $2
                  )",
-                &[&now, &limit],
+                &[&now_sql, &limit],
             )
             .map_err(|error| map_postgres_error(&error))?;
+        // Both effects become visible at this commit. A lost acknowledgement
+        // may leave both committed, never deletion without its durable fence.
+        sql.commit().map_err(|error| map_postgres_error(&error))?;
         usize::try_from(deleted).map_err(|_| StoreError::Corrupt)
     }
 }
@@ -361,7 +420,7 @@ mod tests {
             bounded(&vec![0; MAX_GATEWAY_RECORD_BYTES + 1]),
             Err(StoreError::LimitExceeded)
         );
-        let schema = include_str!("../migrations/postgres_lifecycle_v6.sql");
+        let schema = include_str!("../migrations/postgres_lifecycle_v7.sql");
         assert!(
             schema.contains("octet_length(record_bytes) BETWEEN 1 AND 262144"),
             "the schema bound and the Rust bound are the same"

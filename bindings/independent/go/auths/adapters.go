@@ -337,6 +337,9 @@ func decodeMultikey(encoded string) ([]byte, string, error) {
 	}
 	switch {
 	case decoded[0] == 0xed && decoded[1] == 0x01 && len(decoded) == 34:
+		if !canonicalEd25519Encoding(decoded[2:]) {
+			return nil, "", errors.New("invalid Ed25519 multikey")
+		}
 		return decoded[2:], "ed25519-v1", nil
 	case decoded[0] == 0x80 && decoded[1] == 0x24 && len(decoded) == 35:
 		if _, ok := p256PublicKey(decoded[2:]); !ok {

@@ -1,5 +1,6 @@
 //! Deterministic target V1 encoders.
 
+use crate::cbor::Encoder;
 use crate::{
     CodecError,
     hash::{grant_id, grant_status_id, principal_status_id},
@@ -17,19 +18,18 @@ use auths_model::{
     StatusPolicy, StatusScope, StatusTrustRule, TrustAnchor, TrustedContext, VerificationCode,
     VerificationDecision, VerificationResources, VerificationStage, VerifierLimits,
 };
-use minicbor::Encoder;
 
-pub(crate) type V1Encoder = Encoder<Vec<u8>>;
+pub(crate) type V1Encoder = Encoder;
 
 /// Shape version of the canonical portable verification result.
 pub const PORTABLE_RESULT_ABI_VERSION: u16 = 4;
 
-pub(crate) fn encode_error<T>(_error: minicbor::encode::Error<T>) -> CodecError {
+pub(crate) fn encode_error(_error: crate::cbor::Error) -> CodecError {
     CodecError::Malformed
 }
 
 pub(crate) fn length(value: usize) -> Result<u64, CodecError> {
-    u64::try_from(value).map_err(|_| CodecError::LimitExceeded)
+    u64::try_from(value).map_err(crate::error::limit_error)
 }
 
 pub(crate) fn finish(
@@ -133,7 +133,7 @@ pub(crate) fn encode_optional_budget(
     if let Some(budget) = budget {
         encode_budget(encoder, budget)
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
         Ok(())
     }
 }
@@ -264,7 +264,7 @@ pub(crate) fn encode_grant_statement_to(
     if let Some(parent) = statement.parent() {
         bytes(encoder, parent.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 13)?;
     encode_status_policy(encoder, statement.status_policy())?;
@@ -345,7 +345,7 @@ pub(crate) fn encode_action_envelope_to(
     if let Some(grant) = envelope.terminal_grant() {
         bytes(encoder, grant.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 14)?;
     bytes(encoder, envelope.authorization_plan().as_bytes())?;
@@ -378,29 +378,38 @@ pub fn encode_action_envelope(envelope: &ActionEnvelope) -> Result<Vec<u8>, Code
 ///
 /// Returns [`CodecError`] if a length cannot be represented canonically.
 pub fn encode_canonical_action(action: &CanonicalAction) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| {
-        map(encoder, 6)?;
-        key(encoder, 0)?;
-        encode_profile_ref(encoder, action.profile())?;
-        key(encoder, 1)?;
-        text(encoder, action.media_type().as_str())?;
-        key(encoder, 2)?;
-        bytes(encoder, action.body())?;
-        key(encoder, 3)?;
-        encode_permission(encoder, action.permission())?;
-        key(encoder, 4)?;
-        encode_optional_budget(encoder, action.requested_budget())?;
-        key(encoder, 5)?;
-        array(encoder, action.detached_attachments().len())?;
-        for attachment in action.detached_attachments() {
-            map(encoder, 2)?;
-            key(encoder, 0)?;
-            bytes(encoder, attachment.digest().as_bytes())?;
-            key(encoder, 1)?;
-            bytes(encoder, attachment.bytes())?;
-        }
-        Ok(())
-    })
+    let mut encoder = Encoder::new(Vec::new());
+    map(&mut encoder, 6)?;
+    key(&mut encoder, 0)?;
+    encode_profile_ref(&mut encoder, action.profile())?;
+    key(&mut encoder, 1)?;
+    text(&mut encoder, action.media_type().as_str())?;
+    key(&mut encoder, 2)?;
+    bytes(&mut encoder, action.body())?;
+    key(&mut encoder, 3)?;
+    encode_permission(&mut encoder, action.permission())?;
+    key(&mut encoder, 4)?;
+    encode_optional_budget(&mut encoder, action.requested_budget())?;
+    key(&mut encoder, 5)?;
+    array(&mut encoder, action.detached_attachments().len())?;
+    let mut state = Ok(encoder);
+    for attachment in action.detached_attachments() {
+        state = encode_canonical_attachment(state, attachment);
+    }
+    Ok(state?.into_writer())
+}
+
+fn encode_canonical_attachment(
+    state: Result<V1Encoder, CodecError>,
+    attachment: &auths_model::DetachedAttachment,
+) -> Result<V1Encoder, CodecError> {
+    let mut encoder = state?;
+    map(&mut encoder, 2)?;
+    key(&mut encoder, 0)?;
+    bytes(&mut encoder, attachment.digest().as_bytes())?;
+    key(&mut encoder, 1)?;
+    bytes(&mut encoder, attachment.bytes())?;
+    Ok(encoder)
 }
 
 fn encode_assurance_claim(
@@ -421,7 +430,7 @@ fn encode_assurance_claim(
     if let Some(observed_at) = claim.observed_at() {
         encoder.u64(observed_at.get()).map_err(encode_error)?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 3)?;
     text(encoder, claim.source().as_str())?;
@@ -508,7 +517,7 @@ fn encode_verification_resources(
     {
         key(
             encoder,
-            u8::try_from(key_value).map_err(|_| CodecError::LimitExceeded)?,
+            u8::try_from(key_value).map_err(crate::error::limit_error)?,
         )?;
         encoder.u64(value).map_err(encode_error)?;
     }
@@ -560,7 +569,7 @@ fn encode_verification_result_to(
     if let Some(plan_id) = result.plan_id() {
         bytes(encoder, plan_id.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 7)?;
     if include_result_digest {
@@ -591,7 +600,7 @@ fn encode_verification_result_to(
     if let Some(configuration) = result.required_configuration() {
         bytes(encoder, configuration.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 14)?;
     bytes(encoder, result.local_configuration().as_bytes())?;
@@ -944,26 +953,20 @@ fn encode_attachment(
     key(encoder, 3)?;
     text(encoder, attachment.disposition().as_str())?;
     key(encoder, 4)?;
-    encoder
-        .bool(matches!(
-            attachment.confidentiality(),
-            auths_model::Confidentiality::Encrypted
-        ))
-        .map_err(encode_error)?;
+    encoder.bool(matches!(
+        attachment.confidentiality(),
+        auths_model::Confidentiality::Encrypted
+    ));
     key(encoder, 5)?;
-    encoder
-        .bool(matches!(
-            attachment.presence(),
-            auths_model::Presence::Required
-        ))
-        .map_err(encode_error)?;
+    encoder.bool(matches!(
+        attachment.presence(),
+        auths_model::Presence::Required
+    ));
     key(encoder, 6)?;
-    encoder
-        .bool(matches!(
-            attachment.opacity(),
-            auths_model::Opacity::OpaqueAllowed
-        ))
-        .map_err(encode_error)?;
+    encoder.bool(matches!(
+        attachment.opacity(),
+        auths_model::Opacity::OpaqueAllowed
+    ));
     Ok(())
 }
 
@@ -1069,7 +1072,7 @@ fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(),
     if let Some(body) = bundle.canonical_body() {
         bytes(encoder, body)?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
 
     key(encoder, 10)?;
@@ -1194,25 +1197,25 @@ fn encode_assurance_policy(
         if let Some(source) = requirement.source() {
             text(encoder, source.as_str())?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 4)?;
         if let Some(adapter) = requirement.adapter() {
             text(encoder, adapter.as_str())?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 5)?;
         if let Some(version) = requirement.adapter_version() {
             encoder.u16(version).map_err(encode_error)?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 6)?;
         if let Some(maximum_age) = requirement.maximum_age() {
             encoder.u64(maximum_age.get()).map_err(encode_error)?;
         } else {
-            encoder.null().map_err(encode_error)?;
+            encoder.null();
         }
         key(encoder, 7)?;
         encoder
@@ -1492,7 +1495,7 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
     for (index, kind) in LIMITS.into_iter().enumerate() {
         key(
             encoder,
-            u8::try_from(index).map_err(|_| CodecError::LimitExceeded)?,
+            u8::try_from(index).map_err(crate::error::limit_error)?,
         )?;
         encoder
             .u64(length(limits.get(kind))?)
@@ -1510,7 +1513,7 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
     {
         key(
             encoder,
-            u8::try_from(27 + index).map_err(|_| CodecError::LimitExceeded)?,
+            u8::try_from(27 + index).map_err(crate::error::limit_error)?,
         )?;
         encoder
             .u64(length(limits.get(kind))?)
@@ -1528,7 +1531,7 @@ fn encode_composition_requirement(
     if let Some(plan) = requirement.expected_plan() {
         bytes(encoder, plan.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     key(encoder, 1)?;
     encoder
@@ -1599,4 +1602,34 @@ fn encode_verifier_context_to(
 /// Returns [`CodecError`] if the context exceeds a protocol encoding bound.
 pub fn encode_verifier_context(context: &TrustedContext) -> Result<Vec<u8>, CodecError> {
     finish(|encoder| encode_verifier_context_to(encoder, context))
+}
+
+// The former implementation is retained only as a refactor-equivalence oracle.
+#[cfg(test)]
+pub(crate) fn encode_canonical_action_reference(
+    action: &CanonicalAction,
+) -> Result<Vec<u8>, CodecError> {
+    finish(|encoder| {
+        map(encoder, 6)?;
+        key(encoder, 0)?;
+        encode_profile_ref(encoder, action.profile())?;
+        key(encoder, 1)?;
+        text(encoder, action.media_type().as_str())?;
+        key(encoder, 2)?;
+        bytes(encoder, action.body())?;
+        key(encoder, 3)?;
+        encode_permission(encoder, action.permission())?;
+        key(encoder, 4)?;
+        encode_optional_budget(encoder, action.requested_budget())?;
+        key(encoder, 5)?;
+        array(encoder, action.detached_attachments().len())?;
+        for attachment in action.detached_attachments() {
+            map(encoder, 2)?;
+            key(encoder, 0)?;
+            bytes(encoder, attachment.digest().as_bytes())?;
+            key(encoder, 1)?;
+            bytes(encoder, attachment.bytes())?;
+        }
+        Ok(())
+    })
 }

@@ -1,3 +1,12 @@
+import Auths.Product.ConnectionEntryRefinement
+import Auths.Product.SlotRecordRefinement
+import Auths.Product.SlotBatchRefinement
+import Auths.Product.ReservationRetryRefinement
+import Auths.Product.SumAggregationRefinement
+import Auths.Product.CounterAggregationRefinement
+import Auths.Product.CounterRefinement
+import Auths.Product.Frontier.Refinement
+import Auths.Product.Refinement.EntryDeadline
 import qualification.aeneas.generated.gateway.Funs
 
 open Aeneas Aeneas.Std Result
@@ -94,4 +103,130 @@ example :
            action := order.SubmitAction.Stop order.Stop.Halted } := by
   rfl
 
+-- Inclusive native windows and exclusive operator windows keep their exact
+-- endpoints, including the maximum timestamp without adding one.
+example : deadline.entry_time_allows 10#u64 20#u64 ⟨20#u64, true⟩ = ok true := rfl
+example : deadline.entry_time_allows 10#u64 20#u64 ⟨20#u64, false⟩ = ok false := rfl
+example : deadline.entry_time_allows 10#u64 9#u64 ⟨20#u64, true⟩ = ok false := rfl
+example : deadline.intersect_entry_bounds ⟨18446744073709551615#u64, true⟩
+    ⟨18446744073709551615#u64, false⟩ = ok ⟨18446744073709551615#u64, false⟩ := rfl
+
 end qualification.aeneas.cases
+
+#check Auths.Product.Frontier.Refinement.start_exact
+#check Auths.Product.Frontier.Refinement.probe_exact
+#check Auths.Product.Frontier.Refinement.observe_exact
+#check Auths.Product.Frontier.Refinement.candidate_exact
+#check Auths.Product.Frontier.Refinement.source_work_bound
+
+#check Auths.Product.CounterFrames.Refinement.word_exact
+#check Auths.Product.CounterFrames.Refinement.component_exact
+#check Auths.Product.CounterFrames.Refinement.coordinates_exact
+#check Auths.Product.CounterFrames.Refinement.count_exact
+#check Auths.Product.CounterFrames.Refinement.sum_exact
+#check Auths.Product.CounterFrames.Refinement.count_slot_exact
+#check Auths.Product.CounterFrames.Refinement.sum_slot_exact
+#check Auths.Product.CounterFrames.Refinement.count_source_binds_inputs
+#check Auths.Product.CounterFrames.Refinement.sum_source_binds_inputs
+
+#check Auths.Product.CounterAggregation.Refinement.counter_equal_spec
+#check Auths.Product.CounterAggregation.Refinement.counter_position_spec
+#check Auths.Product.CounterAggregation.Refinement.contribute_spec
+#check Auths.Product.CounterAggregation.Refinement.aggregate_spec
+#check Auths.Product.CounterAggregation.Refinement.source_aggregate_unique
+#check Auths.Product.CounterAggregation.Refinement.source_aggregate_capacities
+
+#check Auths.Product.CounterAggregation.Refinement.sum_position_spec
+#check Auths.Product.CounterAggregation.Refinement.contribute_sum_spec
+#check Auths.Product.CounterAggregation.Refinement.aggregate_sum_spec
+#check Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_unique
+#check Auths.Product.CounterAggregation.Refinement.source_sum_aggregate_capacities
+
+#check Auths.Product.ReservationRetry.Refinement.retry_target_exact
+#check Auths.Product.ReservationRetry.Refinement.source_claim_conflict_is_replay
+#check Auths.Product.ReservationRetry.Refinement.source_count_progress_safe
+#check Auths.Product.ReservationRetry.Refinement.source_sum_progress_safe
+
+#check Auths.Product.SlotBatch.Refinement.count_loop_exact
+#check Auths.Product.SlotBatch.Refinement.sum_loop_exact
+#check Auths.Product.SlotBatch.Refinement.build_exact
+#check Auths.Product.SlotBatch.Refinement.source_claim_first
+#check Auths.Product.SlotBatch.Refinement.source_complete_entry_count
+#check Auths.Product.SlotBatch.Refinement.source_invalid_shape_refused
+
+#check Auths.Product.SlotRecord.Refinement.counter_hex_matches_spec
+#check Auths.Product.SlotRecord.Refinement.validate_cumulative_exact
+#check Auths.Product.SlotRecord.Refinement.source_accepted_binds_record
+#check Auths.Product.SlotRecord.Refinement.source_invalid_record_refused
+
+#check Auths.Product.CounterAggregation.Refinement.count_capacity_spec
+#check Auths.Product.CounterAggregation.Refinement.linked_sum_contribution_exact
+#check Auths.Product.CounterAggregation.Refinement.source_sum_slots_share_count_minimum
+
+
+namespace qualification.aeneas.cases.CumulativeRecord
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_gateway_kernel
+open Auths.Product.SlotRecord.Refinement
+-- A real source-path success witness: accepting useful cumulative state is
+-- proved alongside the all-input refusal theorem, not left to vacuity.
+private def sumSchema : Slice Std.U8 := ⟨[97#u8, 117#u8, 116#u8, 104#u8, 115#u8, 46#u8, 103#u8, 97#u8, 116#u8, 101#u8, 119#u8, 97#u8, 121#u8, 45#u8, 98#u8, 111#u8, 117#u8, 110#u8, 100#u8, 101#u8, 100#u8, 45#u8, 115#u8, 117#u8, 109#u8, 47#u8, 49#u8], by simp; scalar_tac⟩
+private def zeroCounter : Array Std.U8 32#usize := ⟨List.replicate 32 0#u8, by simp⟩
+private def zeroHex : Slice Std.U8 := ⟨List.replicate 64 48#u8, by simp; scalar_tac⟩
+example :
+    slot_record.validate_cumulative sumSchema sumSchema zeroHex zeroCounter 5#u64 ⟨5#u64, 3#u64, 7#u64⟩
+      ⦃ actual => actual = some 7#u64 ⦄ := by
+  step with validate_cumulative_exact as ⟨actual, exactMeaning⟩
+  have modelValue : Auths.Product.SlotRecord.validate (bytes sumSchema.val) (bytes sumSchema.val) (List.replicate 64 48) (List.replicate 32 0)
+      5 ⟨5, 3, 7⟩ = some 7 := by decide
+  change actual.map UScalar.val = Auths.Product.SlotRecord.validate (bytes sumSchema.val) (bytes sumSchema.val) (List.replicate 64 48)
+    (List.replicate 32 0) 5 ⟨5, 3, 7⟩ at exactMeaning
+  have mapped : actual.map UScalar.val = some 7 := exactMeaning.trans modelValue
+  cases actual with
+  | none => simp at mapped
+  | some value =>
+    simp only [Option.map_some, Option.some.injEq] at mapped
+    congr 1
+    scalar_tac
+
+end qualification.aeneas.cases.CumulativeRecord
+
+#check Auths.Product.ConnectionEntry.Refinement.profile_allowed_exact
+#check Auths.Product.ConnectionEntry.Refinement.entry_allows_exact
+#check Auths.Product.ConnectionEntry.Refinement.source_entry_requires_active_workload_profile
+#check Auths.Product.ConnectionEntry.Refinement.source_disabled_refused
+#check Auths.Product.ConnectionEntry.Refinement.source_revoked_refused
+
+namespace qualification.aeneas.cases.ConnectionEntry
+open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
+open auths_gateway_kernel
+open Auths.Product.ConnectionEntry.Refinement
+private def identifier : alloc.vec.Vec U8 := ⟨[97#u8], by simp; scalar_tac⟩
+private def workload : Slice U8 := alloc.vec.Vec.deref identifier
+private def workloads : Slice (alloc.vec.Vec U8) := ⟨[identifier], by simp; scalar_tac⟩
+private def profile : entry_authorization.EntryProfile := ⟨identifier, 1#u16⟩
+private def profiles : Slice entry_authorization.EntryProfile := ⟨[profile], by simp; scalar_tac⟩
+
+-- Matching nonempty workload and full profile/version fields really permit.
+example : entry_authorization.entry_allows .Active workloads profiles workload profile
+    ⦃ actual => actual = true ⦄ := by
+  step with entry_allows_exact as ⟨actual, exactMeaning⟩
+  change actual = Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 1⟩ at exactMeaning
+  have model : Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 1⟩ = true := by decide
+  exact exactMeaning.trans model
+
+-- The same otherwise-admissible record cannot authorize after disablement.
+example : entry_authorization.entry_allows .Disabled workloads profiles workload profile
+    ⦃ actual => actual = false ⦄ := by
+  exact source_disabled_refused workloads profiles workload profile
+
+-- An equal profile identifier at another version is a refusal.
+example : entry_authorization.entry_allows .Active workloads profiles workload ⟨identifier, 2#u16⟩
+    ⦃ actual => actual = false ⦄ := by
+  step with entry_allows_exact as ⟨actual, exactMeaning⟩
+  change actual = Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 2⟩ at exactMeaning
+  have model : Auths.Product.ConnectionEntry.allows .active [[97]] [⟨[97], 1⟩] [97] ⟨[97], 2⟩ = false := by decide
+  exact exactMeaning.trans model
+end qualification.aeneas.cases.ConnectionEntry

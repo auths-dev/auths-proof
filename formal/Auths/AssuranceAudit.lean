@@ -2,6 +2,7 @@ import Auths
 import Lean.Elab.Command
 import Lean.PrettyPrinter
 import Lean.Util.CollectAxioms
+import Lean.Util.FoldConsts
 
 open Lean Lean.Elab Lean.Elab.Command
 
@@ -35,6 +36,7 @@ private def auditDeclaration
         ("module", moduleName.toString),
         ("kind", declarationKind info),
         ("statement", statementFormat.pretty 120),
+        ("statement_constants", Json.arr <| info.type.getUsedConstants.qsort Name.lt |>.map (toJson ·.toString)),
         ("axioms", Json.arr <| axioms.qsort Name.lt |>.map (toJson ·.toString))
       ]
 

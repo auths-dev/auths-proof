@@ -447,6 +447,40 @@ pub enum StatusDecision {
     WrongMethod,
 }
 
+/// One exact status decision and the last inclusive time for which its
+/// selected snapshot and statements remain fresh. This is a property of the
+/// supplied immutable evidence, not a promise that no later revocation exists.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StatusEvaluation {
+    decision: StatusDecision,
+    valid_through: Timestamp,
+}
+
+impl StatusEvaluation {
+    /// Constructs a method's temporal witness. An authorizing decision must
+    /// cover the evaluation time and every time through `valid_through` under
+    /// the same evidence and policy. Expiry-only policy has no status bound.
+    #[must_use]
+    pub const fn new(decision: StatusDecision, valid_through: Timestamp) -> Self {
+        Self {
+            decision,
+            valid_through,
+        }
+    }
+
+    /// The evaluated status decision.
+    #[must_use]
+    pub const fn decision(self) -> StatusDecision {
+        self.decision
+    }
+
+    /// Inclusive freshness horizon of the evidence actually selected.
+    #[must_use]
+    pub const fn valid_through(self) -> Timestamp {
+        self.valid_through
+    }
+}
+
 /// Pure exact status-method implementation shared by principal and grant status.
 pub trait StatusMethod {
     /// Returns the exact status-method identifier.
@@ -472,7 +506,7 @@ pub trait StatusMethod {
         principal: &PrincipalId,
         view: StatusView<'_>,
         evaluation_time: Timestamp,
-    ) -> Result<StatusDecision, RegistryOperationError>;
+    ) -> Result<StatusEvaluation, RegistryOperationError>;
     /// Evaluates grant status for a branch under a trust anchor, with the same
     /// visibility and selection rules.
     ///
@@ -486,7 +520,7 @@ pub trait StatusMethod {
         grant: GrantId,
         view: StatusView<'_>,
         evaluation_time: Timestamp,
-    ) -> Result<StatusDecision, RegistryOperationError>;
+    ) -> Result<StatusEvaluation, RegistryOperationError>;
 }
 
 /// Pure exact assurance-claim validation rule.

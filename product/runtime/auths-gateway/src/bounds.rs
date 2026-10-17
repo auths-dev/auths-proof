@@ -76,7 +76,7 @@ pub const MAX_LISTED_VALUES: usize = 16;
 /// Longest listed value, in bytes.
 pub const MAX_LISTED_VALUE_BYTES: usize = 64;
 /// Largest number of bounded links one authorized branch may carry.
-pub const MAX_BOUNDED_LINKS: usize = 16;
+pub const MAX_BOUNDED_LINKS: usize = auths_gateway_kernel::reservation_batch::MAX_COUNTERS_PER_KIND;
 
 const MAX_POLICY_BYTES: usize = auths_model::MAX_BOUNDED_POLICY_BYTES;
 
@@ -539,22 +539,13 @@ pub(crate) struct BoundLink {
 
 /// One distinct count counter of a chain and its capacity: the smallest
 /// maximum count of the links whose subject it counts.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CountCounter {
-    pub(crate) key: [u8; 32],
-    pub(crate) capacity: u64,
-}
+pub(crate) use auths_gateway_kernel::counter_aggregation::CounterCapacity as CountCounter;
 
 /// One distinct sum counter of a chain and its capacity: the smallest sum
 /// limit of the links that share it. Every action that charges it also
 /// charges its subject's count counter, so it holds at most `slots` slots
 /// in a window.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct SumCounter {
-    pub(crate) key: [u8; 32],
-    pub(crate) capacity: u64,
-    pub(crate) slots: u64,
-}
+pub(crate) use auths_gateway_kernel::counter_aggregation::SumCapacity as SumCounter;
 
 /// What admission reserves with the claim, and what the account-scope
 /// binding and an auditor read.
@@ -589,24 +580,6 @@ pub(crate) struct SumRequirement {
     pub(crate) partition: Option<String>,
 }
 
-/// SHA-256 of `domain`, each component with an eight-byte big-endian length
-/// prefix, then the window length and index.
-fn counter_key(domain: &[u8], components: &[&[u8]], window_seconds: u64, index: u64) -> [u8; 32] {
-    let mut hash = Sha256::new();
-    hash.update(domain);
-    for component in components {
-        hash.update(
-            u64::try_from(component.len())
-                .unwrap_or(u64::MAX)
-                .to_be_bytes(),
-        );
-        hash.update(component);
-    }
-    hash.update(window_seconds.to_be_bytes());
-    hash.update(index.to_be_bytes());
-    hash.finalize().into()
-}
-
 /// The count counter of `subject` in one fixed window.
 pub(crate) fn count_counter_key(
     namespace: &OperatorNamespace,
@@ -614,16 +587,16 @@ pub(crate) fn count_counter_key(
     window_seconds: u64,
     index: u64,
 ) -> [u8; 32] {
-    counter_key(
-        b"auths.gateway-bounded-count/2\0",
-        &[
+    Sha256::digest(
+        auths_gateway_kernel::counter_preimages::count_counter_preimage(
             namespace.as_str().as_bytes(),
             subject.as_str().as_bytes(),
             ARGUMENT_CEILING_EVALUATOR.as_bytes(),
-        ],
-        window_seconds,
-        index,
+            window_seconds,
+            index,
+        ),
     )
+    .into()
 }
 
 /// The sum counter of `subject` and `partition` (empty when unpartitioned)
@@ -635,35 +608,31 @@ pub(crate) fn sum_counter_key(
     window_seconds: u64,
     index: u64,
 ) -> [u8; 32] {
-    counter_key(
-        b"auths.gateway-bounded-sum/1\0",
-        &[
+    Sha256::digest(
+        auths_gateway_kernel::counter_preimages::sum_counter_preimage(
             namespace.as_str().as_bytes(),
             subject.as_str().as_bytes(),
             ARGUMENT_CEILING_EVALUATOR.as_bytes(),
             partition.as_bytes(),
-        ],
-        window_seconds,
-        index,
+            window_seconds,
+            index,
+        ),
     )
+    .into()
 }
 
 /// The key of slot `slot` of count counter `counter`.
 pub(crate) fn count_slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    slot_key(b"auths.gateway-bounded-count-slot/2\0", counter, slot)
+    Sha256::digest(auths_gateway_kernel::counter_preimages::count_slot_preimage(counter, slot))
+        .into()
 }
 
 /// The key of slot `slot` of sum counter `counter`.
 pub(crate) fn sum_slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    slot_key(b"auths.gateway-bounded-sum-slot/1\0", counter, slot)
-}
-
-fn slot_key(domain: &[u8], counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    let mut hash = Sha256::new();
-    hash.update(domain);
-    hash.update(counter);
-    hash.update(slot.to_be_bytes());
-    hash.finalize().into()
+    Sha256::digest(auths_gateway_kernel::counter_preimages::sum_slot_preimage(
+        counter, slot,
+    ))
+    .into()
 }
 
 /// The verified text value of `argument`, or `argument-unavailable`.
@@ -834,37 +803,31 @@ fn chain_counters(
     window_seconds: u64,
     index: u64,
 ) -> (Vec<CountCounter>, Vec<SumCounter>) {
-    let mut counts: Vec<CountCounter> = Vec::new();
-    for link in links {
-        let key = count_counter_key(namespace, &link.subject, window_seconds, index);
-        match counts.iter_mut().find(|counter| counter.key == key) {
-            Some(counter) => counter.capacity = counter.capacity.min(link.policy.max_count),
-            None => counts.push(CountCounter {
-                key,
-                capacity: link.policy.max_count,
-            }),
-        }
-    }
-    let mut sums: Vec<SumCounter> = Vec::new();
-    for (link, partition) in links.iter().zip(partitions) {
-        let Some(limit) = link.policy.sum_limit else {
-            continue;
-        };
-        let count = count_counter_key(namespace, &link.subject, window_seconds, index);
-        let slots = counts
-            .iter()
-            .find(|counter| counter.key == count)
-            .map_or(0, |counter| counter.capacity);
-        let key = sum_counter_key(namespace, &link.subject, partition, window_seconds, index);
-        match sums.iter_mut().find(|counter| counter.key == key) {
-            Some(counter) => counter.capacity = counter.capacity.min(limit),
-            None => sums.push(SumCounter {
-                key,
-                capacity: limit,
-                slots,
-            }),
-        }
-    }
+    let contributions: Vec<CountCounter> = links
+        .iter()
+        .map(|link| CountCounter {
+            key: count_counter_key(namespace, &link.subject, window_seconds, index),
+            capacity: link.policy.max_count,
+        })
+        .collect();
+    let mut counts = auths_gateway_kernel::counter_aggregation::aggregate(&contributions);
+    let sum_contributions: Vec<SumCounter> = links
+        .iter()
+        .zip(partitions)
+        .filter_map(|(link, partition)| {
+            let limit = link.policy.sum_limit?;
+            let count = count_counter_key(namespace, &link.subject, window_seconds, index);
+            Some(
+                auths_gateway_kernel::counter_aggregation::linked_sum_contribution(
+                    &counts,
+                    &count,
+                    sum_counter_key(namespace, &link.subject, partition, window_seconds, index),
+                    limit,
+                ),
+            )
+        })
+        .collect();
+    let mut sums = auths_gateway_kernel::counter_aggregation::aggregate_sum(&sum_contributions);
     counts.sort_by_key(|counter| counter.key);
     sums.sort_by_key(|counter| counter.key);
     (counts, sums)
@@ -1286,5 +1249,181 @@ mod tests {
         );
         assert_ne!(count_slot_key(&count, 0), sum_slot_key(&count, 0));
         assert_ne!(count_slot_key(&count, 0), count_slot_key(&count, 1));
+    }
+}
+
+#[cfg(test)]
+mod commitment_preimage_parity {
+    use super::*;
+
+    // Frozen pre-cutover incremental hashing, independent of the new byte builder.
+    fn previous(domain: &[u8], components: &[&[u8]], window: u64, index: u64) -> [u8; 32] {
+        let mut hash = Sha256::new();
+        hash.update(domain);
+        for component in components {
+            hash.update(
+                u64::try_from(component.len())
+                    .unwrap_or(u64::MAX)
+                    .to_be_bytes(),
+            );
+            hash.update(component);
+        }
+        hash.update(window.to_be_bytes());
+        hash.update(index.to_be_bytes());
+        hash.finalize().into()
+    }
+
+    #[test]
+    fn actual_counter_keys_preserve_namespace_subject_partition_and_window() {
+        for operator in ["operator", "stripe-receivables-test"] {
+            let namespace = OperatorNamespace::parse(operator).expect("namespace");
+            for principal in ["raw:subject", "did:key:sample", "raw:λ"] {
+                let subject = PrincipalId::parse(principal).expect("principal");
+                for value in [0, 1, 255, 256, u64::MAX] {
+                    let parts = [
+                        operator.as_bytes(),
+                        principal.as_bytes(),
+                        ARGUMENT_CEILING_EVALUATOR.as_bytes(),
+                    ];
+                    assert_eq!(
+                        count_counter_key(&namespace, &subject, value, value),
+                        previous(b"auths.gateway-bounded-count/2\0", &parts, value, value)
+                    );
+                    for partition in ["", "account", "contains\0separator", "λ"] {
+                        assert_eq!(
+                            sum_counter_key(&namespace, &subject, partition, value, value),
+                            previous(
+                                b"auths.gateway-bounded-sum/1\0",
+                                &[parts[0], parts[1], parts[2], partition.as_bytes()],
+                                value,
+                                value
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn actual_slot_keys_preserve_the_previous_incremental_hash_input() {
+        for counter in [[0; 32], [255; 32]] {
+            for slot in [0, 1, 255, 256, u64::MAX] {
+                let old = |domain: &[u8]| -> [u8; 32] {
+                    let mut hash = Sha256::new();
+                    hash.update(domain);
+                    hash.update(counter);
+                    hash.update(slot.to_be_bytes());
+                    hash.finalize().into()
+                };
+                assert_eq!(
+                    count_slot_key(&counter, slot),
+                    old(b"auths.gateway-bounded-count-slot/2\0")
+                );
+                assert_eq!(
+                    sum_slot_key(&counter, slot),
+                    old(b"auths.gateway-bounded-sum-slot/1\0")
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod counter_aggregation_parity {
+    use super::*;
+
+    fn original_chain_counters(
+        links: &[BoundLink],
+        partitions: &[String],
+        namespace: &OperatorNamespace,
+        window_seconds: u64,
+        index: u64,
+    ) -> (Vec<CountCounter>, Vec<SumCounter>) {
+        let mut counts: Vec<CountCounter> = Vec::new();
+        for link in links {
+            let key = count_counter_key(namespace, &link.subject, window_seconds, index);
+            match counts.iter_mut().find(|counter| counter.key == key) {
+                Some(counter) => counter.capacity = counter.capacity.min(link.policy.max_count),
+                None => counts.push(CountCounter {
+                    key,
+                    capacity: link.policy.max_count,
+                }),
+            }
+        }
+        let mut sums: Vec<SumCounter> = Vec::new();
+        for (link, partition) in links.iter().zip(partitions) {
+            let Some(limit) = link.policy.sum_limit else {
+                continue;
+            };
+            let count = count_counter_key(namespace, &link.subject, window_seconds, index);
+            let slots = counts
+                .iter()
+                .find(|counter| counter.key == count)
+                .map_or(0, |counter| counter.capacity);
+            let key = sum_counter_key(namespace, &link.subject, partition, window_seconds, index);
+            match sums.iter_mut().find(|counter| counter.key == key) {
+                Some(counter) => counter.capacity = counter.capacity.min(limit),
+                None => sums.push(SumCounter {
+                    key,
+                    capacity: limit,
+                    slots,
+                }),
+            }
+        }
+        counts.sort_by_key(|counter| counter.key);
+        sums.sort_by_key(|counter| counter.key);
+        (counts, sums)
+    }
+
+    #[test]
+    fn actual_chain_derivation_preserves_sorted_count_sum_and_slot_results() {
+        let mut seed = 0x4155_5448_5343_4150u64;
+        for length in 0..=MAX_BOUNDED_LINKS {
+            for _ in 0..64 {
+                let mut links = Vec::new();
+                let mut partitions = Vec::new();
+                for _ in 0..length {
+                    seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                    let subject = ["agent:root", "agent:child", "agent:葉"]
+                        [usize::try_from(seed % 3).expect("bounded subject index")];
+                    let mut policy = ArgumentCeilingPolicy::new("amount", 500, 60, 1 + seed % 256)
+                        .expect("policy");
+                    if seed & 1 != 0 {
+                        policy.sum_limit = Some(1 + seed % 1024);
+                    }
+                    links.push(BoundLink {
+                        subject: PrincipalId::parse(subject).expect("subject"),
+                        policy,
+                    });
+                    partitions.push(
+                        ["", "east", "west"]
+                            [usize::try_from((seed >> 8) % 3).expect("bounded partition index")]
+                        .to_owned(),
+                    );
+                }
+                for partition_count in [0, length / 2, length] {
+                    let namespace = OperatorNamespace::parse("shared-budget").expect("namespace");
+                    for (window, index) in [(60, 0), (u64::MAX, u64::MAX)] {
+                        assert_eq!(
+                            chain_counters(
+                                &links,
+                                &partitions[..partition_count],
+                                &namespace,
+                                window,
+                                index
+                            ),
+                            original_chain_counters(
+                                &links,
+                                &partitions[..partition_count],
+                                &namespace,
+                                window,
+                                index
+                            )
+                        );
+                    }
+                }
+            }
+        }
     }
 }

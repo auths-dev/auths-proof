@@ -24,6 +24,27 @@ axiom Array.Insts.CoreCmpOrd.cmp
   {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T) :
   Array T N → Array T N → Result Ordering
 
+/-- [core::str::{str}::len]:
+    Source: '/rustc/library/core/src/str/mod.rs', lines 153:4-153:36
+    Name pattern: [core::str::{str}::len]
+    Visibility: public -/
+@[rust_fun "core::str::{str}::len"]
+axiom core.str.Str.len : Str → Result Std.Usize
+
+/-- [core::str::{str}::is_empty]:
+    Source: '/rustc/library/core/src/str/mod.rs', lines 173:4-173:40
+    Name pattern: [core::str::{str}::is_empty]
+    Visibility: public -/
+@[rust_fun "core::str::{str}::is_empty"]
+axiom core.str.Str.is_empty : Str → Result Bool
+
+/-- [core::str::{str}::as_bytes]:
+    Source: '/rustc/library/core/src/str/mod.rs', lines 498:4-498:41
+    Name pattern: [core::str::{str}::as_bytes]
+    Visibility: public -/
+@[rust_fun "core::str::{str}::as_bytes"]
+axiom core.str.Str.as_bytes : Str → Result (Slice Std.U8)
+
 /-- [alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq]:
     Source: '/rustc/library/alloc/src/string.rs', lines 350:9-350:18
     Name pattern: [alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq]

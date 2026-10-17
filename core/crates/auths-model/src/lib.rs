@@ -7,12 +7,13 @@
 extern crate alloc;
 
 mod bounded;
+mod identifier;
 
 pub use bounded::{BoundError, BoundedBytes, BoundedSet};
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
+    string::String,
     vec::Vec,
 };
 use core::fmt;
@@ -109,18 +110,6 @@ impl ProtocolVersion {
     }
 }
 
-fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<String, ModelError> {
-    if value.is_empty()
-        || value.len() > maximum
-        || value
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
-    {
-        return Err(error);
-    }
-    Ok(value.to_string())
-}
-
 fn byte_slices_equal(left: &[u8], right: &[u8]) -> bool {
     left == right
 }
@@ -140,7 +129,10 @@ macro_rules! bounded_string {
             /// empty, exceeds its protocol bound, or contains whitespace or a
             /// control character.
             pub fn parse(value: &str) -> Result<Self, ModelError> {
-                parse_bounded(value, $maximum, $error).map(Self)
+                if !$crate::identifier::bounded_identifier_valid(value, $maximum) {
+                    return Err($error);
+                }
+                Ok(Self(String::from(value)))
             }
 
             #[must_use]
@@ -170,22 +162,12 @@ impl PrincipalId {
     /// its byte bound, contains whitespace/control characters, lacks a URI
     /// scheme, or uses a non-canonical scheme.
     pub fn parse(value: &str) -> Result<Self, ModelError> {
-        let parsed = parse_bounded(value, 512, ModelError::InvalidPrincipal)?;
-        let (scheme, remainder) = parsed.split_once(':').ok_or(ModelError::InvalidPrincipal)?;
-        let mut characters = scheme.chars();
-        if remainder.is_empty()
-            || !characters
-                .next()
-                .is_some_and(|character| character.is_ascii_lowercase())
-            || !characters.all(|character| {
-                character.is_ascii_lowercase()
-                    || character.is_ascii_digit()
-                    || matches!(character, '+' | '-' | '.')
-            })
+        if !identifier::bounded_identifier_valid(value, 512)
+            || !identifier::principal_scheme_valid(value)
         {
             return Err(ModelError::InvalidPrincipal);
         }
-        Ok(Self(parsed))
+        Ok(Self(String::from(value)))
     }
 
     /// Returns the canonical principal identifier.
@@ -1637,6 +1619,25 @@ pub struct CanonicalAction {
     detached_attachments: Vec<DetachedAttachment>,
 }
 
+fn canonical_attachments_valid(attachments: &[DetachedAttachment]) -> bool {
+    let mut index = 0;
+    let mut total = 0usize;
+    while index < attachments.len() {
+        if index > 0 && attachments[index - 1].digest() == attachments[index].digest() {
+            return false;
+        }
+        total = match total.checked_add(attachments[index].bytes().len()) {
+            Some(value) => value,
+            None => return false,
+        };
+        if total > HARD_MAX_ATTACHMENT_BYTES {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
 impl CanonicalAction {
     /// Constructs a bounded profile-canonical action.
     ///
@@ -1672,25 +1673,22 @@ impl CanonicalAction {
     /// protocol bounds, contains duplicate identifiers, or the accumulated
     /// detached bytes exceed the attachment-byte hard limit.
     pub fn with_detached_attachments(
-        mut self,
+        self,
         mut attachments: Vec<DetachedAttachment>,
     ) -> Result<Self, ModelError> {
-        attachments.sort_by_key(DetachedAttachment::digest);
-        if attachments.len() > HARD_MAX_ATTACHMENTS
-            || attachments
-                .windows(2)
-                .any(|window| window[0].digest() == window[1].digest())
-            || attachments
-                .iter()
-                .try_fold(0usize, |total, attachment| {
-                    total.checked_add(attachment.bytes().len())
-                })
-                .is_none_or(|total| total > HARD_MAX_ATTACHMENT_BYTES)
-        {
+        if attachments.len() > HARD_MAX_ATTACHMENTS {
             return Err(ModelError::InvalidAttachment);
         }
-        self.detached_attachments = attachments;
-        Ok(self)
+        // A concrete stateless closure keeps the translated key computation explicit.
+        #[allow(clippy::redundant_closure_for_method_calls)]
+        attachments.sort_by_key(|attachment| attachment.digest());
+        if !canonical_attachments_valid(&attachments) {
+            return Err(ModelError::InvalidAttachment);
+        }
+        Ok(Self {
+            detached_attachments: attachments,
+            ..self
+        })
     }
 
     /// Returns the exact profile and semantic version.
@@ -1834,9 +1832,24 @@ impl AuthorizationPlan {
     fn compound(mut node: AuthorizationPlanNode) -> Result<Self, ModelError> {
         match &mut node {
             AuthorizationPlanNode::Proof(_) => {}
-            AuthorizationPlanNode::AllOf(members)
-            | AuthorizationPlanNode::AnyOf(members)
-            | AuthorizationPlanNode::KOfN { members, .. } => members.sort(),
+            AuthorizationPlanNode::AllOf(members) | AuthorizationPlanNode::AnyOf(members) => {
+                if members.is_empty() {
+                    return Err(ModelError::InvalidPlan);
+                }
+                if members.len() > HARD_MAX_PLAN_BRANCHING {
+                    return Err(ModelError::PlanLimitExceeded);
+                }
+                members.sort();
+            }
+            AuthorizationPlanNode::KOfN { k, members } => {
+                if *k == 0 || usize::from(*k) > members.len() || members.is_empty() {
+                    return Err(ModelError::InvalidPlan);
+                }
+                if members.len() > HARD_MAX_PLAN_BRANCHING {
+                    return Err(ModelError::PlanLimitExceeded);
+                }
+                members.sort();
+            }
         }
         let plan = Self(node);
         plan.validate(&VerifierLimits::hard())?;
@@ -1864,6 +1877,19 @@ impl AuthorizationPlan {
     /// and [`ModelError::PlanLimitExceeded`] for excessive depth, excessive
     /// leaves, or repeated proof references.
     pub fn validate(&self, limits: &VerifierLimits) -> Result<PlanShape, ModelError> {
+        fn walk_members(
+            members: &[AuthorizationPlan],
+            depth: usize,
+            limits: &VerifierLimits,
+            refs: &mut BTreeSet<ProofRef>,
+            maximum_depth: &mut usize,
+        ) -> Result<(), ModelError> {
+            for member in members {
+                walk(member, depth + 1, limits, refs, maximum_depth)?;
+            }
+            Ok(())
+        }
+
         fn walk(
             plan: &AuthorizationPlan,
             depth: usize,
@@ -1888,9 +1914,7 @@ impl AuthorizationPlan {
                     if members.len() > limits.plan_branching {
                         return Err(ModelError::PlanLimitExceeded);
                     }
-                    for member in members {
-                        walk(member, depth + 1, limits, refs, maximum_depth)?;
-                    }
+                    walk_members(members, depth, limits, refs, maximum_depth)?;
                 }
                 AuthorizationPlanNode::KOfN { k, members } => {
                     if *k == 0 || usize::from(*k) > members.len() || members.is_empty() {
@@ -1899,9 +1923,7 @@ impl AuthorizationPlan {
                     if members.len() > limits.plan_branching {
                         return Err(ModelError::PlanLimitExceeded);
                     }
-                    for member in members {
-                        walk(member, depth + 1, limits, refs, maximum_depth)?;
-                    }
+                    walk_members(members, depth, limits, refs, maximum_depth)?;
                 }
             }
             Ok(())
@@ -1910,8 +1932,14 @@ impl AuthorizationPlan {
         let mut refs = BTreeSet::new();
         let mut maximum_depth = 0;
         walk(self, 1, limits, &mut refs, &mut maximum_depth)?;
+        // Keep collection visible to the pinned extractor instead of hiding
+        // it behind Iterator::collect's unsupported trait default.
+        let mut leaves = Vec::with_capacity(refs.len());
+        for reference in refs {
+            leaves.push(reference);
+        }
         Ok(PlanShape {
-            leaves: refs.into_iter().collect(),
+            leaves,
             maximum_depth,
         })
     }
@@ -2290,14 +2318,21 @@ impl StatusScopeAnchors {
     /// Returns [`ModelError::InvalidStatusSnapshot`] for an empty list, a
     /// repeated identifier, or more than [`HARD_MAX_TRUST_ANCHORS`] entries.
     pub fn new(mut anchors: Vec<TrustAnchorId>) -> Result<Self, ModelError> {
-        anchors.sort();
-        if anchors.is_empty()
-            || anchors.len() > HARD_MAX_TRUST_ANCHORS
-            || anchors.windows(2).any(|window| window[0] == window[1])
-        {
+        if anchors.is_empty() || anchors.len() > HARD_MAX_TRUST_ANCHORS {
             return Err(ModelError::InvalidStatusSnapshot);
         }
-        Ok(Self(anchors))
+        anchors.sort();
+        let mut position = 1;
+        let mut repeated = false;
+        while position < anchors.len() && !repeated {
+            repeated = anchors[position - 1] == anchors[position];
+            position += 1;
+        }
+        if repeated {
+            Err(ModelError::InvalidStatusSnapshot)
+        } else {
+            Ok(Self(anchors))
+        }
     }
 
     /// Returns the identifiers in ascending order.
@@ -2355,10 +2390,16 @@ pub fn status_issuer_in_scope(
     issuer: &PrincipalId,
     anchor: &TrustAnchor,
 ) -> bool {
-    trust
-        .iter()
-        .filter(|rule| rule.issuer() == issuer)
-        .all(|rule| rule.scope().covers(issuer, anchor))
+    let mut visible = true;
+    let mut position = 0;
+    while position < trust.len() && visible {
+        let rule = &trust[position];
+        if rule.issuer() == issuer {
+            visible = rule.scope().covers(issuer, anchor);
+        }
+        position += 1;
+    }
+    visible
 }
 
 /// Whose status evaluation a snapshot statement may take part in.
@@ -2383,10 +2424,18 @@ pub fn status_issuer_visible(
 ) -> bool {
     match view {
         StatusView::Anchor(anchor) => status_issuer_in_scope(trust, issuer, anchor),
-        StatusView::Approver => trust
-            .iter()
-            .filter(|rule| rule.issuer() == issuer)
-            .all(|rule| matches!(rule.scope(), StatusScope::AnyAnchor)),
+        StatusView::Approver => {
+            let mut visible = true;
+            let mut position = 0;
+            while position < trust.len() && visible {
+                let rule = &trust[position];
+                if rule.issuer() == issuer {
+                    visible = matches!(rule.scope(), StatusScope::AnyAnchor);
+                }
+                position += 1;
+            }
+            visible
+        }
     }
 }
 
@@ -4925,58 +4974,83 @@ pub enum DenialReason {
     ApprovalThresholdNotMet,
 }
 
-impl DenialReason {
-    /// Returns the stable language-neutral V1 reason code.
-    #[must_use]
-    pub const fn code(self) -> &'static str {
-        match self {
-            Self::MalformedProof => "malformed-proof",
-            Self::NonCanonicalProof => "non-canonical-proof",
-            Self::ResourceLimitExceeded => "resource-limit-exceeded",
-            Self::DigestMismatch => "digest-mismatch",
-            Self::DuplicateObject => "duplicate-object",
-            Self::MissingReference => "missing-reference",
-            Self::ReferenceCycle => "reference-cycle",
-            Self::AmbiguousTerminalGrant => "ambiguous-terminal-grant",
-            Self::UnusedCriticalEvidence => "unused-critical-evidence",
-            Self::InvalidSignature => "invalid-signature",
-            Self::PrincipalMethodMismatch => "principal-method-mismatch",
-            Self::VerificationMethodMismatch => "verification-method-mismatch",
-            Self::SignatureSuiteMismatch => "signature-suite-mismatch",
-            Self::UntrustedRoot => "untrusted-root",
-            Self::BrokenGrantChain => "broken-grant-chain",
-            Self::DelegationExpanded => "delegation-expanded",
-            Self::PermissionNotGranted => "permission-not-granted",
-            Self::ActionConstraintMismatch => "action-constraint-mismatch",
-            Self::BudgetCeilingExceeded => "budget-ceiling-exceeded",
-            Self::AuthorizationPlanInvalid => "authorization-plan-invalid",
-            Self::CompositionRequirementNotMet => "composition-requirement-not-met",
-            Self::PlanActionMismatch => "plan-action-mismatch",
-            Self::ActionBodyMismatch => "action-body-mismatch",
-            Self::AudienceMismatch => "audience-mismatch",
-            Self::ChallengeMismatch => "challenge-mismatch",
-            Self::ActionOutsideValidity => "action-outside-validity",
-            Self::PrincipalRevoked => "principal-revoked",
-            Self::GrantRevoked => "grant-revoked",
-            Self::StatusSequenceRollback => "status-sequence-rollback",
-            Self::StatusMethodMismatch => "status-method-mismatch",
-            Self::StatusIssuerUntrusted => "status-issuer-untrusted",
-            Self::RegistryManifestMismatch => "registry-manifest-mismatch",
-            Self::VerifierConfigurationMismatch => "verifier-configuration-mismatch",
-            Self::ResourceNamespaceMismatch => "resource-namespace-mismatch",
-            Self::CriticalExtensionUnknown => "critical-extension-unknown",
-            Self::AttachmentMissing => "attachment-missing",
-            Self::AttachmentDigestMismatch => "attachment-digest-mismatch",
-            Self::AttachmentLengthMismatch => "attachment-length-mismatch",
-            Self::DuplicateAttachment => "duplicate-attachment",
-            Self::UnusedCriticalAttachment => "unused-critical-attachment",
-            Self::OpaqueAttachmentNotAllowed => "opaque-attachment-not-allowed",
-            Self::LocalPolicyDenied => "local-policy-denied",
-            Self::ObservationConditionFalse => "observation-condition-false",
-            Self::ObserverInAuthorityChain => "observer-in-authority-chain",
-            Self::ObservationRequirementDropped => "observation-requirement-dropped",
-            Self::ApprovalThresholdNotMet => "approval-threshold-not-met",
+// Each result-code string and its lexical selection rank share one catalog.
+// Ranks are internal comparison data; they are never serialized.
+macro_rules! ordered_result_codes {
+    ($($variant:ident => ($code:literal, $rank:literal)),+ $(,)?) => {
+        /// Returns the stable language-neutral V1 result code.
+        #[must_use]
+        pub const fn code(self) -> &'static str {
+            match self { $(Self::$variant => $code),+ }
         }
+
+        /// Tests strict lexical order of the stable V1 result codes.
+        ///
+        /// This is the same order as `self.code() < other.code()`, without
+        /// borrowing strings or allocating diagnostic collections. The
+        /// internal numeric ranks are not a protocol or persistence format.
+        #[must_use]
+        pub const fn code_precedes(self, other: Self) -> bool {
+            self.code_order() < other.code_order()
+        }
+
+        const fn code_order(self) -> u8 {
+            match self { $(Self::$variant => $rank),+ }
+        }
+
+        #[cfg(test)]
+        const CODE_CATALOG: &'static [Self] = &[$(Self::$variant),+];
+    };
+}
+
+impl DenialReason {
+    ordered_result_codes! {
+        ActionBodyMismatch => ("action-body-mismatch", 0),
+        ActionConstraintMismatch => ("action-constraint-mismatch", 1),
+        ActionOutsideValidity => ("action-outside-validity", 2),
+        AmbiguousTerminalGrant => ("ambiguous-terminal-grant", 3),
+        ApprovalThresholdNotMet => ("approval-threshold-not-met", 4),
+        AttachmentDigestMismatch => ("attachment-digest-mismatch", 5),
+        AttachmentLengthMismatch => ("attachment-length-mismatch", 6),
+        AttachmentMissing => ("attachment-missing", 7),
+        AudienceMismatch => ("audience-mismatch", 8),
+        AuthorizationPlanInvalid => ("authorization-plan-invalid", 9),
+        BrokenGrantChain => ("broken-grant-chain", 10),
+        BudgetCeilingExceeded => ("budget-ceiling-exceeded", 11),
+        ChallengeMismatch => ("challenge-mismatch", 12),
+        CompositionRequirementNotMet => ("composition-requirement-not-met", 13),
+        CriticalExtensionUnknown => ("critical-extension-unknown", 14),
+        DelegationExpanded => ("delegation-expanded", 15),
+        DigestMismatch => ("digest-mismatch", 16),
+        DuplicateAttachment => ("duplicate-attachment", 17),
+        DuplicateObject => ("duplicate-object", 18),
+        GrantRevoked => ("grant-revoked", 19),
+        InvalidSignature => ("invalid-signature", 20),
+        LocalPolicyDenied => ("local-policy-denied", 21),
+        MalformedProof => ("malformed-proof", 22),
+        MissingReference => ("missing-reference", 23),
+        NonCanonicalProof => ("non-canonical-proof", 24),
+        ObservationConditionFalse => ("observation-condition-false", 25),
+        ObservationRequirementDropped => ("observation-requirement-dropped", 26),
+        ObserverInAuthorityChain => ("observer-in-authority-chain", 27),
+        OpaqueAttachmentNotAllowed => ("opaque-attachment-not-allowed", 28),
+        PermissionNotGranted => ("permission-not-granted", 29),
+        PlanActionMismatch => ("plan-action-mismatch", 30),
+        PrincipalMethodMismatch => ("principal-method-mismatch", 31),
+        PrincipalRevoked => ("principal-revoked", 32),
+        ReferenceCycle => ("reference-cycle", 33),
+        RegistryManifestMismatch => ("registry-manifest-mismatch", 34),
+        ResourceLimitExceeded => ("resource-limit-exceeded", 35),
+        ResourceNamespaceMismatch => ("resource-namespace-mismatch", 36),
+        SignatureSuiteMismatch => ("signature-suite-mismatch", 37),
+        StatusIssuerUntrusted => ("status-issuer-untrusted", 38),
+        StatusMethodMismatch => ("status-method-mismatch", 39),
+        StatusSequenceRollback => ("status-sequence-rollback", 40),
+        UntrustedRoot => ("untrusted-root", 41),
+        UnusedCriticalAttachment => ("unused-critical-attachment", 42),
+        UnusedCriticalEvidence => ("unused-critical-evidence", 43),
+        VerificationMethodMismatch => ("verification-method-mismatch", 44),
+        VerifierConfigurationMismatch => ("verifier-configuration-mismatch", 45),
     }
 
     /// Parses one exact stable V1 denial code.
@@ -5061,32 +5135,28 @@ pub enum Requirement {
 }
 
 impl Requirement {
-    /// Returns the stable language-neutral V1 requirement code.
-    #[must_use]
-    pub const fn code(self) -> &'static str {
-        match self {
-            Self::UnsupportedProtocol => "unsupported-protocol",
-            Self::UnsupportedPrincipalMethod => "unsupported-principal-method",
-            Self::UnsupportedSignatureSuite => "unsupported-signature-suite",
-            Self::UnsupportedEvidenceType => "unsupported-evidence-type",
-            Self::UnsupportedStatusMethod => "unsupported-status-method",
-            Self::UnsupportedProfile => "unsupported-profile",
-            Self::UnsupportedProfilePolicy => "unsupported-profile-policy",
-            Self::UnsupportedResourceMatcher => "unsupported-resource-matcher",
-            Self::UnsupportedBudgetAlgebra => "unsupported-budget-algebra",
-            Self::UnsupportedCriticalExtension => "unsupported-critical-extension",
-            Self::UnsupportedAssuranceClaim => "unsupported-assurance-claim",
-            Self::MissingPrincipalEvidence => "missing-principal-evidence",
-            Self::MissingPrincipalStatus => "missing-principal-status",
-            Self::MissingGrantStatus => "missing-grant-status",
-            Self::StaleStatus => "stale-status",
-            Self::HistoricalStateUnavailable => "historical-state-unavailable",
-            Self::AssuranceRequirementNotMet => "assurance-requirement-not-met",
-            Self::ExternalFactUnavailable => "external-fact-unavailable",
-            Self::ObservationMissing => "observation-missing",
-            Self::ObservationActionFactUnavailable => "observation-action-fact-unavailable",
-            Self::ApprovalUnavailable => "approval-unavailable",
-        }
+    ordered_result_codes! {
+        ApprovalUnavailable => ("approval-unavailable", 0),
+        AssuranceRequirementNotMet => ("assurance-requirement-not-met", 1),
+        ExternalFactUnavailable => ("external-fact-unavailable", 2),
+        HistoricalStateUnavailable => ("historical-state-unavailable", 3),
+        MissingGrantStatus => ("missing-grant-status", 4),
+        MissingPrincipalEvidence => ("missing-principal-evidence", 5),
+        MissingPrincipalStatus => ("missing-principal-status", 6),
+        ObservationActionFactUnavailable => ("observation-action-fact-unavailable", 7),
+        ObservationMissing => ("observation-missing", 8),
+        StaleStatus => ("stale-status", 9),
+        UnsupportedAssuranceClaim => ("unsupported-assurance-claim", 10),
+        UnsupportedBudgetAlgebra => ("unsupported-budget-algebra", 11),
+        UnsupportedCriticalExtension => ("unsupported-critical-extension", 12),
+        UnsupportedEvidenceType => ("unsupported-evidence-type", 13),
+        UnsupportedPrincipalMethod => ("unsupported-principal-method", 14),
+        UnsupportedProfile => ("unsupported-profile", 15),
+        UnsupportedProfilePolicy => ("unsupported-profile-policy", 16),
+        UnsupportedProtocol => ("unsupported-protocol", 17),
+        UnsupportedResourceMatcher => ("unsupported-resource-matcher", 18),
+        UnsupportedSignatureSuite => ("unsupported-signature-suite", 19),
+        UnsupportedStatusMethod => ("unsupported-status-method", 20),
     }
 
     /// Parses one exact stable V1 indeterminate requirement code.
@@ -5276,6 +5346,22 @@ mod kani_harnesses {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn code_selection_matches_every_published_diagnostic_pair() {
+        for &left in DenialReason::CODE_CATALOG {
+            assert_eq!(DenialReason::from_code(left.code()), Some(left));
+            for &right in DenialReason::CODE_CATALOG {
+                assert_eq!(left.code_precedes(right), left.code() < right.code());
+            }
+        }
+        for &left in Requirement::CODE_CATALOG {
+            assert_eq!(Requirement::from_code(left.code()), Some(left));
+            for &right in Requirement::CODE_CATALOG {
+                assert_eq!(left.code_precedes(right), left.code() < right.code());
+            }
+        }
+    }
     use super::*;
 
     const IDENTITY_IDENTIFIER_VECTOR_V1: &str = r#"{"schema":"auths-identity-identifier-conformance/v1","maximum_utf8_bytes":128,"valid":["a","raw-key-v2","p256-sha256-v1","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],"invalid":["","contains space","contains\ttab","contains\nnewline","contains\u00a0space","contains\u0007control","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}"#;
@@ -5416,6 +5502,81 @@ mod tests {
         assert!(set.attenuates(&any));
         assert!(exact.attenuates(&set));
         assert!(!set.attenuates(&exact));
+    }
+
+    #[test]
+    fn plan_constructors_enforce_branching_bound_and_error_precedence() {
+        let members = |count| {
+            (0..count)
+                .map(|index| {
+                    let mut bytes = [0; 32];
+                    bytes[..8].copy_from_slice(&u64::try_from(index).unwrap().to_be_bytes());
+                    AuthorizationPlan::proof(ProofRef::new(bytes))
+                })
+                .collect::<Vec<_>>()
+        };
+        let count = HARD_MAX_PLAN_BRANCHING;
+        let required = u16::try_from(count).unwrap();
+        for plan in [
+            AuthorizationPlan::all_of(members(count)),
+            AuthorizationPlan::any_of(members(count)),
+            AuthorizationPlan::k_of_n(required, members(count)),
+        ] {
+            let shape = plan.unwrap().validate(&VerifierLimits::hard()).unwrap();
+            assert_eq!(shape.leaves.len(), count);
+            assert_eq!(shape.maximum_depth, 2);
+        }
+        for count in [count + 1, count * 8] {
+            assert_eq!(
+                AuthorizationPlan::all_of(members(count)),
+                Err(ModelError::PlanLimitExceeded)
+            );
+            assert_eq!(
+                AuthorizationPlan::any_of(members(count)),
+                Err(ModelError::PlanLimitExceeded)
+            );
+            assert_eq!(
+                AuthorizationPlan::k_of_n(1, members(count)),
+                Err(ModelError::PlanLimitExceeded)
+            );
+            assert_eq!(
+                AuthorizationPlan::k_of_n(0, members(count)),
+                Err(ModelError::InvalidPlan)
+            );
+        }
+        assert_eq!(
+            AuthorizationPlan::all_of(Vec::new()),
+            Err(ModelError::InvalidPlan)
+        );
+        assert_eq!(
+            AuthorizationPlan::any_of(Vec::new()),
+            Err(ModelError::InvalidPlan)
+        );
+        assert_eq!(
+            AuthorizationPlan::k_of_n(1, Vec::new()),
+            Err(ModelError::InvalidPlan)
+        );
+        assert_eq!(
+            AuthorizationPlan::k_of_n(2, members(1)),
+            Err(ModelError::InvalidPlan)
+        );
+    }
+
+    #[test]
+    fn plan_shape_preserves_sorted_leaf_values_and_depth() {
+        let reference = |tag| ProofRef::new([tag; 32]);
+        let plan = AuthorizationPlan::all_of(vec![
+            AuthorizationPlan::proof(reference(3)),
+            AuthorizationPlan::any_of(vec![
+                AuthorizationPlan::proof(reference(2)),
+                AuthorizationPlan::proof(reference(1)),
+            ])
+            .unwrap(),
+        ])
+        .unwrap();
+        let shape = plan.validate(&VerifierLimits::hard()).unwrap();
+        assert_eq!(shape.leaves(), [reference(1), reference(2), reference(3)]);
+        assert_eq!(shape.maximum_depth(), 3);
     }
 
     #[test]
@@ -6143,3 +6304,11 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "scope_constructor_tests.rs"]
+mod scope_constructor_tests;
+
+#[cfg(test)]
+#[path = "principal_scheme_tests.rs"]
+mod principal_scheme_tests;

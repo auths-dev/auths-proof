@@ -6,7 +6,8 @@ services:
     user: root
     entrypoint: ["/bin/bash", "/fixture/generate-certificates.sh"]
     volumes:
-      - .:/fixture
+      - .:/fixture:ro
+      - ../../../../../target/test-support/auths-stores/postgres-tls:/certificates
 
   postgres:
     image: postgres:17.10-bookworm
@@ -22,11 +23,11 @@ services:
       - -c
       - ssl=on
       - -c
-      - ssl_cert_file=/fixture/generated/server.crt
+      - ssl_cert_file=/certificates/server.crt
       - -c
-      - ssl_key_file=/fixture/generated/server.key
+      - ssl_key_file=/certificates/server.key
       - -c
-      - ssl_ca_file=/fixture/generated/ca.crt
+      - ssl_ca_file=/certificates/ca.crt
       - -c
       - synchronous_commit=on
       - -c
@@ -39,7 +40,7 @@ services:
     ports:
       - "55438:5432"
     volumes:
-      - .:/fixture:ro
+      - ../../../../../target/test-support/auths-stores/postgres-tls:/certificates:ro
       - postgres-data:/var/lib/postgresql/data
 
 volumes:

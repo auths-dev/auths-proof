@@ -360,6 +360,7 @@ struct Retirement {
 /// transport prepared for it.
 struct PreparedEntry {
     loaded: LoadedConnection,
+    entry_bound: auths_gateway_kernel::deadline::EntryBound,
     transport: GatewayHttpTransport,
 }
 
@@ -1176,14 +1177,16 @@ impl GatewayEngine {
     /// hold the secret its credential generation names, and prepares the
     /// pinned transport. Nothing is stored.
     async fn prepare_entry(&self) -> Result<PreparedEntry, &'static str> {
-        self.prepare_entry_for(|| self.qualification.check()).await
+        self.prepare_entry_for(|| self.qualification.entry_bound())
+            .await
     }
 
     /// Both authority paths perform exactly the same connection and transport
     /// checks; the ordinary path supplies only its qualification check.
     async fn prepare_entry_for(
         &self,
-        check_authority: impl FnOnce() -> Result<(), &'static str>,
+        check_authority: impl FnOnce()
+            -> Result<auths_gateway_kernel::deadline::EntryBound, &'static str>,
     ) -> Result<PreparedEntry, &'static str> {
         let loaded = match self.connection.load().await {
             Ok(Some(loaded)) => loaded,
@@ -1198,7 +1201,7 @@ impl GatewayEngine {
         }
         let descriptor = GatewayConnectionDescriptor::from_record(record, &self.recipe)
             .map_err(|_| "gateway.connection.recipe-mismatch")?;
-        check_authority()?;
+        let entry_bound = check_authority()?;
         if self.holds(record).await.is_err() {
             return Err("gateway.connection.credential-generation-missing");
         }
@@ -1211,6 +1214,7 @@ impl GatewayEngine {
             )
             .map(|transport| PreparedEntry {
                 loaded,
+                entry_bound,
                 transport: transport.with_witness(Arc::clone(&self.execution_witness)),
             })
             .map_err(|_| "gateway.transport.preparation");
@@ -1218,6 +1222,7 @@ impl GatewayEngine {
         GatewayHttpTransport::prepare(&self.recipe, descriptor.credential())
             .map(|transport| PreparedEntry {
                 loaded,
+                entry_bound,
                 transport: transport.with_witness(Arc::clone(&self.execution_witness)),
             })
             .map_err(|_| "gateway.transport.preparation")
@@ -1401,7 +1406,7 @@ impl SubmitIo for EngineIo<'_> {
                     .get()
                     .ok_or("gateway.commissioning.binding-mismatch")?;
                 self.engine
-                    .prepare_entry_for(|| session.check(action))
+                    .prepare_entry_for(|| session.entry_bound(action))
                     .await?
             }
             None => self.engine.prepare_entry().await?,
@@ -1492,9 +1497,35 @@ impl SubmitIo for EngineIo<'_> {
             .map(|prepared| *prepared.loaded.record().account_commitment())
     }
 
-    fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
+    fn within_entry_deadline(
+        &self,
+        evaluated_at: u64,
+        authority: auths_gateway_kernel::deadline::EntryBound,
+    ) -> bool {
+        use auths_gateway_kernel::deadline::{entry_time_allows, intersect_entry_bounds};
+        let Some(prepared) = self.prepared.get() else {
+            return false;
+        };
+        #[cfg(unix)]
+        let current = match self.commissioning {
+            Some(session) => self
+                .commissioned_action
+                .get()
+                .ok_or("gateway.commissioning.binding-mismatch")
+                .and_then(|action| session.entry_bound(action)),
+            None => self.engine.qualification.entry_bound(),
+        };
+        #[cfg(not(unix))]
+        let current = self.engine.qualification.entry_bound();
+        let Ok(current) = current else {
+            return false;
+        };
+        let bound = intersect_entry_bounds(
+            authority,
+            intersect_entry_bounds(prepared.entry_bound, current),
+        );
         self.clock()
-            .is_some_and(|now| now <= evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS))
+            .is_some_and(|now| entry_time_allows(evaluated_at, now, bound))
             && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
     }
 
@@ -1630,6 +1661,9 @@ pub(crate) struct VerifiedCommand {
     /// The longest validity window, `expires_at` minus `not_before`, of any
     /// authorized action envelope.
     pub(crate) validity_seconds: u64,
+    /// Minimum native witness horizon and the fixed verification-to-entry cap.
+    /// Only native verification populates this in production.
+    pub(crate) entry_not_after: auths_gateway_kernel::deadline::EntryBound,
     /// The per-proof observer check's refusal: an observer of a satisfying
     /// observation overlaps a principal of the authority it conditions by
     /// key. Admission applies it last, after the retention rule and pre-entry
@@ -1705,6 +1739,13 @@ pub(crate) fn verify_detailed(
         requirements: branches.requirements,
         canonical_action: action.canonical_action().clone(),
         validity_seconds: branches.validity_seconds,
+        entry_not_after: auths_gateway_kernel::deadline::EntryBound {
+            not_after: action
+                .authority_not_after()
+                .get()
+                .min(now.saturating_add(ENTRY_DEADLINE_SECONDS)),
+            inclusive: true,
+        },
         observer_refusal,
     })
 }

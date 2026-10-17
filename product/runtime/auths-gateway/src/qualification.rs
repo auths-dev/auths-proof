@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub const QUALIFICATION_POLICY_REFUSED: &str = "gateway.install.qualification-policy";
 
 /// The schema identifier of the production lifecycle store.
-pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/6";
+pub const POSTGRES_STORE_SCHEMA: &str = "auths.lifecycle.postgresql/7";
 /// The schema identifier of the development file store.
 pub const FILE_STORE_SCHEMA: &str = "auths.gateway-attempt/3";
 
@@ -477,6 +477,7 @@ impl QualificationGate {
         let unavailable = QualificationVerdict {
             state: RecipeQualificationState::Unqualified,
             refusal: Some(QualificationRefusal::Unavailable),
+            valid_through: None,
         };
         let (Some(deployment), Some(held)) = (&self.deployment, self.held()) else {
             return unavailable;
@@ -500,6 +501,29 @@ impl QualificationGate {
             policy: self.policy,
             state: verdict.state,
             code: verdict.refusal.map(qualification_code),
+        }
+    }
+
+    /// Temporal witness from the exact currently accepted qualification.
+    /// Development policy adds no qualification deadline.
+    pub(crate) fn entry_bound(
+        &self,
+    ) -> Result<auths_gateway_kernel::deadline::EntryBound, &'static str> {
+        use auths_gateway_kernel::deadline::EntryBound;
+        if self.policy == QualificationPolicy::Optional {
+            return Ok(EntryBound {
+                not_after: u64::MAX,
+                inclusive: true,
+            });
+        }
+        let verdict = self.verdict();
+        match (verdict.refusal, verdict.valid_through) {
+            (None, Some(not_after)) if verdict.permits_lease() => Ok(EntryBound {
+                not_after,
+                inclusive: true,
+            }),
+            (Some(refusal), _) => Err(qualification_code(refusal)),
+            _ => Err(qualification_code(QualificationRefusal::Unavailable)),
         }
     }
 

@@ -1,6 +1,7 @@
 //! Deterministic encoding of approval requirements, approver anchors, signed
 //! approvals, and reported approval satisfactions.
 
+use crate::cbor::Decoder;
 use crate::{
     CodecError,
     decode::{
@@ -22,7 +23,6 @@ use auths_model::{
     MAX_SIGNED_APPROVAL_BYTES, MediaType, PrincipalId, PrincipalMethodId, ProtocolVersion,
     SignatureDescriptor, SignedApproval, Timestamp, ValidityWindow, VerifierLimits,
 };
-use minicbor::Decoder;
 
 fn timestamp(decoder: &mut V1Decoder<'_>) -> Result<Timestamp, CodecError> {
     Ok(Timestamp::new(
@@ -241,7 +241,7 @@ pub(crate) fn encode_approval_statement_to(
     if let Some(attributes) = statement.attributes() {
         bytes(encoder, attributes.as_bytes())?;
     } else {
-        encoder.null().map_err(encode_error)?;
+        encoder.null();
     }
     encode_key(encoder, 9)?;
     encode_text(encoder, statement.audience().as_str())?;

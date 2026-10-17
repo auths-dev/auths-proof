@@ -1,3 +1,4 @@
+import Auths.Product.Refinement.ByteIdentity
 import Auths.Product.Recovery
 import Auths.Product.RelativeCeiling
 import Auths.Product.RequestConstruction
@@ -186,17 +187,7 @@ open Auths.Product.RequestConstruction in
 open Auths.Product.RequestConstruction in
 @[step] theorem hex_lower_spec (nibble : Std.U8) (small : nibble.val < 16) :
     construct.hex_lower nibble ⦃ result => result.val = hexLower nibble.val ⦄ := by
-  unfold construct.hex_lower hexLower
-  by_cases low : nibble.val < 10
-  · have lowScalar : nibble < 10#u8 := by scalar_tac
-    simp only [lowScalar, if_true, low]
-    step as ⟨result, resultEq⟩
-    omega
-  · have highScalar : ¬ nibble < 10#u8 := by scalar_tac
-    simp only [highScalar, if_false, low]
-    step as ⟨shifted, shiftedEq⟩
-    step as ⟨result, resultEq⟩
-    omega
+  exact ByteIdentity.hex_lower_exact nibble small
 
 
 /-! ## Construction: list lemmas -/
