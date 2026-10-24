@@ -83,7 +83,10 @@ class TaskDescriptor:
             raise ValueError("invalid namespace")
         if not re.fullmatch(r"[0-9a-f]{64}", self.environment_commitment):
             raise ValueError("invalid environment commitment")
-        if not self.employee_principal or not self.agent_principal or self.employee_principal == self.agent_principal:
+        if (not self.employee_principal or not self.agent_principal
+                or self.employee_principal == self.agent_principal
+                or len(self.employee_principal.encode("utf-8")) > 256
+                or len(self.agent_principal.encode("utf-8")) > 256):
             raise ValueError("employee and agent must be distinct")
         if self.service != "atlas-drive" or self.output != "text":
             raise ValueError("unsupported service or output")
@@ -101,7 +104,8 @@ class TaskDescriptor:
             raise ValueError("invalid call limit")
         if type(self.max_total_bytes) is not int or not 1 <= self.max_total_bytes <= MAX_TASK_BYTES:
             raise ValueError("invalid task byte limit")
-        if any(type(x) is not int for x in (self.not_before, self.expires_at)) or not 0 < self.expires_at - self.not_before <= MAX_DURATION:
+        if (any(type(x) is not int for x in (self.not_before, self.expires_at))
+                or self.not_before < 1 or not 0 < self.expires_at - self.not_before <= MAX_DURATION):
             raise ValueError("invalid task validity")
         if not self.purpose or len(self.purpose.encode("utf-8")) > 256:
             raise ValueError("invalid purpose")

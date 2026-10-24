@@ -34,12 +34,16 @@ def execute_read(
         challenge=challenge, evaluation_time=evaluation_time, task=task,
     )
     reservation = store.claim(task, verified, challenge, now=evaluation_time)
-    if not store.current(reservation):
-        raise AdmissionDenied("task changed before provider dispatch")
-    # Provider content remains in this process. A failed or ambiguous fetch
-    # retains its conservative reservation and never yields a saved body.
-    content = provider.read_exact(verified.command)
-    if not isinstance(content, bytes):
-        raise TypeError("provider returned non-byte content")
-    released = store.release(reservation, content)
-    return ReadOutcome(released, verified.native_code, True)
+    try:
+        if not store.current(reservation):
+            raise AdmissionDenied("task changed before provider dispatch")
+        # Provider content remains in this process. A failed or ambiguous fetch
+        # retains its conservative call, attempt and byte charges.
+        content = provider.read_exact(verified.command)
+        if not isinstance(content, bytes):
+            raise TypeError("provider returned non-byte content")
+        released = store.release(reservation, content)
+        return ReadOutcome(released, verified.native_code, True)
+    except BaseException:
+        store.fail(reservation)
+        raise

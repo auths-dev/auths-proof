@@ -651,7 +651,10 @@ fn review_mcp_call<'py>(
 /// Returns the exact native MCP body digest for a reviewed call. This is the
 /// value carried by `AllowedBodyDigests` in a child grant.
 #[pyfunction]
-fn mcp_body_digest<'py>(py: Python<'py>, call: PyRef<'_, PyMcpCall>) -> PyResult<Bound<'py, PyBytes>> {
+fn mcp_body_digest<'py>(
+    py: Python<'py>,
+    call: PyRef<'_, PyMcpCall>,
+) -> PyResult<Bound<'py, PyBytes>> {
     let body = call.inner.canonical_bytes().map_err(value_error)?;
     let digest = auths_codec::body_digest(&body);
     Ok(PyBytes::new(py, digest.as_bytes()))

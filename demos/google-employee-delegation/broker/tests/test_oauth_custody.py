@@ -43,6 +43,17 @@ class OAuthCustodyTests(unittest.TestCase):
         result = OAuthResult("connect", "https://accounts.google.com", "google-subject-a",
                              "employee@example.invalid", CONNECT_SCOPES, "synthetic-access-token",
                              None, 3600)
+        with vault._connect() as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
+                VALUES(?,?,?,?,?,?,?,?)""", (
+                    "binding-1", "atlas-studio", "person-a", result.issuer, result.subject,
+                    "employee-principal", b"synthetic-identity", "a" * 64,
+                ))
+        wrong = OAuthResult(**{**result.__dict__, "subject": "google-subject-b"})
+        with self.assertRaises(AdmissionDenied):
+            vault.link(company="atlas-studio", employee_principal="employee-principal",
+                       binding_ref="binding-1", identity=wrong, now=self.now)
         connection_id = vault.link(company="atlas-studio", employee_principal="employee-principal",
                                    binding_ref="binding-1", identity=result, now=self.now)
         descriptor = task(self.now)

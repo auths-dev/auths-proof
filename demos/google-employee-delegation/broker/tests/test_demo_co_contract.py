@@ -8,14 +8,25 @@ from pathlib import Path
 
 from employee_read_demo.demo_co_contract import (
     ContractPending, ContractRejected, OperatorPins, import_company,
-    validate_artifacts,
+    validate_artifacts, validate_scenario_result,
 )
 
 
 EXAMPLES = Path(__file__).parents[2] / "contracts" / "examples"
+SCHEMAS = Path(__file__).parents[1] / "src" / "employee_read_demo" / "schemas"
 
 
 class DemoCoContractTests(unittest.TestCase):
+    def test_copied_contract_schemas_match_lock(self) -> None:
+        lock = json.loads((Path(__file__).parents[2] / "versions.lock.json").read_text())
+        for name, filename in (
+            ("connections", "connections-v1.schema.json"),
+            ("access_expectations", "access-expectations-v1.schema.json"),
+            ("scenario_result", "scenario-result-v1.schema.json"),
+        ):
+            expected = lock["demo_co_contracts"][name]["schema_sha256"]
+            self.assertEqual(hashlib.sha256((SCHEMAS / filename).read_bytes()).hexdigest(), expected)
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -51,8 +62,18 @@ class DemoCoContractTests(unittest.TestCase):
         data = json.loads(self.access.read_bytes())
         data["cases"][0]["expected"] = "deny"
         self.access.write_text(json.dumps(data))
+        bundle = json.loads(self.connections.read_bytes())
+        bundle["access_expectations"]["sha256"] = hashlib.sha256(self.access.read_bytes()).hexdigest()
+        self.connections.write_text(json.dumps(bundle))
+        pins = OperatorPins(**{**self.pins.__dict__,
+                               "bundle_sha256": hashlib.sha256(self.connections.read_bytes()).hexdigest()})
         with self.assertRaises(ContractRejected):
-            validate_artifacts(self.connections, self.access, self.pins)
+            validate_artifacts(self.connections, self.access, pins)
+
+    def test_local_scenario_cannot_be_called_live(self) -> None:
+        scenario = EXAMPLES / "scenario-result-local-not-ready.json"
+        observed = validate_scenario_result(scenario, self.pins)
+        self.assertEqual(observed["status"], "not_configured")
 
 
 if __name__ == "__main__":

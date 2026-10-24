@@ -7,9 +7,9 @@ Implementation work for [AP-SPEC-070](../../docs/specs/0070-google-employee-agen
 This checkout contains the task/read contracts, native exact MCP verification
 bridge, native child-grant planning, durable SQLite admission and release gate,
 and a strict `demo_co` artifact importer. OAuth state/validation, encrypted
-token custody and a closed Drive GET adapter are present as broker components.
-It is **not a runnable Google demo**. There is no employee enrollment service,
-HTTP workbench, agent process, receipt signer or packaged install yet. The
+token custody, key-possession employee enrollment and a closed Drive GET
+adapter are present as broker components. It is **not a runnable Google demo**.
+There is no HTTP workbench, agent process, receipt signer or packaged install yet. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
 schema and operator commitments; a local fixture still produces

@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from .admission import AdmissionDenied, AdmissionStore
 from .contracts import TaskDescriptor
+from .enrollment import EnrollmentStore
 from .google_oauth import CONNECT_SCOPES, OAuthResult
 
 
@@ -27,7 +28,7 @@ class TokenVault:
         self.path = path
         self.fernet = Fernet(encryption_key)
         self.client_id = client_id
-        AdmissionStore(path)
+        EnrollmentStore(path)
         with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS credentials (
                 connection TEXT PRIMARY KEY, ciphertext BLOB NOT NULL,
@@ -56,6 +57,11 @@ class TokenVault:
         }, separators=(",", ":")).encode("utf-8"))
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            binding = db.execute("""SELECT status FROM employee_bindings
+                WHERE binding_ref=? AND company=? AND principal=? AND issuer=? AND subject=?""",
+                (binding_ref, company, employee_principal, identity.issuer, identity.subject)).fetchone()
+            if binding != ("active",):
+                raise AdmissionDenied("Google subject is not bound to employee principal")
             db.execute("INSERT INTO connections(id,company,employee,binding_ref,generation) VALUES(?,?,?,?,1)",
                        (connection_id, company, employee_principal, binding_ref))
             db.execute("""INSERT INTO credentials

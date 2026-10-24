@@ -128,9 +128,12 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > **Implementation handoff note (24 October 2026):** `demo_co` is being built in
 > its own active session. It has now published versioned connection,
 > access-expectation and scenario-result schemas plus local-mode examples; the
-> Auths demo pins their schema digests and validates the first two artifacts.
+> Auths demo pins their schema digests and validates all three artifact types.
 > The current exports explicitly report Google as `not_configured` and contain
-> no live Google baseline, so the importer refuses activation. Extend this
+> no live Google baseline, so the importer refuses activation. The current
+> consumer shim accepts operator-pinned JSON exports and independent scenario
+> files, then records a closed company import; it does not call `demo_co` at
+> runtime or synthesize missing provider IDs. Extend this
 > boundary only when the producer supplies live mappings and independent
 > provider probes. Do not infer a
 > Google Drive ID, identity binding, ACL result or passing live status from
@@ -412,7 +415,7 @@ Measure hands-on setup time, elapsed provider/admin wait, steps requiring a tena
 5. **Useful UX:** connect the actual agent, frontend, CLI, source citations and evidence pages; exercise the full live matrix against the independent company oracle.
 6. **Adoption handoff:** publish the pinned kit and run the fresh-operator exercise, final repository/hosted checks and redacted exact-revision report.
 
-These are implementation steps for this demo, not a request to resume the separately paused AP-SPEC-069 Lean program or to merge the current draft branch. The spec-writing task changes documentation only.
+These are implementation steps for this demo, not a request to resume the separately paused AP-SPEC-069 Lean program or to merge the current draft branch. The current implementation branch contains a broker foundation; acceptance in §14 still requires the live company and complete installed application journey.
 
 ## 16. Later work
 

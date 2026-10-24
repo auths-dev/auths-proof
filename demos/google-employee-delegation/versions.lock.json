@@ -5,7 +5,7 @@
   "demo_co_contracts": {
     "connections": {
       "version": "demo-co/connections/v1",
-      "schema_sha256": "b29a4a2c4e799afb20da3391c3892b8c1944aae2e61cbadca7033c7c26a1"
+      "schema_sha256": "b29a4a2c4e799afb20da3391c3892b8c1944aae2e61cbadca7033c7c3f7c26a1"
     },
     "access_expectations": {
       "version": "demo-co/access-expectations/v1",

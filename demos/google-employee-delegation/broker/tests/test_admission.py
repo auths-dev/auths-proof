@@ -62,6 +62,22 @@ class AdmissionTests(unittest.TestCase):
             results = list(pool.map(claim, challenges))
         self.assertEqual(sum(results), 2)
 
+    def test_two_in_flight_calls_block_third_until_one_closes(self) -> None:
+        wide = TaskDescriptor(**{**self.task.__dict__, "task_id": "task-2",
+                                 "max_calls": 4, "max_total_bytes": 4096})
+        self.store.enroll(wide)
+        command = VerifiedRead(wide.calls()[0], b"x" * 32, "authorized")
+        digest = native_body_digest(command.command)
+        challenges = [self.store.issue_challenge(wide, digest, now=self.now) for _ in range(3)]
+        first = self.store.claim(wide, command, challenges[0], now=self.now)
+        second = self.store.claim(wide, command, challenges[1], now=self.now)
+        with self.assertRaises(AdmissionDenied):
+            AdmissionStore(self.path).claim(wide, command, challenges[2], now=self.now)
+        self.store.fail(first)
+        third = AdmissionStore(self.path).claim(wide, command, challenges[2], now=self.now)
+        self.assertEqual(self.store.release(second, b"ok", now=self.now), b"ok")
+        self.store.fail(third)
+
     def test_outside_task_body_cannot_get_challenge(self) -> None:
         with self.assertRaises(AdmissionDenied):
             self.store.issue_challenge(self.task, b"0" * 32, now=self.now)

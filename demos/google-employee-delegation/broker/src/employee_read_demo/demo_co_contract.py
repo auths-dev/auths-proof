@@ -10,10 +10,11 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 MAX_ARTIFACT_BYTES = 1_048_576
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 
 class ContractRejected(ValueError):
@@ -34,13 +35,17 @@ class OperatorPins:
     expectation_hash: str
     google_customer_id: str
     google_primary_domain: str
+    scenario_sha256: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if not all(HEX64.fullmatch(x) for x in (self.definition_hash, self.bundle_sha256, self.expectation_hash)):
             raise ContractRejected("invalid operator hash pin")
-        if not all((self.company_id, self.instance_id, self.dataset_version,
-                    self.google_customer_id, self.google_primary_domain)):
+        if (not all(NAME.fullmatch(x) for x in (self.company_id, self.instance_id, self.dataset_version))
+                or not self.google_customer_id or len(self.google_customer_id) > 128
+                or not self.google_primary_domain or len(self.google_primary_domain) > 253):
             raise ContractRejected("missing operator identity pin")
+        if len(self.scenario_sha256) > 4096 or any(not HEX64.fullmatch(x) for x in self.scenario_sha256):
+            raise ContractRejected("invalid scenario digest pin")
 
 
 @dataclass(frozen=True)
@@ -57,6 +62,7 @@ class CompanyImport:
     expectations: dict[str, Any]
     bundle_sha256: str
     google_ready: bool
+    adoptable: bool = False
 
     @property
     def status(self) -> ImportStatus:
@@ -89,7 +95,7 @@ def _load(path: Path, schema_name: str) -> tuple[dict[str, Any], bytes]:
     if type(document) is not dict:
         raise ContractRejected("artifact must be an object")
     schema = json.loads(files("employee_read_demo").joinpath("schemas", schema_name).read_text(encoding="utf-8"))
-    if list(Draft202012Validator(schema).iter_errors(document)):
+    if list(Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(document)):
         raise ContractRejected("artifact violates pinned schema")
     return document, raw
 
@@ -165,6 +171,8 @@ def validate_artifacts(connections: Path, access_expectations: Path, pins: Opera
             raise ContractRejected("ready Google export lacks Drive IDs")
         if len({r["provider_resource_id"] for r in resources}) != len(resources):
             raise ContractRejected("duplicate Drive provider ID")
+        if len({p["provider_subject"] for p in people}) != len(people):
+            raise ContractRejected("duplicate Google subject binding")
         outcomes = {case["expected"] for case in access["cases"] if case["status"] == "pass"
                     and case.get("observed") == case["expected"] and case.get("evidence_ref")}
         if outcomes != {"allow", "deny"}:
@@ -173,18 +181,60 @@ def validate_artifacts(connections: Path, access_expectations: Path, pins: Opera
 
 
 def inspect_exports(connections: Path | None, access_expectations: Path | None,
-                    pins: OperatorPins | None = None) -> ImportStatus:
+                    pins: OperatorPins | None = None,
+                    scenario_results: tuple[Path, ...] = ()) -> ImportStatus:
     if connections is None or access_expectations is None or pins is None:
         return ImportStatus("not_configured", "not_configured", "not_configured",
                             "demo_co exports and operator pins have not been supplied")
     try:
-        return validate_artifacts(connections, access_expectations, pins).status
+        accepted = validate_artifacts(connections, access_expectations, pins)
+        if not accepted.google_ready:
+            return accepted.status
+        return import_company(connections, access_expectations, pins,
+                              scenario_results=scenario_results).status
+    except ContractPending as error:
+        return ImportStatus("not_configured", "validated", "validated", str(error))
     except ContractRejected as error:
         return ImportStatus("not_configured", "rejected", "rejected", str(error))
 
 
-def import_company(connections: Path, access_expectations: Path, pins: OperatorPins) -> CompanyImport:
+def import_company(connections: Path, access_expectations: Path, pins: OperatorPins,
+                   *, scenario_results: tuple[Path, ...] = ()) -> CompanyImport:
     accepted = validate_artifacts(connections, access_expectations, pins)
     if not accepted.google_ready:
         raise ContractPending(accepted.status.reason)
-    return accepted
+    if not scenario_results or len(scenario_results) != len(pins.scenario_sha256):
+        raise ContractPending("pinned independent Google scenario results are missing")
+    observed: set[tuple[str, str, str]] = set()
+    for path, digest in zip(scenario_results, pins.scenario_sha256):
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_ARTIFACT_BYTES:
+            raise ContractRejected("scenario result is missing, linked or oversized")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise ContractRejected("scenario result digest disagrees with operator pin")
+        result = validate_scenario_result(path, pins)
+        if result["status"] == "pass":
+            observed.add((result["person_id"], result["resource_id"], result["expected"]))
+    required = {(case["logical_person_id"], case["logical_resource_id"], case["expected"])
+                for case in accepted.expectations["cases"] if case["status"] == "pass"}
+    if not required or not required <= observed:
+        raise ContractRejected("passing access cases lack pinned independent scenarios")
+    return CompanyImport(accepted.bundle, accepted.expectations, accepted.bundle_sha256, True, True)
+
+
+def validate_scenario_result(path: Path, pins: OperatorPins) -> dict[str, Any]:
+    """Validate an independent producer observation without granting authority."""
+    pins.validate()
+    result, _ = _load(path, "scenario-result-v1.schema.json")
+    if result.get("schema_version") != "demo-co/scenario-result/v1":
+        raise ContractRejected("unsupported scenario result version")
+    if (result["company_id"], result["instance_id"], result["dataset_version"]) != (
+        pins.company_id, pins.instance_id, pins.dataset_version,
+    ) or result["provider"] != "google_drive":
+        raise ContractRejected("scenario result namespace mismatch")
+    if result["status"] == "pass" and (
+        result["mode"] != "google" or result.get("expected") not in {"allow", "deny"}
+        or result.get("observed") != result["expected"] or not result.get("evidence_refs")
+        or not result.get("person_id") or not result.get("resource_id")
+    ):
+        raise ContractRejected("passing Google scenario lacks matching live evidence")
+    return result

@@ -56,6 +56,7 @@ class AdmissionStore:
                   expires INTEGER NOT NULL, max_calls INTEGER NOT NULL,
                   max_bytes INTEGER NOT NULL, calls INTEGER NOT NULL DEFAULT 0,
                   charged_bytes INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0,
+                  in_flight INTEGER NOT NULL DEFAULT 0,
                   challenges_issued INTEGER NOT NULL DEFAULT 0,
                   revision INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'active'
                 );
@@ -125,7 +126,7 @@ class AdmissionStore:
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("""SELECT digest,company,employee,agent,connection,generation,
-                not_before,expires,max_calls,max_bytes,calls,charged_bytes,attempts,revision,status
+                not_before,expires,max_calls,max_bytes,calls,charged_bytes,attempts,revision,status,in_flight
                 FROM tasks WHERE id=?""", (task.task_id,)).fetchone()
             if row is None or row[:6] != (
                 task.digest, task.company_id, task.employee_principal,
@@ -144,10 +145,11 @@ class AdmissionStore:
                 raise AdmissionDenied("challenge expired")
             # The closed provider adapter performs at most one metadata GET
             # and one content GET. Reserve both before the first dispatch.
-            if row[10] >= row[8] or row[12] + 2 > MAX_ATTEMPTS or row[11] + verified.command.max_bytes > row[9]:
+            if (row[10] >= row[8] or row[12] + 2 > MAX_ATTEMPTS
+                    or row[11] + verified.command.max_bytes > row[9] or row[15] >= 2):
                 raise AdmissionDenied("task limit exhausted")
             db.execute("UPDATE challenges SET status='claimed' WHERE value=?", (challenge,))
-            db.execute("UPDATE tasks SET calls=calls+1,attempts=attempts+2,charged_bytes=charged_bytes+? WHERE id=?",
+            db.execute("UPDATE tasks SET calls=calls+1,attempts=attempts+2,charged_bytes=charged_bytes+?,in_flight=in_flight+1 WHERE id=?",
                        (verified.command.max_bytes, task.task_id))
             db.commit()
             return Reservation(challenge, task.task_id, row[13], row[5], verified.command.max_bytes)
@@ -172,8 +174,19 @@ class AdmissionStore:
             if now >= row[2] or state != ("claimed",):
                 raise AdmissionDenied("release is unavailable")
             db.execute("UPDATE challenges SET status='released' WHERE value=?", (reservation.challenge,))
+            db.execute("UPDATE tasks SET in_flight=in_flight-1 WHERE id=? AND in_flight>0", (reservation.task_id,))
             db.commit()
         return content
+
+    def fail(self, reservation: Reservation) -> None:
+        """Close a failed admitted call; its call, attempt and byte charges remain."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            changed = db.execute("UPDATE challenges SET status='failed' WHERE value=? AND task_id=? AND status='claimed'",
+                                 (reservation.challenge, reservation.task_id)).rowcount
+            if changed:
+                db.execute("UPDATE tasks SET in_flight=in_flight-1 WHERE id=? AND in_flight>0", (reservation.task_id,))
+            db.commit()
 
     def current(self, reservation: Reservation, *, now: int | None = None) -> bool:
         now = int(time.time()) if now is None else now
