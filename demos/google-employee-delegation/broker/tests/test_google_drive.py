@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import socket
+import threading
 import time
 import unittest
 from unittest.mock import patch
 
 from employee_read_demo.google_drive import (
     GoogleDenied, GoogleDriveReader, GoogleUnavailable, ProviderTrace, _get,
+    _resolve_google,
 )
 from employee_read_demo.token_store import TokenLease
 from test_admission import task
@@ -115,6 +118,80 @@ class GoogleDriveTests(unittest.TestCase):
                 _get("/fixed", "synthetic-token", 5, trace, "metadata")
         self.assertEqual(trace.requests_started, 1)
         self.assertEqual(trace.response_bytes, 6)
+
+    def test_provider_get_deadline_stops_a_trickling_response(self) -> None:
+        class Response:
+            status = 200
+
+            def getheader(self, name, default=None):
+                return {"Content-Encoding": "identity", "Content-Type": "text/plain"}.get(name, default)
+
+            def read(self, amount):
+                time.sleep(0.03)
+                return b"a"
+
+        class Connection:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def request(self, method, path, headers):
+                pass
+
+            def getresponse(self):
+                return Response()
+
+            def close(self):
+                pass
+
+        trace = ProviderTrace()
+        with patch("employee_read_demo.google_drive.REQUEST_DEADLINE_SECONDS", 0.01), \
+                patch("employee_read_demo.google_drive._PinnedGoogleConnection", Connection):
+            with self.assertRaises(GoogleUnavailable):
+                _get("/fixed", "synthetic-token", 1024, trace, "content")
+        self.assertEqual(trace.response_bytes, 1)
+
+    def test_google_dns_wait_is_bounded(self) -> None:
+        def stalled_resolution(*args, **kwargs):
+            time.sleep(0.2)
+            return []
+
+        started = time.monotonic()
+        with patch("employee_read_demo.google_drive.socket.getaddrinfo", stalled_resolution):
+            with self.assertRaises(TimeoutError):
+                _resolve_google(time.monotonic() + 0.01)
+        self.assertLess(time.monotonic() - started, 0.15)
+
+    def test_deadline_interrupts_a_trickling_header_parser(self) -> None:
+        stopped = threading.Event()
+
+        class Socket:
+            def settimeout(self, value):
+                pass
+
+            def shutdown(self, how):
+                stopped.set()
+
+        class Connection:
+            def __init__(self, *args, **kwargs):
+                self.sock = Socket()
+
+            def request(self, method, path, headers):
+                pass
+
+            def getresponse(self):
+                stopped.wait(0.3)
+                raise socket.timeout("header read stopped")
+
+            def close(self):
+                pass
+
+        started = time.monotonic()
+        with patch("employee_read_demo.google_drive.REQUEST_DEADLINE_SECONDS", 0.01), \
+                patch("employee_read_demo.google_drive._PinnedGoogleConnection", Connection):
+            with self.assertRaises(GoogleUnavailable):
+                _get("/fixed", "synthetic-token", 1024, ProviderTrace(), "metadata")
+        self.assertTrue(stopped.is_set())
+        self.assertLess(time.monotonic() - started, 0.15)
 
 
 if __name__ == "__main__":

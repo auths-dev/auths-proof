@@ -19,6 +19,10 @@ row before dispatch, updated as bytes arrive. Those observed counts are
 distinct from the durable worst-case reservation; a crash can leave a
 `started` attempt with an unknown outcome. Recovery of abandoned in-flight
 slots is still pending.
+Each Drive GET now has a 15-second total deadline, capped by task expiry.
+DNS waits use bounded daemon resolver slots; connect, TLS, headers and every
+body read use only the time remaining on that deadline. A timed-out read is
+refused and retains its conservative admission charges.
 Successful release commitment and the signed read receipt share one SQLite
 transaction. A failed receipt insert rolls back the release; actual HTTP
 delivery remains a separate unknown stage.

@@ -306,6 +306,8 @@ Before dispatch, atomically claim the challenge and reserve call/byte capacity. 
 > `started` after a crash remains an unknown outcome. Recovery of abandoned
 > in-flight slots and end-to-end crash evidence remain to be added before the
 > full claim is made.
+> Each fixed Drive GET is now bounded by a 15-second total deadline, capped
+> by task expiry, including a bounded DNS wait and remaining-time socket I/O.
 
 > The successful release state and signed read receipt are now inserted in
 > one SQLite transaction. A failed receipt write rolls back release commitment;
