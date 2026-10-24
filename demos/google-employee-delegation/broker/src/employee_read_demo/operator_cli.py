@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .enrollment import EmployeeBinding
 from .operator_authority import EmployeeAuthorityStore, OperatorRoot
+from .token_store import TokenVault
 
 
 def _private_write(path: Path, content: bytes) -> None:
@@ -119,6 +120,22 @@ def issue_employee(seed_file: Path, trust_file: Path, state_db: Path,
             "root_principal": root.principal, "expires_at": grant.expires_at}
 
 
+def offboard_employee(state_db: Path, binding_ref: str, company: str,
+                      oauth_config: Path, fernet_key: Path) -> dict:
+    """Close broker authority and sessions without a provider-network request."""
+    if not company or not 1 <= len(binding_ref) <= 256:
+        raise ValueError("company and employee binding reference are required")
+    from .google_oauth import GoogleOAuthConfig
+
+    config = GoogleOAuthConfig(**json.loads(_private_read(oauth_config, 4096)))
+    config.validate()
+    vault = TokenVault(state_db, encryption_key=_private_read(fernet_key, 128).strip(),
+                       client_id=config.client_id)
+    vault.offboard(binding_ref, company=company)
+    return {"company_id": company, "employee_binding_ref": binding_ref,
+            "status": "offboarded"}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Manage AP-SPEC-070 company root custody")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -132,6 +149,12 @@ def main() -> int:
     issue.add_argument("--trust-file", type=Path, required=True)
     issue.add_argument("--state-db", type=Path, required=True)
     issue.add_argument("--binding-ref", required=True)
+    offboard = commands.add_parser("offboard-employee")
+    offboard.add_argument("--state-db", type=Path, required=True)
+    offboard.add_argument("--binding-ref", required=True)
+    offboard.add_argument("--company", required=True)
+    offboard.add_argument("--oauth-config", type=Path, required=True)
+    offboard.add_argument("--fernet-key", type=Path, required=True)
     receipt = commands.add_parser("init-receipt-key")
     receipt.add_argument("--key-file", type=Path, required=True)
     args = parser.parse_args()
@@ -141,6 +164,9 @@ def main() -> int:
     elif args.command == "issue-employee":
         result = issue_employee(args.seed_file, args.trust_file,
                                 args.state_db, args.binding_ref)
+    elif args.command == "offboard-employee":
+        result = offboard_employee(args.state_db, args.binding_ref, args.company,
+                                   args.oauth_config, args.fernet_key)
     else:
         seed = secrets.token_bytes(32)
         _private_write(args.key_file, seed)

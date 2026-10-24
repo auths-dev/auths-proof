@@ -296,6 +296,7 @@ class Handler(BaseHTTPRequestHandler):
                 if result.kind == "login":
                     rotated = self.workbench.sessions.login(
                         session, issuer=result.issuer, subject=result.subject,
+                        company=self.workbench.company.bundle["company_id"],
                     )
                     self._redirect("/", cookie=rotated.cookie)
                     return

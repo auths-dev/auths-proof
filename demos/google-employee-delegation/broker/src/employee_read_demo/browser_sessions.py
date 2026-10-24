@@ -77,7 +77,7 @@ class BrowserSessionStore:
             raise SessionDenied("CSRF token is unavailable")
 
     def login(self, session: BrowserSession, *, issuer: str, subject: str,
-              now: int | None = None) -> BrowserSession:
+              company: str | None = None, now: int | None = None) -> BrowserSession:
         """Rotate the cookie and CSRF token when Google login succeeds."""
         now = int(time.time()) if now is None else now
         if not issuer or not subject:
@@ -87,6 +87,13 @@ class BrowserSessionStore:
         expires_at = now + 3600
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            if company is not None:
+                binding = db.execute("""SELECT status FROM employee_bindings
+                    WHERE company=? AND issuer=? AND subject=?""", (
+                        company, issuer, subject,
+                    )).fetchone()
+                if binding == ("disabled",):
+                    raise SessionDenied("employee is offboarded")
             row = db.execute("SELECT expires_at FROM browser_sessions WHERE token_hash=?",
                              (_digest(session.cookie),)).fetchone()
             if row is None or now >= row[0]:

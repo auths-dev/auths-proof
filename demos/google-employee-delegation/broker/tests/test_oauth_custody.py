@@ -16,6 +16,7 @@ from employee_read_demo.google_oauth import (
     CONNECT_SCOPES, GoogleOAuth, GoogleOAuthConfig, OAuthRejected,
     OAuthResult, OAuthStateStore,
 )
+from employee_read_demo.operator_cli import offboard_employee
 from employee_read_demo.token_store import TokenVault
 from test_admission import task
 
@@ -150,7 +151,8 @@ class OAuthCustodyTests(unittest.TestCase):
         self.assertEqual(vault.lease(descriptor, now=self.now + 3).access_token, "new-access")
 
     def test_offboarding_closes_admission_and_token_custody(self) -> None:
-        vault = TokenVault(self.path, encryption_key=Fernet.generate_key(), client_id="client-id")
+        key = Fernet.generate_key()
+        vault = TokenVault(self.path, encryption_key=key, client_id="client-id")
         result = OAuthResult("connect", "https://accounts.google.com", "google-subject-a",
                              None, CONNECT_SCOPES, "access", None, 3600)
         with vault._connect() as db:
@@ -162,6 +164,10 @@ class OAuthCustodyTests(unittest.TestCase):
                 ))
         connection_id = vault.link(company="atlas-studio", employee_principal="employee-principal",
                                    binding_ref="binding-1", identity=result, now=self.now)
+        sessions = BrowserSessionStore(self.path)
+        browser = sessions.login(sessions.create(now=self.now),
+                                 issuer=result.issuer, subject=result.subject,
+                                 company="atlas-studio", now=self.now)
         descriptor = type(task(self.now))(**{**task(self.now).__dict__, "connection_id": connection_id})
         store = AdmissionStore(self.path)
         store.enroll(descriptor)
@@ -169,11 +175,30 @@ class OAuthCustodyTests(unittest.TestCase):
         challenge = store.issue_challenge(descriptor, native_body_digest(command), now=self.now)
         reservation = store.claim(descriptor, VerifiedRead(command, b"x" * 32, "authorized"),
                                   challenge, now=self.now)
-        vault.offboard("binding-1")
+        with self.assertRaises(AdmissionDenied):
+            vault.offboard("binding-1", company="different-company")
+        self.assertEqual(sessions.get(browser.cookie, now=self.now).subject, result.subject)
+        config = Path(self.temp.name) / "oauth.json"
+        config.write_text(json.dumps({
+            "client_id": "client-id", "client_secret": "synthetic-secret",
+            "redirect_uri": "http://127.0.0.1:8765/api/v1/google/callback",
+            "hosted_domain": "example.invalid",
+        }))
+        config.chmod(0o600)
+        key_file = Path(self.temp.name) / "fernet.key"
+        key_file.write_bytes(key)
+        key_file.chmod(0o600)
+        self.assertEqual(offboard_employee(self.path, "binding-1", "atlas-studio",
+                                           config, key_file)["status"], "offboarded")
         with self.assertRaises(AdmissionDenied):
             store.release(reservation, b"content", now=self.now)
         with self.assertRaises(AdmissionDenied):
             vault.lease(descriptor, now=self.now)
+        with self.assertRaises(SessionDenied):
+            sessions.get(browser.cookie, now=self.now)
+        with self.assertRaises(SessionDenied):
+            sessions.login(sessions.create(now=self.now), issuer=result.issuer,
+                           subject=result.subject, company="atlas-studio", now=self.now)
 
 
 if __name__ == "__main__":

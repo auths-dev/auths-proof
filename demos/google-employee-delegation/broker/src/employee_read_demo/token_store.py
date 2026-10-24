@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet, InvalidToken
 import requests
 
 from .admission import AdmissionDenied, AdmissionStore
+from .browser_sessions import BrowserSessionStore
 from .contracts import TaskDescriptor
 from .enrollment import EnrollmentStore
 from .enrollment import EmployeeBinding
@@ -235,14 +236,18 @@ class TokenVault:
             raise AdmissionDenied("employee connection is unavailable")
         return row[0]
 
-    def offboard(self, binding_ref: str) -> None:
+    def offboard(self, binding_ref: str, *, company: str | None = None) -> None:
         """Disable an employee and all their task/credential generations atomically."""
+        BrowserSessionStore(self.path)
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            changed = db.execute("""UPDATE employee_bindings SET status='disabled'
-                WHERE binding_ref=? AND status='active'""", (binding_ref,)).rowcount
-            if changed != 1:
+            binding = db.execute("""SELECT company,issuer,subject FROM employee_bindings
+                WHERE binding_ref=? AND status='active'""", (binding_ref,)).fetchone()
+            if binding is None or (company is not None and binding[0] != company):
                 raise AdmissionDenied("employee binding is unavailable")
+            db.execute("UPDATE employee_bindings SET status='disabled' WHERE binding_ref=?",
+                       (binding_ref,))
+            db.execute("DELETE FROM browser_sessions WHERE issuer=? AND subject=?", binding[1:])
             connections = [row[0] for row in db.execute(
                 "SELECT id FROM connections WHERE binding_ref=?", (binding_ref,),
             )]

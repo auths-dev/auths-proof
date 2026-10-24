@@ -103,10 +103,19 @@ auths-google-read-operator init-root --seed-file /private/operator/root.seed \
 auths-google-read-operator issue-employee --seed-file /private/operator/root.seed \
   --trust-file /private/operator/trust.json \
   --state-db /private/broker.sqlite3 --binding-ref BINDING_REF
+auths-google-read-operator offboard-employee --state-db /private/broker.sqlite3 \
+  --company atlas-studio --binding-ref BINDING_REF \
+  --oauth-config /private/operator/oauth.json \
+  --fernet-key /private/operator/fernet.key
 ```
 
 The trust file is an operator pin. Protect both files with `0600` permissions
 inside a `0700` directory. The CLI refuses to overwrite either file.
+Offboarding disables the employee binding, all linked tasks and credentials,
+and signed-in browser sessions in one broker transaction. A later Google login
+for that disabled binding is refused until a deliberate new enrollment policy
+is defined. The command makes no Google network call; provider grant revocation
+is a separate operator action whose propagation must be measured.
 
 `demo_co` owns provider provisioning, fixture ACLs, baseline probes and
 versioned export production. The checked-in schemas and examples under this

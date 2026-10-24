@@ -322,6 +322,12 @@ On crash/restart, never replay stored response content to a caller without curre
 
 Disconnecting Google credentials advances the connection generation, disables linked tasks and removes/invalidates token material. Task revocation need not revoke the employee's entire Google OAuth grant. Employee offboarding disables all their broker tasks and authoring sessions. Provider ACL revocation remains enforced by Google and may propagate on Google's schedule; report it separately from immediate broker-state revocation.
 
+> **Offboarding implementation note (24 October 2026):** The operator CLI now
+> closes the employee binding, linked tasks/credentials and signed-in browser
+> sessions in one broker transaction. A subsequent Google login for that
+> disabled binding is refused. The command does not make a Google revocation
+> request; provider grant revocation remains a separate live operator step.
+
 ## 10. Credential/process isolation and threat model
 
 ```text
