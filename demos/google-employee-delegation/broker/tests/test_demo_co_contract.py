@@ -50,6 +50,25 @@ class DemoCoContractTests(unittest.TestCase):
         with self.assertRaises(ContractPending):
             import_company(self.connections, self.access, self.pins)
 
+    def test_non_google_person_mapping_may_share_logical_person_id(self) -> None:
+        bundle = json.loads(self.connections.read_bytes())
+        bundle["people"].append({
+            "logical_person_id": "person-morgan", "provider": "oidc",
+            "issuer": "http://127.0.0.1:58080/realms/demo",
+            "provider_subject": "separate-oidc-subject",
+            "provider_directory_id": None, "status": "prerequisite_missing",
+        })
+        self.connections.write_text(json.dumps(bundle))
+        pins = OperatorPins(**{**self.pins.__dict__,
+                               "bundle_sha256": hashlib.sha256(self.connections.read_bytes()).hexdigest()})
+        self.assertFalse(validate_artifacts(self.connections, self.access, pins).google_ready)
+        bundle["people"].append(dict(bundle["people"][0]))
+        self.connections.write_text(json.dumps(bundle))
+        pins = OperatorPins(**{**pins.__dict__,
+                               "bundle_sha256": hashlib.sha256(self.connections.read_bytes()).hexdigest()})
+        with self.assertRaises(ContractRejected):
+            validate_artifacts(self.connections, self.access, pins)
+
     def test_unknown_field_is_rejected_even_with_new_digest(self) -> None:
         data = json.loads(self.connections.read_bytes())
         data["trusted_issuer"] = "https://attacker.invalid"

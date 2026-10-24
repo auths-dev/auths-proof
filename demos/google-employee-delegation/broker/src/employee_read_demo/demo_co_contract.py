@@ -100,10 +100,10 @@ def _load(path: Path, schema_name: str) -> tuple[dict[str, Any], bytes]:
     return document, raw
 
 
-def _unique(items: list[dict[str, Any]], key: str) -> None:
-    values = [item[key] for item in items]
+def _unique(items: list[dict[str, Any]], *keys: str) -> None:
+    values = [tuple(item[key] for key in keys) for item in items]
     if len(values) != len(set(values)):
-        raise ContractRejected(f"duplicate {key}")
+        raise ContractRejected(f"duplicate {'/'.join(keys)}")
 
 
 def validate_artifacts(connections: Path, access_expectations: Path, pins: OperatorPins) -> CompanyImport:
@@ -134,8 +134,8 @@ def validate_artifacts(connections: Path, access_expectations: Path, pins: Opera
     if len(access["cases"]) > 4096 or len(bundle["services"]) > 64:
         raise ContractRejected("export collection exceeds broker limits")
     for document in (bundle, access):
-        _unique(document["people"], "logical_person_id")
-        _unique(document["resources"], "logical_resource_id")
+        _unique(document["people"], "provider", "logical_person_id")
+        _unique(document["resources"], "provider", "logical_resource_id")
     pairs = [(case["logical_person_id"], case["logical_resource_id"]) for case in access["cases"]]
     if len(pairs) != len(set(pairs)):
         raise ContractRejected("duplicate access expectation")
@@ -149,10 +149,15 @@ def validate_artifacts(connections: Path, access_expectations: Path, pins: Opera
     ) + "\n").encode("utf-8")).hexdigest()
     if expectation_hash != access["expectation_hash"]:
         raise ContractRejected("independent expectation hash mismatch")
-    if access["people"] != bundle["people"] or access["resources"] != bundle["resources"]:
+    google_people = [person for person in bundle["people"] if person["provider"] == "google"]
+    drive_resources = [resource for resource in bundle["resources"]
+                       if resource["provider"] == "google_drive"]
+    if access["people"] != google_people or access["resources"] != drive_resources:
         raise ContractRejected("mapping disagreement between artifacts")
-    person_ids = {person["logical_person_id"] for person in access["people"]}
-    resource_ids = {resource["logical_resource_id"] for resource in access["resources"]}
+    person_ids = {person["logical_person_id"] for person in access["people"]
+                  if person["provider"] == "google"}
+    resource_ids = {resource["logical_resource_id"] for resource in access["resources"]
+                    if resource["provider"] == "google_drive"}
     if any(person not in person_ids or resource not in resource_ids for person, resource in pairs):
         raise ContractRejected("access expectation references unknown mapping")
     google = bundle["capabilities"]["google_workspace"]

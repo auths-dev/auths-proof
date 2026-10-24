@@ -140,6 +140,12 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > local fixture definitions. This note is an integration TODO, not an
 > acceptance exception.
 
+The current `demo_co` local export includes one logical person under both
+Google and OIDC mappings. The consumer keys people by provider plus logical
+person ID and compares the access matrix only with Google mappings. This
+local export validates but still reports Google `not_configured`; its local
+PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
+
 Spec 0001 names connection/evidence schemas but does not yet specify a byte-exact access-matrix export. Add a companion `demo-co/access-expectations/v1` artifact in `demo_co` before end-to-end implementation acceptance. It contains stable fixture person/resource IDs, provider identity/resource mappings, expected baseline outcomes, dataset version and independent probe evidence references.
 
 Pin both artifact schemas and example vectors in the Auths demo. Unknown/missing versions produce actionable errors, not guessed fields. Changes needed in `demo_co` belong in that repository; this spec records the cross-repository deliverable without introducing a mutable dependency.
