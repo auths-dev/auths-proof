@@ -18,6 +18,7 @@
   },
   "google_live_status": "not_configured",
   "installed_sdk_artifact": null,
+  "python_base_image": "python@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704",
   "relay_image": "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
   "broker_image_digest": null,
   "agent_image_digest": null

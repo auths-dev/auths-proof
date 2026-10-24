@@ -157,6 +157,29 @@ The [synthetic isolation probe](evidence/isolation-synthetic-2026-10-24.md)
 records actual Docker network, mount and route observations with a mock broker.
 It does not substitute for the installed-image and live acceptance run.
 
+`Dockerfile` is the image recipe. The image builder must place exactly one
+Linux-compatible `auths-0.0.1rc1-*.whl` in `artifacts/` and supply its reviewed
+SHA-256 as `AUTHS_WHEEL_SHA256`. The Dockerfile verifies that digest, builds
+the broker or agent's pure-Python wheel, downloads dependency wheels, then
+installs only wheels into the runtime stage. Runtime images contain neither
+the demo source tree nor a Rust build toolchain. Build each role separately:
+
+```sh
+docker build -f Dockerfile --build-arg AP070_ROLE=broker \
+  --build-arg AUTHS_WHEEL_SHA256="$AUTHS_WHEEL_SHA256" -t auths-google-read-broker:local .
+docker build -f Dockerfile --build-arg AP070_ROLE=agent \
+  --build-arg AUTHS_WHEEL_SHA256="$AUTHS_WHEEL_SHA256" -t auths-google-read-agent:local .
+```
+
+The wheel must contain the AP-SPEC-070 native APIs from this branch; the
+published version number alone does not establish that. Build/publish the
+images from reviewed CI artifacts, record their registry manifest digests in
+`versions.lock.json`, and set `AP070_BROKER_IMAGE` and `AP070_AGENT_IMAGE` to
+those digest references. The developer image build downloads third-party
+dependency wheels; pin and review its resulting image digest before handing
+it to an operator. The image recipe has not yet been built with a matching
+Linux SDK wheel, so those digest fields remain empty.
+
 For live Google mode, add `compose.live.yaml`. It mounts only the broker's
 operator files and accepted export directory. The export directory must hold
 `connections.json`, `access-expectations.json` and a `scenarios/` directory

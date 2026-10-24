@@ -350,6 +350,9 @@ Run broker and agent under distinct container/OS security boundaries. Only the b
 > actual agent network, mount and relay-route behavior in
 > `demos/google-employee-delegation/evidence/isolation-synthetic-2026-10-24.md`;
 > it used a mock broker and does not qualify the installed live deployment.
+> An image recipe now verifies an input Linux SDK wheel digest and installs
+> broker/agent wheels into separate runtime images. It has not yet been built
+> with the matching AP-SPEC-070 SDK wheel or pinned to registry image digests.
 
 Do not call a same-user process split credential isolation if the agent can read its sibling's files/process state or invoke its operator API. Acceptance must exercise the actual filesystem, API and network restrictions. Public broker endpoints still require complete proof/task checks; their reachability alone provides no authority.
 
