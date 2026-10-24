@@ -177,8 +177,11 @@ images from reviewed CI artifacts, record their registry manifest digests in
 `versions.lock.json`, and set `AP070_BROKER_IMAGE` and `AP070_AGENT_IMAGE` to
 those digest references. The developer image build downloads third-party
 dependency wheels; pin and review its resulting image digest before handing
-it to an operator. The image recipe has not yet been built with a matching
-Linux SDK wheel, so those digest fields remain empty.
+it to an operator. [Hosted CI run 40138190022](https://github.com/auths-dev/auths-proof/actions/runs/40138190022)
+built both roles from a matching branch-built Linux SDK wheel and verified
+their installed entry points and absent source trees. CI did not publish
+registry images or run the installed Compose deployment, so the registry
+digest fields remain empty.
 
 For live Google mode, add `compose.live.yaml`. It mounts only the broker's
 operator files and accepted export directory. The export directory must hold
