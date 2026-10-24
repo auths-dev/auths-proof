@@ -14,6 +14,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from importlib.resources import files
 from urllib.parse import parse_qs, urlsplit
 
 from .browser_sessions import BrowserSession, BrowserSessionStore, SessionDenied
@@ -174,35 +175,18 @@ class Handler(BaseHTTPRequestHandler):
             self._check_host()
             parsed = urlsplit(self.path)
             if parsed.path == "/":
-                body = ("<!doctype html><html lang='en'><meta charset='utf-8'>"
-                        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-                        "<title>Auths employee delegation</title><body>"
-                        "<h1>Employee to agent Google read delegation</h1>"
-                        "<p id='status'>Checking company prerequisites…</p>"
-                        "<p id='employee'></p><p id='drive'></p>"
-                        "<a href='/api/v1/google/authorize?kind=login'>Sign in with Google</a> "
-                        "<a href='/api/v1/google/authorize?kind=connect'>Connect Drive</a>"
-                        "<button id='disconnect' hidden>Disconnect Drive</button>"
-                        "<script src='/workbench.js'></script></body></html>").encode("utf-8")
+                body = files("employee_read_demo").joinpath("web", "index.html").read_bytes()
                 self.send_response(HTTPStatus.OK)
                 self._headers("text/html; charset=utf-8", len(body))
                 self.end_headers()
                 self.wfile.write(body)
                 return
-            if parsed.path == "/workbench.js":
-                body = ("fetch('/api/v1/session').then(r=>r.json()).then(s=>{"
-                        "document.getElementById('status').textContent='Google: '+s.google_status;"
-                        "document.getElementById('employee').textContent="
-                        "s.subject?'Signed in as Google subject '+s.subject:'No employee signed in';"
-                        "document.getElementById('drive').textContent="
-                        "s.drive_connected?'Drive connected':'Drive not connected';"
-                        "let d=document.getElementById('disconnect');d.hidden=!s.drive_connected;"
-                        "d.onclick=()=>fetch('/api/v1/google/disconnect',{method:'POST',"
-                        "headers:{'Content-Type':'application/json','X-CSRF-Token':s.csrf},"
-                        "body:'{}'}).then(()=>location.reload());"
-                        "});").encode("utf-8")
+            if parsed.path in {"/workbench.js", "/style.css"}:
+                name = "workbench.js" if parsed.path.endswith(".js") else "style.css"
+                body = files("employee_read_demo").joinpath("web", name).read_bytes()
                 self.send_response(HTTPStatus.OK)
-                self._headers("application/javascript; charset=utf-8", len(body))
+                self._headers("application/javascript; charset=utf-8" if name.endswith(".js")
+                              else "text/css; charset=utf-8", len(body))
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -241,6 +225,21 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 package = self.workbench.agent_transport.export_package(parts[4], employee)
                 self._json(HTTPStatus.OK, package)
+                return
+            if parsed.path.startswith("/api/v1/tasks/"):
+                parts = parsed.path.split("/")
+                if len(parts) != 5 or not parts[4]:
+                    raise ValueError("task path is invalid")
+                if self.workbench.company is None:
+                    raise TaskDenied("task is unavailable")
+                session, _ = self._session()
+                if not session.issuer or not session.subject:
+                    raise SessionDenied("employee session is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                self._json(HTTPStatus.OK, self.workbench.proposals.describe(parts[4], employee))
                 return
             if parsed.path.startswith("/api/v1/receipts/"):
                 receipt_id = parsed.path.removeprefix("/api/v1/receipts/")
@@ -317,7 +316,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         except (ValueError, SessionDenied, OAuthRejected, EnrollmentDenied,
-                AdmissionDenied, AgentTransportDenied) as error:
+                AdmissionDenied, AgentTransportDenied, TaskDenied) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
 
     def do_POST(self) -> None:
@@ -369,6 +368,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.workbench.sessions.clear_connection(session)
                 self._json(HTTPStatus.OK, {"status": "disconnected"})
                 return
+            if path == "/api/v1/identity/packet":
+                from auths.identity.authoring import (
+                    create_raw_key_ed25519_identity,
+                    derive_raw_key_ed25519_authority_v1,
+                )
+                public_key = _b64(body.get("public_key", ""), max_bytes=32)
+                if len(public_key) != 32:
+                    raise ValueError("Ed25519 public key is invalid")
+                identity = create_raw_key_ed25519_identity(public_key)
+                self._json(HTTPStatus.OK, {
+                    "identity_packet": base64.urlsafe_b64encode(identity.to_bytes()).decode("ascii"),
+                    "principal": derive_raw_key_ed25519_authority_v1(public_key).principal,
+                })
+                return
             if path.startswith("/api/v1/tasks/") and path.endswith("/revoke"):
                 parts = path.split("/")
                 if len(parts) != 6 or not parts[4] or parts[5] != "revoke":
@@ -390,10 +403,20 @@ class Handler(BaseHTTPRequestHandler):
                 identity = VerifiedGoogleSubject("login", session.issuer, session.subject)
                 packet = _b64(body.get("identity_packet", ""), max_bytes=4096)
                 if path.endswith("/prepare"):
+                    from .authority_identity import authority_for_identity_packet
+                    authority_for_identity_packet(packet)
                     nonce, message = self.workbench.enrollment.prepare(
                         self.workbench.company, identity, packet,
                     )
-                    self._json(HTTPStatus.OK, {"nonce": nonce, "message": base64.urlsafe_b64encode(message).decode("ascii")})
+                    from auths import _native
+                    preimage = _native.identity_descriptor_signing_preimage_v1(
+                        packet, "default-signing", message,
+                    )
+                    self._json(HTTPStatus.OK, {
+                        "nonce": nonce,
+                        "message": base64.urlsafe_b64encode(message).decode("ascii"),
+                        "signing_preimage": base64.urlsafe_b64encode(preimage).decode("ascii"),
+                    })
                     return
                 signature = _b64(body.get("signature", ""), max_bytes=256)
                 nonce = body.get("nonce")
@@ -415,9 +438,14 @@ class Handler(BaseHTTPRequestHandler):
                 packet = _b64(body.get("identity_packet", ""), max_bytes=4096)
                 if path.endswith("/prepare"):
                     nonce, message, principal = self.workbench.agents.prepare(employee, packet)
+                    from auths import _native
+                    preimage = _native.identity_descriptor_signing_preimage_v1(
+                        packet, "default-signing", message,
+                    )
                     self._json(HTTPStatus.OK, {
                         "nonce": nonce, "agent_principal": principal,
                         "message": base64.urlsafe_b64encode(message).decode("ascii"),
+                        "signing_preimage": base64.urlsafe_b64encode(preimage).decode("ascii"),
                     })
                     return
                 nonce = body.get("nonce")

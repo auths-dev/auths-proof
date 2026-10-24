@@ -141,12 +141,15 @@ class AgentRegistry:
             db.execute("BEGIN IMMEDIATE")
             if not self._employee_active(db, employee):
                 raise AgentDenied("employee enrollment changed during registration")
-            db.execute("""INSERT INTO registered_agents
-                (company,employee_binding,agent_principal,identity_packet,packet_digest)
-                VALUES(?,?,?,?,?)""", (
-                    employee.company_id, employee.binding_ref, principal,
-                    identity_packet, row[4],
-                ))
+            try:
+                db.execute("""INSERT INTO registered_agents
+                    (company,employee_binding,agent_principal,identity_packet,packet_digest)
+                    VALUES(?,?,?,?,?)""", (
+                        employee.company_id, employee.binding_ref, principal,
+                        identity_packet, row[4],
+                    ))
+            except sqlite3.IntegrityError as error:
+                raise AgentDenied("agent is already registered") from error
             db.commit()
         return AgentBinding(employee.company_id, employee.binding_ref, principal, row[4])
 

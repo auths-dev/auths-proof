@@ -35,8 +35,9 @@ chooses approved file IDs with a model, authors an exact signed action through
 the public Auths API, and sends it to the broker's proof-only read route. The
 broker rebuilds the expected proof from its own stored grant chain before the
 native verifier admits a read and signs a receipt.
-It is **not yet a runnable live Google demo**. The receipt page, deployed
-broker/agent isolation and packaged install are still absent. The
+It is **not yet a runnable live Google demo**. The workbench now shows
+employee-scoped task status, remaining limits and verified receipt JSON;
+deployed broker/agent isolation and the installation kit are still absent. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
 schema and operator commitments; a local fixture still produces
@@ -64,6 +65,14 @@ pass operator-reviewed `--connections`, `--access-expectations`, `--pins` and
 `hosted_domain`; `--fernet-key` points to a separate private encryption key
 file. Both operator secret files must have mode `0600`. The workbench binds
 only to `127.0.0.1`.
+The browser review flow uses a non-exportable Ed25519 employee key stored in
+that browser's IndexedDB, keyed by the signed-in Google subject. Clearing the
+browser profile removes access to that key. The workbench returns the native
+identity signing preimage for enrollment and agent registration; the agent
+CLI signs its preimage outside the browser. The review screen shows the exact
+provider file IDs, task commitment, expiry and limits before the employee
+signs. Package export, revocation and receipt verification are employee-scoped
+routes. Agent execution still happens in the separate process.
 
 ```sh
 auths-google-read-workbench --state-db /path/to/private/broker.sqlite3

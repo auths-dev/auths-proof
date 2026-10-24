@@ -1,0 +1,20 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; background: #f5f7f7; color: #172326; }
+body { margin: 0; }
+main { max-width: 880px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+header, section { background: white; border: 1px solid #d4dddd; border-radius: 12px; padding: 1.4rem; margin-bottom: 1rem; }
+header { background: #e8f3ef; }
+h1 { margin: .2rem 0; font-size: 2rem; }
+h2 { margin: 0 0 .8rem; font-size: 1.25rem; }
+.eyebrow { color: #12634a; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin: .8rem 0; }
+button, .actions a { font: inherit; border-radius: 7px; border: 1px solid #175846; background: #176d53; color: white; padding: .5rem .75rem; cursor: pointer; text-decoration: none; }
+button:hover, .actions a:hover { background: #145b46; }
+button:disabled { background: #d9dddd; color: #5d6565; border-color: #c5cccc; cursor: default; }
+button.danger { background: #ab3a2e; border-color: #ab3a2e; }
+label { display: block; font-weight: 600; margin: .9rem 0; }
+input, textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .35rem; padding: .5rem; font: inherit; border: 1px solid #aebcba; border-radius: 6px; }
+textarea { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: .9rem; background: #f0f4f3; border-radius: 6px; max-height: 22rem; overflow: auto; }
+code { font-family: ui-monospace, monospace; font-size: .95em; }
+.hint { color: #4b6060; font-size: .94rem; }
+#message { display: block; position: sticky; bottom: .7rem; background: #163d34; color: white; padding: .75rem 1rem; border-radius: 7px; min-height: 1rem; }

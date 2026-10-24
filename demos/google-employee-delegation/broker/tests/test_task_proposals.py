@@ -62,6 +62,14 @@ class TaskProposalTests(unittest.TestCase):
         self.assertEqual(task.file_ids, ("file-A", "file-B"))
         self.assertEqual(inspector.calls, ["file-A", "file-B"])
         self.assertEqual(self.store.get(task.task_id, self.employee, now=self.now), task)
+        snapshot = self.store.describe(task.task_id, self.employee, now=self.now)
+        self.assertEqual(snapshot["status"], "prepared")
+        self.assertEqual(snapshot["usage"]["remaining_calls"], task.max_calls)
+        self.assertEqual(snapshot["approved_calls"][0]["file_id"], "file-A")
+        outsider = EmployeeBinding("atlas-studio", "person-other", self.employee.issuer,
+                                   "google-subject-b", "other-principal", "binding-b")
+        with self.assertRaises(TaskDenied):
+            self.store.describe(task.task_id, outsider, now=self.now)
         with self.assertRaises(TaskDenied):
             self.store.get(task.task_id, self.employee, now=task.expires_at)
 

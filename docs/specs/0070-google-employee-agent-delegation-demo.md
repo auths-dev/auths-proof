@@ -145,10 +145,10 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > `d6bb90825e989e893a26f4a86d1fb17d6f40fa29b72ea0794093eef67686c10d`).
 > This consumer pins the revised schema and accepts old exports with the field
 > absent. OIDC metadata remains outside Google employee identity and cannot
-> activate this read demo. The producer's generation-0003 local export now
+> activate this read demo. The producer's generation-0006 local export now
 > validates against the pinned schema and still reports Google
 > `not_configured`; the broker does not synthesize its public client mapping
-> or treat local PostgreSQL/ClickHouse readiness as Google readiness.
+> or treat ready local PostgreSQL/ClickHouse/OIDC as Google readiness.
 
 The current `demo_co` local export includes one logical person under both
 Google and OIDC mappings. The consumer keys people by provider plus logical
@@ -335,6 +335,15 @@ Provide an HTTP localhost workbench for the Mac demo, using exact registered loo
 ```
 
 The review screen shows the real account binding and exact selected IDs behind readable labels. The grant is immutable once signed. Editing a task returns to review; changing a browser dropdown cannot retarget an existing grant. Display transport, proof authorization, provider response and content release as separate stages.
+
+> **Workbench implementation note (24 October 2026):** The current loopback
+> workbench uses a browser-held non-exportable employee Ed25519 key and
+> explicit prepare/review/sign steps. Agent registration and activation
+> require signatures from the separate agent process. Employee-scoped task
+> status, revocation, package export and signed receipt JSON routes are
+> present. Live provider content and complete result/evidence presentation
+> remain pending Google setup and process-isolation acceptance; the local UI
+> does not label these stages passed.
 
 Proposed application routes:
 

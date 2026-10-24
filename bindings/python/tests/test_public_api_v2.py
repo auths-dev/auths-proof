@@ -31,7 +31,7 @@ EXPECTED_EXPORTS = {
     "auths.self_hosted": 28,
     "auths.identity": 11,
     "auths.identity.adapters": 14,
-    "auths.identity.authoring": 4,
+    "auths.identity.authoring": 6,
     "auths.protocol": 6,
     "auths.adapters": 2,
     "auths.adapters.custody": 16,
@@ -48,7 +48,7 @@ def test_exact_public_inventory() -> None:
         assert len(exported) == expected
         assert len(set(exported)) == expected
         assert all(hasattr(module, value) for value in exported)
-    assert sum(EXPECTED_EXPORTS.values()) == 187
+    assert sum(EXPECTED_EXPORTS.values()) == 189
 
 
 def test_product_root_is_small_and_removed_names_are_absent() -> None:

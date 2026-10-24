@@ -143,13 +143,16 @@ class EnrollmentStore:
             "bundle_sha256": company.bundle_sha256,
         })
         with self._connect() as db:
-            db.execute("""INSERT INTO employee_bindings
-                (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
-                VALUES(?,?,?,?,?,?,?,?)""", (
-                    binding_ref, company.bundle["company_id"], person,
-                    identity.issuer, identity.subject, principal, identity_packet,
-                    company.bundle_sha256,
-                ))
+            try:
+                db.execute("""INSERT INTO employee_bindings
+                    (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
+                    VALUES(?,?,?,?,?,?,?,?)""", (
+                        binding_ref, company.bundle["company_id"], person,
+                        identity.issuer, identity.subject, principal, identity_packet,
+                        company.bundle_sha256,
+                    ))
+            except sqlite3.IntegrityError as error:
+                raise EnrollmentDenied("employee is already enrolled or key is assigned") from error
         return EmployeeBinding(company.bundle["company_id"], person, identity.issuer,
                                identity.subject, principal, binding_ref)
 

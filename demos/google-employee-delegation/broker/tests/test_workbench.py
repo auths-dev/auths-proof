@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import base64
 import tempfile
 import threading
 import unittest
@@ -46,7 +47,7 @@ class WorkbenchTests(unittest.TestCase):
         self.thread.join(timeout=5)
 
     def request(self, method: str, path: str, *, cookie: str | None = None,
-                csrf: str | None = None) -> tuple[int, dict, str | None]:
+                csrf: str | None = None, payload: dict | None = None) -> tuple[int, dict, str | None]:
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
         headers = {}
         if cookie:
@@ -55,7 +56,7 @@ class WorkbenchTests(unittest.TestCase):
             headers["X-CSRF-Token"] = csrf
         body = None
         if method == "POST":
-            body = b"{}"
+            body = json.dumps(payload if payload is not None else {}).encode()
             headers["Content-Type"] = "application/json"
         connection.request(method, path, body=body, headers=headers)
         response = connection.getresponse()
@@ -85,6 +86,34 @@ class WorkbenchTests(unittest.TestCase):
         status, _, _ = self.request("POST", "/api/v1/session/logout",
                                     cookie=session_cookie, csrf=data["csrf"])
         self.assertEqual(status, 200)
+
+    def test_public_identity_packet_requires_employee_browser_csrf(self) -> None:
+        status, session, cookie = self.request("GET", "/api/v1/session")
+        self.assertEqual(status, 200)
+        public = base64.urlsafe_b64encode(b"\x42" * 32).decode()
+        path = "/api/v1/identity/packet"
+        status, _, _ = self.request("POST", path, payload={"public_key": public})
+        self.assertEqual(status, 403)
+        status, packet, _ = self.request(
+            "POST", path, cookie=cookie.split(";", 1)[0], csrf=session["csrf"],
+            payload={"public_key": public},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(packet["identity_packet"])
+        self.assertTrue(packet["principal"])
+
+    def test_workbench_assets_are_served_with_no_store(self) -> None:
+        for path, marker in (("/", b"Review and authorize one task"),
+                             ("/workbench.js", b"signEmployee"),
+                             ("/style.css", b"#message")):
+            connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
+            connection.request("GET", path)
+            response = connection.getresponse()
+            content = response.read()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader("Cache-Control"), "no-store")
+            self.assertIn(marker, content)
+            connection.close()
 
 
 if __name__ == "__main__":

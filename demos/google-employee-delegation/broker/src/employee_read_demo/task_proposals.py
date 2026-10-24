@@ -109,3 +109,42 @@ class TaskProposalStore:
         if task.digest != row[1] or now >= task.expires_at:
             raise TaskDenied("task proposal changed or expired")
         return task
+
+    def describe(self, task_id: str, employee: EmployeeBinding,
+                 *, now: int | None = None) -> dict:
+        """Return an owner-scoped review snapshot and durable remaining limits."""
+        now = int(time.time()) if now is None else now
+        with self._connect() as db:
+            row = db.execute("""SELECT descriptor,digest,status FROM task_proposals
+                WHERE id=? AND company=? AND employee_binding=?""", (
+                    task_id, employee.company_id, employee.binding_ref,
+                )).fetchone()
+            usage = db.execute("""SELECT status,calls,charged_bytes,attempts,in_flight,
+                challenges_issued FROM tasks WHERE id=? AND company=? AND employee=?""", (
+                    task_id, employee.company_id, employee.principal,
+                )).fetchone()
+        if row is None:
+            raise TaskDenied("task is unavailable")
+        data = json.loads(row[0])
+        data["file_ids"] = tuple(data["file_ids"])
+        task = TaskDescriptor(**data)
+        if task.digest != row[1] or task.identity_binding_ref != employee.binding_ref:
+            raise TaskDenied("task binding changed")
+        status = row[2]
+        if now >= task.expires_at and status != "revoked":
+            status = "expired"
+        if usage is not None and usage[0] != "active":
+            status = usage[0]
+        return {
+            "task": asdict(task), "task_commitment": task.digest,
+            "status": status, "approved_calls": [asdict(call) for call in task.calls()],
+            "usage": {
+                "calls": 0 if usage is None else usage[1],
+                "charged_bytes": 0 if usage is None else usage[2],
+                "provider_attempts_reserved": 0 if usage is None else usage[3],
+                "in_flight": 0 if usage is None else usage[4],
+                "challenges_issued": 0 if usage is None else usage[5],
+                "remaining_calls": task.max_calls - (0 if usage is None else usage[1]),
+                "remaining_task_bytes": task.max_total_bytes - (0 if usage is None else usage[2]),
+            },
+        }
