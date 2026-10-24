@@ -145,7 +145,7 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > `d6bb90825e989e893a26f4a86d1fb17d6f40fa29b72ea0794093eef67686c10d`).
 > This consumer pins the revised schema and accepts old exports with the field
 > absent. OIDC metadata remains outside Google employee identity and cannot
-> activate this read demo. The producer's generation-0008 local export now
+> activate this read demo. The producer's generation-0013 local export now
 > validates against the pinned schema and still reports Google
 > `not_configured`; the broker does not synthesize its public client mapping
 > or treat ready local PostgreSQL/ClickHouse/OIDC as Google readiness.
@@ -160,7 +160,11 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > fields. This consumer pins that schema and its local non-ready example. The
 > fields describe independent scenario evidence; they never create an Auths
 > grant or mark a local Google step passed. The producer still owns actual
-> scenario execution and evidence export.
+> scenario execution and evidence export. The pinned schema also requires a
+> passing result to have matching expected/observed allow or deny values and
+> nonempty evidence references. Generation-0013's bundle digest is
+> `3df1eeadc7c0d3b1520d5d8bcd9ee8d1ae2b091c51641134401c98b9a643a1b2`;
+> the consumer validates it but reports Google `not_configured`.
 
 The current `demo_co` local export includes one logical person under both
 Google and OIDC mappings. The consumer keys people by provider plus logical
