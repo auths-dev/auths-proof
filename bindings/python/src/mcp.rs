@@ -823,6 +823,24 @@ fn assemble_mcp_proof<'py>(
     ))
 }
 
+/// Extract the one signed action from a bounded native proof bundle.
+/// Applications can reassemble an expected chain from their own stored grants.
+#[pyfunction]
+fn mcp_signed_action_from_proof<'py>(
+    py: Python<'py>,
+    proof_cbor: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let limits = auths_model::VerifierLimits::default_deployment();
+    let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(value_error)?;
+    let [action] = proof.actions() else {
+        return Err(crate::errors::malformed_input(
+            "MCP proof must contain exactly one signed action",
+        ));
+    };
+    let bytes = auths_codec::encode_signed_action(action).map_err(value_error)?;
+    Ok(PyBytes::new(py, &bytes))
+}
+
 fn mcp_proof_artifacts(
     py: Python<'_>,
     prepared: &PyMcpAction,
@@ -1354,6 +1372,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(prepare_mcp_call_action, module)?)?;
     module.add_function(wrap_pyfunction!(authorize_mcp, module)?)?;
     module.add_function(wrap_pyfunction!(assemble_mcp_proof, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_signed_action_from_proof, module)?)?;
     module.add_function(wrap_pyfunction!(verify_exact_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(seal_mcp_plan_command, module)?)?;

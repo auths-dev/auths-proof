@@ -132,13 +132,25 @@ def main() -> int:
     issue.add_argument("--trust-file", type=Path, required=True)
     issue.add_argument("--state-db", type=Path, required=True)
     issue.add_argument("--binding-ref", required=True)
+    receipt = commands.add_parser("init-receipt-key")
+    receipt.add_argument("--key-file", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "init-root":
         result = init_root(args.seed_file, args.trust_file,
                            company=args.company, service=args.service)
-    else:
+    elif args.command == "issue-employee":
         result = issue_employee(args.seed_file, args.trust_file,
                                 args.state_db, args.binding_ref)
+    else:
+        seed = secrets.token_bytes(32)
+        _private_write(args.key_file, seed)
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+        public = Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes(
+            Encoding.Raw, PublicFormat.Raw,
+        )
+        result = {"receipt_public_key": base64.urlsafe_b64encode(public).decode("ascii")}
     print(json.dumps(result, sort_keys=True))
     return 0
 

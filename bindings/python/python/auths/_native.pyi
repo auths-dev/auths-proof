@@ -952,6 +952,7 @@ def assemble_mcp_proof(
     action_evidence: List[Tuple[str, str, bytes]],
     context: TrustedContext,
 ) -> Tuple[bytes, bytes, bytes]: ...
+def mcp_signed_action_from_proof(proof_cbor: bytes) -> bytes: ...
 def prepare_mcp_quorum(
     service: str,
     name: str,

@@ -117,6 +117,47 @@
       "title": "Mode",
       "type": "string"
     },
+    "OidcClientBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "description": "Expected ID token audience for this public client.",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Audience",
+          "type": "string"
+        },
+        "client_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Client Id",
+          "type": "string"
+        },
+        "issuer": {
+          "title": "Issuer",
+          "type": "string"
+        },
+        "pkce": {
+          "const": "S256",
+          "title": "Pkce",
+          "type": "string"
+        },
+        "redirect_uris": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Redirect Uris",
+          "type": "array"
+        }
+      },
+      "required": [
+        "issuer",
+        "client_id",
+        "audience",
+        "pkce",
+        "redirect_uris"
+      ],
+      "title": "OidcClientBinding",
+      "type": "object"
+    },
     "PersonBinding": {
       "additionalProperties": false,
       "properties": {
@@ -347,6 +388,14 @@
     },
     "mode": {
       "$ref": "#/$defs/Mode"
+    },
+    "oidc_clients": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/OidcClientBinding"
+      },
+      "title": "Oidc Clients",
+      "type": "array"
     },
     "people": {
       "items": {

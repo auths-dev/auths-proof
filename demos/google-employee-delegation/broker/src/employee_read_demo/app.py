@@ -31,9 +31,13 @@ from .task_approval import ApprovalDenied, TaskApprovalStore
 from .task_activation import ActivationDenied, TaskActivationStore
 from .operator_authority import OperatorDenied
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
+from .agent_transport import AgentTransport, AgentTransportDenied
+from .receipts import ReceiptStore
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 COOKIE = "ap070_session"
 MAX_JSON = 16_384
+MAX_AGENT_JSON = 800_000
 
 
 def _b64(value: str, *, max_bytes: int) -> bytes:
@@ -69,6 +73,7 @@ class Workbench:
     origin: str
     trusted_template: bytes | None = None
     expected_root: str | None = None
+    agent_transport: AgentTransport | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -143,6 +148,23 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("JSON object is required")
         return document
 
+    def _agent_json_body(self, expected_fields: set[str]) -> dict:
+        origin = self.headers.get("Origin")
+        if origin is not None and origin != self.workbench.origin:
+            raise SessionDenied("request origin is unavailable")
+        if self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json":
+            raise ValueError("JSON content type is required")
+        try:
+            size = int(self.headers.get("Content-Length", ""))
+        except ValueError as error:
+            raise ValueError("content length is required") from error
+        if not 1 <= size <= MAX_AGENT_JSON:
+            raise ValueError("agent JSON body is outside bounds")
+        document = json.loads(self.rfile.read(size), object_pairs_hook=_unique_pairs)
+        if type(document) is not dict or set(document) != expected_fields:
+            raise ValueError("agent request fields are invalid")
+        return document
+
     def _check_host(self) -> None:
         if self.headers.get("Host") != urlsplit(self.workbench.origin).netloc:
             raise SessionDenied("request host is unavailable")
@@ -204,6 +226,50 @@ class Handler(BaseHTTPRequestHandler):
                     "csrf": session.csrf,
                 }, cookie=session.cookie if created else None)
                 return
+            if parsed.path.startswith("/api/v1/tasks/") and parsed.path.endswith("/package"):
+                if self.workbench.company is None or self.workbench.agent_transport is None:
+                    raise AgentTransportDenied("task package is unavailable")
+                parts = parsed.path.split("/")
+                if len(parts) != 6 or not parts[4] or parts[5] != "package":
+                    raise ValueError("task package path is invalid")
+                session, _ = self._session()
+                if not session.issuer or not session.subject:
+                    raise SessionDenied("employee session is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                package = self.workbench.agent_transport.export_package(parts[4], employee)
+                self._json(HTTPStatus.OK, package)
+                return
+            if parsed.path.startswith("/api/v1/receipts/"):
+                receipt_id = parsed.path.removeprefix("/api/v1/receipts/")
+                if not receipt_id or len(receipt_id) > 128 or "/" in receipt_id:
+                    raise ValueError("receipt ID is invalid")
+                if self.workbench.agent_transport is None or self.workbench.company is None:
+                    raise AgentTransportDenied("receipt is unavailable")
+                session, _ = self._session()
+                if not session.issuer or not session.subject:
+                    raise SessionDenied("employee session is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                receipts = self.workbench.agent_transport.receipts
+                receipt = receipts.load(receipt_id)
+                if receipt is None or (receipt.payload.get("company_id"),
+                                       receipt.payload.get("identity_binding_ref"),
+                                       receipt.payload.get("employee_principal")) != (
+                                           employee.company_id, employee.binding_ref,
+                                           employee.principal):
+                    raise AgentTransportDenied("receipt is unavailable")
+                from .receipts import verify_receipt
+                if not verify_receipt(receipt, receipts.public_key):
+                    raise AgentTransportDenied("receipt signature is invalid")
+                self._json(HTTPStatus.OK, {"verified": True,
+                                           "payload": receipt.payload,
+                                           "signature": receipt.signature})
+                return
             if parsed.path == "/api/v1/google/authorize":
                 if self.workbench.company is None or self.workbench.oauth is None:
                     self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "Google is not configured"})
@@ -250,15 +316,48 @@ class Handler(BaseHTTPRequestHandler):
                 self._redirect("/")
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-        except (ValueError, SessionDenied, OAuthRejected, EnrollmentDenied, AdmissionDenied) as error:
+        except (ValueError, SessionDenied, OAuthRejected, EnrollmentDenied,
+                AdmissionDenied, AgentTransportDenied) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
 
     def do_POST(self) -> None:
         try:
             self._check_host()
+            path = urlsplit(self.path).path
+            if path in {"/api/v1/tasks/challenge", "/api/v1/tools/call"}:
+                if self.workbench.agent_transport is None:
+                    raise AgentTransportDenied("agent transport is unavailable")
+                fields = ({"task_id", "body_digest"} if path.endswith("/challenge")
+                          else {"task_id", "challenge", "proof", "action"})
+                body = self._agent_json_body(fields)
+                task_id = body["task_id"]
+                if not isinstance(task_id, str) or not 1 <= len(task_id) <= 256:
+                    raise ValueError("task ID is invalid")
+                if path.endswith("/challenge"):
+                    digest = _b64(body["body_digest"], max_bytes=32)
+                    challenge = self.workbench.agent_transport.issue_challenge(task_id, digest)
+                    self._json(HTTPStatus.OK, {
+                        "challenge": base64.urlsafe_b64encode(challenge.challenge).decode("ascii"),
+                        "issued_at": challenge.issued_at,
+                        "expires_at": challenge.expires_at,
+                    })
+                    return
+                challenge = _b64(body["challenge"], max_bytes=32)
+                proof = _b64(body["proof"], max_bytes=262_144)
+                action = _b64(body["action"], max_bytes=262_144)
+                outcome = self.workbench.agent_transport.execute(
+                    task_id, challenge, proof, action,
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "release_committed",
+                    "content": base64.urlsafe_b64encode(outcome.content).decode("ascii"),
+                    "native_code": outcome.native_code,
+                    "receipt_id": outcome.receipt_id,
+                    "transport_delivery": "unknown",
+                })
+                return
             session, _ = self._session()
             body = self._json_body(session)
-            path = urlsplit(self.path).path
             if path == "/api/v1/session/logout":
                 self.workbench.sessions.logout(session)
                 self._json(HTTPStatus.OK, {"status": "signed_out"}, cookie="")
@@ -269,6 +368,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.workbench.vault.disconnect(session.connection_id)
                 self.workbench.sessions.clear_connection(session)
                 self._json(HTTPStatus.OK, {"status": "disconnected"})
+                return
+            if path.startswith("/api/v1/tasks/") and path.endswith("/revoke"):
+                parts = path.split("/")
+                if len(parts) != 6 or not parts[4] or parts[5] != "revoke":
+                    raise ValueError("task revoke path is invalid")
+                if self.workbench.company is None or not session.issuer or not session.subject:
+                    raise SessionDenied("employee session is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                if body:
+                    raise ValueError("revoke body must be empty")
+                self.workbench.approvals.revoke(parts[4], employee)
+                self._json(HTTPStatus.OK, {"status": "revoked", "task_id": parts[4]})
                 return
             if path in {"/api/v1/employees/enroll/prepare", "/api/v1/employees/enroll"}:
                 if self.workbench.company is None or not session.issuer or not session.subject:
@@ -427,7 +541,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied,
                 AgentDenied, TaskDenied, ApprovalDenied, ActivationDenied, OperatorDenied,
-                AdmissionDenied, GoogleDenied) as error:
+                AgentTransportDenied, AdmissionDenied, GoogleDenied,
+                PermissionError) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
         except GoogleUnavailable:
             self._json(HTTPStatus.SERVICE_UNAVAILABLE,
@@ -457,6 +572,7 @@ def main() -> int:
     parser.add_argument("--oauth-config", type=Path)
     parser.add_argument("--fernet-key", type=Path)
     parser.add_argument("--trust-file", type=Path)
+    parser.add_argument("--receipt-key", type=Path)
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
@@ -501,10 +617,22 @@ def main() -> int:
         expected_root = manifest.get("root_principal")
         trusted_template = base64.urlsafe_b64decode(manifest["trusted_template"])
         _native.parse_trusted_context(trusted_template)
+    agent_transport = None
+    if company is not None and vault is not None and trusted_template is not None:
+        if args.receipt_key is None:
+            parser.error("live agent transport requires a private receipt signing key")
+        receipts = ReceiptStore(args.state_db, Ed25519PrivateKey.from_private_bytes(
+            _private_file(args.receipt_key, 32),
+        ))
+        agent_transport = AgentTransport(
+            args.state_db, vault=vault, trusted_template=trusted_template,
+            expected_root=expected_root, receipts=receipts,
+        )
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
-                          vault, company, status, origin, trusted_template, expected_root)
+                          vault, company, status, origin, trusted_template, expected_root,
+                          agent_transport)
     with WorkbenchServer(("127.0.0.1", args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)
         server.serve_forever(poll_interval=0.5)

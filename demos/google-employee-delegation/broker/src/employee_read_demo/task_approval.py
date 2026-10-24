@@ -155,6 +155,29 @@ class TaskApprovalStore:
 
     def pending(self, task_id: str, employee: EmployeeBinding,
                 vault: TokenVault, *, now: int | None = None) -> tuple[TaskDescriptor, SignedTaskGrant]:
+        return self._package(task_id, employee, vault, "approved_pending_activation", now=now)
+
+    def active(self, task_id: str, employee: EmployeeBinding,
+               vault: TokenVault, *, now: int | None = None) -> tuple[TaskDescriptor, SignedTaskGrant]:
+        return self._package(task_id, employee, vault, "active", now=now)
+
+    def revoke(self, task_id: str, employee: EmployeeBinding) -> None:
+        """Serialize employee revocation with the final content release gate."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("""SELECT p.status FROM task_proposals p
+                WHERE p.id=? AND p.company=? AND p.employee_binding=?""", (
+                    task_id, employee.company_id, employee.binding_ref,
+                )).fetchone()
+            if row is None or row[0] not in {"active", "approved_pending_activation"}:
+                raise ApprovalDenied("task is unavailable")
+            db.execute("UPDATE tasks SET status='revoked', revision=revision+1 WHERE id=? AND status='active'", (task_id,))
+            db.execute("UPDATE task_proposals SET status='revoked' WHERE id=?", (task_id,))
+            db.commit()
+
+    def _package(self, task_id: str, employee: EmployeeBinding,
+                 vault: TokenVault, required_status: str,
+                 *, now: int | None = None) -> tuple[TaskDescriptor, SignedTaskGrant]:
         now = int(time.time()) if now is None else now
         with self._connect() as db:
             task_row = db.execute("""SELECT descriptor,digest,status FROM task_proposals
@@ -165,7 +188,9 @@ class TaskApprovalStore:
                 FROM task_approvals WHERE task_id=? AND employee_binding=?""", (
                     task_id, employee.binding_ref,
                 )).fetchone()
-        if (task_row is None or task_row[2] != "approved_pending_activation"
+            admission = db.execute("""SELECT digest,company,employee,agent,connection,
+                generation,status FROM tasks WHERE id=?""", (task_id,)).fetchone()
+        if (task_row is None or task_row[2] != required_status
                 or approval_row is None or approval_row[3] != "signed"
                 or not approval_row[2]):
             raise ApprovalDenied("signed task is unavailable")
@@ -178,6 +203,11 @@ class TaskApprovalStore:
                 or task.employee_principal != employee.principal
                 or task.identity_binding_ref != employee.binding_ref):
             raise ApprovalDenied("signed task binding changed")
+        if required_status == "active" and admission != (
+                task.digest, task.company_id, task.employee_principal,
+                task.agent_principal, task.connection_id,
+                task.connection_generation, "active"):
+            raise ApprovalDenied("task admission is unavailable")
         AgentRegistry(self.path).lookup(employee, task.agent_principal)
         if vault.connection_generation(task.connection_id, employee) != task.connection_generation:
             raise ApprovalDenied("employee connection changed")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import time
 import unittest
+import json
 from pathlib import Path
 
 from auths import _native
@@ -22,6 +23,10 @@ from employee_read_demo.task_activation import ActivationDenied, TaskActivationS
 from employee_read_demo.task_approval import ApprovalDenied, TaskApprovalStore
 from employee_read_demo.task_proposals import TaskProposalStore
 from employee_read_demo.token_store import TokenVault
+from employee_read_demo.agent_transport import AgentTransport, AgentTransportDenied
+from employee_read_demo.authority import native_body_digest
+from employee_read_demo.contracts import canonical_json
+from employee_read_demo.receipts import ReceiptStore, verify_receipt
 
 
 class _Inspector:
@@ -122,6 +127,101 @@ class TaskApprovalTests(unittest.TestCase):
             self.assertEqual(active, task)
             with self.assertRaises(ApprovalDenied):
                 activations.begin(task.task_id, employee, vault, 0, now=now)
+            class Provider:
+                calls = 0
+
+                def read_exact(self, command):
+                    self.calls += 1
+                    self.asserted = command
+                    return b"Project A approved text"
+
+            provider = Provider()
+            template = _template(root, "atlas-drive", now - 60, now + 86400)
+            receipts = ReceiptStore(path, Ed25519PrivateKey.generate())
+            transport = AgentTransport(
+                path, vault=vault, trusted_template=template,
+                expected_root=root.principal, receipts=receipts,
+                provider_factory=lambda _task, _vault: provider,
+            )
+            exported = transport.export_package(task.task_id, employee)
+            self.assertEqual(exported["task_commitment"], task.digest)
+            self.assertNotIn("access-token", json.dumps(exported))
+            ticket = transport.issue_challenge(
+                task.task_id, native_body_digest(task.calls()[0], task.service), now=now,
+            )
+            command = task.calls()[0]
+            arguments = _native.canonicalize_mcp_arguments_json(canonical_json(command.__dict__))
+            call = _native.mcp_call(task.service, "google_drive_document_read", arguments)
+            child = _native.parse_signed("grant", signed.signed_child_grant)
+            prepared = _native.prepare_mcp_call_action(
+                call, _native.Principal(task.agent_principal), child,
+                ticket.challenge, ticket.issued_at, 30,
+            )
+            signer = _native.prepare_signing(
+                prepared.unsigned, "raw-key-v1", task.agent_principal, "ed25519-v1",
+            )
+            signed_action = signer.complete(agent_key.sign(bytes(signer.signing_preimage)))
+            context = _native.parse_trusted_context(template).bind_request(
+                f"mcp://{task.service}", ticket.challenge, ticket.issued_at,
+            )
+            evidence = lambda raw: ("raw-key-v1", "application/vnd.auths.raw-key.v1", raw)
+            proof, action, _ = _native.assemble_mcp_proof(
+                prepared, signed_action,
+                [_native.parse_signed("grant", signed.signed_employee_grant), child],
+                [[evidence(signed.root_evidence)], [evidence(signed.employee_evidence)]],
+                [evidence(authority_for_identity_packet(agent_identity.to_bytes())[1])],
+                context,
+            )
+            self.assertEqual(_native.mcp_signed_action_from_proof(proof),
+                             _native.inspect_signed(signed_action))
+            outcome = transport.execute(task.task_id, ticket.challenge, proof, action, now=now)
+            self.assertEqual(outcome.content, b"Project A approved text")
+            self.assertEqual(provider.calls, 1)
+            self.assertIsNotNone(outcome.receipt_id)
+            receipt = receipts.load(outcome.receipt_id)
+            self.assertTrue(verify_receipt(receipt, receipts.public_key))
+            with self.assertRaises(AgentTransportDenied):
+                transport.execute(task.task_id, ticket.challenge, proof, action, now=now)
+            self.assertEqual(provider.calls, 1)
+            other = transport.issue_challenge(
+                task.task_id, native_body_digest(task.calls()[0], task.service), now=now,
+            )
+            with self.assertRaises(AgentTransportDenied):
+                transport.execute(task.task_id, other.challenge, proof, action, now=now)
+            self.assertEqual(provider.calls, 1)
+
+            from employee_read_agent.run import AgentKey, run_task
+
+            class Broker:
+                def challenge(self, task_id, body_digest):
+                    ticket = transport.issue_challenge(task_id, body_digest)
+                    return ticket.challenge, ticket.issued_at
+
+                def call(self, task_id, challenge, proof, action):
+                    result = transport.execute(task_id, challenge, proof, action)
+                    return {"status": "release_committed", "content":
+                            __import__("base64").urlsafe_b64encode(result.content).decode(),
+                            "receipt_id": result.receipt_id}
+
+            class Model:
+                def select(self, purpose, file_ids):
+                    self.asserted_purpose = purpose
+                    return file_ids[:1]
+
+                def summarize(self, purpose, sources):
+                    assert sources == {"file-A": "Project A approved text"}
+                    return "Project A approved text [file-A]"
+
+            agent_seed = agent_key.private_bytes_raw()
+            result = run_task(exported, AgentKey(agent_seed), Broker(), Model())
+            self.assertEqual(result["summary"], "Project A approved text [file-A]")
+            self.assertEqual(result["source_ids"], ["file-A"])
+            self.assertEqual(provider.calls, 2)
+            approvals.revoke(task.task_id, employee)
+            with self.assertRaises((AgentTransportDenied, ApprovalDenied)):
+                transport.issue_challenge(
+                    task.task_id, native_body_digest(task.calls()[0], task.service), now=now,
+                )
 
 
 if __name__ == "__main__":

@@ -140,6 +140,16 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > local fixture definitions. This note is an integration TODO, not an
 > acceptance exception.
 
+> **OIDC schema handoff (24 October 2026):** The producer added optional public
+> `oidc_clients` metadata to `connections-v1` (schema SHA-256
+> `d6bb90825e989e893a26f4a86d1fb17d6f40fa29b72ea0794093eef67686c10d`).
+> This consumer pins the revised schema and accepts old exports with the field
+> absent. OIDC metadata remains outside Google employee identity and cannot
+> activate this read demo. The producer's generation-0003 local export now
+> validates against the pinned schema and still reports Google
+> `not_configured`; the broker does not synthesize its public client mapping
+> or treat local PostgreSQL/ClickHouse readiness as Google readiness.
+
 The current `demo_co` local export includes one logical person under both
 Google and OIDC mappings. The consumer keys people by provider plus logical
 person ID and compares the access matrix only with Google mappings. This

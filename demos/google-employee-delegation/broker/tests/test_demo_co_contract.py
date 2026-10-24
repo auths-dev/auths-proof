@@ -50,6 +50,25 @@ class DemoCoContractTests(unittest.TestCase):
         with self.assertRaises(ContractPending):
             import_company(self.connections, self.access, self.pins)
 
+    def test_optional_oidc_client_metadata_does_not_activate_google(self) -> None:
+        bundle = json.loads(self.connections.read_bytes())
+        bundle["oidc_clients"] = [{
+            "issuer": "http://127.0.0.1:58080/realms/demo",
+            "client_id": "local-reader", "audience": "local-reader",
+            "pkce": "S256", "redirect_uris": ["http://127.0.0.1:18080/callback"],
+        }]
+        self.connections.write_text(json.dumps(bundle))
+        pins = OperatorPins(**{**self.pins.__dict__,
+                               "bundle_sha256": hashlib.sha256(self.connections.read_bytes()).hexdigest()})
+        accepted = validate_artifacts(self.connections, self.access, pins)
+        self.assertFalse(accepted.google_ready)
+        bundle["oidc_clients"][0]["private_secret"] = "forbidden"
+        self.connections.write_text(json.dumps(bundle))
+        pins = OperatorPins(**{**pins.__dict__,
+                               "bundle_sha256": hashlib.sha256(self.connections.read_bytes()).hexdigest()})
+        with self.assertRaises(ContractRejected):
+            validate_artifacts(self.connections, self.access, pins)
+
     def test_non_google_person_mapping_may_share_logical_person_id(self) -> None:
         bundle = json.loads(self.connections.read_bytes())
         bundle["people"].append({
