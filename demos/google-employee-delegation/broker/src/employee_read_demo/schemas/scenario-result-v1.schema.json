@@ -19,6 +19,54 @@
   },
   "additionalProperties": false,
   "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "enum": [
+            "read",
+            "write"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Action"
+    },
+    "agent_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent Id"
+    },
+    "boundary": {
+      "anyOf": [
+        {
+          "enum": [
+            "provider",
+            "delegation",
+            "provider-and-delegation",
+            "cross-company"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Boundary"
+    },
     "company_id": {
       "pattern": "^[a-z][a-z0-9-]*$",
       "title": "Company Id",
@@ -33,6 +81,29 @@
       "pattern": "^[a-z][a-z0-9-]*$",
       "title": "Dataset Version",
       "type": "string"
+    },
+    "delegated_resources": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "type": "string"
+      },
+      "title": "Delegated Resources",
+      "type": "array"
+    },
+    "delegation_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Delegation Id"
     },
     "evidence_refs": {
       "default": [],

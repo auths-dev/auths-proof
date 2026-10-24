@@ -153,6 +153,15 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > artifact should be pinned and checked alongside the scenario-result shim
 > before replacing that shim with a direct verification import.
 
+> **Agent scenario handoff (24 October 2026):** The producer's revised
+> `scenario-result-v1` schema (SHA-256
+> `d93a76cf5c69fe4bb8f733f04493e3905e2e53946a85dba98984d3e89670e805`)
+> now has optional agent, delegation, delegated-resource, action and boundary
+> fields. This consumer pins that schema and its local non-ready example. The
+> fields describe independent scenario evidence; they never create an Auths
+> grant or mark a local Google step passed. The producer still owns actual
+> scenario execution and evidence export.
+
 The current `demo_co` local export includes one logical person under both
 Google and OIDC mappings. The consumer keys people by provider plus logical
 person ID and compares the access matrix only with Google mappings. This

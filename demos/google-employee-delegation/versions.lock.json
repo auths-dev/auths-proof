@@ -13,7 +13,7 @@
     },
     "scenario_result": {
       "version": "demo-co/scenario-result/v1",
-      "schema_sha256": "40085679a8308b83676472f2f4eb32512419daef3354706c21bf9d2ee0553250"
+      "schema_sha256": "d93a76cf5c69fe4bb8f733f04493e3905e2e53946a85dba98984d3e89670e805"
     }
   },
   "google_live_status": "not_configured",

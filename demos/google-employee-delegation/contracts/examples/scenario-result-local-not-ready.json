@@ -1,7 +1,12 @@
 {
+  "action": null,
+  "agent_id": null,
+  "boundary": null,
   "company_id": "atlas-studio",
   "completed_at": "2026-10-24T12:00:00Z",
   "dataset_version": "atlas-v1",
+  "delegated_resources": [],
+  "delegation_id": null,
   "evidence_refs": [],
   "expected": null,
   "failure_reason": "Google tenant and employee OAuth are not configured in local mode.",
@@ -14,7 +19,7 @@
   "sanitized_diagnostics": {},
   "scenario_id": "baseline-access",
   "schema_version": "demo-co/scenario-result/v1",
-  "source_revision": "2f0cc70c256969b40fdae0c393b22479cbe62e8c3781f9d858136cb1c332e68c",
+  "source_revision": "01e0d42f900ec81aac4527662214663c7d8a2c72664c3bf736ccee979ad6c93e",
   "started_at": "2026-10-24T12:00:00Z",
   "status": "not_configured"
 }
