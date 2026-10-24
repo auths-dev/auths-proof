@@ -127,7 +127,7 @@ class GoogleDriveTests(unittest.TestCase):
                 return {"Content-Encoding": "identity", "Content-Type": "text/plain"}.get(name, default)
 
             def read(self, amount):
-                time.sleep(0.03)
+                time.sleep(0.15)
                 return b"a"
 
         class Connection:
@@ -144,7 +144,8 @@ class GoogleDriveTests(unittest.TestCase):
                 pass
 
         trace = ProviderTrace()
-        with patch("employee_read_demo.google_drive.REQUEST_DEADLINE_SECONDS", 0.01), \
+        with patch("employee_read_demo.google_drive.ssl.create_default_context"), \
+                patch("employee_read_demo.google_drive.REQUEST_DEADLINE_SECONDS", 0.1), \
                 patch("employee_read_demo.google_drive._PinnedGoogleConnection", Connection):
             with self.assertRaises(GoogleUnavailable):
                 _get("/fixed", "synthetic-token", 1024, trace, "content")
@@ -179,19 +180,20 @@ class GoogleDriveTests(unittest.TestCase):
                 pass
 
             def getresponse(self):
-                stopped.wait(0.3)
+                stopped.wait(0.5)
                 raise socket.timeout("header read stopped")
 
             def close(self):
                 pass
 
         started = time.monotonic()
-        with patch("employee_read_demo.google_drive.REQUEST_DEADLINE_SECONDS", 0.01), \
+        with patch("employee_read_demo.google_drive.ssl.create_default_context"), \
+                patch("employee_read_demo.google_drive.REQUEST_DEADLINE_SECONDS", 0.1), \
                 patch("employee_read_demo.google_drive._PinnedGoogleConnection", Connection):
             with self.assertRaises(GoogleUnavailable):
                 _get("/fixed", "synthetic-token", 1024, ProviderTrace(), "metadata")
         self.assertTrue(stopped.is_set())
-        self.assertLess(time.monotonic() - started, 0.15)
+        self.assertLess(time.monotonic() - started, 0.3)
 
 
 if __name__ == "__main__":
