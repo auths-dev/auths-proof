@@ -17,6 +17,8 @@ from employee_read_demo.demo_co_contract import CompanyImport
 from employee_read_demo.enrollment import EmployeeBinding, EnrollmentStore
 from employee_read_demo.google_oauth import CONNECT_SCOPES, OAuthResult
 from employee_read_demo.operator_authority import EmployeeAuthorityStore, OperatorRoot
+from employee_read_demo.operator_cli import _template
+from employee_read_demo.task_activation import ActivationDenied, TaskActivationStore
 from employee_read_demo.task_approval import ApprovalDenied, TaskApprovalStore
 from employee_read_demo.task_proposals import TaskProposalStore
 from employee_read_demo.token_store import TokenVault
@@ -102,6 +104,24 @@ class TaskApprovalTests(unittest.TestCase):
                 approvals.complete(task.task_id, employee,
                                    employee_key.sign(pending.signing_preimage),
                                    vault, now=now)
+            activations = TaskActivationStore(path)
+            challenge = activations.begin(task.task_id, employee, vault, 0, now=now)
+            self.assertEqual(challenge.agent_principal, agent_principal)
+            with self.assertRaises(ActivationDenied):
+                activations.complete(task.task_id, employee, vault,
+                                     challenge.challenge, b"\0" * 64,
+                                     _template(root, "atlas-drive", now - 60, now + 86400),
+                                     root.principal, now=now)
+            challenge = activations.begin(task.task_id, employee, vault, 0, now=now)
+            active = activations.complete(
+                task.task_id, employee, vault, challenge.challenge,
+                agent_key.sign(challenge.signing_preimage),
+                _template(root, "atlas-drive", now - 60, now + 86400),
+                root.principal, now=now,
+            )
+            self.assertEqual(active, task)
+            with self.assertRaises(ApprovalDenied):
+                activations.begin(task.task_id, employee, vault, 0, now=now)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from .admission import AdmissionStore
 from .agent_registry import AgentRegistry
 from .authority_identity import authority_for_identity_packet
 from .enrollment import EmployeeBinding
+from .contracts import TaskDescriptor
 from .operator_authority import EmployeeAuthorityStore
 from .task_authority import plan_agent_grant
 from .task_proposals import TaskDenied, TaskProposalStore
@@ -150,3 +152,38 @@ class TaskApprovalStore:
             db.commit()
         return SignedTaskGrant(task_id, signed, parent.signed_grant,
                                parent.root_evidence, parent.employee_evidence)
+
+    def pending(self, task_id: str, employee: EmployeeBinding,
+                vault: TokenVault, *, now: int | None = None) -> tuple[TaskDescriptor, SignedTaskGrant]:
+        now = int(time.time()) if now is None else now
+        with self._connect() as db:
+            task_row = db.execute("""SELECT descriptor,digest,status FROM task_proposals
+                WHERE id=? AND company=? AND employee_binding=?""", (
+                    task_id, employee.company_id, employee.binding_ref,
+                )).fetchone()
+            approval_row = db.execute("""SELECT task_digest,parent_digest,signed_child,status
+                FROM task_approvals WHERE task_id=? AND employee_binding=?""", (
+                    task_id, employee.binding_ref,
+                )).fetchone()
+        if (task_row is None or task_row[2] != "approved_pending_activation"
+                or approval_row is None or approval_row[3] != "signed"
+                or not approval_row[2]):
+            raise ApprovalDenied("signed task is unavailable")
+        data = json.loads(task_row[0])
+        data["file_ids"] = tuple(data["file_ids"])
+        task = TaskDescriptor(**data)
+        task.validate()
+        if (task.digest != task_row[1] or task.digest != approval_row[0]
+                or now >= task.expires_at
+                or task.employee_principal != employee.principal
+                or task.identity_binding_ref != employee.binding_ref):
+            raise ApprovalDenied("signed task binding changed")
+        AgentRegistry(self.path).lookup(employee, task.agent_principal)
+        if vault.connection_generation(task.connection_id, employee) != task.connection_generation:
+            raise ApprovalDenied("employee connection changed")
+        parent = EmployeeAuthorityStore(self.path).load(employee, now=now)
+        if hashlib.sha256(parent.signed_grant).hexdigest() != approval_row[1]:
+            raise ApprovalDenied("employee grant changed")
+        package = SignedTaskGrant(task_id, approval_row[2], parent.signed_grant,
+                                  parent.root_evidence, parent.employee_evidence)
+        return task, package

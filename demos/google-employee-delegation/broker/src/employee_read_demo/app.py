@@ -28,6 +28,7 @@ from .google_oauth import GoogleOAuth, GoogleOAuthConfig, OAuthRejected, OAuthSt
 from .token_store import TokenVault
 from .task_proposals import TaskDenied, TaskProposalStore
 from .task_approval import ApprovalDenied, TaskApprovalStore
+from .task_activation import ActivationDenied, TaskActivationStore
 from .operator_authority import OperatorDenied
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 
@@ -61,10 +62,13 @@ class Workbench:
     agents: AgentRegistry
     proposals: TaskProposalStore
     approvals: TaskApprovalStore
+    activations: TaskActivationStore
     vault: TokenVault | None
     company: CompanyImport | None
     status: ImportStatus
     origin: str
+    trusted_template: bytes | None = None
+    expected_root: str | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -378,9 +382,51 @@ class Handler(BaseHTTPRequestHandler):
                     "task_id": signed.task_id,
                 })
                 return
+            if path in {"/api/v1/tasks/activate/prepare", "/api/v1/tasks/activate"}:
+                if (self.workbench.company is None or self.workbench.vault is None
+                        or self.workbench.trusted_template is None
+                        or self.workbench.expected_root is None
+                        or not session.issuer or not session.subject):
+                    raise ActivationDenied("native task activation is unavailable")
+                task_id = body.get("task_id")
+                if not isinstance(task_id, str) or not 1 <= len(task_id) <= 256:
+                    raise ValueError("task ID is invalid")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                if path.endswith("/prepare"):
+                    call_index = body.get("call_index")
+                    if type(call_index) is not int:
+                        raise ValueError("call index is invalid")
+                    challenge = self.workbench.activations.begin(
+                        task_id, employee, self.workbench.vault, call_index,
+                    )
+                    self._json(HTTPStatus.OK, {
+                        "status": "awaiting_agent_signature",
+                        "task_id": task_id,
+                        "agent_principal": challenge.agent_principal,
+                        "call": challenge.call,
+                        "challenge": base64.urlsafe_b64encode(challenge.challenge).decode("ascii"),
+                        "signing_preimage": base64.urlsafe_b64encode(
+                            challenge.signing_preimage).decode("ascii"),
+                        "expires_at": challenge.expires_at,
+                    })
+                    return
+                challenge = _b64(body.get("challenge", ""), max_bytes=32)
+                signature = _b64(body.get("signature", ""), max_bytes=64)
+                task = self.workbench.activations.complete(
+                    task_id, employee, self.workbench.vault, challenge, signature,
+                    self.workbench.trusted_template, self.workbench.expected_root,
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "active", "task_id": task.task_id,
+                    "task_commitment": task.digest,
+                })
+                return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied,
-                AgentDenied, TaskDenied, ApprovalDenied, OperatorDenied,
+                AgentDenied, TaskDenied, ApprovalDenied, ActivationDenied, OperatorDenied,
                 AdmissionDenied, GoogleDenied) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
         except GoogleUnavailable:
@@ -410,6 +456,7 @@ def main() -> int:
     parser.add_argument("--pins", type=Path)
     parser.add_argument("--oauth-config", type=Path)
     parser.add_argument("--fernet-key", type=Path)
+    parser.add_argument("--trust-file", type=Path)
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
@@ -439,10 +486,25 @@ def main() -> int:
         vault = TokenVault(args.state_db, encryption_key=_private_file(args.fernet_key, 128).strip(),
                            client_id=oauth.config.client_id,
                            refresh_client_secret=oauth.config.client_secret)
+    trusted_template = None
+    expected_root = None
+    if args.trust_file is not None:
+        from auths import _native
+
+        manifest = json.loads(_private_file(args.trust_file, 262_144))
+        if (manifest.get("contract") != "auths.google-read-root/v1"
+                or manifest.get("service") != "atlas-drive"
+                or manifest.get("configuration_id") != bytes(
+                    _native.self_contained_configuration()).hex()
+                or company is None or manifest.get("company_id") != company.bundle["company_id"]):
+            parser.error("operator trust file does not match accepted company and SDK")
+        expected_root = manifest.get("root_principal")
+        trusted_template = base64.urlsafe_b64decode(manifest["trusted_template"])
+        _native.parse_trusted_context(trusted_template)
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
-                          TaskApprovalStore(args.state_db), vault,
-                          company, status, origin)
+                          TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
+                          vault, company, status, origin, trusted_template, expected_root)
     with WorkbenchServer(("127.0.0.1", args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)
         server.serve_forever(poll_interval=0.5)
