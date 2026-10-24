@@ -27,6 +27,8 @@ def main() -> None:
     run.add_argument("--package-file", type=Path, required=True)
     run.add_argument("--broker-origin", required=True)
     run.add_argument("--model", required=True)
+    run.add_argument("--model-base-url")
+    run.add_argument("--model-api-key-file", type=Path)
     args = parser.parse_args()
     if args.command == "init-key":
         seed = Ed25519PrivateKey.generate().private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -55,7 +57,17 @@ def main() -> None:
     if args.package_file.stat().st_size > 1_000_000:
         parser.error("agent package exceeds bounds")
     package = json.loads(args.package_file.read_bytes())
-    result = run_task(package, key, HttpBroker(args.broker_origin), OpenAIModel(args.model))
+    model_key = None
+    if args.model_api_key_file is not None:
+        key_file = args.model_api_key_file
+        if (key_file.is_symlink() or not key_file.is_file()
+                or key_file.stat().st_size > 4096):
+            parser.error("model API key file is invalid")
+        model_key = key_file.read_text(encoding="utf-8").strip()
+        if not model_key or "\n" in model_key or "\r" in model_key:
+            parser.error("model API key is invalid")
+    result = run_task(package, key, HttpBroker(args.broker_origin),
+                      OpenAIModel(args.model, args.model_base_url, model_key))
     print(json.dumps(result, indent=2, sort_keys=True))
 
 

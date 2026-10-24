@@ -49,7 +49,8 @@ broker rebuilds the expected proof from its own stored grant chain before the
 native verifier admits a read and signs a receipt.
 It is **not yet a runnable live Google demo**. The workbench now shows
 employee-scoped task status, remaining limits and verified receipt JSON;
-deployed broker/agent isolation and the installation kit are still absent. The
+the container isolation layout is present, but installed image builds and
+deployed isolation acceptance are still pending. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
 schema and operator commitments; a local fixture still produces
@@ -131,3 +132,35 @@ live mode. The agent key and model API key must not be mounted into the broker;
 the broker vault, receipt key and operator root must not be mounted into the
 agent. The current local test injects a fake provider and fake model; it does
 not claim live Google or model acceptance.
+
+## Container isolation layout
+
+`compose.yaml` separates the broker, browser relay, agent relay, model relay
+and agent. The browser relay alone publishes `127.0.0.1:8765`. The agent's
+only network is `agent_private`, with the agent relay and model relay. The
+agent relay forwards only POSTs for challenge issuance and exact proof calls;
+it cannot reach browser, session, operator or receipt routes through its
+configuration. The model relay forwards only POST `/v1/responses` to
+`api.openai.com` with TLS verification. The broker's state mount is absent
+from the agent. No container receives the Docker socket or a `demo_co`
+administrator mount.
+
+The Compose file requires operator supplied **digest-pinned installed broker
+and agent images** (`AP070_BROKER_IMAGE`, `AP070_AGENT_IMAGE`), the host runtime
+UID/GID, a private broker state directory, a private agent directory, a model
+key file and an approved model ID. The Nginx relay image is pinned in
+`versions.lock.json`. The matching broker/agent images and Auths wheel still
+need to be built and pinned from installed artifacts before this becomes an
+installation kit. Compose validation and relay syntax checks alone do not
+prove the runtime isolation claim.
+
+For live Google mode, add `compose.live.yaml`. It mounts only the broker's
+operator files and accepted export directory. The export directory must hold
+`connections.json`, `access-expectations.json` and a `scenarios/` directory
+with `scenario-result-*.json` files in the same order as the operator's digest
+pins. The broker's OAuth redirect remains exactly
+`http://127.0.0.1:8765/api/v1/google/callback`; its all-interface bind is
+permitted only inside Docker behind the relays. The agent key and package
+remain in its own read-only mount, and its model key is mounted only into the
+agent. Model selection and summarization send selected synthetic document
+content through the model relay to OpenAI; that data leaves the Mac.

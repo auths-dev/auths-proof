@@ -340,6 +340,14 @@ The trusted boundary includes the broker host/process, operator configuration, e
 
 Run broker and agent under distinct container/OS security boundaries. Only the broker has its secret volume, encryption key, token endpoints and company-root signing capability. The agent has no mount of broker state, shared `.env`, Docker socket, host shell or `demo_co` administrator interface. The frontend has no token-store access. Constrain the agent's network to the broker and the explicitly configured model endpoint; Google API access is not an alternate credential path.
 
+> **Isolation implementation note (24 October 2026):** The Auths demo now has
+> a Compose layout with separate browser, agent and model relays. The agent
+> joins only an internal network containing its two relays; the agent relay
+> exposes only challenge and proof-call POST routes. The broker state and
+> operator files have no agent mount. Installed broker/agent images, runtime
+> filesystem/API/network inspection and live provider acceptance are still
+> required before this is an isolation claim.
+
 Do not call a same-user process split credential isolation if the agent can read its sibling's files/process state or invoke its operator API. Acceptance must exercise the actual filesystem, API and network restrictions. Public broker endpoints still require complete proof/task checks; their reachability alone provides no authority.
 
 Downloaded document content is untrusted data. It must not register tools, change task scope, choose egress targets or trigger hidden fetches. The agent may still disclose permitted content through its model/output channel. Record whether synthetic company text leaves the Mac, the configured model provider and any retention assumptions; read-only access does not itself solve exfiltration.

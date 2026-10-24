@@ -596,25 +596,38 @@ def main() -> int:
     parser.add_argument("--connections", type=Path)
     parser.add_argument("--access-expectations", type=Path)
     parser.add_argument("--scenario-result", type=Path, action="append", default=[])
+    parser.add_argument("--scenario-dir", type=Path,
+                        help="directory of operator-pinned scenario-result-*.json exports")
     parser.add_argument("--pins", type=Path)
     parser.add_argument("--oauth-config", type=Path)
     parser.add_argument("--fernet-key", type=Path)
     parser.add_argument("--trust-file", type=Path)
     parser.add_argument("--receipt-key", type=Path)
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--container-bind", action="store_true",
+                        help="bind all container interfaces; use only behind the compose relays")
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error("port must be 1024..65535")
+    if args.container_bind and not Path("/.dockerenv").exists():
+        parser.error("container bind requires Docker isolation")
     origin = f"http://127.0.0.1:{args.port}"
+    scenario_results = tuple(args.scenario_result)
+    if args.scenario_dir is not None:
+        if args.scenario_dir.is_symlink() or not args.scenario_dir.is_dir():
+            parser.error("scenario directory is unavailable")
+        scenario_results += tuple(sorted(args.scenario_dir.glob("scenario-result-*.json")))
+    if len(scenario_results) > 4096:
+        parser.error("too many scenario results")
     pins = None
     if args.pins is not None:
         pins = OperatorPins(**json.loads(_private_file(args.pins, 4096)))
     status = inspect_exports(args.connections, args.access_expectations, pins,
-                             tuple(args.scenario_result))
+                             scenario_results)
     company = None
     if status.google == "ready" and pins and args.connections and args.access_expectations:
         company = import_company(args.connections, args.access_expectations, pins,
-                                 scenario_results=tuple(args.scenario_result))
+                                 scenario_results=scenario_results)
     sessions = BrowserSessionStore(args.state_db)
     oauth = None
     if args.oauth_config is not None:
@@ -661,7 +674,8 @@ def main() -> int:
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
                           vault, company, status, origin, trusted_template, expected_root,
                           agent_transport)
-    with WorkbenchServer(("127.0.0.1", args.port), workbench) as server:
+    bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
+    with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)
         server.serve_forever(poll_interval=0.5)
     return 0

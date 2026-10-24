@@ -117,8 +117,11 @@ class ModelPort(Protocol):
 class HttpBroker:
     def __init__(self, origin: str) -> None:
         parts = urlsplit(origin)
-        if parts.scheme != "http" or parts.hostname not in {"127.0.0.1", "localhost"} or parts.path or parts.query or parts.fragment:
-            raise ValueError("agent broker origin must be a dedicated loopback HTTP origin")
+        if (parts.scheme != "http" or parts.hostname not in {"127.0.0.1", "localhost", "agent-relay"}
+                or parts.path or parts.query or parts.fragment or parts.username or parts.password):
+            raise ValueError("agent broker origin must be loopback or the isolated agent relay")
+        if parts.hostname == "agent-relay" and parts.port != 8080:
+            raise ValueError("isolated agent relay must use port 8080")
         self.origin = origin.rstrip("/")
 
     def _post(self, path: str, body: dict) -> dict:
@@ -164,10 +167,26 @@ class HttpBroker:
         })
 
 
+def validate_model_base_url(base_url: str | None) -> str | None:
+    if base_url is None:
+        return None
+    parts = urlsplit(base_url)
+    if (parts.query or parts.fragment or parts.username or parts.password
+            or (parts.scheme, parts.hostname, parts.port, parts.path.rstrip("/"))
+            != ("http", "model-relay", 8080, "/v1")):
+        raise ValueError("model endpoint must be the isolated model relay")
+    return base_url
+
+
 class OpenAIModel:
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, base_url: str | None = None,
+                 api_key: str | None = None) -> None:
         from openai import OpenAI
-        self.client = OpenAI(timeout=60, max_retries=0)
+        endpoint = validate_model_base_url(base_url)
+        options = {} if endpoint is None else {"base_url": endpoint}
+        if api_key is not None:
+            options["api_key"] = api_key
+        self.client = OpenAI(timeout=60, max_retries=0, **options)
         self.model = model
 
     def _response(self, instructions: str, data: dict, max_tokens: int) -> str:

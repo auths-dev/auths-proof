@@ -2,10 +2,24 @@ from __future__ import annotations
 
 import unittest
 
-from employee_read_agent.run import OpenAIModel
+from employee_read_agent.run import HttpBroker, OpenAIModel, validate_model_base_url
 
 
 class ModelContractTests(unittest.TestCase):
+    def test_container_origins_are_closed(self) -> None:
+        self.assertEqual(HttpBroker("http://agent-relay:8080").origin,
+                         "http://agent-relay:8080")
+        for origin in ("http://broker:8765", "http://agent-relay:8081",
+                       "http://user@agent-relay:8080"):
+            with self.assertRaises(ValueError):
+                HttpBroker(origin)
+        self.assertEqual(validate_model_base_url("http://model-relay:8080/v1"),
+                         "http://model-relay:8080/v1")
+        for origin in ("http://model-relay:8080/other", "http://broker:8080/v1",
+                       "http://user@model-relay:8080/v1"):
+            with self.assertRaises(ValueError):
+                validate_model_base_url(origin)
+
     def test_model_cannot_choose_or_cite_an_unapproved_document(self) -> None:
         model = object.__new__(OpenAIModel)
         model._response = lambda *_: '{"file_ids":["outside"]}'
