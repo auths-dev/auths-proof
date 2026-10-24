@@ -82,3 +82,16 @@ d92064d919b7c2498ce62588ff48a82284f0bcd7:formal/proof-coverage-v1.json:generic-a
 # Ordinary progress prose triggered the generic key rule. The current prose
 # avoids the ambiguous wording; no credential occurred in the historical line.
 3e9704b5d4d12bc654fc48de9b03ab6adb9fcb41:docs/PROGRAM_BOARD.md:generic-api-key:477
+
+# Reviewed 2026-10-25: public symbol names and metadata, not credentials.
+# The Python import lists raw_key_ed25519 beside authenticate_message; the
+# lock file value is the public Git base revision for this demo.
+50a8e39ed80a15f0aad7f603d0223fded7db54f7:bindings/python/tests/test_identity_authoring.py:generic-api-key:5
+e4111d199510d5f06332cfaf5a6d93484aed74c4:demos/google-employee-delegation/versions.lock.json:generic-api-key:4
+
+# Earlier verifier parity fixture labels name public raw-key and did:key
+# variants. Lean's sortingKey and generated verify_strict symbols are code.
+f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:core/crates/auths-verifier/src/authority_parity_tests.rs:generic-api-key:50
+f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:core/crates/auths-verifier/src/stage_parity_tests.rs:generic-api-key:48
+f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:formal/Auths/Product/JsonStringDocument.lean:generic-api-key:102
+92606918fdb9b6e5163f2e59d210a852004c1e30:formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean:generic-api-key:61
