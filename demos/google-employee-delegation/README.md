@@ -18,6 +18,9 @@ Identity possession uses the SDK's `raw-key-v2` packet. The same verified
 Ed25519 public key is projected through the native SDK into the target-V1
 principal and evidence used by the grant verifier. The employee and agent
 keys remain distinct.
+The operator CLI creates a private company root seed and pinned native trust
+template, then signs a one-hour company-to-employee grant for an enrolled
+employee. Its seed file stays outside the workbench and agent processes.
 The employee can prepare a finite task from the imported Google catalog;
 the broker checks each selected file's metadata under that employee's
 connection before persisting a review-only descriptor. Preparation does not
@@ -54,6 +57,19 @@ only to `127.0.0.1`.
 ```sh
 auths-google-read-workbench --state-db /path/to/private/broker.sqlite3
 ```
+
+After employee enrollment, an operator can create a private directory and run:
+
+```sh
+auths-google-read-operator init-root --seed-file /private/operator/root.seed \
+  --trust-file /private/operator/trust.json --company atlas-studio
+auths-google-read-operator issue-employee --seed-file /private/operator/root.seed \
+  --trust-file /private/operator/trust.json \
+  --state-db /private/broker.sqlite3 --binding-ref BINDING_REF
+```
+
+The trust file is an operator pin. Protect both files with `0600` permissions
+inside a `0700` directory. The CLI refuses to overwrite either file.
 
 `demo_co` owns provider provisioning, fixture ACLs, baseline probes and
 versioned export production. The checked-in schemas and examples under this
