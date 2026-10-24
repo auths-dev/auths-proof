@@ -13,6 +13,10 @@ broker components. A broker-signed private read receipt records release observat
 The broker reserves the worst-case metadata plus content response bytes for
 every admitted call in SQLite, retaining charges on refusal or ambiguous
 fetches. A separate-process test checks shared admission limits.
+The Drive adapter also measures GETs started and response bytes read for the
+signed broker receipt. Those observed counts are distinct from the durable
+worst-case reservation; a crash before receipt persistence can leave only the
+conservative charge, so a full provider-attempt ledger is still pending.
 A loopback HTTP workbench now provides server-held sessions, CSRF checks,
 Google login/consent callbacks and employee key-possession enrollment routes.
 It also registers a distinct agent key through its own one-use challenge,

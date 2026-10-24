@@ -9,7 +9,7 @@ from typing import Protocol
 from .admission import AdmissionDenied, AdmissionStore
 from .authority import verify_read
 from .contracts import ReadCommand, TaskDescriptor
-from .google_drive import GoogleDenied
+from .google_drive import GoogleDenied, ProviderTrace
 from .receipts import ReceiptStore
 
 
@@ -55,13 +55,16 @@ def execute_read(
             provider_stage = "provider_denied"
         store.fail(reservation)
         if receipts is not None:
+            trace = getattr(provider, "trace", None)
             receipts.record(task=task, verified=verified, challenge=challenge,
                             provider_stage=provider_stage, release_stage="not_committed",
-                            content=None)
+                            content=None, trace=trace if isinstance(trace, ProviderTrace) else None)
         raise
+    trace = getattr(provider, "trace", None)
     receipt = None if receipts is None else receipts.record(
         task=task, verified=verified, challenge=challenge,
         provider_stage="content_fetched", release_stage="committed", content=released,
+        trace=trace if isinstance(trace, ProviderTrace) else None,
     )
     return ReadOutcome(released, verified.native_code, True,
                        None if receipt is None else receipt.payload["receipt_id"])

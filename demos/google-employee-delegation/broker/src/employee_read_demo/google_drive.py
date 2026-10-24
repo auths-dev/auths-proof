@@ -8,6 +8,7 @@ import json
 import socket
 import ssl
 import time
+from dataclasses import dataclass
 from urllib.parse import quote
 
 from .contracts import MAX_METADATA_BYTES, ReadCommand, TaskDescriptor
@@ -25,6 +26,14 @@ class GoogleDenied(PermissionError):
 
 class GoogleUnavailable(RuntimeError):
     """Transport or malformed provider result; retry needs fresh admission."""
+
+
+@dataclass
+class ProviderTrace:
+    """Observed Drive GETs and body bytes; capacity is reserved separately."""
+
+    requests_started: int = 0
+    response_bytes: int = 0
 
 
 class _PinnedGoogleConnection(http.client.HTTPSConnection):
@@ -49,9 +58,10 @@ class _PinnedGoogleConnection(http.client.HTTPSConnection):
         raise GoogleUnavailable("Google TLS connection failed") from last_error
 
 
-def _get(path: str, token: str, limit: int) -> tuple[int, bytes, str]:
+def _get(path: str, token: str, limit: int, trace: ProviderTrace) -> tuple[int, bytes, str]:
     connection = _PinnedGoogleConnection(HOST, timeout=15, context=ssl.create_default_context())
     try:
+        trace.requests_started += 1
         connection.request("GET", path, headers={
             "Authorization": f"Bearer {token}",
             "Accept-Encoding": "identity",
@@ -65,10 +75,16 @@ def _get(path: str, token: str, limit: int) -> tuple[int, bytes, str]:
         declared = response.getheader("Content-Length")
         if declared is not None and (not declared.isascii() or not declared.isdecimal() or int(declared) > limit):
             raise GoogleUnavailable("Google response exceeds byte limit")
-        body = response.read(limit + 1)
+        body = bytearray()
+        while len(body) <= limit:
+            part = response.read(min(16_384, limit + 1 - len(body)))
+            trace.response_bytes += len(part)
+            body.extend(part)
+            if not part:
+                break
         if len(body) > limit:
             raise GoogleUnavailable("Google response exceeds byte limit")
-        return response.status, body, response.getheader("Content-Type", "")
+        return response.status, bytes(body), response.getheader("Content-Type", "")
     except (OSError, http.client.HTTPException) as error:
         raise GoogleUnavailable("Google request failed") from error
     finally:
@@ -80,6 +96,7 @@ class GoogleDriveReader:
         task.validate()
         self.task = task
         self.tokens = tokens
+        self.trace = ProviderTrace()
 
     def _metadata(self, command: ReadCommand) -> tuple[dict, str]:
         if command not in self.task.calls():
@@ -89,7 +106,7 @@ class GoogleDriveReader:
         lease = self.tokens.lease(self.task)
         file_id = quote(command.file_id, safe="")
         metadata_path = f"/drive/v3/files/{file_id}?fields=id,mimeType,size,trashed,capabilities(canDownload)"
-        status, body, content_type = _get(metadata_path, lease.access_token, METADATA_LIMIT)
+        status, body, content_type = _get(metadata_path, lease.access_token, METADATA_LIMIT, self.trace)
         if status in {401, 403, 404}:
             raise GoogleDenied("Google refused document metadata")
         if status != 200 or "application/json" not in content_type:
@@ -114,9 +131,11 @@ class GoogleDriveReader:
 
     def inspect_exact(self, command: ReadCommand) -> None:
         """Check employee-readable metadata without fetching document content."""
+        self.trace = ProviderTrace()
         self._metadata(command)
 
     def read_exact(self, command: ReadCommand) -> bytes:
+        self.trace = ProviderTrace()
         metadata, access_token = self._metadata(command)
         file_id = quote(command.file_id, safe="")
         mime = metadata["mimeType"]
@@ -124,7 +143,7 @@ class GoogleDriveReader:
             path = f"/drive/v3/files/{file_id}/export?mimeType=text%2Fplain"
         else:
             path = f"/drive/v3/files/{file_id}?alt=media"
-        status, content, content_type = _get(path, access_token, command.max_bytes)
+        status, content, content_type = _get(path, access_token, command.max_bytes, self.trace)
         if status in {401, 403, 404}:
             raise GoogleDenied("Google refused document content")
         if status != 200 or "text/plain" not in content_type:
