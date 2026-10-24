@@ -13,6 +13,7 @@ from employee_read_demo.browser_sessions import BrowserSessionStore
 from employee_read_demo.demo_co_contract import ImportStatus
 from employee_read_demo.enrollment import EnrollmentStore
 from employee_read_demo.task_proposals import TaskProposalStore
+from employee_read_demo.task_approval import TaskApprovalStore
 
 
 class WorkbenchTests(unittest.TestCase):
@@ -22,13 +23,14 @@ class WorkbenchTests(unittest.TestCase):
         path = Path(self.temp.name) / "broker.sqlite3"
         state = Workbench(
             BrowserSessionStore(path), None, EnrollmentStore(path), AgentRegistry(path),
-            TaskProposalStore(path), None, None,
+            TaskProposalStore(path), TaskApprovalStore(path), None, None,
             ImportStatus("not_configured", "validated", "validated", "Google is absent"),
             "http://127.0.0.1:0",
         )
         self.server = WorkbenchServer(("127.0.0.1", 0), state)
         self.server.workbench = Workbench(
             state.sessions, None, state.enrollment, state.agents, state.proposals,
+            state.approvals,
             None, None, state.status,
             f"http://127.0.0.1:{self.server.server_port}",
         )

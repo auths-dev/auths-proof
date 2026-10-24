@@ -27,6 +27,8 @@ from .enrollment import EnrollmentDenied, EnrollmentStore, VerifiedGoogleSubject
 from .google_oauth import GoogleOAuth, GoogleOAuthConfig, OAuthRejected, OAuthStateStore
 from .token_store import TokenVault
 from .task_proposals import TaskDenied, TaskProposalStore
+from .task_approval import ApprovalDenied, TaskApprovalStore
+from .operator_authority import OperatorDenied
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 
 COOKIE = "ap070_session"
@@ -58,6 +60,7 @@ class Workbench:
     enrollment: EnrollmentStore
     agents: AgentRegistry
     proposals: TaskProposalStore
+    approvals: TaskApprovalStore
     vault: TokenVault | None
     company: CompanyImport | None
     status: ImportStatus
@@ -341,9 +344,44 @@ class Handler(BaseHTTPRequestHandler):
                     "approved_calls": [asdict(call) for call in task.calls()],
                 })
                 return
+            if path in {"/api/v1/tasks/authorize/prepare", "/api/v1/tasks/authorize"}:
+                if (self.workbench.company is None or self.workbench.vault is None
+                        or not session.issuer or not session.subject):
+                    raise ApprovalDenied("task authorization is unavailable")
+                task_id = body.get("task_id")
+                if not isinstance(task_id, str) or not 1 <= len(task_id) <= 256:
+                    raise ValueError("task ID is invalid")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                if path.endswith("/prepare"):
+                    task = self.workbench.proposals.get(task_id, employee)
+                    pending = self.workbench.approvals.prepare(
+                        task_id, employee, self.workbench.vault,
+                    )
+                    self._json(HTTPStatus.OK, {
+                        "status": "awaiting_employee_signature",
+                        "task": asdict(task),
+                        "task_commitment": pending.task_commitment,
+                        "approved_calls": [asdict(call) for call in task.calls()],
+                        "signing_preimage": base64.urlsafe_b64encode(
+                            pending.signing_preimage).decode("ascii"),
+                    })
+                    return
+                signature = _b64(body.get("signature", ""), max_bytes=64)
+                signed = self.workbench.approvals.complete(
+                    task_id, employee, signature, self.workbench.vault,
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "approved_pending_native_activation",
+                    "task_id": signed.task_id,
+                })
+                return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
         except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied,
-                AgentDenied, TaskDenied, AdmissionDenied, GoogleDenied) as error:
+                AgentDenied, TaskDenied, ApprovalDenied, OperatorDenied,
+                AdmissionDenied, GoogleDenied) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
         except GoogleUnavailable:
             self._json(HTTPStatus.SERVICE_UNAVAILABLE,
@@ -402,7 +440,8 @@ def main() -> int:
                            client_id=oauth.config.client_id,
                            refresh_client_secret=oauth.config.client_secret)
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
-                          AgentRegistry(args.state_db), TaskProposalStore(args.state_db), vault,
+                          AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
+                          TaskApprovalStore(args.state_db), vault,
                           company, status, origin)
     with WorkbenchServer(("127.0.0.1", args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

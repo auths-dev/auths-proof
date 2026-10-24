@@ -24,8 +24,11 @@ employee. Its seed file stays outside the workbench and agent processes.
 The employee can prepare a finite task from the imported Google catalog;
 the broker checks each selected file's metadata under that employee's
 connection before persisting a review-only descriptor. Preparation does not
-activate authority or permit an agent read.
-It is **not a runnable Google demo**. Task authorization, the agent process,
+activate authority or permit an agent read. The workbench can then present
+the exact native child-grant signing preimage and accept the employee's
+signature once. The signed grant remains pending until a complete agent-signed
+proof is verified under the operator-pinned trust context.
+It is **not a runnable Google demo**. Native task activation, the agent process,
 receipt page and packaged install are still absent. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
