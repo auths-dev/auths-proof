@@ -9,6 +9,7 @@ let session = null;
 let preparedAgent = null;
 let preparedTask = null;
 let preparedActivation = null;
+let activationTaskId = null;
 
 async function api(path, body = null) {
   const options = { credentials: "same-origin" };
@@ -83,6 +84,20 @@ function agentPacket() {
   return raw;
 }
 
+function showActivationCalls(taskId, calls) {
+  const select = byId("activation-call");
+  const previous = activationTaskId === taskId ? select.value : "0";
+  select.replaceChildren();
+  calls.forEach((call, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = `${index + 1}. ${call.file_id} · ${call.output} · max ${call.max_bytes} bytes`;
+    select.append(option);
+  });
+  if (calls.length) select.value = previous;
+  activationTaskId = taskId;
+}
+
 async function enrollEmployee() {
   const key = await employeeKey(true);
   const packet = await api("/api/v1/identity/packet", { public_key: key.publicKey });
@@ -127,6 +142,7 @@ async function prepareTask() {
   });
   preparedTask = result;
   byId("task-id").value = result.task.task_id;
+  showActivationCalls(result.task.task_id, result.approved_calls);
   byId("review-json").textContent = JSON.stringify({
     employee_principal: result.task.employee_principal,
     agent_principal: result.task.agent_principal,
@@ -155,7 +171,18 @@ async function authorizeTask() {
 }
 
 async function prepareActivation() {
-  const result = await api("/api/v1/tasks/activate/prepare", { task_id: value("task-id") });
+  const taskId = value("task-id");
+  if (!taskId) throw new Error("Enter a task ID first");
+  if (activationTaskId !== taskId || !byId("activation-call").options.length) {
+    const snapshot = await api(`/api/v1/tasks/${encodeURIComponent(taskId)}`);
+    showActivationCalls(taskId, snapshot.approved_calls);
+  }
+  const call_index = Number(byId("activation-call").value);
+  if (!Number.isInteger(call_index) || call_index < 0 ||
+      call_index >= byId("activation-call").options.length) {
+    throw new Error("Select an approved activation call");
+  }
+  const result = await api("/api/v1/tasks/activate/prepare", { task_id: taskId, call_index });
   preparedActivation = result;
   byId("activate-preimage").disabled = false;
   byId("activate-complete").disabled = false;
@@ -183,6 +210,7 @@ async function packageTask() {
 
 async function loadTask() {
   const result = await api(`/api/v1/tasks/${encodeURIComponent(value("task-id"))}`);
+  showActivationCalls(result.task.task_id, result.approved_calls);
   byId("task-status-json").textContent = JSON.stringify(result, null, 2);
   message(`Task status: ${result.status}; ${result.usage.remaining_calls} calls remain.`);
 }

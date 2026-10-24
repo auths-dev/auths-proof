@@ -55,6 +55,10 @@
   <section aria-labelledby="run-heading">
     <h2 id="run-heading">4. Activate and run</h2>
     <label>Task ID<input id="task-id" autocomplete="off"></label>
+    <label>Approved call used to prove agent activation
+      <select id="activation-call"></select>
+    </label>
+    <p class="hint">Activation verifies one exact approved call. The signed task still limits every later read to its full reviewed call list.</p>
     <div class="actions"><button id="activate-prepare" type="button">Prepare agent activation</button>
       <button id="activate-preimage" type="button" disabled>Download signing preimage</button></div>
     <label>Agent activation signature (base64)<textarea id="activate-signature" rows="2"></textarea></label>

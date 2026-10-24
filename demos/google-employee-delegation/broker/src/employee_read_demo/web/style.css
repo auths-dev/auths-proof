@@ -12,7 +12,7 @@ button:hover, .actions a:hover { background: #145b46; }
 button:disabled { background: #d9dddd; color: #5d6565; border-color: #c5cccc; cursor: default; }
 button.danger { background: #ab3a2e; border-color: #ab3a2e; }
 label { display: block; font-weight: 600; margin: .9rem 0; }
-input, textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .35rem; padding: .5rem; font: inherit; border: 1px solid #aebcba; border-radius: 6px; }
+input, select, textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .35rem; padding: .5rem; font: inherit; border: 1px solid #aebcba; border-radius: 6px; }
 textarea { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: .9rem; background: #f0f4f3; border-radius: 6px; max-height: 22rem; overflow: auto; }
 code { font-family: ui-monospace, monospace; font-size: .95em; }
