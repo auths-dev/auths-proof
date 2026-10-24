@@ -120,7 +120,8 @@ class TaskProposalStore:
                     task_id, employee.company_id, employee.binding_ref,
                 )).fetchone()
             usage = db.execute("""SELECT status,calls,charged_bytes,attempts,in_flight,
-                challenges_issued FROM tasks WHERE id=? AND company=? AND employee=?""", (
+                challenges_issued,reserved_provider_bytes FROM tasks
+                WHERE id=? AND company=? AND employee=?""", (
                     task_id, employee.company_id, employee.principal,
                 )).fetchone()
         if row is None:
@@ -144,6 +145,7 @@ class TaskProposalStore:
                 "provider_attempts_reserved": 0 if usage is None else usage[3],
                 "in_flight": 0 if usage is None else usage[4],
                 "challenges_issued": 0 if usage is None else usage[5],
+                "provider_response_bytes_reserved": 0 if usage is None else usage[6],
                 "remaining_calls": task.max_calls - (0 if usage is None else usage[1]),
                 "remaining_task_bytes": task.max_total_bytes - (0 if usage is None else usage[2]),
             },

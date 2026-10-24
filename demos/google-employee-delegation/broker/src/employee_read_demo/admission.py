@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .authority import VerifiedRead, native_body_digest
-from .contracts import MAX_ATTEMPTS, TaskDescriptor
+from .contracts import MAX_ATTEMPTS, MAX_METADATA_BYTES, MAX_PROVIDER_RESPONSE_BYTES, TaskDescriptor
 
 
 class AdmissionDenied(PermissionError):
@@ -57,6 +57,7 @@ class AdmissionStore:
                   expires INTEGER NOT NULL, max_calls INTEGER NOT NULL,
                   max_bytes INTEGER NOT NULL, calls INTEGER NOT NULL DEFAULT 0,
                   charged_bytes INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0,
+                  reserved_provider_bytes INTEGER NOT NULL DEFAULT 0,
                   in_flight INTEGER NOT NULL DEFAULT 0,
                   challenges_issued INTEGER NOT NULL DEFAULT 0,
                   revision INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'active'
@@ -68,6 +69,9 @@ class AdmissionStore:
                   FOREIGN KEY(task_id) REFERENCES tasks(id)
                 );
             """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(tasks)")}
+            if "reserved_provider_bytes" not in columns:
+                db.execute("ALTER TABLE tasks ADD COLUMN reserved_provider_bytes INTEGER NOT NULL DEFAULT 0")
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
@@ -129,6 +133,7 @@ class AdmissionStore:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("""SELECT digest,company,employee,agent,connection,generation,
                 not_before,expires,max_calls,max_bytes,calls,charged_bytes,attempts,revision,status,in_flight
+                ,reserved_provider_bytes
                 FROM tasks WHERE id=?""", (task.task_id,)).fetchone()
             if row is None or row[:6] != (
                 task.digest, task.company_id, task.employee_principal,
@@ -147,12 +152,19 @@ class AdmissionStore:
                 raise AdmissionDenied("challenge expired")
             # The closed provider adapter performs at most one metadata GET
             # and one content GET. Reserve both before the first dispatch.
+            # _get reads at most limit + 1 bytes for each of the fixed metadata
+            # and content GETs. Conservatively retain both charges on failure.
+            provider_reservation = MAX_METADATA_BYTES + verified.command.max_bytes + 2
             if (row[10] >= row[8] or row[12] + 2 > MAX_ATTEMPTS
-                    or row[11] + verified.command.max_bytes > row[9] or row[15] >= 2):
+                    or row[11] + verified.command.max_bytes > row[9]
+                    or row[16] + provider_reservation > MAX_PROVIDER_RESPONSE_BYTES
+                    or row[15] >= 2):
                 raise AdmissionDenied("task limit exhausted")
             db.execute("UPDATE challenges SET status='claimed' WHERE value=?", (challenge,))
-            db.execute("UPDATE tasks SET calls=calls+1,attempts=attempts+2,charged_bytes=charged_bytes+?,in_flight=in_flight+1 WHERE id=?",
-                       (verified.command.max_bytes, task.task_id))
+            db.execute("""UPDATE tasks SET calls=calls+1,attempts=attempts+2,
+                charged_bytes=charged_bytes+?,reserved_provider_bytes=reserved_provider_bytes+?,
+                in_flight=in_flight+1 WHERE id=?""",
+                       (verified.command.max_bytes, provider_reservation, task.task_id))
             db.commit()
             return Reservation(challenge, task.task_id, row[13], row[5], verified.command.max_bytes)
 

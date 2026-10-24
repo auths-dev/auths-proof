@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from .admission import AdmissionStore
 from .authority import VerifiedRead
-from .contracts import TaskDescriptor, canonical_json
+from .contracts import MAX_METADATA_BYTES, TaskDescriptor, canonical_json
 
 CONTRACT = "auths.employee-read-receipt/v1"
 PREFIX = b"auths.employee-read-receipt/v1\n"
@@ -74,7 +74,7 @@ class ReceiptStore:
     def record(self, *, task: TaskDescriptor, verified: VerifiedRead, challenge: bytes,
                provider_stage: str, release_stage: str, content: bytes | None,
                now: int | None = None) -> SignedReadReceipt:
-        if provider_stage not in {"not_contacted", "requested", "content_fetched"}:
+        if provider_stage not in {"not_contacted", "requested", "provider_denied", "content_fetched"}:
             raise ValueError("invalid provider stage")
         if release_stage not in {"not_committed", "committed"}:
             raise ValueError("invalid release stage")
@@ -103,6 +103,7 @@ class ReceiptStore:
             "connection_generation": task.connection_generation,
             "requested_max_bytes": verified.command.max_bytes,
             "reserved_provider_requests": 2,
+            "reserved_provider_response_bytes": MAX_METADATA_BYTES + verified.command.max_bytes + 2,
             "charged_task_bytes": verified.command.max_bytes,
             "provider_stage": provider_stage,
             "release_stage": release_stage,

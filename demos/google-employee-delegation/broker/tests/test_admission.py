@@ -5,12 +5,14 @@ from __future__ import annotations
 import tempfile
 import time
 import unittest
+import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from employee_read_demo.admission import AdmissionDenied, AdmissionStore
 from employee_read_demo.authority import VerifiedRead, native_body_digest
 from employee_read_demo.contracts import TaskDescriptor
+from employee_read_demo.contracts import MAX_METADATA_BYTES
 
 
 def task(now: int) -> TaskDescriptor:
@@ -20,6 +22,18 @@ def task(now: int) -> TaskDescriptor:
         "connection-1", 1, ("file-A", "file-B"), "text", 1024, 2, 2048,
         now - 1, now + 600, "task-1", "Summarize project A",
     )
+
+
+def _claim_in_process(path: str, descriptor: TaskDescriptor, value: bytes,
+                      start, outcomes, now: int) -> None:
+    start.wait(10)
+    store = AdmissionStore(Path(path))
+    verified = VerifiedRead(descriptor.calls()[0], b"x" * 32, "authorized")
+    try:
+        store.claim(descriptor, verified, value, now=now)
+        outcomes.put("admitted")
+    except AdmissionDenied:
+        outcomes.put("denied")
 
 
 class AdmissionTests(unittest.TestCase):
@@ -61,6 +75,38 @@ class AdmissionTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=3) as pool:
             results = list(pool.map(claim, challenges))
         self.assertEqual(sum(results), 2)
+
+    def test_two_processes_share_atomic_capacity_and_provider_byte_reservations(self) -> None:
+        descriptor = TaskDescriptor(**{**self.task.__dict__, "task_id": "process-task"})
+        self.store.enroll(descriptor)
+        digest = native_body_digest(descriptor.calls()[0])
+        challenges = [self.store.issue_challenge(descriptor, digest, now=self.now)
+                      for _ in range(3)]
+        context = multiprocessing.get_context("spawn")
+        start = context.Event()
+        outcomes = context.Queue()
+        processes = [context.Process(
+            target=_claim_in_process,
+            args=(str(self.path), descriptor, challenge, start, outcomes, self.now),
+        ) for challenge in challenges]
+        for process in processes:
+            process.start()
+        start.set()
+        for process in processes:
+            process.join(timeout=15)
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+                self.fail("admission worker did not finish")
+            self.assertEqual(process.exitcode, 0)
+        self.assertEqual(sorted(outcomes.get(timeout=3) for _ in processes),
+                         ["admitted", "admitted", "denied"])
+        with self.store._connect() as db:
+            row = db.execute("""SELECT calls,attempts,charged_bytes,
+                reserved_provider_bytes FROM tasks WHERE id=?""", (
+                    descriptor.task_id,
+                )).fetchone()
+        self.assertEqual(row, (2, 4, 2048, 2 * (MAX_METADATA_BYTES + 1024 + 2)))
 
     def test_two_in_flight_calls_block_third_until_one_closes(self) -> None:
         wide = TaskDescriptor(**{**self.task.__dict__, "task_id": "task-2",

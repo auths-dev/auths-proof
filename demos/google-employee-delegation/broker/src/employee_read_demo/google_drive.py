@@ -10,13 +10,13 @@ import ssl
 import time
 from urllib.parse import quote
 
-from .contracts import ReadCommand, TaskDescriptor
+from .contracts import MAX_METADATA_BYTES, ReadCommand, TaskDescriptor
 from .token_store import TokenVault
 
 HOST = "www.googleapis.com"
 DOC_MIME = "application/vnd.google-apps.document"
 TEXT_MIME = "text/plain"
-METADATA_LIMIT = 16_384
+METADATA_LIMIT = MAX_METADATA_BYTES
 
 
 class GoogleDenied(PermissionError):

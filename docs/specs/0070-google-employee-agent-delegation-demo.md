@@ -145,7 +145,7 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 > `d6bb90825e989e893a26f4a86d1fb17d6f40fa29b72ea0794093eef67686c10d`).
 > This consumer pins the revised schema and accepts old exports with the field
 > absent. OIDC metadata remains outside Google employee identity and cannot
-> activate this read demo. The producer's generation-0006 local export now
+> activate this read demo. The producer's generation-0007 local export now
 > validates against the pinned schema and still reports Google
 > `not_configured`; the broker does not synthesize its public client mapping
 > or treat ready local PostgreSQL/ClickHouse/OIDC as Google readiness.
@@ -278,6 +278,14 @@ Initial hard ceilings, reducible by policy/task:
 | Provider request duration | 15 seconds, subject to the remaining task deadline |
 
 Before dispatch, atomically claim the challenge and reserve call/byte capacity. Count every provider attempt and streamed byte against the appropriate task-wide bound. Reservation/settlement rules must prevent concurrency from exceeding any ceiling. Ambiguous/crashed operations retain conservative charges; a fresh request ID cannot reset the task's allowance. These are application read budgets; do not claim the current MCP profile's requested-budget algebra already implements them.
+
+> **Current broker accounting:** The closed Drive adapter has one bounded
+> metadata GET and one bounded content GET per admitted read, without retries.
+> SQLite reserves both maximum response sizes before dispatch and retains the
+> charge after failures. This enforces the 8 MiB aggregate ceiling
+> conservatively across processes. Actual streamed byte telemetry and a
+> provider-attempt outcome ledger remain to be added before the full evidence
+> claim is made.
 
 Keep the fetched body private to the broker until validation and the final release gate succeed. Record `proof_verified`, `admitted`, `provider_denied`/`content_fetched`, `release_committed` and actual transport delivery/unknown status separately. A successful provider fetch is not proof the agent received its contents.
 

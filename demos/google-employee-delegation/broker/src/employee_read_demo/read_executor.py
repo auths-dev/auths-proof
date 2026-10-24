@@ -9,6 +9,7 @@ from typing import Protocol
 from .admission import AdmissionDenied, AdmissionStore
 from .authority import verify_read
 from .contracts import ReadCommand, TaskDescriptor
+from .google_drive import GoogleDenied
 from .receipts import ReceiptStore
 
 
@@ -49,7 +50,9 @@ def execute_read(
             raise TypeError("provider returned non-byte content")
         provider_stage = "content_fetched"
         released = store.release(reservation, content)
-    except BaseException:
+    except BaseException as error:
+        if isinstance(error, GoogleDenied):
+            provider_stage = "provider_denied"
         store.fail(reservation)
         if receipts is not None:
             receipts.record(task=task, verified=verified, challenge=challenge,

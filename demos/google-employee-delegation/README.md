@@ -10,6 +10,9 @@ and a strict `demo_co` artifact importer. OAuth state/validation, encrypted
 token custody, key-possession employee enrollment and a closed Drive GET
 adapter, generation-checked refresh and employee offboarding are present as
 broker components. A broker-signed private read receipt records release observations.
+The broker reserves the worst-case metadata plus content response bytes for
+every admitted call in SQLite, retaining charges on refusal or ambiguous
+fetches. A separate-process test checks shared admission limits.
 A loopback HTTP workbench now provides server-held sessions, CSRF checks,
 Google login/consent callbacks and employee key-possession enrollment routes.
 It also registers a distinct agent key through its own one-use challenge,
