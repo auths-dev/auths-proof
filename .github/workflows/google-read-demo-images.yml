@@ -72,3 +72,30 @@ jobs:
             'command -v auths-google-read-workbench && test ! -e /build/broker'
           docker run --rm --entrypoint sh auths-google-read-agent:ci -c \
             'command -v auths-google-read-agent && test ! -e /build/agent'
+      - name: Probe installed Compose containers and restricted routes
+        env:
+          AP070_BROKER_IMAGE: auths-google-read-broker:ci
+          AP070_AGENT_IMAGE: auths-google-read-agent:ci
+          AP070_BROKER_STATE_DIR: ${{ runner.temp }}/ap070-broker
+          AP070_AGENT_DIR: ${{ runner.temp }}/ap070-agent
+          AP070_MODEL_API_KEY_FILE: ${{ runner.temp }}/ap070-model-key
+          AP070_MODEL_ID: ci-probe-no-model-call
+        run: |
+          set -euo pipefail
+          export AP070_RUNTIME_UID="$(id -u)"
+          export AP070_RUNTIME_GID="$(id -g)"
+          mkdir -m 700 "$AP070_BROKER_STATE_DIR" "$AP070_AGENT_DIR"
+          printf 'synthetic-only-ci-probe\n' > "$AP070_MODEL_API_KEY_FILE"
+          chmod 600 "$AP070_MODEL_API_KEY_FILE"
+          cd demos/google-employee-delegation
+          trap 'docker compose -p ap070-installed-ci down --remove-orphans' EXIT
+          docker compose -p ap070-installed-ci up -d broker browser-relay agent-relay model-relay
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/api/v1/session > /tmp/ap070-session.json; then
+              break
+            fi
+            sleep 1
+          done
+          python -c 'import json; d=json.load(open("/tmp/ap070-session.json")); assert d["contract"] == "auths.employee-session/v1"'
+          docker compose -p ap070-installed-ci --profile task run --rm --no-deps -T \
+            --entrypoint python agent - < isolation/probe_agent.py
