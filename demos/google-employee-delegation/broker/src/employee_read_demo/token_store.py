@@ -205,6 +205,17 @@ class TokenVault:
             db.execute("DELETE FROM credentials WHERE connection=?", (connection_id,))
         return generation
 
+    def active_connection(self, connection_id: str, issuer: str, subject: str) -> bool:
+        with self._connect() as db:
+            row = db.execute("""SELECT 1 FROM connections c
+                JOIN credentials t ON t.connection=c.id
+                JOIN employee_bindings b ON b.binding_ref=c.binding_ref
+                WHERE c.id=? AND c.status='active' AND b.status='active'
+                AND c.company=b.company AND c.employee=b.principal
+                AND t.issuer=? AND t.subject=? AND b.issuer=t.issuer
+                AND b.subject=t.subject""", (connection_id, issuer, subject)).fetchone()
+        return row is not None
+
     def offboard(self, binding_ref: str) -> None:
         """Disable an employee and all their task/credential generations atomically."""
         with self._connect() as db:

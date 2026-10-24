@@ -61,6 +61,7 @@ class WorkbenchTests(unittest.TestCase):
         status, data, cookie = self.request("GET", "/api/v1/session")
         self.assertEqual(status, 200)
         self.assertEqual(data["google_status"], "not_configured")
+        self.assertFalse(data["drive_connected"])
         self.assertIn("HttpOnly", cookie)
         self.assertIn("SameSite=Lax", cookie)
         session_cookie = cookie.split(";", 1)[0]

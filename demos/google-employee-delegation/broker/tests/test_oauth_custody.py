@@ -66,6 +66,10 @@ class OAuthCustodyTests(unittest.TestCase):
             sessions.get(original.cookie, now=self.now)
         self.assertEqual(sessions.get(signed_in.cookie, now=self.now).subject,
                          "google-subject-a")
+        connected = sessions.set_connection(signed_in, "connection-a", now=self.now)
+        self.assertEqual(connected.connection_id, "connection-a")
+        self.assertEqual(sessions.get(signed_in.cookie, now=self.now).connection_id,
+                         "connection-a")
 
     def test_encrypted_token_is_bound_and_disconnect_closes_lease(self) -> None:
         vault = TokenVault(self.path, encryption_key=Fernet.generate_key(), client_id="client-id")
@@ -85,12 +89,14 @@ class OAuthCustodyTests(unittest.TestCase):
                        binding_ref="binding-1", identity=wrong, now=self.now)
         connection_id = vault.link(company="atlas-studio", employee_principal="employee-principal",
                                    binding_ref="binding-1", identity=result, now=self.now)
+        self.assertTrue(vault.active_connection(connection_id, result.issuer, result.subject))
         descriptor = task(self.now)
         descriptor = type(descriptor)(**{**descriptor.__dict__, "connection_id": connection_id})
         AdmissionStore(self.path).enroll(descriptor)
         self.assertEqual(vault.lease(descriptor, now=self.now).access_token, "synthetic-access-token")
         self.assertNotIn(b"synthetic-access-token", self.path.read_bytes())
         self.assertEqual(vault.disconnect(connection_id), 2)
+        self.assertFalse(vault.active_connection(connection_id, result.issuer, result.subject))
         with self.assertRaises(AdmissionDenied):
             vault.lease(descriptor, now=self.now)
 

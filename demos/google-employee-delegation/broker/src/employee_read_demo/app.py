@@ -144,9 +144,10 @@ class Handler(BaseHTTPRequestHandler):
                         "<title>Auths employee delegation</title><body>"
                         "<h1>Employee to agent Google read delegation</h1>"
                         "<p id='status'>Checking company prerequisites…</p>"
-                        "<p id='employee'></p>"
+                        "<p id='employee'></p><p id='drive'></p>"
                         "<a href='/api/v1/google/authorize?kind=login'>Sign in with Google</a> "
                         "<a href='/api/v1/google/authorize?kind=connect'>Connect Drive</a>"
+                        "<button id='disconnect' hidden>Disconnect Drive</button>"
                         "<script src='/workbench.js'></script></body></html>").encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self._headers("text/html; charset=utf-8", len(body))
@@ -158,6 +159,12 @@ class Handler(BaseHTTPRequestHandler):
                         "document.getElementById('status').textContent='Google: '+s.google_status;"
                         "document.getElementById('employee').textContent="
                         "s.subject?'Signed in as Google subject '+s.subject:'No employee signed in';"
+                        "document.getElementById('drive').textContent="
+                        "s.drive_connected?'Drive connected':'Drive not connected';"
+                        "let d=document.getElementById('disconnect');d.hidden=!s.drive_connected;"
+                        "d.onclick=()=>fetch('/api/v1/google/disconnect',{method:'POST',"
+                        "headers:{'Content-Type':'application/json','X-CSRF-Token':s.csrf},"
+                        "body:'{}'}).then(()=>location.reload());"
                         "});").encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self._headers("application/javascript; charset=utf-8", len(body))
@@ -166,11 +173,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/v1/session":
                 session, created = self._session(create=True)
+                drive_connected = bool(
+                    session.connection_id and session.issuer and session.subject
+                    and self.workbench.vault is not None
+                    and self.workbench.vault.active_connection(
+                        session.connection_id, session.issuer, session.subject,
+                    )
+                )
+                if session.connection_id and not drive_connected:
+                    self.workbench.sessions.clear_connection(session)
                 self._json(HTTPStatus.OK, {
                     "contract": "auths.employee-session/v1",
                     "google_status": self.workbench.status.google,
                     "company_id": None if self.workbench.company is None else self.workbench.company.bundle["company_id"],
                     "subject": session.subject,
+                    "drive_connected": drive_connected,
                     "csrf": session.csrf,
                 }, cookie=session.cookie if created else None)
                 return
@@ -212,10 +229,11 @@ class Handler(BaseHTTPRequestHandler):
                     self.workbench.company,
                     VerifiedGoogleSubject("connect", result.issuer, result.subject),
                 )
-                self.workbench.vault.link(
+                connection_id = self.workbench.vault.link(
                     company=binding.company_id, employee_principal=binding.principal,
                     binding_ref=binding.binding_ref, identity=result,
                 )
+                self.workbench.sessions.set_connection(session, connection_id)
                 self._redirect("/")
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -231,6 +249,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/v1/session/logout":
                 self.workbench.sessions.logout(session)
                 self._json(HTTPStatus.OK, {"status": "signed_out"}, cookie="")
+                return
+            if path == "/api/v1/google/disconnect":
+                if not session.connection_id or self.workbench.vault is None:
+                    raise SessionDenied("Drive connection is unavailable")
+                self.workbench.vault.disconnect(session.connection_id)
+                self.workbench.sessions.clear_connection(session)
+                self._json(HTTPStatus.OK, {"status": "disconnected"})
                 return
             if path in {"/api/v1/employees/enroll/prepare", "/api/v1/employees/enroll"}:
                 if self.workbench.company is None or not session.issuer or not session.subject:
