@@ -247,7 +247,8 @@ class TokenVault:
                 raise AdmissionDenied("employee binding is unavailable")
             db.execute("UPDATE employee_bindings SET status='disabled' WHERE binding_ref=?",
                        (binding_ref,))
-            db.execute("DELETE FROM browser_sessions WHERE issuer=? AND subject=?", binding[1:])
+            db.execute("""DELETE FROM browser_sessions
+                WHERE company=? AND issuer=? AND subject=?""", binding)
             connections = [row[0] for row in db.execute(
                 "SELECT id FROM connections WHERE binding_ref=?", (binding_ref,),
             )]

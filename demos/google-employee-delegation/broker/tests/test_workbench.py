@@ -6,7 +6,9 @@ import base64
 import tempfile
 import threading
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 from employee_read_demo.app import Workbench, WorkbenchServer
 from employee_read_demo.agent_registry import AgentRegistry
@@ -114,6 +116,26 @@ class WorkbenchTests(unittest.TestCase):
             self.assertEqual(response.getheader("Cache-Control"), "no-store")
             self.assertIn(marker, content)
             connection.close()
+
+    def test_other_company_browser_cookie_cannot_authorize_this_workbench(self) -> None:
+        sessions = self.server.workbench.sessions
+        other = sessions.login(sessions.create(), issuer="https://accounts.google.com",
+                               subject="shared-subject", company="other-company")
+        self.server.workbench = replace(
+            self.server.workbench,
+            company=SimpleNamespace(bundle={"company_id": "atlas-studio"}),
+        )
+        status, data, new_cookie = self.request(
+            "GET", "/api/v1/session", cookie=f"ap070_session={other.cookie}",
+        )
+        self.assertEqual(status, 200)
+        self.assertIsNone(data["subject"])
+        self.assertIsNotNone(new_cookie)
+        status, _, _ = self.request(
+            "POST", "/api/v1/tasks/prepare", cookie=f"ap070_session={other.cookie}",
+            csrf=other.csrf,
+        )
+        self.assertEqual(status, 403)
 
 
 if __name__ == "__main__":

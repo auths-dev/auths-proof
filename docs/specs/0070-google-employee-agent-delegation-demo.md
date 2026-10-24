@@ -325,7 +325,10 @@ Disconnecting Google credentials advances the connection generation, disables li
 > **Offboarding implementation note (24 October 2026):** The operator CLI now
 > closes the employee binding, linked tasks/credentials and signed-in browser
 > sessions in one broker transaction. A subsequent Google login for that
-> disabled binding is refused. The command does not make a Google revocation
+> disabled binding is refused. Signed-in sessions are company-bound; a cookie
+> from another company cannot authorize this workbench, and offboarding one
+> company does not clear the other company's session for the same subject.
+> The command does not make a Google revocation
 > request; provider grant revocation remains a separate live operator step.
 
 ## 10. Credential/process isolation and threat model

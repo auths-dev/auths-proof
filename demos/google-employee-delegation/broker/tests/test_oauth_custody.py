@@ -169,6 +169,16 @@ class OAuthCustodyTests(unittest.TestCase):
         browser = sessions.login(sessions.create(now=self.now),
                                  issuer=result.issuer, subject=result.subject,
                                  company="atlas-studio", now=self.now)
+        with vault._connect() as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
+                VALUES(?,?,?,?,?,?,?,?)""", (
+                    "other-binding", "other-company", "other-person", result.issuer,
+                    result.subject, "other-principal", b"other-identity", "b" * 64,
+                ))
+        other_browser = sessions.login(sessions.create(now=self.now),
+                                       issuer=result.issuer, subject=result.subject,
+                                       company="other-company", now=self.now)
         descriptor = type(task(self.now))(**{**task(self.now).__dict__, "connection_id": connection_id})
         store = AdmissionStore(self.path)
         store.enroll(descriptor)
@@ -197,6 +207,8 @@ class OAuthCustodyTests(unittest.TestCase):
             vault.lease(descriptor, now=self.now)
         with self.assertRaises(SessionDenied):
             sessions.get(browser.cookie, now=self.now)
+        self.assertEqual(sessions.get(other_browser.cookie, now=self.now).company,
+                         "other-company")
         with self.assertRaises(SessionDenied):
             sessions.login(sessions.create(now=self.now), issuer=result.issuer,
                            subject=result.subject, company="atlas-studio", now=self.now)

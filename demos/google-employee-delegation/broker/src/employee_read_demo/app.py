@@ -124,7 +124,11 @@ class Handler(BaseHTTPRequestHandler):
         cookie = self._cookie()
         if cookie:
             try:
-                return self.workbench.sessions.get(cookie), False
+                session = self.workbench.sessions.get(cookie)
+                if session.company is not None and (self.workbench.company is None or
+                        session.company != self.workbench.company.bundle["company_id"]):
+                    raise SessionDenied("browser session belongs to another company")
+                return session, False
             except SessionDenied:
                 pass
         if not create:

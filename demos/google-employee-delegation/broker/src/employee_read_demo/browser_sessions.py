@@ -21,6 +21,7 @@ class SessionDenied(PermissionError):
 class BrowserSession:
     cookie: str
     csrf: str
+    company: str | None
     issuer: str | None
     subject: str | None
     connection_id: str | None
@@ -38,7 +39,7 @@ class BrowserSessionStore:
         with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS browser_sessions (
                 token_hash TEXT PRIMARY KEY, csrf TEXT NOT NULL,
-                issuer TEXT, subject TEXT, connection_id TEXT,
+                company TEXT, issuer TEXT, subject TEXT, connection_id TEXT,
                 expires_at INTEGER NOT NULL
             )""")
             columns = {row[1] for row in db.execute("PRAGMA table_info(browser_sessions)")}
@@ -59,18 +60,18 @@ class BrowserSessionStore:
         with self._connect() as db:
             db.execute("""INSERT INTO browser_sessions(token_hash,csrf,expires_at)
                 VALUES(?,?,?)""", (_digest(cookie), csrf, expires_at))
-        return BrowserSession(cookie, csrf, None, None, None, expires_at)
+        return BrowserSession(cookie, csrf, None, None, None, None, expires_at)
 
     def get(self, cookie: str, *, now: int | None = None) -> BrowserSession:
         now = int(time.time()) if now is None else now
         if not isinstance(cookie, str) or not 32 <= len(cookie) <= 128 or not cookie.isascii():
             raise SessionDenied("browser session is unavailable")
         with self._connect() as db:
-            row = db.execute("""SELECT csrf,issuer,subject,connection_id,expires_at FROM browser_sessions
+            row = db.execute("""SELECT csrf,company,issuer,subject,connection_id,expires_at FROM browser_sessions
                 WHERE token_hash=?""", (_digest(cookie),)).fetchone()
-        if row is None or now >= row[4]:
+        if row is None or now >= row[5]:
             raise SessionDenied("browser session is unavailable")
-        return BrowserSession(cookie, row[0], row[1], row[2], row[3], row[4])
+        return BrowserSession(cookie, row[0], row[1], row[2], row[3], row[4], row[5])
 
     def check_csrf(self, session: BrowserSession, token: str) -> None:
         if not isinstance(token, str) or not hmac.compare_digest(session.csrf, token):
@@ -100,10 +101,10 @@ class BrowserSessionStore:
                 raise SessionDenied("browser session is unavailable")
             db.execute("DELETE FROM browser_sessions WHERE token_hash=?", (_digest(session.cookie),))
             db.execute("""INSERT INTO browser_sessions
-                (token_hash,csrf,issuer,subject,expires_at) VALUES(?,?,?,?,?)""",
-                (_digest(next_cookie), next_csrf, issuer, subject, expires_at))
+                (token_hash,csrf,company,issuer,subject,expires_at) VALUES(?,?,?,?,?,?)""",
+                (_digest(next_cookie), next_csrf, company, issuer, subject, expires_at))
             db.commit()
-        return BrowserSession(next_cookie, next_csrf, issuer, subject, None, expires_at)
+        return BrowserSession(next_cookie, next_csrf, company, issuer, subject, None, expires_at)
 
     def set_connection(self, session: BrowserSession, connection_id: str,
                        *, now: int | None = None) -> BrowserSession:
@@ -118,8 +119,9 @@ class BrowserSessionStore:
                 )).rowcount
         if changed != 1:
             raise SessionDenied("browser session is unavailable")
-        return BrowserSession(session.cookie, session.csrf, session.issuer,
-                              session.subject, connection_id, session.expires_at)
+        return BrowserSession(session.cookie, session.csrf, session.company,
+                              session.issuer, session.subject, connection_id,
+                              session.expires_at)
 
     def clear_connection(self, session: BrowserSession) -> None:
         with self._connect() as db:
