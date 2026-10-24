@@ -10,21 +10,26 @@
 //! key, and converts the constructed bytes into the gateway's request types.
 
 use auths_model::MAX_FACT_VALUE_TEXT_BYTES;
+use auths_gateway_kernel::field_projection::{self, NamedInput, RequestArguments, RequestBindingError};
+use auths_gateway_kernel::scalars;
+use auths_gateway_kernel::recipe_binding::{self, LockMetadata, ProfileBinding};
 use auths_profile_mcp::McpCommand;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
-use std::collections::BTreeMap;
 use thiserror::Error;
 use url::{Host, Url};
 
 pub use auths_gateway_kernel::{construct, recovery};
 
 mod lower;
+mod profile;
 mod review;
 mod runtime;
+#[macro_use]
+mod serde_decode;
 mod source;
-mod strict_json;
+pub(crate) mod strict_json;
 mod validate;
 
 #[cfg(test)]
@@ -48,20 +53,11 @@ pub(crate) use runtime::{
 use source::{CredentialSource, IdempotencySource, PathSegment, RecipeSource};
 
 /// The only recipe source schema the compiler accepts.
-pub const RECIPE_SOURCE_SCHEMA: &str = "auths.gateway-recipe-source/2";
-const MAX_SOURCE_BYTES: usize = 65_536;
-const MAX_LOCK_BYTES: usize = 65_536;
+pub const RECIPE_SOURCE_SCHEMA: &str = recipe_binding::SOURCE_SCHEMA;
 const MAX_BODY_BYTES: usize = construct::MAX_BODY_BYTES;
-const MAX_TEMPLATE_NODES: usize = 64;
-const MAX_TEMPLATE_DEPTH: usize = 6;
-const MAX_PATH_SEGMENTS: usize = 16;
+const MAX_PATH_SEGMENTS: usize = auths_gateway_kernel::path_compiler::MAX_PATH_SEGMENTS;
 const MAX_FORM_FIELDS: usize = 16;
-const DIGEST_DOMAIN: &[u8] = b"auths.gateway-compiled-recipe/2\0";
-const ECHO_DOMAIN: &[u8] = b"auths.gateway-echo/1\0";
-const ECHO_PREFIX: &str = "auths-e1-";
-const IDEMPOTENCY_DOMAIN: &[u8] = b"auths.gateway-idempotency-key/1\0";
-const IDEMPOTENCY_PREFIX: &str = "auths-i1-";
-const IDEMPOTENCY_HEADER: &str = "Idempotency-Key";
+const IDEMPOTENCY_HEADER: &str = auths_gateway_kernel::request_compiler::IDEMPOTENCY_HEADER;
 const DENIED_READ_RESPONSE_BYTES: u64 = 16_384;
 const MAX_POINTER_BYTES: usize = 128;
 const MAX_VERIFIED_FIELDS: usize = 8;
@@ -133,28 +129,12 @@ impl CredentialRequirement {
     /// nor the derived idempotency header, nor any registered provider header.
     fn validate(&self) -> Result<(), GatewayRecipeError> {
         if let Self::HeaderApiKey { header } = self {
-            let lower = header.to_ascii_lowercase();
-            if header.is_empty()
-                || header.len() > 64
-                || !header.bytes().enumerate().all(|(index, byte)| {
-                    byte.is_ascii_alphanumeric() || (index > 0 && byte == b'-')
-                })
-                || matches!(
-                    lower.as_str(),
-                    "authorization"
-                        | "host"
-                        | "cookie"
-                        | "set-cookie"
-                        | "content-type"
-                        | "content-length"
-                        | "accept"
-                        | "connection"
-                        | "transfer-encoding"
-                        | "idempotency-key"
-                )
-                || PROVIDER_HEADERS
-                    .iter()
-                    .any(|entry| entry.name.eq_ignore_ascii_case(header))
+            if header.is_empty() || header.len() > 64 {
+                return Err(GatewayRecipeError::InvalidCredential);
+            }
+            if !credential_header_token(header)
+                || auths_gateway_kernel::header_compiler::reserved_credential_header_name(header.as_bytes())
+                || registered_provider_header(header)
             {
                 return Err(GatewayRecipeError::InvalidCredential);
             }
@@ -163,8 +143,24 @@ impl CredentialRequirement {
     }
 }
 
+fn credential_header_token(header: &str) -> bool {
+    let bytes = header.as_bytes();
+    let mut position = 0;
+    let mut valid = true;
+    while position < bytes.len() && valid {
+        valid = auths_gateway_kernel::construct::is_alphanumeric(bytes[position])
+            || (position > 0 && bytes[position] == b'-');
+        position += 1;
+    }
+    valid
+}
+
+fn registered_provider_header(header: &str) -> bool {
+    auths_gateway_kernel::header_compiler::registered_header_name(header.as_bytes())
+}
+
 /// Closed write methods. GET is reserved for a separately declared observation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum WriteMethod {
     /// HTTP POST.
@@ -190,110 +186,17 @@ impl WriteMethod {
     }
 }
 
-/// The class of a registered provider header.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProviderHeaderClass {
-    /// A fixed value from `provider_headers`, sent on every request to the
-    /// origin.
-    Version,
-    /// A value from one verified action field, sent on the write and every
-    /// action read and never on a credential read.
-    AccountScope,
-}
+pub use auths_gateway_kernel::header_compiler::{ProviderHeaderClass, ProviderResponseRule};
+use auths_gateway_kernel::header_compiler::{ProviderHeaderEntry, PROVIDER_HEADERS};
 
-/// How a provider response is checked against a version header.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProviderResponseRule {
-    /// A response without the header, or with another value, has a version
-    /// mismatch.
-    Required,
-    /// Responses are not checked.
-    NotChecked,
-}
-
-impl ProviderResponseRule {
-    /// The stable spelling shown in review.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Required => "required",
-            Self::NotChecked => "not-checked",
-        }
-    }
-}
-
-/// The value grammar of a registered provider header.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HeaderGrammar {
-    /// 10–64 bytes of `[A-Za-z0-9.-]`, the first a digit.
-    StripeVersion,
-    /// Exactly `YYYY-MM-DD`.
-    IsoDate,
-    /// `acct_` then 8–59 bytes of `[A-Za-z0-9_]`.
-    StripeAccount,
-}
-
-impl HeaderGrammar {
-    pub(crate) fn admits(self, value: &str) -> bool {
-        let bytes = value.as_bytes();
-        match self {
-            Self::StripeVersion => {
-                (10..=64).contains(&bytes.len())
-                    && bytes[0].is_ascii_digit()
-                    && bytes
-                        .iter()
-                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
-            }
-            Self::IsoDate => {
-                bytes.len() == 10
-                    && bytes.iter().enumerate().all(|(index, byte)| match index {
-                        4 | 7 => *byte == b'-',
-                        _ => byte.is_ascii_digit(),
-                    })
-            }
-            Self::StripeAccount => {
-                construct::scope_value_valid(construct::ScopeGrammar::StripeAccount, bytes)
-            }
-        }
-    }
-}
-
-/// One entry of the closed provider-header registry. Operator approval cannot
-/// widen it; a new entry needs a specification amendment and hostile
-/// fixtures.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ProviderHeaderEntry {
-    pub(crate) name: &'static str,
-    pub(crate) class: ProviderHeaderClass,
-    pub(crate) grammar: HeaderGrammar,
-    pub(crate) response: ProviderResponseRule,
-}
-
-/// The closed provider-header registry.
-pub(crate) const PROVIDER_HEADERS: [ProviderHeaderEntry; 3] = [
-    ProviderHeaderEntry {
-        name: "Stripe-Version",
-        class: ProviderHeaderClass::Version,
-        grammar: HeaderGrammar::StripeVersion,
-        response: ProviderResponseRule::Required,
-    },
-    ProviderHeaderEntry {
-        name: "X-GitHub-Api-Version",
-        class: ProviderHeaderClass::Version,
-        grammar: HeaderGrammar::IsoDate,
-        response: ProviderResponseRule::NotChecked,
-    },
-    ProviderHeaderEntry {
-        name: "Stripe-Account",
-        class: ProviderHeaderClass::AccountScope,
-        grammar: HeaderGrammar::StripeAccount,
-        response: ProviderResponseRule::NotChecked,
-    },
-];
-
-/// The registry entry spelled exactly `name`.
+/// The shared catalog entry spelled exactly `name`.
 pub(crate) fn provider_header(name: &str) -> Option<&'static ProviderHeaderEntry> {
-    PROVIDER_HEADERS.iter().find(|entry| entry.name == name)
+    match auths_gateway_kernel::header_compiler::header_index(name.as_bytes()) {
+        Some(0) => Some(&PROVIDER_HEADERS[0]),
+        Some(1) => Some(&PROVIDER_HEADERS[1]),
+        Some(2) => Some(&PROVIDER_HEADERS[2]),
+        Some(_) | None => None,
+    }
 }
 
 /// Closed compiler failure with a stable non-secret diagnostic code.
@@ -430,8 +333,6 @@ impl GatewayRecipeError {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ProfileLockFile {
     schema: String,
     profile: String,
@@ -443,33 +344,59 @@ struct ProfileLockFile {
     generator_format: u8,
 }
 
-#[derive(Clone, Debug)]
-enum FieldSchema {
-    String { minimum: usize, maximum: usize },
-    Enum { variants: Vec<String> },
-    Integer { minimum: i64, maximum: i64 },
-    Boolean,
+recipe_record_decode!(ProfileLockFile {
+    schema: String => required,
+    profile: String => required,
+    version: u16 => required,
+    service: String => required,
+    tool: String => required,
+    schema_digest: String => required,
+    command_schema: Value => required,
+    generator_format: u8 => required,
+});
+recipe_external_unit_decode!(WriteMethod {
+    0 => "POST" => Post,
+    1 => "PUT" => Put,
+    2 => "PATCH" => Patch,
+    3 => "DELETE" => Delete,
+});
+
+use scalars::ScalarSchema as FieldSchema;
+
+/// The JSON boundary extracts a carrier by its actual JSON kind. It never
+/// chooses a representation from the requested schema or coerces a string,
+/// float, boolean or collection into another scalar kind.
+fn scalar_input(value: &Value) -> scalars::ScalarInput<'_> {
+    match value {
+        Value::String(text) => scalars::ScalarInput::Text(text.as_bytes()),
+        Value::Number(number) => match number.as_i64() {
+            Some(value) => scalars::ScalarInput::Integer(value),
+            None => scalars::ScalarInput::Unsupported,
+        },
+        Value::Bool(value) => scalars::ScalarInput::Boolean(*value),
+        Value::Null | Value::Array(_) | Value::Object(_) => scalars::ScalarInput::Unsupported,
+    }
 }
 
-impl FieldSchema {
+trait FieldSchemaRuntime {
+    fn validate_value(&self, value: &Value) -> bool;
+    fn is_path_scalar(&self) -> bool;
+    fn is_form_scalar(&self) -> bool;
+    fn has_fact_form(&self) -> bool;
+    fn argument_value(&self, value: &Value) -> Option<ArgumentValue>;
+}
+
+impl FieldSchemaRuntime for FieldSchema {
     fn validate_value(&self, value: &Value) -> bool {
-        match self {
-            Self::String { minimum, maximum } => value.as_str().is_some_and(|text| {
-                (*minimum..=*maximum).contains(&text.len())
-                    && text.as_bytes().iter().all(|byte| *byte != 0)
-            }),
-            Self::Enum { variants } => value
-                .as_str()
-                .is_some_and(|text| variants.iter().any(|variant| variant == text)),
-            Self::Integer { minimum, maximum } => value
-                .as_i64()
-                .is_some_and(|number| (*minimum..=*maximum).contains(&number)),
-            Self::Boolean => value.is_boolean(),
-        }
+        scalars::scalar_valid(self, scalar_input(value))
     }
 
     fn is_path_scalar(&self) -> bool {
         matches!(self, Self::String { .. } | Self::Enum { .. })
+    }
+
+    fn is_form_scalar(&self) -> bool {
+        scalars::form_schema_allowed(self)
     }
 
     /// Reports whether every valid value maps to an observation fact value.
@@ -482,17 +409,9 @@ impl FieldSchema {
         }
     }
 
-    /// The construction value of a value this schema accepts.
+    /// Validates the complete scalar and returns its exact construction value.
     fn argument_value(&self, value: &Value) -> Option<ArgumentValue> {
-        match self {
-            Self::String { .. } | Self::Enum { .. } => value
-                .as_str()
-                .map(|text| ArgumentValue::Text(text.as_bytes().to_vec())),
-            Self::Integer { .. } => value
-                .as_i64()
-                .map(|number| ArgumentValue::Integer(number.to_string().into_bytes())),
-            Self::Boolean => value.as_bool().map(ArgumentValue::Boolean),
-        }
+        scalars::project_scalar(self, scalar_input(value))
     }
 }
 
@@ -501,10 +420,46 @@ impl FieldSchema {
 #[derive(Clone, Debug)]
 pub struct CompiledRecipe {
     source: RecipeSource,
-    fields: BTreeMap<String, FieldSchema>,
     namespace: OperatorNamespace,
     digest: [u8; 32],
     plans: lower::Plans,
+}
+
+/// The shipping decoded-source constructor. The public bounded parser computes
+/// both canonical outcomes from these exact original values before calling it.
+/// Validation, digest, plans and namespace are derived in their original order;
+/// a private checked record alone is not a source-admission proof.
+fn compile_decoded(
+    source: RecipeSource,
+    lock: &ProfileLockFile,
+    canonical: &CanonicalRecipeInputs,
+) -> Result<CompiledRecipe, GatewayRecipeError> {
+    let checked = validate::validate_source(&source, lock, canonical)?;
+    let digest = checked.digest()?;
+    let plans = lower::plans(&checked)?;
+    let namespace = checked.into_namespace();
+    Ok(CompiledRecipe {
+        source,
+        namespace,
+        digest,
+        plans,
+    })
+}
+
+// The selected formal entry is the actual byte-to-compiled-source caller.
+// Keeping this as one free function gives extraction a stable source root;
+// it must include the called Auths serde derives rather than treating a typed
+// decoder or serializer supplied by Auths as an ordinary-library contract.
+fn compile_source_bytes(source_bytes: &[u8], lock_bytes: &[u8]) -> Result<CompiledRecipe, GatewayRecipeError> {
+    if !recipe_binding::source_lengths_bounded(source_bytes.len(), lock_bytes.len()) {
+        return Err(GatewayRecipeError::InvalidSource);
+    }
+    let source: RecipeSource =
+        strict_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
+    let lock: ProfileLockFile = strict_json::from_slice(lock_bytes)
+        .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
+    let canonical = CanonicalRecipeInputs::from_decoded(&source, &lock);
+    compile_decoded(source, &lock, &canonical)
 }
 
 impl CompiledRecipe {
@@ -516,47 +471,7 @@ impl CompiledRecipe {
     /// of the rule they break. This operation does not install the recipe or
     /// authorize an action.
     pub fn compile(source_bytes: &[u8], lock_bytes: &[u8]) -> Result<Self, GatewayRecipeError> {
-        if source_bytes.is_empty()
-            || source_bytes.len() > MAX_SOURCE_BYTES
-            || lock_bytes.is_empty()
-            || lock_bytes.len() > MAX_LOCK_BYTES
-        {
-            return Err(GatewayRecipeError::InvalidSource);
-        }
-        let source: RecipeSource =
-            strict_json::from_slice(source_bytes).map_err(|_| GatewayRecipeError::InvalidSource)?;
-        let lock: ProfileLockFile = strict_json::from_slice(lock_bytes)
-            .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
-        if source.schema != RECIPE_SOURCE_SCHEMA {
-            return Err(GatewayRecipeError::InvalidSource);
-        }
-        validate_lock(&lock)?;
-        if source.service != lock.service
-            || source.tool != lock.tool
-            || source.profile_schema_digest != lock.schema_digest
-        {
-            return Err(GatewayRecipeError::ProfileMismatch);
-        }
-        let fields = parse_root_fields(&lock.command_schema)?;
-        let namespace = OperatorNamespace::parse(&source.operator_namespace)?;
-        validate_binding_fields(&fields, &namespace)?;
-        credential_requirement(&source.credential).validate()?;
-        validate_origin(&source.origin)?;
-        validate::validate_source(&source, &fields)?;
-        let canonical = serde_json_canonicalizer::to_vec(&source)
-            .map_err(|_| GatewayRecipeError::InvalidSource)?;
-        let mut hasher = Sha256::new();
-        hasher.update(DIGEST_DOMAIN);
-        hasher.update(canonical);
-        let digest = hasher.finalize().into();
-        let plans = lower::plans(&source, &fields)?;
-        Ok(Self {
-            source,
-            fields,
-            namespace,
-            digest,
-            plans,
-        })
+        compile_source_bytes(source_bytes, lock_bytes)
     }
 
     /// Returns the domain-separated compiled-recipe digest.
@@ -681,30 +596,30 @@ impl CompiledRecipe {
         self.closed_request_from_arguments(command.arguments(), action_commitment)
     }
 
-    /// Validates the verified arguments against the profile lock and returns
-    /// their construction values in profile-field order.
-    fn argument_values(
+    /// Binds the verified object's namespace/digest, projects its complete
+    /// field set, and obtains its operation in the same kernel invocation.
+    fn request_arguments(
         &self,
         arguments: &Map<String, Value>,
-    ) -> Result<Vec<ArgumentValue>, GatewayRecipeError> {
-        if arguments.len() != self.fields.len()
-            || arguments.get("operator_namespace").and_then(Value::as_str)
-                != Some(self.namespace.as_str())
-            || arguments.get("recipe_digest").and_then(Value::as_str)
-                != Some(self.digest_hex().as_str())
-        {
+    ) -> Result<RequestArguments, GatewayRecipeError> {
+        if arguments.len() != self.plans.field_schemas.len() {
             return Err(GatewayRecipeError::ActionMismatch);
         }
-        self.fields
+        let supplied: Vec<_> = arguments
             .iter()
-            .map(|(name, schema)| {
-                arguments
-                    .get(name)
-                    .filter(|value| schema.validate_value(value))
-                    .and_then(|value| schema.argument_value(value))
-                    .ok_or(GatewayRecipeError::ActionMismatch)
+            .map(|(name, value)| NamedInput {
+                name: name.as_bytes(),
+                value: scalar_input(value),
             })
-            .collect()
+            .collect();
+        field_projection::project_request(
+            &self.plans.field_schemas, &supplied, self.namespace.as_str().as_bytes(),
+            self.digest_hex().as_bytes(),
+        ).map_err(|error| match error {
+            RequestBindingError::ActionMismatch => GatewayRecipeError::ActionMismatch,
+            RequestBindingError::Projection(error) => GatewayRecipeError::from_construct(error),
+            RequestBindingError::OperationId => GatewayRecipeError::InvalidOperationId,
+        })
     }
 
     /// The request shell around the construction leaf: arguments are
@@ -715,12 +630,9 @@ impl CompiledRecipe {
         arguments: &Map<String, Value>,
         action_commitment: [u8; 32],
     ) -> Result<ClosedProviderRequest, GatewayRecipeError> {
-        let values = self.argument_values(arguments)?;
-        let operation_id = arguments
-            .get("operation_id")
-            .and_then(Value::as_str)
-            .ok_or(GatewayRecipeError::InvalidOperationId)
-            .and_then(LogicalOperationId::parse)?;
+        let admitted = self.request_arguments(arguments)?;
+        let operation_id = LogicalOperationId::parse(&ascii(admitted.operation_id)?)?;
+        let values = admitted.values;
         let echo = self
             .source
             .echo
@@ -769,6 +681,7 @@ impl CompiledRecipe {
         self.check_read_back_subject(arguments, observation.as_ref())?;
         Ok(ClosedProviderRequest {
             namespace: self.namespace.clone(),
+            recipe_digest: self.digest,
             operation_id,
             action_commitment,
             echo,
@@ -866,9 +779,7 @@ impl CompiledRecipe {
         if arguments.len() != names.len()
             || !arguments.iter().all(|(name, value)| {
                 names.contains(name.as_str())
-                    && self
-                        .fields
-                        .get(name)
+                    && field_projection::schema_for(&self.plans.field_schemas, name.as_bytes())
                         .is_some_and(|schema| schema.validate_value(value))
             })
         {
@@ -877,12 +788,13 @@ impl CompiledRecipe {
         // Only the path's fields are known. Every other slot holds a value no
         // path segment accepts, so a plan that read one would refuse.
         let values: Vec<ArgumentValue> = self
-            .fields
+            .plans.field_schemas
             .iter()
-            .map(|(name, schema)| {
+            .map(|field| {
                 arguments
-                    .get(name)
-                    .and_then(|value| schema.argument_value(value))
+                    .iter()
+                    .find(|(name, _)| name.as_bytes() == field.name.as_slice())
+                    .and_then(|(_, value)| field.schema.argument_value(value))
                     .unwrap_or(ArgumentValue::Boolean(false))
             })
             .collect();
@@ -972,6 +884,7 @@ impl RequestHeader {
 #[derive(Clone, Debug)]
 pub struct ClosedProviderRequest {
     namespace: OperatorNamespace,
+    recipe_digest: [u8; 32],
     operation_id: LogicalOperationId,
     action_commitment: [u8; 32],
     echo: Option<String>,
@@ -993,6 +906,13 @@ impl ClosedProviderRequest {
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {
         &self.namespace
+    }
+    /// Returns the exact compiled mapping digest retained when this request
+    /// was constructed. Durable claims and transport derive their recipe
+    /// binding from this same request; a caller cannot supply another digest.
+    #[must_use]
+    pub const fn recipe_digest(&self) -> &[u8; 32] {
+        &self.recipe_digest
     }
     /// Returns the durable logical operation ID.
     #[must_use]
@@ -1281,12 +1201,13 @@ impl ClosedObservationRequest {
 
     /// Extracts the observed value and, when an echo field is declared and
     /// present, its value from bounded response bytes. A response that is too
-    /// large, not JSON, or lacks the observed value yields `None`.
+    /// large, not JSON, contains duplicate object members, or lacks the
+    /// observed value yields `None`.
     pub(crate) fn observed_values(&self, response: &[u8]) -> Option<(Value, Option<Value>)> {
         if response.len() > self.maximum_response_bytes {
             return None;
         }
-        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let decoded: Value = strict_json::from_slice(response).ok()?;
         let value = decoded.pointer(&self.json_pointer)?.clone();
         let echo = self
             .echo_pointer
@@ -1299,12 +1220,12 @@ impl ClosedObservationRequest {
 
     /// Classifies bounded response bytes against the verified expected value
     /// and, when declared, the attempt's echo token. A missing value, or bytes
-    /// that are not JSON, is an unavailable observation.
+    /// that are not unique-member JSON, is an unavailable observation.
     pub(crate) fn read_back(&self, token: Option<&str>, response: &[u8]) -> Option<ReadBack> {
         if response.len() > self.maximum_response_bytes {
             return None;
         }
-        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let decoded: Value = strict_json::from_slice(response).ok()?;
         let matched = decoded.pointer(&self.json_pointer)? == &self.expected;
         let (Some(pointer), Some(token)) = (self.echo_pointer.as_deref(), token) else {
             return Some(ReadBack::Value { matched });
@@ -1332,14 +1253,14 @@ pub fn echo_token(
     operation_id: &LogicalOperationId,
     action_commitment: &[u8; 32],
 ) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(ECHO_DOMAIN);
-    hasher.update(namespace.as_str().as_bytes());
-    hasher.update([0]);
-    hasher.update(operation_id.as_str().as_bytes());
-    hasher.update([0]);
-    hasher.update(action_commitment);
-    format!("{ECHO_PREFIX}{}", hex::encode(hasher.finalize()))
+    let preimage = auths_gateway_kernel::derived_tokens::echo_preimage(
+        namespace.as_str().as_bytes(), operation_id.as_str().as_bytes(), action_commitment,
+    );
+    let digest: [u8; 32] = Sha256::digest(preimage).into();
+    // The closed renderer emits only ASCII. Standard byte-to-char collection
+    // therefore preserves every byte without a fallible UTF-8 fallback.
+    auths_gateway_kernel::derived_tokens::echo_token_bytes(&digest)
+        .into_iter().map(char::from).collect()
 }
 
 /// Derives the 73-byte `Idempotency-Key` value for one logical operation in
@@ -1355,209 +1276,111 @@ pub fn echo_token(
 /// provider's own retention window.
 #[must_use]
 pub fn idempotency_key(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(IDEMPOTENCY_DOMAIN);
-    hasher.update(namespace.as_str().as_bytes());
-    hasher.update([0]);
-    hasher.update(operation_id.as_str().as_bytes());
-    format!("{IDEMPOTENCY_PREFIX}{}", hex::encode(hasher.finalize()))
+    let preimage = auths_gateway_kernel::derived_tokens::idempotency_preimage(
+        namespace.as_str().as_bytes(), operation_id.as_str().as_bytes(),
+    );
+    let digest: [u8; 32] = Sha256::digest(preimage).into();
+    auths_gateway_kernel::derived_tokens::idempotency_token_bytes(&digest)
+        .into_iter().map(char::from).collect()
 }
 
-fn lower_hex_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+// Foreign JSON canonicalization is evaluated once from these same immutable
+// decoded values. Retain failures as data so admission consumes them at the
+// original rule boundary, rather than changing which error wins.
+struct CanonicalRecipeInputs {
+    schema: Result<Vec<u8>, ()>,
+    source: Result<Vec<u8>, ()>,
 }
 
-fn exact_keys(object: &Map<String, Value>, keys: &[&str]) -> bool {
-    object.len() == keys.len() && keys.iter().all(|key| object.contains_key(*key))
+impl CanonicalRecipeInputs {
+    fn from_decoded(source: &RecipeSource, lock: &ProfileLockFile) -> Self {
+        Self {
+            schema: serde_json_canonicalizer::to_vec(&lock.command_schema).map_err(|_| ()),
+            source: serde_json_canonicalizer::to_vec(source).map_err(|_| ()),
+        }
+    }
 }
 
-fn validate_lock(lock: &ProfileLockFile) -> Result<(), GatewayRecipeError> {
-    if lock.schema != "auths.self-hosted-profile-lock/1"
-        || lock.generator_format != 2
-        || lock.version == 0
-        || lock.profile.is_empty()
-        || lock.service.is_empty()
-        || lock.tool.is_empty()
-        || !lower_hex_digest(&lock.schema_digest)
-    {
+fn validate_lock(lock: &ProfileLockFile, canonical: &Result<Vec<u8>, ()>) -> Result<(), GatewayRecipeError> {
+    if !recipe_binding::lock_metadata_valid(LockMetadata {
+        schema: lock.schema.as_bytes(), generator_format: lock.generator_format,
+        version: lock.version, profile: lock.profile.as_bytes(),
+        binding: ProfileBinding { service: lock.service.as_bytes(), tool: lock.tool.as_bytes(), schema_digest: lock.schema_digest.as_bytes() },
+    }) {
         return Err(GatewayRecipeError::InvalidProfileLock);
     }
-    let schema_bytes = serde_json_canonicalizer::to_vec(&lock.command_schema)
-        .map_err(|_| GatewayRecipeError::InvalidProfileLock)?;
-    if hex::encode(Sha256::digest(schema_bytes)) != lock.schema_digest {
+    let schema_bytes = match canonical {
+        Ok(bytes) => bytes.as_slice(),
+        Err(()) => return Err(GatewayRecipeError::InvalidProfileLock),
+    };
+    let digest: [u8; 32] = Sha256::digest(schema_bytes).into();
+    if !recipe_binding::schema_digest_matches(lock.schema_digest.as_bytes(), &digest) {
         return Err(GatewayRecipeError::InvalidProfileLock);
     }
     Ok(())
 }
 
-fn parse_root_fields(value: &Value) -> Result<BTreeMap<String, FieldSchema>, GatewayRecipeError> {
-    let root = value
-        .as_object()
-        .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-    if !exact_keys(root, &["kind", "fields"])
-        || root.get("kind").and_then(Value::as_str) != Some("object")
-    {
-        return Err(GatewayRecipeError::InvalidProfileLock);
-    }
-    let fields = root
-        .get("fields")
-        .and_then(Value::as_object)
-        .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-    if fields.is_empty() || fields.len() > 32 {
-        return Err(GatewayRecipeError::InvalidProfileLock);
-    }
-    fields
-        .iter()
-        .map(|(name, value)| {
-            if !valid_field_name(name) {
-                return Err(GatewayRecipeError::InvalidProfileLock);
-            }
-            Ok((name.clone(), parse_field_schema(value)?))
-        })
-        .collect()
+fn parse_root_fields(value: &Value) -> Result<Vec<field_projection::FieldSpec>, GatewayRecipeError> {
+    profile::parse_root(value)
 }
 
+#[cfg(test)]
 fn parse_field_schema(value: &Value) -> Result<FieldSchema, GatewayRecipeError> {
-    let object = value
-        .as_object()
-        .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-    if object.get("type").and_then(Value::as_str) == Some("enum") {
-        if !exact_keys(object, &["type", "variants"]) {
-            return Err(GatewayRecipeError::InvalidProfileLock);
-        }
-        let values = object
-            .get("variants")
-            .and_then(Value::as_array)
-            .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-        if values.is_empty() || values.len() > 32 {
-            return Err(GatewayRecipeError::InvalidProfileLock);
-        }
-        let variants: Vec<String> = values
-            .iter()
-            .map(|value| {
-                let text = value
-                    .as_str()
-                    .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-                if !valid_enum_variant(text) {
-                    return Err(GatewayRecipeError::InvalidProfileLock);
-                }
-                Ok(text.to_owned())
-            })
-            .collect::<Result<_, _>>()?;
-        if variants
-            .iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != variants.len()
-        {
-            return Err(GatewayRecipeError::InvalidProfileLock);
-        }
-        return Ok(FieldSchema::Enum { variants });
-    }
-    match object.get("kind").and_then(Value::as_str) {
-        Some("string") if exact_keys(object, &["kind", "minimum", "maximum"]) => {
-            let minimum = object
-                .get("minimum")
-                .and_then(Value::as_u64)
-                .and_then(|value| usize::try_from(value).ok())
-                .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-            let maximum = object
-                .get("maximum")
-                .and_then(Value::as_u64)
-                .and_then(|value| usize::try_from(value).ok())
-                .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-            if minimum > maximum || maximum > 4096 {
-                return Err(GatewayRecipeError::InvalidProfileLock);
-            }
-            Ok(FieldSchema::String { minimum, maximum })
-        }
-        Some("integer") if exact_keys(object, &["kind", "minimum", "maximum"]) => {
-            let minimum = object
-                .get("minimum")
-                .and_then(Value::as_i64)
-                .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-            let maximum = object
-                .get("maximum")
-                .and_then(Value::as_i64)
-                .ok_or(GatewayRecipeError::InvalidProfileLock)?;
-            if minimum > maximum || minimum < -(2_i64.pow(53) - 1) || maximum > 2_i64.pow(53) - 1 {
-                return Err(GatewayRecipeError::InvalidProfileLock);
-            }
-            Ok(FieldSchema::Integer { minimum, maximum })
-        }
-        Some("boolean") if exact_keys(object, &["kind"]) => Ok(FieldSchema::Boolean),
-        _ => Err(GatewayRecipeError::InvalidProfileLock),
-    }
+    profile::parse_scalar(value)
 }
 
 fn validate_binding_fields(
-    fields: &BTreeMap<String, FieldSchema>,
+    fields: &[field_projection::FieldSpec],
     namespace: &OperatorNamespace,
 ) -> Result<(), GatewayRecipeError> {
-    if !matches!(
-        fields.get("operator_namespace"),
-        Some(FieldSchema::Enum { variants }) if variants.len() == 1 && variants[0] == namespace.as_str()
-    ) || !matches!(
-        fields.get("operation_id"),
-        Some(FieldSchema::String { minimum, maximum }) if *minimum >= 1 && *maximum <= 128
-    ) || !matches!(
-        fields.get("recipe_digest"),
-        Some(FieldSchema::String {
-            minimum: 64,
-            maximum: 64
-        })
-    ) {
+    if !auths_gateway_kernel::profile_schema::binding_fields_match(fields, namespace.as_str().as_bytes()) {
         return Err(GatewayRecipeError::ProfileMismatch);
     }
     Ok(())
 }
 
-fn validate_origin(origin: &str) -> Result<(), GatewayRecipeError> {
+fn validate_origin(origin: &str) -> Result<String, GatewayRecipeError> {
+    if origin.len() > auths_gateway_kernel::path_compiler::MAX_ORIGIN_BYTES {
+        return Err(GatewayRecipeError::UnsafeOrigin);
+    }
     let parsed = Url::parse(origin).map_err(|_| GatewayRecipeError::UnsafeOrigin)?;
-    let host = parsed.host();
-    if parsed.scheme() != "https"
-        || parsed.username() != ""
+    if !auths_gateway_kernel::construct::field_name_equal(parsed.scheme().as_bytes(), b"https")
+        || !parsed.username().as_bytes().is_empty()
         || parsed.password().is_some()
         || parsed.port().is_some()
-        || parsed.path() != "/"
+        || !auths_gateway_kernel::construct::field_name_equal(parsed.path().as_bytes(), b"/")
         || parsed.query().is_some()
         || parsed.fragment().is_some()
-        || !matches!(host, Some(Host::Domain(_)))
-        || !origin.ends_with(parsed.host_str().unwrap_or_default())
     {
         return Err(GatewayRecipeError::UnsafeOrigin);
     }
-    let Some(Host::Domain(domain)) = host else {
-        return Err(GatewayRecipeError::UnsafeOrigin);
+    let domain = match parsed.host() {
+        Some(Host::Domain(domain)) => domain.to_owned(),
+        _ => return Err(GatewayRecipeError::UnsafeOrigin),
     };
-    if domain.len() > 253
-        || domain == "localhost"
-        || domain.ends_with(".localhost")
-        || domain.split('.').next_back() == Some("local")
-        || domain.ends_with(".internal")
-        || !domain.contains('.')
+    if !auths_gateway_kernel::path_compiler::origin_matches_host(origin.as_bytes(), domain.as_bytes())
+        || !origin_domain_allowed(&domain)
     {
         return Err(GatewayRecipeError::UnsafeOrigin);
     }
-    Ok(())
+    Ok(domain)
+}
+
+fn origin_domain_allowed(domain: &str) -> bool {
+    if domain.len() > 253 { return false; }
+    let bytes = domain.as_bytes();
+    let mut end = bytes.len();
+    // A final DNS root dot leaves the existing hostname policy class intact.
+    if end > 0 && bytes[end - 1] == b'.' { end -= 1; }
+    let policy = &bytes[..end];
+    !auths_gateway_kernel::construct::field_name_equal(policy, b"localhost")
+        && !policy.ends_with(b".localhost")
+        && !auths_gateway_kernel::construct::field_name_equal(policy, b"local")
+        && !policy.ends_with(b".local")
+        && !policy.ends_with(b".internal")
+        && policy.contains(&b'.')
 }
 
 fn valid_field_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 64
-        && name.bytes().enumerate().all(|(index, byte)| {
-            byte.is_ascii_alphanumeric() || (index > 0 && matches!(byte, b'_' | b'-' | b'.'))
-        })
-}
-
-fn valid_enum_variant(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 64
-        && value.is_ascii()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b':' | b'-'))
+    auths_gateway_kernel::identity::valid_token(name.as_bytes(), 64)
 }

@@ -392,6 +392,7 @@ dependencies = [
  "auths-model",
  "minicbor",
  "proptest",
+ "serde_json",
  "sha2 0.10.9",
 ]
 
@@ -645,6 +646,7 @@ dependencies = [
  "p256",
  "postgres",
  "proptest",
+ "rcgen",
  "reqwest",
  "rustix",
  "rustls",

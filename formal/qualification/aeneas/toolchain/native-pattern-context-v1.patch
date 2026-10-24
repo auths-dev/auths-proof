@@ -1,0 +1,76 @@
+--- a/src/pure/PureUtils.ml
++++ b/src/pure/PureUtils.ml
+@@ -2589,8 +2589,8 @@
+   | _ -> None
+ 
+ (** Return [true] if the pattern decomposes an enumeration with > 1 variants *)
+-let tpat_decomposes_enum span (type_decls : type_decl TypeDeclId.Map.t)
+-    (pat : tpat) : bool =
++let tpat_decomposes_enum_with_variant_count span
++    (variant_count : TypeDeclId.id -> int option) (pat : tpat) : bool =
+   let visitor =
+     object
+       inherit [_] iter_expr as super
+@@ -2601,12 +2601,11 @@
+         let type_id, _ = ty_as_adt span ty in
+         match type_id with
+         | TAdtId id ->
+-            let decl = TypeDeclId.Map.find id type_decls in
+-            begin
+-              match decl.kind with
+-              | Struct _ | Opaque -> ()
+-              | Enum vl -> if List.length vl > 1 then raise Utils.Found
+-            end;
++            (match variant_count id with
++             | None -> ()
++             | Some count ->
++                 if count < 0 then invalid_arg "negative native enum variant count";
++                 if count > 1 then raise Utils.Found);
+             super#visit_adt_pat ty pat
+         | TTuple ->
+             (* ok *)
+@@ -2620,6 +2619,14 @@
+     visitor#visit_tpat pat.ty pat;
+     false
+   with Utils.Found -> true
++
++let enum_variant_count (type_decls : type_decl TypeDeclId.Map.t) id =
++  match (TypeDeclId.Map.find id type_decls).kind with
++  | Struct _ | Opaque -> None
++  | Enum variants -> Some (List.length variants)
++
++let tpat_decomposes_enum span type_decls pat =
++  tpat_decomposes_enum_with_variant_count span (enum_variant_count type_decls) pat
+ 
+ (** Small helper.
+ 
+@@ -2648,11 +2655,11 @@
+ 
+     **Remarks:** the function receives an open pattern and outputs an open
+     pattern. *)
+-let decompose_let_match span (refresh_var : fvar -> fvar)
+-    (get_default_expr : fvar -> texpr) (type_decls : type_decl TypeDeclId.Map.t)
++let decompose_let_match_with_variant_count span (refresh_var : fvar -> fvar)
++    (get_default_expr : fvar -> texpr) (variant_count : TypeDeclId.id -> int option)
+     (pat : tpat) (bound : texpr) : tpat * texpr =
+   (* We update the pattern if it deconstructs an enumeration with > 1 variants *)
+-  let found_enum = tpat_decomposes_enum span type_decls pat in
++  let found_enum = tpat_decomposes_enum_with_variant_count span variant_count pat in
+ 
+   (* *)
+   if found_enum then
+@@ -2693,6 +2700,14 @@
+   else (* Nothing to do *)
+     (pat, bound)
+ 
++(** The existing public API retains its exact declaration lookup. The shared
++    constructor needs only an enum's variant count; field/value/default logic
++    remains the same implementation above. No type-declaration or ending guard
++    is relaxed by exposing this narrower metadata dependency. *)
++let decompose_let_match span refresh_var get_default_expr type_decls pat bound =
++  decompose_let_match_with_variant_count span refresh_var get_default_expr
++    (enum_variant_count type_decls) pat bound
++
+ let is_result_fail (e : texpr) : bool =
+   let f, args = destruct_apps e in
+   match f.e with

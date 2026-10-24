@@ -1,0 +1,202 @@
+diff --git a/charon/rustc_trait_elaboration/src/utils.rs b/charon/rustc_trait_elaboration/src/utils.rs
+--- a/charon/rustc_trait_elaboration/src/utils.rs
++++ b/charon/rustc_trait_elaboration/src/utils.rs
+@@ -57,10 +57,27 @@
+ where
+     T: TypeFoldable<TyCtxt<'tcx>>,
+ {
++    erase_free_regions_inner(tcx, value, false)
++}
++
++/// Preserve source-fixed static regions in selected implementation arguments.
++/// Other free/inference/escaping regions retain the ordinary erased form.
++pub fn erase_free_regions_preserving_static<'tcx, T>(tcx: TyCtxt<'tcx>, value: T) -> T
++where
++    T: TypeFoldable<TyCtxt<'tcx>>,
++{
++    erase_free_regions_inner(tcx, value, true)
++}
++
++fn erase_free_regions_inner<'tcx, T>(tcx: TyCtxt<'tcx>, value: T, preserve_static: bool) -> T
++where
++    T: TypeFoldable<TyCtxt<'tcx>>,
++{
+     use rustc_middle::ty;
+     struct RegionEraserVisitor<'tcx> {
+         tcx: TyCtxt<'tcx>,
+         depth: u32,
++        preserve_static: bool,
+     }
+ 
+     impl<'tcx> TypeFolder<TyCtxt<'tcx>> for RegionEraserVisitor<'tcx> {
+@@ -87,12 +104,13 @@
+             // We don't erase bound regions that are bound inside the expression we started with,
+             // but we do erase those that point "outside of it".
+             match r.kind() {
++                ty::ReStatic if self.preserve_static => r,
+                 ty::ReBound(BoundVarIndexKind::Bound(dbid), _) if dbid.as_u32() < self.depth => r,
+                 _ => self.tcx.lifetimes.re_erased,
+             }
+         }
+     }
+-    value.fold_with(&mut RegionEraserVisitor { tcx, depth: 0 })
++    value.fold_with(&mut RegionEraserVisitor { tcx, depth: 0, preserve_static })
+ }
+ 
+ // Normalize and erase lifetimes, erasing more lifetimes than normal because we might be already
+@@ -132,6 +150,22 @@
+     ))
+ }
+ 
++/// A source-backed selection query with the same escaping-bound/free-region
++/// erasure, while retaining literal static bounds. Normalize after escaping
++/// variables have been removed; no caller quantifier becomes a free argument.
++pub fn normalize_bound_val_preserving_static<'tcx, T>(
++    tcx: TyCtxt<'tcx>,
++    typing_env: TypingEnv<'tcx>,
++    x: Binder<'tcx, T>,
++) -> Binder<'tcx, T>
++where
++    T: TypeFoldable<TyCtxt<'tcx>> + Copy,
++{
++    let value = erase_free_regions_preserving_static(tcx, x.skip_binder());
++    let value = normalize(tcx, typing_env, Unnormalized::new_wip(value));
++    Binder::dummy(erase_free_regions_preserving_static(tcx, value))
++}
++
+ pub trait ToPolyTraitRef<'tcx> {
+     fn to_poly_trait_ref(&self) -> PolyTraitRef<'tcx>;
+ }
+diff --git a/charon/rustc_trait_elaboration/src/elaboration.rs b/charon/rustc_trait_elaboration/src/elaboration.rs
+--- a/charon/rustc_trait_elaboration/src/elaboration.rs
++++ b/charon/rustc_trait_elaboration/src/elaboration.rs
+@@ -368,6 +368,29 @@
+                     in the current context: `{e:?}`"
+                 ));
+             }
++        };
++        // The erased query still selects the implementation. If the source
++        // predicate contains fixed static bounds, recover argument metadata
++        // through a source-preserving query only when it selects that exact
++        // same implementation and the complete region-erased args agree.
++        // An error or different selection is a hard refusal, not a fallback.
++        let source_tref = normalize_bound_val_preserving_static(tcx, self.typing_env, *tref);
++        let impl_source = match &impl_source {
++            ImplSource::UserDefined(original) if source_tref != erased_tref => {
++                match shallow_resolve_trait_ref(tcx, self.typing_env.param_env, source_tref) {
++                    Ok(ImplSource::UserDefined(source))
++                        if source.impl_def_id == original.impl_def_id
++                            && tcx.erase_and_anonymize_regions(source.args)
++                                == tcx.erase_and_anonymize_regions(original.args) =>
++                    {
++                        ImplSource::UserDefined(source)
++                    }
++                    _ => return error(format!(
++                        "Source-static implementation argument reconstruction disagrees for `{tref:?}`"
++                    )),
++                }
++            }
++            _ => impl_source,
+         };
+         let atom = match impl_source {
+             ImplSource::UserDefined(ImplSourceUserDefinedData {
+@@ -615,7 +638,19 @@
+     }
+ 
+     let impl_source = infcx.resolve_vars_if_possible(impl_source);
+-    let impl_source = tcx.erase_and_anonymize_regions(impl_source);
++    let impl_source = match impl_source {
++        ImplSource::UserDefined(mut selected) => {
++            selected.args = restore_source_static_arguments(
++                tcx, selected.impl_def_id, selected.args, trait_ref.skip_binder(),
++            )?;
++            ImplSource::UserDefined(selected)
++        }
++        other => other,
++    };
++    // A static lifetime originating in the selected source type is evidence,
++    // not an inference variable. Keep it; erase unresolved/free regions as
++    // before so they cannot escape the inference context.
++    let impl_source = erase_free_regions_preserving_static(tcx, impl_source);
+ 
+     if impl_source.has_infer() {
+         // Unused lifetimes on an impl get replaced with inference vars, but never resolved.
+@@ -624,3 +659,78 @@
+ 
+     Ok(impl_source)
+ }
++
++/// Infer only unresolved direct lifetime arguments from a literal static in the
++/// complete requested source predicate. A region-erased shape match alone is
++/// insufficient: the reconstructed whole predicate must agree exactly after
++/// the same free/inference erasure, with source statics preserved. In particular
++/// an erased borrowed input cannot be strengthened to static by this helper.
++fn restore_source_static_arguments<'tcx>(
++    tcx: TyCtxt<'tcx>,
++    impl_def_id: DefId,
++    arguments: GenericArgsRef<'tcx>,
++    requested: TraitRef<'tcx>,
++) -> Result<GenericArgsRef<'tcx>, CodegenObligationError> {
++    struct Regions<'tcx>(Vec<Region<'tcx>>);
++    impl<'tcx> TypeVisitor<TyCtxt<'tcx>> for Regions<'tcx> {
++        fn visit_ty(&mut self, ty: Ty<'tcx>) {
++            ty.super_visit_with(self)
++        }
++        fn visit_const(&mut self, value: Const<'tcx>) {
++            value.super_visit_with(self)
++        }
++        fn visit_region(&mut self, region: Region<'tcx>) {
++            self.0.push(region);
++        }
++    }
++    let mut source_regions = Regions(Vec::new());
++    requested.visit_with(&mut source_regions);
++    if !source_regions.0.iter().any(|region| matches!(region.kind(), ReStatic)) {
++        return Ok(arguments);
++    }
++    let unknown: Vec<_> = arguments.iter().filter_map(|argument| {
++        let region = argument.as_region()?;
++        matches!(region.kind(), ReVar(_)).then_some(region)
++    }).collect();
++    if unknown.is_empty() {
++        return Ok(arguments);
++    }
++    let template = tcx.impl_trait_ref(impl_def_id).instantiate(tcx, arguments).skip_normalization();
++    if tcx.erase_and_anonymize_regions(template) != tcx.erase_and_anonymize_regions(requested) {
++        return Err(CodegenObligationError::Ambiguity);
++    }
++    let mut pattern_regions = Regions(Vec::new());
++    template.visit_with(&mut pattern_regions);
++    if pattern_regions.0.len() != source_regions.0.len() {
++        return Err(CodegenObligationError::Ambiguity);
++    }
++    let mut replacements = HashMap::new();
++    for (pattern, source) in pattern_regions.0.into_iter().zip(source_regions.0) {
++        if unknown.contains(&pattern) && matches!(source.kind(), ReStatic) {
++            if let Some(previous) = replacements.insert(pattern, source) {
++                if previous != source {
++                    return Err(CodegenObligationError::Ambiguity);
++                }
++            }
++        }
++    }
++    if replacements.is_empty() {
++        return Ok(arguments);
++    }
++    struct Replace<'a, 'tcx> {
++        tcx: TyCtxt<'tcx>,
++        replacements: &'a HashMap<Region<'tcx>, Region<'tcx>>,
++    }
++    impl<'tcx> TypeFolder<TyCtxt<'tcx>> for Replace<'_, 'tcx> {
++        fn cx(&self) -> TyCtxt<'tcx> { self.tcx }
++        fn fold_region(&mut self, region: Region<'tcx>) -> Region<'tcx> {
++            self.replacements.get(&region).copied().unwrap_or(region)
++        }
++    }
++    let arguments = arguments.fold_with(&mut Replace { tcx, replacements: &replacements });
++    let reconstructed = tcx.impl_trait_ref(impl_def_id).instantiate(tcx, arguments).skip_normalization();
++    if erase_free_regions_preserving_static(tcx, reconstructed) != requested {
++        return Err(CodegenObligationError::Ambiguity);
++    }
++    Ok(arguments)
++}

@@ -324,6 +324,15 @@ pub(crate) fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
     run_formal_semantic_checks(&formal_root, skip_kani, update)
 }
 
+/// Generates the actual native adapter ABI for review. This stages raw output
+/// only; it cannot mint qualification/reuse/release evidence.
+pub(crate) fn formal_extract_native_recipe() -> Result<(), String> {
+    let output = formal_qualification::extract_native_recipe_for_review(&root())?;
+    println!("Native recipe extraction staged for ABI/model review: {}", output.display());
+    println!("Unqualified staging output; no proof or release evidence was produced.");
+    Ok(())
+}
+
 const FORMAL_PHASE_RESULT_SCHEMA: &str = "auths-proof-formal-phase-result/v1";
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -1776,6 +1785,21 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             let is_gateway = [
                 "Auths.Product.Recovery.",
                 "Auths.Product.RequestConstruction.",
+                "Auths.Product.ArgumentBinding.",
+                "Auths.Product.ScalarProjection.",
+                "Auths.Product.DecimalProjection.",
+                "Auths.Product.FieldProjection.",
+                "Auths.Product.PathCompiler.",
+                "Auths.Product.BodyCompiler.",
+                "Auths.Product.DerivedTokens.",
+                "Auths.Product.RecipeBinding.",
+                "Auths.Product.ProfileSchema.",
+                "Auths.Product.EchoPointer.",
+                "Auths.Product.AttemptBinding.",
+                "Auths.Product.HeaderCompiler.",
+                "Auths.Product.RequestCompiler.",
+                "Auths.Product.TemplateMembers.",
+                "Auths.Product.TemplateAst.",
                 "Auths.Product.SubmitOrder.",
                 "Auths.Product.RelativeCeiling.",
             ]
@@ -1875,6 +1899,20 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                     .unwrap_or("the stated property")
             );
             claim.scope = "Finite lists of independent natural-number upper endpoints, preserving inclusive and exclusive boundaries. This is endpoint algebra; it does not establish that an actual verification or installed gate supplied every required bound.".to_owned();
+        }
+        if declaration.name.starts_with("Auths.Product.EntryGate.") {
+            claim.claim_text = format!(
+                "The independent complete entry-time model proves {}.",
+                declaration.name.rsplit('.').next().unwrap_or("the stated property")
+            );
+            claim.scope = "Every represented evaluation/current time, original authority/prepared/current endpoint, optional clock/qualification sample and exact monotonic nanosecond sample. This model result does not establish native bound acquisition, verified-command provenance, credential validity or physical dispatch correspondence.".to_owned();
+        }
+        if declaration.name.starts_with("Auths.Product.NativeCompiler.")
+            && !declaration.name.starts_with("Auths.Product.NativeCompiler.Refinement.")
+            && !declaration.name.starts_with("Auths.Product.NativeCompiler.StdModel.")
+        {
+            claim.claim_text = "The independent original JSON/schema/typed-body, byte-decoding and finite-map models establish the displayed meaning, determinacy, association/order preservation, lookup, parser-fold, count or original-name consequence.".to_owned();
+            claim.scope = "Every displayed represented source/kernel tree, original field sequence, finite map or byte column with its explicit range/order/representation conditions. Separate shipping native refinements must earn those model relations and decisions. These model statements alone do not establish raw JSON parsing, actual schema/rule-map acceptance, full compiler/digest/plan provenance, authorization, driver I/O or durable history.".to_owned();
         }
         if declaration.name.starts_with("Auths.Composition.Model.") {
             claim.claim_text = format!(
@@ -2434,10 +2472,13 @@ struct ProductionRefinementMetadata {
 const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/authority/Funs.lean";
 const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
 const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
+const NATIVE_COMPILER_TRANSLATION: &str = "formal/qualification/aeneas/generated/native_recipe/Funs.lean";
 const PROFILE_CONSTRUCTION_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/profile_construction/Funs.lean";
 const CONNECTIONS_TRANSLATION: &str = "formal/qualification/aeneas/generated/connections/Funs.lean";
 const CODEC_TRANSLATION: &str = "formal/qualification/aeneas/generated/codec/Funs.lean";
+const PROTOCOL_CODEC_TRANSLATION: &str =
+    "formal/qualification/aeneas/generated/protocol_codec/Funs.lean";
 const STORES_TRANSLATION: &str = "formal/qualification/aeneas/generated/stores/Funs.lean";
 const BOUNDED_POLICY_TRANSLATION: &str =
     "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
@@ -2552,8 +2593,9 @@ fn qualified_refinement_metadata(
                 .map(|metadata| (metadata, BOUNDED_POLICY_TRANSLATION))
         })
         .or_else(|| {
-            connections_refinement_metadata(declaration)
-                .map(|metadata| (metadata, CONNECTIONS_TRANSLATION))
+            batch_source_refinement_metadata(declaration).and_then(|metadata| {
+                batch_refinement_translation(declaration).map(|artifact| (metadata, artifact))
+            })
         })
         .or_else(|| {
             connection_frame_refinement_metadata(declaration)
@@ -2574,6 +2616,109 @@ fn qualified_refinement_metadata(
             entry_deadline_refinement_metadata(declaration)
                 .map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+}
+
+/// Every source claim in the implementation batch retains its actual source
+/// unit. A shared metadata table must not silently assign codec or verifier
+/// claims to the connection-record translation that happens to own the table.
+fn batch_refinement_translation(declaration: &str) -> Option<&'static str> {
+    if declaration.starts_with("Auths.Product.NativeCompiler.Refinement.") {
+        return Some(NATIVE_COMPILER_TRANSLATION);
+    }
+    if declaration.starts_with("Auths.Product.WritePermit.")
+        || declaration.starts_with("Auths.Product.ClaimedInput.Refinement.")
+        || declaration.starts_with("Auths.Product.ArgumentBinding.Refinement.")
+        || declaration.starts_with("Auths.Product.ScalarProjection.Refinement.")
+        || declaration.starts_with("Auths.Product.ScalarProjection.Dispatch.")
+        || declaration.starts_with("Auths.Product.DecimalProjection.Refinement.")
+        || declaration.starts_with("Auths.Product.FieldProjection.Refinement.")
+        || declaration.starts_with("Auths.Product.PathCompiler.Refinement.")
+        || declaration.starts_with("Auths.Product.BodyCompiler.Refinement.")
+        || declaration.starts_with("Auths.Product.DerivedTokens.Refinement.")
+        || declaration.starts_with("Auths.Product.RecipeBinding.Refinement.")
+        || declaration.starts_with("Auths.Product.ProfileSchema.Refinement.")
+        || declaration.starts_with("Auths.Product.EchoPointer.Refinement.")
+        || declaration.starts_with("Auths.Product.AttemptBinding.Refinement.")
+        || declaration.starts_with("Auths.Product.HeaderCompiler.Refinement.")
+        || declaration.starts_with("Auths.Product.RequestCompiler.Refinement.")
+        || declaration.starts_with("Auths.Product.TemplateMembers.Refinement.")
+        || declaration.starts_with("Auths.Product.TemplateAst.Refinement.")
+    {
+        return Some(GATEWAY_TRANSLATION);
+    }
+    if [
+        "Auths.Verifier.CompositionFloor.",
+        "Auths.Verifier.SealedProjection.",
+        "Auths.Verifier.WorkMeterRefinement.",
+        "Auths.Verifier.ObservationControl.",
+    ]
+    .iter()
+    .any(|prefix| declaration.starts_with(prefix))
+    {
+        return Some(TEMPORAL_TRANSLATION);
+    }
+    if declaration.starts_with("Auths.Codec.SnapshotRefinement.") {
+        return Some(MODEL_TRANSLATION);
+    }
+    if declaration.starts_with("Auths.Crypto.")
+        || declaration.starts_with("AuthsProtocolCodec.")
+        || [
+            "Auths.Codec.KeyDerivation.",
+            "Auths.Codec.RecordNormalization.",
+            "Auths.Codec.SnapshotOrdering.",
+            "Auths.Codec.OwnedRecords.",
+            "Auths.Codec.CanonicalValues.",
+            "Auths.Codec.CanonicalIntegrity.",
+            "Auths.Codec.CanonicalEncoding.",
+            "Auths.Codec.ProtocolReencoding.",
+            "Auths.Codec.ProtocolArrayWriters.",
+            "Auths.Codec.ProtocolTextWriters.",
+            "Auths.Codec.ProtocolEncoderState.",
+            "Auths.Codec.ProtocolReadHead.",
+            "Auths.Codec.ProtocolCursor.",
+            "Auths.Codec.ProtocolPayload.",
+            "Auths.Codec.ProtocolCollection.",
+            "Auths.Codec.ProtocolFields.",
+            "Auths.Codec.ProtocolPrimitiveInverse.",
+            "Auths.Codec.ProtocolStrings.",
+            "Auths.Codec.ProtocolReaderBounds.",
+            "Auths.Codec.ProtocolHeadEncoder.",
+            "Auths.Codec.ProtocolObjectWriter.",
+            "Auths.Codec.ProtocolCanonical.",
+            "Auths.Codec.PolicyIdentifiers.",
+            "Auths.Codec.PolicyConstructors.",
+            "Auths.Codec.PolicyCanonical.",
+            "Auths.Codec.PolicyAccepted.",
+            "Auths.Codec.PolicyReadTotal.",
+            "Auths.Codec.PolicyCursor.",
+            "Auths.Codec.PolicyAssurance.",
+            "Auths.Codec.PolicyInverse.",
+            "Auths.Codec.ResultIntegrity.",
+        ]
+        .iter()
+        .any(|prefix| declaration.starts_with(prefix))
+    {
+        return Some(PROTOCOL_CODEC_TRANSLATION);
+    }
+    if declaration.starts_with("Auths.Codec.") {
+        return Some(CODEC_TRANSLATION);
+    }
+    if [
+        "Auths.Product.SemanticId.Refinement.",
+        "Auths.Product.RecoveryGate.Refinement.",
+        "Auths.Product.RecordShape.Refinement.",
+        "Auths.Product.RecordTimes.Refinement.",
+        "Auths.Product.StrictOrder.Refinement.",
+        "Auths.Product.ConnectionBytes.Refinement.",
+        "Auths.Product.LeaseBinding.Refinement.",
+        "Auths.Product.Refinement.Connections.",
+    ]
+    .iter()
+    .any(|prefix| declaration.starts_with(prefix))
+    {
+        return Some(CONNECTIONS_TRANSLATION);
+    }
+    None
 }
 
 fn expanded_batch_refinement_metadata(
@@ -4358,6 +4503,11 @@ fn entry_deadline_refinement_metadata(declaration: &str) -> Option<ProductionRef
     ];
     const CHECK: &str = "auths_gateway_kernel::deadline::entry_time_allows";
     const MEET: &str = "auths_gateway_kernel::deadline::intersect_entry_bounds";
+    const GATE: &str = "auths_gateway_kernel::deadline::entry_gate_allows";
+    const GATE_RESIDUAL: &[&str] = &[
+        "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted.",
+        "The complete pure time gate consumes supplied original endpoints, optional samples and exact nanosecond elapsed time. Source correspondence for complete native temporal-witness acquisition, qualification/clock samples, verified-command/lease provenance, async dispatch and the HTTP invocation remains required. Clock correctness, scheduler/runtime and transport contracts remain external. These source statements do not complete AP-SPEC-069 E2, E3 or E4.",
+    ];
     let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
         "Auths.Product.Refinement.EntryDeadline.translated_entry_time_refines_model" => (
             "The mechanically translated shipping entry-time predicate is total and exactly matches the independent lower-time and inclusive/exclusive endpoint semantics.",
@@ -4374,13 +4524,37 @@ fn entry_deadline_refinement_metadata(declaration: &str) -> Option<ProductionRef
             &[CHECK],
             "Every u64 evaluation time, earlier current sample and typed upper endpoint.",
         ),
+        "Auths.Product.Refinement.EntryDeadline.translated_gate_refines_original_bounds" => (
+            "The complete mechanically translated pure entry-time gate exactly requires present clock/qualification samples, an elapsed time of at most 60 billion nanoseconds, and satisfaction of each original authority, prepared-installation and current-installation endpoint.",
+            &[GATE, MEET, CHECK],
+            "Every u64 evaluation/current time and inclusive/exclusive endpoint, both optional sample states, and every u128 elapsed-nanosecond sample.",
+        ),
+        "Auths.Product.Refinement.EntryDeadline.translated_gate_preserves_original_bounds" => (
+            "Acceptance by the complete mechanically translated pure time gate earns the original sampled time and qualification endpoint, exact elapsed bound, and all three original endpoint predicates.",
+            &[GATE, MEET, CHECK],
+            "Every represented source input; the result assumes no previously accepted gate or precomputed intersection.",
+        ),
+        "Auths.Product.Refinement.EntryDeadline.translated_gate_timeout_refuses" => (
+            "The complete mechanically translated pure time gate refuses every elapsed sample strictly above 60 billion nanoseconds, including a fractional-second excess.",
+            &[GATE],
+            "Every represented time/endpoint/optional-sample input and every u128 elapsed sample above the fixed source limit.",
+        ),
+        "Auths.Product.Refinement.EntryDeadline.translated_gate_useful_original_endpoints" => (
+            "The complete mechanically translated pure time gate accepts original present samples whose exact elapsed time and three independently supplied endpoint predicates permit entry.",
+            &[GATE, MEET, CHECK],
+            "Every represented valid original sample and endpoint tuple, with usefulness premises stated independently of source execution or a precomputed minimum endpoint.",
+        ),
         _ => return None,
     };
     Some(ProductionRefinementMetadata {
         claim_text,
         rust_symbols,
         scope,
-        residual_assumptions: RESIDUAL,
+        residual_assumptions: if declaration.starts_with("Auths.Product.Refinement.EntryDeadline.translated_gate_") {
+            GATE_RESIDUAL
+        } else {
+            RESIDUAL
+        },
         translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
     })
 }
@@ -4659,7 +4833,1509 @@ fn profile_construction_refinement_metadata(
     })
 }
 
-fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+fn batch_source_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    if declaration.starts_with("Auths.Product.NativeCompiler.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.NativeCompiler.Refinement.native_schema_copy"
+            | "Auths.Product.NativeCompiler.Refinement.native_schema_has_original_meaning"
+            | "Auths.Product.NativeCompiler.Refinement.native_conversion_earns_independent_meaning" => &[
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+                "auths_gateway::recipe::profile::schema_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_object_retains_complete_name_column" => &[
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_array_retains_complete_child_count" => &[
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_float_never_becomes_a_schema_integer" => &[
+                "auths_gateway::recipe::profile::schema_value",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_ast_has_original_meaning" => &[
+                "auths_gateway::recipe::lower::source_value",
+                "auths_gateway::recipe::lower::source_values",
+                "auths_gateway::recipe::lower::source_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_has_original_meaning" => &[
+                "auths_gateway::recipe::lower::source_form_value",
+                "auths_gateway::recipe::lower::source_value",
+                "auths_gateway::recipe::lower::source_values",
+                "auths_gateway::recipe::lower::source_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_members_copy"
+            | "Auths.Product.NativeCompiler.Refinement.native_form_member_names_and_count" => &[
+                "auths_gateway::recipe::lower::source_form_members",
+                "auths_gateway::recipe::lower::source_form_value",
+                "auths_gateway::recipe::lower::source_value",
+                "auths_gateway::recipe::lower::source_values",
+                "auths_gateway::recipe::lower::source_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_body_has_original_meaning"
+            | "Auths.Product.NativeCompiler.Refinement.native_body_earns_original_meaning"
+            | "Auths.Product.NativeCompiler.Refinement.native_body_preserves_original_meaning" => &[
+                "auths_gateway::recipe::lower::source_body",
+                "auths_gateway::recipe::lower::source_form_members",
+                "auths_gateway::recipe::lower::source_form_value",
+                "auths_gateway::recipe::lower::source_value",
+                "auths_gateway::recipe::lower::source_values",
+                "auths_gateway::recipe::lower::source_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_byte_equality" => &[
+                "auths_gateway_kernel::construct::field_name_equal",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_copy_bytes" => &[
+                "auths_gateway_kernel::construct::copy_bytes",
+                "auths_gateway_kernel::construct::append_bytes",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_member_exact" => &[
+                "auths_gateway_kernel::profile_schema::member",
+                "auths_gateway_kernel::construct::field_name_equal",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_text_exact" => &[
+                "auths_gateway_kernel::profile_schema::text_is",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_one_key_exact" => &[
+                "auths_gateway_kernel::profile_schema::one_key",
+                "auths_gateway_kernel::profile_schema::member",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_two_keys_exact" => &[
+                "auths_gateway_kernel::profile_schema::two_keys",
+                "auths_gateway_kernel::profile_schema::member",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_three_keys_exact" => &[
+                "auths_gateway_kernel::profile_schema::three_keys",
+                "auths_gateway_kernel::profile_schema::member",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_string_bound_exact" => &[
+                "auths_gateway_kernel::profile_schema::string_bound",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_signed_bound_exact" => &[
+                "auths_gateway_kernel::profile_schema::signed_bound",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_string_limits_exact" => &[
+                "auths_gateway_kernel::scalars::string_schema_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_integer_limits_exact" => &[
+                "auths_gateway_kernel::scalars::integer_schema_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_first_index_exact" => &[
+                "auths_gateway_kernel::construct::field_index",
+                "auths_gateway_kernel::construct::field_name_equal",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_unique_names_exact" => &[
+                "auths_gateway_kernel::arguments::unique_fields",
+                "auths_gateway_kernel::construct::field_index",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_scalar_clone_exact" => &[
+                "auths_gateway_kernel::scalars::{impl core::clone::Clone for auths_gateway_kernel::scalars::ScalarSchema}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_field_clone_exact" => &[
+                "auths_gateway_kernel::field_projection::{impl core::clone::Clone for auths_gateway_kernel::field_projection::FieldSpec}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_alphanumeric_exact" => &[
+                "auths_gateway_kernel::construct::is_alphanumeric",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_token_exact" => &[
+                "auths_gateway_kernel::identity::valid_token",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_enum_byte_exact" => &[
+                "auths_gateway_kernel::scalars::enum_byte_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_enum_variant_exact" => &[
+                "auths_gateway_kernel::scalars::enum_variant_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_enum_limits_exact" => &[
+                "auths_gateway_kernel::scalars::enum_schema_valid",
+                "auths_gateway_kernel::arguments::unique_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_copy_names_exact" => &[
+                "auths_gateway_kernel::field_projection::copy_field_names",
+                "auths_gateway_kernel::identity::valid_token",
+                "auths_gateway_kernel::construct::copy_bytes",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_field_names_exact" => &[
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::field_projection::copy_field_names",
+                "auths_gateway_kernel::arguments::unique_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_parse_enum_exact" => &[
+                "auths_gateway_kernel::profile_schema::enum_schema",
+                "auths_gateway_kernel::scalars::enum_schema_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_parse_scalar_exact" => &[
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+                "auths_gateway_kernel::profile_schema::enum_schema",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_parse_field_exact" => &[
+                "auths_gateway_kernel::profile_schema::parse_field",
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_parse_fields_exact" => &[
+                "auths_gateway_kernel::profile_schema::parse_fields",
+                "auths_gateway_kernel::profile_schema::parse_field",
+                "auths_gateway_kernel::field_projection::field_names",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_schema_parse_root_exact" => &[
+                "auths_gateway_kernel::profile_schema::parse_root",
+                "auths_gateway_kernel::profile_schema::parse_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_profile_root_earns_verdict" => &[
+                "auths_gateway::recipe::profile::parse_root",
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+                "auths_gateway::recipe::profile::schema_members",
+                "auths_gateway_kernel::profile_schema::parse_root",
+                "auths_gateway_kernel::profile_schema::parse_fields",
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_profile_root_exact" => &[
+                "auths_gateway::recipe::profile::parse_root",
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+                "auths_gateway::recipe::profile::schema_members",
+                "auths_gateway_kernel::profile_schema::parse_root",
+                "auths_gateway_kernel::profile_schema::parse_fields",
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_profile_root_has_exact_semantics" => &[
+                "auths_gateway::recipe::profile::parse_root",
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+                "auths_gateway::recipe::profile::schema_members",
+                "auths_gateway_kernel::profile_schema::parse_root",
+                "auths_gateway_kernel::profile_schema::parse_fields",
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_profile_root_useful_acceptance" => &[
+                "auths_gateway::recipe::profile::parse_root",
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+                "auths_gateway::recipe::profile::schema_members",
+                "auths_gateway_kernel::profile_schema::parse_root",
+                "auths_gateway_kernel::profile_schema::parse_fields",
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_profile_root_invalid_refuses" => &[
+                "auths_gateway::recipe::profile::parse_root",
+                "auths_gateway::recipe::profile::schema_value",
+                "auths_gateway::recipe::profile::schema_array",
+                "auths_gateway::recipe::profile::schema_members",
+                "auths_gateway_kernel::profile_schema::parse_root",
+                "auths_gateway_kernel::profile_schema::parse_fields",
+                "auths_gateway_kernel::profile_schema::parse_scalar",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_rule_fields_exact" => &[
+                "auths_gateway::recipe::profile::rule_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_rule_fields_success_has_original_meaning" => &[
+                "auths_gateway::recipe::profile::rule_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_rule_fields_useful_layout" => &[
+                "auths_gateway::recipe::profile::rule_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_rule_fields_invalid_refuses" => &[
+                "auths_gateway::recipe::profile::rule_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_rule_fields_retains_full_pairs" => &[
+                "auths_gateway::recipe::profile::rule_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_profile_root_yields_useful_rule_input" => &[
+                "auths_gateway::recipe::profile::parse_root",
+                "auths_gateway::recipe::profile::rule_fields",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_write_method_exact" => &[
+                "auths_gateway::recipe::lower::method",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_path_input_exact" => &[
+                "auths_gateway::recipe::lower::named_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_path_input_keeps_count" => &[
+                "auths_gateway::recipe::lower::named_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_header_input_exact" => &[
+                "auths_gateway::recipe::lower::header_source",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_path_literal_exact" => &[
+                "auths_gateway_kernel::construct::is_path_literal",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_segment_value_exact" => &[
+                "auths_gateway_kernel::construct::segment_value_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_segment_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::SegmentPlan}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_fixed_segment_exact" => &[
+                "auths_gateway_kernel::path_compiler::fixed_segment_valid",
+                "auths_gateway_kernel::construct::segment_value_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_field_exact" => &[
+                "auths_gateway_kernel::path_compiler::lower_field",
+                "auths_gateway_kernel::construct::field_index",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_segment_exact" => &[
+                "auths_gateway_kernel::path_compiler::lower_segment",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_path_exact" => &[
+                "auths_gateway_kernel::path_compiler::lower_path",
+                "auths_gateway_kernel::path_compiler::lower_segment",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_fixed_path_exact" => &[
+                "auths_gateway_kernel::path_compiler::lower_fixed_path",
+                "auths_gateway_kernel::path_compiler::fixed_segment_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_original_path_verdict" => &[
+                "auths_gateway::recipe::lower::named_path",
+                "auths_gateway_kernel::path_compiler::lower_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_original_path_has_full_meaning" => &[
+                "auths_gateway::recipe::lower::named_path",
+                "auths_gateway_kernel::path_compiler::lower_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_original_path_useful" => &[
+                "auths_gateway::recipe::lower::named_path",
+                "auths_gateway_kernel::path_compiler::lower_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_original_fixed_path_verdict" => &[
+                "auths_gateway::recipe::lower::named_path",
+                "auths_gateway_kernel::path_compiler::lower_fixed_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_header_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::Header}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_scope_plan_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::AccountScopePlan}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_header_plan_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::HeaderPlan}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_credential_plan_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::CredentialReadPlan}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_action_path_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::path",
+                "auths_gateway::recipe::lower::named_path",
+                "auths_gateway_kernel::path_compiler::lower_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_action_read_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::action_read",
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::path",
+                "auths_gateway_kernel::path_compiler::lower_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_credential_read_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::credential_read",
+                "auths_gateway_kernel::path_compiler::lower_fixed_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_action_read_retains_original_columns" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::action_read",
+                "auths_gateway_kernel::path_compiler::lower_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_credential_read_retains_fixed_columns" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::credential_read",
+                "auths_gateway_kernel::path_compiler::lower_fixed_path",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_response_field_choice_exact" => &[
+                "auths_gateway::recipe::lower::contains_response_field",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_guard_choice_exact" => &[
+                "auths_gateway::recipe::source::{auths_gateway::recipe::source::CredentialSource}::guard",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_idempotency_header_choice_exact" => &[
+                "auths_gateway::recipe::lower::has_idempotency_header",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_denied_method_choice_exact" => &[
+                "auths_gateway::recipe::lower::denied_read_method",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_header_index_exact" => &[
+                "auths_gateway_kernel::header_compiler::header_index",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_version_byte_exact" => &[
+                "auths_gateway_kernel::header_compiler::version_byte_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_date_byte_exact" => &[
+                "auths_gateway_kernel::header_compiler::date_byte_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_stripe_version_exact" => &[
+                "auths_gateway_kernel::header_compiler::stripe_version_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_iso_date_exact" => &[
+                "auths_gateway_kernel::header_compiler::iso_date_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_version_header_exact" => &[
+                "auths_gateway_kernel::header_compiler::version_header_valid",
+                "auths_gateway_kernel::header_compiler::header_index",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_versions_valid_exact" => &[
+                "auths_gateway_kernel::header_compiler::version_headers_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_versions_copy_exact" => &[
+                "auths_gateway_kernel::header_compiler::copy_versions",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_versions_exact" => &[
+                "auths_gateway_kernel::header_compiler::lower_versions",
+                "auths_gateway_kernel::header_compiler::version_headers_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_scope_exact" => &[
+                "auths_gateway_kernel::header_compiler::lower_scope",
+                "auths_gateway_kernel::path_compiler::lower_field",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_headers_exact" => &[
+                "auths_gateway_kernel::header_compiler::lower_headers",
+                "auths_gateway_kernel::header_compiler::lower_versions",
+                "auths_gateway_kernel::header_compiler::lower_scope",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_original_headers_verdict" => &[
+                "auths_gateway::recipe::lower::header_source",
+                "auths_gateway_kernel::header_compiler::lower_headers",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_append_bytes_exact" => &[
+                "auths_gateway_kernel::construct::append_bytes",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_piece_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::JsonPiece}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_piece_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::FormPiece}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_body_plan_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::BodyPlan}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_resource_add_exact" => &[
+                "auths_gateway_kernel::body_compiler::add_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_resources_exact" => &[
+                "auths_gateway_kernel::body_compiler::json_resources",
+                "auths_gateway_kernel::body_compiler::add_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_piece_resources_exact" => &[
+                "auths_gateway_kernel::body_compiler::form_piece_resources",
+                "auths_gateway_kernel::body_compiler::json_resources",
+                "auths_gateway_kernel::body_compiler::add_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_resources_exact" => &[
+                "auths_gateway_kernel::body_compiler::form_resources",
+                "auths_gateway_kernel::body_compiler::form_piece_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_resources_earns_original_totals" => &[
+                "auths_gateway_kernel::body_compiler::json_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_resources_earns_original_totals" => &[
+                "auths_gateway_kernel::body_compiler::form_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_json_piece_exact" => &[
+                "auths_gateway_kernel::body_compiler::lower_json_piece",
+                "auths_gateway_kernel::path_compiler::lower_field",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_json_exact" => &[
+                "auths_gateway_kernel::body_compiler::lower_json",
+                "auths_gateway_kernel::body_compiler::lower_json_piece",
+                "auths_gateway_kernel::body_compiler::json_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_form_piece_exact" => &[
+                "auths_gateway_kernel::body_compiler::lower_form_piece",
+                "auths_gateway_kernel::body_compiler::lower_json",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_lower_form_exact" => &[
+                "auths_gateway_kernel::body_compiler::lower_form",
+                "auths_gateway_kernel::body_compiler::lower_form_piece",
+                "auths_gateway_kernel::body_compiler::form_resources",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_body_lowering_exact" => &[
+                "auths_gateway_kernel::request_compiler::lower_body",
+                "auths_gateway_kernel::body_compiler::lower_json",
+                "auths_gateway_kernel::body_compiler::lower_form",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_template_source_exact" => &[
+                "auths_gateway_kernel::template_ast::{auths_gateway_kernel::template_ast::NamedTemplate}::source",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_template_lowering_verdict" => &[
+                "auths_gateway_kernel::template_ast::{auths_gateway_kernel::template_ast::NamedTemplate}::source",
+                "auths_gateway_kernel::request_compiler::lower_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_json_retains_full_meaning" => &[
+                "auths_gateway_kernel::body_compiler::lower_json",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_form_retains_full_meaning" => &[
+                "auths_gateway_kernel::body_compiler::lower_form",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_origin_frame_exact" => &[
+                "auths_gateway_kernel::path_compiler::origin_matches_host",
+                "auths_gateway_kernel::construct::append_bytes",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_json_clone_exact" => &[
+                "auths_gateway_kernel::body_compiler::{impl core::clone::Clone for auths_gateway_kernel::body_compiler::NamedJsonPiece}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_form_clone_exact" => &[
+                "auths_gateway_kernel::body_compiler::{impl core::clone::Clone for auths_gateway_kernel::body_compiler::NamedFormPiece}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_template_clone_exact" => &[
+                "auths_gateway_kernel::template_ast::{impl core::clone::Clone for auths_gateway_kernel::template_ast::NamedTemplate}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_write_plan_clone_exact" => &[
+                "auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::WritePlan}::clone",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_write_method_allowed_exact" => &[
+                "auths_gateway_kernel::request_compiler::write_method_allowed",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_compile_write_exact" => &[
+                "auths_gateway_kernel::request_compiler::compile_write",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_write_success_has_complete_meaning" => &[
+                "auths_gateway_kernel::request_compiler::compile_write",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_write_useful_compilation" => &[
+                "auths_gateway_kernel::request_compiler::compile_write",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_write_plan_has_named_rendering" => &[
+                "auths_gateway_kernel::request_compiler::compile_write",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_member_error_exact" => &[
+                "auths_gateway_kernel::template_ast::member_error",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_node_charge_exact" => &[
+                "auths_gateway_kernel::template_ast::charge_node",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_node_charge_earns_domain" => &[
+                "auths_gateway_kernel::template_ast::charge_node",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_rendered_field_exact" => &[
+                "auths_gateway_kernel::template_ast::rendered_field_allowed",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_start_exact" => &[
+                "auths_gateway_kernel::template_ast::json_start",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_start_exact" => &[
+                "auths_gateway_kernel::template_ast::form_start",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_finish_exact" => &[
+                "auths_gateway_kernel::template_ast::json_finish",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_finish_exact" => &[
+                "auths_gateway_kernel::template_ast::form_finish",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_push_exact" => &[
+                "auths_gateway_kernel::template_ast::json_push",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_push_exact" => &[
+                "auths_gateway_kernel::template_ast::form_push",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_push_refusal_preserves_state" => &[
+                "auths_gateway_kernel::template_ast::json_push",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_push_refusal_preserves_state" => &[
+                "auths_gateway_kernel::template_ast::form_push",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_key_column_exact" => &[
+                "auths_gateway_kernel::template_ast::json_key_column",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_key_column_exact" => &[
+                "auths_gateway_kernel::template_ast::form_key_column",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_keys_exact" => &[
+                "auths_gateway_kernel::template_ast::json_keys",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_keys_exact" => &[
+                "auths_gateway_kernel::template_ast::form_keys",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_byte_less_exact" => &[
+                "auths_gateway_kernel::template_members::byte_less",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_key_position_exact" => &[
+                "auths_gateway_kernel::template_members::key_position",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_key_in_order_exact" => &[
+                "auths_gateway_kernel::template_members::key_in_order",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_keys_ordered_exact" => &[
+                "auths_gateway_kernel::template_members::keys_ordered",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_pointer_tokens_valid_exact" => &[
+                "auths_gateway_kernel::template_members::pointer_tokens_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_echo_target_exact" => &[
+                "auths_gateway_kernel::template_members::json_echo_target",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_target_retains_original_name" => &[
+                "auths_gateway_kernel::template_members::json_echo_target",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_ast_target_exact" => &[
+                "auths_gateway_kernel::template_ast::json_target",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_ast_insertion_exact" => &[
+                "auths_gateway_kernel::template_ast::json_insertion",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_ast_child_echo_exact" => &[
+                "auths_gateway_kernel::template_ast::json_child_echo",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_before_exact" => &[
+                "auths_gateway_kernel::template_members::echo_before",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_merge_members_exact" => &[
+                "auths_gateway_kernel::template_members::merge_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_echo_name_exact" => &[
+                "auths_gateway_kernel::template_members::form_echo_name_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_echo_earns_exact_grammar" => &[
+                "auths_gateway_kernel::template_members::form_echo_name_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_canonical_members_exact" => &[
+                "auths_gateway_kernel::template_members::canonical_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_canonical_members_have_original_meaning" => &[
+                "auths_gateway_kernel::template_members::canonical_members",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_literal_exact" => &[
+                "auths_gateway_kernel::construct::is_form_literal",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_hex_upper_exact" => &[
+                "auths_gateway_kernel::construct::hex_upper",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_hex_lower_exact" => &[
+                "auths_gateway_kernel::construct::hex_lower",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_percent_exact" => &[
+                "auths_gateway_kernel::construct::append_percent",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_byte_exact" => &[
+                "auths_gateway_kernel::construct::append_form_byte",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_byte_exact" => &[
+                "auths_gateway_kernel::construct::append_json_byte",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_escape_exact" => &[
+                "auths_gateway_kernel::construct::append_json_escaped",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_string_exact" => &[
+                "auths_gateway_kernel::construct::append_json_string",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_encode_exact" => &[
+                "auths_gateway_kernel::construct::append_form_encoded",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_prefix_exact" => &[
+                "auths_gateway_kernel::template_ast::json_prefix",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_prefix_exact" => &[
+                "auths_gateway_kernel::template_ast::form_prefix",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_integer_value_exact" => &[
+                "auths_gateway_kernel::scalars::integer_value_valid",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_magnitude_exact" => &[
+                "auths_gateway_kernel::scalars::magnitude",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_decimal_divisor_exact" => &[
+                "auths_gateway_kernel::scalars::decimal_divisor",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_unsigned_decimal_exact" => &[
+                "auths_gateway_kernel::scalars::append_unsigned_decimal",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_integer_literal_exact" => &[
+                "auths_gateway_kernel::scalars::integer_bytes",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_integer_literal_has_decimal_meaning" => &[
+                "auths_gateway_kernel::scalars::integer_bytes",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_json_value_effect" => &[
+                "auths_gateway_kernel::template_ast::json_value",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_json_allowed_exact" => &[
+                "auths_gateway_kernel::template_ast::form_json_allowed",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_form_value_effect" => &[
+                "auths_gateway_kernel::template_ast::form_value",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_compile_body_exact" => &[
+                "auths_gateway_kernel::template_ast::compile_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_admitted_body_compiles" => &[
+                "auths_gateway_kernel::template_ast::compile_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_shape_body_compiles" => &[
+                "auths_gateway_kernel::template_ast::compile_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_body_has_original_rendering" => &[
+                "auths_gateway_kernel::template_ast::compile_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_body_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::named_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_named_write_body_exact" => &[
+                "auths_gateway::recipe::lower::named_write_body",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_probe_plan_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::probe",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_account_plan_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::account",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_denied_reads_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::denied_reads",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_denied_plan_exact" => &[
+                "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::denied",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_checked_source_column" => &[
+                "auths_gateway::recipe::validate::{auths_gateway::recipe::validate::ValidatedSource<'_0>}::source",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_checked_field_column" => &[
+                "auths_gateway::recipe::validate::{auths_gateway::recipe::validate::ValidatedSource<'_0>}::field_specs",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_checked_host_column" => &[
+                "auths_gateway::recipe::validate::{auths_gateway::recipe::validate::ValidatedSource<'_0>}::parsed_host",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_plans_exact" => &[
+                "auths_gateway::recipe::lower::plans",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_plan_bundle_has_original_components" => &[
+                "auths_gateway::recipe::lower::plans",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_finish_exact" => &[
+                "auths_gateway_kernel::template_members::finish_echo_token",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_pointer_exact" => &[
+                "auths_gateway_kernel::template_members::echo_pointer_tokens",
+                "auths_gateway_kernel::template_members::finish_echo_token",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_pointer_has_original_meaning" => &[
+                "auths_gateway_kernel::template_members::echo_pointer_tokens",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_pointer_invalid_refuses" => &[
+                "auths_gateway_kernel::template_members::echo_pointer_tokens",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_input_exact" => &[
+                "auths_gateway::recipe::lower::source_echo",
+                "auths_gateway_kernel::template_members::echo_pointer_tokens",
+            ],
+            "Auths.Product.NativeCompiler.Refinement.native_echo_json_has_useful_original_tokens" => &[
+                "auths_gateway::recipe::lower::source_echo",
+                "auths_gateway_kernel::template_members::echo_pointer_tokens",
+            ],
+            _ => return None,
+        };
+        let typed_body = rust_symbols
+            .iter()
+            .any(|symbol| symbol.starts_with("auths_gateway::recipe::lower::"));
+        let request_inputs = rust_symbols.iter().any(|symbol| matches!(*symbol,
+            "auths_gateway::recipe::lower::method"
+            | "auths_gateway::recipe::lower::named_path"
+            | "auths_gateway::recipe::lower::header_source"));
+        let write_compilation = rust_symbols.iter().any(|symbol|
+            *symbol == "auths_gateway_kernel::request_compiler::compile_write");
+        let plan_bundle = rust_symbols.iter().any(|symbol|
+            *symbol == "auths_gateway::recipe::lower::plans");
+        let named_source_body = rust_symbols.iter().any(|symbol|
+            *symbol == "auths_gateway::recipe::lower::named_write_body"
+                || *symbol == "auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::named_body");
+        let checked_columns = rust_symbols.iter().any(|symbol|
+            symbol.starts_with("auths_gateway::recipe::validate::{")
+                && symbol.contains("ValidatedSource")
+                && (symbol.ends_with("::source") || symbol.ends_with("::field_specs") || symbol.ends_with("::parsed_host")));
+        let body_compilation = rust_symbols.iter().any(|symbol|
+            symbol.starts_with("auths_gateway_kernel::body_compiler::")
+                || symbol.starts_with("auths_gateway_kernel::request_compiler::")
+                || symbol.contains("auths_gateway_kernel::template_ast::NamedTemplate")
+                || symbol.contains("auths_gateway_kernel::construct::JsonPiece}::clone")
+                || symbol.contains("auths_gateway_kernel::construct::FormPiece}::clone")
+                || symbol.contains("auths_gateway_kernel::construct::BodyPlan}::clone")
+                || symbol.contains("auths_gateway_kernel::construct::WritePlan}::clone"));
+        let request_choices = rust_symbols.iter().any(|symbol| matches!(*symbol,
+            "auths_gateway::recipe::lower::contains_response_field"
+            | "auths_gateway::recipe::lower::has_idempotency_header"
+            | "auths_gateway::recipe::lower::denied_read_method"
+            | "auths_gateway::recipe::source::{auths_gateway::recipe::source::CredentialSource}::guard"));
+        let plan_construction = rust_symbols.iter().any(|symbol|
+            symbol.starts_with("auths_gateway_kernel::path_compiler::")
+                || symbol.starts_with("auths_gateway_kernel::header_compiler::")
+                || symbol.starts_with("auths_gateway::recipe::lower::{auths_gateway::recipe::lower::Lowering}::")
+                || symbol.starts_with("auths_gateway_kernel::construct::{impl core::clone::Clone for auths_gateway_kernel::construct::")
+                || matches!(*symbol,
+                    "auths_gateway_kernel::construct::is_path_literal"
+                    | "auths_gateway_kernel::construct::segment_value_valid"));
+        let echo_input = rust_symbols.iter().any(|symbol| matches!(*symbol,
+            "auths_gateway::recipe::lower::source_echo"
+            | "auths_gateway_kernel::template_members::echo_pointer_tokens"
+            | "auths_gateway_kernel::template_members::finish_echo_token"));
+        let template_state = rust_symbols.iter().any(|symbol|
+            symbol.starts_with("auths_gateway_kernel::template_ast::")
+                && !symbol.contains("NamedTemplate"));
+        let ast_emission = rust_symbols.iter().any(|symbol| matches!(*symbol,
+            "auths_gateway_kernel::template_ast::json_value"
+            | "auths_gateway_kernel::template_ast::form_json_allowed"
+            | "auths_gateway_kernel::template_ast::form_value"
+            | "auths_gateway_kernel::template_ast::compile_body"));
+        let byte_emission = rust_symbols.iter().any(|symbol| matches!(*symbol,
+            "auths_gateway_kernel::construct::is_form_literal"
+            | "auths_gateway_kernel::construct::hex_upper"
+            | "auths_gateway_kernel::construct::hex_lower"
+            | "auths_gateway_kernel::construct::append_percent"
+            | "auths_gateway_kernel::construct::append_form_byte"
+            | "auths_gateway_kernel::construct::append_json_byte"
+            | "auths_gateway_kernel::construct::append_json_escaped"
+            | "auths_gateway_kernel::construct::append_json_string"
+            | "auths_gateway_kernel::construct::append_form_encoded"
+            | "auths_gateway_kernel::scalars::integer_value_valid"
+            | "auths_gateway_kernel::scalars::magnitude"
+            | "auths_gateway_kernel::scalars::decimal_divisor"
+            | "auths_gateway_kernel::scalars::append_unsigned_decimal"
+            | "auths_gateway_kernel::scalars::integer_bytes"));
+        let member_selection = !echo_input && rust_symbols.iter().any(|symbol|
+            symbol.starts_with("auths_gateway_kernel::template_members::"));
+        let schema_validation = rust_symbols
+            .iter()
+            .any(|symbol| symbol.starts_with("auths_gateway_kernel::"));
+        let rule_mapping = rust_symbols
+            .iter()
+            .any(|symbol| *symbol == "auths_gateway::recipe::profile::rule_fields");
+        return Some(ProductionRefinementMetadata {
+            claim_text: if plan_bundle {
+                "The mechanically translated actual complete-plan caller returns the full independent original-source plan outcome and exact ordered refusal. Its original typed body and declared echo feed the actual body compiler; copied source paths/headers, checked field pairs, host and method feed the actual write compiler. Observation/pre-entry/relative-ceiling and optional credential reads derive from that same compiled name/origin/header context. Success retains every original field/schema pair and exact write plus the complete associated read bundle. The represented checked-record type is not itself an admission premise or proof of source/lock/namespace/digest provenance."
+            } else if named_source_body {
+                "The mechanically translated native original-source body wrapper composes complete typed AST copying, complete original echo-pointer/form-name conversion, the actual kernel body compiler and its full gateway error mapping. No accepted source grammar, emitted template or successful child is supplied as a public premise. This is the actual body wrapper consumed by complete-plan lowering, not source/lock validation or provider execution."
+            } else if checked_columns {
+                "The mechanically translated checked-source getter preserves its exact original source, complete field/schema column or parsed-host bytes in the displayed native representation domain. These getters do not establish that the private validation constructor ran, that a lock/digest was verified, or that a source was approved."
+            } else if write_compilation {
+                "The mechanically translated complete native named-source write compiler returns the full independent compiled outcome and stable ordered refusal. The actual FieldSpec input earns one lexical/unique name layout; origin framing, allowed method, optional headers/scope, complete path, JSON/form body and idempotency choice all remain in the result. Displayed consequences earn complete compilation meaning, useful acceptance from independent admission or named model-writer rendering for aligned arguments. This is not yet original AST/approved-source/lock/digest or actual wire/driver correspondence."
+            } else if body_compilation {
+                "The mechanically translated native named-body compiler, shared resource checker, source-view method or actual plan clone satisfies the displayed complete outcome or full original-piece consequence. Nested JSON shares the form budget, full names earn indices and every raw byte/echo marker is retained. Copy statements preserve data without granting input admission. These statements do not establish original AST emission, approval or provider execution."
+            } else if ast_emission {
+                "The mechanically translated native original-AST emitter or complete public body compiler satisfies the displayed complete independent template/error outcome or mutable-state effect contract. Every original finite JSON/form constructor, name, child and declared echo participates. Source depth admission discharges all recursive-child contracts, siblings share returned node/resource state, nested form JSON retains the existing aggregate form budget, and actual public error precedence is preserved. The outer body API publishes complete named pieces or the exact refusal; helper effect contracts do not assert rollback of recursive partial state."
+            } else if byte_emission {
+                "The mechanically translated native byte encoder, nibble formatter or integer encoder satisfies its displayed full original-byte/value contract. JSON control escaping, form space/percent encoding, hexadecimal letter case and complete byte sequences match the independent model. Signed decimal emission covers every signed word, including MIN, and the public integer-literal result is one fixed decimal function. Bounded helper domains retain explicit native output capacity or nibble bounds; no accepted source grammar or desired emitted result is assumed."
+            } else if template_state {
+                "The mechanically translated native mutable emitter-state, original-key admission or object-echo helper satisfies its displayed full outcome or narrower consequence. Complete key columns retain every original name, node and push guards retain stable errors, and target/insertion/child-echo results retain exact original token paths. State projections retain successful mutable state and exact refusal codes; they deliberately do not publish recursive partial state on refusal. These component statements are not a full original-AST emission theorem."
+            } else if member_selection {
+                "The mechanically translated native member/key/pointer/echo selector satisfies its displayed full original-input outcome or bounded helper/consequence contract. The public canonical selector checks ordinary keys before echo grammar, collision and capacity, earns exact original source indices and returns the independent complete selection. The form scan admits exactly the closed plain-token or base[inner] grammar. No selected output, valid key column or desired success is supplied as an input of the public verdict."
+            } else if request_choices {
+                "The mechanically translated native request selector retains its exact original-constructor, optional guard, idempotency-form or complete method-byte choice. The full path scan detects every response-field tag. These data choices grant no admitted recipe, approved method, successful plan or execution authority."
+            } else if plan_construction {
+                "The mechanically translated native path/header compiler or read-plan assembler satisfies the displayed complete independent outcome, exact clone, original-column consequence or useful compilation result. Full original path names and fixed bytes reach the actual compiler; field indices, canonical segment checks, the closed header catalog/value grammar, optional-scope association and first refusal are earned by their displayed full statements. Read plans retain their originating method/origin/header columns; credential reads use fixed segments and version headers only. These component results do not establish source admission, installation or provider execution."
+            } else if echo_input {
+                "The mechanically translated native echo adapter or complete pointer decoder satisfies the displayed exact original-byte/token contract, stable refusal or useful independent-pointer acceptance. The actual initialized finish result and complete bounded clone are retained; form echo names are copied in full. This covers the closed Auths echo-pointer language and input conversion, not selection or emission in an approved body."
+            } else if request_inputs {
+                "The mechanically translated native request-input adapter preserves the displayed write method, complete original path segment/name/byte sequence or both optional header/account-scope columns. Unsupported response-field/echo path kinds retain an unsupported marker, and explicit empty header input remains present. These conversion statements do not claim catalog validation, field-index selection or full compiler/driver correctness."
+            } else if rule_mapping {
+                "The mechanically translated native rule-map builder satisfies its complete independent UTF-8/duplicate-refusal and ordered name/schema-association contract. Displayed consequences retain all original pairs and counts, earn useful construction from an independent field layout, or relate the actual native schema result to that builder input. This does not claim the intervening binding/installation validator or full runtime lookup/driver was translated."
+            } else if schema_validation {
+                "The mechanically translated native compiler dependency or public profile adapter satisfies its displayed complete byte/name/key/kind/numeric/enum/layout/parser contract. Full root statements compose original decoded JSON meaning with the closed profile schema acceptance/refusal grammar and the actual InvalidProfileLock result; helper statements retain their narrower displayed scope."
+            } else if typed_body {
+                "The mechanically translated native typed-body adapters retain complete original JSON/form constructors, literal bytes, named fields, original member/child sequences and echo markers, earning the displayed independent body meaning or complete form-name/count consequence."
+            } else {
+                "The mechanically translated native JSON-to-schema conversion retains every represented original kind, exact UTF-8 name, complete object pair and array child in original order, and earns the displayed independent decoded-source meaning or specific float refusal."
+            },
+            rust_symbols,
+            scope: if plan_bundle {
+                "Every represented checked-source record with original body meaning and only native string/byte representation bounds for the data actually read. Invalid layouts, templates, origins, paths, headers, echo kinds and credential paths remain included. There is no selected plan, compiler success, accepted lock, source-admission flag or constructor result premise. Independent compilation returns the complete bundle in source order; response-derived observations omit the action-read plan and retain their original path tags in the model. Credential reads use fixed paths and version headers only. The real validation constructor must separately earn original source/profile-lock/namespace/digest provenance. Verified argument projection, Rust wire writer, selected driver/durable history, physical work/allocation and exact release qualification remain required."
+            } else if named_source_body {
+                "Every finite original typed JSON/form source body whose copied strings fit the native representation, with its complete original syntax relation, and every optional original declared echo whose borrowed strings fit. Unknown/oversized/conflicting/unbound syntax stays in the domain. JSON-pointer conversion precedes body emission and exact TemplateError mapping is retained. A complete result contains every emitted original raw/named/echo piece or its exact gateway refusal. Full validation/source-lock-digest provenance, actual runtime projection/wire/driver/history and physical costs remain outer obligations."
+            } else if checked_columns {
+                "Every represented source record or complete field vector, or every stored parsed-host String within the explicitly supplied reviewed portable U32 byte-size bound. Getter correspondence preserves data without granting admission or authority. No source validation, approved context, namespace binding or digest result is inferred from private-type membership. The actual constructor, hashing/canonicalization and runtime consumption must earn those relations separately."
+            } else if write_compilation {
+                "Every represented FieldSpec slice and named WriteSource, including invalid layouts, origins, methods, headers, paths, names, nested templates and resource envelopes. No valid field layout, chosen index, successful helper, compiler outcome or expected request is a premise of the complete verdict. Useful acceptance starts from independent named-source admission. The rendering consequence uses an explicit argument/name association and the independent model writer; actual projection and Rust wire-writer/driver consumption must earn those relations in outer source composition. Native AST validation/emission, approved source/profile-lock/namespace/digest provenance, physical work/allocation and exact release remain required."
+            } else if body_compilation {
+                "Every represented JSON/form piece/template, actual source view or plan clone, or full native resource counter and contribution. Complete resource outcomes retain invalid starting states, word-limit contributions, nested counts and aggregate literal/dynamic refusal. Body outcomes retain outer guard/resource-before-name error precedence and every nested original name/piece. Source-view and clone claims have their displayed narrower data scope. Logical resource counters do not establish physical work/allocation; full AST emission, approved-source/lock/digest provenance, actual wire interpretation, sealed verifier/driver/history and release gates remain required."
+            } else if ast_emission {
+                "Every represented original finite typed JSON/form AST with its complete original-meaning relation, complete optional declared echo and, for effect helpers, arbitrary represented mutable builder and depth. Meaning contains no compiled output, selected index, validity flag, successful helper or truncating fuel. The public body compiler starts the actual source meters; source checks earn node/depth/member/literal/piece/logical-resource admission. Private child contracts are induction hypotheses discharged by decreasing native depth. Full source/profile-lock/namespace/digest/plan provenance, actual argument projection/wire writing/selected driver/durable history, physical work/allocation, model review and exact release qualification remain separate."
+            } else if byte_emission {
+                "All original represented bytes, input slices and signed/unsigned words in each displayed domain. Capacity premises constrain only native output representability, never the desired encoded output; public AST callers earn their small bounds from source grammar. Nibble helpers retain the source-earned below-16 domain. Literal formatting does not grant JSON numeric admission; the original-AST compiler separately enforces its safe-integer range. Physical work/allocation/copies, source provenance and actual verifier/wire/driver/history/release composition remain required."
+            } else if template_state {
+                "Every represented node/depth counter, rendered-name byte slice, mutable builder/piece, full original member column or optional object target/token path in the displayed component. No initial resource validity, lexical admission, sortedness, selected child or successful helper is assumed by complete public outcomes. Private traversal bounds are discharged by their public callers. Push effect contracts observe complete state only on success and preserve the full error family; separate refusal consequences cover the unchanged state of one push, not an entire recursive emission. Logical counters, helper composition and exact targets do not establish physical costs or complete original-AST compilation, approved source/profile-lock/namespace/digest provenance, actual wire/driver/history or release qualification."
+            } else if member_selection {
+                "Every represented ordinary-key column, pointer-token column, echo name and member domain, including malformed order, duplicates, collisions, empty names and limits. Public canonical selection assumes no valid key/echo column. Its actual preflight earns freshness for the private merge; bounded merge/key-position helpers retain explicitly narrower domains and are classified separately. Full original byte order and source indices are retained, and each pointer slash contributes to the 128-byte limit. Complete AST emission, physical traversal/allocation, approved source/lock/digest provenance and actual verifier/wire/driver/history composition remain required."
+            } else if request_choices {
+                "All represented source constructors and complete input collections. These selectors inspect tags, presence or complete method bytes; unobserved names, guard payloads and unrelated source fields are unconstrained. HEAD requires exact full original bytes, and other method strings retain the existing GET branch without being declared valid. Independent source validation must separately earn the closed method vocabulary and approved recipe provenance. Full body/write compilation, caller consumption and verifier/driver/history remain required."
+            } else if plan_construction {
+                "Every represented byte slice, source-name/path column, source-produced plan clone or lowering state, with only actual original-string representability where conversion reads strings. No admitted compiler output, selected index, successful native helper or expected plan is supplied. Useful path compilation starts from independent original-path admission; success consequences retain every original source entry in order. Complete low-level outcomes preserve ConstructError, while actual native read wrappers preserve their complete GatewayRecipeError mapping. No header catalog or complete approved-source/profile-lock/digest/plan provenance is inferred from copying a plan. Physical work/allocation, full body/write compiler composition, sealed verifier/driver/history and release gates remain required."
+            } else if echo_input {
+                "Every represented byte pointer slice, finish prefix/token vector or native echo source with actual string representability, according to the displayed component. Complete pointer contracts enforce the 128-byte slash-inclusive limit, one through six 1-64-byte ASCII field-name tokens, exact original names and stable EchoConflict refusal; escapes, percent decoding and Unicode normalization are not part of this language. Independent Meaning, rather than a decoder result or success flag, supplies useful acceptance. Finish-helper claims retain their own prefix/token scope. Form-field conversion copies data without claiming later grammar/target admission. Body target/collision checks, full compiler provenance and execution remain required."
+            } else if request_inputs {
+                "Every represented source write-method case, or original path slice/header-source record whose actually borrowed strings fit the native usize domain. No accepted path, approved header name, parsed field layout, selected field index, compiler-success flag or expected output is supplied. Full fixed/field bytes, every segment and both None/Some distinctions are retained. Response-field/echo path variants convert to refusal markers. Header catalog/limits, path grammar, origin, recipe/source provenance, request emission and runtime entry remain separate obligations."
+            } else if rule_mapping {
+                "Every represented native FieldSpec slice, including invalid UTF-8, duplicate names, unsorted input and arbitrary represented schema kinds, for the complete builder outcome. Input names come from all original bytes; no byte is truncated or normalized. Independent admission requires lossless decode and unique names; useful layout consequences earn those facts from lexical/unique layout rules, not native decode or builder success. The composed parser consequence starts from independent original root meaning and recursive string representability, and guarantees this builder's behavior on that actual parser result. Rule construction copies schemas and does not independently validate schema bounds, profile locks or installation authority."
+            } else if schema_validation {
+                "Every displayed represented native slice, number, scalar schema or field set, or every finite decoded JSON input with recursive native string representability and its independent original meaning. Optional/tree relations preserve all original kinds/names/children and exact absence; they contain no accepted schema, desired parsed layout, selected field index or parser-success flag. Supplied distinct-key conditions belong only to the named key-set helper contracts. Full useful acceptance starts from independent root meaning. Raw byte parsing, source/lock/digest/plan provenance, complete request compilation and execution remain separate."
+            } else if typed_body {
+                "Every finite represented typed JSON/form source body whose original strings fit the native usize domain, including invalid, oversized, unbound and conflicting-echo templates. The structural input domain contains no expected lowered output, accepted grammar, field index, compiler-success flag or truncating fuel. These are complete body-copy/meaning statements, not full admission or request-compiler verdicts."
+            } else {
+                "Every finite represented recursive JSON input whose original strings fit the native usize domain, or the displayed full Float-kind case. Bounds contain no expected output, accepted schema, parser result, field index or validity flag. These are conversion/copy statements; the complete profile parser and compiler acceptance/refusal correspondence remain required."
+            },
+            residual_assumptions: &[
+                "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted.",
+                "The declared standard-container, exact String/UTF-8 and serde_json kind/iteration contracts remain external. The selected dependency graph enables preserve_order for decoded JSON; typed recipe body members use their actual native BTreeMap pair stream. Neither contract may substitute one sequence for the other. Source byte/JSON parser and representation contracts must earn native string representability at entry. Complete schema-verdict claims cover only the closed profile grammar at this decoded-value boundary; helper contracts alone do not establish validation. Source/lock/digest/plan provenance, physical allocation/work including added bounded clones, sealed verification, driver I/O and durable history remain separate. AP-SPEC-069 E3/E4/M6 remain open until those obligations and exact-revision gates are met.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.TemplateAst.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.TemplateAst.Refinement.member_error_exact" => &[
+                "auths_gateway_kernel::template_ast::member_error",
+            ],
+            "Auths.Product.TemplateAst.Refinement.named_body_view_exact" => &[
+                "auths_gateway_kernel::template_ast::_::source",
+            ],
+            "Auths.Product.TemplateAst.Refinement.charge_node_exact"
+            | "Auths.Product.TemplateAst.Refinement.source_node_charge_earns_domain" => &[
+                "auths_gateway_kernel::template_ast::charge_node",
+            ],
+            "Auths.Product.TemplateAst.Refinement.rendered_field_exact" => &[
+                "auths_gateway_kernel::template_ast::rendered_field_allowed",
+            ],
+            "Auths.Product.TemplateAst.Refinement.integer_literal_exact" => &[
+                "auths_gateway_kernel::scalars::integer_bytes",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_start_exact" => &[
+                "auths_gateway_kernel::template_ast::json_start",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_start_exact" => &[
+                "auths_gateway_kernel::template_ast::form_start",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_push_exact"
+            | "Auths.Product.TemplateAst.Refinement.source_json_push_preserves_resources" => &[
+                "auths_gateway_kernel::template_ast::json_push",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_push_exact"
+            | "Auths.Product.TemplateAst.Refinement.source_form_push_preserves_resources" => &[
+                "auths_gateway_kernel::template_ast::form_push",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_key_column_loop_exact"
+            | "Auths.Product.TemplateAst.Refinement.json_key_column_exact" => &[
+                "auths_gateway_kernel::template_ast::json_key_column",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_key_column_loop_exact"
+            | "Auths.Product.TemplateAst.Refinement.form_key_column_exact" => &[
+                "auths_gateway_kernel::template_ast::form_key_column",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_keys_exact" => &[
+                "auths_gateway_kernel::template_ast::json_keys",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_keys_exact" => &[
+                "auths_gateway_kernel::template_ast::form_keys",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_prefix_exact" => &[
+                "auths_gateway_kernel::template_ast::json_prefix",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_prefix_exact" => &[
+                "auths_gateway_kernel::template_ast::form_prefix",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_target_exact" => &[
+                "auths_gateway_kernel::template_ast::json_target",
+                "auths_gateway_kernel::template_members::json_echo_target",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_insertion_exact" => &[
+                "auths_gateway_kernel::template_ast::json_insertion",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_child_echo_exact" => &[
+                "auths_gateway_kernel::template_ast::json_child_echo",
+            ],
+            "Auths.Product.TemplateAst.Refinement.json_value_exact" => &[
+                "auths_gateway_kernel::template_ast::json_value",
+                "auths_gateway_kernel::template_ast::json_array",
+                "auths_gateway_kernel::template_ast::json_array_item",
+                "auths_gateway_kernel::template_ast::json_object",
+                "auths_gateway_kernel::template_ast::json_members",
+                "auths_gateway_kernel::template_ast::json_member",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_json_allowed_exact" => &[
+                "auths_gateway_kernel::template_ast::form_json_allowed",
+            ],
+            "Auths.Product.TemplateAst.Refinement.form_value_exact" => &[
+                "auths_gateway_kernel::template_ast::form_value",
+                "auths_gateway_kernel::template_ast::json_value",
+            ],
+            "Auths.Product.TemplateAst.Refinement.source_ast_bound_write_refines_original_request" => &[
+                "auths_gateway_kernel::template_ast::compile_body",
+                "auths_gateway_kernel::template_ast::_::source",
+                "auths_gateway_kernel::request_compiler::compile_write",
+                "auths_gateway_kernel::field_projection::project_request",
+                "auths_gateway_kernel::derived_tokens::echo_token_bytes",
+                "auths_gateway_kernel::derived_tokens::idempotency_token_bytes",
+                "auths_gateway_kernel::construct::construct_write",
+            ],
+            "Auths.Product.TemplateAst.Refinement.compile_body_exact"
+            | "Auths.Product.TemplateAst.Refinement.source_body_earns_template_domain"
+            | "Auths.Product.TemplateAst.Refinement.source_body_refines_original_ast"
+            | "Auths.Product.TemplateAst.Refinement.source_body_writer_reference_exact"
+            | "Auths.Product.TemplateAst.Refinement.source_leaf_body_admission_compiles"
+            | "Auths.Product.TemplateAst.Refinement.source_admitted_body_compiles"
+            | "Auths.Product.TemplateAst.Refinement.source_bounded_shape_body_compiles" => &[
+                "auths_gateway_kernel::template_ast::compile_body",
+                "auths_gateway_kernel::template_ast::json_value",
+                "auths_gateway_kernel::template_ast::form_value",
+                "auths_gateway_kernel::template_ast::form_members",
+                "auths_gateway_kernel::template_ast::form_member",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Authored source bodies cover complete recursive JSON emission, original-member/array traversal, nested form JSON, literal/field/echo emission and the public decoded-body compiler, as well as their checked leaves. Whole success composes with independent original-name AST interpretation and complete-model resource invariants. Useful JSON/form acceptance follows from original shape rules and the untruncated 64-node count, which earn all aggregate demand and nested-piece caps internally. Conservative first-separator reserves exclude none of that shape language. Native validation/JSON/profile provenance must still earn the source-to-shape bridge. These are intended source claims pending actual extraction, ABI reconciliation and kernel elaboration; no post-917 whole compiler result is qualified merely because its body and metadata are written.",
+            rust_symbols,
+            scope: "Every represented input of the listed source functions, including exhausted/invalid word counters, arbitrary field bytes, every signed integer word and malformed/oversized builders. The public recursive source theorem has no expected template, successful helper, AST-validity or external callback premise: private hypotheses refer to the actual child call and are discharged by decreasing native depth. Checked node charge earns depth arithmetic; actual key/echo admission earns prefix envelopes before private traversal. Whole compiler success earns complete named-template resource domains from empty states and exact independent rendering for every argument environment. Helper frame corollaries retain explicit input invariants. Native lowering calls one kernel compiler; the AST adds no serialization or recipe capability. Fresh recursive/range/borrow/loop ABIs remain uninspected and every new body remains unverified.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations and standard owned vector/shared-borrow/slice/range/recursive-type memory contracts. All fresh interfaces and post-917 bodies remain unverified until actual generation, foreign-interface review, elaboration/repairs, full statement/premise/axiom/source-owner audit and two clean reproductions. No generated ABI/artifact/model/function/compiled count or review digest is invented.",
+                "Exact recursive AST views retain every child and name/value pair without truncation or a validity bit. Public checked key wrappers earn private collector count bounds; complete compiler proof bodies derive private prefix domains through actual canonical member/echo checks. Actual extraction/elaboration must confirm all intended interfaces and compositions. Independent original-name routing partitions exactly one echo across insertion/descent, and original 64-node shape limits earn aggregate caps even with conservative separator reserves. Native lowering consumes a privately constructed validated source/field handle and native validation calls the checked kernel node charge; that constructor and JSON/String/BTreeMap conversion are not yet mechanically qualified and must earn BodyShape plus the full original-tree node count. Canonical source/profile digest provenance and source-to-write/sealed-command/driver/read/credential/transport correspondence remain required. Arbitrary byte AST values do not independently earn UTF-8/JSON validity, authority or execution rights. Physical work/allocation, backend/concurrency/crash histories and exact-release gates remain open; this closes no whole E1–E5/M6 milestone.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.TemplateMembers.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.TemplateMembers.Refinement.byte_less_exact" => &[
+                "auths_gateway_kernel::template_members::byte_less",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.key_position_exact"
+            | "Auths.Product.TemplateMembers.Refinement.source_key_position_preserves_original_name" => &[
+                "auths_gateway_kernel::template_members::key_position",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.keys_loop_exact"
+            | "Auths.Product.TemplateMembers.Refinement.keys_ordered_exact" => &[
+                "auths_gateway_kernel::template_members::keys_ordered",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.pointer_loop_exact"
+            | "Auths.Product.TemplateMembers.Refinement.pointer_tokens_exact" => &[
+                "auths_gateway_kernel::template_members::pointer_tokens_valid",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.form_echo_loop_exact"
+            | "Auths.Product.TemplateMembers.Refinement.form_echo_name_exact"
+            | "Auths.Product.TemplateMembers.Refinement.source_form_echo_grammar_exact" => &[
+                "auths_gateway_kernel::template_members::form_echo_name_valid",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.merge_members_exact" => &[
+                "auths_gateway_kernel::template_members::merge_members",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.canonical_members_exact"
+            | "Auths.Product.TemplateMembers.Refinement.source_members_earn_admission"
+            | "Auths.Product.TemplateMembers.Refinement.source_members_preserve_original_indices"
+            | "Auths.Product.TemplateMembers.Refinement.source_members_select_canonical_original_labels"
+            | "Auths.Product.TemplateMembers.Refinement.source_admitted_members_compile"
+            | "Auths.Product.TemplateMembers.Refinement.source_unadmitted_members_refuse" => &[
+                "auths_gateway_kernel::template_members::canonical_members",
+                "auths_gateway_kernel::template_members::merge_members",
+            ],
+            "Auths.Product.TemplateMembers.Refinement.json_echo_target_exact"
+            | "Auths.Product.TemplateMembers.Refinement.source_targets_earn_pointer_domain"
+            | "Auths.Product.TemplateMembers.Refinement.source_target_descends_to_original_name"
+            | "Auths.Product.TemplateMembers.Refinement.source_target_insertion_is_new"
+            | "Auths.Product.TemplateMembers.Refinement.source_admitted_targets_compile"
+            | "Auths.Product.TemplateMembers.Refinement.source_unadmitted_targets_refuse" => &[
+                "auths_gateway_kernel::template_members::json_echo_target",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Complete authored source bodies cover template-member key/order validation, form-echo grammar, pointer token/cost checks, canonical merging and exact target dispatch. Success earns the independent domain, retains every original source index in order, selects strictly canonical original labels plus exactly the fresh echo, and preserves exact parent/new-key meaning. Useful independent domains compile and inputs outside them cannot produce selections. Actual generation, elaboration and qualification remain required before this batch establishes checked evidence.",
+            rust_symbols,
+            scope: "Every represented binary slice and NamedKey column, optional echo and JSON/form domain at the public wrappers, including arbitrary ordering/counts/names, duplicate/colliding keys, missing or similarly named parents, malformed pointers, wrong bracket grammar and exact typed refusal precedence. Adjacent key checks earn complete strict order. Pointer scans derive their slash-inclusive cost bound without an input validity/size flag. The private merge helper has an explicit at-most-32-key domain earned by the public compiler; its output-space invariant is source-produced. Whole wrapper success derives every selected source label/index, canonical label order, membership, echo count and independent admitted input domain. The structural form grammar is one token or exactly one bracket pair with token components. Native validation/lowering consume these actual functions. These borrowed views have no serialized format or new recipe capability. Full native AST recursion/literal/echo emission, JSON/BTreeMap/UTF-8/profile/canonical digest/lock correspondence, sealed command and driver provenance, physical work/allocation and exact-release obligations remain distinct.",
+            residual_assumptions: &[
+                "Pinned compiler/translation/Lean, Lean kernel, permitted foundations and standard byte/shared-borrow/range/slice/vector memory contracts. Fresh range/borrow/index/loop/enum interfaces and all post-917 proof/corpus edits remain unverified until actual generation, foreign-interface review, elaboration/repairs, complete statement/premise/axiom/source-owner audit and two clean reproductions. No generated ABI/artifact/model/function/compiled count or review digest is invented.",
+                "The complete helper source bodies do not establish the whole native AST emitter, source/lock/compiler/canonical digest/approval/sealed/driver/transport/backend/history/resource correspondence. Native map-to-borrowed-key conversion, recursive original-child consumption and literal/echo emission still need their full caller composition. An exact selected key, canonical label or helper plan grants no execution authority and closes no complete E1–E5/M6 milestone.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.RequestCompiler.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.RequestCompiler.Refinement.write_method_exact" => &["auths_gateway_kernel::request_compiler::write_method_allowed"],
+            "Auths.Product.RequestCompiler.Refinement.lower_body_exact" => &["auths_gateway_kernel::request_compiler::lower_body"],
+            "Auths.Product.RequestCompiler.Refinement.compile_write_exact"
+            | "Auths.Product.RequestCompiler.Refinement.source_admissible_writes_compile"
+            | "Auths.Product.RequestCompiler.Refinement.source_success_retains_all_components"
+            | "Auths.Product.RequestCompiler.Refinement.source_origin_and_method_domains_earned" => &["auths_gateway_kernel::request_compiler::compile_write"],
+            "Auths.Product.RequestCompiler.Refinement.source_complete_write_refines_named_request" => &[
+                "auths_gateway_kernel::request_compiler::compile_write",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::derived_tokens::echo_token_bytes",
+                "auths_gateway_kernel::derived_tokens::idempotency_token_bytes",
+                "auths_gateway_kernel::construct::construct_write",
+            ],
+            "Auths.Product.RequestCompiler.Refinement.source_bound_write_refines_named_request" => &[
+                "auths_gateway_kernel::request_compiler::compile_write",
+                "auths_gateway_kernel::field_projection::project_request",
+                "auths_gateway_kernel::derived_tokens::echo_token_bytes",
+                "auths_gateway_kernel::derived_tokens::idempotency_token_bytes",
+                "auths_gateway_kernel::construct::construct_write",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual whole byte-source write compiler couples method, exact origin/parsed-host framing, complete path/headers/body, derived-header choice and a source-produced field-name layout. Useful independent source domains compile and every compiler outcome preserves typed component refusal or every assembled component. Actual compile/project/token/write composition refines the independent original-name request interpretation, earning all write-construction domains without caller-supplied success, mapping, size, payload, index or expected request/token premises.",
+            rust_symbols,
+            scope: "Every represented field-spec slice and borrowed existing write-source view, including malformed layouts, framed-origin mismatch, read methods, invalid optional headers/path/body and component-error precedence. The source view has no serialized format or new capability. Native compilation now calls this actual whole compiler; its returned names/origin/headers also supply read-plan lowering. The origin validator returns its parsed canonical host as data for exact kernel coupling. Complete field generation, header/path/body checks precede copied origin/idempotency-name assembly. The full helper composition uses fixed 32-byte digest inputs to actual echo/idempotency encoders and earns origin, path/body temporary render, header/count/name, key and alignment domains from source results. Its output tuple and all writer refusals equal the source-level named method/origin/path/header/body/idempotency interpretation. A fixed byte-source view does not itself establish native JSON/AST/digest/approval meaning, parsed-host DNS validity or authorization.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations, standard byte/memory/constant-evaluation contracts. All fresh source-view/borrow/Result/struct interfaces and proof bodies remain unverified until actual generation, elaboration/repairs, full statement/premise/axiom/source-owner audit and two clean reproductions. No actual ABI/artifact/model/compiled count or review digest is invented.",
+                "Native JSON/AST ordering/literal/echo and borrowed-view construction, profile-lock/BTreeMap/schema/type/reserved-field/exclusive-consumption validation, method adapter, parsed-host/URL/DNS/TLS/public-address policy, canonical source and recipe digest, SHA-256/input-digest/ASCII-to-String correspondence, operation/scope/sealed-action/driver provenance, read-plan/credential-read cloning and transport, physical allocation/work/backend/history and exact-release gates remain required. The whole helper result grants no execution authority and closes no complete E1–E5/M6 milestone.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.HeaderCompiler.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.HeaderCompiler.Refinement.header_index_exact" => &["auths_gateway_kernel::header_compiler::header_index"],
+            "Auths.Product.HeaderCompiler.Refinement.version_byte_exact" => &["auths_gateway_kernel::header_compiler::version_byte_valid"],
+            "Auths.Product.HeaderCompiler.Refinement.date_byte_exact" => &["auths_gateway_kernel::header_compiler::date_byte_valid"],
+            "Auths.Product.HeaderCompiler.Refinement.stripe_scan_exact"
+            | "Auths.Product.HeaderCompiler.Refinement.stripe_version_exact" => &["auths_gateway_kernel::header_compiler::stripe_version_valid"],
+            "Auths.Product.HeaderCompiler.Refinement.date_scan_exact"
+            | "Auths.Product.HeaderCompiler.Refinement.iso_date_exact" => &["auths_gateway_kernel::header_compiler::iso_date_valid"],
+            "Auths.Product.HeaderCompiler.Refinement.version_header_exact" => &["auths_gateway_kernel::header_compiler::version_header_valid"],
+            "Auths.Product.HeaderCompiler.Refinement.version_rows_exact"
+            | "Auths.Product.HeaderCompiler.Refinement.version_headers_exact" => &["auths_gateway_kernel::header_compiler::version_headers_valid"],
+            "Auths.Product.HeaderCompiler.Refinement.versions_copy_loop_exact" => &["auths_gateway_kernel::header_compiler::copy_versions"],
+            "Auths.Product.HeaderCompiler.Refinement.lower_versions_exact" => &["auths_gateway_kernel::header_compiler::lower_versions"],
+            "Auths.Product.HeaderCompiler.Refinement.lower_scope_exact" => &["auths_gateway_kernel::header_compiler::lower_scope"],
+            "Auths.Product.HeaderCompiler.Refinement.lower_headers_exact"
+            | "Auths.Product.HeaderCompiler.Refinement.source_admissible_headers_compile"
+            | "Auths.Product.HeaderCompiler.Refinement.source_invalid_headers_cannot_compile"
+            | "Auths.Product.HeaderCompiler.Refinement.source_fixed_column_preserves_only_approved_versions"
+            | "Auths.Product.HeaderCompiler.Refinement.source_fixed_column_excludes_account_scope"
+            | "Auths.Product.HeaderCompiler.Refinement.source_compilation_earns_header_writer_domain" => &["auths_gateway_kernel::header_compiler::lower_headers"],
+            "Auths.Product.HeaderCompiler.Refinement.source_action_headers_refine_named_source" => &[
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::header_compiler::lower_headers",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::construct::action_headers",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual closed provider-header lookup, value grammars, complete map validation and optional header compilation refine independent named semantics and typed refusals. Successful compilation earns every header-writer allocation domain and keeps account scope out of the fixed version column. Actual field generation, complete header compilation, object projection and action-header writing compose to independent named bytes/refusals without supplied index, alignment, size or successful-helper premises. Independent admissible header sources have useful actual compilation.",
+            rust_symbols,
+            scope: "Every represented source name/value slice, fixed-header list, optional declaration, field layout and named scope source. Source bodies cover the exact three-name resolver, both value classifiers/scans/wrappers, role dispatch, whole map validation (nonempty, at most two distinct approved names), full byte-copy loop, complete fixed/scope/optional lowering and provider-before-scope refusal. The private plain-Vec copy loop uses the semantic accepted-map domain, earned by the actual validator before it is called. Absence and an explicit empty map remain distinct. Semantic admissibility has source acceptance and inputs outside it cannot compile; successful fixed columns preserve only approved version names/values and exclude the registered scope name. The actual projector/compiler/writer composition earns alignment from object projection and HeaderPlanFits from successful compilation (at most two version headers, bounded exact names/values and the exact scope name). Account value checking precedes value copy in the existing writer, so no caller-supplied argument size bound is needed. Native registry/review/collision/response data share the kernel catalog. Calendar validity, full native String/AST/profile rules and sealed authorization do not follow from the helper result.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations, standard byte/memory contracts and constant evaluation of the shared ASCII string/byte names. The new constant/borrow/loop interfaces and all proof bodies remain unverified until actual generation, elaboration/repairs, full statement/premise/axiom/source-owner audit and two clean reproductions.",
+                "Registry-metadata/native String and const-evaluation correspondence, profile-field type/reserved-name/exclusive scope consumption, native JSON/BTreeMap/source validation and canonical digest, sealed provenance, complete method/origin/path/header/body request and driver/transport/backend/history/resource and exact-release correspondence remain open. Scope exclusion from the actual compiled fixed column is established by the source component; the whole credential-read caller/type/transport proof remains required. No generated ABI/model/compiled count or complete E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.AttemptBinding.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.AttemptBinding.Refinement.installation_matches_exact" => &["auths_gateway_kernel::attempt_binding::installation_matches"],
+            "Auths.Product.AttemptBinding.Refinement.claim_matches_exact"
+            | "Auths.Product.AttemptBinding.Refinement.source_claim_matching_retains_every_column"
+            | "Auths.Product.AttemptBinding.Refinement.source_shared_record_cannot_license_distinct_request_identities"
+            | "Auths.Product.AttemptBinding.Refinement.source_original_identity_has_useful_match" => &["auths_gateway_kernel::attempt_binding::claim_matches"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual installation/request and stored-claim/request byte predicates enforce the same namespace, mapping digest, logical operation, action commitment and captured verification time. Other durable stages refuse. A matching original identity is useful, and one record cannot match two distinct byte-level request identities. This asserts no backend acknowledgement, authorization or hash collision freedom.",
+            rust_symbols,
+            scope: "All represented raw stored byte slices, every native fixed digest array, timestamp and durable stage. The installation comparison retains exact namespace and 32-byte mapping equality. The claim comparison admits only the attempting handle stage and exact time/name/canonical-digest-spelling columns. Digest-byte bounds for identity uniqueness are earned from the fixed native U8 arrays, not supplied as a security-validity flag. Native requests now retain the recipe digest copied by their compiler constructor; claim/resume APIs derive it from that same request. Native send additionally checks the exact owning backend Arc and acknowledged claim's cached identity before consuming its permit; transport pins and checks the installed request recipe before exposing a lease. These native dataflow connections are inspected source, not a mechanically qualified whole-driver theorem.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations and standard byte/array/slice/word/Vec contracts. All new record/borrow/constant interfaces and authored bodies await actual generation, ABI inspection, elaboration/repairs, full statement/premise/axiom/source-owner audit and two clean reproductions.",
+                "The native closed-request constructor and original canonical source/digest/plan correspondence, actual cached record/key/private handle/Arc identity, backend acknowledgement and complete atomic counter reservation, sealed verifier command, final connection/lease/deadline checks and full step-machine-to-I/O/history composition remain open. Equality concerns public identity columns and fixed digest bytes; it does not identify complete HTTP tuples or establish hash preimage injectivity. Cached handle stage is not a fresh backend read. No generated ABI/model/count, passing evidence or complete E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.EchoPointer.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.EchoPointer.Refinement.finish_echo_token_exact" => &["auths_gateway_kernel::template_members::finish_echo_token"],
+            "Auths.Product.EchoPointer.Refinement.echo_pointer_tokens_exact"
+            | "Auths.Product.EchoPointer.Refinement.source_pointer_retains_exact_original_names"
+            | "Auths.Product.EchoPointer.Refinement.source_valid_pointer_has_useful_acceptance" => &["auths_gateway_kernel::template_members::echo_pointer_tokens"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual complete byte-level JSON echo-pointer decoder agrees with independent exact original-name framing, typed refusal and useful acceptance. Accepted pointers have exactly their original slash-separated name bytes and earn the existing bounded token contract. No escape, percent or Unicode normalization can select a different source member.",
+            rust_symbols,
+            scope: "Every raw byte slice. The public wrapper checks a nonempty leading-slash pointer and a complete 128-byte bound before indexing or allocating token contents. The source loop keeps the complete consumed-prefix byte equation, its current token, index and all earlier token vectors; it bounds the index by the input length, pending token by 64 bytes and committed count by six. The private finishing helper is unconditional on arbitrary token vectors and refuses before any over-capacity push. The independent meaning uses only original slash framing and the existing PointerDomain, not decoder success or a validity bit. Both directions and encoded-name uniqueness are authored. Native validation and lowering now call this same decoder; their original source String/AST ownership remains a separate native bridge.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations and standard byte/slice/Vec/word contracts. New loop/tuple/constant interfaces and written bodies remain unverified until actual generation, ABI inspection, elaboration/repairs, complete statement/premise/axiom/source-owner review and two clean reproductions.",
+                "This is the existing restricted source-object echo pointer language, with a separate response-pointer contract. It grants no installation/action authority, object-parent existence, echo destination capacity, full native JSON/String/BTreeMap correspondence, complete source/digest/plan/sealed-command/driver/transport/backend/history/resource or exact-release composition. No generated ABI/model/count, passing evidence or complete E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.ProfileSchema.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.ProfileSchema.Refinement.member_exact" => &["auths_gateway_kernel::profile_schema::member"],
+            "Auths.Product.ProfileSchema.Refinement.text_is_exact" => &["auths_gateway_kernel::profile_schema::text_is"],
+            "Auths.Product.ProfileSchema.Refinement.one_key_exact" => &["auths_gateway_kernel::profile_schema::one_key"],
+            "Auths.Product.ProfileSchema.Refinement.two_keys_exact" => &["auths_gateway_kernel::profile_schema::two_keys"],
+            "Auths.Product.ProfileSchema.Refinement.three_keys_exact" => &["auths_gateway_kernel::profile_schema::three_keys"],
+            "Auths.Product.ProfileSchema.Refinement.string_bound_exact" => &["auths_gateway_kernel::profile_schema::string_bound"],
+            "Auths.Product.ProfileSchema.Refinement.signed_bound_exact" => &["auths_gateway_kernel::profile_schema::signed_bound"],
+            "Auths.Product.ProfileSchema.Refinement.enum_schema_exact" => &["auths_gateway_kernel::profile_schema::enum_schema"],
+            "Auths.Product.ProfileSchema.Refinement.parse_scalar_exact"
+            | "Auths.Product.ProfileSchema.Refinement.source_scalar_has_exact_meaning" => &["auths_gateway_kernel::profile_schema::parse_scalar"],
+            "Auths.Product.ProfileSchema.Refinement.parse_fields_exact" => &["auths_gateway_kernel::profile_schema::parse_fields"],
+            "Auths.Product.ProfileSchema.Refinement.parse_root_exact"
+            | "Auths.Product.ProfileSchema.Refinement.source_root_has_exact_original_meaning"
+            | "Auths.Product.ProfileSchema.Refinement.source_valid_profile_has_useful_acceptance" => &["auths_gateway_kernel::profile_schema::parse_root"],
+            "Auths.Product.ProfileSchema.Refinement.binding_fields_match_exact"
+            | "Auths.Product.ProfileSchema.Refinement.source_reserved_binding_exact" => &["auths_gateway_kernel::profile_schema::binding_fields_match"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual complete decoded profile-schema parser refines original-member schema meaning, typed refusal and useful acceptance. Exact key permutations exclude extra/missing/duplicate keys; original enum children, integer kinds and field/schema pairs are retained. Successful roots earn nonempty bounded unique lexical layouts and complete scalar-schema validity. The actual reserved binding gate compares the full namespace and exact operation/digest schemas.",
+            rust_symbols,
+            scope: "All represented SchemaValue inputs, including unsupported atoms, arbitrary member order, duplicates and every signed/unsigned carrier. The raw recursive view retains every original child without fuel or truncation. Native JSON conversion preserves relevant kinds; floats, nulls and booleans are an unsupported schema kind. All Auths key/tag/bound/enum/name/duplicate/binding decisions now execute in the shipping kernel. The independent relation uses exact original key permutations, exact numeric meaning and original enum-member pairing, without assuming parser success or a selected schema. Complete source enum/field loops retain every earlier output pair and terminate under the wrapper's 32-element bound. Private generic two/three-key source lemmas require distinct expected names; the public parser supplies closed distinct literal columns and discharges that domain internally. Native rules derive their map from the kernel-produced pairs; the private admitted source retains those original pairs and lowering clones them directly.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations and standard byte/Vec/word contracts. All new recursive record/borrow/constant/loop/cast interfaces and written bodies remain unverified until actual generation, ABI inspection, elaboration/repairs, complete statement/premise/axiom/source-owner review and two clean reproductions. Every cast is guarded before conversion; generated arithmetic correspondence must be checked on the pinned target.",
+                "The full native strict-JSON/number-kind/String/BTreeMap conversion and kernel-pair-to-rule-map correspondence remain open. JSON/canonicalization/SHA boundaries remain explicit and original lock/source JSON remains the hash input. A parsed schema or matching reserved fields do not authenticate a lock or authorize an action. Native body/path/echo/header provenance, source-language admission, complete compiled-plan/digest/sealed-command/driver/transport/backend/history/resource and exact-release composition remain required. No generated ABI/model/count/passing evidence or full E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.RecipeBinding.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.RecipeBinding.Refinement.lower_hex_byte_exact" => &["auths_gateway_kernel::recipe_binding::lower_hex_byte"],
+            "Auths.Product.RecipeBinding.Refinement.lower_hex_scan_exact"
+            | "Auths.Product.RecipeBinding.Refinement.lower_hex_digest_exact" => &["auths_gateway_kernel::recipe_binding::lower_hex_digest"],
+            "Auths.Product.RecipeBinding.Refinement.source_schema_supported_exact" => &["auths_gateway_kernel::recipe_binding::source_schema_supported"],
+            "Auths.Product.RecipeBinding.Refinement.source_matches_profile_exact"
+            | "Auths.Product.RecipeBinding.Refinement.source_matched_profile_has_exact_components" => &["auths_gateway_kernel::recipe_binding::source_matches_profile"],
+            "Auths.Product.RecipeBinding.Refinement.lock_metadata_valid_exact" => &["auths_gateway_kernel::recipe_binding::lock_metadata_valid"],
+            "Auths.Product.RecipeBinding.Refinement.schema_digest_matches_exact"
+            | "Auths.Product.RecipeBinding.Refinement.source_digest_comparison_earns_metadata_spelling" => &["auths_gateway_kernel::recipe_binding::schema_digest_matches"],
+            "Auths.Product.RecipeBinding.Refinement.recipe_digest_input_exact"
+            | "Auths.Product.RecipeBinding.Refinement.source_digest_input_retains_exact_preimage" => &["auths_gateway_kernel::recipe_binding::recipe_digest_input"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual decoded source/profile byte helpers refine exact whole-component equality, closed schema tags, complete lock metadata and 64-byte lowercase digest spelling. Actual declared-digest comparison uses the lowercase bytes of the supplied 32-byte digest. The borrowed recipe hash-input constructor preserves the exact canonical-source slice and fixed domain; byte framing is injective without asserting hash collision freedom.",
+            rust_symbols,
+            scope: "All represented byte slices, every metadata value and every fixed 32-byte digest. The raw hexadecimal scan is total on arbitrary input lengths; the full wrapper requires exactly 64 bytes before scanning. Metadata requires the existing exact schema/format/nonzero-version/nonempty-name contract, without silently strengthening identifier grammar. Source matching compares all three original service/tool/schema-digest components, without normalization or prefixes. The borrowed digest frame copies no source bytes. Native compile now constructs one private admitted handle containing the immutable source, owned parsed-field snapshot, namespace and parsed host; lowering and native digest consume that handle. This native constructor/caller connection is inspected source, not a mechanically qualified whole-native theorem.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations, standard byte/memory contracts and shared literal constant evaluation. All new borrow/record/loop/constant interfaces and authored bodies remain unverified until actual generation, ABI inspection, elaboration/repairs, full statement/premise/axiom/source-owner audit and two clean reproductions.",
+                "Strict JSON parsing, serde original-source serialization, canonicalization and SHA-256 retain explicit native primitive boundaries. Full lock schema parsing, BTreeMap/String/AST conversion, source validity and bounded-template admission, digest/compiled-plan provenance, sealed action/driver/transport/backend/history/resource and exact-release correspondence remain open. Metadata equality is not authorization; no hash preimage injectivity, generated ABI/model/count/evidence or complete E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.DerivedTokens.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.DerivedTokens.Refinement.append_digest_hex_exact" => &["auths_gateway_kernel::derived_tokens::append_digest_hex"],
+            "Auths.Product.DerivedTokens.Refinement.echo_token_exact"
+            | "Auths.Product.DerivedTokens.Refinement.source_echo_token_has_fixed_ascii_envelope" => &["auths_gateway_kernel::derived_tokens::echo_token_bytes"],
+            "Auths.Product.DerivedTokens.Refinement.idempotency_token_exact"
+            | "Auths.Product.DerivedTokens.Refinement.source_idempotency_token_has_fixed_ascii_envelope" => &["auths_gateway_kernel::derived_tokens::idempotency_token_bytes"],
+            "Auths.Product.DerivedTokens.Refinement.echo_preimage_exact" => &["auths_gateway_kernel::derived_tokens::echo_preimage"],
+            "Auths.Product.DerivedTokens.Refinement.idempotency_preimage_exact" => &["auths_gateway_kernel::derived_tokens::idempotency_preimage"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual echo/idempotency preimage helpers preserve exact domains, NUL framing, logical identity and the echo action commitment. Actual fixed-digest renderers emit exact 73-byte ASCII tokens with 64 lowercase hexadecimal digits. Independent byte encodings are injective on byte digests and token/preimage kinds are separated; this asserts no collision-free hash.",
+            rust_symbols,
+            scope: "Every fixed 32-byte digest for token rendering, with unconditional source byte/size/ASCII results. Generic append has the standard output-capacity premise; fixed wrappers earn it from their literal prefix. Preimage source equations use the native validated namespace/operation size envelope, at most 64/128 bytes; unambiguous framing separately requires their NUL-free grammar. Echo contains the exact 32-byte action commitment and idempotency intentionally contains only namespace/operation. Native recipe callers now hash these actual shared preimages with the existing SHA-256 library, render through these helpers and collect the ASCII bytes into String. That native hash/string adapter trace is an inspected code connection, not a compiled whole-caller theorem.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean, Lean kernel, permitted foundations and standard memory/byte contracts. The fresh array/borrow/loop interfaces and all new bodies remain unverified until actual generation, elaboration/repairs, full statement/premise/axiom/source-owner audit and two clean reproductions.",
+                "Vetted SHA-256 semantics/output conversion and collision assumptions, standard ASCII byte-to-char/String UTF-8 preservation, native token constructor/caller and sealed action provenance, complete recipe/compiler/driver/backend/history/resource and exact-release correspondence remain separate. No Auths hash algorithm is introduced, no hash-collision freedom follows from byte injectivity, and no generated ABI/model/compiled count or complete E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.BodyCompiler.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.BodyCompiler.Refinement.add_resources_exact" => &["auths_gateway_kernel::body_compiler::add_resources"],
+            "Auths.Product.BodyCompiler.Refinement.json_resources_loop_exact"
+            | "Auths.Product.BodyCompiler.Refinement.json_resources_exact" => &["auths_gateway_kernel::body_compiler::json_resources"],
+            "Auths.Product.BodyCompiler.Refinement.form_piece_resources_exact" => &["auths_gateway_kernel::body_compiler::form_piece_resources"],
+            "Auths.Product.BodyCompiler.Refinement.form_resources_loop_exact"
+            | "Auths.Product.BodyCompiler.Refinement.form_resources_exact" => &["auths_gateway_kernel::body_compiler::form_resources"],
+            "Auths.Product.BodyCompiler.Refinement.lower_json_piece_exact" => &["auths_gateway_kernel::body_compiler::lower_json_piece"],
+            "Auths.Product.BodyCompiler.Refinement.json_loop_exact"
+            | "Auths.Product.BodyCompiler.Refinement.lower_json_exact"
+            | "Auths.Product.BodyCompiler.Refinement.source_json_body_preserves_names"
+            | "Auths.Product.BodyCompiler.Refinement.source_json_compilation_earns_resources"
+            | "Auths.Product.BodyCompiler.Refinement.source_admissible_json_compiles" => &["auths_gateway_kernel::body_compiler::lower_json"],
+            "Auths.Product.BodyCompiler.Refinement.lower_form_piece_exact" => &["auths_gateway_kernel::body_compiler::lower_form_piece"],
+            "Auths.Product.BodyCompiler.Refinement.form_loop_exact"
+            | "Auths.Product.BodyCompiler.Refinement.lower_form_exact"
+            | "Auths.Product.BodyCompiler.Refinement.source_form_body_preserves_names"
+            | "Auths.Product.BodyCompiler.Refinement.source_form_compilation_earns_resources"
+            | "Auths.Product.BodyCompiler.Refinement.source_admissible_form_compiles" => &["auths_gateway_kernel::body_compiler::lower_form"],
+            "Auths.Product.BodyCompiler.Refinement.source_json_body_refines_named_template" => &[
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::body_compiler::lower_json",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::construct::build_body",
+            ],
+            "Auths.Product.BodyCompiler.Refinement.source_form_body_refines_named_template" => &[
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::body_compiler::lower_form",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::construct::build_body",
+            ],
+            "Auths.Product.BodyCompiler.Refinement.source_json_body_with_derived_echo" => &[
+                "auths_gateway_kernel::derived_tokens::echo_token_bytes",
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::body_compiler::lower_json",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::construct::build_body",
+            ],
+            "Auths.Product.BodyCompiler.Refinement.source_form_body_with_derived_echo" => &[
+                "auths_gateway_kernel::derived_tokens::echo_token_bytes",
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::body_compiler::lower_form",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::construct::build_body",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete named JSON/form lowering and allocation-free preflight preserve exact named meaning and earn aggregate resource bounds. Actual fixed-digest echo generation composes with actual name generation, template compilation, complete object projection and body writing, earning every writer size/alignment/payload domain without a supplied success or size premise. Generic compositions still expose their explicit echo-slice envelope. Independent admissible templates have useful source acceptance and exact body bytes/refusals.",
+            rust_symbols,
+            scope: "Every represented named-template carrier, field layout and resource accumulator, including empty templates, native-word-limit contributions, malformed starting totals, unknown/malformed names, nested JSON counts and aggregate budgets. Preflight checks 524288 total literal bytes and 256 total dynamic markers before allocating a compiled plan; nested JSON shares the form total. Name/piece count refusal precedes resource refusal, which precedes exact first-piece name/refusal semantics. Source bodies refine both checked additions and complete preflight loops to independent finite sums and complete named lowering to semantic admissibility. Standalone named-plan corollaries use independent alignment; the two helper compositions instead earn alignment/payload bounds from the actual projector, resource bounds from successful compilation and writer fit from those earned results. The generic echo-slice compositions retain an at-most-128-byte echo premise. The derived-echo compositions instead call the actual fixed-digest encoder, earn its exact 73-byte ASCII output and drop that premise. Native SHA-256 selection and ASCII-to-String caller correspondence remain explicit boundaries. Both variants retain empty/wrong-kind/16 KiB outbound refusal. Raw-byte agreement does not establish valid JSON, source canonical order, echo admissibility, canonical source digest or sealed provenance, and render fit is not a complete physical heap/work theorem.",
+            residual_assumptions: &[
+                "Pinned compiler/Charon/Aeneas/Lean, the Lean kernel, permitted foundations and standard slice/vector memory contracts. The new source/proof/corpus batch remains unverified until fresh actual enum/borrow/loop interfaces are inspected, all proof bodies elaborate and complete statements/premises/axioms/source owners are audited and translations reproduce twice.",
+                "Native JSON/UTF-8/member traversal, sorted source keys, echo admissibility/derivation, literal rendering, useful accepted-source-to-template completeness under the compilation envelope, complete source/lock/digest and header compilation, sealed provenance/action projection, full temporary allocation/work, full caller/driver/transport composition, backends and histories remain separate obligations. Source preflight establishes the aggregate body-writer resource domain directly; it does not depend on an asserted AST bound. No generated ABI/model/compiled count or full E1–E5/M6 milestone is inferred from authored source.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.PathCompiler.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.PathCompiler.Refinement.fixed_scan_exact"
+            | "Auths.Product.PathCompiler.Refinement.fixed_valid_exact" => &["auths_gateway_kernel::path_compiler::fixed_segment_valid"],
+            "Auths.Product.PathCompiler.Refinement.lower_field_exact" => &["auths_gateway_kernel::path_compiler::lower_field"],
+            "Auths.Product.PathCompiler.Refinement.lower_segment_exact" => &["auths_gateway_kernel::path_compiler::lower_segment"],
+            "Auths.Product.PathCompiler.Refinement.path_loop_exact"
+            | "Auths.Product.PathCompiler.Refinement.lower_path_exact"
+            | "Auths.Product.PathCompiler.Refinement.source_path_preserves_named_references"
+            | "Auths.Product.PathCompiler.Refinement.source_admissible_paths_lower" => &["auths_gateway_kernel::path_compiler::lower_path"],
+            "Auths.Product.PathCompiler.Refinement.fixed_path_loop_exact"
+            | "Auths.Product.PathCompiler.Refinement.lower_fixed_path_exact"
+            | "Auths.Product.PathCompiler.Refinement.source_fixed_path_contains_only_literals" => &["auths_gateway_kernel::path_compiler::lower_fixed_path"],
+            "Auths.Product.PathCompiler.Refinement.origin_matches_exact"
+            | "Auths.Product.PathCompiler.Refinement.source_matched_origin_bounded" => &["auths_gateway_kernel::path_compiler::origin_matches_host"],
+            "Auths.Product.PathCompiler.Refinement.source_url_refines_named_path" => &[
+                "auths_gateway_kernel::field_projection::field_names",
+                "auths_gateway_kernel::path_compiler::lower_path",
+                "auths_gateway_kernel::field_projection::project_object",
+                "auths_gateway_kernel::construct::build_url",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual path compiler preserves complete approved literals and exact named references, fixed credential paths contain no dynamic nodes, and actual name generation/object projection/URL writing compose to the independent named path bytes and typed refusal meaning. Exact origin/host framing earns the native 261-byte origin envelope.",
+            rust_symbols,
+            scope: "Every represented source path byte view, name layout and origin/host slice. Source bodies cover the fixed lexical scan, exact field lookup, individual and complete path lowering, static credential paths and first-error/count behavior. A semantic completeness body admits the independent nonempty bounded fixed/named path domain. The URL composition calls actual source functions with no supplied index, alignment, successful helper or payload result; it assumes only the native origin envelope, derives the encoding allocation domain from actual object/lowering results, and specifies bytes/refusals when those helpers reach URL writing. Native compilation, source literal validation, all named field references, observation templates and credential reads consume these helpers; integer literals now use the source-proved arithmetic renderer. The origin framing predicate is exact byte agreement, not hostname/DNS/TLS validity. JSON/AST-to-borrowed-view, complete source validation/canonicalization/digest, JSON/form lowering, headers, sealed authority, driver/transport and backend/history/resource accounting remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, Lean kernel, permitted foundations and standard slice/vector memory contracts. The URL byte theorem has an explicit origin-length premise; native origin validation now rejects lengths above 261 before parsing and requires exact https:// plus parsed-host bytes. URL parsing, hostname policy (including terminal-root-dot classification), DNS/TLS/pinning and HTTP interpretation are not inferred from the framing theorem or a byte result.",
+                "The entire new source/proof/corpus batch remains unverified pending actual borrowed-enum/loop/Result interfaces, elaboration/repairs, full compiled statement/type/premise/axiom/owner audit, native/frozen/SDK/wire/driver cases and two clean reproductions. No actual ABI/model/function/compiled count, successful fresh proof result or complete E1–E5/M6 milestone is inferred. Raw UTF-8/JSON/AST standard semantics and physical allocation/transport remain explicitly scoped.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.FieldProjection.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.FieldProjection.Refinement.text_member_exact" => {
+                &["auths_gateway_kernel::field_projection::text_member"]
+            }
+            "Auths.Product.FieldProjection.Refinement.project_request_exact"
+            | "Auths.Product.FieldProjection.Refinement.source_request_earns_named_bindings"
+            | "Auths.Product.FieldProjection.Refinement.source_accepted_requests_cannot_refuse"
+            | "Auths.Product.FieldProjection.Refinement.source_unbound_requests_cannot_project" => {
+                &["auths_gateway_kernel::field_projection::project_request"]
+            }
+            "Auths.Product.FieldProjection.Refinement.source_bound_preimages_use_projected_operation" => &[
+                "auths_gateway_kernel::field_projection::project_request",
+                "auths_gateway_kernel::derived_tokens::echo_preimage",
+                "auths_gateway_kernel::derived_tokens::idempotency_preimage",
+            ],
+            "Auths.Product.FieldProjection.Refinement.name_copy_loop_exact"
+            | "Auths.Product.FieldProjection.Refinement.copy_names_exact" => {
+                &["auths_gateway_kernel::field_projection::copy_field_names"]
+            }
+            "Auths.Product.FieldProjection.Refinement.field_names_exact" => {
+                &["auths_gateway_kernel::field_projection::field_names"]
+            }
+            "Auths.Product.FieldProjection.Refinement.schema_for_exact" => {
+                &["auths_gateway_kernel::field_projection::schema_for"]
+            }
+            "Auths.Product.FieldProjection.Refinement.rows_loop_exact"
+            | "Auths.Product.FieldProjection.Refinement.project_rows_exact"
+            | "Auths.Product.FieldProjection.Refinement.source_rows_earn_payloads" => {
+                &["auths_gateway_kernel::field_projection::project_rows"]
+            }
+            "Auths.Product.FieldProjection.Refinement.project_object_exact"
+            | "Auths.Product.FieldProjection.Refinement.source_object_earns_alignment"
+            | "Auths.Product.FieldProjection.Refinement.source_object_earns_exact_names"
+            | "Auths.Product.FieldProjection.Refinement.source_complete_objects_accept"
+            | "Auths.Product.FieldProjection.Refinement.source_invalid_objects_refuse"
+            | "Auths.Product.FieldProjection.Refinement.source_referenced_value_is_named" => {
+                &["auths_gateway_kernel::field_projection::project_object"]
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual complete object projector binds each exact name to its paired scalar schema, earns lexical/count/payload bounds and positional alignment, and accepts or refuses according to an independent complete decoded-object relation. Complete request binding additionally earns exact installed namespace/digest and a validated operation from that same object, with typed refusal precedence. Actual preimage composition consumes that returned operation and earns both token-size domains without a supplied projection or operation bound.",
+            rust_symbols,
+            scope: "Every represented FieldSpec/NamedInput slice, including malformed names, duplicate/missing/extra inputs, wrong scalar kinds, invalid raw schemas and arbitrary raw text/signed values. Actual source copying, exact first-name schema lookup, row validation/projection and complete binding are composed; the binder's payload domain is earned by actual row results rather than supplied by the caller. Success preserves name/schema/value association and earns exact supplied names, complete payload meaning and named-to-positional alignment. Semantic completeness and refusal bodies use the independent object domain, not an expected output or successful source premise. Native request projection consumes these functions, and compilation/observation templates derive positional names from the same immutable field specification. JSON/UTF-8/number/object iteration, profile-lock-to-FieldSpec construction/clone semantics, full AST/digest/lowering, partial read-back adaptation, sealed origin and full interpreter/transport/backend/history/resource composition remain distinct obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, Lean kernel, permitted foundations and declared standard shared-borrow/slice/vector memory contracts. Existing source-proved token/scalar/name-binding leaves are reused; no provider branch, native admission flag, desired field index, hash injectivity or per-row validity result is a projector input. The referenced-index corollary is conditional on the independent exact name-position relation; it does not by itself prove the complete native compiler.",
+                "The new source/proof/corpus batch, including request binding, first-text lookup and both preimage compositions, is unverified until actual typed borrowed-struct/match/loop extraction ABI review, elaboration/repairs, full compiled statement/type/premise/axiom audit and ownership, native/frozen/SDK/wire/driver cases and two clean reproductions. Expected recipe bytes still require native canonical digest provenance; bytes-to-String/typed operation conversion and sealed-command origin remain explicit caller contracts. No generated/function/model/compiled count, fresh proof result or whole E1–E5/M6 milestone is inferred. Bounds here do not replace the required complete allocation and abstract-work accounting.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.ScalarProjection.Dispatch.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.ScalarProjection.Dispatch.form_schema_allowed_exact" => {
+                &["auths_gateway_kernel::scalars::form_schema_allowed"]
+            }
+            "Auths.Product.ScalarProjection.Dispatch.source_form_projection_kind" => &[
+                "auths_gateway_kernel::scalars::form_schema_allowed",
+                "auths_gateway_kernel::scalars::project_scalar",
+            ],
+            "Auths.Product.ScalarProjection.Dispatch.validation_exact" => {
+                &["auths_gateway_kernel::scalars::scalar_valid"]
+            }
+            "Auths.Product.ScalarProjection.Dispatch.validation_projection_agree" => &[
+                "auths_gateway_kernel::scalars::scalar_valid",
+                "auths_gateway_kernel::scalars::project_scalar",
+            ],
+            "Auths.Product.ScalarProjection.Dispatch.projection_exact"
+            | "Auths.Product.ScalarProjection.Dispatch.unsupported_refuses"
+            | "Auths.Product.ScalarProjection.Dispatch.semantic_refusal"
+            | "Auths.Product.ScalarProjection.Dispatch.semantic_acceptance"
+            | "Auths.Product.ScalarProjection.Dispatch.source_earns_payload_bound" => {
+                &["auths_gateway_kernel::scalars::project_scalar"]
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual shipping scalar dispatcher covers every closed schema/input-kind pair, accepts exactly the independent typed scalar relation, preserves complete value meaning and earns its payload bound; unsupported and wrong-kind inputs produce no construction value. The direct-form schema-kind gate excludes Boolean schemas, and its composition with the actual projector earns a text/integer form argument without supplied projection success.",
+            rust_symbols,
+            scope: "Every represented ScalarSchema and ScalarInput, including invalid raw schema bounds/variants, arbitrary text slices, signed-word integers, booleans and unsupported carriers. Actual dispatch composes the preceding per-kind source bodies and earns acceptance/refusal, complete semantic projection and a 4096-byte payload bound without a successful-source, validity flag, input-length bound or expected output premise. A separate source composition proves validation agrees with projection presence. The direct-form gate classifies schema kind only and asserts no bound/variant validity; subsequent projection retains every validation refusal. Native FieldSchema is the same kernel schema type, native form-source validation uses the gate before field consumption, and native validation/projection call the shared dispatchers through a JSON-kind adapter. This does not establish that serde parsing, signed-number extraction, UTF-8 bytes or object traversal produced the intended input; those caller contracts, compiler lowering/digests, sealed origin and full execution/history/resource composition remain explicit obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, Lean kernel, permitted foundations, standard shared-borrow/slice/vector memory contracts and the explicitly scoped per-kind allocation proofs. The dispatcher introduces no new normalization or scalar coercion. Native JSON extraction uses the actual Value variant and Number::as_i64; its standard JSON/UTF-8 semantics and native caller traversal remain to be connected.",
+                "All new source/proof/corpus bodies remain unverified pending actual borrowed-enum/match/signed-cast extraction ABI review, elaboration/repairs, complete compiled statement/type/premise/axiom audit and source ownership, native/frozen/SDK/wire cases and two clean reproductions. No current generated/model/compiled count, complete JSON/compiler claim or E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.ScalarProjection.Refinement.")
+        || declaration.starts_with("Auths.Product.DecimalProjection.Refinement.")
+    {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.ScalarProjection.Refinement.string_schema_exact" => &["auths_gateway_kernel::scalars::string_schema_valid"],
+            "Auths.Product.ScalarProjection.Refinement.string_scan_exact"
+            | "Auths.Product.ScalarProjection.Refinement.string_valid_exact" => &["auths_gateway_kernel::scalars::string_value_valid"],
+            "Auths.Product.ScalarProjection.Refinement.enum_byte_exact" => &["auths_gateway_kernel::scalars::enum_byte_valid"],
+            "Auths.Product.ScalarProjection.Refinement.enum_scan_exact"
+            | "Auths.Product.ScalarProjection.Refinement.enum_variant_exact" => &["auths_gateway_kernel::scalars::enum_variant_valid"],
+            "Auths.Product.ScalarProjection.Refinement.enum_schema_scan_exact"
+            | "Auths.Product.ScalarProjection.Refinement.enum_schema_exact" => &["auths_gateway_kernel::scalars::enum_schema_valid"],
+            "Auths.Product.ScalarProjection.Refinement.enum_valid_exact" => &["auths_gateway_kernel::scalars::enum_value_valid"],
+            "Auths.Product.ScalarProjection.Refinement.integer_schema_exact" => &["auths_gateway_kernel::scalars::integer_schema_valid"],
+            "Auths.Product.ScalarProjection.Refinement.integer_valid_exact" => &["auths_gateway_kernel::scalars::integer_value_valid"],
+            "Auths.Product.ScalarProjection.Refinement.string_projection_exact"
+            | "Auths.Product.ScalarProjection.Refinement.string_projection_sound" => &["auths_gateway_kernel::scalars::string_value"],
+            "Auths.Product.ScalarProjection.Refinement.enum_projection_exact"
+            | "Auths.Product.ScalarProjection.Refinement.enum_projection_sound" => &["auths_gateway_kernel::scalars::enum_value"],
+            "Auths.Product.ScalarProjection.Refinement.integer_projection_exact" => &["auths_gateway_kernel::scalars::integer_value"],
+            "Auths.Product.ScalarProjection.Refinement.boolean_projection_exact" => &["auths_gateway_kernel::scalars::boolean_value"],
+            "Auths.Product.DecimalProjection.Refinement.magnitude_exact" => &["auths_gateway_kernel::scalars::magnitude"],
+            "Auths.Product.DecimalProjection.Refinement.divisor_exact" => &["auths_gateway_kernel::scalars::decimal_divisor"],
+            "Auths.Product.DecimalProjection.Refinement.render_loop_exact"
+            | "Auths.Product.DecimalProjection.Refinement.append_exact"
+            | "Auths.Product.DecimalProjection.Refinement.append_represents_unsigned" => &["auths_gateway_kernel::scalars::append_unsigned_decimal"],
+            "Auths.Product.DecimalProjection.Refinement.integer_bytes_exact"
+            | "Auths.Product.DecimalProjection.Refinement.integer_bytes_semantics"
+            | "Auths.Product.DecimalProjection.Refinement.safe_integer_bytes_bounded" => &["auths_gateway_kernel::scalars::integer_bytes"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual scalar schema validators and projections preserve complete text, enum, integer and boolean meaning, with exact invalid-input refusal and source-earned payload bounds. Arithmetic decimal rendering earns ordinary base-ten meaning, digit/sign rules and bounded length.",
+            rust_symbols,
+            scope: "All represented scalar schemas and input carriers. String/enum projection bodies earn their own byte-copy bounds from complete validation; integer rendering covers every i64 including its minimum, and every u64 in the unsigned leaf. The arbitrary-prefix renderer proof explicitly restricts its prefix and uses a conservative signed allocation bound; the shipping integer caller starts with zero or one sign byte. Accepted safe-JSON integers earn at most 17 bytes. Scalar rules are mathematical lexical/range/positional-base-ten relations independent of serde and the old formatter. Native profile-lock parsing, validation and conversion consume these actual helpers, and enums retain one byte vocabulary. The exact serde extraction, source/lock digest and AST lowering, sealed-action provenance, named object traversal and full driver/transport/history/resource composition remain caller obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, Lean kernel, permitted foundations and declared standard slice/vector memory contracts. Native JSON strings supply UTF-8; the scalar byte leaf does not reinterpret or normalize UTF-8. Standard formatting survives only as a frozen native test oracle, not a production renderer or assumed decimal-result contract.",
+                "All new source/proof/corpus changes remain unverified pending actual signed arithmetic/cast/loop/borrow extraction ABI review, elaboration/repairs, complete compiled statement/type/premise/axiom audit and exact source ownership, frozen/native/SDK/wire regressions and two clean reproductions. No generated count/model row, compiled result, complete JSON/compiler refinement or E1–E5/M6 milestone is inferred. Abstract work and complete allocation accounting remain distinct requirements.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.ArgumentBinding.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.ArgumentBinding.Refinement.copy_exact" => {
+                &["auths_gateway_kernel::arguments::copy_argument"]
+            }
+            "Auths.Product.ArgumentBinding.Refinement.named_argument_exact" => {
+                &["auths_gateway_kernel::arguments::named_argument"]
+            }
+            "Auths.Product.ArgumentBinding.Refinement.unique_fields_exact" => {
+                &["auths_gateway_kernel::arguments::unique_fields"]
+            }
+            "Auths.Product.ArgumentBinding.Refinement.bind_loop_exact"
+            | "Auths.Product.ArgumentBinding.Refinement.bind_exact"
+            | "Auths.Product.ArgumentBinding.Refinement.source_earns_alignment"
+            | "Auths.Product.ArgumentBinding.Refinement.source_lowered_field_is_named"
+            | "Auths.Product.ArgumentBinding.Refinement.source_earns_exact_names"
+            | "Auths.Product.ArgumentBinding.Refinement.source_complete_layout_accepts"
+            | "Auths.Product.ArgumentBinding.Refinement.source_bad_layout_refuses" => {
+                &["auths_gateway_kernel::arguments::bind_arguments"]
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual named-argument binder preserves complete scalar payloads, refuses invalid field layouts, and earns the exact named-to-positional alignment used by request lowering for every bounded representable input in its explicit allocation domain.",
+            rust_symbols,
+            scope: "The actual copy, borrowed lookup, uniqueness and complete binding loops are related to an independent named environment. The source result earns alignment before the existing name/index rendering theorem consumes it; no alignment, expected output, caller-admission flag or successful lookup is assumed. Complete unique bounded layouts with every field present have an accepting source result. The shipping compiler retains one field-name snapshot for paths, JSON/form bodies, account headers and runtime binding. These are typed-value leaf/composition claims; source/lock JSON decoding, schema validation, integer formatting, AST/lowering conversion, sealed-action origin, async driver and transport remain distinct obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, Lean kernel, permitted foundations and the declared standard slice/vector allocation/copying contracts. Copying lemmas explicitly require payload lengths below the common 32-bit pointer bound. Native schema conversion supplies text up to 4096 bytes, bounded enum values, signed safe-JSON integers and booleans; deriving that allocation domain from the actual JSON/schema/decimal caller is still required.",
+                "The new source, proof and native corpus remain unverified until final extraction, actual borrowed-return/loop/type ABI review, elaboration/repairs, full compiled statement/type/premise/axiom audit, source/frozen/SDK regressions and two clean reproductions. The binder makes one bounded complete copy of its converted scalar inputs. No generated count, fresh model review, full E3 or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.LeaseBinding.Refinement.") {
+        match declaration {
+            "Auths.Product.LeaseBinding.Refinement.generations_exact"
+            | "Auths.Product.LeaseBinding.Refinement.success_earns_exact_generations"
+            | "Auths.Product.LeaseBinding.Refinement.valid_pair_accepts"
+            | "Auths.Product.LeaseBinding.Refinement.different_pair_refuses" => {}
+            _ => return None,
+        }
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual lease-generation guard accepts exactly an equal valid connection/credential-generation pair and refuses invalid or mismatched pairs, including state-only changes that retain a credential generation.",
+            rust_symbols: &["auths_connections::kernel::same_lease_generations"],
+            scope: "Every pair of represented u64 generation records, including raw zero, invalid credential ordering, state-only changes, rotations and the word boundary. Independent validity and full pair identity are the specification; source totality and the useful valid-pair result assume no successful caller or supplied comparison flag. The actual StoredSecretLease binding comparison consumes this guard, and native gateway custody/transport paths consume the full comparison. This source leaf does not establish the complete lease constructor, source getters, connection-ID/reference comparison, SHA opening, deadline/clock, async interpreter or backend correspondence.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean boundary, Lean kernel, permitted foundations and existing transparent scalar/value models. No cryptographic axiom, opaque Auths algorithm or new external model is used by this numeric source guard. Full native lease validation retains the published SHA/reference and constant-time comparison/library contracts.",
+                "All new proof/native/custody/driver bodies and regression cases remain unverified pending actual connections translation/ABI review, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/backends/driver/negative-boundary tests and two clean reproductions. No current generated/model/compiled count, complete connection/lease claim or E1–E5/M6 completion is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if declaration.starts_with("Auths.Product.ClaimedInput.Refinement.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.ClaimedInput.Refinement.capture_exact" => {
+                &["auths_gateway_kernel::write_permit::capture_input"]
+            }
+            "Auths.Product.ClaimedInput.Refinement.command_exact" => {
+                &["auths_gateway_kernel::write_permit::captured_command"]
+            }
+            "Auths.Product.ClaimedInput.Refinement.time_exact" => {
+                &["auths_gateway_kernel::write_permit::captured_time"]
+            }
+            "Auths.Product.ClaimedInput.Refinement.selection_exact" => {
+                &["auths_gateway_kernel::write_permit::captured_selection"]
+            }
+            "Auths.Product.ClaimedInput.Refinement.capture_projects" => &[
+                "auths_gateway_kernel::write_permit::capture_input",
+                "auths_gateway_kernel::write_permit::captured_command",
+                "auths_gateway_kernel::write_permit::captured_time",
+                "auths_gateway_kernel::write_permit::captured_selection",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual claimed-input constructor and immutable projections preserve the complete command, original evaluation time and selected requirements without cloning, normalizing or substituting any payload.",
+            rust_symbols,
+            scope: "Every generic command/selection value and u64 evaluation time. The composition calls the actual constructor and all actual projections with no successful-source premise. The shipping submit driver creates this input only after the acknowledged claim, moves the complete VerifiedCommand and selected requirements, shares one immutable capture with the one-use permit and uses its projections for final deadlines, pre-entry reads, ceiling arguments and response locators. These source leaf equations do not establish verifier origin or authority for an arbitrary supplied command, claim acknowledgement, Arc identity/ownership, async interpreter correspondence, credential/connection binding or full E3/E4/M6.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, Lean kernel, permitted foundations and transparent generic value/shared-reference semantics. The native boundary additionally retains Rust privacy/ownership and standard Arc identity/immutability; those runtime contracts are separate from the generic kernel projection equations.",
+                "All new bodies and native driver/regression changes remain unverified pending actual gateway extraction and accessor/type/borrow ABI review, elaboration/repairs, full compiled statement/type/premise/axiom audit, driver/backend/native regressions and two clean reproductions. No current generated/model/compiled count or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
     if declaration.starts_with("Auths.Product.SemanticId.Refinement.") {
         let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
             "Auths.Product.SemanticId.Refinement.semantic_head_exact" => (
@@ -4752,6 +6428,2525 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
             residual_assumptions: &[
                 "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain and the listed foundational axioms are trusted. No new external model is introduced.",
                 "The complete record decoder, NonZero.get/caller projection, authentication of the recorded operation, the existing constant-time commitment comparison, actual credential-store lease and runtime reload/write association remain separate. Current-versus-recorded selection proves policy, not possession or authenticity of the supplied commitment.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if matches!(declaration,
+          "Auths.Codec.DecodedFields.profile_success_valid"
+        | "Auths.Codec.DecodedFields.permission_success_valid"
+        | "Auths.Codec.DecodedFields.budget_success_valid"
+        | "Auths.Codec.ActionDecodedFields.decoded_fields_valid"
+        | "Auths.Codec.ActionDecodedFields.decoded_strings_bounded"
+        | "Auths.Codec.AttachmentResources.validation_earns_byte_bound"
+        | "Auths.Codec.AttachmentResources.constructor_earns_bounds"
+        | "Auths.Codec.AttachmentResources.decoded_earns_bounds"
+        | "Auths.Codec.ActionResources.decoded_allocation_envelope"
+        | "Auths.Codec.ActionResources.decoded_buffer_room"
+        | "Auths.Codec.ActionResources.decoded_wire_exact"
+    ) {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.DecodedFields.profile_success_valid" => (
+                "Successful actual profile parsing earns the checked identifier language, nonzero version and u16 version bound.",
+                &["auths_codec::decode::profile_ref"],
+            ),
+            "Auths.Codec.DecodedFields.permission_success_valid" => (
+                "Successful actual permission parsing earns both independent identifier-language and size requirements.",
+                &["auths_codec::decode::permission"],
+            ),
+            "Auths.Codec.DecodedFields.budget_success_valid" => (
+                "Successful actual budget parsing earns the checked algebra language and the full unsigned amount range, including zero.",
+                &["auths_codec::decode::budget"],
+            ),
+            "Auths.Codec.ActionDecodedFields.decoded_fields_valid" => (
+                "Successful actual public action decoding earns profile, media, permission and optional-budget constructor-valid field predicates through actual construction and attachment normalization.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionDecodedFields.decoded_strings_bounded" => (
+                "Successful actual public action decoding earns every portable native-string carrier bound required by its complete encoder.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.AttachmentResources.validation_earns_byte_bound" => (
+                "The actual attachment-validation loop terminates and any successful result earns the aggregate attachment-byte hard limit, including checked additions.",
+                &["auths_model::canonical_attachments_valid"],
+            ),
+            "Auths.Codec.AttachmentResources.constructor_earns_bounds" => (
+                "Successful actual attachment normalization earns the attachment-count and aggregate-byte hard limits.",
+                &["auths_model::{auths_model::CanonicalAction}::with_detached_attachments"],
+            ),
+            "Auths.Codec.AttachmentResources.decoded_earns_bounds" => (
+                "Successful public action decoding earns attachment-count and aggregate-byte bounds from actual normalization.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionResources.decoded_allocation_envelope" => (
+                "Successful actual action decoding earns an independent portable intermediate-encoding allocation envelope of at most 16818401 bytes from field, body, count and aggregate attachment limits.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionResources.decoded_buffer_room" => (
+                "Successful actual action decoding earns all machine-buffer room required by the complete source encoder on either supported machine width.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionResources.decoded_wire_exact" => (
+                "Every actually accepted action byte string equals the independently defined complete canonical action encoding, with string and allocation premises earned by actual decoder constructor checks.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Earned partial safety properties of actual successful source decoding and construction, with no caller-supplied field-validity or expected parser-result premise. The attachment-loop theorem additionally establishes termination over every represented slice. The final accepted-wire theorem combines actual canonicality checking, the complete source encoder, constructor-derived native-string bounds and a portable intermediate-allocation envelope.",
+            residual_assumptions: &[
+                "The Lean kernel, pinned Rust/Charon/Aeneas/Lean toolchain and existing reviewed UTF-8, owned-copy, native-string, sorting, scalar and collection contracts remain trusted. Sorting is the existing standard-library leaf with a concrete stateless digest callback; these claims do not add a new opaque Auths algorithm or new global axiom.",
+                "Success-conditional properties do not independently establish all-input parser totality, inverse completeness, deployment-specific work limits, full protocol-object closure, cryptographic authenticity or byte-to-authority composition. The intermediate envelope is a bound on mathematical carrier requests; physical allocator availability is outside it. New declarations are not qualified evidence until the final statement/axiom audit and exact-source translation replay.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if matches!(declaration,
+          "Auths.Codec.MediaDecode.media_exact"
+        | "Auths.Codec.AttachmentDecode.step_exact"
+        | "Auths.Codec.AttachmentDecode.loop_exact"
+        | "Auths.Codec.AttachmentDecode.batch_exact"
+        | "Auths.Codec.AttachmentDecodeSafety.source_batch_success"
+        | "Auths.Codec.AttachmentValidation.validation_exact"
+        | "Auths.Codec.AttachmentValidation.constructor_exact"
+        | "Auths.Codec.Limits.hard_exact"
+        | "Auths.Codec.Limits.validate_exact"
+        | "Auths.Codec.ActionTotal.decode_total"
+    ) {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.MediaDecode.media_exact" => (
+                "The actual media constructor returns the exact checked identifier bytes or typed InvalidMediaType, under UTF-8 earned by protocol text decoding.",
+                &["auths_model::{auths_model::MediaType}::parse"],
+            ),
+            "Auths.Codec.AttachmentDecode.step_exact" => (
+                "The actual attachment batch step preserves typed refusal or exactly parses digest and body, applies aggregate deployment and hard limits, and appends the precise value and cursor.",
+                &["auths_codec::decode::attachment_batch_step"],
+            ),
+            "Auths.Codec.AttachmentDecode.loop_exact" => (
+                "The actual counted attachment loop exactly refines the independent finite iteration, including sticky typed errors and a decreasing remaining-count measure.",
+                &["auths_codec::decode::attachment_batch"],
+            ),
+            "Auths.Codec.AttachmentDecode.batch_exact" => (
+                "The actual attachment batch parser exactly refines its independent grammar and aggregate state for every input, deployment limit, start cursor and represented count.",
+                &["auths_codec::decode::attachment_batch"],
+            ),
+            "Auths.Codec.AttachmentDecodeSafety.source_batch_success" => (
+                "Actual successful attachment parsing earns exact count, complete aggregate-byte accounting, nonempty payloads and the deployment payload limits.",
+                &["auths_codec::decode::attachment_batch"],
+            ),
+            "Auths.Codec.AttachmentValidation.validation_exact" => (
+                "The complete actual attachment validation loop returns exactly the independent preceding-digest and aggregate-byte predicate, including checked-add overflow and every refusal.",
+                &["auths_model::canonical_attachments_valid"],
+            ),
+            "Auths.Codec.AttachmentValidation.constructor_exact" => (
+                "Actual attachment normalization returns exactly a digest-sorted, count-bounded and aggregate-byte-validated collection or typed InvalidAttachment, using the concrete stateless key and actual byte-array comparator.",
+                &["auths_model::{auths_model::CanonicalAction}::with_detached_attachments"],
+            ),
+            "Auths.Codec.Limits.hard_exact" => (
+                "The actual hard-limit constructor returns exactly the independently displayed complete limit record on both supported machine widths.",
+                &["auths_model::{auths_model::VerifierLimits}::hard"],
+            ),
+            "Auths.Codec.Limits.validate_exact" => (
+                "The actual full verifier-limit validator accepts exactly records whose every field is at most its protocol ceiling; unrelated fields cannot be omitted by an action-only caller.",
+                &["auths_model::{auths_model::VerifierLimits}::validate"],
+            ),
+            "Auths.Codec.ActionTotal.decode_total" => (
+                "The complete actual public action decoder returns a typed codec result on every represented input and limit record, with all parsing, construction, normalization, re-encoding and comparison calls covered and no successful-parse premise.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "The actual translated complete canonical-action parser, its counted attachment parser, concrete attachment normalization and complete hard-limit record. All-input totality is a partial safety claim and does not fix a verdict. Exact helper theorems fix full typed results against independent models. Native internal batch-state allocation room is explicit and discharged by the public batch constructor; UTF-8 for media is earned by the preceding text reader.",
+            residual_assumptions: &[
+                "Lean's kernel, the pinned compiler/translation toolchain, foundational axiom allowlist and existing reviewed standard-library UTF-8, allocation/copy, sorting, comparison, iterator and scalar contracts remain the trust boundary. The concrete Auths sorting callback and byte-array comparison are proved rather than assumed. Physical allocator availability and compiler/runtime behavior are not mathematical allocation bounds.",
+                "This action-specific slice does not complete all protocol objects, complete parser abstract-work accounting, inverse completeness for every constructor-valid action, closed verifier dispatch, durable backend/driver correspondence or the end-to-end reference monitor. Pending declarations are not qualified evidence until the final compilation, statement/axiom audit and exact-source Rust-to-Lean replay.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if matches!(declaration,
+          "Auths.Codec.NativeFieldInverse.profile_inverse"
+        | "Auths.Codec.SourceFieldRoundtrip.profile_roundtrip"
+        | "Auths.Codec.NativeFieldInverse.permission_inverse"
+        | "Auths.Codec.SourceFieldRoundtrip.permission_roundtrip"
+        | "Auths.Codec.NativeFieldInverse.budget_inverse"
+        | "Auths.Codec.SourceFieldRoundtrip.budget_roundtrip"
+        | "Auths.Codec.NativeFieldInverse.optional_budget_inverse"
+        | "Auths.Codec.SourceFieldRoundtrip.optional_budget_roundtrip"
+    ) {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.NativeFieldInverse.profile_inverse" => (
+                "Actual profile parsing of independently encoded constructor-valid bytes reconstructs the identical native typed value and exact cursor, with arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::profile_ref"],
+            ),
+            "Auths.Codec.SourceFieldRoundtrip.profile_roundtrip" => (
+                "The actual translated profile encoder output is accepted by the actual translated decoder and reconstructs the identical native typed value from the original output offset; no expected intermediate bytes or expected parse are assumed.",
+                &["auths_codec::encode::encode_profile_ref", "auths_codec::decode::profile_ref"],
+            ),
+            "Auths.Codec.NativeFieldInverse.permission_inverse" => (
+                "Actual permission parsing of independently encoded constructor-valid bytes reconstructs the identical native typed value and exact cursor, with arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::permission"],
+            ),
+            "Auths.Codec.SourceFieldRoundtrip.permission_roundtrip" => (
+                "The actual translated permission encoder output is accepted by the actual translated decoder and reconstructs the identical native typed value from the original output offset; no expected intermediate bytes or expected parse are assumed.",
+                &["auths_codec::encode::encode_permission", "auths_codec::decode::permission"],
+            ),
+            "Auths.Codec.NativeFieldInverse.budget_inverse" => (
+                "Actual budget parsing of independently encoded constructor-valid bytes reconstructs the identical native typed value and exact cursor, with arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::budget"],
+            ),
+            "Auths.Codec.SourceFieldRoundtrip.budget_roundtrip" => (
+                "The actual translated budget encoder output is accepted by the actual translated decoder and reconstructs the identical native typed value from the original output offset; no expected intermediate bytes or expected parse are assumed.",
+                &["auths_codec::encode::encode_budget", "auths_codec::decode::budget"],
+            ),
+            "Auths.Codec.NativeFieldInverse.optional_budget_inverse" => (
+                "Actual optional_budget parsing of independently encoded constructor-valid bytes reconstructs the identical native typed value and exact cursor, with arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::optional_budget"],
+            ),
+            "Auths.Codec.SourceFieldRoundtrip.optional_budget_roundtrip" => (
+                "The actual translated optional_budget encoder output is accepted by the actual translated decoder and reconstructs the identical native typed value from the original output offset; no expected intermediate bytes or expected parse are assumed.",
+                &["auths_codec::encode::encode_optional_budget", "auths_codec::decode::optional_budget"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Native profile, permission, budget and optional-budget field values satisfying independent identifier/version language predicates. Native UTF-8 and byte-view injectivity are proved. Actual encoder/decoder composition permits arbitrary existing output and starts at that original output length. Allocation envelopes are explicit and every field/string validity premise is independent of desired parser or encoder output.",
+            residual_assumptions: &[
+                "The existing pinned compiler/translation boundary, Lean kernel, foundational axiom allowlist and reviewed standard-library string/UTF-8/scalar/copy contracts remain trusted. No expected intermediate byte sequence, desired parser result, global hash injectivity or opaque Auths algorithm is assumed.",
+                "These are field inverses. Full public-object inverse completeness, deployment-specific whole-object dimensions, every other protocol object and byte-to-authority composition remain separate. Pending declarations are not qualified evidence until the final compilation, statement/axiom audit and exact-source replay.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if matches!(declaration,
+          "Auths.Codec.AttachmentInverse.source_batch_inverse"
+        | "Auths.Codec.AttachmentInverse.source_batch_roundtrip"
+    ) {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.AttachmentInverse.source_batch_inverse" => (
+                "Actual batch parsing of independently encoded well-formed attachment bytes reconstructs the entire identical native attachment list, exact aggregate and final cursor for arbitrary prefixes and suffixes.",
+                &["auths_codec::decode::attachment_batch"],
+            ),
+            "Auths.Codec.AttachmentInverse.source_batch_roundtrip" => (
+                "The actual translated attachment loop output is accepted by the actual batch parser and reconstructs the complete identical native list and aggregate from the original output offset, without an expected intermediate-byte premise.",
+                &["auths_codec::encode::encode_canonical_action", "auths_codec::decode::attachment_batch"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Arbitrary native attachment lists with independently bounded nonempty payloads and an aggregate fitting the deployment attachment-byte limit. Actual encoder/decoder composition retains arbitrary existing output and begins reading at the original output length. The complete identical native list is earned via byte-view injectivity, rather than assumed from a count or diagnostic projection.",
+            residual_assumptions: &[
+                "The existing pinned compiler/translation boundary, Lean kernel, foundational axiom allowlist and reviewed standard-library scalar/copy/iterator contracts remain trusted. Source attachment algorithms are translated and explicit. Mathematical allocation room does not promise physical allocator availability.",
+                "Attachment-list inverse completeness does not by itself establish canonical public-action acceptance, normalized digest uniqueness, every other protocol object or authorization. Pending declarations are not qualified evidence until final compilation, statement/axiom audit and exact-source replay.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if matches!(declaration,
+          "Auths.Codec.PrimitiveInverse.map_inverse"
+        | "Auths.Codec.PrimitiveInverse.key_inverse"
+        | "Auths.Codec.PrimitiveInverse.array_inverse"
+        | "Auths.Codec.PrimitiveInverse.text_inverse"
+        | "Auths.Codec.PrimitiveInverse.bytes_inverse"
+        | "Auths.Codec.NativeFieldInverse.media_parse_inverse"
+        | "Auths.Codec.ActionCarrier.normalization_identity"
+        | "Auths.Codec.ActionInverse.decode_encoding"
+        | "Auths.Codec.ActionInverse.encode_decode"
+        | "Auths.Codec.DecodedActionCarrier.decoded_limits_valid"
+        | "Auths.Codec.DecodedActionCarrier.decoded_canonical_payloads"
+        | "Auths.Codec.DecodedActionCarrier.decoded_valid"
+        | "Auths.Codec.DecodedActionCarrier.decoded_input_bound"
+        | "Auths.Codec.DecodedActionDeployment.decoded_attachment_bounds"
+        | "Auths.Codec.DecodedActionDeployment.decoded_fits"
+        | "Auths.Codec.ActionAssurance.accepted_iff"
+        | "Auths.Codec.ActionAssurance.useful_value_roundtrip"
+        | "Auths.Codec.ActionAssurance.rejects_outside_language"
+        | "Auths.Codec.ActionInverseExamples.minimal_source_roundtrip"
+        | "Auths.Codec.ActionInverseExamples.zero_budget_source_roundtrip"
+        | "Auths.Codec.ActionInverseExamples.attached_source_roundtrip"
+    ) {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.PrimitiveInverse.map_inverse" => (
+                "Actual map field parsing of independently encoded, bounded values reconstructs the exact native field and cursor for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::map"],
+            ),
+            "Auths.Codec.PrimitiveInverse.key_inverse" => (
+                "Actual key field parsing of independently encoded, bounded values reconstructs the exact native field and cursor for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::key"],
+            ),
+            "Auths.Codec.PrimitiveInverse.array_inverse" => (
+                "Actual array field parsing of independently encoded, bounded values reconstructs the exact native field and cursor for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::array"],
+            ),
+            "Auths.Codec.PrimitiveInverse.text_inverse" => (
+                "Actual text field parsing of independently encoded, bounded values reconstructs the exact native field and cursor for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::text"],
+            ),
+            "Auths.Codec.PrimitiveInverse.bytes_inverse" => (
+                "Actual bytes field parsing of independently encoded, bounded values reconstructs the exact native field and cursor for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::bounded_bytes"],
+            ),
+            "Auths.Codec.NativeFieldInverse.media_parse_inverse" => (
+                "The actual media constructor reconstructs the identical valid native string from its standard UTF-8 borrow, with no expected parser-outcome premise.",
+                &["auths_model::{auths_model::MediaType}::parse"],
+            ),
+            "Auths.Codec.ActionCarrier.normalization_identity" => (
+                "The actual attachment constructor preserves an independently valid, canonically ordered, globally digest-unique action rather than merely an equivalent list length or projection.",
+                &["auths_model::{auths_model::CanonicalAction}::with_detached_attachments"],
+            ),
+            "Auths.Codec.ActionInverse.decode_encoding" => (
+                "The complete actual public decoder accepts every independently constructor-valid action encoding that fits the complete valid deployment limits and reconstructs the identical native action.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionInverse.encode_decode" => (
+                "The actual complete public action encoder output passes the actual complete public decoder and reconstructs the identical valid native action, including all constructors, canonicality checks and attachments.",
+                &["auths_codec::encode::encode_canonical_action", "auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.DecodedActionCarrier.decoded_limits_valid" => (
+                "Successful actual public decoding earns validity of the complete operator limit record.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.DecodedActionCarrier.decoded_canonical_payloads" => (
+                "Successful actual public decoding earns canonical attachment order, global digest uniqueness and individually valid attachment payloads from the real parser and normalization path.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.DecodedActionCarrier.decoded_valid" => (
+                "Successful actual public decoding earns the complete independently stated valid-action carrier relation, without caller-provided field, ordering, uniqueness or successful-constructor assumptions.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.DecodedActionCarrier.decoded_input_bound" => (
+                "Successful actual public decoding earns the deployment action-byte limit from the actual pre-parse guard.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.DecodedActionDeployment.decoded_attachment_bounds" => (
+                "Successful actual public decoding earns deployment attachment-count and aggregate-byte bounds after real attachment normalization.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.DecodedActionDeployment.decoded_fits" => (
+                "Successful actual public decoding earns every deployment-fit premise needed by complete inverse correctness, including full limit-record validity and canonical encoded length.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionAssurance.accepted_iff" => (
+                "Actual public action acceptance is equivalent to independent complete valid-carrier semantics, deployment fit and equality with the independent canonical complete encoding. This fixes acceptance rather than every refusal code.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionAssurance.useful_value_roundtrip" => (
+                "Every independently valid action fitting its deployment has a real source encoding and a successful identical-value public decoder round trip; the claim excludes a reject-everything implementation.",
+                &["auths_codec::encode::encode_canonical_action", "auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionAssurance.rejects_outside_language" => (
+                "An actual public decoder cannot accept a nominated action outside the independent valid canonical deployment language.",
+                &["auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionInverseExamples.minimal_source_roundtrip" => (
+                "Absent-budget complete source action round trip.",
+                &["auths_codec::encode::encode_canonical_action", "auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionInverseExamples.zero_budget_source_roundtrip" => (
+                "Present zero-budget complete source action round trip.",
+                &["auths_codec::encode::encode_canonical_action", "auths_codec::decode::decode_canonical_action"],
+            ),
+            "Auths.Codec.ActionInverseExamples.attached_source_roundtrip" => (
+                "Present-budget complete source action round trip with two distinct canonical detached attachments.",
+                &["auths_codec::encode::encode_canonical_action", "auths_codec::decode::decode_canonical_action"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Actual complete canonical-action source encoder and decoder. Valid carriers are defined independently by checked field languages, nonempty bounded body, attachment-count/aggregate/payload limits, semantic canonical key order and global digest uniqueness. Deployment fit includes every relevant object dimension and the entire valid verifier-limit record. The accepted-language theorem fixes acceptance for each actual value but does not independently fix every typed refusal code. Three concrete complete-source cases demonstrate absent budget, present zero budget and two canonical attachments.",
+            residual_assumptions: &[
+                "The existing pinned Rust/Charon/Aeneas/Lean boundary, Lean kernel, foundational axiom allowlist and reviewed standard-library UTF-8, scalar, allocation/copy, iterator, sort and comparison contracts remain trusted. No successful parser/constructor outcome or desired intermediate encoding is assumed to establish completeness. Physical allocator availability, wall-clock runtime and cryptographic authenticity are outside these codec claims.",
+                "This closes only the stated action acceptance/carrier/inverse path when verified. Complete source-linked abstract work accounting, other protocol objects, shared-language corpus, full verifier/registry composition and end-to-end execution remain separate. All new declarations remain unverified coding work until final compilation, full statement/axiom review and exact-source qualification replay.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+    if matches!(declaration,
+          "Auths.Codec.CursorBounds.source_head"
+        | "Auths.Codec.CursorBounds.source_payload"
+        | "Auths.Codec.CursorBounds.source_collection"
+        | "Auths.Codec.CursorBounds.source_null"
+        | "Auths.Codec.CursorBounds.source_key"
+        | "Auths.Codec.CursorBounds.source_map"
+        | "Auths.Codec.CursorBounds.source_array"
+        | "Auths.Codec.CursorBounds.source_text"
+        | "Auths.Codec.CursorBounds.source_bounded_bytes"
+        | "Auths.Codec.CursorBounds.source_digest"
+    ) {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.CursorBounds.source_head" => &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head"],
+            "Auths.Codec.CursorBounds.source_payload" => &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload"],
+            "Auths.Codec.CursorBounds.source_collection" => &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection"],
+            "Auths.Codec.CursorBounds.source_null" => &["auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::null"],
+            "Auths.Codec.CursorBounds.source_key" => &["auths_codec::decode::key"],
+            "Auths.Codec.CursorBounds.source_map" => &["auths_codec::decode::map"],
+            "Auths.Codec.CursorBounds.source_array" => &["auths_codec::decode::array"],
+            "Auths.Codec.CursorBounds.source_text" => &["auths_codec::decode::text"],
+            "Auths.Codec.CursorBounds.source_bounded_bytes" => &["auths_codec::decode::bounded_bytes"],
+            "Auths.Codec.CursorBounds.source_digest" => &["auths_codec::decode::digest_bytes"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Every source reader result, including typed refusal, preserves the input and earns a monotone cursor confined within the original input, from an initially confined cursor.",
+            rust_symbols,
+            scope: "Actual primitive/protocol readers for heads, payloads, collections, null, map/key/array, UTF-8 text, bounded byte copies and fixed digests. Refusal cursor positions are retained rather than equated with the original cursor. The collection reader uses the existing fixed-major validity premise; protocol calls discharge it with majors four/five. These are cursor-frame consequences of the exact source reader contracts, not whole-object canonicality or runtime-work claims.",
+            residual_assumptions: &[
+                "The existing pinned Rust/Charon/Aeneas/Lean boundary, foundational axiom allowlist and reviewed scalar, UTF-8, allocation/copy and collection models remain trusted. Initial cursor confinement is explicit and is earned by public reader construction.",
+                "This coding batch is pending elaboration, complete statement/axiom audit, source qualification and source-case execution. Independent collection-work support is not reported as an actual whole-parser cost theorem before the source loop and primitive-cost contracts are composed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if matches!(declaration,
+          "Auths.Codec.SnapshotRefinement.principal_before_exact"
+        | "Auths.Codec.SnapshotRefinement.principal_duplicates_exact"
+        | "Auths.Codec.SnapshotRefinement.principal_earns_uniqueness"
+        | "Auths.Codec.SnapshotRefinement.grant_before_exact"
+        | "Auths.Codec.SnapshotRefinement.grant_duplicates_exact"
+        | "Auths.Codec.SnapshotRefinement.grant_earns_uniqueness"
+    ) {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.SnapshotRefinement.principal_before_exact" => &["auths_model::status_snapshot::principal_matches_before"],
+            "Auths.Codec.SnapshotRefinement.principal_duplicates_exact" => &["auths_model::status_snapshot::principal_has_duplicate"],
+            "Auths.Codec.SnapshotRefinement.principal_earns_uniqueness" => &["auths_model::status_snapshot::principal_has_duplicate"],
+            "Auths.Codec.SnapshotRefinement.grant_before_exact" => &["auths_model::status_snapshot::grant_matches_before"],
+            "Auths.Codec.SnapshotRefinement.grant_duplicates_exact" => &["auths_model::status_snapshot::grant_has_duplicate"],
+            "Auths.Codec.SnapshotRefinement.grant_earns_uniqueness" => &["auths_model::status_snapshot::grant_has_duplicate"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The concrete source snapshot statement scan agrees with independent global duplicate semantics and earns no repeated unsigned statement key on a false result, conditional on the explicit element-equality law.",
+            rust_symbols,
+            scope: "Actual principal/grant snapshot prefix and whole-list source scans. The model uses full statement keys, ignores signature-envelope differences and does not require a partial sorting key to distinguish every statement. The supplied comparison contract must be instantiated and proved for the concrete full unsigned statement projection before composing a complete constructor-validity claim. These are partial scan claims, not a completed snapshot codec, equality-dictionary or constructor refinement.",
+            residual_assumptions: &[
+                "The pinned translation/compiler boundary and reviewed standard-library contracts remain explicit. An element-equality specification is a quantified theorem premise; no opaque Auths implementation, global algorithm axiom or desired whole-scan outcome is assumed.",
+                "This coding batch still requires real extraction, elaboration, complete statement/axiom audit, concrete derived-comparison linkage and constructor/codec composition. The newly broadened model translation inventory and any new foreign leaf must be measured and reviewed before qualification.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if matches!(declaration,
+          "Auths.Product.WritePermit.Refinement.empty_exact"
+        | "Auths.Product.WritePermit.Refinement.can_arm_exact"
+        | "Auths.Product.WritePermit.Refinement.spent_exact"
+        | "Auths.Product.WritePermit.Refinement.arm_exact"
+        | "Auths.Product.WritePermit.Refinement.consume_exact"
+        | "Auths.Product.WritePermit.Refinement.source_preserves_payload"
+        | "Auths.Product.WritePermit.Refinement.source_always_spends"
+        | "Auths.Product.WritePermit.Refinement.source_requires_resources"
+    ) {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Product.WritePermit.Refinement.empty_exact" => &["auths_gateway_kernel::write_permit::empty"],
+            "Auths.Product.WritePermit.Refinement.can_arm_exact" => &["auths_gateway_kernel::write_permit::can_arm"],
+            "Auths.Product.WritePermit.Refinement.spent_exact" => &["auths_gateway_kernel::write_permit::spent"],
+            "Auths.Product.WritePermit.Refinement.arm_exact" => &["auths_gateway_kernel::write_permit::arm"],
+            "Auths.Product.WritePermit.Refinement.consume_exact" => &["auths_gateway_kernel::write_permit::consume"],
+            "Auths.Product.WritePermit.Refinement.source_preserves_payload" => &["auths_gateway_kernel::write_permit::consume"],
+            "Auths.Product.WritePermit.Refinement.source_always_spends" => &["auths_gateway_kernel::write_permit::consume"],
+            "Auths.Product.WritePermit.Refinement.source_requires_resources" => &["auths_gateway_kernel::write_permit::consume"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual write-payload slot refines independent single-assignment and one-use semantics, preserving the captured value and refusing output without the armed state and both supplied resource flags.",
+            rust_symbols,
+            scope: "Exact translated generic slot operations for empty, can-arm, spent, arm and consume, plus source consequences for payload preservation, resource flags and unconditional consumption. The actual gateway claim handler captures its closed request after a successful claim and the send handler consumes this slot before the transport await. This component establishes value flow and per-run consumption; it does not establish native verifier soundness, store acknowledgement/handle identity, lease-generation correctness or the entire async driver correspondence.",
+            residual_assumptions: &[
+                "The pinned Rust/Charon/Aeneas/Lean/compiler and reviewed standard-library boundary remains explicit. Generic payload claims concern translated value semantics; physical allocation/destruction/runtime behavior retains the selected production request type's existing leaf contracts.",
+                "This coding batch is unverified pending translation, elaboration, full declaration/axiom audit, runtime and qualification cases. Independent finite slot histories and their interpreter over real source leaves are not a substitute for the full driver/store/authority reference-monitor composition.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.KeyDerivation.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.KeyDerivation.grant_keys_loop_payload" | "Auths.Codec.KeyDerivation.grant_keys_loop_consistent" | "Auths.Codec.KeyDerivation.grant_keys_loop_exists" => &["auths_codec::canonical_value::derive_grant_keys"],
+            "Auths.Codec.KeyDerivation.principal_status_keys_loop_payload" | "Auths.Codec.KeyDerivation.principal_status_keys_loop_consistent" | "Auths.Codec.KeyDerivation.principal_status_keys_loop_exists" => &["auths_codec::canonical_value::derive_principal_status_keys"],
+            "Auths.Codec.KeyDerivation.grant_status_keys_loop_payload" | "Auths.Codec.KeyDerivation.grant_status_keys_loop_consistent" | "Auths.Codec.KeyDerivation.grant_status_keys_loop_exists" => &["auths_codec::canonical_value::derive_grant_status_keys"],
+            "Auths.Codec.KeyDerivation.grant_keys_payload" | "Auths.Codec.KeyDerivation.grant_keys_consistent" | "Auths.Codec.KeyDerivation.grant_keys_exist" | "Auths.Codec.KeyDerivation.grants_over_limit" => &["auths_codec::canonical_value::derive_grant_keys"],
+            "Auths.Codec.KeyDerivation.principal_status_keys_payload" | "Auths.Codec.KeyDerivation.principal_status_keys_consistent" | "Auths.Codec.KeyDerivation.principal_status_keys_exist" | "Auths.Codec.KeyDerivation.principal_status_over_limit" => &["auths_codec::canonical_value::derive_principal_status_keys"],
+            "Auths.Codec.KeyDerivation.grant_status_keys_payload" | "Auths.Codec.KeyDerivation.grant_status_keys_consistent" | "Auths.Codec.KeyDerivation.grant_status_keys_exist" | "Auths.Codec.KeyDerivation.grant_status_over_limit" => &["auths_codec::canonical_value::derive_grant_status_keys"],
+            "Auths.Codec.KeyDerivation.grant_sort_key_exact" => &["auths_codec::canonical_value::grant_sort_key"],
+            "Auths.Codec.KeyDerivation.principal_status_sort_key_exact" => &["auths_codec::canonical_value::principal_status_sort_key"],
+            "Auths.Codec.KeyDerivation.grant_status_sort_key_exact" => &["auths_codec::canonical_value::grant_status_sort_key"],
+            _ => return None,
+        };
+        let claim_text = if declaration.ends_with("_loop_exists") || declaration.ends_with("_keys_exist") {
+            "Actual key derivation returns successfully under its explicit capacity/count bounds and local per-record source-ID-success condition; this condition is later earned from a first successful normalization run."
+        } else {
+            "Successful actual key derivation preserves the complete record payload sequence and earns each carried ID's association with its actual source hash call; oversized collections are refused before key allocation and named selectors return the carried ID."
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Three concrete grant/principal-status/grant-status derivation loops and named selectors. Payload, consistency and refusal consequences use actual source success, without a successful incoming hash, expected ID, key uniqueness or hash-injectivity premise. Conditional existence separately quantifies count/capacity and actual per-member ID-success requirements; it must not be advertised as unconditional hash or decoder totality. The loop invariant exposes its existing prefix and bounded capacity. Independent ID/preimage meaning and whole-object inverse/work bounds remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler, the exact same-source SHA owner and explicitly reviewed positive-vector pop/reverse/push interfaces. The arbitrary SHA primitive instance may fail or diverge; actual-success payload claims do not silently assume it is total.",
+                "Fresh protocol extraction, loop/callback ABI review, compiled statement/type/axiom audit and clean reproduction remain pending. This coding batch establishes no current compiled claim or foreign-model count.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.RecordNormalization.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.RecordNormalization.grant_sort_exact" => &["auths_codec::canonical_value::sort_grant_keys"],
+            "Auths.Codec.RecordNormalization.principal_status_sort_exact" => &["auths_codec::canonical_value::sort_principal_status_keys"],
+            "Auths.Codec.RecordNormalization.grant_status_sort_exact" => &["auths_codec::canonical_value::sort_grant_status_keys"],
+            "Auths.Codec.RecordNormalization.grants_exact" | "Auths.Codec.RecordNormalization.grants_permutation" | "Auths.Codec.RecordNormalization.grants_count" | "Auths.Codec.RecordNormalization.grants_fields" | "Auths.Codec.RecordNormalization.grants_normal_form" | "Auths.Codec.RecordNormalization.grants_ordered" | "Auths.Codec.RecordNormalization.grants_ties" | "Auths.Codec.RecordNormalization.grants_exist_when_ids_succeed" | "Auths.Codec.RecordNormalization.grants_idempotent" => &["auths_codec::canonical_value::normalize_grants"],
+            "Auths.Codec.RecordNormalization.principal_status_exact" | "Auths.Codec.RecordNormalization.principal_status_permutation" | "Auths.Codec.RecordNormalization.principal_status_count" | "Auths.Codec.RecordNormalization.principal_status_fields" | "Auths.Codec.RecordNormalization.principal_status_normal_form" | "Auths.Codec.RecordNormalization.principal_status_ordered" | "Auths.Codec.RecordNormalization.principal_status_ties" | "Auths.Codec.RecordNormalization.principal_status_exist_when_ids_succeed" | "Auths.Codec.RecordNormalization.principal_status_idempotent" => &["auths_codec::canonical_value::normalize_principal_status"],
+            "Auths.Codec.RecordNormalization.grant_status_exact" | "Auths.Codec.RecordNormalization.grant_status_permutation" | "Auths.Codec.RecordNormalization.grant_status_count" | "Auths.Codec.RecordNormalization.grant_status_fields" | "Auths.Codec.RecordNormalization.grant_status_normal_form" | "Auths.Codec.RecordNormalization.grant_status_ordered" | "Auths.Codec.RecordNormalization.grant_status_ties" | "Auths.Codec.RecordNormalization.grant_status_exist_when_ids_succeed" | "Auths.Codec.RecordNormalization.grant_status_idempotent" => &["auths_codec::canonical_value::normalize_grant_status"],
+            _ => return None,
+        };
+        let claim_text = if declaration.ends_with("_idempotent") {
+            "After actual signed-record normalization succeeds, repeating it succeeds with exactly the same complete value; second-run success and unconditional hash totality are not assumed."
+        } else if declaration.ends_with("_exist_when_ids_succeed") {
+            "Actual signed-record normalization returns successfully under the explicitly quantified count bound and actual per-member source-ID-success condition."
+        } else {
+            "Actual signed-record normalization composes source ID derivation, stable ID-byte sorting and consuming projection, retaining complete records, equal-ID subsequences, multiplicity, counts and every record predicate."
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Three closed source normalization paths for signed grants, principal statuses and grant statuses. Source success exposes actual derived keys and their real hash-call association. Their normal forms, order and exact tie subsequences use the independent stable-sort algorithm over partial observations of source IDs; this is not independent ID/preimage meaning. Conditional existence exposes local ID-success premises. Repeated-success idempotence earns all local ID outcomes and bounds from the first source run and does not assume second-run success. No key uniqueness, expected normalization outcome, hash injectivity or opaque Auths sorting loop is assumed. Independent digest/preimage semantics, constructor validity, arbitrary-input totality/work and full canonical wire inverses are additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation boundary, same-source SHA owner, positive-vector isomorphism and reviewed stateless stable-key sorting contract. The actual function-item callback ABI and pop/reverse/push interfaces require fresh extraction and foreign-model review before qualification.",
+                "This coding batch is unverified: actual generated interfaces, Lean elaboration, full statement/type/axiom audit, runtime/reference/corpus cases and clean reproduction remain pending. It establishes no current compiled count or completed milestone.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.SnapshotOrdering.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.SnapshotOrdering.principal_source_compare" => &["auths_model::status_snapshot::principal_order"],
+            "Auths.Codec.SnapshotOrdering.grant_source_compare" => &["auths_model::status_snapshot::grant_order"],
+            "Auths.Codec.SnapshotOrdering.principal_sort_exact" => &["auths_model::status_snapshot::sort_principal"],
+            "Auths.Codec.SnapshotOrdering.grant_sort_exact" => &["auths_model::status_snapshot::sort_grant"],
+            "Auths.Codec.SnapshotOrdering.principal_constructor_statements" | "Auths.Codec.SnapshotOrdering.principal_constructor_ordered" | "Auths.Codec.SnapshotOrdering.principal_constructor_fields" => &["auths_model::PrincipalStatusSnapshot::with_trust"],
+            "Auths.Codec.SnapshotOrdering.grant_constructor_statements" | "Auths.Codec.SnapshotOrdering.grant_constructor_ordered" | "Auths.Codec.SnapshotOrdering.grant_constructor_fields" => &["auths_model::GrantStatusSnapshot::with_trust"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual snapshot comparators implement their independent partial field order, and successful source constructors retain precisely the stably ordered complete statements and earn primary ordering.",
+            rust_symbols,
+            scope: "Principal and grant snapshot comparison, consuming stable-sort boundaries and successful-constructor statement projection. Primary key equality need not imply full unsigned-statement or signed-record equality. State, windows, extensions and signatures are complete preserved payloads. No hash injectivity or desired full-sort/constructor result is assumed. Other snapshot validity, checkpoint/trust normalization, totality/work and complete wire inverses remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler boundary, exact concrete Ord leaves and the explicitly restricted total stateless lawful comparison-sort interface. The new candidate standard sort_by ABI, model classification and foreign inventory review must be earned against fresh extraction; it is not an opaque Auths algorithm or a currently reviewed additional model.",
+                "All new proof bodies and qualification cases remain unverified pending extraction, elaboration, full statement/type/axiom audit and clean reproduction. No completed milestone or current compiled count follows from this source batch.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.OwnedRecords.") {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual consuming key-discard loop returns exactly the ordered list of complete record payloads, preserving length and every record predicate.",
+            rust_symbols: &["auths_codec::canonical_value::unkey_records"],
+            scope: "Generic data projection used by the three concrete grant/principal-status/grant-status normalizers. The full Auths loop decreases remaining vector length, preserves the output-plus-remaining capacity invariant and moves complete payloads. No Clone, key injectivity, signature validity, successful-loop result or opaque Auths normalization function is assumed. This projection does not establish the preceding key derivation or stable sorting semantics, nor whole-object totality/work.",
+            residual_assumptions: &[
+                "Pinned compiler/Charon/Aeneas/Lean and the positive-vector isomorphism. The concrete standard pop model, reverse interface and push interface require exact fresh-extraction ABI and foreign-model review; allocation and native memory ownership remain within those explicit standard-operation contracts.",
+                "The data theorem's generic logical carriers are instantiated by the three closed protocol ID/record families. It is not a claim about arbitrary Rust destructor callbacks, allocator wall time or OS out-of-memory behavior.",
+                "Actual generated loop signatures, source/interface review, compiled statement/type/axiom audit and clean reproduction remain pending. No current compiled claim or foreign-model count is established by this coding batch.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.CanonicalIntegrity.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.CanonicalIntegrity.signed_approval_retains" => &["auths_codec::canonical_value::checked_signed_approval"],
+            "Auths.Codec.CanonicalIntegrity.signed_observation_retains" => &["auths_codec::canonical_value::checked_signed_observation"],
+            "Auths.Codec.CanonicalIntegrity.bounded_policy_retains" => &["auths_codec::canonical_value::checked_bounded_policy"],
+            "Auths.Codec.CanonicalIntegrity.verification_result_retains" => &["auths_codec::canonical_value::checked_verification_result"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Successful actual integrity construction returns an immutable carrier whose complete model projection is exactly the input model.",
+            rust_symbols,
+            scope: "Four concrete shipping integrity constructors for signed approvals, signed observations, bounded-policy bodies and portable results. The source success premise is actual construction, with no assumed hash result, expected encoding, decoder success, trusted flag or hash injectivity. The complete input is retained; this does not prove that the called integrity checks implement their independent specification or terminate within bounds.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler and reviewed container/equality interfaces; any SHA call retains the exact same-source owner linkage and explicit cryptographic contract.",
+                "Actual extraction, source/interface review, compiled statement/type/axiom audit and clean reproduction remain pending. Independent constructor validity, digest semantics, totality/work, useful inverses and composed authorization are separate obligations.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.CanonicalEncoding.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.CanonicalEncoding.bundle_exact" => &["auths_codec::encode::encode_bundle", "auths_codec::encode::encode_bundle_value"],
+            "Auths.Codec.CanonicalEncoding.context_exact" => &["auths_codec::encode::encode_verifier_context", "auths_codec::encode::encode_verifier_context_value"],
+            "Auths.Codec.CanonicalEncoding.principal_snapshot_exact" => &["auths_codec::encode::encode_principal_status_snapshot", "auths_codec::encode::encode_principal_status_snapshot_value"],
+            "Auths.Codec.CanonicalEncoding.grant_snapshot_exact" => &["auths_codec::encode::encode_grant_status_snapshot", "auths_codec::encode::encode_grant_status_snapshot_value"],
+            "Auths.Codec.CanonicalEncoding.signed_approval_exact" => &["auths_codec::approval::encode_signed_approval", "auths_codec::approval::encode_signed_approval_value"],
+            "Auths.Codec.CanonicalEncoding.signed_observation_exact" => &["auths_codec::observation::encode_signed_observation", "auths_codec::observation::encode_signed_observation_value"],
+            "Auths.Codec.CanonicalEncoding.result_exact" => &["auths_codec::encode::encode_verification_result", "auths_codec::encode::encode_verification_result_value"],
+            "Auths.Codec.CanonicalEncoding.bounded_policy_exact" => &["auths_codec::bounded_policy::encode_bounded_policy_commitment", "auths_codec::bounded_policy::encode_bounded_policy_commitment_value"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual public canonical encoder projects the complete immutable carrier and calls exactly the same borrowed value writer used at its commitment or pre-integrity decoding boundary.",
+            rust_symbols,
+            scope: "Five actual source equations for bundle, context, signed approval, portable result and bounded-policy encoding. Each retains the full Result behavior of the single borrowed writer, with no expected bytes, successful-encoding premise or alternate encoding algorithm. These equations alone establish neither constructor validity nor an inverse or all-input resource bound.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler and the reviewed positive-container and standard-library interfaces. Any called SHA implementation remains connected through the exact separately translated source owner and its explicit implementation/security contract.",
+                "Actual extraction, generated interface review, compiled statement/type/axiom audit and clean two-run reproduction remain pending. Constructor integrity/normalization and full E1.1-E1.4 remain separate obligations.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolReencoding.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolReencoding.decode_bundle_reencodes" => &["auths_codec::decode::decode_bundle", "auths_codec::encode::encode_bundle"],
+            "Auths.Codec.ProtocolReencoding.decode_grant_statement_reencodes" => &["auths_codec::decode::decode_grant_statement", "auths_codec::encode::encode_grant_statement"],
+            "Auths.Codec.ProtocolReencoding.decode_signed_grant_reencodes" => &["auths_codec::decode::decode_signed_grant", "auths_codec::encode::encode_signed_grant"],
+            "Auths.Codec.ProtocolReencoding.decode_signed_action_reencodes" => &["auths_codec::decode::decode_signed_action", "auths_codec::encode::encode_signed_action"],
+            "Auths.Codec.ProtocolReencoding.decode_action_envelope_reencodes" => &["auths_codec::decode::decode_action_envelope", "auths_codec::encode::encode_action_envelope"],
+            "Auths.Codec.ProtocolReencoding.decode_principal_status_statement_reencodes" => &["auths_codec::decode::decode_principal_status_statement", "auths_codec::encode::encode_principal_status_statement"],
+            "Auths.Codec.ProtocolReencoding.decode_signed_principal_status_reencodes" => &["auths_codec::decode::decode_signed_principal_status", "auths_codec::encode::encode_signed_principal_status"],
+            "Auths.Codec.ProtocolReencoding.decode_grant_status_statement_reencodes" => &["auths_codec::decode::decode_grant_status_statement", "auths_codec::encode::encode_grant_status_statement"],
+            "Auths.Codec.ProtocolReencoding.decode_signed_grant_status_reencodes" => &["auths_codec::decode::decode_signed_grant_status", "auths_codec::encode::encode_signed_grant_status"],
+            "Auths.Codec.ProtocolReencoding.decode_principal_status_snapshot_reencodes" => &["auths_codec::decode::decode_principal_status_snapshot", "auths_codec::encode::encode_principal_status_snapshot"],
+            "Auths.Codec.ProtocolReencoding.decode_grant_status_snapshot_reencodes" => &["auths_codec::decode::decode_grant_status_snapshot", "auths_codec::encode::encode_grant_status_snapshot"],
+            "Auths.Codec.ProtocolReencoding.decode_canonical_action_reencodes" => &["auths_codec::decode::decode_canonical_action", "auths_codec::encode::encode_canonical_action"],
+            "Auths.Codec.ProtocolReencoding.decode_verification_result_reencodes" => &["auths_codec::decode::decode_verification_result", "auths_codec::encode::encode_verification_result"],
+            "Auths.Codec.ProtocolReencoding.decode_verifier_context_reencodes" => &["auths_codec::decode::decode_verifier_context", "auths_codec::encode::encode_verifier_context"],
+            "Auths.Codec.ProtocolReencoding.decode_approval_requirements_reencodes" => &["auths_codec::approval::decode_approval_requirements", "auths_codec::approval::encode_approval_requirements"],
+            "Auths.Codec.ProtocolReencoding.decode_approval_statement_reencodes" => &["auths_codec::approval::decode_approval_statement", "auths_codec::approval::encode_approval_statement"],
+            "Auths.Codec.ProtocolReencoding.decode_signed_approval_reencodes" => &["auths_codec::approval::decode_signed_approval", "auths_codec::approval::encode_signed_approval"],
+            "Auths.Codec.ProtocolReencoding.decode_signed_observation_reencodes" => &["auths_codec::observation::decode_signed_observation", "auths_codec::observation::encode_signed_observation"],
+            "Auths.Codec.ProtocolReencoding.decode_observation_requirements_reencodes" => &["auths_codec::observation::decode_observation_requirements", "auths_codec::observation::encode_observation_requirements"],
+            "Auths.Codec.ProtocolReencoding.decode_bounded_policy_commitment_reencodes" => &["auths_codec::bounded_policy::decode_bounded_policy_commitment", "auths_codec::bounded_policy::encode_bounded_policy_commitment"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual public decoder acceptance implies success of the actual matching encoder with exactly the complete accepted input bytes.",
+            rust_symbols,
+            scope: "Twenty standalone protocol-object wrappers, including recursive proof/context objects, signed grants/actions/status/approvals/observations, requirement extensions, bounded-policy payload and portable output. These are conditional byte-identity necessity properties earned from the actual constructor/encoder/gate call graph. They do not establish inner-parser totality/work, constructor-validity closure, semantic adequacy, or useful encode/decode completeness; those remain separate E1 obligations.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler, reviewed standard-container/equality interfaces and the positive-vector isomorphism. Source-local SHA calls link exactly to the separately translated same-source owner, carrying its explicit foreign primitive implementation parameter; no hash injectivity or collision assumption is used to derive byte equality here.",
+                "All code in this batch is unverified. Actual translation, external-interface review, complete declaration/axiom/type audit, elaboration, whole-object inverse/validity/work proofs, useful cases and native/SDK corpus gates are still required before qualification.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.UnsignedLeaves.") {
+        let name = declaration.rsplit('.').next()?;
+        let rust_symbols: &[&str] = match name {
+            "permission_exact" => &["auths_codec::encode::encode_permission"],
+            "budget_exact" => &["auths_codec::encode::encode_budget"],
+            "optional_budget_exact" => &["auths_codec::encode::encode_optional_budget"],
+            "digest_exact" => &["auths_codec::encode::bytes"],
+            "optional_digest_exact" => &["auths_codec::encode::encode_optional_digest"],
+            "extension_exact" => &["auths_codec::encode::encode_extension"],
+            "signature_exact" => &["auths_codec::encode::encode_signature"],
+            "fact_value_exact" => &["auths_codec::observation::encode_fact_value"],
+            "fact_exact" => &["auths_codec::observation::encode_observation_fact"],
+            "attachment_exact" => &["auths_codec::encode::encode_attachment"],
+            "status_policy_exact" => &["auths_codec::encode::encode_status_policy"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual concrete unsigned-object leaves append exactly the independent field schema and return success under explicit UTF-8 and intermediate-space conditions.",
+            rust_symbols,
+            scope: "Actual permission, budget/absence, fixed digest/absence, extension, descriptor-plus-signature, typed fact, attachment metadata and status-policy writers. Complete fields, variant tags and three attachment flags remain distinct. Conditions describe inputs and capacity rather than successful source calls, expected bytes, trusted fields or cryptographic authenticity. Logical value/allocation semantics retain the explicit standard-library/host boundary; full constructor/decoder validity and arbitrary-object totality/work remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, positive-vector isomorphism and transparent scalar, UTF-8, borrowing and standard-container interfaces. No Auths leaf or policy algorithm is replaced by an opaque function. Physical allocation/OOM and native platform constraints remain explicit boundary obligations.",
+                "These bodies are unverified pending fresh complete-protocol extraction, generated accessor/backward-borrow ABI review, elaboration, complete statement/type/axiom audit, runtime/frozen-reference cases and clean reproduction. No current compiled or reviewed-model count is established.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolArrayWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolArrayWriters.permissions_exact" => &["auths_codec::encode::encode_permission_set"],
+            "Auths.Codec.ProtocolArrayWriters.extensions_exact" => &["auths_codec::encode::encode_extensions"],
+            "Auths.Codec.ProtocolArrayWriters.attachments_exact" => &["auths_codec::encode::encode_attachments"],
+            "Auths.Codec.ProtocolArrayWriters.facts_exact" => &["auths_codec::observation::encode_observation_facts"],
+            "Auths.Codec.ProtocolArrayWriters.body_digests_exact" => &["auths_codec::encode::encode_body_digests"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual protocol array writers return success and append exactly their length head and every independent element encoding in source order, retaining multiplicity under explicit field/space conditions.",
+            rust_symbols,
+            scope: "Five concrete actual recursive indexed collection loops over permissions, extensions, attachments, observation facts and fixed body digests. Each proof unfolds the real loop equation, earns indexing/increment bounds, invokes proved concrete element writers and decreases remaining list length. Stopped-error component equations preserve the existing error/output prefix. No callback law for an opaque Auths writer, desired whole-loop result or successful-loop premise is supplied. General invalid-input decoder refusal and complete object inverses/work remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned extraction/compiler, exact native indexing/increment and positive-container interfaces, and the independently bounded source element writers. The actual generated recursive/backward-borrow result layout must be reviewed against fresh translation.",
+                "All new loop bodies and qualification cases remain unverified until extraction, interface review, elaboration, full statement/type/axiom audit, native/frozen-reference cases and clean reproduction. Counts and completed milestones are not inferred from the source batch.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolTextWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolTextWriters.principal_ids_exact" => &["auths_codec::text_list::encode_principal_ids"],
+            "Auths.Codec.ProtocolTextWriters.principal_methods_exact" => &["auths_codec::text_list::encode_principal_methods"],
+            "Auths.Codec.ProtocolTextWriters.resource_ids_exact" => &["auths_codec::text_list::encode_resource_ids"],
+            "Auths.Codec.ProtocolTextWriters.signature_suites_exact" => &["auths_codec::text_list::encode_signature_suites"],
+            "Auths.Codec.ProtocolTextWriters.evidence_types_exact" => &["auths_codec::text_list::encode_evidence_types"],
+            "Auths.Codec.ProtocolTextWriters.status_methods_exact" => &["auths_codec::text_list::encode_status_methods"],
+            "Auths.Codec.ProtocolTextWriters.assurance_claims_exact" => &["auths_codec::text_list::encode_assurance_claims"],
+            "Auths.Codec.ProtocolTextWriters.assurance_implications_exact" => &["auths_codec::text_list::encode_assurance_implications"],
+            "Auths.Codec.ProtocolTextWriters.resource_matchers_exact" => &["auths_codec::text_list::encode_resource_matchers"],
+            "Auths.Codec.ProtocolTextWriters.budget_algebras_exact" => &["auths_codec::text_list::encode_budget_algebras"],
+            "Auths.Codec.ProtocolTextWriters.extension_ids_exact" => &["auths_codec::text_list::encode_extension_ids"],
+            "Auths.Codec.ProtocolTextWriters.profile_policies_exact" => &["auths_codec::text_list::encode_profile_policies"],
+            "Auths.Codec.ProtocolTextWriters.observation_schemas_exact" => &["auths_codec::text_list::encode_observation_schemas"],
+            "Auths.Codec.ProtocolTextWriters.audiences_exact" => &["auths_codec::text_list::encode_audiences"],
+            "Auths.Codec.ProtocolTextWriters.trust_anchor_ids_exact" => &["auths_codec::text_list::encode_trust_anchor_ids"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Each actual concrete identifier-list writer appends its exact array head and complete UTF-8 values in source order under explicit per-member borrowing and intermediate-space bounds.",
+            rust_symbols,
+            scope: "Fifteen concrete typed source writer families, including audiences and registry/trust identifiers. Each source as_str operation and recursive indexed loop is unfolded; no user-supplied parser, projector, writer callback or expected source output is assumed. Order, counts and multiplicity are retained. These encoding facts do not confer identifier validity, registry membership, signature acceptance or authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent UTF-8, indexing/increment and positive-vector/container interfaces. Source constructor validity must earn the member bounds at callers; compiled single-field aliases do not themselves supply those invariants.",
+                "All bodies remain unverified pending actual extraction/ABI review, elaboration, complete declaration/type/axiom audit, shared-language/frozen-reference cases and clean reproduction. Historical counts remain historical.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Crypto.UnsignedCollections.constraint_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual body-constraint writer appends the exact independent any-body, exact-digest or ordered allowed-digest variant and returns success under its explicit intermediate-space envelope.",
+            rust_symbols: &["auths_codec::encode::encode_constraint"],
+            scope: "All three source variants, including the concrete source array loop for allowed digests. Variant tags, count, complete fixed-size digest bytes and multiplicity are preserved; no hash injectivity, desired encoding or successful source call is a premise. Constructor set validity and complete decoder/inverse/work closure remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, exact source scalar/head/array/element writer refinements and transparent native/container interfaces. All new bodies are unverified until fresh extraction, generated-interface review, elaboration, full statement/type/axiom audit and clean reproduction.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Codec.ProtocolEncoderState.u32_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual u32 encoder appends exactly the independent shortest unsigned CBOR head under an explicit nine-byte intermediate-space envelope.",
+            rust_symbols: &["auths_codec::cbor::{auths_codec::cbor::Encoder}::u32"],
+            scope: "Every represented u32 and existing encoder prefix. The actual widening conversion and source u64/head writer are composed; neither expected source bytes nor a successful writer is a premise.",
+            residual_assumptions: &[
+                "Pinned translation/compiler and transparent scalar/vector interfaces. The new protocol body is unverified pending fresh generated-interface review, elaboration, complete compiled statement/type/axiom audit and clean reproduction. Physical OOM remains outside the logical model.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.RequirementLeaves.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.RequirementLeaves.member_values_exact" => &["auths_codec::observation::encode_member_values"],
+            "Auths.Crypto.RequirementLeaves.subject_exact" => &["auths_codec::observation::encode_observation_subject"],
+            "Auths.Crypto.RequirementLeaves.condition_exact" => &["auths_codec::observation::encode_condition"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual observation subject, membership-value and condition writers preserve every independent variant/field byte and source collection order under explicit UTF-8 and computed intermediate-space conditions.",
+            rust_symbols,
+            scope: "Both subject variants and all four condition tests, including full literal type/value, exact source/target field names, inclusive range endpoints and complete membership values. The actual indexed membership loop composes concrete source fact-value writers; no Auths callback, source-success flag or desired output is assumed. Condition validity, evaluation meaning, decoder inverses and authorization are separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler and transparent standard scalar, UTF-8, indexing and vector interfaces. Actual recursive/backward-borrow/accessor ABI review and physical allocation model remain explicit.",
+                "All new bodies and source helper factorizations are unverified pending fresh extraction, elaboration, full compiled statement/type/axiom audit, frozen-reference/shared-language wire cases and clean reproduction. No refreshed count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.RequirementWriters.") {
+        let rust_symbols: &[&str] = match name {
+            "conditions_exact" => &["auths_codec::observation::encode_conditions"],
+            "approval_exact" => &["auths_codec::approval::encode_approval_requirement_to"],
+            "observation_exact" => &["auths_codec::observation::encode_requirement_to"],
+            "approval_encoder" | "approval_encoder_valid" => &["auths_codec::approval::encode_approval_requirement"],
+            "observation_encoder" | "observation_encoder_valid" => &["auths_codec::observation::encode_observation_requirement"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual approval and observation requirement writers and empty-encoder wrappers return complete independent schemas under input-field and computed writer-space conditions; independent validity earns their field conditions.",
+            rust_symbols,
+            scope: "Complete ordered approver lists and thresholds, observer/schema/subject/max-age fields and every ordered condition. The actual condition collection loop composes concrete source leaves. Source success and desired bytes are not premises. Constructor validity separately bounds allocation envelopes; these valid-domain encoder facts do not establish public decoder validity, canonical collection normalization, inverse/totality/work or requirement satisfaction.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent native scalar/string/vector/indexing interfaces. Actual source accessors, recursive loops and backward-borrow ABI must be reviewed after generation; physical OOM remains outside the logical model.",
+                "The batch remains unverified pending fresh extraction, elaboration, full compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. All E1/E2/E5/M6 completion gates remain independently required.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.RequirementIdentifiers.") {
+        let rust_symbols: &[&str] = match name {
+            "approval_total" | "approval_valid_exact" => &["auths_codec::hash::approval_requirement_id"],
+            "observation_total" | "observation_valid_exact" => &["auths_codec::hash::observation_requirement_id"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual requirement ID callers compose complete independent requirement bytes, registered identifier tags and the explicitly contracted SHA function; constructor field limits earn native space for useful valid-domain exact results.",
+            rust_symbols,
+            scope: "Approval and observation requirements retain all members, names, threshold/age values and conditions. Typed result bodies use explicit writer space; the valid-domain consequences derive writer and u64/usize/isize framing room from actual constructor bounds. No successful encoder/ID, allocation-fit flag or expected intermediate bytes is supplied to the useful consequence. Hash injectivity, authenticity, downstream requirement matching and authorization are not inferred.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, reviewed transparent scalar/string/vector interfaces, exact same-source SHA owner linkage and an explicit functional SHA/output-representation contract. Actual constructors and public decoders must still earn the independent input-validity predicates where consumed.",
+                "All new proof bodies remain unverified pending actual extraction/ABI review, elaboration, full compiled statements/types/axioms, native/frozen/shared-language cases and clean reproduction. No qualified milestone or current compiled/model count follows from writing them.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.PlanWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.PlanWriters.plan_exact" => &["auths_codec::encode::encode_authorization_plan_to"],
+            "Auths.Crypto.PlanWriters.plan_encoder" => &["auths_codec::encode::encode_authorization_plan"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual recursive authorization-plan writer and empty-encoder wrapper emit the complete independent tree grammar under a computed writer-space envelope.",
+            rust_symbols,
+            scope: "Every represented finite plan: exact proof-reference bytes, all/any/threshold tags, threshold word, child order and multiplicity. The source node function and concrete indexed member loop are composed by structural induction on the positive recursive carrier; the public statements require no source callback, recursive success or expected bytes. Model plan validity and deployment node/depth/branching limits, public decoder inverses/work and authorization remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, positive-vector isomorphism and transparent native scalar/index/container interfaces. Actual mutual-recursion/recursor/backward-borrow ABI review and host stack/allocation boundaries remain explicit; logical byte envelopes do not establish physical stack/OOM behavior.",
+                "All new bodies and helper factorizations remain unverified pending fresh extraction, elaboration, full compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. No current count or whole E1/E5/M6 completion claim is made.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.PlanIdentifier.") {
+        if !matches!(declaration,
+            "Auths.Crypto.PlanIdentifier.plan_total"
+            | "Auths.Crypto.PlanIdentifier.plan_exact"
+            | "Auths.Crypto.PlanIdentifier.plan_refuses")
+        {
+            return None;
+        }
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual plan-ID caller returns exact independently serialized tree/identifier-framing SHA output or classified LimitExceeded under an explicit writer-space envelope and functional SHA contract.",
+            rust_symbols: &["auths_codec::hash::plan_id"],
+            scope: "Complete finite source plans, including every proof reference, aggregate tag, threshold and ordered child. Actual plan encoding success is earned by structural source refinement. Native framing admissibility determines exact output/refusal; a successful source call, expected encoder bytes or hash injectivity is not assumed. Deployment plan validity and downstream action/plan/authority binding are additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent positive-vector/scalar/index interfaces, exact same-source primitive-owner linkage and the explicit SHA implementation-meets-function/output-representation contract. Physical host stack/allocation behavior is outside the logical byte model.",
+                "This source batch is unverified pending fresh actual recursive ABI/model review, elaboration, complete compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. Historical qualified results remain historical.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Crypto.EvidenceArrays.evidence_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual evidence-record array writer returns success and appends complete independent records in exact source order under per-record UTF-8 and computed native-space conditions.",
+            rust_symbols: &["auths_codec::encode::encode_evidence_objects"],
+            scope: "The actual recursive indexed loop composes the concrete source evidence writer and preserves count, order, multiplicity, declared IDs and every payload byte. No callback law, desired output or successful source call is a premise. Content-ID consistency, evidence authentication and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent scalar, UTF-8, indexing and positive-vector interfaces. Native allocation model review and physical OOM remain explicit boundaries.",
+                "The helper factorization and new proof bodies are unverified pending fresh actual extraction/backward-borrow ABI review, elaboration, complete compiled statement/type/axiom audit, frozen/shared-language cases and clean reproduction. No current count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.SignedObjectWriters.") {
+        let (family, kind) = if let Some(family) = name.strip_suffix("_canonical_projection") {
+            (family, "canonical")
+        } else if let Some(family) = name.strip_suffix("_canonical_encoder") {
+            (family, "canonical")
+        } else if let Some(family) = name.strip_suffix("_encoder_valid") {
+            (family, "encoder")
+        } else if let Some(family) = name.strip_suffix("_encoder") {
+            (family, "encoder")
+        } else {
+            (name.strip_suffix("_exact")?, "writer")
+        };
+        let (writer, encoder, canonical): (&[&str], &[&str], &[&str]) = match family {
+            "grant" => (&["auths_codec::encode::encode_signed_grant_to"], &["auths_codec::encode::encode_signed_grant"], &[]),
+            "action" => (&["auths_codec::encode::encode_signed_action_to"], &["auths_codec::encode::encode_signed_action"], &[]),
+            "principal_status" => (&["auths_codec::encode::encode_signed_principal_status_to"], &["auths_codec::encode::encode_signed_principal_status"], &[]),
+            "grant_status" => (&["auths_codec::encode::encode_signed_grant_status_to"], &["auths_codec::encode::encode_signed_grant_status"], &[]),
+            "approval" => (&["auths_codec::approval::encode_signed_approval_to"], &["auths_codec::approval::encode_signed_approval_value"], &["auths_codec::approval::encode_signed_approval"]),
+            "observation" => (&["auths_codec::observation::encode_signed_observation_to"], &["auths_codec::observation::encode_signed_observation_value"], &["auths_codec::observation::encode_signed_observation"]),
+            _ => return None,
+        };
+        let rust_symbols = match kind {
+            "writer" => writer,
+            "encoder" => encoder,
+            _ if !canonical.is_empty() => canonical,
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "All six complete signed-record writers and empty-encoder wrappers return the independent unsigned/signature/control-evidence schema under explicit field and computed intermediate-space conditions; model validity earns the field conditions.",
+            rust_symbols,
+            scope: "Complete unsigned statement, all descriptor fields, every signature byte and full ordered control-evidence records where present. No source encoding success, desired output or trusted signature is assumed. Approval/observation canonical-wrapper equations expose actual complete-value projections; the projection-existence consequences earn that source accessor result and retain explicit stored-model validity/space conditions. They do not establish validity or content-ID consistency merely from the nominal carrier type. Constructor/public-decoder closure, inverse/totality/work, signature/key binding, authenticity and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, positive-vector isomorphism and transparent scalar, UTF-8, indexing and container interfaces. Actual getter, generic canonical projection and recursive/backward-borrow ABI review remains mandatory; logical byte envelopes do not prove physical OOM behavior.",
+                "All bodies in this batch remain unverified pending fresh extraction, elaboration, full compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No compiled/model count or completed E1/E2/E5/M6 milestone follows from writing them.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Crypto.SignedCommitments.approval_digest_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual approval commitment hashes exactly the complete independent signed-approval bytes under a valid input, computed encoding-space envelope and explicit functional SHA/output-representation contract.",
+            rust_symbols: &["auths_codec::hash::approval_digest"],
+            scope: "The complete signed object includes the unsigned statement, descriptor, signature and all control evidence. Actual encoding success is earned by the concrete source writer proof. This commitment uses raw SHA over the signed bytes, matching the source contract; no identifier framing, successful hash/encoder premise, collision resistance, signature authenticity or downstream approval authority is inferred.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, transparent native string/scalar/vector interfaces, exact same-source primitive-owner delegation and the explicit SHA implementation-meets-function/output-representation contract. Actual constructor/public-decoder validity closure and physical allocation boundaries remain separate.",
+                "The body is unverified pending fresh source/interface/owner review, elaboration, full compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. No qualification or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleLeaves.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleLeaves.header_exact" => &["auths_codec::encode::encode_bundle_header"],
+            "Auths.Crypto.BundleLeaves.reference_exact" => &["auths_codec::encode::encode_statement_ref"],
+            "Auths.Crypto.BundleLeaves.evidence_ids_exact" => &["auths_codec::encode::encode_evidence_ids"],
+            "Auths.Crypto.BundleLeaves.binding_exact" => &["auths_codec::encode::encode_binding"],
+            "Auths.Crypto.BundleLeaves.optional_body_exact" => &["auths_codec::encode::encode_optional_body"],
+            "Auths.Crypto.BundleLeaves.body_projection" => &["auths_model::{auths_model::ProofBundle}::canonical_body"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual bundle header, typed statement-reference, evidence-ID array and control-binding writers append their complete independent schemas and return success under explicit intermediate-space bounds.",
+            rust_symbols,
+            scope: "Every represented native header scalar, all four reference variants and complete fixed-size IDs, and every ordered binding evidence ID. The actual indexed array loop is refined rather than assumed. Source success, a desired byte vector or an opaque Auths writer is not a premise. These are encoding equations: header flag validity, binding constructor order/uniqueness, evidence truth, whole-bundle normalization and decoder/authority composition remain separate.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, exact scalar/head/array/byte writer refinements and transparent native indexing/container interfaces. Actual helper/accessor/loop/backward-borrow ABI review and physical allocation boundaries remain explicit.",
+                "All new source/proof bodies are unverified pending fresh extraction, elaboration, full compiled statement/type/axiom audit, frozen/shared-language cases and clean reproduction. The complete independent bundle grammar/length model does not itself prove the actual bundle writer or close E1/E5/M6.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleSelectors.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleSelectors.grant_key" => &["auths_codec::encode::grant_ref_sort_key"],
+            "Auths.Crypto.BundleSelectors.principal_status_key" => &["auths_codec::encode::principal_status_ref_sort_key"],
+            "Auths.Crypto.BundleSelectors.grant_status_key" => &["auths_codec::encode::grant_status_ref_sort_key"],
+            "Auths.Crypto.BundleSelectors.action_key" => &["auths_codec::encode::action_ref_sort_key"],
+            "Auths.Crypto.BundleSelectors.evidence_key" => &["auths_codec::encode::evidence_ref_sort_key"],
+            "Auths.Crypto.BundleSelectors.binding_key" => &["auths_codec::encode::binding_ref_sort_key"],
+            "Auths.Crypto.BundleSelectors.attachment_key" => &["auths_codec::encode::attachment_ref_sort_key"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual concrete borrowed-record sort selectors return exactly their complete intended identifier or statement key.",
+            rust_symbols,
+            scope: "Derived-ID/record tuples retain exact association; action proof reference, evidence ID, statement reference and attachment digest are selected from the actual record. No desired sorting result or hash injectivity is a premise. These accessor equations do not establish key derivation, comparison law, full sort/normalization, whole-bundle encoding or authority; those source compositions remain required.",
+            residual_assumptions: &[
+                "Pinned translation/compiler and exact source getter/borrow representation. Actual reference-erasure/newtype/function ABI review remains part of fresh extraction and may require proof repair.",
+                "The bodies and source normalization refactor remain unverified pending elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. Shared consuming unkey projection preserves payloads but does not by itself prove the complete caller normalization.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleSorting.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleSorting.grant_keys_exact" => &["auths_codec::encode::sort_grant_ref_keys"],
+            "Auths.Crypto.BundleSorting.principal_status_keys_exact" => &["auths_codec::encode::sort_principal_status_ref_keys"],
+            "Auths.Crypto.BundleSorting.grant_status_keys_exact" => &["auths_codec::encode::sort_grant_status_ref_keys"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The three actual borrowed-record key sorts equal independent stable sorting of complete derived-ID/record tuples under their concrete source selectors and identifier comparison laws.",
+            rust_symbols,
+            scope: "Grant and both status record families. Actual stateless source selectors and actual identifier Ord dictionaries discharge the reviewed standard-key sorting interface, preserving all complete payloads and equal-key ties without hash injectivity. No successful sort, desired sorting outcome or user-supplied comparison law is a premise. The derived IDs' independent meaning, key-derivation loops, consuming projection and complete bundle-writer composition remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, positive-vector isomorphism and the reviewed standard stable key-sort interface with pure lawful comparison. Native reference erasure, function-item callback state and backward-borrow interfaces require fresh generated-source/model review.",
+                "All new bodies remain unverified pending actual extraction, elaboration, full compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No whole normalization, bundle encoding, E1/E5/M6 milestone or current count is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.BorrowedKeys.") {
+        let (family, kind) = if let Some(family) = name.strip_suffix("_push_exact") {
+            (family, "push")
+        } else {
+            (name.strip_suffix("_derive_exact")?, "derive")
+        };
+        let rust_symbols: &[&str] = match (family, kind) {
+            ("grant", "push") => &["auths_codec::encode::push_keyed_grants"],
+            ("principal_status", "push") => &["auths_codec::encode::push_keyed_principal_status"],
+            ("grant_status", "push") => &["auths_codec::encode::push_keyed_grant_status"],
+            ("grant", _) => &["auths_codec::encode::derive_grant_ref_keys"],
+            ("principal_status", _) => &["auths_codec::encode::derive_principal_status_ref_keys"],
+            ("grant_status", _) => &["auths_codec::encode::derive_grant_status_ref_keys"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual borrowed-record key push and derivation loops return complete exact independent ID/record tuples under explicit unsigned-field validity, framing/native capacity conditions and functional SHA contract.",
+            rust_symbols,
+            scope: "Grant and both status families. Each actual source statement getter and ID call is composed; the indexed loop preserves exact source order, every full payload and key association, including duplicates and hash ties. Input domains are structural validity and computed unsigned/signed capacity predicates, not successful IDs, source results or desired byte vectors. A conservative per-record reference envelope retains native room; it is not a measured physical peak-memory or OOM claim.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, positive-vector/scalar/index interfaces, exact same-source SHA owner linkage and explicit functional primitive/output-representation contract. Rust compile-time layout assertions guard keyed-reference/pointer bounds, but their evaluation, actual loop/reference ABI and full native growth/allocation model review remain deferred.",
+                "All new bodies are unverified pending fresh extraction, actual interface review, elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No current count, whole decoder/normalizer, authority or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleNormalization.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleNormalization.grant_exact" => &["auths_codec::encode::sorted_grants"],
+            "Auths.Crypto.BundleNormalization.principal_status_exact" => &["auths_codec::encode::sorted_principal_status"],
+            "Auths.Crypto.BundleNormalization.grant_status_exact" => &["auths_codec::encode::sorted_grant_status"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual three borrowed derived-ID normalizers compose real key derivation, concrete stable sorting and consuming projection into exact independent SHA-key ordering of complete records.",
+            rust_symbols,
+            scope: "All admissible grant/principal-status/grant-status record lists under explicit field, encoding/framing and native reference bounds. Every signature/payload survives, equal-ID ties retain order, and no deduplication or hash injectivity is assumed. Actual source success, an ID result or desired normalization outcome is not a premise. Snapshot primary ordering, constructors/public-decoder validity, inverse/work and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, reviewed stable-key sorting interface and transparent scalar/index/positive-vector operations, including pending exact pop/reference/loop ABI and native allocation review. SHA functional correctness and complete output representation remain explicit theorem premises.",
+                "All bodies are unverified pending actual generation, elaboration, complete compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. No whole E1/E5/M6 milestone, current model count or release qualification follows.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleOrdering.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleOrdering.proof_ref_compare" => &["auths_model::{core::cmp::Ord<auths_model::ProofRef>}::cmp"],
+            "Auths.Crypto.BundleOrdering.evidence_id_compare" => &["auths_model::{core::cmp::Ord<auths_model::EvidenceId>}::cmp"],
+            "Auths.Crypto.BundleOrdering.attachment_digest_compare" => &["auths_model::{core::cmp::Ord<auths_model::AttachmentDigest>}::cmp"],
+            "Auths.Crypto.BundleOrdering.statement_compare" => &["auths_model::{core::cmp::Ord<auths_model::StatementRef>}::cmp"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual proof-reference, evidence-ID, attachment-digest and typed statement-reference comparison dictionaries equal independent complete-byte/variant lexicographic order.",
+            rust_symbols,
+            scope: "Every represented argument pair, including all statement-reference variant combinations. These are concrete source comparison leaves, not caller-supplied comparator premises. ID byte representation is injective; the content hash from statements to IDs is not assumed injective. Sorting/normalization callers retain their own source and native resource obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent fixed-array/scalar comparison and qualified-discriminant interfaces. Actual derived-Ord body/name/discriminant ABI and source-symbol linkage require fresh generated review.",
+                "The bodies remain unverified pending extraction, elaboration, complete compiled statements/types/axioms, independent/frozen/shared-language cases and clean reproduction. No refreshed count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleFieldSorting.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleFieldSorting.actions_exact" => &["auths_codec::encode::sort_action_refs"],
+            "Auths.Crypto.BundleFieldSorting.evidence_exact" => &["auths_codec::encode::sort_evidence_refs"],
+            "Auths.Crypto.BundleFieldSorting.bindings_exact" => &["auths_codec::encode::sort_binding_refs"],
+            "Auths.Crypto.BundleFieldSorting.attachments_exact" => &["auths_codec::encode::sort_attachment_refs"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The four actual borrowed field-key sorts equal independent stable ordering by exact action proof reference, evidence ID, typed statement reference or attachment digest.",
+            rust_symbols,
+            scope: "Concrete source selectors and actual comparison dictionaries discharge the standard sort interface. Every full record, source-order tie and multiplicity remains. No source success, desired sorting outcome or user-supplied comparison law is a premise. Gathering, allocation/work bounds, constructor ordering and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, positive-vector isomorphism and reviewed stateless lawful stable-sort interface. Actual reference erasure, function-item callback state, derived comparison and backward-borrow ABI require fresh review.",
+                "All bodies are unverified pending generation, elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No current compiled/model count or completed E1/E5/M6 milestone follows.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.BorrowedFields.") {
+        let family = name.strip_suffix("_exact")?;
+        let rust_symbols: &[&str] = match family {
+            "action" => &["auths_codec::encode::sorted_action_refs"],
+            "evidence" => &["auths_codec::encode::sorted_evidence_refs"],
+            "binding" => &["auths_codec::encode::sorted_binding_refs"],
+            "attachment" => &["auths_codec::encode::sorted_attachment_refs"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual borrowed-record gathering loops and concrete field sorts compose into independent stable full-record ordering under an explicit native reference-capacity envelope.",
+            rust_symbols,
+            scope: "All represented bounded lists in four concrete families. Each actual indexed read/push/increment is included, then the real source sort is used with its actual selector/comparison laws. Complete fields, order within ties and multiplicity are retained. No successful source call, callback contract or desired normalization result is supplied. Constructor/decoder validity, complete work bounds and authorization remain separate.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and reviewed transparent scalar/index/vector and stable-key sort interfaces. Layout assertions, actual pointer/loop/backward-borrow ABI and native allocation/growth review remain deferred; physical OOM is outside the logical claim.",
+                "The batch remains unverified pending fresh extraction, elaboration, complete compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. No current count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.BundleArrays.") {
+        let family = name.strip_suffix("_exact")?;
+        let rust_symbols: &[&str] = match family {
+            "grant" => &["auths_codec::encode::encode_grant_refs"],
+            "action" => &["auths_codec::encode::encode_action_refs"],
+            "evidence" => &["auths_codec::encode::encode_evidence_refs"],
+            "binding" => &["auths_codec::encode::encode_binding_refs"],
+            "principal_status" => &["auths_codec::encode::encode_principal_status_refs"],
+            "grant_status" => &["auths_codec::encode::encode_grant_status_refs"],
+            "attachment" => &["auths_codec::encode::encode_attachment_refs"],
+            "approval" => &["auths_codec::encode::encode_signed_approvals"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Eight actual concrete bundle array writers append exact independent complete child schemas in source order under per-child field conditions and computed intermediate-space bounds.",
+            rust_symbols,
+            scope: "Every real indexed loop composes a concrete proved signed/evidence/binding/attachment writer. Seven owned temporary reference vectors are consumed without cloning record payloads; approval order is retained directly. Count, full fields, ties and multiplicity remain. Successful writers, desired output vectors and arbitrary writer callbacks are not premises. Normalization, public-decoder validity, inverse/totality/work and authority remain separate.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, positive-vector isomorphism and transparent scalar, slice, indexing and byte operations. Actual reference-vector/as-slice/recursive/backward-borrow ABI and native capacity/growth model review remain required.",
+                "All new source/proof bodies remain unverified pending actual generation, elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No current count or qualified milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BundleWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BundleWriters.bundle_exact" => &["auths_codec::encode::encode_bundle_to"],
+            "Auths.Crypto.BundleWriters.bundle_encoder" => &["auths_codec::encode::encode_bundle_value"],
+            "Auths.Crypto.BundleWriters.canonical_encoder"
+            | "Auths.Crypto.BundleWriters.canonical_projection" => &["auths_codec::encode::encode_bundle"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The complete actual eleven-field bundle writer, borrowed empty-encoder path and canonical wrapper return the independent normalized bundle schema under explicit field/native resource domains and functional SHA contract.",
+            rust_symbols,
+            scope: "Actual derived-key and direct-key gathering/sorting/projection are earned and composed with all complete child arrays, header, recursive plan, typed bindings, attachments, optional-body presence and stored approvals. No successful encoder/normalizer, expected bytes, hash injectivity or trusted authority flag is a premise. The canonical projection-existence consequence earns the actual stored model and retains explicit input conditions; it does not infer validity merely from a nominal carrier. Constructor/public-decoder closure, useful inverses, arbitrary-input totality/work, signature/key binding and authorization remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, reviewed exact scalar/string/container/stable-sort interfaces, actual source getter/reference/backward-borrow ABI and exact same-source primitive-owner linkage. SHA implementation-meets-function/output representation, independent signed framing/growth envelopes, reference capacity and full output byte bounds remain explicit premises. Physical OOM/host stack and full native allocation accounting are not proved by the logical byte equation.",
+                "All bodies are unverified pending fresh generation/interface/model review, elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No current count, whole E1/E2/E5/M6 completion or release qualification is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Crypto.BundleCommitments.proof_digest_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual proof commitment hashes exactly the independently normalized complete bundle bytes, including every signed payload and optional-body/approval distinction, under explicit input/native domains and functional SHA contract.",
+            rust_symbols: &["auths_codec::hash::proof_digest"],
+            scope: "Actual bundle encoding success is earned by complete source composition. Inner grant/status ID hashes and the outer raw bundle SHA share the explicitly contracted function. No successful encoder/hash, desired intermediate byte vector, hash injectivity, signature authenticity or authorization is supplied or inferred. Context/result commitments and byte-to-authority consumption retain their own obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent reviewed native/container/sort interfaces and exact same-source SHA owner linkage, with explicit implementation-meets-function/output-representation and resource premises. Constructor/public-decoder validity closure and full native allocation model review remain separate.",
+                "The body remains unverified pending fresh extraction, actual interface/owner/model review, elaboration, complete compiled statements/types/axioms, native/frozen/shared-language cases and clean reproduction. No qualified milestone or current compiled/model count is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.SnapshotLeaves.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.SnapshotLeaves.scope_exact" => &["auths_codec::encode::encode_status_scope"],
+            "Auths.Crypto.SnapshotLeaves.trust_rule_exact" => &["auths_codec::encode::encode_status_trust_rule"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual status-scope and trust-rule writers append exact independent complete fields under explicit UTF-8 and computed native-space conditions.",
+            rust_symbols,
+            scope: "OwnAnchor, listed Anchors and AnyAnchor are distinct registered variants. Every listed anchor ID, exact method and issuer, sequence floor and scope is preserved. Source output/success, a trusted issuer flag or desired bytes are not premises. These are wire equations, not proof of list validity, issuer authentication, scope coverage or status authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent scalar/string/positive-vector interfaces. Actual scope-anchor accessor and native/backward-borrow interfaces require fresh review; physical OOM and complete work bounds are outside this byte equation.",
+                "All new bodies are unverified pending actual generation, elaboration, complete compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. No current count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Crypto.SnapshotArrays.trust_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual status-trust collection loop appends all independent complete rule records in source order under explicit field and intermediate-space conditions.",
+            rust_symbols: &["auths_codec::encode::encode_status_trust"],
+            scope: "Every indexed read, concrete rule writer and increment is composed. Count, all sequence floors/scopes and multiplicity remain; no callback law, successful writer or desired output is assumed. Constructor sorting/uniqueness and actual trusted-view/status consumption remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler and transparent native scalar/index/vector interfaces, with actual recursive/backward-borrow ABI and allocation model review still deferred.",
+                "The body is unverified pending generation, elaboration, complete compiled statements/types/axioms, independent/frozen/shared-language cases and clean reproduction. No whole E1/E2/E5/M6 milestone or current count follows.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.SnapshotWriters.") {
+        let (family, kind) = if let Some(family) = name.strip_suffix("_canonical_projection") {
+            (family, "canonical")
+        } else if let Some(family) = name.strip_suffix("_canonical_encoder") {
+            (family, "canonical")
+        } else if let Some(family) = name.strip_suffix("_encoder") {
+            (family, "encoder")
+        } else {
+            (name.strip_suffix("_exact")?, "writer")
+        };
+        let rust_symbols: &[&str] = match (family, kind) {
+            ("principal", "writer") => &["auths_codec::encode::encode_principal_snapshot"],
+            ("grant", "writer") => &["auths_codec::encode::encode_grant_snapshot"],
+            ("principal", "encoder") => &["auths_codec::encode::encode_principal_status_snapshot_value"],
+            ("grant", "encoder") => &["auths_codec::encode::encode_grant_status_snapshot_value"],
+            ("principal", _) => &["auths_codec::encode::encode_principal_status_snapshot"],
+            ("grant", _) => &["auths_codec::encode::encode_grant_status_snapshot"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Both complete actual snapshot writers and empty/canonical wrappers return independent six-field schemas after earning real stable derived-ID normalization, under explicit field, framing and native resource conditions.",
+            rust_symbols,
+            scope: "Complete snapshot ID/window, every full signed status payload, all checkpoint IDs and complete trust rules. Actual derivation/sorting/projection and concrete collection writers are composed; hash ties retain signatures and multiplicity. No successful encoder/normalizer, desired bytes or trusted status flag is supplied. Canonical projection existence earns the actual complete stored model, while retaining explicit input conditions. Primary constructor ordering, full-value uniqueness/window coverage, public-decoder validity/inverses/work and status/authorization semantics remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent scalar/UTF-8/index/positive-vector interfaces and reviewed lawful stable-key sorting. Native reference/byte/growth envelopes, actual getter/loop/backward-borrow ABI and exact primitive-owner linkage remain explicit, with functional SHA/output representation as a theorem premise. Physical OOM/host stack are not established by logical byte equations.",
+                "All bodies/source factorizations are unverified pending fresh extraction/interface/model review, elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No current count, release qualification or whole E1/E2/E5/M6 completion is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextLimits.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextLimits.entry_exact" => &["auths_codec::encode::encode_limit_entry"],
+            "Auths.Crypto.ContextLimits.limits_exact" => &["auths_codec::encode::encode_limits"],
+            "Auths.Crypto.ContextLimits.composition_exact" => &["auths_codec::encode::encode_composition_requirement"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual limit entries, the complete thirty-field deployment-limit map and all four composition-requirement fields append exact independent named values under explicit intermediate-space bounds.",
+            rust_symbols,
+            scope: "Every represented limit scalar and composition value. The limit map uses thirty explicit source keys, including work units and distinct approval/approver/requirement limits; actual get/usize-to-u64/key/word operations are composed. Expected-plan absence/presence and all branch/actor/root minima are retained. Source success, desired bytes and a valid-configuration flag are not premises. Encoding does not validate hard deployment maxima, composition constraints, actual check consumption or authorization.",
+            residual_assumptions: &[
+                "Pinned translation/compiler and exact native scalar/key/head/optional-digest interfaces. Actual named-field/getter/borrowing/source-symbol ABI and native allocation/growth review remain deferred.",
+                "All new bodies and source unrolling are unverified pending generation, elaboration, complete compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. The complete context grammar alone does not establish its remaining actual writers or close E1/E2/E5/M6.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextProfiles.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextProfiles.profile_exact" => &["auths_codec::encode::encode_profile_ref"],
+            "Auths.Crypto.ContextProfiles.profiles_exact" => &["auths_codec::encode::encode_profiles"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual profile and concrete profile-list writers preserve exact identifier/version fields, count, order and multiplicity under explicit UTF-8 and intermediate-space bounds.",
+            rust_symbols,
+            scope: "Registry and trust-anchor profile lists share the same concrete source loop and complete profile writer. No successful writer, desired bytes or accepted-profile flag is assumed. Constructor set order/version validity, registry dispatch and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent scalar/string/slice/index/vector interfaces. Actual helper/accessor/recursive/backward-borrow ABI and native allocation model review remain required.",
+                "The new bodies and source factorization remain unverified pending fresh extraction, elaboration, complete compiled statement/type/axiom audit, frozen/shared-language cases and clean reproduction. No current count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextAnchors.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextAnchors.anchor_exact" => &["auths_codec::encode::encode_anchor"],
+            "Auths.Crypto.ContextAnchors.registries_exact" => &["auths_codec::encode::encode_registries"],
+            "Auths.Crypto.ContextAnchors.observer_exact" => &["auths_codec::observation::encode_observer_anchor"],
+            "Auths.Crypto.ContextAnchors.approver_exact" => &["auths_codec::approval::encode_approver_anchor"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual trust-anchor, accepted-registry, observer-anchor and approver-anchor writers append their complete independent field schemas under explicit UTF-8 and intermediate-space bounds.",
+            rust_symbols,
+            scope: "All thirteen trust-anchor, fourteen registry, seven observer and five approver fields. Concrete typed text/profile/permission loops, validity endpoints, optional budget and status policy are composed. Ordering and multiplicity are retained; no source-success, expected bytes, accepted-configuration flag or trusted primitive membership is a premise. Actual configuration constructor validity, registry resolution and authority remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent scalar/string/slice/vector and source getter interfaces. Actual generated symbols, loop/backward-borrow ABI, native allocation/growth and field projection review remain required.",
+                "All new bodies/source factorizations are unverified pending generation, elaboration, compiled statement/type/axiom audit, native/frozen/shared-language cases and clean reproduction. No current compiled/model count or whole E1/E2/E5/M6 completion is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextAnchorArrays.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextAnchorArrays.anchors_exact" => &["auths_codec::encode::encode_trust_anchors"],
+            "Auths.Crypto.ContextAnchorArrays.observers_exact" => &["auths_codec::observation::encode_observer_anchors"],
+            "Auths.Crypto.ContextAnchorArrays.approvers_exact" => &["auths_codec::approval::encode_approver_anchors"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Three concrete actual anchor-array loops append every complete stored record, retaining exact count, order and multiplicity under explicit field and output-space conditions.",
+            rust_symbols,
+            scope: "Actual source array headers, indexed recursive loops and concrete complete anchor writers. No caller-provided writer callback, successful source result, desired bytes or trusted-anchor flag is assumed. Constructor limits, identity uniqueness, time coverage and verifier consumption are separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent scalar/index/UTF-8/vector interfaces. Actual recursive/backward-borrow ABI and native byte/growth/allocation model remain subject to final review.",
+                "All new bodies and source factorization remain unverified pending fresh extraction, elaboration, full compiled statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. No current count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextAssurance.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextAssurance.role_tag_exact" => &["auths_codec::encode::assurance_role_tag"],
+            "Auths.Crypto.ContextAssurance.quantifier_tag_exact" => &["auths_codec::encode::assurance_quantifier_tag"],
+            "Auths.Crypto.ContextAssurance.source_exact" => &["auths_codec::encode::encode_assurance_source"],
+            "Auths.Crypto.ContextAssurance.adapter_exact" => &["auths_codec::encode::encode_assurance_adapter"],
+            "Auths.Crypto.ContextAssurance.version_exact" => &["auths_codec::encode::encode_assurance_version"],
+            "Auths.Crypto.ContextAssurance.maximum_age_exact" => &["auths_codec::encode::encode_assurance_maximum_age"],
+            "Auths.Crypto.ContextAssurance.parameter_exact" => &["auths_codec::encode::encode_claim_parameter"],
+            "Auths.Crypto.ContextAssurance.parameters_exact" => &["auths_codec::encode::encode_assurance_parameters"],
+            "Auths.Crypto.ContextAssurance.requirement_exact" => &["auths_codec::encode::encode_assurance_requirement"],
+            "Auths.Crypto.ContextAssurance.requirements_exact" => &["auths_codec::encode::encode_assurance_requirements"],
+            "Auths.Crypto.ContextAssurance.policy_exact" => &["auths_codec::encode::encode_assurance_policy"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual assurance role/quantifier tags, optional fields, parameter and requirement loops and complete policy writer preserve their independent full schemas under explicit input and intermediate-space conditions.",
+            rust_symbols,
+            scope: "All four roles, both quantifiers, each optional source/adapter/version/maximum-age branch, every name/value parameter pair, all eight requirement fields and the complete policy ID/list. Concrete source helpers retain stored order and multiplicity. No callback-success, expected bytes or satisfied-assurance flag is supplied. Raw absent/present-zero syntax is distinguished without claiming that model constructors admit zero versions/ages. Actual constructor bounds/order, adapter membership/authentication and assurance satisfaction remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent enum/scalar/string/slice/index/vector interfaces. Actual new helper/getter/optional-borrow/recursive ABI and native allocation/growth model review remain required.",
+                "All new proof bodies and source factorizations are unverified pending fresh extraction, elaboration, complete compiled statement/type/axiom audit, frozen/full-value/shared-language cases and clean reproduction. No current compiled/model count, release qualification or completed E1/E2/E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextApproval.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextApproval.source_selector" => &["auths_codec::approval::requirement_ref_sort_key"],
+            "Auths.Crypto.ContextApproval.sort_keys_exact" => &["auths_codec::approval::sort_requirement_ref_keys"],
+            "Auths.Crypto.ContextApproval.push_exact" => &["auths_codec::approval::push_keyed_requirement"],
+            "Auths.Crypto.ContextApproval.derive_exact" => &["auths_codec::approval::derive_requirement_ref_keys"],
+            "Auths.Crypto.ContextApproval.normalize_exact" => &["auths_codec::approval::sorted_requirement_refs"],
+            "Auths.Crypto.ContextApproval.records_exact" => &["auths_codec::approval::encode_requirement_refs"],
+            "Auths.Crypto.ContextApproval.context_exact" => &["auths_codec::approval::encode_context_requirements"],
+            "Auths.Crypto.ContextApproval.context_refuses" => &["auths_codec::approval::encode_context_requirements"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual context requirement derivation, stable key sorting, borrowed projection and full-record encoding preserve the independent SHA-identifier order under concrete field/resource conditions, with an early unchanged-encoder LimitExceeded refusal above sixty-four entries.",
+            rust_symbols,
+            scope: "The actual key selector/comparison, per-record identifier caller, indexed derivation, reviewed stable sort, consuming unkey projection and concrete reference-array loop are composed. Real context encoding borrows payloads instead of deep-cloning them. Equal keys preserve full payloads and multiplicity; no hash injectivity, successful source-normalizer, expected bytes or valid-context flag is assumed. Grant extensions retain their distinct four-member bound. Actual constructor/decoder validity, inverse/work and downstream approval semantics remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent enum/scalar/UTF-8/string/slice/index/vector interfaces, reviewed lawful stable sorting and the explicit SHA function/output-representation premise where used. Actual new source/getter/constant/reference-erasure/recursive/backward-borrow ABI, native allocation/growth/layout and primitive-owner review remain required. Logical byte envelopes do not establish physical OOM, host stack behavior or measured peak memory.",
+                "All new proof/source bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current compiled/model count, exact-release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextWriters.context_exact" => &["auths_codec::encode::encode_verifier_context_to"],
+            "Auths.Crypto.ContextWriters.context_encoder" => &["auths_codec::encode::encode_verifier_context_value"],
+            "Auths.Crypto.ContextWriters.canonical_encoder" => &["auths_codec::encode::encode_verifier_context"],
+            "Auths.Crypto.ContextWriters.canonical_projection" => &["auths_codec::encode::encode_verifier_context"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The complete actual seventeen-field trusted-context writer and empty/canonical wrappers return the independent context schema after earning real snapshot and approval normalization, under explicit field, dimension, identifier and native growth conditions.",
+            rust_symbols,
+            scope: "All thirty deployment limits, configuration/composition, complete trust/observer/approver anchors, all accepted-registry fields, expected audience/challenge/time, assurance policy, both full snapshots, matcher/profile/channel selections and all context approval requirements. Every concrete child/source loop is composed. Canonical projection existence earns the complete stored model and retains explicit input obligations; nominal carrier membership is not assumed to establish validity or resources. No source-success, desired bytes, accepted configuration or authorization premise is supplied. Actual constructors/public decoders must still earn these domains and both useful inverses/work; byte equality alone grants no authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent enum/scalar/UTF-8/string/slice/index/vector interfaces, reviewed lawful stable sorting and the explicit SHA function/output-representation premise where used. Actual new source/getter/constant/reference-erasure/recursive/backward-borrow ABI, native allocation/growth/layout and primitive-owner review remain required. Logical byte envelopes do not establish physical OOM, host stack behavior or measured peak memory.",
+                "All new proof/source bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current compiled/model count, exact-release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ContextCommitments.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ContextCommitments.digest_and_size_total" => &["auths_codec::hash::context_digest_and_size"],
+            "Auths.Crypto.ContextCommitments.digest_and_size_exact" => &["auths_codec::hash::context_digest_and_size"],
+            "Auths.Crypto.ContextCommitments.digest_and_size_refuses" => &["auths_codec::hash::context_digest_and_size"],
+            "Auths.Crypto.ContextCommitments.digest_total" => &["auths_codec::hash::context_digest"],
+            "Auths.Crypto.ContextCommitments.digest_exact" => &["auths_codec::hash::context_digest"],
+            "Auths.Crypto.ContextCommitments.digest_refuses" => &["auths_codec::hash::context_digest"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual context digest and combined digest/size calls return SHA over the complete independent identifier-framed context and measure those same encoded bytes, or the exact typed framing refusal under independent resource predicates.",
+            rust_symbols,
+            scope: "The complete source writer earns actual encoding success. Inner status/requirement hashes and the outer Context-tagged identifier hash share one explicit functional SHA/output-representation contract. The actual combined result ties the measured native count to the independent complete schema length. Exact/refusal consequences retain concrete writer input and framing envelopes without successful caller, desired bytes or accepted configuration premises. Collision resistance, configuration trust, verifier work charging/limit consumption and authorization remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent enum/scalar/UTF-8/string/slice/index/vector interfaces, reviewed lawful stable sorting and the explicit SHA function/output-representation premise where used. Actual new source/getter/constant/reference-erasure/recursive/backward-borrow ABI, native allocation/growth/layout and primitive-owner review remain required. Logical byte envelopes do not establish physical OOM, host stack behavior or measured peak memory.",
+                "All new proof/source bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current compiled/model count, exact-release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BoundedPolicyWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BoundedPolicyWriters.commitment_exact" => &["auths_codec::bounded_policy::encode_commitment"],
+            "Auths.Crypto.BoundedPolicyWriters.body_exact" => &["auths_codec::bounded_policy::encode_bounded_policy_to"],
+            "Auths.Crypto.BoundedPolicyWriters.body_encoder" => &["auths_codec::bounded_policy::encode_bounded_policy_commitment_value"],
+            "Auths.Crypto.BoundedPolicyWriters.canonical_encoder" => &["auths_codec::bounded_policy::encode_bounded_policy_commitment"],
+            "Auths.Crypto.BoundedPolicyWriters.canonical_projection" => &["auths_codec::bounded_policy::encode_bounded_policy_commitment"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete policy-commitment and bounded-policy writers plus raw/canonical wrappers append independent five-field and three-field schemas under explicit UTF-8 and output-space conditions.",
+            rust_symbols,
+            scope: "Policy type/version, canonicalization, declared opening digest, evaluator identity, every opaque policy byte and optional full parent digest. Concrete actual source helpers preserve absence versus a present zero digest. Canonical projection existence earns the stored model but retains input conditions; it does not assume a successful opening check or evaluator acceptance. Actual PolicyIdentifier/model/opening constructor validity, decoder/inverse/work/native resource closure and product attenuation semantics remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent enum/scalar/UTF-8/string/slice/index/vector interfaces, reviewed lawful stable sorting and the explicit SHA function/output-representation premise where used. Actual new source/getter/constant/reference-erasure/recursive/backward-borrow ABI, native allocation/growth/layout and primitive-owner review remain required. Logical byte envelopes do not establish physical OOM, host stack behavior or measured peak memory.",
+                "All new proof/source bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current compiled/model count, exact-release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.BoundedPolicyCommitments.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.BoundedPolicyCommitments.policy_total" => &["auths_codec::bounded_policy::bounded_policy_digest"],
+            "Auths.Crypto.BoundedPolicyCommitments.policy_exact" => &["auths_codec::bounded_policy::bounded_policy_digest"],
+            "Auths.Crypto.BoundedPolicyCommitments.policy_refuses" => &["auths_codec::bounded_policy::bounded_policy_digest"],
+            "Auths.Crypto.BoundedPolicyCommitments.link_total" => &["auths_codec::bounded_policy::bounded_policy_link"],
+            "Auths.Crypto.BoundedPolicyCommitments.link_exact" => &["auths_codec::bounded_policy::bounded_policy_link"],
+            "Auths.Crypto.BoundedPolicyCommitments.link_refuses" => &["auths_codec::bounded_policy::bounded_policy_link"],
+            "Auths.Crypto.BoundedPolicyCommitments.policy_bounded_exact" => &["auths_codec::bounded_policy::bounded_policy_digest"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Both actual bounded-policy digest/link callers use their distinct closed independent application domains and the exact real framing/SHA contract, with typed success/refusal classification and a bounded-policy-byte capacity consequence.",
+            rust_symbols,
+            scope: "The actual constant domains are equated to independent literal bytes before composing the real common application framing. Empty/present payload bytes and all byte order remain exact. No successful digest/opening, caller-supplied domain, expected hash result, primitive default instance or evaluator trust is a premise. The constructor opening check, parent existence/chain binding, product evaluation/attenuation and cryptographic collision resistance remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent enum/scalar/UTF-8/string/slice/index/vector interfaces, reviewed lawful stable sorting and the explicit SHA function/output-representation premise where used. Actual new source/getter/constant/reference-erasure/recursive/backward-borrow ABI, native allocation/growth/layout and primitive-owner review remain required. Logical byte envelopes do not establish physical OOM, host stack behavior or measured peak memory.",
+                "All new proof/source bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current compiled/model count, exact-release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ResultLeaves.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ResultLeaves.decision_tag_exact" => &["auths_codec::encode::verification_decision_tag"],
+            "Auths.Crypto.ResultLeaves.stage_tag_exact" => &["auths_codec::encode::verification_stage_tag"],
+            "Auths.Crypto.ResultLeaves.code_class_tag_exact" => &["auths_codec::encode::verification_code_class"],
+            "Auths.Crypto.ResultLeaves.code_label_exact" => &["auths_model::VerificationCode::code"],
+            "Auths.Crypto.ResultLeaves.code_exact" => &["auths_codec::encode::encode_verification_code"],
+            "Auths.Crypto.ResultLeaves.timestamp_exact" => &["auths_codec::encode::encode_optional_timestamp"],
+            "Auths.Crypto.ResultLeaves.role_exact" => &["auths_codec::encode::encode_role"],
+            "Auths.Crypto.ResultLeaves.self_digest_exact" => &["auths_codec::encode::encode_result_digest"],
+            "Auths.Crypto.ResultLeaves.resource_entry_exact" => &["auths_codec::encode::encode_unsigned_entry"],
+            "Auths.Crypto.ResultLeaves.resources_exact" => &["auths_codec::encode::encode_verification_resources"],
+            "Auths.Crypto.ResultLeaves.proof_refs_exact" => &["auths_codec::encode::encode_proof_refs"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual portable-result decision/stage/code tags, complete closed stable labels, optional timestamps, role/digest leaves, proof references and all seven named resource counters append their independent exact bytes under explicit intermediate-space conditions.",
+            rust_symbols,
+            scope: "All three decisions, five stages, three code classes and complete denial/requirement literal labels. Actual source label selection and concrete native key/word/byte/array calls are composed. The self-digest leaf retains its full digest for public encoding and emits exactly thirty-two zero bytes for hashing; every counter remains u64. No source-success, expected bytes, decision consistency, digest opening or verifier-origin flag is supplied. Primitive label/ABI agreement is a byte claim, not authorization or resource-measurement correctness.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent enum/scalar/UTF-8/string/tuple/array/slice/index/vector interfaces, with explicit functional SHA/output representation where used. Actual new helper/getter/constant/zero-array/reference-erasure/recursive/backward-borrow ABI, native allocation/growth and primitive-owner review remain required. Logical byte bounds do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new source/proof bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language regressions and two clean reproductions. No current generated/model/compiled count, release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ResultAssurance.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ResultAssurance.claim_exact" => &["auths_codec::encode::encode_assurance_claim"],
+            "Auths.Crypto.ResultAssurance.claims_exact" => &["auths_codec::encode::encode_assurance_claims"],
+            "Auths.Crypto.ResultAssurance.report_exact" => &["auths_codec::encode::encode_assurance_report"],
+            "Auths.Crypto.ResultAssurance.reports_exact" => &["auths_codec::encode::encode_assurance_reports"],
+            "Auths.Crypto.ResultAssurance.satisfaction_exact" => &["auths_codec::encode::encode_assurance_satisfaction"],
+            "Auths.Crypto.ResultAssurance.satisfactions_exact" => &["auths_codec::encode::encode_assurance_satisfactions"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete assurance claim/report/satisfaction writers and their three concrete loops preserve the independently specified full result records under explicit UTF-8 and output-space conditions.",
+            rust_symbols,
+            scope: "Every claim kind/name-value parameter/optional observation time/source, reported principal/role/claims/evidence/adapter/version, and satisfaction index/principal/full claim/evidence. Actual source parameter and ID loops are composed with all records, order and multiplicity. No successful writer/callback, expected bytes or satisfied/authenticated-claim flag is supplied. Model constructor normalization/validity, verifier production of these reports, registry dispatch and actual assurance satisfaction remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent enum/scalar/UTF-8/string/tuple/array/slice/index/vector interfaces, with explicit functional SHA/output representation where used. Actual new helper/getter/constant/zero-array/reference-erasure/recursive/backward-borrow ABI, native allocation/growth and primitive-owner review remain required. Logical byte bounds do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new source/proof bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language regressions and two clean reproductions. No current generated/model/compiled count, release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ResultSatisfactions.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ResultSatisfactions.digests_exact" => &["auths_codec::approval::encode_approval_digests"],
+            "Auths.Crypto.ResultSatisfactions.observation_exact" => &["auths_codec::observation::encode_observation_satisfaction"],
+            "Auths.Crypto.ResultSatisfactions.observations_exact" => &["auths_codec::observation::encode_observation_satisfactions"],
+            "Auths.Crypto.ResultSatisfactions.approval_exact" => &["auths_codec::approval::encode_approval_satisfaction"],
+            "Auths.Crypto.ResultSatisfactions.approvals_exact" => &["auths_codec::approval::encode_approval_satisfactions"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual reported observation/approval satisfaction writers, complete approval-digest arrays and concrete satisfaction loops preserve exact independent record fields, count, order and multiplicity under explicit output-space bounds.",
+            rust_symbols,
+            scope: "Observation requirement/attachment IDs, approval requirement IDs and every counted approval digest. No successful writer/callback, expected bytes, authenticated reference or requirement-satisfaction flag is a premise. Canonical model construction, full decoder validity, verifier production/authentication and temporal/threshold/authority semantics remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent enum/scalar/UTF-8/string/tuple/array/slice/index/vector interfaces, with explicit functional SHA/output representation where used. Actual new helper/getter/constant/zero-array/reference-erasure/recursive/backward-borrow ABI, native allocation/growth and primitive-owner review remain required. Logical byte bounds do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new source/proof bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language regressions and two clean reproductions. No current generated/model/compiled count, release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ResultWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ResultWriters.result_exact" => &["auths_codec::encode::encode_verification_result_to"],
+            "Auths.Crypto.ResultWriters.projection_encoder" => &["auths_codec::encode::encode_verification_result_projection"],
+            "Auths.Crypto.ResultWriters.result_encoder" => &["auths_codec::encode::encode_verification_result_value"],
+            "Auths.Crypto.ResultWriters.digest_input_encoder" => &["auths_codec::encode::encode_verification_result_digest_input"],
+            "Auths.Crypto.ResultWriters.canonical_encoder" => &["auths_codec::encode::encode_verification_result"],
+            "Auths.Crypto.ResultWriters.canonical_projection" => &["auths_codec::encode::encode_verification_result"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The complete actual eighteen-field portable-result writer, selected full/zero-digest projection encoders and canonical wrapper/projection return the independent ABI-4 schema under explicit field and native output/growth conditions.",
+            rust_symbols,
+            scope: "All decision/stage/code data, proof/action/context/optional-plan/self digests, authorized branches, complete assurance reports/satisfactions, all seven counters, registry/required/local configurations, literal ABI version four and every observation/approval satisfaction. Actual concrete child writers and loops are composed. Projection existence earns the actual stored model while retaining input obligations; no successful encoder, desired bytes, consistent decision, valid self-digest, trusted portable-result flag or authority premise is supplied. Actual canonical opening/consistency checks, constructors/public decoders, both inverses/work, sealed-verifier origin and execution consumption remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent enum/scalar/UTF-8/string/tuple/array/slice/index/vector interfaces, with explicit functional SHA/output representation where used. Actual new helper/getter/constant/zero-array/reference-erasure/recursive/backward-borrow ABI, native allocation/growth and primitive-owner review remain required. Logical byte bounds do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new source/proof bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language regressions and two clean reproductions. No current generated/model/compiled count, release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ResultCommitments.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ResultCommitments.digest_exact" => &["auths_codec::hash::verification_result_digest"],
+            "Auths.Crypto.ResultCommitments.set_digest_exact" => &["auths_model::PortableVerificationResult::with_result_digest"],
+            "Auths.Crypto.ResultCommitments.rebinding_digest_exact" => &["auths_model::PortableVerificationResult::with_result_digest", "auths_codec::hash::verification_result_digest"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual result self-digest hashing covers the complete independent result with exactly its self-digest field zeroed; the actual consuming digest setter preserves every other field, so rebinding that stored field leaves the hashing projection unchanged.",
+            rust_symbols,
+            scope: "The real complete source writer earns encoding success before raw SHA under the explicit same-source primitive function/output-representation contract. Full reported arrays, code/stage/counters/configuration/ABI data remain in the preimage. The actual setter and source hash are composed without a successful caller, expected bytes or trusted opening premise. This establishes neither collision resistance nor verifier origin, report truth, signature authentication, decision consistency, canonical-carrier acceptance or execution authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent enum/scalar/UTF-8/string/tuple/array/slice/index/vector interfaces, with explicit functional SHA/output representation where used. Actual new helper/getter/constant/zero-array/reference-erasure/recursive/backward-borrow ABI, native allocation/growth and primitive-owner review remain required. Logical byte bounds do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new source/proof bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language regressions and two clean reproductions. No current generated/model/compiled count, release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyIdentifiers.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyIdentifiers.byte_exact" => &["auths_model::bounded_policy::policy_identifier_byte_allowed"],
+            "Auths.Codec.PolicyIdentifiers.scan_exact" => &["auths_model::bounded_policy::policy_identifier_has_invalid"],
+            "Auths.Codec.PolicyIdentifiers.valid_exact" => &["auths_model::bounded_policy::policy_identifier_valid"],
+            "Auths.Codec.PolicyIdentifiers.valid_string" => &["auths_model::bounded_policy::policy_identifier_valid"],
+            "Auths.Codec.PolicyIdentifiers.parse_exact" => &["auths_model::bounded_policy::PolicyIdentifier::parse"],
+            "Auths.Codec.PolicyIdentifiers.parse_valid" => &["auths_model::bounded_policy::PolicyIdentifier::parse"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual closed-ASCII byte classifier, indexed policy identifier scan and parser return the independent exact decision/value or typed InvalidBoundedPolicy refusal under the explicit native UTF-8 string-carrier condition.",
+            rust_symbols,
+            scope: "Every byte range/punctuation, empty/maximum byte guard, early invalid-byte exit, indexed lookup/increment and actual parser string copy. The policy alphabet is defined independently and does not inherit ordinary identifier Unicode policy. Scan suffix induction earns native bounds and source totality at the concrete loop; parser exact/refusal results use String values with explicit representable UTF-8 carriers. The accepted-output consequence has an actual accepted parse premise and proves representation validity only; it is not all-input public-decoder/work or authorization closure.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent scalar/UTF-8/string-copy/byte-array/slice/index/vector interfaces and explicit functional SHA/output representation where used. Actual new native classifier/getter/loop/borrow/canonical ABI, native growth/allocation/model and primitive-owner review remain required. Logical envelopes do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new bodies/source factorizations remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, complete byte/Unicode/boundary/frozen/shared-language regressions and two clean reproductions. No current compiled/model count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyConstructors.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyConstructors.commitment_exact" => &["auths_model::bounded_policy::PolicyCommitment::new"],
+            "Auths.Codec.PolicyConstructors.commitment_output_valid" => &["auths_model::bounded_policy::PolicyCommitment::new"],
+            "Auths.Codec.PolicyConstructors.body_exact" => &["auths_model::bounded_policy::BoundedPolicyCommitment::new"],
+            "Auths.Codec.PolicyConstructors.body_output_valid" => &["auths_model::bounded_policy::BoundedPolicyCommitment::new"],
+            "Auths.Codec.PolicyConstructors.commitment_valid_exact" => &["auths_model::bounded_policy::PolicyCommitment::new"],
+            "Auths.Codec.PolicyConstructors.body_valid_exact" => &["auths_model::bounded_policy::BoundedPolicyCommitment::new"],
+            "Auths.Codec.PolicyConstructors.body_encoder_valid" => &["auths_codec::bounded_policy::encode_bounded_policy_commitment_value"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual policy commitment/body constructors return exact full-field values or their precise typed refusals; component validity propagates to independent complete policy validity, which earns actual bounded-policy encoding conditions and success.",
+            rust_symbols,
+            scope: "Nonzero version and separate 128/64/128-byte identifier maxima, full declared digest and evaluator identity, nonempty policy bytes and the 4096-byte maximum, optional parent and exact empty-before-oversize error precedence. The commitment source equation retains explicit representable incoming string carriers; output validity retains the lexical component invariants actually earned by parsing. Positive valid-domain consequences reconstruct complete values without a successful constructor premise. Complete validity earns the 4633-byte logical writer envelope, native signed growth room and extension-byte fit; actual writer success is composed without caller-supplied field/capacity or desired-byte flags. Public decoder validity/inverses/abstract work and physical memory behavior remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent scalar/UTF-8/string-copy/byte-array/slice/index/vector interfaces and explicit functional SHA/output representation where used. Actual new native classifier/getter/loop/borrow/canonical ABI, native growth/allocation/model and primitive-owner review remain required. Logical envelopes do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new bodies/source factorizations remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, complete byte/Unicode/boundary/frozen/shared-language regressions and two clean reproductions. No current compiled/model count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyCanonical.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyCanonical.checked_exact" => &["auths_codec::canonical_value::checked_bounded_policy"],
+            "Auths.Codec.PolicyCanonical.checked_accepts" => &["auths_codec::canonical_value::checked_bounded_policy"],
+            "Auths.Codec.PolicyCanonical.checked_refuses" => &["auths_codec::canonical_value::checked_bounded_policy"],
+            "Auths.Codec.PolicyCanonical.checked_total" => &["auths_codec::canonical_value::checked_bounded_policy"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual checked bounded-policy constructor computes the exact real policy opening and returns the unchanged complete carrier or DigestMismatch; a valid body earns framing/native room and successful carriers earn actual complete public encoding.",
+            rust_symbols,
+            scope: "Actual policy digest derivation over supplied bytes, concrete digest equality and the real canonical wrapper are composed under the explicit functional SHA/output contract. The independent opening is a mathematical equality to the declared digest, not a successful source hash or trusted acceptance flag. Exact/typed-refusal and total result specifications preserve complete payloads with no repair. Model representation validity is explicit; parent existence/linkage, policy semantics/attenuation, collision resistance and authorization are not inferred. This private checked boundary is the actual algorithm used by public construction/decoding; complete public byte-decoder closure remains to be composed.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent scalar/UTF-8/string-copy/byte-array/slice/index/vector interfaces and explicit functional SHA/output representation where used. Actual new native classifier/getter/loop/borrow/canonical ABI, native growth/allocation/model and primitive-owner review remain required. Logical envelopes do not prove physical OOM, host stack behavior or measured peak memory.",
+                "All new bodies/source factorizations remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, complete byte/Unicode/boundary/frozen/shared-language regressions and two clean reproductions. No current compiled/model count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ResultCost.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.ResultCost.projection_encoder_bounded" => &["auths_codec::encode::encode_verification_result_projection"],
+            "Auths.Crypto.ResultCost.canonical_encoder_bounded" => &["auths_codec::encode::encode_verification_result"],
+            "Auths.Crypto.ResultCost.digest_bounded_exact" => &["auths_codec::hash::verification_result_digest"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "A complete independent result encoding within the eight-MiB public result bound earns every actual writer string/native output/growth condition, then actual complete encoding or exact zero-projection hashing succeeds without caller-supplied capacity or field-validity flags.",
+            rust_symbols,
+            scope: "Independent per-head/text/digest/array/map budget composition covers the entire eighteen-field result and all nested records. The largest padded fixed leaf is an absent optional digest, yielding the proved factor-forty-one envelope. Complete cost membership earns each nested UTF-8 bound and unsigned/signed native growth room; actual source writer/hash composition is then reused. The canonical encoder retains its actual stored-model projection, with no nominal validity assertion. No successful encoder, expected intermediate bytes or trusted capacity/result flag is assumed. Constructor/decision/opening validity, public decoder/inverses/work and verifier origin/authority remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, complete independent schema/source correspondence from the composed writer bodies, transparent enum/scalar/string/tuple/array/slice/index/vector interfaces and the explicit SHA function/output contract for hashing. Actual ABI/native allocation/growth and primitive-owner/model review remain required. The padded logical envelope does not prove physical OOM, host stack behavior, measured memory or wall time.",
+                "All new budget/source composition bodies remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, complete native/frozen/shared-language regressions and two clean reproductions. No current compiled/model count, exact-release gate or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ResultIntegrity.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ResultIntegrity.rejects_inconsistent"
+            | "Auths.Codec.ResultIntegrity.checked_exact"
+            | "Auths.Codec.ResultIntegrity.checked_total"
+            | "Auths.Codec.ResultIntegrity.checked_accepts"
+            | "Auths.Codec.ResultIntegrity.checked_refuses_opening" => &["auths_codec::canonical_value::checked_verification_result"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual checked result constructor rejects inconsistent decision/code tags before hashing; within the independent eight-MiB result bound it returns the unchanged complete carrier exactly when its real zero-projection self-digest matches, otherwise the precise Malformed/DigestMismatch refusal.",
+            rust_symbols,
+            scope: "Independent three-way code/decision consistency, equality of full versus zero-projection lengths, complete actual result hashing, concrete result-digest equality and the real canonical carrier. Complete wire fit earns all writer/native growth conditions through ResultCost. The typed total-result specification gives actual stored-model projection, consistency/opening and complete public encoding on success. No successful source hash/constructor, desired bytes, accepted integrity flag or repaired result is assumed. The inconsistent branch needs no payload-size premise because it returns before the hash path. This proves reported-data integrity only; model constructor/decoder closure, report truth, sealed verifier origin, signature/authority and execution remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent enum/tuple/digest/scalar/string/slice/vector and same-source getter/canonical interfaces, with the explicit functional SHA/output-representation contract on hash paths. Actual ABI/native growth/allocation/model and primitive-owner review remain required. Logical size bounds do not establish physical OOM, stack behavior, measured memory or wall time.",
+                "All new source/proof bodies and the simultaneous bad-tag/bad-digest regression remain unverified pending fresh extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, complete native/frozen/shared-language cases and two clean reproductions. No current generated/model/compiled count, exact-release qualification or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolReadHead.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolReadHead.read_tail_safety" => &["auths_codec::cbor::read_tail"],
+            "Auths.Codec.ProtocolReadHead.read_tail_bounded" => &["auths_codec::cbor::read_tail"],
+            "Auths.Codec.ProtocolReadHead.read_head_refines" => &["auths_codec::cbor::read_head"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol checked CBOR tail/head reading refines the independent definite-header grammar with concrete source safety and bounded-tail consequences.",
+            rust_symbols,
+            scope: "The shipping cbor algorithm is unfolded directly in the complete protocol context: checked byte lookup, multiply/add, cursor increments and reserved/indefinite refusal. No earlier-extraction equivalence or opaque Auths implementation is assumed. Explicit width/prefix/state conditions remain part of the tail claims. Object validity, canonicality and complete protocol work/allocation remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolCursor.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolCursor.new_exact" => &["auths_codec::cbor::Decoder::new"],
+            "Auths.Codec.ProtocolCursor.at_exact" => &["auths_codec::cbor::Decoder::at"],
+            "Auths.Codec.ProtocolCursor.position_exact" => &["auths_codec::cbor::Decoder::position"],
+            "Auths.Codec.ProtocolCursor.head_exact" => &["auths_codec::cbor::Decoder::head"],
+            "Auths.Codec.ProtocolCursor.u64_exact" => &["auths_codec::cbor::Decoder::u64"],
+            "Auths.Codec.ProtocolCursor.u8_exact" => &["auths_codec::cbor::Decoder::u8"],
+            "Auths.Codec.ProtocolCursor.u16_exact" => &["auths_codec::cbor::Decoder::u16"],
+            "Auths.Codec.ProtocolCursor.u32_exact" => &["auths_codec::cbor::Decoder::u32"],
+            "Auths.Codec.ProtocolCursor.null_exact" => &["auths_codec::cbor::Decoder::null"],
+            "Auths.Codec.ProtocolCursor.datatype_exact" => &["auths_codec::cbor::Decoder::datatype"],
+            "Auths.Codec.ProtocolCursor.ensure_complete_exact" => &["auths_codec::decode::ensure_complete"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol cursor, unsigned narrowing, null/type inspection and final-consumption operations refine independent typed-head/cursor decisions, including u32.",
+            rust_symbols,
+            scope: "Actual new/at/position/head/u8/u16/u32/u64/null/datatype/ensure_complete and exact input/cursor behavior. Generic proved standard scalar rules are reused, while source cbor algorithms are unfolded in the actual complete-protocol namespace. No assumed earlier-extraction identity or successful/expected parse is supplied. Object validity, canonicality, full resource/work and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolPayload.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolPayload.payload_exact" => &["auths_codec::cbor::Decoder::payload"],
+            "Auths.Codec.ProtocolPayload.bytes_exact" => &["auths_codec::cbor::Decoder::bytes"],
+            "Auths.Codec.ProtocolPayload.str_exact" => &["auths_codec::cbor::Decoder::str"],
+            "Auths.Codec.ProtocolPayload.success_earns_span" => &["auths_codec::cbor::Decoder::payload"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol byte/text payload readers return exact independent spans or typed primitive refusal under the existing explicit standard UTF-8 leaf.",
+            rust_symbols,
+            scope: "Real header, checked narrowing/addition/range lookup, borrowed spans and UTF-8 branching. The successful-span consequence conditions on actual acceptance rather than asserting every input succeeds. No Auths payload algorithm is opaque and no earlier-extraction identity or expected bytes is assumed. Owned-copy allocation, object constructor/canonicality and complete input work remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolCollection.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolCollection.array_exact" => &["auths_codec::cbor::Decoder::array"],
+            "Auths.Codec.ProtocolCollection.map_exact" => &["auths_codec::cbor::Decoder::map"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol array/map collection heads refine independent definite/indefinite cursor decisions through real source marker and typed-head branches.",
+            rust_symbols,
+            scope: "Actual cbor array/map operations in the complete-protocol namespace; no assumed prior-extraction equality or supplied successful head. Object count/limit acceptance, concrete collection loops, allocation/work and canonical rejection remain caller obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolFields.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolFields.key_exact" => &["auths_codec::decode::key"],
+            "Auths.Codec.ProtocolFields.map_exact" => &["auths_codec::decode::map"],
+            "Auths.Codec.ProtocolFields.text_exact" => &["auths_codec::decode::text"],
+            "Auths.Codec.ProtocolFields.null_exact" => &["auths_codec::decode::null"],
+            "Auths.Codec.ProtocolFields.is_null_exact" => &["auths_codec::decode::is_null"],
+            "Auths.Codec.ProtocolFields.array_exact" => &["auths_codec::decode::array"],
+            "Auths.Codec.ProtocolFields.bounded_bytes_exact" => &["auths_codec::decode::bounded_bytes"],
+            "Auths.Codec.ProtocolFields.digest_bytes_exact" => &["auths_codec::decode::digest_bytes"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol key/map/text/null/probe/array/bounded-byte/digest field readers return exact independent result/cursor or stable field refusal.",
+            rust_symbols,
+            scope: "Real primitives, CodecError mapping, count/key checks, UTF-8, nonempty/maximum checks, owned byte copy and thirty-two-byte conversion. Auths algorithms are unfolded directly without an opaque parser or earlier-extraction identity. Full object validity, final canonicality, complete input totality/work/native allocation and authority remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolPrimitiveInverse.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolPrimitiveInverse.map_inverse" => &["auths_codec::decode::map"],
+            "Auths.Codec.ProtocolPrimitiveInverse.key_inverse" => &["auths_codec::decode::key"],
+            "Auths.Codec.ProtocolPrimitiveInverse.array_inverse" => &["auths_codec::decode::array"],
+            "Auths.Codec.ProtocolPrimitiveInverse.text_inverse" => &["auths_codec::decode::text"],
+            "Auths.Codec.ProtocolPrimitiveInverse.bytes_inverse" => &["auths_codec::decode::bounded_bytes"],
+            "Auths.Codec.ProtocolPrimitiveInverse.digest_inverse" => &["auths_codec::decode::digest_bytes"],
+            "Auths.Codec.ProtocolPrimitiveInverse.u8_inverse" => &["auths_codec::cbor::Decoder::u8"],
+            "Auths.Codec.ProtocolPrimitiveInverse.u16_inverse" => &["auths_codec::cbor::Decoder::u16"],
+            "Auths.Codec.ProtocolPrimitiveInverse.u32_inverse" => &["auths_codec::cbor::Decoder::u32"],
+            "Auths.Codec.ProtocolPrimitiveInverse.u64_inverse" => &["auths_codec::cbor::Decoder::u64"],
+            "Auths.Codec.ProtocolPrimitiveInverse.null_inverse" => &["auths_codec::decode::null"],
+            "Auths.Codec.ProtocolPrimitiveInverse.null_probe" => &["auths_codec::decode::is_null"],
+            "Auths.Codec.ProtocolPrimitiveInverse.digest_probe" => &["auths_codec::decode::is_null"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol primitive readers consume exact independent canonical prefixes and return full typed values/cursors, including bounded bytes, digests, four unsigned widths and parent probes.",
+            rust_symbols,
+            scope: "Concrete prefix/suffix inverses earn header, UTF-8, count/payload, null/digest and input/cursor transitions. Input grammar equalities and validity/limit conditions are mathematical domains, not expected successful source outcomes. A suffix is permitted here; full public acceptance must earn consumption and canonical-byte identity. No whole object malformed-input/abstract-work closure or authority is inferred.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolReaderBounds.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolReaderBounds.source_head"
+            | "Auths.Codec.ProtocolReaderBounds.source_head_step" => {
+                &["auths_codec::cbor::Decoder::head"]
+            }
+            "Auths.Codec.ProtocolReaderBounds.source_payload" => {
+                &["auths_codec::cbor::Decoder::payload"]
+            }
+            "Auths.Codec.ProtocolReaderBounds.source_str_trace" => {
+                &["auths_codec::cbor::Decoder::str"]
+            }
+            "Auths.Codec.ProtocolReaderBounds.source_collection" => {
+                &["auths_codec::cbor::Decoder::collection"]
+            }
+            "Auths.Codec.ProtocolReaderBounds.source_u16" => &["auths_codec::cbor::Decoder::u16"],
+            "Auths.Codec.ProtocolReaderBounds.source_null" => &["auths_codec::cbor::Decoder::null"],
+            "Auths.Codec.ProtocolReaderBounds.source_key" => &["auths_codec::decode::key"],
+            "Auths.Codec.ProtocolReaderBounds.source_map" => &["auths_codec::decode::map"],
+            "Auths.Codec.ProtocolReaderBounds.source_array"
+            | "Auths.Codec.ProtocolReaderBounds.source_array_limit" => &["auths_codec::decode::array"],
+            "Auths.Codec.ProtocolReaderBounds.source_text"
+            | "Auths.Codec.ProtocolReaderBounds.source_text_span" => &["auths_codec::decode::text"],
+            "Auths.Codec.ProtocolReaderBounds.source_bounded_bytes"
+            | "Auths.Codec.ProtocolReaderBounds.source_bounded_bytes_span" => {
+                &["auths_codec::decode::bounded_bytes"]
+            }
+            "Auths.Codec.ProtocolReaderBounds.source_digest" => &["auths_codec::decode::digest_bytes"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual complete-protocol reader results preserve the input and a monotone confined cursor, including refusals; returned text/byte spans fit their consumed interval and copied bytes and array counts obey their checked maxima.",
+            rust_symbols,
+            scope: "Direct consequences of the actual complete-protocol reader equations, with an explicit initially confined cursor where needed. Header/u16 advancement is at most nine bytes. Successful borrowed UTF-8 text earns its complete span length and UTF-8 validity. The actual str subcall trace retains the real borrowed payload and its size even when UTF-8 conversion refuses, so failed text validation cannot disappear from later resource accounting. Bounded byte reads earn maximum, span and original input-size bounds; array counts earn their maximum. Frames compose across sequential calls and the stopping failure. The pure grammar proof does not assume equivalence with an earlier extraction namespace. These statements do not yet count whole-decoder abstract work, all allocation requests or native allocator behavior.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean boundary, permitted foundations and explicit standard scalar/byte/slice/index/UTF-8/copy/vector models. Public construction must earn initial cursor confinement. Actual generated complete-protocol ABI/model/native allocation review remains required.",
+                "All new bodies remain unverified pending fresh complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current artifact/model/compiled count or E1–E5/M6 completion is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyAssurance.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyAssurance.accepted_iff"
+            | "Auths.Codec.PolicyAssurance.decoder_refines"
+            | "Auths.Codec.PolicyAssurance.unique_accepted_bytes" => {
+                &["auths_codec::bounded_policy::decode_bounded_policy_commitment"]
+            }
+            "Auths.Codec.PolicyAssurance.encoding_injective" => &[
+                "auths_codec::bounded_policy::encode_bounded_policy_commitment_value",
+                "auths_codec::bounded_policy::decode_bounded_policy_commitment",
+            ],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual bounded-policy public acceptance is equivalent to independent complete constructor/lexical validity, mathematical opening and exact canonical bytes; every input returns a typed result and refusal excludes every value in that acceptance domain.",
+            rust_symbols,
+            scope: "The source accepted-value closure, all-input typed logical termination and useful positive inverse are composed for the complete bounded-policy object. The success and refusal conclusions contain no successful-source premise or trusted carrier flag. Further consequences give one accepted byte string per full value and full wire injectivity on the valid opened domain from source determinism, without digest injectivity or a collision-resistance premise. Exact classification of each malformed-input error code, all-input allocation/abstract work, other object families, evaluator/parent-link semantics and authority remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation boundary, permitted foundations, explicit standard scalar/byte/UTF-8/string-copy/array/slice/index/vector interfaces and the displayed functional same-source SHA/output-representation contract. Actual complete-protocol generated ABI, native resource/model and primitive-owner review remain required.",
+                "All new bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current generated/model/compiled count or E1–E5/M6 milestone completion is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyCursor.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyCursor.commitment_frame"
+            | "Auths.Codec.PolicyCursor.commitment_bounded" => {
+                &["auths_codec::bounded_policy::commitment"]
+            }
+            "Auths.Codec.PolicyCursor.parent_frame" => {
+                &["auths_codec::bounded_policy::parent_digest"]
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Every actual policy commitment/optional-parent result retains the complete original input and a monotone confined cursor; a successful commitment additionally earns independent complete constructor and lexical validity.",
+            rust_symbols,
+            scope: "The concrete source commitment reader is unfolded through all map/key/text/u16/digest reads, ASCII parses and constructor branches. Every reached intermediate reader receives confinement earned from preceding source calls, including the final failing call. Optional-parent probing, null and digest branches preserve the same input. No successful whole-reader, expected intermediate decoder or valid commitment is supplied as a premise. Complete public work/allocation accounting and other object families remain separate.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean boundary, permitted foundations and explicit standard scalar/byte/slice/index/UTF-8/string-copy/vector models. The initially confined cursor is explicit and is earned by public decoder construction. Actual complete-protocol generated ABI/native resource/model review remains required.",
+                "All new bodies remain unverified pending fresh complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current artifact/model/compiled count or E1–E5/M6 completion is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Codec.ProtocolStrings.text_valid" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "An actual successful complete-protocol text read earns valid UTF-8 for the complete returned borrowed bytes through the real payload and standard UTF-8 conversion branches.",
+            rust_symbols: &["auths_codec::decode::text"],
+            scope: "Accepted-output representation consequence over arbitrary represented input and cursor. The standard owned-string-copy model separately preserves every byte; no expected String/toStr carrier or successful copy is supplied to the policy parser's total specification. This does not establish whole-input acceptance, abstract work or native allocation behavior.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and explicit transparent UTF-8/string-copy/byte/slice/index interfaces. Actual complete-protocol ABI, generated standard-model definitions, native allocation and primitive-owner review remain required.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language cases and two clean reproductions. No current artifact/model/compiled count or completed milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyAccepted.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyAccepted.identifier_valid"
+            | "Auths.Codec.PolicyAccepted.identifier_exact"
+            | "Auths.Codec.PolicyAccepted.identifier_total" => {
+                &["auths_model::bounded_policy::PolicyIdentifier::parse"]
+            }
+            "Auths.Codec.PolicyAccepted.commitment_trace"
+            | "Auths.Codec.PolicyAccepted.commitment_valid" => {
+                &["auths_codec::bounded_policy::commitment"]
+            }
+            "Auths.Codec.PolicyAccepted.decoder_trace"
+            | "Auths.Codec.PolicyAccepted.decoder_valid"
+            | "Auths.Codec.PolicyAccepted.decoder_closed"
+            | "Auths.Codec.PolicyAccepted.decoder_envelope" => {
+                &["auths_codec::bounded_policy::decode_bounded_policy_commitment"]
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual policy identifier, commitment and public decoder acceptance earn independent complete lexical/constructor validity, the mathematical opening and exact complete canonical bytes; accepted policy bytes earn their 4633-byte logical writer envelope.",
+            rust_symbols,
+            scope: "Identifier totality uses UTF-8 validity earned from the actual text reader, rather than a supplied successful copy or expected String carrier. Accepted parse/constructor traces retain the actual source calls and complete output fields. Public acceptance earns actual carrier projection, nonzero version, all three identifier alphabets/maxima, nonempty bounded policy, complete opening and real re-encoding/byte identity. The envelope derives field/native growth premises from this validity. Accepted-result premises are used only for postcondition consequences; arbitrary-input logical termination is separately composed by PolicyReadTotal. Neither family establishes malformed-input abstract work/allocation, physical OOM/stack/time, evaluator/parent semantics or authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string-copy/array/slice/index/vector interfaces. Opening consequences additionally retain the explicit functional same-source SHA/output-representation contract. Actual complete-protocol names, error/closure/constant/cursor/borrow/loop ABI, native allocation/growth and model/primitive-owner review remain required.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current generated/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyReadTotal.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyReadTotal.commitment_terminates"
+            | "Auths.Codec.PolicyReadTotal.commitment_total" => {
+                &["auths_codec::bounded_policy::commitment"]
+            }
+            "Auths.Codec.PolicyReadTotal.parent_terminates" => {
+                &["auths_codec::bounded_policy::parent_digest"]
+            }
+            "Auths.Codec.PolicyReadTotal.body_constructor_total" => {
+                &["auths_model::bounded_policy::BoundedPolicyCommitment::new"]
+            }
+            "Auths.Codec.PolicyReadTotal.body_error_exact" => {
+                &["auths_codec::bounded_policy::body_error"]
+            }
+            "Auths.Codec.PolicyReadTotal.decoder_oversize"
+            | "Auths.Codec.PolicyReadTotal.decoder_terminates"
+            | "Auths.Codec.PolicyReadTotal.decoder_total" => {
+                &["auths_codec::bounded_policy::decode_bounded_policy_commitment"]
+            }
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual bounded-policy public decoder returns a typed result for every represented input; a successful result additionally earns independent full validity/opening and exact public re-encoding, without a successful-source premise.",
+            rust_symbols,
+            scope: "Real hard input guard, every primitive/error branch, UTF-8 and ASCII parser, commitment/parent/body constructor, complete-consumption check, validity-derived real encoder success, canonical-byte gate and checked opening are composed. Oversize input returns LimitExceeded before parsing or hashing and needs no functional SHA contract. The general public result retains the explicit functional SHA contract; Err is typed but not an exhaustive independent classification of every malformed byte string. Logical Aeneas termination does not establish abstract work/allocation, physical OOM/stack/time, other object decoders, policy evaluation, parent linkage semantics, verifier soundness or execution authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string-copy/array/slice/index/vector interfaces, plus the explicit functional same-source SHA/output-representation contract where hashing is reached. Actual complete-protocol names, typed errors/callbacks/constants/cursor/borrow ABI, native allocation/growth and model/primitive-owner review remain required.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current generated/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.PolicyInverse.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.PolicyInverse.parent_inverse" => &["auths_codec::bounded_policy::parent_digest"],
+            "Auths.Codec.PolicyInverse.commitment_inverse" => &["auths_codec::bounded_policy::commitment"],
+            "Auths.Codec.PolicyInverse.decode_encoding" => &["auths_codec::bounded_policy::decode_bounded_policy_commitment"],
+            "Auths.Codec.PolicyInverse.public_roundtrip" => &["auths_codec::bounded_policy::encode_bounded_policy_commitment"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual bounded-policy parent/commitment readers and complete public decoder consume the independent complete policy grammar; valid opened public canonical values round-trip through real public encoding/decoding without a successful-source premise.",
+            rust_symbols,
+            scope: "Concrete actual reads, explicit schema pieces/cursors, strict-ASCII parsing, model constructors, input guard/consumption, actual complete re-encoding and real byte gate are composed before the real opening check. Valid body dimensions earn field/native/framing conditions. Independent complete schema input returns the unchanged full carrier or exact DigestMismatch according to mathematical opening; public round-trip success additionally requires that opening. Actual encoder success is earned. This is a useful positive inverse, not arbitrary malformed-input/public accepted-value/work closure, parent/evaluator semantics or authority.",
+            residual_assumptions: &[
+                "Pinned compiler/translation and transparent standard scalar/byte/UTF-8/string/array/slice/index/vector interfaces, plus the explicit functional SHA/output contract for openings. Actual complete-protocol names, decoder/error/head/constant/closure/cursor/borrow/loop ABI, native allocation/growth and primitive-owner/model review remain required. Pure schema bounds do not certify measured memory, physical OOM, host stack or wall time.",
+                "All new source/proof bodies remain unverified pending complete-protocol extraction, elaboration/repairs, full compiled statement/type/premise/axiom audit, native/frozen/shared-language/negative/boundary cases and two clean reproductions. No current ABI/artifact/model/compiled count, exact-release evidence or completed E1–E5/M6 milestone is inferred.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.FramedHash.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.FramedHash.identifier_preimage_total" => &["auths_codec::hash::identifier_preimage"],
+            "Auths.Crypto.FramedHash.application_preimage_total" => &["auths_codec::hash::commitment_preimage"],
+            "Auths.Crypto.FramedHash.signing_preimage_total" => &["auths_codec::hash::signing_preimage"],
+            "Auths.Crypto.FramedHash.identifier_hash_total"
+            | "Auths.Crypto.FramedHash.identifier_hash_exact"
+            | "Auths.Crypto.FramedHash.identifier_hash_refuses" => &["auths_codec::hash::domain_hash"],
+            "Auths.Crypto.FramedHash.application_hash_total"
+            | "Auths.Crypto.FramedHash.application_hash_exact"
+            | "Auths.Crypto.FramedHash.application_hash_refuses" => &["auths_codec::hash::domain_commitment"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual framing returns exact independent bytes or a LimitExceeded result classified by independent native length bounds; actual identifier/application hashes return the exact named SHA output under an explicit functional primitive contract.",
+            rust_symbols,
+            scope: "All represented source arguments to the three framing families and the two framed hash callers. Resource predicates use natural byte lengths and explicit u64/usize/isize limits, plus the actual domain/profile constraints. Neither source success nor desired intermediate bytes are premises. Hash results additionally require an explicit implementation-meets-function/output-representation contract; framing results require no cryptographic premise. Collision resistance, digest injectivity, signature authenticity and object semantics are not claimed.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler, transparent scalar/byte/vector operations and exact same-source SHA owner delegation. Physical allocator/OOM behaviour and wall-clock bounds are outside the logical model; hash correctness retains the explicit functional SHA contract.",
+                "All new bodies are unverified pending fresh protocol generation, actual ABI/source-owner review, elaboration, full statement/type/axiom audit, independent native/vector cases and clean reproduction. No refreshed compiled count, reviewed-model count or completed milestone follows from these source edits.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.EvidenceWriters.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.EvidenceWriters.content_exact" => &["auths_codec::encode::encode_evidence_content_to"],
+            "Auths.Crypto.EvidenceWriters.record_exact" => &["auths_codec::encode::encode_evidence"],
+            "Auths.Crypto.EvidenceWriters.content_encoder"
+            | "Auths.Crypto.EvidenceWriters.content_encoder_valid" => &["auths_codec::encode::encode_evidence_content"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual evidence content and complete-record writers append exact independent schemas and return success under explicit UTF-8 and writer-space conditions; the actual content encoder starts from the empty encoder.",
+            rust_symbols,
+            scope: "Evidence content binds evidence-type, media-type and every payload byte while excluding its declared identifier, as specified by the actual ID function. The complete record additionally preserves the exact declared fixed-size identifier. Input model validity earns string-borrow conditions but does not assert identifier authenticity or equality with a recomputed hash. Complete input length/field bytes and all intermediate append bounds are retained; no successful writer or desired source output is a premise.",
+            residual_assumptions: &[
+                "Pinned translation/compiler and transparent standard UTF-8/scalar/byte/container interfaces, including native allocation model review. Physical OOM behaviour is outside the logical model. Decoder/inverse/totality/work and evidence-ID authenticity consumption remain separate obligations.",
+                "All bodies remain unverified pending fresh complete-protocol extraction, actual accessor/backward-borrow ABI review, elaboration, complete statement/type/axiom audit, independent/frozen/shared-language cases and clean reproduction. Historical qualification counts remain unchanged.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.IdentifierCallers.") {
+        let raw_symbols: Option<&[&str]> = match name {
+            "body_digest_exact" => Some(&["auths_codec::hash::body_digest"]),
+            "transaction_binding_exact" => Some(&["auths_codec::hash::transaction_binding"]),
+            "attachment_digest_exact" => Some(&["auths_codec::hash::attachment_digest"]),
+            _ => None,
+        };
+        let rust_symbols: &[&str] = if let Some(symbols) = raw_symbols {
+            symbols
+        } else {
+            let family = name.strip_suffix("_valid_exact")
+                .or_else(|| name.strip_suffix("_total"))
+                .or_else(|| name.strip_suffix("_exact"))
+                .or_else(|| name.strip_suffix("_refuses"))?;
+            match family {
+                "grant" => &["auths_codec::hash::grant_id"],
+                "action" => &["auths_codec::hash::action_id"],
+                "principal_status" => &["auths_codec::hash::principal_status_id"],
+                "grant_status" => &["auths_codec::hash::grant_status_id"],
+                "evidence" => &["auths_codec::hash::evidence_id"],
+                _ => return None,
+            }
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual core hash callers return the named SHA output for the exact input; five identifier families compose complete independent unsigned-object/content encodings and registered identifier framing with a complete typed acceptance/refusal result.",
+            rust_symbols,
+            scope: "Grant/action/principal-status/grant-status/evidence IDs use independent model validity and computed writer-space envelopes to earn actual encoding success, then classify exact SHA output or LimitExceeded by independent native framing bounds. No successful ID/encoder or expected source bytes are supplied. Body/attachment/transaction hashes preserve every represented input byte without object-validity premises. Every hash theorem explicitly requires the named functional primitive/output-representation contract. Evidence content excludes its declared ID; the constructor-valid evidence consequence additionally earns native writer/framing room from actual bounded fields. Context, proof, approval and result commitments, cryptographic security and byte-to-authority consumption remain separate obligations; plan and requirement caller refinements are separately inventoried.",
+            residual_assumptions: &[
+                "Pinned translation/compiler, reviewed transparent scalar/string/container interfaces and exact same-source SHA delegation. Actual constructors/public decoders must still earn independent model validity at downstream callers. The logical writer envelope does not establish physical OOM behaviour.",
+                "These bodies remain unverified pending fresh extraction, actual getter/newtype/borrow ABI and primitive-owner review, elaboration, complete compiled statement/type/axiom audit, positive/frozen/shared-language cases and clean reproduction. Historical qualified results are not refreshed by this batch.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if let Some(name) = declaration.strip_prefix("Auths.Crypto.SigningPreimageResults.") {
+        let family = name.strip_suffix("_total")
+            .or_else(|| name.strip_suffix("_accepts"))
+            .or_else(|| name.strip_suffix("_refuses"))?;
+        let rust_symbols: &[&str] = match family {
+            "grant" => &["auths_codec::hash::grant_signing_preimage"],
+            "action" => &["auths_codec::hash::action_signing_preimage"],
+            "principal_status" => &["auths_codec::hash::principal_status_signing_preimage"],
+            "grant_status" => &["auths_codec::hash::grant_status_signing_preimage"],
+            "approval" => &["auths_codec::hash::approval_signing_preimage"],
+            "observation" => &["auths_codec::hash::observation_signing_preimage"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "All six actual signing-preimage callers return exact independent statement/descriptor/domain bytes or LimitExceeded, classified by independent framing limits after earning encoding success from valid inputs and computed writer-space conditions.",
+            rust_symbols,
+            scope: "Complete typed results and acceptance/refusal consequences for grants, actions, both status families, approvals and observations. Each actual unsigned/signing-object writer is composed with the source framing operation; no successful caller, expected encoder/preimage bytes, trusted descriptor or cryptographic acceptance is a premise. Approval additionally requires a valid explicit action profile. Input validity and writer-space bounds are explicit, so these are not arbitrary malformed-object or whole-decoder totality results. Principal/key binding and authorization remain separate.",
+            residual_assumptions: &[
+                "Pinned compiler/translation, transparent UTF-8/scalar/container interfaces and actual independent unsigned/descriptor writer refinements. Constructor/public-decoder closure must establish validity where consumed. Native allocation model review and physical OOM remain explicit boundaries.",
+                "All new bodies are unverified pending fresh complete-protocol generation, actual source accessor/backward-borrow ABI review, elaboration, full statement/type/axiom audit, independent positive/frozen/shared-language cases and clean reproduction. This batch introduces no claimed compiled count or completed E5/M6 milestone.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    let writer_family = if let Some(name) = declaration.strip_prefix("Auths.Crypto.StatementWriters.") {
+        Some((name.strip_suffix("_exact")?, "statement"))
+    } else if let Some(name) = declaration.strip_prefix("Auths.Crypto.SigningObjectWriters.") {
+        if let Some(family) = name.strip_suffix("_statement_exact") {
+            Some((family, "public-statement"))
+        } else { Some((name.strip_suffix("_signing_exact")?, "signing-object")) }
+    } else if let Some(name) = declaration.strip_prefix("Auths.Crypto.ValidatedWriters.") {
+        if let Some(family) = name.strip_suffix("_encoder_valid") {
+            Some((family, "validated-statement"))
+        } else { Some((name.strip_suffix("_signing_valid")?, "validated-signing")) }
+    } else if let Some(name) = declaration.strip_prefix("Auths.Crypto.SigningPreimages.") {
+        if let Some(family) = name.strip_suffix("_frame_valid") {
+            Some((family, "preimage-validity"))
+        } else { Some((name.strip_suffix("_exact")?, "preimage")) }
+    } else { None };
+    if let Some((family, kind)) = writer_family {
+        let (private, public, signing, preimage): (&[&str], &[&str], &[&str], &[&str]) = match family {
+            "grant" => (&["auths_codec::encode::encode_grant_statement_to"], &["auths_codec::encode::encode_grant_statement"],
+                &["auths_codec::encode::encode_grant_signing_input"], &["auths_codec::hash::grant_signing_preimage"]),
+            "action" => (&["auths_codec::encode::encode_action_envelope_to"], &["auths_codec::encode::encode_action_envelope"],
+                &["auths_codec::encode::encode_action_signing_input"], &["auths_codec::hash::action_signing_preimage"]),
+            "principal_status" => (&["auths_codec::encode::encode_principal_status_statement_to"], &["auths_codec::encode::encode_principal_status_statement"],
+                &["auths_codec::encode::encode_principal_status_signing_input"], &["auths_codec::hash::principal_status_signing_preimage"]),
+            "grant_status" => (&["auths_codec::encode::encode_grant_status_statement_to"], &["auths_codec::encode::encode_grant_status_statement"],
+                &["auths_codec::encode::encode_grant_status_signing_input"], &["auths_codec::hash::grant_status_signing_preimage"]),
+            "approval" => (&["auths_codec::approval::encode_approval_statement_to"], &["auths_codec::approval::encode_approval_statement"],
+                &["auths_codec::approval::encode_approval_signing_input"], &["auths_codec::hash::approval_signing_preimage"]),
+            "observation" => (&["auths_codec::observation::encode_observation_statement_to"], &["auths_codec::observation::encode_observation_statement"],
+                &["auths_codec::observation::encode_observation_signing_input"], &["auths_codec::hash::observation_signing_preimage"]),
+            _ => return None,
+        };
+        let rust_symbols = match kind {
+            "statement" => private,
+            "public-statement" | "validated-statement" => public,
+            "signing-object" | "validated-signing" => signing,
+            _ => preimage,
+        };
+        let (claim_text, scope) = match kind {
+            "statement" => (
+                "The complete actual unsigned-statement writer appends exactly every independent schema field and returns success under explicit per-field UTF-8 and intermediate-space conditions.",
+                "Six concrete unsigned grant/action/principal-status/grant-status/approval/observation writers. Actual scalar/getter, optional-field, constraint, policy, collection and extension operations are composed, preserving full field order and variant data. Conditions describe field borrowing and a computed allocation envelope, not successful encoders, expected bytes, trusted flags or signatures. Constructor validity and whole-decoder validity/inverse/totality/work remain separate obligations.",
+            ),
+            "public-statement" | "signing-object" => (
+                "Actual public unsigned/signing-object encoders return the complete independent schema from an empty encoder under explicit field, descriptor and intermediate-space bounds.",
+                "Six concrete public unsigned writers and six signing-object writers. Signing objects contain the complete independent unsigned statement at key zero and all three exact descriptor fields at key one. No successful encoder or expected intermediate byte result is supplied. Signature verification, principal/key/suite binding and complete decode/encode inverses remain additional obligations.",
+            ),
+            "validated-statement" | "validated-signing" => (
+                "Independent model-validity predicates earn the actual public unsigned/signing encoders' field conditions; under the explicit allocation envelope the complete independent byte schema is returned.",
+                "Six complete public unsigned/signing families. Input validity contains independent structural/constructor invariants and no decoder result, trusted flag, signature acceptance or desired encoding. Actual constructor and public-decoder validity closure must still earn those predicates at byte-to-authority callers. Descriptor validity does not establish a supported suite, key ownership or cryptographic authenticity.",
+            ),
+            _ => (
+                "Actual successful signing preimages agree with the complete independent unsigned-statement/descriptor byte schema and exact registered object tag, UTF-8 profile and profile version, and earn valid framing.",
+                "Six concrete actual signing-preimage callers composed with complete unsigned/descriptor writers. Grants/actions use their own profile/version, approvals their explicit action profile, and both status families/observations the empty profile/version-zero domain. Actual caller success is explicit; expected intermediate encoding/preimage bytes are not premises. Model validity and the signing-object allocation envelope are input conditions. This is preimage exactness/validity, not cryptographic security or full verifier/authorization soundness.",
+            ),
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope,
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler, positive-vector isomorphism and transparent scalar, UTF-8, borrowing, indexing and standard-container interfaces. Logical allocation envelopes retain native/host model review; physical allocation/OOM behaviour and wall time are not proved. No opaque Auths-owned writer or new cryptographic axiom is introduced.",
+                "All bodies in this coding batch are unverified pending fresh complete-protocol translation, actual accessor/recursive/backward-borrow ABI review, elaboration, complete compiled statement/type/axiom audit, native/frozen/shared-language corpus cases and clean reproduction. No current compiled/model count or completed milestone follows from writing them.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolHeadEncoder.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolHeadEncoder.append_tail_exact" => &["auths_codec::cbor::append_tail"],
+            "Auths.Codec.ProtocolHeadEncoder.encode_head_refines" | "Auths.Codec.ProtocolHeadEncoder.encode_head_byte_bound" => &["auths_codec::cbor::encode_head"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual complete-protocol head writer emits the independent shortest definite CBOR header, with one-to-nine output bytes; its bounded tail loop emits exact big-endian digits.",
+            rust_symbols,
+            scope: "Actual protocol encode_head and recursive append_tail extraction across the positive-vector carrier. The loop theorem exposes width at most eight and output capacity; the complete head theorem accepts all represented u8/u64 arguments and returns a typed invalid-major result or exact canonical bytes. No successful caller, expected intermediate bytes or opaque Auths loop is assumed. Full object/tokenizer/constructor validity and arbitrary-object resource bounds remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned translation/compiler boundary, native scalar contracts, positive-vector isomorphism and transparent standard push/allocation interfaces. Physical allocation/OOM behaviour remains outside the logical value model.",
+                "These bodies are unverified pending fresh recursive-loop ABI review, actual extraction, elaboration, full compiled statement/type/axiom audit, qualification cases and clean reproduction; no current count or completed milestone is claimed.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Codec.ProtocolObjectWriter.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Codec.ProtocolObjectWriter.profile_exact" => &["auths_codec::encode::encode_profile_ref"],
+            "Auths.Codec.ProtocolObjectWriter.budget_exact" => &["auths_codec::encode::encode_budget"],
+            "Auths.Codec.ProtocolObjectWriter.permission_exact" => &["auths_codec::encode::encode_permission"],
+            "Auths.Codec.ProtocolObjectWriter.optional_budget_exact" => &["auths_codec::encode::encode_optional_budget"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual protocol field writers return success and append exactly the independently specified complete profile, permission, budget or optional-budget bytes under explicit UTF-8 carrier and intermediate-capacity bounds.",
+            rust_symbols,
+            scope: "Complete-protocol field writers, including actual field getters/string borrowing and every canonical scalar/map/key/text operation. Optional absence is encoded as null. The bounds are independent input/space conditions, not assumed successful encoding or expected source output. Constructor validity, standalone object completeness/inverses and physical allocation remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation boundary and transparent scalar, UTF-8 borrowing and positive-vector standard interfaces. The full source head writer is refined rather than assumed.",
+                "All new field-writer bodies remain unverified until fresh extraction, generated-interface review, elaboration, full statement/type/axiom audit and clean reproduction.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.DescriptorWriter.") {
+        if !matches!(declaration,
+            "Auths.Crypto.DescriptorWriter.descriptor_exact"
+            | "Auths.Crypto.DescriptorWriter.source_binds_fields")
+        {
+            return None;
+        }
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual signature-descriptor writer emits all three independent fields in their exact CBOR positions; equal successful outputs from a common prefix bind each field's exact UTF-8 bytes.",
+            rust_symbols: &["auths_codec::encode::encode_signature_descriptor"],
+            scope: "Actual descriptor writer and standard UTF-8 borrowing composed with the independently defined descriptor grammar and descriptor inverse. The 63-plus-field-length envelope bounds every intermediate append. Principal-method, verification-method and suite bytes are preserved distinctly. No successful writer, desired byte vector, signature validity, hash injectivity or trusted descriptor is supplied to the exactness theorem. The field-binding consequence explicitly uses actual two-run output equality. Complete unsigned-object writers, suite/key/principal binding and authorization remain additional obligations.",
+            residual_assumptions: &[
+                "Pinned source translation/compiler, exact canonical head/writer primitives, positive-vector isomorphism and transparent UTF-8/container interfaces. The result binds field bytes; source-string injectivity and whole-signing-object canonical/schema/inverse composition must still be explicit where claimed.",
+                "This source batch is unverified pending actual full-protocol extraction/accessor review, elaboration, complete compiled statement/type/axiom audit, independent qualification cases and clean reproduction.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "AuthsProtocolCodec.raw_sha256_refines" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The complete-protocol SHA call returns exactly the named SHA function's output under the owner's explicit functional digest/output-conversion contract.",
+            rust_symbols: &["auths_codec::hash::raw_sha256"],
+            scope: "Exact same-source owner delegation composed with the quantified primitive implementation-meets-function contract. Input bytes and the complete fixed-size output are retained. No global primitive instance, hash injectivity, collision resistance, preimage resistance or signature authenticity is asserted. Caller preimages and unsigned-object semantics require their own source refinements.",
+            residual_assumptions: &[
+                "The pinned compiler/translation boundary, reviewed SHA foreign interface and exact same-source owner linkage remain explicit. The functional SHA/output-representation contract is a theorem premise, not an axiom supplied by this project.",
+                "The new protocol proof body remains unverified pending fresh extraction, declaration/type/axiom audit, actual owner/source-span linkage review and clean reproduction. It establishes no current compiled count or completed milestone.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.ProtocolFraming.")
+        || declaration.starts_with("Auths.Crypto.ProtocolFramingTotality.")
+    {
+        let name = declaration.rsplit('.').next()?;
+        let rust_symbols: &[&str] = match name {
+            "buffer_refines" | "buffer_total" => &["auths_codec::hash::preimage_buffer"],
+            "identifier_tag_word" | "identifier_preimage_exact" | "identifier_accepted_frame_valid"
+            | "identifier_total" | "identifier_accepts_iff" | "identifier_refuses_iff" => &["auths_codec::hash::identifier_preimage"],
+            "application_preimage_exact" | "application_accepted_frame_valid"
+            | "application_total" | "application_accepts_iff" | "application_refuses_iff" => &["auths_codec::hash::commitment_preimage"],
+            "object_tag" | "signing_preimage_exact" | "accepted_frame_valid"
+            | "accepted_preimages_bind_inputs" | "preimage_length_exact" | "object_domains_separate"
+            | "signing_total" | "signing_accepts_iff" | "signing_refuses_iff" => &["auths_codec::hash::signing_preimage"],
+            _ => return None,
+        };
+        let claim_text = if declaration.starts_with("Auths.Crypto.ProtocolFramingTotality.") {
+            "Every represented framing input returns a typed result; acceptance and LimitExceeded refusal agree with the explicit independent length, native unsigned-size and signed Vec-capacity bounds."
+        } else if name == "accepted_preimages_bind_inputs" || name == "object_domains_separate" {
+            "Successful actual signing frames bind the exact object domain, profile bytes/version and complete signing-object bytes; distinct object domains cannot share those preimage bytes."
+        } else {
+            "Actual protocol framing agrees with the independent registered tags, canonical length framing, complete byte projection and validated-domain conditions of its stated signing, identifier or application frame."
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "The actual non-opaque preimage/buffer bodies in the complete protocol extraction, across its positive-vector representation. Natural-number byte specifications are independent of the Rust functions. Totality/refusal claims assume no successful source preimage or expected output; byte-exactness consequences are explicitly conditional on actual success. These components neither prove unsigned-object/descriptor encoding nor call SHA, establish signature authority, bound OS allocation time or prove physical memory availability.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler, positive-vector isomorphism and reviewed scalar/standard-container contracts. Vec's signed capacity restriction is explicit; host allocation/OOM behavior remains outside the logical value model. No opaque Auths-owned preimage implementation or cryptographic security premise is introduced.",
+                "These proof bodies are unverified pending fresh complete-protocol extraction, source/interface review, elaboration, complete compiled statement/type/axiom audit, qualification cases and clean reproduction. Historical compiled/model counts remain historical.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration.starts_with("Auths.Crypto.SigningCallers.") {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Crypto.SigningCallers.grant_trace" => &["auths_codec::hash::grant_signing_preimage"],
+            "Auths.Crypto.SigningCallers.action_trace" => &["auths_codec::hash::action_signing_preimage"],
+            "Auths.Crypto.SigningCallers.approval_trace" => &["auths_codec::hash::approval_signing_preimage"],
+            "Auths.Crypto.SigningCallers.principal_status_trace" => &["auths_codec::hash::principal_status_signing_preimage"],
+            "Auths.Crypto.SigningCallers.grant_status_trace" => &["auths_codec::hash::grant_status_signing_preimage"],
+            "Auths.Crypto.SigningCallers.observation_trace" => &["auths_codec::hash::observation_signing_preimage"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "Actual signing callers forward their complete statement/descriptor to the actual signing-object writer and use the exact registered object domain and specified profile/version in the independent signing frame.",
+            rust_symbols,
+            scope: "Six concrete shipping callers. Grants/actions use their carried profile/version, approvals use the explicitly supplied action profile, and both statuses/observations use the empty profile and version zero. The existential writer outcome is earned from actual caller success, not supplied as a premise. This is a caller/argument/framing trace: the unsigned-object and descriptor writer must still be proved against the independent byte schemas, rather than treating successful encoding as that specification.",
+            residual_assumptions: &[
+                "Pinned translation/compiler boundary and the transparent source getter/string-borrow/vector interfaces. No signature acceptance, trusted flag, expected preimage, successful incoming encoding or hash injectivity is assumed. Full writer validity/totality, suite/principal/key binding and composed authorization remain separate obligations.",
+                "All new caller bodies and qualification cases are unverified pending fresh extraction, actual accessor/callback interface review, elaboration, complete statement/type/axiom audit and clean reproduction.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "AuthsProtocolCodec.raw_sha256_delegates" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The full protocol extraction calls the complete Result behavior of the exact separately translated SHA source owner with the same input and primitive implementation parameter.",
+            rust_symbols: &["auths_codec::hash::raw_sha256"],
+            scope: "Same-crate source-unit linkage with the declared local-import identity, identical physical source path/span, a transparent local owner and an audited equation containing both compiled constants. The importer remains visibly local/opaque in its physical inventory; no unqualified algorithm is assumed or removed from the counts.",
+            residual_assumptions: &[
+                "Both translation units must use the same shipping source closure, pinned toolchain, default features, cfg and target. SHA-256 implementation-meets-spec and cryptographic security remain explicit contracts; no global instance, axiom or hash injectivity is introduced.",
+                "Pending actual translation, metadata/source-span review, compiled theorem/axiom audit and clean two-run reproduction. The linkage alone does not qualify the larger codec or any commitment caller.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if matches!(declaration,
+        "Auths.Codec.ProtocolCanonical.with_error_exact"
+        | "Auths.Codec.ProtocolCanonical.accept_exact"
+        | "Auths.Codec.ProtocolCanonical.accepted_preserves") {
+        let rust_symbols: &[&str] = if declaration.ends_with("with_error_exact") {
+            &["auths_codec::canonical::accept_with_error"]
+        } else { &["auths_codec::canonical::accept"] };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The complete-protocol source unit preserves any carried value exactly when its actual encoder byte vector equals the complete input and otherwise returns the exact selected mismatch code.",
+            rust_symbols,
+            scope: "The real shared byte gate over the positive-vector carrier, with exact complete source behavior and a consequence of actual acceptance. Public caller encoding identity, constructor closure, totality/work and inverse completeness remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned compiler/translation boundary, the existing bounded-vector isomorphism and exact standard byte-slice equality interface. This source-only batch is unverified until actual extraction, elaboration and complete qualification review.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if matches!(declaration,
+        "Auths.Codec.CanonicalMatch.with_error_exact"
+        | "Auths.Codec.CanonicalMatch.accept_exact"
+        | "Auths.Codec.CanonicalMatch.accepted_preserves") {
+        let rust_symbols: &[&str] = if declaration == "Auths.Codec.CanonicalMatch.with_error_exact" {
+            &["auths_codec::canonical::accept_with_error"]
+        } else { &["auths_codec::canonical::accept"] };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual canonical byte gate returns the unchanged carried value exactly when actual encoder bytes equal the complete input; otherwise it returns the supplied mismatch code, with NonCanonical at the default entry.",
+            rust_symbols,
+            scope: "All represented input/encoded byte buffers, generic carried values and mismatch codes. The production object decoders pass their actual encoder output after parsing, constructor and complete-input checks. The portable output retains its separate digest check. These gate properties alone do not establish object constructor validity, decoder totality/work, inverse completeness or every public caller's data flow.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler and the existing exact byte-slice equality/standard-library boundary. Constructor/encoder identity and the remaining object decoder relation must be earned at the callers, not assumed from this generic gate.",
+                "This coding batch is unverified pending actual translation, elaboration, declaration/axiom audit, qualification cases and the complete frozen protocol regressions.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Verifier.CompositionFloor.source_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual final composition guard succeeds exactly when all three configured minimum counts are met, and otherwise returns the exact composition-requirement refusal.",
+            rust_symbols: &["auths_verifier::authority::check_composition"],
+            scope: "All represented Usize branch/actor/root counts and U16 minima, without an expected source outcome premise. The production authority stage calls this guard after plan authorization and records the same counts. Deriving those counts from actual successful branches and distinct participant identifiers, and the complete rich authorization relation, remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler and the existing fixed-width conversion/standard-library boundary. Distinct principals do not imply distinct humans or keys.",
+                "This coding batch is unverified pending actual translation, elaboration, declaration/axiom audit, qualification cases and full native-stage regressions.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if declaration == "Auths.Verifier.SealedProjection.source_exact" {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual verifier sealer preserves all twelve authority fields, including exact canonical action, proof/context/plan identities, authorized branches, selected evidence, inclusive expiry and charged work.",
+            rust_symbols: &["auths_verifier::sealed::bind_verified_action"],
+            scope: "Complete structural source projection for every represented VerifiedAuthority value into VerifiedAction. This proves lossless movement of the earned authority, rather than assuming a source result. It does not prove that arbitrary represented authority inputs are authorized; complete verifier and gateway caller composition remain required.",
+            residual_assumptions: &[
+                "The pinned Rust/Charon/Aeneas/Lean/compiler and reviewed allocation/value-semantics boundary remain explicit. Rust module privacy and capability construction are part of the separately reviewed shipping caller boundary.",
+                "This coding batch is unverified pending actual source translation, elaboration, declaration/axiom audit and native caller regressions. Portable decision encoding and exact byte-to-authority authorization are separate obligations.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if matches!(declaration,
+          "Auths.Verifier.WorkMeterRefinement.new_exact"
+        | "Auths.Verifier.WorkMeterRefinement.from_used_exact"
+        | "Auths.Verifier.WorkMeterRefinement.reserve_exact"
+        | "Auths.Verifier.WorkMeterRefinement.method_reserve_exact"
+    ) {
+        let rust_symbols: &[&str] = match declaration {
+            "Auths.Verifier.WorkMeterRefinement.new_exact" => &["auths_verifier::work_meter::new"],
+            "Auths.Verifier.WorkMeterRefinement.from_used_exact" => &["auths_verifier::work_meter::from_used"],
+            "Auths.Verifier.WorkMeterRefinement.reserve_exact" => &["auths_verifier::work_meter::reserve"],
+            "Auths.Verifier.WorkMeterRefinement.method_reserve_exact" => &["auths_verifier::work_meter::{auths_verifier::work_meter::WorkMeter}::reserve"],
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The shipping verifier work meter has exact checked reservation semantics: overflow and limit refusals retain both fields and the exact resource-limit code; acceptance adds exactly the declared charge without changing the configured limit.",
+            rust_symbols,
+            scope: "Exact source new/from-used/reserve operations and the production reserve method for every represented U64 state and charge. The independent finite-history model establishes exact accepted charges, an unchanged limit and the configured bound from a bounded initial state. These are primitive/adapter accounting units; this claim does not count every surrounding structural traversal or establish whole-verifier time/cost, handler reservation correctness or caller composition.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler and the existing reviewed fixed-width checked-add/standard-library boundary. From-used preserves the supplied value and does not manufacture the used-at-most-limit invariant; callers must earn it from their previous source stage.",
+                "This batch is unverified pending actual translation, source/axiom/type audit, elaboration, qualification cases and runtime regressions. Full E2 work and control-flow composition remains required.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    if matches!(declaration,
+          "Auths.Verifier.ObservationControl.exact_result"
+        | "Auths.Verifier.ObservationControl.payload_exact"
+        | "Auths.Verifier.ObservationControl.resource_refused"
+        | "Auths.Verifier.ObservationControl.ordinary_ignored"
+    ) {
+        return Some(ProductionRefinementMetadata {
+            claim_text: "The actual observation-control classifier preserves successful payloads, ignores non-resource optional-control failures, and propagates adapter resource exhaustion as the exact resource-limit refusal.",
+            rust_symbols: &["auths_verifier::observation::control_result"],
+            scope: "Complete translated generic result classifier for every payload and principal-control error, with useful payload preservation and exact exhausted/ordinary refusal behavior. The real observation primitive caller consumes this result with error propagation. Full observation eligibility, signature/evidence/fact binding, namespace and work accounting, cache and verifier-driver correspondence remain separate obligations.",
+            residual_assumptions: &[
+                "Pinned Rust/Charon/Aeneas/Lean/compiler value semantics and the existing runtime payload boundary. No cryptographic authenticity is inferred from an arbitrary successful adapter payload by this classifier claim.",
+                "The coding batch remains unverified until actual translation, elaboration, complete declaration/axiom/type audit, qualification cases and the runtime/frozen-stage regressions. The intentional correction changes the previously swallowed PrincipalControlError::ResourceLimitExceeded case only; the ordinary invalid/unavailable observation rule remains.",
+            ],
+            translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+        });
+    }
+
+    // Source-connected object codec claims. The final audit/qualification
+    // regenerates evidence after the complete implementation batch.
+    if matches!(declaration,
+          "Auths.Codec.ProfileDecode.profile_exact"
+        | "Auths.Codec.PermissionDecode.permission_exact"
+        | "Auths.Codec.BudgetDecode.budget_exact"
+        | "Auths.Codec.BudgetDecode.optional_budget_exact"
+        | "Auths.Codec.EncoderState.new_exact"
+        | "Auths.Codec.EncoderState.into_writer_exact"
+        | "Auths.Codec.EncoderState.head_exact"
+        | "Auths.Codec.EncoderState.map_exact"
+        | "Auths.Codec.EncoderState.array_exact"
+        | "Auths.Codec.EncoderState.u64_exact"
+        | "Auths.Codec.EncoderState.u16_exact"
+        | "Auths.Codec.EncoderState.u8_exact"
+        | "Auths.Codec.EncoderState.payload_exact"
+        | "Auths.Codec.EncoderState.bytes_exact"
+        | "Auths.Codec.EncoderState.str_exact"
+        | "Auths.Codec.EncoderState.null_exact"
+        | "Auths.Codec.ProtocolEncode.length_exact"
+        | "Auths.Codec.ProtocolEncode.map_exact"
+        | "Auths.Codec.ProtocolEncode.key_exact"
+        | "Auths.Codec.ProtocolEncode.bytes_exact"
+        | "Auths.Codec.ProtocolEncode.text_exact"
+        | "Auths.Codec.ProtocolEncode.array_exact"
+        | "Auths.Codec.ObjectEncode.profile_exact"
+        | "Auths.Codec.ObjectEncode.permission_exact"
+        | "Auths.Codec.ObjectEncode.budget_exact"
+        | "Auths.Codec.ObjectEncode.optional_budget_exact"
+        | "Auths.Codec.AttachmentEncode.attachment_exact"
+        | "Auths.Codec.AttachmentEncode.attachments_exact"
+        | "Auths.Codec.ActionEncode.action_exact"
+        | "Auths.Codec.WireInverse.profile_source_roundtrip"
+        | "Auths.Codec.WireInverse.permission_source_roundtrip"
+        | "Auths.Codec.WireInverse.budget_source_roundtrip"
+    ) {
+        let (claim_text, rust_symbols): (&str, &[&str]) = match declaration {
+            "Auths.Codec.ProfileDecode.profile_exact" => (
+                "The actual profile helper exactly parses its map, ordered keys, checked identifier and positive u16 version, preserving all typed refusals and the cursor.",
+                &["auths_codec::decode::profile_ref"],
+            ),
+            "Auths.Codec.PermissionDecode.permission_exact" => (
+                "The actual permission helper exactly parses the checked capability and resource, including distinct identifier limits and typed errors.",
+                &["auths_codec::decode::permission"],
+            ),
+            "Auths.Codec.BudgetDecode.budget_exact" => (
+                "The actual budget helper exactly parses its algebra and full u64 amount; zero amount is preserved.",
+                &["auths_codec::decode::budget"],
+            ),
+            "Auths.Codec.BudgetDecode.optional_budget_exact" => (
+                "The actual optional-budget helper exactly distinguishes null, checked budget and typed refusal with exact cursor behavior.",
+                &["auths_codec::decode::optional_budget"],
+            ),
+            "Auths.Codec.EncoderState.new_exact" => (
+                "The actual encoder new operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::new"],
+            ),
+            "Auths.Codec.EncoderState.into_writer_exact" => (
+                "The actual encoder into_writer operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::into_writer"],
+            ),
+            "Auths.Codec.EncoderState.head_exact" => (
+                "The actual encoder head operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::head"],
+            ),
+            "Auths.Codec.EncoderState.map_exact" => (
+                "The actual encoder map operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::map"],
+            ),
+            "Auths.Codec.EncoderState.array_exact" => (
+                "The actual encoder array operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::array"],
+            ),
+            "Auths.Codec.EncoderState.u64_exact" => (
+                "The actual encoder u64 operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::u64"],
+            ),
+            "Auths.Codec.EncoderState.u16_exact" => (
+                "The actual encoder u16 operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::u16"],
+            ),
+            "Auths.Codec.EncoderState.u8_exact" => (
+                "The actual encoder u8 operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::u8"],
+            ),
+            "Auths.Codec.EncoderState.payload_exact" => (
+                "The actual encoder payload operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::payload"],
+            ),
+            "Auths.Codec.EncoderState.bytes_exact" => (
+                "The actual encoder bytes operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::bytes"],
+            ),
+            "Auths.Codec.EncoderState.str_exact" => (
+                "The actual encoder str operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::str"],
+            ),
+            "Auths.Codec.EncoderState.null_exact" => (
+                "The actual encoder null operation preserves the existing output and returns exactly the independent canonical byte sequence under its displayed intermediate-buffer envelope.",
+                &["auths_codec::cbor::{auths_codec::cbor::Encoder}::null"],
+            ),
+            "Auths.Codec.ProtocolEncode.length_exact" => (
+                "The actual protocol length helper refines the independent canonical encoding and exact typed success, under the displayed allocation envelope where required.",
+                &["auths_codec::encode::length"],
+            ),
+            "Auths.Codec.ProtocolEncode.map_exact" => (
+                "The actual protocol map helper refines the independent canonical encoding and exact typed success, under the displayed allocation envelope where required.",
+                &["auths_codec::encode::map"],
+            ),
+            "Auths.Codec.ProtocolEncode.key_exact" => (
+                "The actual protocol key helper refines the independent canonical encoding and exact typed success, under the displayed allocation envelope where required.",
+                &["auths_codec::encode::key"],
+            ),
+            "Auths.Codec.ProtocolEncode.bytes_exact" => (
+                "The actual protocol bytes helper refines the independent canonical encoding and exact typed success, under the displayed allocation envelope where required.",
+                &["auths_codec::encode::bytes"],
+            ),
+            "Auths.Codec.ProtocolEncode.text_exact" => (
+                "The actual protocol text helper refines the independent canonical encoding and exact typed success, under the displayed allocation envelope where required.",
+                &["auths_codec::encode::text"],
+            ),
+            "Auths.Codec.ProtocolEncode.array_exact" => (
+                "The actual protocol array helper refines the independent canonical encoding and exact typed success, under the displayed allocation envelope where required.",
+                &["auths_codec::encode::array"],
+            ),
+            "Auths.Codec.ObjectEncode.profile_exact" => (
+                "The complete actual profile field encoder emits exactly its independent ordered field encoding under explicit native-string carrier and intermediate-buffer bounds.",
+                &["auths_codec::encode::encode_profile_ref"],
+            ),
+            "Auths.Codec.ObjectEncode.permission_exact" => (
+                "The complete actual permission field encoder emits exactly its independent ordered field encoding under explicit native-string carrier and intermediate-buffer bounds.",
+                &["auths_codec::encode::encode_permission"],
+            ),
+            "Auths.Codec.ObjectEncode.budget_exact" => (
+                "The complete actual budget field encoder emits exactly its independent ordered field encoding under explicit native-string carrier and intermediate-buffer bounds.",
+                &["auths_codec::encode::encode_budget"],
+            ),
+            "Auths.Codec.ObjectEncode.optional_budget_exact" => (
+                "The complete actual optional_budget field encoder emits exactly its independent ordered field encoding under explicit native-string carrier and intermediate-buffer bounds.",
+                &["auths_codec::encode::encode_optional_budget"],
+            ),
+            "Auths.Codec.AttachmentEncode.attachment_exact" => (
+                "The actual attachment encoder preserves an earlier typed error or appends the exact digest and payload encoding with every intermediate allocation bounded.",
+                &["auths_codec::encode::encode_canonical_attachment"],
+            ),
+            "Auths.Codec.AttachmentEncode.attachments_exact" => (
+                "The actual canonical-action attachment loop terminates by remaining input length and writes the exact ordered list without skipping or duplicating an attachment.",
+                &["auths_codec::encode::encode_canonical_action"],
+            ),
+            "Auths.Codec.ActionEncode.action_exact" => (
+                "The complete actual public canonical-action encoder returns exactly the independent six-field encoding, including optional budget and every ordered attachment, under explicit native-string and intermediate-allocation bounds.",
+                &["auths_codec::encode::encode_canonical_action"],
+            ),
+            "Auths.Codec.WireInverse.profile_source_roundtrip" => (
+                "Actual profile parsing of independently encoded constructor-valid field bytes earns exact reconstructed fields and complete field consumption for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::profile_ref"],
+            ),
+            "Auths.Codec.WireInverse.permission_source_roundtrip" => (
+                "Actual permission parsing of independently encoded constructor-valid field bytes earns exact reconstructed fields and complete field consumption for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::permission"],
+            ),
+            "Auths.Codec.WireInverse.budget_source_roundtrip" => (
+                "Actual budget parsing of independently encoded constructor-valid field bytes earns exact reconstructed fields and complete field consumption for arbitrary surrounding prefixes and suffixes.",
+                &["auths_codec::decode::budget"],
+            ),
+            _ => return None,
+        };
+        return Some(ProductionRefinementMetadata {
+            claim_text,
+            rust_symbols,
+            scope: "Actual translated source functions. Parser helpers quantify over every represented slice and cursor and preserve exact typed errors. Encoder theorems quantify over represented objects and prefixes under their displayed portable native-string and intermediate-buffer envelopes. The public canonical-action encoder includes the actual attachment loop. Round-trip corollaries require independent identifier/UTF-8/version well-formedness and field-size bounds; arbitrary suffixes remain outside standalone canonical acceptance.",
+            residual_assumptions: &[
+                "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, listed foundational axioms and existing reviewed standard-library copy, UTF-8, scalar, slice, native-string and iterator contracts are trusted. No opaque Auths algorithm or new native-evaluation axiom is introduced. Allocation envelopes describe mathematical carrier sizes, not physical allocator availability.",
+                "Field prefix parsing is not public full-object acceptance: trailing-data rejection, canonical re-encoding checks, complete constructor closure, other protocol objects and full byte-to-authority composition remain separate. The encoder's conservative intermediate-buffer envelope is an explicit sufficient premise, not a claimed necessary deployment limit. These declarations become assurance evidence only after the final statement/axiom audit and exact-source translation qualification.",
             ],
             translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
         });
@@ -5922,6 +10117,305 @@ mod phase_ordering {
             AUTHORITY_TRANSLATION,
         )
         .expect("complete production evidence");
+    }
+
+    #[test]
+    fn batch_claims_retain_their_actual_translation_owner() {
+        let cases = [
+            ("Auths.Codec.ActionTotal.decode_total", CODEC_TRANSLATION),
+            (
+                "Auths.Codec.PolicyReadTotal.decoder_total",
+                PROTOCOL_CODEC_TRANSLATION,
+            ),
+            (
+                "Auths.Codec.ProtocolReaderBounds.source_text_span",
+                PROTOCOL_CODEC_TRANSLATION,
+            ),
+            (
+                "Auths.Codec.PolicyCursor.commitment_bounded",
+                PROTOCOL_CODEC_TRANSLATION,
+            ),
+            (
+                "Auths.Codec.PolicyAssurance.decoder_refines",
+                PROTOCOL_CODEC_TRANSLATION,
+            ),
+            (
+                "Auths.Codec.SnapshotRefinement.principal_duplicates_exact",
+                MODEL_TRANSLATION,
+            ),
+            (
+                "Auths.Verifier.WorkMeterRefinement.reserve_exact",
+                TEMPORAL_TRANSLATION,
+            ),
+            (
+                "Auths.Product.WritePermit.Refinement.consume_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ClaimedInput.Refinement.capture_projects",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ArgumentBinding.Refinement.source_earns_alignment",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ScalarProjection.Refinement.integer_projection_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ScalarProjection.Dispatch.projection_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.FieldProjection.Refinement.project_object_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.FieldProjection.Refinement.source_bound_preimages_use_projected_operation",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateMembers.Refinement.source_key_position_preserves_original_name",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateMembers.Refinement.source_members_select_canonical_original_labels",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateMembers.Refinement.source_target_descends_to_original_name",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.source_json_push_preserves_resources",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.json_keys_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.form_prefix_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.json_value_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.source_body_refines_original_ast",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.source_ast_bound_write_refines_original_request",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.source_leaf_body_admission_compiles",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.source_admitted_body_compiles",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.TemplateAst.Refinement.source_bounded_shape_body_compiles",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ScalarProjection.Dispatch.source_form_projection_kind",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.PathCompiler.Refinement.source_url_refines_named_path",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.BodyCompiler.Refinement.source_form_body_refines_named_template",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.BodyCompiler.Refinement.add_resources_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.DerivedTokens.Refinement.echo_token_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.RecipeBinding.Refinement.source_digest_input_retains_exact_preimage",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.RecipeBinding.Refinement.lock_metadata_valid_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ProfileSchema.Refinement.source_root_has_exact_original_meaning",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.ProfileSchema.Refinement.source_valid_profile_has_useful_acceptance",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.EchoPointer.Refinement.source_pointer_retains_exact_original_names",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.AttemptBinding.Refinement.source_shared_record_cannot_license_distinct_request_identities",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.Refinement.EntryDeadline.translated_gate_refines_original_bounds",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_schema_has_original_meaning",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_body_preserves_original_meaning",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_schema_parse_scalar_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_profile_root_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_rule_fields_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_header_input_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_echo_input_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_lower_path_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_original_path_verdict",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_credential_read_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_original_headers_verdict",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_lower_json_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_form_resources_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_compile_write_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_json_push_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_json_keys_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_canonical_members_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_ast_child_echo_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_json_string_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_integer_literal_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_json_value_effect",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_compile_body_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_named_write_body_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_denied_reads_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_checked_host_column",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.NativeCompiler.Refinement.native_plans_exact",
+                NATIVE_COMPILER_TRANSLATION,
+            ),
+            (
+                "Auths.Product.HeaderCompiler.Refinement.header_index_exact",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.HeaderCompiler.Refinement.source_action_headers_refine_named_source",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.RequestCompiler.Refinement.source_complete_write_refines_named_request",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.RequestCompiler.Refinement.source_bound_write_refines_named_request",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.DecimalProjection.Refinement.integer_bytes_semantics",
+                GATEWAY_TRANSLATION,
+            ),
+            (
+                "Auths.Product.LeaseBinding.Refinement.generations_exact",
+                CONNECTIONS_TRANSLATION,
+            ),
+            (
+                "Auths.Product.Refinement.Connections.translated_next_generation_refines_model",
+                CONNECTIONS_TRANSLATION,
+            ),
+        ];
+        for (declaration, expected) in cases {
+            let (metadata, actual) = qualified_refinement_metadata(declaration)
+                .unwrap_or_else(|| panic!("{declaration} lacks qualified source metadata"));
+            assert_eq!(actual, expected, "wrong source owner for {declaration}");
+            assert!(!metadata.rust_symbols.is_empty());
+            assert_eq!(
+                metadata.translation_evidence_kind,
+                FormalEvidenceKind::MechanicalTranslation,
+                "{declaration} must require actual translated source evidence"
+            );
+        }
+        assert!(batch_refinement_translation("Unknown.Source.claim").is_none());
     }
 
     #[test]

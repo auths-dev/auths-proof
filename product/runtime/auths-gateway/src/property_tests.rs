@@ -292,7 +292,6 @@ proptest! {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime");
         let directory = tempfile::tempdir().expect("tempdir");
         let recipe = airtable();
-        let digest = <[u8; 32]>::try_from(hex::decode(recipe.digest_hex()).expect("hex")).expect("digest");
         let root = std::fs::canonicalize(directory.path()).expect("canonical").join("attempts");
         let open = || GatewayAttempts::new(Arc::new(FileGatewayAttemptStore::open(root.clone()).expect("store")));
         let mut attempts = open();
@@ -308,7 +307,7 @@ proptest! {
                             [operation; 32],
                         )
                         .expect("request");
-                    match runtime.block_on(attempts.claim(&request, digest, 1_790_000_000)) {
+                    match runtime.block_on(attempts.claim(&request, 1_790_000_000)) {
                         Ok(claim) => {
                             *writes.entry(operation).or_default() += 1;
                             held.insert(operation, claim);

@@ -14,10 +14,10 @@ use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
 use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
 use crate::store::BoundedClaim;
 use crate::transport::{
-    GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
+    GatewayTransportError, ProviderReadPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
-    ClaimedGatewayAttempt, ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe,
+    ClaimedGatewayAttempt, ClosedCredentialRead, CompiledRecipe,
     GatewayAttemptError, GatewayAttempts, GatewayObserver, GatewayPreEntry, GatewayRelativeBasis,
     ObservableGatewayAttempt, RequestHeader,
 };
@@ -26,9 +26,11 @@ use auths_gateway_kernel::order::{
     ResponseRecord, Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, SubmitState,
     Verification, WriteResult, next_step, start,
 };
+use auths_gateway_kernel::write_permit::{self, WritePermit};
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
+use std::sync::Arc;
 use subtle::ConstantTimeEq as _;
 
 /// No submission takes more steps than this; a longer run halts.
@@ -93,11 +95,12 @@ pub(crate) trait SubmitIo {
         bound: auths_gateway_kernel::deadline::EntryBound,
     ) -> bool;
 
-    /// Sends the one write under `lease`.
+    /// Sends the exact native command under `lease`. Production rechecks its
+    /// entry deadline immediately before invoking HTTP execution.
     async fn write(
         &self,
         lease: &Self::Lease,
-        request: &ClosedProviderRequest,
+        command: &VerifiedCommand,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
     /// Performs one bounded GET of an action read or observation under
@@ -177,7 +180,7 @@ pub(crate) fn account_commitment(label: &str) -> [u8; 32] {
 /// names at `pointer`: a JSON string of 1–256 bytes.
 pub(crate) fn account_label(response: Option<&ProviderResponse>, pointer: &str) -> Option<String> {
     let body = response?.usable_body()?;
-    match serde_json::from_slice::<Value>(body)
+    match crate::recipe::strict_json::from_slice::<Value>(body)
         .ok()?
         .pointer(pointer)?
     {
@@ -229,6 +232,23 @@ impl<I: SubmitIo> Drop for InFlight<'_, I> {
     }
 }
 
+/// The exact verification and pre-entry selection whose durable claim was
+/// acknowledged. Moving it here freezes all later authority-derived reads,
+/// including their evaluation time, rather than only freezing the HTTP tuple.
+type ClaimedCommand = write_permit::ClaimedInput<VerifiedCommand, Vec<SelectedRequirement>>;
+
+fn claim_matches_capture(
+    claim: &ClaimedGatewayAttempt,
+    attempts: &GatewayAttempts,
+    captured: Option<&ClaimedCommand>,
+) -> bool {
+    let Some(captured) = captured else { return false; };
+    let command = write_permit::captured_command(captured).projection();
+    let evaluated_at = write_permit::captured_time(captured);
+    if command.evaluated_at != evaluated_at { return false; }
+    crate::store::claimed_request_matches(claim, attempts, &command.request, evaluated_at)
+}
+
 /// What one run has learned so far.
 struct Run<'a, I: SubmitIo> {
     cx: &'a SubmitContext<'a>,
@@ -238,11 +258,14 @@ struct Run<'a, I: SubmitIo> {
     evaluated_at: u64,
     verified: Option<VerifiedCommand>,
     selected: Vec<SelectedRequirement>,
+    claimed_command: Option<Arc<ClaimedCommand>>,
     claim: Option<ClaimedGatewayAttempt>,
+    write_permit: WritePermit<Arc<ClaimedCommand>>,
     observable: Option<ObservableGatewayAttempt>,
     lease: Option<I::Lease>,
     pre_entry: GatewayPreEntry,
     written: Option<(u16, [u8; 32], Vec<u8>, bool)>,
+    write_refusal: Option<Refusal>,
     refusal: Option<&'static str>,
     result: Option<GatewaySubmitResult>,
     in_flight: Option<InFlight<'a, I>>,
@@ -258,11 +281,14 @@ impl<'a, I: SubmitIo> Run<'a, I> {
             evaluated_at: 0,
             verified: None,
             selected: Vec::new(),
+            claimed_command: None,
             claim: None,
+            write_permit: write_permit::empty(),
             observable: None,
             lease: None,
             pre_entry: GatewayPreEntry::default(),
             written: None,
+            write_refusal: None,
             refusal: None,
             result: None,
             in_flight: None,
@@ -321,6 +347,17 @@ pub(crate) async fn reobserve<I: SubmitIo>(
 }
 
 impl<I: SubmitIo> Run<'_, I> {
+    fn bound_claim(&self, claim: &ClaimedGatewayAttempt) -> bool {
+        claim_matches_capture(claim, self.cx.attempts, self.claimed_command.as_deref())
+    }
+
+    /// Takes exactly the handle checked against this run's immutable capture.
+    /// An unrelated handle is dropped without changing any durable record.
+    fn take_bound_claim(&mut self) -> Option<ClaimedGatewayAttempt> {
+        let claim = self.claim.take()?;
+        if self.bound_claim(&claim) { Some(claim) } else { None }
+    }
+
     fn refuse_before_claim(&mut self, result: GatewaySubmitResult) {
         self.result = Some(result);
     }
@@ -387,7 +424,7 @@ impl<I: SubmitIo> Run<'_, I> {
             }
             SubmitAction::PreEntryRead => SubmitEvent::PreEntry(self.pre_entry_read().await),
             SubmitAction::CeilingRead => SubmitEvent::Ceiling(self.ceiling_read().await),
-            SubmitAction::RecordCheckpoint => SubmitEvent::Recorded(match self.claim.take() {
+            SubmitAction::RecordCheckpoint => SubmitEvent::Recorded(match self.take_bound_claim() {
                 Some(claim) => match claim.record_checkpoint(&self.pre_entry).await {
                     Ok(claim) => {
                         self.claim = Some(claim);
@@ -398,9 +435,11 @@ impl<I: SubmitIo> Run<'_, I> {
                 None => false,
             }),
             SubmitAction::CheckDeadline => {
-                SubmitEvent::Deadline(self.verified.as_ref().is_some_and(|verified| {
-                    self.io
-                        .within_entry_deadline(self.evaluated_at, verified.entry_not_after)
+                SubmitEvent::Deadline(self.claimed_command.as_ref().is_some_and(|claimed| {
+                    self.io.within_entry_deadline(
+                        write_permit::captured_time(claimed),
+                        write_permit::captured_command(claimed).projection().entry_not_after,
+                    )
                 }))
             }
             SubmitAction::Send => SubmitEvent::Write(self.send().await),
@@ -410,7 +449,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Response(recorded)
             }
             SubmitAction::RecordUnknown => {
-                let recorded = match self.claim.take() {
+                let recorded = match self.take_bound_claim() {
                     Some(claim) => claim.record_unknown().await.is_ok(),
                     None => false,
                 };
@@ -428,6 +467,14 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     fn verify(&mut self) -> Verification {
+        // Once a claim captures the command, a later dispatch cannot replace
+        // its arguments, observation plan or authority deadline.
+        if self.claim.is_some()
+            || self.claimed_command.is_some()
+            || !write_permit::can_arm(&self.write_permit)
+        {
+            return Verification::Refused;
+        }
         let verified = match self.io.verify(self.evaluated_at) {
             Ok(verified) => verified,
             Err(result) => {
@@ -435,10 +482,18 @@ impl<I: SubmitIo> Run<'_, I> {
                 return Verification::Refused;
             }
         };
+        let projection = verified.projection();
+        if !auths_gateway_kernel::attempt_binding::installation_matches(
+            projection.request.namespace().as_str().as_bytes(), projection.request.recipe_digest(),
+            self.cx.recipe.namespace().as_str().as_bytes(), self.cx.recipe.digest(),
+        ) {
+            self.refuse_before_claim(not_entered(crate::recipe::GatewayRecipeError::ActionMismatch.code()));
+            return Verification::Refused;
+        }
         let argument = match &self.ceiling {
             None => 0,
             Some(ceiling) => {
-                let Some(argument) = ceiling.argument_value(&verified.arguments) else {
+                let Some(argument) = ceiling.argument_value(&projection.arguments) else {
                     self.refuse_before_claim(not_entered("gateway.policy.argument-unavailable"));
                     return Verification::Refused;
                 };
@@ -456,6 +511,7 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(verified) = &self.verified else {
             return false;
         };
+        let verified = verified.projection();
         if let Some(retention) = self.cx.recipe.idempotency_retention()
             && verified
                 .validity_seconds
@@ -507,22 +563,49 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn claim(&mut self) -> ClaimResult {
+        // A run may not reserve another operation or replace the request
+        // associated with its existing claim, including after consumption.
+        if self.claim.is_some()
+            || self.claimed_command.is_some()
+            || !write_permit::can_arm(&self.write_permit)
+        {
+            return ClaimResult::Unavailable;
+        }
         let Some(verified) = &self.verified else {
             return ClaimResult::Unavailable;
         };
+        let verified = verified.projection();
         match self
             .cx
             .attempts
             .claim_bounded(
                 &verified.request,
-                *self.cx.recipe.digest(),
-                self.evaluated_at,
+                verified.evaluated_at,
                 verified.bound.as_ref(),
             )
             .await
         {
             Ok(BoundedClaim::Claimed(claim)) => {
+                if !crate::store::claimed_request_matches(
+                    &claim, self.cx.attempts, &verified.request, verified.evaluated_at,
+                ) {
+                    self.refuse_before_claim(not_entered("gateway.attempt.unavailable"));
+                    return ClaimResult::Unavailable;
+                }
+                // Capture after the acknowledged winning claim. Subsequent
+                // run-state changes cannot substitute another request.
                 self.claim = Some(*claim);
+                if let Some(command) = self.verified.take() {
+                    let evaluated_at = command.projection().evaluated_at;
+                    let captured = Arc::new(write_permit::capture_input(
+                        command,
+                        evaluated_at,
+                        core::mem::take(&mut self.selected),
+                    ));
+                    let permit = core::mem::replace(&mut self.write_permit, write_permit::empty());
+                    self.write_permit = write_permit::arm(permit, Arc::clone(&captured));
+                    self.claimed_command = Some(captured);
+                }
                 ClaimResult::Inserted
             }
             Ok(BoundedClaim::Exhausted(code)) => {
@@ -545,10 +628,11 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(verified) = &self.verified else {
             return false;
         };
+        let verified = verified.projection();
         match self
             .cx
             .attempts
-            .resume_observable(&verified.request, *self.cx.recipe.digest())
+            .resume_observable(&verified.request)
             .await
         {
             Ok(Some(attempt)) => {
@@ -598,15 +682,15 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn pre_entry_read(&mut self) -> PreEntryResult {
-        let (Some(lease), Some(verified), Some(observer), Some(pointers)) = (
+        let (Some(lease), Some(claimed), Some(observer), Some(pointers)) = (
             &self.lease,
-            &self.verified,
+            &self.claimed_command,
             self.cx.observer,
             self.cx.recipe.pre_entry_pointers(),
         ) else {
             return PreEntryResult::Unavailable;
         };
-        let Some(read) = verified.request.pre_entry_read() else {
+        let Some(read) = write_permit::captured_command(claimed).projection().request.pre_entry_read() else {
             return PreEntryResult::Unavailable;
         };
         let Some(observed_at) = self.io.clock() else {
@@ -633,7 +717,7 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(now) = self.io.clock() else {
             return PreEntryResult::Unavailable;
         };
-        let result = pre_entry::evaluate(&self.selected, &observations, now);
+        let result = pre_entry::evaluate(write_permit::captured_selection(claimed), &observations, now);
         if result != PreEntryResult::Unavailable {
             self.pre_entry.observations = observations
                 .into_iter()
@@ -644,11 +728,12 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn ceiling_read(&mut self) -> CeilingRead {
-        let (Some(lease), Some(verified), Some(ceiling)) =
-            (&self.lease, &self.verified, &self.ceiling)
+        let (Some(lease), Some(claimed), Some(ceiling)) =
+            (&self.lease, &self.claimed_command, &self.ceiling)
         else {
             return CeilingRead::Unavailable;
         };
+        let verified = write_permit::captured_command(claimed).projection();
         let Some(read) = verified.request.relative_ceiling_read() else {
             return CeilingRead::Unavailable;
         };
@@ -681,10 +766,42 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn send(&mut self) -> WriteResult {
-        let (Some(lease), Some(verified)) = (&self.lease, &self.verified) else {
+        // Consume synchronously before awaiting the transport. Unexpected
+        // repeated dispatch cannot send again or assert that an earlier
+        // entry did not happen.
+        let already_spent = write_permit::spent(&self.write_permit);
+        let claim_matches = match &self.claim {
+            Some(claim) => self.bound_claim(claim),
+            None => false,
+        };
+        let permit = core::mem::replace(&mut self.write_permit, write_permit::empty());
+        let (permit, captured) = write_permit::consume(
+            permit,
+            claim_matches,
+            self.lease.is_some(),
+        );
+        self.write_permit = permit;
+        if already_spent {
+            return WriteResult::Unknown;
+        }
+        let (Some(lease), Some(captured)) = (&self.lease, captured) else {
             return WriteResult::NotEntered;
         };
-        match self.io.write(lease, &verified.request).await {
+        if !self.claimed_command.as_ref().is_some_and(|expected| Arc::ptr_eq(expected, &captured)) {
+            return WriteResult::NotEntered;
+        }
+        let command = write_permit::captured_command(&captured);
+        if !self.io.within_entry_deadline(
+            write_permit::captured_time(&captured), command.projection().entry_not_after,
+        ) {
+            self.write_refusal = Some(Refusal::EntryDeadline);
+            return WriteResult::NotEntered;
+        }
+        match self.io.write(lease, command).await {
+            Err(GatewayTransportError::EntryDeadline) => {
+                self.write_refusal = Some(Refusal::EntryDeadline);
+                WriteResult::NotEntered
+            }
             Err(_) => WriteResult::NotEntered,
             Ok(WriteTransportOutcome::Unknown) => WriteResult::Unknown,
             Ok(WriteTransportOutcome::ResponseRecorded {
@@ -700,12 +817,13 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn record_response(&mut self) -> ResponseRecord {
-        let (Some(claim), Some((status, digest, body, version_ok)), Some(verified)) =
-            (self.claim.take(), self.written.take(), &self.verified)
+        let (Some(claim), Some((status, digest, body, version_ok)), Some(claimed)) =
+            (self.take_bound_claim(), self.written.take(), &self.claimed_command)
         else {
             return ResponseRecord::Failed;
         };
-        let locator = verified
+        let locator = write_permit::captured_command(claimed)
+            .projection()
             .request
             .observation_template()
             .filter(|template| template.has_response_fields())
@@ -725,8 +843,12 @@ impl<I: SubmitIo> Run<'_, I> {
     }
 
     async fn record_not_entered(&mut self, refusal: Refusal) -> bool {
-        let Some(claim) = self.claim.take() else {
+        let Some(claim) = self.take_bound_claim() else {
             return false;
+        };
+        let refusal = match refusal {
+            Refusal::TransportNotEntered => self.write_refusal.unwrap_or(refusal),
+            other => other,
         };
         let code = match refusal {
             Refusal::CredentialUnavailable | Refusal::ConnectionChanged => self
@@ -842,7 +964,7 @@ impl<I: SubmitIo> Run<'_, I> {
 /// The lease-time credential checks of a read outside a submission (an
 /// observation request): the prefix guard, the account read, and each
 /// denied read in declaration order, stopping at the first failure.
-pub(crate) async fn lease_checks<P: ProviderPort>(
+pub(crate) async fn lease_checks<P: ProviderReadPort>(
     recipe: &CompiledRecipe,
     provider: &P,
     prefix_admitted: bool,
@@ -871,3 +993,7 @@ pub(crate) async fn lease_checks<P: ProviderPort>(
     }
     true
 }
+
+#[cfg(test)]
+#[path = "submit_permit_tests.rs"]
+mod permit_tests;

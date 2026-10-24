@@ -394,7 +394,7 @@ fn assemble_mcp_quorum_proof<'py>(
         .proposal
         .assemble(&action.inner, &approvals)
         .map_err(value_error)?;
-    let proof = auths_codec::encode_bundle(&bundle).map_err(value_error)?;
+    let proof = auths_codec::CanonicalProofBundle::new(bundle).and_then(|canonical| auths_codec::encode_bundle(&canonical)).map_err(value_error)?;
     Ok(PyBytes::new(py, &proof))
 }
 

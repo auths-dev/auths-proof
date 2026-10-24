@@ -1,4 +1,5 @@
 import Auths.Product.RecordShapeRefinement
+import Auths.Product.LeaseBindingRefinement
 import Auths.Product.StrictOrderRefinement
 import Auths.Product.RecordTimesRefinement
 import Auths.Product.StringConstructorsRefinement
@@ -10,10 +11,39 @@ import Auths.Product.ConnectionBytesRefinement
 import qualification.aeneas.generated.connections.Funs
 
 open Aeneas Aeneas.Std Result
+open Aeneas.Std.WP
 
 namespace qualification.aeneas.cases
 
 open auths_connections
+
+-- A lease retains both exact generations, including across state changes.
+example (expected leased : kernel.Generations) :
+    kernel.same_lease_generations expected leased ⦃ actual =>
+      actual = decide (Auths.Product.LeaseBinding.Matches
+        (Auths.Product.LeaseBinding.Refinement.view expected)
+        (Auths.Product.LeaseBinding.Refinement.view leased)) ⦄ :=
+  Auths.Product.LeaseBinding.Refinement.generations_exact expected leased
+
+example : kernel.same_lease_generations
+    { generation := 3#u64, credential_generation := 1#u64 }
+    { generation := 3#u64, credential_generation := 1#u64 } = ok true := by rfl
+
+example : kernel.same_lease_generations
+    { generation := 4#u64, credential_generation := 1#u64 }
+    { generation := 3#u64, credential_generation := 1#u64 } = ok false := by rfl
+
+example : kernel.same_lease_generations
+    { generation := 0#u64, credential_generation := 0#u64 }
+    { generation := 0#u64, credential_generation := 0#u64 } = ok false := by rfl
+
+example : kernel.same_lease_generations
+    { generation := 1#u64, credential_generation := 2#u64 }
+    { generation := 1#u64, credential_generation := 2#u64 } = ok false := by rfl
+
+example : kernel.same_lease_generations
+    { generation := 18446744073709551615#u64, credential_generation := 18446744073709551615#u64 }
+    { generation := 18446744073709551615#u64, credential_generation := 18446744073709551615#u64 } = ok true := by rfl
 
 -- A state change keeps the credential generation; a rotation sets both.
 example :

@@ -457,7 +457,7 @@ jobs:
           --print-build-logs
           --max-jobs 2
           --cores 2
-          github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
+          --file formal/qualification/aeneas/toolchain/aeneas.nix
           --out-link target/formal-tools
       - name: Reproduce translation twice
         if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'

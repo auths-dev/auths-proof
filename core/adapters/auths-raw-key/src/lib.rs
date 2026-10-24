@@ -154,7 +154,7 @@ impl PrincipalMethod for RawKeyMethod {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(RAW_KEY_V1.as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(RAW_KEY_V1.as_bytes(), &[])
     }
 
     fn maximum_work_units(&self) -> u64 {
@@ -250,7 +250,7 @@ impl PrincipalMethod for RawKeyV2Method {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(RAW_KEY_V2.as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(RAW_KEY_V2.as_bytes(), &[])
     }
 
     fn maximum_work_units(&self) -> u64 {

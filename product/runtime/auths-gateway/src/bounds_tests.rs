@@ -150,7 +150,7 @@ fn chain_submission(
         .expect("commitment")
         .as_bytes();
     Submission {
-        proof: encode_bundle(&bundle).expect("proof bytes"),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
         action,
         commitment,
     }
@@ -218,9 +218,7 @@ fn unregistered_body(policy: &ArgumentCeilingPolicy) -> Vec<u8> {
             .expect("evaluator"),
     )
     .expect("commitment");
-    auths_codec::encode_bounded_policy_commitment(
-        &auths_model::BoundedPolicyCommitment::new(commitment, policy, None).expect("body"),
-    )
+    auths_codec::CanonicalBoundedPolicyCommitment::new(auths_model::BoundedPolicyCommitment::clone(&auths_model::BoundedPolicyCommitment::new(commitment, policy, None).expect("body"))).and_then(|canonical| auths_codec::encode_bounded_policy_commitment(&canonical))
     .expect("bytes")
 }
 
@@ -589,7 +587,7 @@ impl RefundQuorum {
             .expect("commitment")
             .as_bytes();
         Submission {
-            proof: encode_bundle(bundle).expect("proof bytes"),
+            proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
             action,
             commitment,
         }
@@ -911,7 +909,7 @@ async fn journey_bundle(quorum: &RefundQuorum) -> Value {
 }
 
 fn context_bytes(quorum: &RefundQuorum) -> Vec<u8> {
-    auths_codec::encode_verifier_context(&quorum.harness.context).expect("context bytes")
+    auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&quorum.harness.context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).expect("context bytes")
 }
 
 fn pins(quorum: &RefundQuorum) -> crate::AuditPins {

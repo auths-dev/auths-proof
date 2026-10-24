@@ -20,6 +20,7 @@ use crate::{
     control_for, evaluate_signature, registry_operation_failure,
 };
 use alloc::vec::Vec;
+use crate::collections::try_fold_items;
 use auths_codec::{
     CodecError, approval_digest, approval_requirement_id, approval_signing_preimage, body_digest,
     decode_approval_requirements, principal_status_id,
@@ -28,20 +29,21 @@ use auths_composition::{ThresholdTruth, evaluate_threshold_counts};
 use auths_model::{
     ApprovalCounts, ApprovalDigest, ApprovalOutcome, ApprovalRequirement, ApprovalRequirementId,
     ApprovalSatisfaction, ApprovalStatement, ApprovalVerdict, ApproverAnchor, CanonicalAction,
+    CriticalExtension, EvidenceId, EvidenceObject, SignedPrincipalStatus,
     DenialReason, MAX_APPROVAL_REQUIREMENTS_PER_CHAIN, MAX_APPROVAL_REQUIREMENTS_PER_VERIFICATION,
     PrincipalId, ProofBundle, Requirement, SignedApproval, SignedGrant, StatementRef, StatusPolicy,
     StatusView, Timestamp, TrustedContext, approval_counts, principal_id_equal,
     principal_ids_contain, status_issuer_visible,
 };
-use auths_ports::{ControlPurpose, StatusDecision};
-use auths_registries::{APPROVAL_REQUIREMENT_EXTENSION_V1, ImmutableRegistries};
+use auths_ports::{ControlPurpose, StatusDecision, StatusMethod as _};
+use auths_registries::{APPROVAL_REQUIREMENT_EXTENSION_V1, RegistryAccess};
 
 /// The inputs every approval check reads.
-pub(crate) struct Inputs<'a, 'r> {
+pub(crate) struct Inputs<'a, R: RegistryAccess + ?Sized> {
     pub(crate) controlled: &'a ControlVerifiedProof,
     pub(crate) canonical: &'a CanonicalAction,
     pub(crate) context: &'a TrustedContext,
-    pub(crate) registries: &'a ImmutableRegistries<'r>,
+    pub(crate) registries: &'a R,
 }
 
 /// One requirement's evaluated verdict.
@@ -82,26 +84,10 @@ fn limit_or_malformed(error: CodecError) -> VerificationFailure {
 pub(crate) fn chain_requirements(
     chain: &[&SignedGrant],
 ) -> Result<Vec<(ApprovalRequirementId, ApprovalRequirement)>, VerificationFailure> {
-    let mut requirements: Vec<(ApprovalRequirementId, ApprovalRequirement)> = Vec::new();
-    for grant in chain {
-        for extension in grant.statement().extensions().as_slice() {
-            if extension.id().as_str() != APPROVAL_REQUIREMENT_EXTENSION_V1 {
-                continue;
-            }
-            let decoded =
-                decode_approval_requirements(extension.bytes()).map_err(limit_or_malformed)?;
-            for requirement in decoded.as_slice() {
-                let identifier = approval_requirement_id(requirement).map_err(codec_failure)?;
-                if !requirements.iter().any(|(known, _)| *known == identifier) {
-                    requirements.push((identifier, requirement.clone()));
-                }
-            }
-        }
-    }
+    let requirements = try_fold_items!(chain, Vec::new(), accumulated, _index, grant =>
+        collect_grant_requirements(accumulated, grant))?;
     if requirements.len() > MAX_APPROVAL_REQUIREMENTS_PER_CHAIN {
-        return Err(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ));
+        return Err(VerificationFailure::Denied(DenialReason::ResourceLimitExceeded));
     }
     Ok(requirements)
 }
@@ -110,13 +96,15 @@ pub(crate) fn chain_requirements(
 pub(crate) fn context_requirements(
     context: &TrustedContext,
 ) -> Result<Vec<(ApprovalRequirementId, ApprovalRequirement)>, VerificationFailure> {
-    Ok(
-        auths_codec::sorted_approval_requirements(context.approval_requirements())
-            .map_err(codec_failure)?
-            .into_iter()
-            .map(|(identifier, requirement)| (identifier, requirement.clone()))
-            .collect(),
-    )
+    let ordered = auths_codec::sorted_approval_requirements(context.approval_requirements())
+        .map_err(|error| codec_failure(error))?;
+    let mut output = Vec::with_capacity(ordered.len());
+    let mut position = 0;
+    while position < ordered.len() {
+        output.push((ordered[position].0, ApprovalRequirement::clone(ordered[position].1)));
+        position += 1;
+    }
+    Ok(output)
 }
 
 /// Whether an approval binds the requirement and the exact action: its
@@ -150,200 +138,254 @@ fn classify(failure: VerificationFailure) -> Result<ApprovalVerdict, Verificatio
     }
 }
 
+// Each fold step owns its partial value and exposes the original first-error
+// result. The aggregate chain bound deliberately remains after collection so
+// malformed/limit refusal precedence is not changed by this source reshape.
+fn append_requirement(
+    mut output: Vec<(ApprovalRequirementId, ApprovalRequirement)>,
+    requirement: &ApprovalRequirement,
+) -> Result<Vec<(ApprovalRequirementId, ApprovalRequirement)>, VerificationFailure> {
+    let identifier = approval_requirement_id(requirement).map_err(|error| codec_failure(error))?;
+    let mut known = false;
+    let mut position = 0;
+    while position < output.len() && !known {
+        known = output[position].0 == identifier;
+        position += 1;
+    }
+    if !known { output.push((identifier, requirement.clone())); }
+    Ok(output)
+}
+
+fn collect_extension_requirements(
+    output: Vec<(ApprovalRequirementId, ApprovalRequirement)>, extension: &CriticalExtension,
+) -> Result<Vec<(ApprovalRequirementId, ApprovalRequirement)>, VerificationFailure> {
+    if extension.id().as_str() != APPROVAL_REQUIREMENT_EXTENSION_V1 { return Ok(output); }
+    let decoded = decode_approval_requirements(extension.bytes()).map_err(|error| limit_or_malformed(error))?;
+    try_fold_items!(decoded.as_slice(), output, accumulated, _index, requirement =>
+        append_requirement(accumulated, requirement))
+}
+
+fn collect_grant_requirements(
+    output: Vec<(ApprovalRequirementId, ApprovalRequirement)>, grant: &SignedGrant,
+) -> Result<Vec<(ApprovalRequirementId, ApprovalRequirement)>, VerificationFailure> {
+    try_fold_items!(grant.statement().extensions().as_slice(), output, accumulated, _index, extension =>
+        collect_extension_requirements(accumulated, extension))
+}
+
+fn index_approval(
+    mut keys: Vec<(ApprovalDigest, usize)>, index: usize, approval: &SignedApproval,
+) -> Result<Vec<(ApprovalDigest, usize)>, VerificationFailure> {
+    keys.push((approval_digest(approval).map_err(|error| codec_failure(error))?, index));
+    Ok(keys)
+}
+
+struct ApprovalTally {
+    outcomes: Vec<ApprovalOutcome>,
+    counted: Vec<ApprovalDigest>,
+    valid_through: Timestamp,
+}
+impl ApprovalTally {
+    const fn empty() -> Self {
+        Self { outcomes: Vec::new(), counted: Vec::new(), valid_through: Timestamp::new(u64::MAX) }
+    }
+}
+
+fn already_counted(outcomes: &[ApprovalOutcome], approver: &PrincipalId) -> bool {
+    let mut position = 0;
+    let mut found = false;
+    while position < outcomes.len() && !found {
+        found = outcomes[position].verdict() == ApprovalVerdict::Counted
+            && principal_id_equal(outcomes[position].approver(), approver);
+        position += 1;
+    }
+    found
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_candidate<R: RegistryAccess + ?Sized>(
+    mut tally: ApprovalTally, digest: ApprovalDigest, approval: &SignedApproval,
+    identifier: ApprovalRequirementId, requirement: &ApprovalRequirement,
+    authority: &[&PrincipalId], inputs: &Inputs<'_, R>, meter: &mut WorkMeter,
+) -> Result<ApprovalTally, VerificationFailure> {
+    let statement = approval.statement();
+    let approver = statement.approver();
+    let evaluation_time = inputs.context.evaluation_time();
+    if !principal_ids_contain(requirement.approvers(), approver)
+        || authority.binary_search(&approver).is_ok()
+        || already_counted(&tally.outcomes, approver)
+        || !binds_exact(statement, identifier, inputs.canonical, inputs.context)
+        || !statement.validity().contains(evaluation_time)
+    { return Ok(tally); }
+    let Some(anchor) = inputs.context.approver_anchor(approver) else { return Ok(tally); };
+    if !anchor.validity().contains(evaluation_time)
+        || !anchor.accepted_methods().contains(approval.signature().descriptor().principal_method())
+    { return Ok(tally); }
+    let (verdict, status_not_after) = match signature_verdict(approval, inputs, meter)? {
+        ApprovalVerdict::Counted => status_verdict(anchor, inputs, meter)?,
+        other => (other, evaluation_time),
+    };
+    if verdict == ApprovalVerdict::Ignored { return Ok(tally); }
+    if verdict == ApprovalVerdict::Counted {
+        tally.counted.push(digest);
+        tally.valid_through = tally.valid_through.min(statement.validity().expires_at())
+            .min(anchor.validity().expires_at()).min(status_not_after);
+    }
+    tally.outcomes.push(ApprovalOutcome::new(approver.clone(), verdict));
+    Ok(tally)
+}
+
+fn borrowed_evidence(evidence: &[EvidenceObject]) -> Vec<&EvidenceObject> {
+    let mut output = Vec::with_capacity(evidence.len());
+    let mut position = 0;
+    while position < evidence.len() { output.push(&evidence[position]); position += 1; }
+    output
+}
+
+fn evidence_identifiers(evidence: &[EvidenceObject]) -> Vec<EvidenceId> {
+    let mut output = Vec::with_capacity(evidence.len());
+    let mut position = 0;
+    while position < evidence.len() { output.push(evidence[position].id()); position += 1; }
+    output
+}
+
 impl<'a> Approvals<'a> {
     /// Removes byte-identical repetitions, orders the approvals by digest, and
     /// collects the authority principals: every grant issuer and subject and
     /// every actor in the proof.
     pub(crate) fn new(bundle: &'a ProofBundle) -> Result<Self, VerificationFailure> {
-        let mut candidates = Vec::with_capacity(bundle.approvals().len());
-        for approval in bundle.approvals() {
-            candidates.push((approval_digest(approval).map_err(codec_failure)?, approval));
+        let mut indexed = try_fold_items!(bundle.approvals(), Vec::new(), keys, index, approval =>
+            index_approval(keys, index, approval))?;
+        // The original stable digest sort kept the first occurrence. An index
+        // tie-break preserves that representative without a comparison callback.
+        indexed.sort();
+        let mut candidates: Vec<(ApprovalDigest, &'a SignedApproval)> = Vec::with_capacity(indexed.len());
+        let mut position = 0;
+        while position < indexed.len() {
+            let (digest, index) = indexed[position];
+            let distinct = match candidates.last() {
+                None => true,
+                Some((known, _)) => *known != digest,
+            };
+            if distinct { candidates.push((digest, &bundle.approvals()[index])); }
+            position += 1;
         }
-        candidates.sort_by_key(|(digest, _)| *digest);
-        candidates.dedup_by_key(|(digest, _)| *digest);
-        let mut authority: Vec<&PrincipalId> = bundle
-            .grants()
-            .iter()
-            .flat_map(|grant| [grant.statement().issuer(), grant.statement().subject()])
-            .chain(
-                bundle
-                    .actions()
-                    .iter()
-                    .map(|action| action.envelope().actor()),
-            )
-            .collect();
+        let mut authority = Vec::new();
+        let mut position = 0;
+        while position < bundle.grants().len() {
+            let statement = bundle.grants()[position].statement();
+            authority.push(statement.issuer());
+            authority.push(statement.subject());
+            position += 1;
+        }
+        let mut position = 0;
+        while position < bundle.actions().len() {
+            authority.push(bundle.actions()[position].envelope().actor());
+            position += 1;
+        }
         authority.sort();
         authority.dedup();
-        Ok(Self {
-            candidates,
-            authority,
-            evaluated: Vec::new(),
-        })
+        Ok(Self { candidates, authority, evaluated: Vec::new() })
     }
 
     /// Evaluates a list of requirements in order. The first denied requirement
     /// denies; otherwise an indeterminate one makes the list indeterminate.
-    pub(crate) fn evaluate_list(
+    pub(crate) fn evaluate_list<R: RegistryAccess + ?Sized>(
         &mut self,
         requirements: &[(ApprovalRequirementId, ApprovalRequirement)],
-        inputs: &Inputs<'_, '_>,
+        inputs: &Inputs<'_, R>,
         meter: &mut WorkMeter,
     ) -> Result<(), VerificationFailure> {
-        let mut unavailable = false;
-        for (identifier, requirement) in requirements {
-            match self
-                .evaluate(*identifier, requirement, inputs, meter)?
-                .verdict
-            {
-                Verdict::Authorized(_) => {}
-                Verdict::Denied => {
-                    return Err(VerificationFailure::Denied(
-                        DenialReason::ApprovalThresholdNotMet,
-                    ));
-                }
-                Verdict::Indeterminate => unavailable = true,
-            }
-        }
+        let unavailable = try_fold_items!(requirements, false, unavailable, _index, (identifier, requirement) =>
+            self.evaluate_requirement_in_list(unavailable, *identifier, requirement, inputs, meter))?;
         if unavailable {
-            Err(VerificationFailure::Indeterminate(
-                Requirement::ApprovalUnavailable,
-            ))
-        } else {
-            Ok(())
-        }
+            Err(VerificationFailure::Indeterminate(Requirement::ApprovalUnavailable))
+        } else { Ok(()) }
     }
 
     /// Returns an evaluated requirement.
     pub(crate) fn get(&self, identifier: ApprovalRequirementId) -> Option<&Evaluated> {
-        self.evaluated
-            .iter()
-            .find(|(known, _)| *known == identifier)
-            .map(|(_, evaluated)| evaluated)
+        let mut position = 0;
+        while position < self.evaluated.len() {
+            if self.evaluated[position].0 == identifier { return Some(&self.evaluated[position].1); }
+            position += 1;
+        }
+        None
     }
 
     /// Returns the satisfaction of every listed requirement that authorized.
-    pub(crate) fn satisfactions(
-        &self,
-        identifiers: &[ApprovalRequirementId],
-    ) -> Vec<ApprovalSatisfaction> {
-        let mut satisfactions: Vec<ApprovalSatisfaction> = identifiers
-            .iter()
-            .filter_map(|identifier| match self.get(*identifier) {
-                Some(Evaluated {
-                    verdict: Verdict::Authorized(satisfaction),
-                    ..
-                }) => Some(satisfaction.clone()),
-                _ => None,
-            })
-            .collect();
-        satisfactions.sort();
-        satisfactions.dedup();
-        satisfactions
+    pub(crate) fn satisfactions(&self, identifiers: &[ApprovalRequirementId]) -> Vec<ApprovalSatisfaction> {
+        let mut output = Vec::new();
+        let mut position = 0;
+        while position < identifiers.len() {
+            if let Some(Evaluated { verdict: Verdict::Authorized(satisfaction), .. }) = self.get(identifiers[position]) {
+                output.push(satisfaction.clone());
+            }
+            position += 1;
+        }
+        output.sort();
+        output.dedup();
+        output
     }
 
     /// Horizon of only the requirements belonging to successful branches or
     /// the context. Cached requirements from failed alternative branches do
     /// not shorten the selected witness.
     pub(crate) fn valid_through(&self, identifiers: &[ApprovalRequirementId]) -> Timestamp {
-        identifiers
-            .iter()
-            .filter_map(|identifier| self.get(*identifier))
-            .filter(|evaluated| matches!(evaluated.verdict, Verdict::Authorized(_)))
-            .fold(Timestamp::new(u64::MAX), |through, evaluated| {
-                through.min(evaluated.valid_through)
-            })
+        let mut horizon = Timestamp::new(u64::MAX);
+        let mut position = 0;
+        while position < identifiers.len() {
+            if let Some(evaluated) = self.get(identifiers[position])
+                && matches!(evaluated.verdict, Verdict::Authorized(_))
+            { horizon = horizon.min(evaluated.valid_through); }
+            position += 1;
+        }
+        horizon
     }
 
-    fn evaluate(
+    fn evaluate<R: RegistryAccess + ?Sized>(
         &mut self,
         identifier: ApprovalRequirementId,
         requirement: &ApprovalRequirement,
-        inputs: &Inputs<'_, '_>,
+        inputs: &Inputs<'_, R>,
         meter: &mut WorkMeter,
     ) -> Result<Evaluated, VerificationFailure> {
-        if let Some(evaluated) = self.get(identifier) {
-            return Ok(evaluated.clone());
-        }
+        if let Some(evaluated) = self.get(identifier) { return Ok(evaluated.clone()); }
         if self.evaluated.len() >= MAX_APPROVAL_REQUIREMENTS_PER_VERIFICATION {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ResourceLimitExceeded,
-            ));
+            return Err(VerificationFailure::Denied(DenialReason::ResourceLimitExceeded));
         }
-        let evaluation_time = inputs.context.evaluation_time();
-        let mut outcomes: Vec<ApprovalOutcome> = Vec::new();
-        let mut counted = Vec::new();
-        let mut valid_through = Timestamp::new(u64::MAX);
-        for (digest, approval) in &self.candidates {
-            let statement = approval.statement();
-            let approver = statement.approver();
-            if !principal_ids_contain(requirement.approvers(), approver)
-                || self.authority.binary_search(&approver).is_ok()
-                || outcomes.iter().any(|outcome| {
-                    outcome.verdict() == ApprovalVerdict::Counted
-                        && principal_id_equal(outcome.approver(), approver)
-                })
-                || !binds_exact(statement, identifier, inputs.canonical, inputs.context)
-                || !statement.validity().contains(evaluation_time)
-            {
-                continue;
-            }
-            let Some(anchor) = inputs.context.approver_anchor(approver) else {
-                continue;
-            };
-            if !anchor.validity().contains(evaluation_time)
-                || !anchor
-                    .accepted_methods()
-                    .contains(approval.signature().descriptor().principal_method())
-            {
-                continue;
-            }
-            let (verdict, status_not_after) = match signature_verdict(approval, inputs, meter)? {
-                ApprovalVerdict::Counted => status_verdict(anchor, inputs, meter)?,
-                other => (other, evaluation_time),
-            };
-            if verdict == ApprovalVerdict::Ignored {
-                continue;
-            }
-            if verdict == ApprovalVerdict::Counted {
-                counted.push(*digest);
-                valid_through = valid_through
-                    .min(statement.validity().expires_at())
-                    .min(anchor.validity().expires_at())
-                    .min(status_not_after);
-            }
-            outcomes.push(ApprovalOutcome::new(approver.clone(), verdict));
-        }
-        let counts = approval_counts(requirement.approvers(), &outcomes);
-        let verdict = match evaluate_threshold_counts(
-            requirement.threshold(),
-            counts.counted,
-            counts.pending,
-        ) {
-            ThresholdTruth::Authorized => {
-                Verdict::Authorized(ApprovalSatisfaction::new(identifier, counted).map_err(
-                    |_| VerificationFailure::Denied(DenialReason::ResourceLimitExceeded),
-                )?)
-            }
+        let tally = try_fold_items!(&self.candidates, ApprovalTally::empty(), tally, _index, (digest, approval) =>
+            evaluate_candidate(tally, *digest, approval, identifier, requirement, &self.authority, inputs, meter))?;
+        let counts = approval_counts(requirement.approvers(), &tally.outcomes);
+        let verdict = match evaluate_threshold_counts(requirement.threshold(), counts.counted, counts.pending) {
+            ThresholdTruth::Authorized => Verdict::Authorized(
+                ApprovalSatisfaction::new(identifier, tally.counted)
+                    .map_err(|_| VerificationFailure::Denied(DenialReason::ResourceLimitExceeded))?),
             ThresholdTruth::Indeterminate => Verdict::Indeterminate,
             ThresholdTruth::Denied => Verdict::Denied,
         };
-        let evaluated = Evaluated {
-            verdict,
-            counts,
-            threshold: requirement.threshold(),
-            valid_through,
-        };
+        let evaluated = Evaluated { verdict, counts, threshold: requirement.threshold(), valid_through: tally.valid_through };
         self.evaluated.push((identifier, evaluated.clone()));
         Ok(evaluated)
+    }
+
+    fn evaluate_requirement_in_list<R: RegistryAccess + ?Sized>(
+        &mut self, unavailable: bool, identifier: ApprovalRequirementId,
+        requirement: &ApprovalRequirement, inputs: &Inputs<'_, R>, meter: &mut WorkMeter,
+    ) -> Result<bool, VerificationFailure> {
+        match self.evaluate(identifier, requirement, inputs, meter)?.verdict {
+            Verdict::Authorized(_) => Ok(unavailable),
+            Verdict::Indeterminate => Ok(true),
+            Verdict::Denied => Err(VerificationFailure::Denied(DenialReason::ApprovalThresholdNotMet)),
+        }
     }
 }
 
 /// Verifies an approval's signature as stage 3 verifies a proof statement's,
 /// with purpose assertion, asserted signing time `not_before`, and the
 /// approval's own evidence, which the method must consume exactly.
-fn signature_verdict(
+fn signature_verdict<R: RegistryAccess + ?Sized>(
     approval: &SignedApproval,
-    inputs: &Inputs<'_, '_>,
+    inputs: &Inputs<'_, R>,
     meter: &mut WorkMeter,
 ) -> Result<ApprovalVerdict, VerificationFailure> {
     let statement = approval.statement();
@@ -360,17 +402,13 @@ fn signature_verdict(
         &preimage,
         ControlPurpose::Assertion,
         statement.validity().not_before(),
-        || Ok(approval.evidence().iter().collect()),
+        || Ok(borrowed_evidence(approval.evidence())),
         inputs.context,
         inputs.registries,
         meter,
     ) {
         Ok(control) => {
-            let supplied: Vec<_> = approval
-                .evidence()
-                .iter()
-                .map(auths_model::EvidenceObject::id)
-                .collect();
+            let supplied = evidence_identifiers(approval.evidence());
             Ok(if control.consumed_evidence() == supplied.as_slice() {
                 ApprovalVerdict::Counted
             } else {
@@ -381,12 +419,44 @@ fn signature_verdict(
     }
 }
 
+// None means every relevant supplied attestation was authentic and accepted.
+// Some preserves the first unavailable/invalid fact as the approval's verdict;
+// resource exhaustion remains a request-level failure rather than an ignore.
+fn check_status_attestation<R: RegistryAccess + ?Sized>(
+    status: &SignedPrincipalStatus, principal: &PrincipalId, inputs: &Inputs<'_, R>,
+) -> Result<Option<ApprovalVerdict>, VerificationFailure> {
+    if status.statement().principal() != principal
+        || !status_issuer_visible(inputs.context.principal_status_snapshot().trust(),
+            status.statement().issuer(), StatusView::Approver)
+    { return Ok(None); }
+    let identifier = principal_status_id(status.statement()).map_err(|error| codec_failure(error))?;
+    if let Err(failure) = control_for(inputs.controlled, StatementRef::PrincipalStatus(identifier)) {
+        return classify(failure).map(|verdict| Some(verdict));
+    }
+    if let Err(failure) = check_status_extensions(status.statement().extensions(), inputs.context) {
+        return classify(failure).map(|verdict| Some(verdict));
+    }
+    Ok(None)
+}
+
+fn check_status_attestations<R: RegistryAccess + ?Sized>(
+    statements: &[SignedPrincipalStatus], principal: &PrincipalId, inputs: &Inputs<'_, R>,
+) -> Result<Option<ApprovalVerdict>, VerificationFailure> {
+    let mut outcome = Ok(None);
+    let mut position = 0;
+    while position < statements.len() && matches!(outcome, Ok(None)) {
+        outcome = check_status_attestation(&statements[position], principal, inputs);
+        position += 1;
+    }
+    outcome
+}
+
 /// Checks the approver's principal status as the trust anchor's is checked,
 /// except that only issuers visible to an approver take part: those the
 /// snapshot does not know, and those whose every rule has scope `any`.
-fn status_verdict(
+fn status_verdict<R: RegistryAccess + ?Sized>(
     anchor: &ApproverAnchor,
-    inputs: &Inputs<'_, '_>,
+    inputs: &Inputs<'_, R>,
     meter: &mut WorkMeter,
 ) -> Result<(ApprovalVerdict, Timestamp), VerificationFailure> {
     let policy = anchor.status_policy();
@@ -403,23 +473,8 @@ fn status_verdict(
     };
     let principal = anchor.principal();
     let snapshot = context.principal_status_snapshot();
-    for status in snapshot.statements().iter().filter(|status| {
-        status.statement().principal() == principal
-            && status_issuer_visible(
-                snapshot.trust(),
-                status.statement().issuer(),
-                StatusView::Approver,
-            )
-    }) {
-        let identifier = principal_status_id(status.statement()).map_err(codec_failure)?;
-        if let Err(failure) =
-            control_for(inputs.controlled, StatementRef::PrincipalStatus(identifier))
-        {
-            return classify(failure).map(|verdict| (verdict, context.evaluation_time()));
-        }
-        if let Err(failure) = check_status_extensions(status.statement().extensions(), context) {
-            return classify(failure).map(|verdict| (verdict, context.evaluation_time()));
-        }
+    if let Some(verdict) = check_status_attestations(snapshot.statements(), principal, inputs)? {
+        return Ok((verdict, context.evaluation_time()));
     }
     meter.reserve(implementation.maximum_work_units(snapshot.statements().len()))?;
     let decision = match implementation.principal(
@@ -454,8 +509,16 @@ fn status_verdict(
 }
 
 #[cfg(test)]
+#[path = "approval_reference.rs"]
+mod reference;
+#[cfg(test)]
+#[path = "approval_parity_tests.rs"]
+mod parity_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use auths_registries::ImmutableRegistries;
     use alloc::{format, vec};
     use auths_model::{
         ApprovalRequirements, CriticalExtension, CriticalExtensions, ExtensionId, GrantStatement,
@@ -476,7 +539,9 @@ mod tests {
             })
             .collect();
         let bytes = auths_codec::encode_approval_requirements(
-            &ApprovalRequirements::new(requirements).expect("requirements"),
+            &auths_codec::CanonicalApprovalRequirements::new(
+                ApprovalRequirements::new(requirements).expect("requirements"),
+            ).expect("canonical requirement value"),
         )
         .expect("canonical requirements");
         let statement = template.statement();

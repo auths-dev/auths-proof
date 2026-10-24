@@ -60,7 +60,7 @@ fuzz_target!(|data: &[u8]| {
         .unwrap()
         .with_configuration(registries.configuration_id())
         .unwrap();
-    let baseline_context = encode_verifier_context(&baseline_context).unwrap();
+    let baseline_context = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&baseline_context)).and_then(|canonical| encode_verifier_context(&canonical)).unwrap();
     let (proof, action, context) = if let Some(tuple) = framed(data) {
         (tuple.0.to_vec(), tuple.1.to_vec(), tuple.2.to_vec())
     } else {

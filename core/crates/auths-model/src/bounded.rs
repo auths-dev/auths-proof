@@ -46,7 +46,7 @@ impl<T: Ord, const MAX: usize> BoundedSet<T, MAX> {
             return Err(BoundError::AboveMaximum);
         }
         items.sort();
-        if items.windows(2).any(|window| window[0] == window[1]) {
+        if crate::collection_scan::adjacent_equal(&items) {
             return Err(BoundError::Duplicate);
         }
         Ok(Self(items))

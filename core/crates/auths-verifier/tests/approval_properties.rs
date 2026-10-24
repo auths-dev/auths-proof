@@ -74,7 +74,7 @@ fn verify_with(approvals: Vec<SignedApproval>) -> Outcome {
         .with_approvals(approvals)
         .expect("bounded approvals");
     let result = verify_portable(
-        &encode_bundle(&bundle).expect("proof bytes"),
+        &auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
         fixture.canonical_action(),
         &context,
         &registries,

@@ -48,7 +48,7 @@ theorem decoded_body_valid (input : Slice Std.U8)
     (limits : auths_codec.auths_model.VerifierLimits) (action : auths_codec.auths_model.CanonicalAction)
     (accepted : decode.decode_canonical_action input limits = ok (.Ok action)) :
     0 < action.body.val.length ∧ action.body.val.length ≤ 8388608 := by
-  unfold decode.decode_canonical_action at accepted
+  unfold decode.decode_canonical_action canonical.accept canonical.accept_with_error at accepted
   simp only [Bind.bind, Aeneas.Std.bind] at accepted
   repeat' first
     | casesm* _ × _
@@ -88,7 +88,7 @@ theorem decoded_body_within_deployment (input : Slice Std.U8)
     (limits : auths_codec.auths_model.VerifierLimits) (action : auths_codec.auths_model.CanonicalAction)
     (accepted : decode.decode_canonical_action input limits = ok (.Ok action)) :
     action.body.val.length ≤ limits.canonical_body_bytes.val := by
-  unfold decode.decode_canonical_action at accepted
+  unfold decode.decode_canonical_action canonical.accept canonical.accept_with_error at accepted
   simp only [Bind.bind, Aeneas.Std.bind, auths_codec.auths_model.VerifierLimits.get] at accepted
   repeat' first
     | casesm* _ × _

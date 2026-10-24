@@ -9,11 +9,15 @@ extern crate alloc;
 mod approval;
 mod bounded_policy;
 mod cbor;
+mod canonical;
+mod canonical_value;
+mod collections;
 mod decode;
 mod encode;
 mod error;
 mod hash;
 mod observation;
+mod text_list;
 
 pub use approval::{
     decode_approval_requirements, decode_approval_statement, decode_signed_approval,
@@ -41,9 +45,16 @@ pub use encode::{
     encode_verifier_context,
 };
 pub use error::CodecError;
+pub use canonical_value::{
+    Canonical, CanonicalApprovalRequirements, CanonicalBoundedPolicyCommitment,
+    CanonicalGrantStatusSnapshot, CanonicalPrincipalStatusSnapshot, CanonicalProofBundle,
+    CanonicalSignedApproval, CanonicalSignedObservation, CanonicalTrustedContext,
+    CanonicalVerificationResult,
+};
 pub use hash::{
     action_id, action_signing_preimage, approval_digest, approval_requirement_id,
-    approval_signing_preimage, attachment_digest, body_digest, context_digest, domain_commitment,
+    approval_signing_preimage, attachment_digest, body_digest, context_digest,
+    context_digest_and_size, domain_commitment,
     evidence_id, grant_id, grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
     observation_requirement_id, observation_signing_preimage, plan_id, principal_status_id,
     principal_status_signing_preimage, proof_digest, transaction_binding,
@@ -54,3 +65,10 @@ pub use observation::{
     encode_observation_requirements, encode_observation_signing_input,
     encode_observation_statement, encode_signed_observation,
 };
+
+#[cfg(test)]
+mod protocol_reference;
+#[cfg(test)]
+mod protocol_parity_tests;
+#[cfg(test)]
+mod canonical_value_tests;

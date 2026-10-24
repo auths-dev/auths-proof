@@ -1720,7 +1720,6 @@ enum ExpectedPlan<'a> {
 /// no counters.
 fn claim_record(
     request: &ClosedProviderRequest,
-    recipe_digest: [u8; 32],
     evaluated_at: u64,
 ) -> Result<Record, GatewayAttemptError> {
     let mut nonce = [0_u8; 16];
@@ -1730,7 +1729,7 @@ fn claim_record(
         namespace: request.namespace().as_str().to_owned(),
         operation_id: request.operation_id().as_str().to_owned(),
         action_commitment: hex::encode(request.action_commitment()),
-        recipe_digest: hex::encode(recipe_digest),
+        recipe_digest: hex::encode(request.recipe_digest()),
         nonce: hex::encode(nonce),
         evaluated_at,
         stage: GatewayAttemptStage::Attempting,
@@ -1769,8 +1768,8 @@ impl GatewayAttempts {
     }
 
     /// Claims one logical ID before credential access or transport entry. The
-    /// record keeps the request's verified action commitment, the gateway
-    /// evaluation time, and the observation plan; a later echo token is
+    /// record keeps the request's own compiled-recipe digest and action
+    /// commitment, the gateway evaluation time, and the observation plan; a later echo token is
     /// always derived from this record.
     ///
     /// # Errors
@@ -1778,11 +1777,10 @@ impl GatewayAttempts {
     pub async fn claim(
         &self,
         request: &ClosedProviderRequest,
-        recipe_digest: [u8; 32],
         evaluated_at: u64,
     ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
         let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
-        let record = claim_record(request, recipe_digest, evaluated_at)?;
+        let record = claim_record(request, evaluated_at)?;
         let stored = encode(&record)?;
         let store = Arc::clone(&self.store);
         let entry = GatewayRecordEntry {
@@ -1868,12 +1866,11 @@ impl GatewayAttempts {
     pub async fn resume_observable(
         &self,
         request: &ClosedProviderRequest,
-        recipe_digest: [u8; 32],
     ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
         self.resume(
             request.namespace(),
             request.operation_id(),
-            recipe_digest,
+            *request.recipe_digest(),
             ExpectedPlan::Request(request.observation_template()),
         )
         .await
@@ -1998,6 +1995,31 @@ impl Attempt {
 /// restart and never permits another automatic write.
 pub struct ClaimedGatewayAttempt {
     attempt: Attempt,
+}
+
+/// Matches an acknowledged handle against the exact originating runtime,
+/// immutable closed request and captured verification time before entry.
+/// This checks identity; backend acknowledgement and atomic reservation
+/// semantics remain obligations of the private handle's constructors.
+pub(crate) fn claimed_request_matches(
+    claim: &ClaimedGatewayAttempt,
+    attempts: &GatewayAttempts,
+    request: &ClosedProviderRequest,
+    evaluated_at: u64,
+) -> bool {
+    use auths_gateway_kernel::attempt_binding::{RequestClaim, StoredClaim, claim_matches};
+    if !Arc::ptr_eq(&claim.attempt.store, &attempts.store) {
+        return false;
+    }
+    let record = &claim.attempt.record;
+    claim_matches(record.stage.kernel(), StoredClaim {
+        namespace: record.namespace.as_bytes(), operation: record.operation_id.as_bytes(),
+        recipe_hex: record.recipe_digest.as_bytes(), action_hex: record.action_commitment.as_bytes(),
+        evaluated_at: record.evaluated_at,
+    }, RequestClaim {
+        namespace: request.namespace().as_str().as_bytes(), operation: request.operation_id().as_str().as_bytes(),
+        recipe_digest: request.recipe_digest(), action_commitment: request.action_commitment(), evaluated_at,
+    })
 }
 
 impl ClaimedGatewayAttempt {
@@ -2595,18 +2617,17 @@ impl GatewayAttempts {
     pub(crate) async fn claim_bounded(
         &self,
         request: &ClosedProviderRequest,
-        recipe_digest: [u8; 32],
         evaluated_at: u64,
         bound: Option<&crate::bounds::BoundAdmission>,
     ) -> Result<BoundedClaim, GatewayAttemptError> {
         let Some(bound) = bound else {
             return self
-                .claim(request, recipe_digest, evaluated_at)
+                .claim(request, evaluated_at)
                 .await
                 .map(|claim| BoundedClaim::Claimed(Box::new(claim)));
         };
         let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
-        let base = claim_record(request, recipe_digest, evaluated_at)?;
+        let base = claim_record(request, evaluated_at)?;
         let store = Arc::clone(&self.store);
         let bound = bound.clone();
         let reserved = blocking(move || reserve_with_claim(&*store, key, &base, &bound)).await?;

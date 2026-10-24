@@ -413,7 +413,7 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
     if digest != pins.trusted_context_sha256 {
         return Err("audit.trust-pin-mismatch");
     }
-    let context: TrustedContext =
+    let context: auths_codec::CanonicalTrustedContext =
         auths_codec::decode_verifier_context(&trust).map_err(|_| "audit.trust-invalid")?;
     let recipe = CompiledRecipe::compile(
         &decode(&source.recipe_b64, MAX_RECIPE_BYTES).ok_or("audit.bundle-malformed")?,
@@ -680,29 +680,31 @@ fn audit_entry(
     // selection here, and checks the pre-entry evidence of entered entries
     // below.
     let verification = verify_detailed(recipe, context, evaluated_at, &proof, &action)
-        .and_then(|verified| match verified.observer_refusal {
+        .and_then(|verified| match verified.projection().observer_refusal {
             Some(code) => Err(crate::engine::not_entered(code)),
             None => Ok(verified),
         })
         .and_then(|verified| {
-            crate::bounds::bind_account_scope(recipe, verified.bound.as_ref(), &verified.arguments)
+            let projection = verified.projection();
+            crate::bounds::bind_account_scope(recipe, projection.bound.as_ref(), &projection.arguments)
                 .map_err(crate::engine::not_entered)
                 .map(|()| verified)
         });
     match verification {
         Ok(verified) => {
-            if verified.request.operation_id() != &operation_id {
+            let projection = verified.projection();
+            if projection.request.operation_id() != &operation_id {
                 return finding(operation, "audit.operation-mismatch", evaluated_at);
             }
             item.entry.admitted = true;
             item.entry.status = AuditStatus::Verified;
             "audit.verified".clone_into(&mut item.entry.code);
-            item.entry.approvals = verified
+            item.entry.approvals = projection
                 .approvers
                 .iter()
                 .map(|actor| actor.as_str().to_owned())
                 .collect();
-            item.commitment = Some(hex::encode(verified.request.action_commitment()));
+            item.commitment = Some(hex::encode(projection.request.action_commitment()));
             if item.entered() {
                 let checks = EnteredChecks {
                     recipe,
@@ -731,8 +733,9 @@ fn audit_entry(
                     verified: false,
                 });
             }
-            item.entry.arguments = Some(verified.arguments);
-            item.bound = verified.bound;
+            let projection = verified.into_projection();
+            item.entry.arguments = Some(projection.arguments);
+            item.bound = projection.bound;
         }
         Err(result) => {
             item.entry.code = refusal_code(result);
@@ -760,7 +763,7 @@ impl EnteredChecks<'_> {
     /// The counters re-derived at `evaluated-at` digest to the outcome's
     /// `counters-digest`, both absent when nothing was reserved.
     fn counters(&self) -> Result<(), &'static str> {
-        let derived = self.verified.bound.as_ref().and_then(|bound| {
+        let derived = self.verified.projection().bound.as_ref().and_then(|bound| {
             counter_set_digest(
                 bound
                     .counts
@@ -791,7 +794,7 @@ impl EnteredChecks<'_> {
     ) -> Result<(), &'static str> {
         let (Some(pointers), Some(read)) = (
             self.recipe.pre_entry_pointers(),
-            self.verified.request.pre_entry_read(),
+            self.verified.projection().request.pre_entry_read(),
         ) else {
             return Ok(());
         };
@@ -839,8 +842,8 @@ impl EnteredChecks<'_> {
             crate::engine::resource_covers(self.context, namespace, subject)
         };
         let selected = pre_entry::select(
-            &self.verified.requirements,
-            &self.verified.canonical_action,
+            &self.verified.projection().requirements,
+            &self.verified.projection().canonical_action,
             self.context,
             Some(&self.pins.observer),
             read,
@@ -877,6 +880,7 @@ impl EnteredChecks<'_> {
             .ok_or("audit.relative-ceiling-missing")?;
         let argument = self
             .verified
+            .projection()
             .arguments
             .get(&ceiling.argument)
             .and_then(Value::as_u64)

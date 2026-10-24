@@ -7,9 +7,13 @@
 extern crate alloc;
 
 mod bounded;
+mod collection_scan;
 mod identifier;
+mod parts;
+mod status_snapshot;
 
 pub use bounded::{BoundError, BoundedBytes, BoundedSet};
+pub use parts::{ProofBundleParts, StatusSnapshotParts, TrustedContextParts};
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -542,12 +546,11 @@ impl PermissionSet {
     /// Returns [`ModelError::InvalidPermissionSet`] when the set is empty or
     /// exceeds [`HARD_MAX_PERMISSIONS`].
     pub fn new(permissions: Vec<Permission>) -> Result<Self, ModelError> {
-        BoundedSet::new(permissions)
-            .map(Self)
-            .map_err(|error| match error {
-                BoundError::Duplicate => ModelError::DuplicatePermission,
-                BoundError::Empty | BoundError::AboveMaximum => ModelError::InvalidPermissionSet,
-            })
+        match BoundedSet::new(permissions) {
+            Ok(values) => Ok(Self(values)),
+            Err(BoundError::Duplicate) => Err(ModelError::DuplicatePermission),
+            Err(BoundError::Empty | BoundError::AboveMaximum) => Err(ModelError::InvalidPermissionSet),
+        }
     }
 
     #[must_use]
@@ -609,12 +612,11 @@ impl AudienceSet {
     /// Returns [`ModelError::InvalidAudienceSet`] when the set is empty or
     /// exceeds [`HARD_MAX_AUDIENCES`].
     pub fn new(audiences: Vec<Audience>) -> Result<Self, ModelError> {
-        BoundedSet::new(audiences)
-            .map(Self)
-            .map_err(|error| match error {
-                BoundError::Duplicate => ModelError::DuplicateAudience,
-                BoundError::Empty | BoundError::AboveMaximum => ModelError::InvalidAudienceSet,
-            })
+        match BoundedSet::new(audiences) {
+            Ok(values) => Ok(Self(values)),
+            Err(BoundError::Duplicate) => Err(ModelError::DuplicateAudience),
+            Err(BoundError::Empty | BoundError::AboveMaximum) => Err(ModelError::InvalidAudienceSet),
+        }
     }
 
     #[must_use]
@@ -677,12 +679,11 @@ impl BodyDigestSet {
     /// Returns [`ModelError::InvalidActionConstraint`] when `digests` is
     /// empty or exceeds [`HARD_MAX_BODY_DIGESTS`].
     pub fn new(digests: Vec<Digest>) -> Result<Self, ModelError> {
-        BoundedSet::new(digests)
-            .map(Self)
-            .map_err(|error| match error {
-                BoundError::Duplicate => ModelError::DuplicateBodyDigest,
-                BoundError::Empty | BoundError::AboveMaximum => ModelError::InvalidActionConstraint,
-            })
+        match BoundedSet::new(digests) {
+            Ok(values) => Ok(Self(values)),
+            Err(BoundError::Duplicate) => Err(ModelError::DuplicateBodyDigest),
+            Err(BoundError::Empty | BoundError::AboveMaximum) => Err(ModelError::InvalidActionConstraint),
+        }
     }
 
     /// Returns canonical digests in ascending byte order.
@@ -1072,10 +1073,7 @@ impl CriticalExtensions {
             return Err(ModelError::InvalidExtension);
         }
         extensions.sort();
-        if extensions
-            .windows(2)
-            .any(|window| window[0].id == window[1].id)
-        {
+        if collection_scan::extension_ids_repeat(&extensions) {
             return Err(ModelError::DuplicateExtension);
         }
         Ok(Self(extensions))
@@ -2040,7 +2038,7 @@ impl ControlBinding {
             return Err(ModelError::InvalidEvidenceBinding);
         }
         evidence.sort();
-        if evidence.windows(2).any(|window| window[0] == window[1]) {
+        if collection_scan::adjacent_equal(&evidence) {
             return Err(ModelError::InvalidEvidenceBinding);
         }
         Ok(Self {
@@ -2508,8 +2506,8 @@ impl PrincipalStatusSnapshot {
     /// # Errors
     ///
     /// Returns [`ModelError::InvalidStatusSnapshot`] when the snapshot window
-    /// is inverted, exceeds protocol collection bounds, contains a statement
-    /// identical to its neighbour in canonical order, or includes a statement
+    /// is inverted, exceeds protocol collection bounds, repeats any full
+    /// unsigned statement, or includes a statement
     /// that does not cover the snapshot's complete validity window.
     pub fn new(
         id: StatusSnapshotId,
@@ -2541,7 +2539,7 @@ impl PrincipalStatusSnapshot {
         id: StatusSnapshotId,
         observed_at: Timestamp,
         valid_until: Timestamp,
-        mut statements: Vec<SignedPrincipalStatus>,
+        statements: Vec<SignedPrincipalStatus>,
         mut checkpoints: Vec<EvidenceId>,
         mut trust: Vec<StatusTrustRule>,
     ) -> Result<Self, ModelError> {
@@ -2552,25 +2550,9 @@ impl PrincipalStatusSnapshot {
         {
             return Err(ModelError::InvalidStatusSnapshot);
         }
-        statements.sort_by(|left, right| {
-            left.statement()
-                .principal()
-                .cmp(right.statement().principal())
-                .then_with(|| left.statement().method().cmp(right.statement().method()))
-                .then_with(|| {
-                    left.statement()
-                        .sequence()
-                        .cmp(&right.statement().sequence())
-                })
-                .then_with(|| left.statement().issuer().cmp(right.statement().issuer()))
-        });
-        if statements
-            .windows(2)
-            .any(|window| window[0].statement() == window[1].statement())
-            || statements.iter().any(|signed| {
-                signed.statement().observed_at() > observed_at
-                    || signed.statement().valid_until() < valid_until
-            })
+        let statements = status_snapshot::sort_principal(statements);
+        if status_snapshot::principal_has_duplicate(&statements)
+            || !status_snapshot::principal_windows_cover(&statements, observed_at, valid_until)
         {
             return Err(ModelError::InvalidStatusSnapshot);
         }
@@ -2671,12 +2653,12 @@ impl GrantStatusSnapshot {
     /// # Errors
     ///
     /// Returns [`ModelError::InvalidStatusSnapshot`] for invalid windows,
-    /// duplicate subjects, duplicate trust rules, or excessive collections.
+    /// repeated unsigned statements, duplicate trust rules, or excessive collections.
     pub fn with_trust(
         id: StatusSnapshotId,
         observed_at: Timestamp,
         valid_until: Timestamp,
-        mut statements: Vec<SignedGrantStatus>,
+        statements: Vec<SignedGrantStatus>,
         mut checkpoints: Vec<EvidenceId>,
         mut trust: Vec<StatusTrustRule>,
     ) -> Result<Self, ModelError> {
@@ -2687,25 +2669,9 @@ impl GrantStatusSnapshot {
         {
             return Err(ModelError::InvalidStatusSnapshot);
         }
-        statements.sort_by(|left, right| {
-            left.statement()
-                .grant_id()
-                .cmp(&right.statement().grant_id())
-                .then_with(|| left.statement().method().cmp(right.statement().method()))
-                .then_with(|| {
-                    left.statement()
-                        .sequence()
-                        .cmp(&right.statement().sequence())
-                })
-                .then_with(|| left.statement().issuer().cmp(right.statement().issuer()))
-        });
-        if statements
-            .windows(2)
-            .any(|window| window[0].statement() == window[1].statement())
-            || statements.iter().any(|signed| {
-                signed.statement().observed_at() > observed_at
-                    || signed.statement().valid_until() < valid_until
-            })
+        let statements = status_snapshot::sort_grant(statements);
+        if status_snapshot::grant_has_duplicate(&statements)
+            || !status_snapshot::grant_windows_cover(&statements, observed_at, valid_until)
         {
             return Err(ModelError::InvalidStatusSnapshot);
         }
@@ -3141,7 +3107,10 @@ impl ProofBundle {
     }
     #[must_use]
     pub fn canonical_body(&self) -> Option<&[u8]> {
-        self.canonical_body.as_deref()
+        match self.canonical_body.as_ref() {
+            Some(body) => Some(body.as_slice()),
+            None => None,
+        }
     }
     /// Returns the signed approvals in the order presented.
     #[must_use]
@@ -6312,3 +6281,11 @@ mod scope_constructor_tests;
 #[cfg(test)]
 #[path = "principal_scheme_tests.rs"]
 mod principal_scheme_tests;
+
+#[cfg(test)]
+#[path = "snapshot_constructor_tests.rs"]
+mod snapshot_constructor_tests;
+
+#[cfg(test)]
+#[path = "collection_constructor_tests.rs"]
+mod collection_constructor_tests;

@@ -17,7 +17,7 @@ use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
 use crate::recipe::GuardChecks;
 use crate::submit::{SubmitContext, SubmitIo};
 use crate::transport::{
-    GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
+    GatewayTransportError, ProviderPort, ProviderReadPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
     ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
@@ -689,6 +689,9 @@ impl ProviderPort for CountingProvider {
         })
     }
 
+}
+
+impl ProviderReadPort for CountingProvider {
     async fn action_read(
         &self,
         url: &str,
@@ -737,6 +740,7 @@ impl SubmitIo for HarnessIo<'_> {
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
+        let verified = verified.projection();
         crate::bounds::bind_account_scope(
             &self.harness.recipe,
             verified.bound.as_ref(),
@@ -780,9 +784,9 @@ impl SubmitIo for HarnessIo<'_> {
     async fn write(
         &self,
         _lease: &(),
-        request: &ClosedProviderRequest,
+        command: &VerifiedCommand,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.harness.provider.write(request).await
+        self.harness.provider.write(&command.projection().request).await
     }
 
     async fn action_read(
@@ -1101,7 +1105,7 @@ mod process {
         let root = Signer::new(ROOT_SEED);
         let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
         let context = context(&root, observer.principal(), None, now)?;
-        let context_bytes = auths_codec::encode_verifier_context(&context)
+        let context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))
             .map_err(|_| HarnessError::Fixture("context bytes"))?;
         let signed = grant(&root, &agent, Some(read_back_requirement()?), now)?;
         let grant_bytes = auths_codec::encode_signed_grant(&signed)

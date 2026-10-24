@@ -5,6 +5,14 @@
 
 extern crate alloc;
 
+mod access;
+mod static_core;
+pub use access::RegistryAccess;
+pub use static_core::{
+    BuiltinBudget, BuiltinClaim, BuiltinExtension, BuiltinImplication, BuiltinProfile,
+    BuiltinResource, BuiltinStatus, StaticCoreRegistries,
+};
+
 mod template;
 
 pub use template::TrustedContextTemplate;
@@ -82,7 +90,7 @@ impl ResourceMatcher for UriNamespaceMatcher {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[])
     }
 
     fn maximum_work_units(&self, namespace: &ResourceId, resource: &ResourceId) -> u64 {
@@ -119,7 +127,7 @@ impl ProfilePolicy for ExactProfilePolicy {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[])
     }
 
     fn maximum_work_units(&self, action: &CanonicalAction) -> u64 {
@@ -144,7 +152,7 @@ impl BudgetAlgebra for NumericBudgetAlgebra {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[])
     }
 
     fn maximum_work_units(&self) -> u64 {
@@ -181,10 +189,7 @@ impl CriticalExtensionHandler for ExactMarkerExtension {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(
-            self.id.as_str().as_bytes(),
-            [MARKER_ATTENUATION_LAW.as_bytes()],
-        )
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[MARKER_ATTENUATION_LAW.as_bytes()])
     }
 
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
@@ -239,10 +244,7 @@ impl CriticalExtensionHandler for ObservationRequirementExtension {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(
-            self.id.as_str().as_bytes(),
-            [OBSERVATION_ATTENUATION_LAW.as_bytes()],
-        )
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[OBSERVATION_ATTENUATION_LAW.as_bytes()])
     }
 
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
@@ -292,10 +294,11 @@ struct ApprovalRequirementExtension {
 fn decode_approval_requirements(
     bytes: &[u8],
 ) -> Result<auths_model::ApprovalRequirements, RegistryOperationError> {
-    auths_codec::decode_approval_requirements(bytes).map_err(|error| match error {
+    let requirements = auths_codec::decode_approval_requirements(bytes).map_err(|error| match error {
         auths_codec::CodecError::LimitExceeded => RegistryOperationError::ResourceLimitExceeded,
         _ => RegistryOperationError::InvalidInput,
-    })
+    })?;
+    Ok(requirements.into_value())
 }
 
 impl CriticalExtensionHandler for ApprovalRequirementExtension {
@@ -304,10 +307,7 @@ impl CriticalExtensionHandler for ApprovalRequirementExtension {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(
-            self.id.as_str().as_bytes(),
-            [APPROVAL_ATTENUATION_LAW.as_bytes()],
-        )
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[APPROVAL_ATTENUATION_LAW.as_bytes()])
     }
 
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
@@ -351,7 +351,7 @@ impl CriticalExtensionHandler for ApprovalRequirementExtension {
 fn decode_bounded_policy(
     bytes: &[u8],
 ) -> Result<auths_model::BoundedPolicyCommitment, RegistryOperationError> {
-    auths_codec::decode_bounded_policy_commitment(bytes).map_err(|error| match error {
+    auths_codec::decode_bounded_policy_commitment(bytes).map(|value| value.into_value()).map_err(|error| match error {
         auths_codec::CodecError::LimitExceeded => RegistryOperationError::ResourceLimitExceeded,
         _ => RegistryOperationError::InvalidInput,
     })
@@ -370,10 +370,7 @@ impl CriticalExtensionHandler for BoundedPolicyCommitmentExtension {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(
-            self.id.as_str().as_bytes(),
-            [BOUNDED_POLICY_ATTENUATION_LAW.as_bytes()],
-        )
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[BOUNDED_POLICY_ATTENUATION_LAW.as_bytes()])
     }
 
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
@@ -429,7 +426,7 @@ impl AssuranceClaimRule for ExactClaimRule {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[])
     }
 
     fn maximum_work_units(&self, claim: &AssuranceClaim) -> u64 {
@@ -476,7 +473,7 @@ impl StatusMethod for ExactStatusMethod {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(self.id.as_str().as_bytes(), &[])
     }
 
     fn maximum_work_units(&self, statement_count: usize) -> u64 {
@@ -813,159 +810,106 @@ impl CoreSemantics {
                 id: ExtensionId::parse(APPROVAL_REQUIREMENT_EXTENSION_V1)
                     .map_err(|_| RegistryError::InvalidBuiltin)?,
             },
-            status: ["auths-principal-status-v1", "auths-grant-status-v1"]
-                .into_iter()
-                .map(|id| {
-                    StatusMethodId::parse(id)
-                        .map(|id| ExactStatusMethod { id })
-                        .map_err(|_| RegistryError::InvalidBuiltin)
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            claims: CLAIMS
-                .into_iter()
-                .map(|id| {
-                    AssuranceClaimId::parse(id)
-                        .map(|id| ExactClaimRule { id })
-                        .map_err(|_| RegistryError::InvalidBuiltin)
-                })
-                .collect::<Result<Vec<_>, _>>()?,
+            status: builtin_status_methods()?,
+            claims: builtin_claim_rules()?,
         })
     }
+}
+
+fn append_builtin_status(mut output: Vec<ExactStatusMethod>, id: &str) -> Result<Vec<ExactStatusMethod>, RegistryError> {
+    output.push(ExactStatusMethod { id: StatusMethodId::parse(id).map_err(|_| RegistryError::InvalidBuiltin)? });
+    Ok(output)
+}
+fn builtin_status_methods() -> Result<Vec<ExactStatusMethod>, RegistryError> {
+    let ids = ["auths-principal-status-v1", "auths-grant-status-v1"];
+    let mut outcome = Ok(Vec::new());
+    let mut position = 0;
+    while position < ids.len() && outcome.is_ok() {
+        outcome = match outcome { Ok(output) => append_builtin_status(output, ids[position]), Err(error) => Err(error) };
+        position += 1;
+    }
+    outcome
+}
+fn append_builtin_claim(mut output: Vec<ExactClaimRule>, id: &str) -> Result<Vec<ExactClaimRule>, RegistryError> {
+    output.push(ExactClaimRule { id: AssuranceClaimId::parse(id).map_err(|_| RegistryError::InvalidBuiltin)? });
+    Ok(output)
+}
+fn builtin_claim_rules() -> Result<Vec<ExactClaimRule>, RegistryError> {
+    let mut outcome = Ok(Vec::new());
+    let mut position = 0;
+    while position < CLAIMS.len() && outcome.is_ok() {
+        outcome = match outcome { Ok(output) => append_builtin_claim(output, CLAIMS[position]), Err(error) => Err(error) };
+        position += 1;
+    }
+    outcome
+}
+
+macro_rules! append_configuration_entries {
+    ($output:expr, $category:expr, $handlers:expr) => {{
+        let handlers = $handlers;
+        let mut position = 0;
+        while position < handlers.len() {
+            let implementation = &handlers[position];
+            $output.push(($category, implementation.id().as_str().into(), implementation.configuration_id()));
+            position += 1;
+        }
+    }};
 }
 
 // Kept as one exhaustive, auditable inventory so adding a registry category
 // cannot silently omit its configuration commitment.
 #[allow(clippy::too_many_lines)]
 fn verifier_configuration_id(
-    principal_methods: &[&dyn PrincipalMethod],
-    signature_suites: &[&dyn SignatureSuite],
-    pure: &PureRegistrySet<'_>,
-    core: &CoreSemantics,
+    principal_methods: &[&dyn PrincipalMethod], signature_suites: &[&dyn SignatureSuite],
+    pure: &PureRegistrySet<'_>, core: &CoreSemantics,
 ) -> VerifierConfigurationId {
     let mut entries: Vec<(u8, String, AdapterConfigurationId)> = Vec::new();
-    entries.extend(principal_methods.iter().map(|implementation| {
-        (
-            0,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.extend(signature_suites.iter().map(|implementation| {
-        (
-            1,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.extend(pure.resource_matchers.iter().map(|implementation| {
-        (
-            2,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.push((
-        2,
-        core.resource.id().as_str().into(),
-        core.resource.configuration_id(),
-    ));
-    entries.extend(pure.profile_policies.iter().map(|implementation| {
-        (
-            3,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.push((
-        3,
-        core.profile.id().as_str().into(),
-        core.profile.configuration_id(),
-    ));
-    entries.extend(pure.budget_algebras.iter().map(|implementation| {
-        (
-            4,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.push((
-        4,
-        core.budget.id().as_str().into(),
-        core.budget.configuration_id(),
-    ));
-    entries.extend(pure.extension_handlers.iter().map(|implementation| {
-        (
-            5,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.push((
-        5,
-        core.extension.id().as_str().into(),
-        core.extension.configuration_id(),
-    ));
-    entries.push((
-        5,
-        core.observation.id().as_str().into(),
-        core.observation.configuration_id(),
-    ));
-    entries.push((
-        5,
-        core.bounded_policy.id().as_str().into(),
-        core.bounded_policy.configuration_id(),
-    ));
-    entries.push((
-        5,
-        core.approval.id().as_str().into(),
-        core.approval.configuration_id(),
-    ));
-    entries.extend(pure.status_methods.iter().map(|implementation| {
-        (
-            6,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.extend(core.status.iter().map(|implementation| {
-        (
-            6,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.extend(pure.assurance_claims.iter().map(|implementation| {
-        (
-            7,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.extend(core.claims.iter().map(|implementation| {
-        (
-            7,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.extend(pure.assurance_implications.iter().map(|implementation| {
-        (
-            8,
-            implementation.id().as_str().into(),
-            implementation.configuration_id(),
-        )
-    }));
-    entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
-    let mut components = Vec::with_capacity(entries.len().saturating_mul(3));
-    for (kind, id, configuration) in entries {
-        components.push(vec![kind]);
-        components.push(id.into_bytes());
-        components.push(configuration.as_bytes().to_vec());
+    append_configuration_entries!(entries, 0, principal_methods);
+    append_configuration_entries!(entries, 1, signature_suites);
+    append_configuration_entries!(entries, 2, pure.resource_matchers);
+    entries.push((2, core.resource.id().as_str().into(), core.resource.configuration_id()));
+    append_configuration_entries!(entries, 3, pure.profile_policies);
+    entries.push((3, core.profile.id().as_str().into(), core.profile.configuration_id()));
+    append_configuration_entries!(entries, 4, pure.budget_algebras);
+    entries.push((4, core.budget.id().as_str().into(), core.budget.configuration_id()));
+    append_configuration_entries!(entries, 5, pure.extension_handlers);
+    entries.push((5, core.extension.id().as_str().into(), core.extension.configuration_id()));
+    entries.push((5, core.observation.id().as_str().into(), core.observation.configuration_id()));
+    entries.push((5, core.bounded_policy.id().as_str().into(), core.bounded_policy.configuration_id()));
+    entries.push((5, core.approval.id().as_str().into(), core.approval.configuration_id()));
+    append_configuration_entries!(entries, 6, pure.status_methods);
+    append_configuration_entries!(entries, 6, &core.status);
+    append_configuration_entries!(entries, 7, pure.assurance_claims);
+    append_configuration_entries!(entries, 7, &core.claims);
+    append_configuration_entries!(entries, 8, pure.assurance_implications);
+    configuration_from_entries(entries)
+}
+
+// Both registry shapes share canonical configuration framing. Handler
+// selection and execution remain the responsibility of the concrete registry.
+fn configuration_from_entries(entries: Vec<(u8, String, AdapterConfigurationId)>) -> VerifierConfigurationId {
+    let mut keys = Vec::with_capacity(entries.len());
+    let mut position = 0;
+    while position < entries.len() {
+        keys.push((entries[position].0, entries[position].1.clone(), position));
+        position += 1;
     }
-    let digest = auths_ports::configuration_id(
-        b"auths-proof-verifier-configuration-v1",
-        components.iter().map(Vec::as_slice),
-    );
+    // The original stable category/ID order is retained even for duplicate
+    // keys: the source index is the tie-break, never the configuration bytes.
+    keys.sort();
+    let mut components = Vec::with_capacity(entries.len().saturating_mul(3));
+    let mut position = 0;
+    while position < keys.len() {
+        let entry = &entries[keys[position].2];
+        components.push(vec![entry.0]);
+        components.push(entry.1.as_bytes().to_vec());
+        components.push(entry.2.as_bytes().to_vec());
+        position += 1;
+    }
+    let mut parts = Vec::with_capacity(components.len());
+    let mut position = 0;
+    while position < components.len() { parts.push(components[position].as_slice()); position += 1; }
+    let digest = auths_ports::configuration_id_from_parts(b"auths-proof-verifier-configuration-v1", &parts);
     VerifierConfigurationId::new(*digest.as_bytes())
 }
 
@@ -1114,7 +1058,7 @@ impl<'a> ImmutableRegistries<'a> {
         &self,
         accepted: &AcceptedRegistries,
         id: &ResourceMatcherId,
-    ) -> Option<&dyn ResourceMatcher> {
+    ) -> Option<&(dyn ResourceMatcher + 'a)> {
         if !accepted.accepts_resource_matcher(id) {
             return None;
         }
@@ -1134,7 +1078,7 @@ impl<'a> ImmutableRegistries<'a> {
         &self,
         accepted: &AcceptedRegistries,
         id: &ProfilePolicyId,
-    ) -> Option<&dyn ProfilePolicy> {
+    ) -> Option<&(dyn ProfilePolicy + 'a)> {
         if !accepted.accepts_profile_policy(id) {
             return None;
         }
@@ -1154,7 +1098,7 @@ impl<'a> ImmutableRegistries<'a> {
         &self,
         accepted: &AcceptedRegistries,
         id: &BudgetAlgebraId,
-    ) -> Option<&dyn BudgetAlgebra> {
+    ) -> Option<&(dyn BudgetAlgebra + 'a)> {
         if !accepted.accepts_budget_algebra(id) {
             return None;
         }
@@ -1174,7 +1118,7 @@ impl<'a> ImmutableRegistries<'a> {
         &self,
         accepted: &AcceptedRegistries,
         id: &ExtensionId,
-    ) -> Option<&dyn CriticalExtensionHandler> {
+    ) -> Option<&(dyn CriticalExtensionHandler + 'a)> {
         if !accepted.accepts_critical_extension(id) {
             return None;
         }
@@ -1203,7 +1147,7 @@ impl<'a> ImmutableRegistries<'a> {
     pub fn extension_laws<'s>(
         &'s self,
         accepted: &'s AcceptedRegistries,
-    ) -> AcceptedExtensionLaws<'s, 'a> {
+    ) -> AcceptedExtensionLaws<'s, Self> {
         AcceptedExtensionLaws {
             registries: self,
             accepted,
@@ -1217,7 +1161,7 @@ impl<'a> ImmutableRegistries<'a> {
         accepted: &AcceptedRegistries,
         id: &StatusMethodId,
         principal: bool,
-    ) -> Option<&dyn StatusMethod> {
+    ) -> Option<&(dyn StatusMethod + 'a)> {
         let accepted = if principal {
             accepted.accepts_principal_status_method(id)
         } else {
@@ -1246,7 +1190,7 @@ impl<'a> ImmutableRegistries<'a> {
         &self,
         accepted: &AcceptedRegistries,
         id: &AssuranceClaimId,
-    ) -> Option<&dyn AssuranceClaimRule> {
+    ) -> Option<&(dyn AssuranceClaimRule + 'a)> {
         if !accepted.accepts_assurance_claim(id) {
             return None;
         }
@@ -1269,7 +1213,7 @@ impl<'a> ImmutableRegistries<'a> {
     pub fn assurance_implications(
         &self,
         accepted: &AcceptedRegistries,
-    ) -> Vec<&dyn AssuranceImplication> {
+    ) -> Vec<&(dyn AssuranceImplication + 'a)> {
         let mut selected: Vec<_> = self
             .pure
             .assurance_implications
@@ -1283,12 +1227,12 @@ impl<'a> ImmutableRegistries<'a> {
 }
 
 /// Attenuation laws of the handlers one trusted context accepts.
-pub struct AcceptedExtensionLaws<'s, 'a> {
-    registries: &'s ImmutableRegistries<'a>,
+pub struct AcceptedExtensionLaws<'s, R: RegistryAccess + ?Sized> {
+    registries: &'s R,
     accepted: &'s AcceptedRegistries,
 }
 
-impl AcceptedExtensionLaws<'_, '_> {
+impl<R: RegistryAccess + ?Sized> AcceptedExtensionLaws<'_, R> {
     /// Conservative work reservation for judging `child` against `parent`:
     /// each present payload's handler bound. Identifiers without a handler
     /// cost nothing, because the kernel refuses them without work.
@@ -1298,25 +1242,31 @@ impl AcceptedExtensionLaws<'_, '_> {
         child: &auths_model::CriticalExtensions,
         parent: &auths_model::CriticalExtensions,
     ) -> u64 {
-        child
-            .as_slice()
-            .iter()
-            .chain(parent.as_slice())
-            .filter_map(|extension| {
-                self.registries
-                    .extension_handler(self.accepted, extension.id())
-                    .map(|handler| handler.maximum_work_units(extension))
-            })
-            .fold(0, u64::saturating_add)
+        let child_total = extension_work_total(self.registries, self.accepted, child.as_slice(), 0);
+        extension_work_total(self.registries, self.accepted, parent.as_slice(), child_total)
     }
 }
 
-impl CriticalExtensionLaws for AcceptedExtensionLaws<'_, '_> {
+impl<R: RegistryAccess + ?Sized> CriticalExtensionLaws for AcceptedExtensionLaws<'_, R> {
     fn attenuates(&self, id: &ExtensionId, child: Option<&[u8]>, parent: Option<&[u8]>) -> bool {
-        self.registries
-            .extension_handler(self.accepted, id)
-            .is_some_and(|handler| handler.attenuates(child, parent).unwrap_or(false))
+        match self.registries.extension_handler(self.accepted, id) {
+            None => false,
+            Some(handler) => handler.attenuates(child, parent).unwrap_or(false),
+        }
     }
+}
+
+fn extension_work_total<R: RegistryAccess + ?Sized>(registries: &R, accepted: &AcceptedRegistries,
+    extensions: &[auths_model::CriticalExtension], mut total: u64) -> u64 {
+    let mut position = 0;
+    while position < extensions.len() {
+        let extension = &extensions[position];
+        if let Some(handler) = registries.extension_handler(accepted, extension.id()) {
+            total = total.saturating_add(handler.maximum_work_units(extension));
+        }
+        position += 1;
+    }
+    total
 }
 
 /// Attenuation laws of the target V1 core critical-extension handlers,
@@ -1394,6 +1344,13 @@ impl fmt::Display for RegistryError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for RegistryError {}
+
+#[cfg(test)]
+#[path = "configuration_reference.rs"]
+mod configuration_reference;
+#[cfg(test)]
+#[path = "configuration_tests.rs"]
+mod configuration_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1526,10 +1483,8 @@ mod tests {
             auths_model::PolicyIdentifier::parse("auths.test.evaluate/1", 128).expect("eval"),
         )
         .expect("commitment");
-        auths_codec::encode_bounded_policy_commitment(
-            &auths_model::BoundedPolicyCommitment::new(commitment, policy.to_vec(), parent)
-                .expect("body"),
-        )
+        auths_codec::CanonicalBoundedPolicyCommitment::new(auths_model::BoundedPolicyCommitment::clone(&auths_model::BoundedPolicyCommitment::new(commitment, policy.to_vec(), parent)
+                .expect("body"))).and_then(|canonical| auths_codec::encode_bounded_policy_commitment(&canonical))
         .expect("bytes")
     }
 

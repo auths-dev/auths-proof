@@ -17,7 +17,7 @@ use crate::observer::{
 use crate::recipe::{ENTRY_DEADLINE_SECONDS, GuardChecks};
 use crate::submit::{self, SubmitContext, SubmitIo};
 use crate::transport::{
-    GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderPort, ProviderResponse,
+    GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderReadPort, ProviderResponse,
     WriteTransportOutcome,
 };
 use crate::{
@@ -170,7 +170,7 @@ pub fn review_submission(
     proof: &[u8],
     action: &[u8],
 ) -> Result<GatewaySubmissionReview, GatewaySubmitResult> {
-    let command = verify_detailed(recipe, context, now, proof, action)?;
+    let command = verify_detailed(recipe, context, now, proof, action)?.into_projection();
     let request = &command.request;
     Ok(GatewaySubmissionReview {
         schema: "auths.gateway-submission-review/1",
@@ -320,7 +320,7 @@ pub struct GatewayAdminStatus {
 /// compare-and-swap without waiting for any submission or provider call.
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
-    trusted_context: TrustedContext,
+    trusted_context: auths_codec::CanonicalTrustedContext,
     #[cfg(unix)]
     trusted_context_sha256: auths_recipe_qualification::Sha256Digest,
     observer: Option<GatewayObserver>,
@@ -362,6 +362,12 @@ struct PreparedEntry {
     loaded: LoadedConnection,
     entry_bound: auths_gateway_kernel::deadline::EntryBound,
     transport: GatewayHttpTransport,
+}
+
+impl PreparedEntry {
+    fn accepts_lease(&self, lease: &StoredSecretLease) -> bool {
+        lease.matches_binding(&self.loaded.record().credential_binding())
+    }
 }
 
 impl GatewayEngine {
@@ -1245,13 +1251,18 @@ impl GatewayEngine {
         // again: nothing reaches the credential store unqualified.
         self.qualification.check().map_err(|_| ())?;
         self.execution_witness.lease();
-        self.credentials
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let lease = self.credentials
             .lease_secret(
                 &prepared.loaded.record().credential_binding(),
-                Instant::now() + Duration::from_secs(30),
+                deadline,
             )
             .await
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        if !prepared.accepts_lease(&lease) {
+            return Err(());
+        }
+        Ok(lease.limit_deadline(deadline))
     }
 
     /// Signs one observation for the application. A read-back uses the
@@ -1360,6 +1371,19 @@ struct EngineIo<'a> {
     commissioning_refusal: OnceLock<&'static str>,
 }
 
+impl EngineIo<'_> {
+    /// Every transport use retains the prepared connection and both of its
+    /// generations. The final reload remains the step machine's gate; this
+    /// projection refuses a lease substituted from another prepared entry.
+    fn leased_transport<'call>(&'call self, lease: &'call StoredSecretLease) -> Option<LeasedTransport<'call>> {
+        let prepared = self.prepared.get()?;
+        if !prepared.accepts_lease(lease) {
+            return None;
+        }
+        Some(LeasedTransport { transport: &prepared.transport, lease })
+    }
+}
+
 impl SubmitIo for EngineIo<'_> {
     type Lease = StoredSecretLease;
 
@@ -1390,6 +1414,7 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
+        let verified = verified.projection();
         crate::bounds::bind_account_scope(
             &self.engine.recipe,
             verified.bound.as_ref(),
@@ -1461,15 +1486,18 @@ impl SubmitIo for EngineIo<'_> {
                 return None;
             }
             self.engine.execution_witness.lease();
+            let deadline = Instant::now() + Duration::from_secs(30);
             return self
                 .engine
                 .credentials
                 .lease_secret(
                     &prepared.loaded.record().credential_binding(),
-                    Instant::now() + Duration::from_secs(30),
+                    deadline,
                 )
                 .await
-                .ok();
+                .ok()
+                .filter(|lease| prepared.accepts_lease(lease))
+                .map(|lease| lease.limit_deadline(deadline));
         }
         self.engine.lease(prepared).await.ok()
     }
@@ -1502,7 +1530,7 @@ impl SubmitIo for EngineIo<'_> {
         evaluated_at: u64,
         authority: auths_gateway_kernel::deadline::EntryBound,
     ) -> bool {
-        use auths_gateway_kernel::deadline::{entry_time_allows, intersect_entry_bounds};
+        use auths_gateway_kernel::deadline::entry_gate_allows;
         let Some(prepared) = self.prepared.get() else {
             return false;
         };
@@ -1517,34 +1545,22 @@ impl SubmitIo for EngineIo<'_> {
         };
         #[cfg(not(unix))]
         let current = self.engine.qualification.entry_bound();
-        let Ok(current) = current else {
-            return false;
-        };
-        let bound = intersect_entry_bounds(
-            authority,
-            intersect_entry_bounds(prepared.entry_bound, current),
-        );
-        self.clock()
-            .is_some_and(|now| entry_time_allows(evaluated_at, now, bound))
-            && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
+        entry_gate_allows(
+            evaluated_at, self.clock(), authority, prepared.entry_bound,
+            current.ok(), self.started.elapsed().as_nanos(),
+        )
     }
 
     async fn write(
         &self,
         lease: &StoredSecretLease,
-        request: &ClosedProviderRequest,
+        command: &VerifiedCommand,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        match self.prepared.get() {
-            Some(prepared) => {
-                LeasedTransport {
-                    transport: &prepared.transport,
-                    lease,
-                }
-                .write(request)
-                .await
-            }
-            None => Err(GatewayTransportError::NotEntered),
-        }
+        let port = self.leased_transport(lease).ok_or(GatewayTransportError::NotEntered)?;
+        let projection = command.projection();
+        port.transport.write(&projection.request, port.lease, || {
+            self.within_entry_deadline(projection.evaluated_at, projection.entry_not_after)
+        }).await
     }
 
     async fn action_read(
@@ -1554,13 +1570,9 @@ impl SubmitIo for EngineIo<'_> {
         headers: &[RequestHeader],
         maximum_response_bytes: usize,
     ) -> Option<ProviderResponse> {
-        let prepared = self.prepared.get()?;
-        LeasedTransport {
-            transport: &prepared.transport,
-            lease,
-        }
-        .action_read(url, headers, maximum_response_bytes)
-        .await
+        self.leased_transport(lease)?
+            .action_read(url, headers, maximum_response_bytes)
+            .await
     }
 
     async fn credential_read(
@@ -1568,13 +1580,7 @@ impl SubmitIo for EngineIo<'_> {
         lease: &StoredSecretLease,
         read: &ClosedCredentialRead,
     ) -> Option<ProviderResponse> {
-        let prepared = self.prepared.get()?;
-        LeasedTransport {
-            transport: &prepared.transport,
-            lease,
-        }
-        .credential_read(read)
-        .await
+        self.leased_transport(lease)?.credential_read(read).await
     }
 }
 
@@ -1637,13 +1643,54 @@ pub(crate) fn verify_command(
     action_cbor: &[u8],
 ) -> Result<(ClosedProviderRequest, Option<BoundAdmission>), GatewaySubmitResult> {
     verify_detailed(recipe, context, now, proof_cbor, action_cbor)
-        .map(|verified| (verified.request, verified.bound))
+        .map(|verified| {
+            let projection = verified.into_projection();
+            (projection.request, projection.bound)
+        })
 }
 
-/// A command the gateway would admit, with what admission and an auditor
-/// need of its authorized branches.
+/// An immutable native verification result. Only this module constructs it
+/// in production, after sealed verification and the complete request projection.
+/// Reading or cloning its factual projection cannot construct another handle.
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
+    projection: VerifiedCommandProjection,
+}
+
+impl VerifiedCommand {
+    /// Borrows the exact immutable facts from this native verification.
+    pub(crate) const fn projection(&self) -> &VerifiedCommandProjection {
+        &self.projection
+    }
+
+    /// Consumes the handle to export facts for offline review/audit. The
+    /// returned data cannot be wrapped into a verified handle by a consumer.
+    pub(crate) fn into_projection(self) -> VerifiedCommandProjection {
+        self.projection
+    }
+
+    /// Scenario fixtures enter after verification. This constructor is absent
+    /// from the shipping build and cannot be used by a production adapter.
+    #[cfg(test)]
+    pub(crate) const fn from_test_projection(projection: VerifiedCommandProjection) -> Self {
+        Self { projection }
+    }
+
+    /// Deliberate internal mutations exercise barriers after verification;
+    /// production code has no mutable projection or reconstruction method.
+    #[cfg(test)]
+    pub(crate) fn projection_mut_for_test(&mut self) -> &mut VerifiedCommandProjection {
+        &mut self.projection
+    }
+}
+
+/// Readable verification facts. This data record grants no execution
+/// capability and has no conversion into [`VerifiedCommand`] in production.
+#[derive(Clone, Debug)]
+pub(crate) struct VerifiedCommandProjection {
+    /// The exact timestamp supplied to native verification. Claim persistence
+    /// and the entry lower bound use this value from the verified input.
+    pub(crate) evaluated_at: u64,
     /// Exact actors of action IDs already sealed by the native verifier.
     #[cfg(unix)]
     pub(crate) actors: Vec<auths_model::PrincipalId>,
@@ -1695,7 +1742,7 @@ pub(crate) fn verify_detailed(
             Timestamp::new(now),
         )
         .ok()
-        .and_then(|value| auths_codec::encode_verifier_context(&value).ok())
+        .and_then(|value| auths_codec::CanonicalTrustedContext::new(value).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).ok())
         .ok_or_else(|| GatewaySubmitResult::Indeterminate {
             code: "gateway.verify.invalid-trust".to_owned(),
         })?;
@@ -1729,7 +1776,8 @@ pub(crate) fn verify_detailed(
     let branches = crate::bounds::authorized_branches(proof_cbor, action)
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
-    Ok(VerifiedCommand {
+    Ok(VerifiedCommand { projection: VerifiedCommandProjection {
+        evaluated_at: now,
         #[cfg(unix)]
         actors: branches.actors,
         request,
@@ -1747,7 +1795,7 @@ pub(crate) fn verify_detailed(
             inclusive: true,
         },
         observer_refusal,
-    })
+    } })
 }
 
 fn indeterminate_registry() -> GatewaySubmitResult {
@@ -1837,7 +1885,7 @@ pub(crate) async fn observe_pre_entry(
 pub(crate) async fn observe_read_back(
     target: &ClosedObservationRequest,
     observer: &GatewayObserver,
-    port: &impl ProviderPort,
+    port: &impl ProviderReadPort,
     clock: impl Fn() -> Option<u64>,
 ) -> GatewayObserveResult {
     let Some(observed_at) = clock() else {
@@ -2025,10 +2073,8 @@ pub(crate) mod tests {
             });
             let root = crate::harness::Signer::new(0x11);
             let observer = crate::harness::Signer::new(0x33);
-            let trust = auths_codec::encode_verifier_context(
-                &crate::harness::context(&root, &observer.principal, None, 1_790_000_000)
-                    .expect("context"),
-            )
+            let trust = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&crate::harness::context(&root, &observer.principal, None, 1_790_000_000)
+                    .expect("context"))).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))
             .expect("trust");
             let recipe = airtable_recipe();
             let digest = *recipe.digest();
@@ -2185,6 +2231,52 @@ pub(crate) mod tests {
                 )
                 .await
             }
+        }
+
+        #[tokio::test]
+        async fn a_prepared_entry_rejects_a_lease_from_an_earlier_state_generation() {
+            let installation = installation(8).await;
+            let host = &installation.first;
+            let initial = host.engine.prepare_entry().await.expect("initial entry");
+            let old_lease = host.engine.lease(&initial).await.expect("initial lease");
+            assert!(initial.accepts_lease(&old_lease));
+            host.engine.disable_connection().await.expect("disable");
+            host.engine.enable_connection().await.expect("enable");
+            let current = host.engine.prepare_entry().await.expect("current entry");
+            let new_lease = host.engine.lease(&current).await.expect("current lease");
+            assert_eq!(initial.loaded.record().credential_generation(),
+                current.loaded.record().credential_generation(), "state changes retain the secret generation");
+            assert_ne!(initial.loaded.record().generation(), current.loaded.record().generation());
+            assert!(!current.accepts_lease(&old_lease));
+            assert!(current.accepts_lease(&new_lease));
+
+            let io = EngineIo {
+                engine: &host.engine,
+                proof: &[],
+                action: &[],
+                started: Instant::now(),
+                prepared: OnceLock::new(),
+                commissioning: None,
+                commissioned_action: OnceLock::new(),
+                commissioning_refusal: OnceLock::new(),
+            };
+            assert!(io.prepared.set(current).is_ok());
+            assert!(io.leased_transport(&old_lease).is_none());
+            assert!(io.leased_transport(&new_lease).is_some());
+            let values = serde_json::json!({
+                "operation_id": "old-lease-refused",
+                "record_id": "recTEST0000000001",
+                "replacement": "Approved",
+                "operator_namespace": host.engine.recipe.namespace().as_str(),
+                "recipe_digest": host.engine.recipe.digest_hex(),
+            });
+            let command = crate::scenario_tests::admitted(
+                &host.engine.recipe, values.as_object().expect("arguments"), [1; 32],
+                Vec::new(), 60, Vec::new(), 8,
+            ).expect("post-verification fixture");
+            let before = host.engine.execution_witness();
+            assert_eq!(io.write(&old_lease, &command).await, Err(GatewayTransportError::NotEntered));
+            assert_eq!(host.engine.execution_witness(), before, "no transport entry on a mismatched lease");
         }
 
         #[tokio::test]

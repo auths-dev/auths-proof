@@ -427,26 +427,26 @@ async fn native_entry_horizon_uses_counted_approval_and_ignores_unlisted_approva
         &recipe,
         &context,
         NOW,
-        &encode_bundle(&proof).expect("proof bytes"),
+        &auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&proof)).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
         &action,
     )
     .expect("native quorum verification");
-    assert_eq!(verified.entry_not_after.not_after, NOW + 3);
-    assert!(verified.entry_not_after.inclusive);
+    assert_eq!(verified.projection().entry_not_after.not_after, NOW + 3);
+    assert!(verified.projection().entry_not_after.inclusive);
     assert_eq!(
-        verified.approvers.len(),
+        verified.projection().approvers.len(),
         2,
         "unlisted material is not a temporal authority witness"
     );
     assert!(auths_gateway_kernel::deadline::entry_time_allows(
         NOW,
         NOW + 3,
-        verified.entry_not_after
+        verified.projection().entry_not_after
     ));
     assert!(!auths_gateway_kernel::deadline::entry_time_allows(
         NOW,
         NOW + 4,
-        verified.entry_not_after
+        verified.projection().entry_not_after
     ));
     let temp = tempfile::tempdir().expect("state");
     let harness = fresh_harness(temp.path());
@@ -633,7 +633,7 @@ fn generate() -> String {
                     serde_json_canonicalizer::to_vec(&arguments(&recipe, case.id)).expect("json")
                 ).expect("utf-8"),
                 "action_b64": b64(&encode_canonical_action(&canonical).expect("action")),
-                "proof_b64": b64(&encode_bundle(&bundle).expect("proof")),
+                "proof_b64": b64(&auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof")),
                 "decision": case.decision,
                 "code": case.code,
                 "provider_entries": case.provider_entries,
@@ -670,9 +670,9 @@ fn generate() -> String {
         "approvers": MANAGERS,
         "actor": "agent",
         "members": members,
-        "trusted_context_b64": b64(&encode_verifier_context(&context).expect("context")),
+        "trusted_context_b64": b64(&auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("context")),
         "sdk_trusted_context_b64": b64(
-            &encode_verifier_context(&sdk_trusted_context(&recipe)).expect("SDK context")
+            &auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&sdk_trusted_context(&recipe))).and_then(|canonical| encode_verifier_context(&canonical)).expect("SDK context")
         ),
         "cases": cases,
     });
@@ -918,7 +918,7 @@ async fn remote_approvals_from_any_two_managers_authorize() {
             .expect("vector");
         let bundle = remote_bundle(&recipe, case.id, case.approvers, &[])
             .expect("the threshold of managers approved");
-        let proof = encode_bundle(&bundle).expect("proof");
+        let proof = auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof");
         assert_eq!(
             proof,
             unb64(&vector["proof_b64"]),
@@ -979,7 +979,7 @@ fn a_proof_cannot_lower_the_installed_threshold() {
         bundle(&recipe, "lowered", 1, &["manager-a"]),
         bundle(&recipe, "lowered", 1, &["manager-a", "outsider"]),
     ] {
-        let proof = encode_bundle(&bundle).expect("proof");
+        let proof = auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof");
         let result = verify_command(&recipe, &context, NOW, &proof, &action)
             .expect_err("a single manager never authorizes");
         assert_eq!(

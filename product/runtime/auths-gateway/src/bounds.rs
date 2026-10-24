@@ -426,10 +426,10 @@ impl ArgumentCeilingPolicy {
             PolicyIdentifier::parse(ARGUMENT_CEILING_EVALUATOR, 128).map_err(invalid_policy)?,
         )
         .map_err(invalid_policy)?;
-        auths_codec::encode_bounded_policy_commitment(
-            &BoundedPolicyCommitment::new(commitment, policy, parent).map_err(invalid_policy)?,
-        )
-        .map_err(invalid_policy)
+        let body = auths_codec::CanonicalBoundedPolicyCommitment::new(
+            BoundedPolicyCommitment::new(commitment, policy, parent).map_err(invalid_policy)?,
+        ).map_err(invalid_policy)?;
+        auths_codec::encode_bounded_policy_commitment(&body).map_err(invalid_policy)
     }
 
     /// The members the translated tightening decider reads.
@@ -1012,7 +1012,7 @@ pub(crate) fn admit_bounds(
 ) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
     let refuse = not_entered;
     let chain = bounded_chain(proof_cbor, verified).map_err(refuse)?;
-    let mut bounds: Vec<(PrincipalId, BoundedPolicyCommitment)> = Vec::new();
+    let mut bounds: Vec<(PrincipalId, auths_codec::CanonicalBoundedPolicyCommitment)> = Vec::new();
     for grant in chain
         .iter()
         .flatten()

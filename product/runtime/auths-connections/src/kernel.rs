@@ -23,6 +23,18 @@ pub struct Generations {
     pub credential_generation: u64,
 }
 
+/// A lease and its prepared connection must retain the same valid pair of
+/// generations. State-only changes retain the credential generation but still
+/// change the connection generation, so they cannot silently reuse an entry.
+#[must_use]
+pub const fn same_lease_generations(expected: Generations, leased: Generations) -> bool {
+    expected.generation > 0
+        && expected.credential_generation > 0
+        && expected.credential_generation <= expected.generation
+        && leased.generation == expected.generation
+        && leased.credential_generation == expected.credential_generation
+}
+
 /// The generation after `generation`, or `None` when it would overflow.
 #[must_use]
 pub const fn next_generation(generation: u64) -> Option<u64> {

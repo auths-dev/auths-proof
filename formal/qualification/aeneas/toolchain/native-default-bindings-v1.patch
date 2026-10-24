@@ -1,0 +1,251 @@
+--- a/dune
++++ b/dune
+@@ -112,6 +112,7 @@
+   SymbolicAst
+   SymbolicToPure
+   SymbolicToPureAbs
++  SymbolicToPureBindings
+   SymbolicToPureCore
+   SymbolicToPureExpressions
+   SymbolicToPureTypes
+--- a/symbolic/SymbolicToPureCore.ml
++++ b/symbolic/SymbolicToPureCore.ml
+@@ -482,18 +482,26 @@
+ let bs_ctx_lookup_type_decl (id : TypeDeclId.id) (ctx : bs_ctx) : type_decl =
+   TypeDeclId.Map.find id ctx.type_ctx.type_decls
+ 
+-(** This generates a fresh variable **which is not to be linked to any symbolic
+-    value** *)
+-let fresh_var (basename : string option) (ty : ty) (ctx : bs_ctx) :
+-    bs_ctx * fvar =
+-  (* Generate the fresh variable *)
+-  let id = ctx.fresh_fvar_id () in
+-  let var = { id; basename; ty } in
+-  (* Insert in the context *)
+-  let ctx = { ctx with fvars = FVarId.Map.add id var ctx.fvars } in
+-  let ctx = { ctx with fvars_tys = FVarId.Map.add id var.ty ctx.fvars_tys } in
+-  (* Return *)
+-  (ctx, var)
++(** The exact variable/default projection shared by both abstraction
++    translation paths. Other complete synthesis-context fields are retained. *)
++let binding_context (ctx : bs_ctx) : SymbolicToPureBindings.t = {
++  span = ctx.span; sv_to_var = ctx.sv_to_var; fresh_fvar_id = ctx.fresh_fvar_id;
++  fvars = ctx.fvars; fvars_tys = ctx.fvars_tys;
++  mut_borrow_to_consumed = ctx.mut_borrow_to_consumed;
++  var_id_to_default = ctx.var_id_to_default;
++}
++
++let with_binding_context (ctx : bs_ctx) (bindings : SymbolicToPureBindings.t) : bs_ctx = {
++  ctx with sv_to_var = bindings.sv_to_var; fvars = bindings.fvars;
++  fvars_tys = bindings.fvars_tys;
++  mut_borrow_to_consumed = bindings.mut_borrow_to_consumed;
++  var_id_to_default = bindings.var_id_to_default;
++}
++
++(** Generate a fresh variable unlinked to a symbolic value. *)
++let fresh_var (basename : string option) (ty : ty) (ctx : bs_ctx) : bs_ctx * fvar =
++  let bindings, var = SymbolicToPureBindings.fresh_var basename ty (binding_context ctx) in
++  (with_binding_context ctx bindings, var)
+ 
+ let fresh_vars (vars : (string option * ty) list) (ctx : bs_ctx) :
+     bs_ctx * fvar list =
+@@ -512,15 +520,8 @@
+ 
+ (** IMPORTANT: do not use this one directly, but rather
+     {!symbolic_value_to_texpr} *)
+-let lookup_var_for_symbolic_value (id : V.symbolic_value_id) (ctx : bs_ctx) :
+-    fvar option =
+-  match V.SymbolicValueId.Map.find_opt id ctx.sv_to_var with
+-  | Some v -> Some v
+-  | None ->
+-      [%save_error] ctx.span
+-        ("Could not find var for symbolic value: "
+-        ^ V.SymbolicValueId.to_string id);
+-      None
++let lookup_var_for_symbolic_value (id : V.symbolic_value_id) (ctx : bs_ctx) : fvar option =
++  SymbolicToPureBindings.lookup_var_for_symbolic_value id (binding_context ctx)
+ 
+ let mk_closed_checked_let file line ctx can_fail pat bound next =
+   mk_closed_checked_let file line ctx.span can_fail pat bound next
+--- a/symbolic/SymbolicToPureValues.ml
++++ b/symbolic/SymbolicToPureValues.ml
+@@ -17,14 +17,9 @@
+ 
+ let fresh_named_var_for_symbolic_value (basename : string option)
+     (sv : V.symbolic_value) (ctx : bs_ctx) : bs_ctx * fvar =
+-  (* Generate the fresh variable *)
+-  let ctx, var = fresh_var_llbc_ty basename sv.sv_ty ctx in
+-  (* Insert in the map from symbolic value to variable *)
+-  let sv_to_var = V.SymbolicValueId.Map.add sv.sv_id var ctx.sv_to_var in
+-  (* Update the context *)
+-  let ctx = { ctx with sv_to_var } in
+-  (* Return *)
+-  (ctx, var)
++  let ty = ctx_translate_fwd_ty ctx sv.sv_ty in
++  let bindings, var = SymbolicToPureBindings.bind_symbolic basename sv.sv_id ty (binding_context ctx) in
++  (with_binding_context ctx bindings, var)
+ 
+ let fresh_var_for_symbolic_value (sv : V.symbolic_value) (ctx : bs_ctx) :
+     bs_ctx * fvar =
+@@ -47,23 +42,8 @@
+     (translated) type unit, it is important that we do not lookup variables in
+     case the symbolic value has type unit. *)
+ let symbolic_value_to_texpr (ctx : bs_ctx) (sv : V.symbolic_value) : texpr =
+-  (* Translate the type *)
+   let ty = ctx_translate_fwd_ty ctx sv.sv_ty in
+-  (* If the type is unit, directly return unit *)
+-  if ty_is_unit ty then mk_unit_texpr
+-  else
+-    (* Otherwise lookup the variable *)
+-    match lookup_var_for_symbolic_value sv.sv_id ctx with
+-    | Some var -> mk_texpr_from_fvar var
+-    | None ->
+-        {
+-          e =
+-            EError
+-              ( None,
+-                "Could not find var for symbolic value: "
+-                ^ V.SymbolicValueId.to_string sv.sv_id );
+-          ty;
+-        }
++  SymbolicToPureBindings.symbolic_value_to_texpr sv.sv_id ty (binding_context ctx)
+ 
+ (** Translate a typed value.
+ 
+@@ -831,14 +811,9 @@
+            rather because of loops.
+         *)
+         let ctx =
+-          match V.BorrowId.Map.find_opt msv.bid ctx.mut_borrow_to_consumed with
+-          | None -> ctx
+-          | Some e ->
+-              {
+-                ctx with
+-                var_id_to_default =
+-                  FVarId.Map.add var.id e ctx.var_id_to_default;
+-              }
++          with_binding_context ctx
++            (SymbolicToPureBindings.register_borrow_default var.id msv.bid
++               (binding_context ctx))
+         in
+         (* *)
+         (ctx, Some pat)
+@@ -883,14 +858,10 @@
+       let ctx =
+         (* Using the projection type as the type of the symbolic value - it
+            doesn't really matter *)
+-        let sv : V.symbolic_value = { sv_id = mv.consumed; sv_ty = ty } in
+-        {
+-          ctx with
+-          var_id_to_default =
+-            FVarId.Map.add var.id
+-              (symbolic_value_to_texpr ctx sv)
+-              ctx.var_id_to_default;
+-        }
++        let ty = ctx_translate_fwd_ty ctx ty in
++        with_binding_context ctx
++          (SymbolicToPureBindings.register_projection_default var.id mv.consumed ty
++             (binding_context ctx))
+       in
+       (ctx, Some pat)
+   | AEmpty | AProjLoans _ | AProjBorrows _ -> [%craise] ctx.span "Unreachable"
+--- a/symbolic/SymbolicToPureAbs.ml
++++ b/symbolic/SymbolicToPureAbs.ml
+@@ -1191,13 +1191,9 @@
+          rather because of loops.
+       *)
+       let ctx =
+-        match V.BorrowId.Map.find_opt msv.bid ctx.mut_borrow_to_consumed with
+-        | None -> ctx
+-        | Some e ->
+-            {
+-              ctx with
+-              var_id_to_default = FVarId.Map.add var.id e ctx.var_id_to_default;
+-            }
++        with_binding_context ctx
++          (SymbolicToPureBindings.register_borrow_default var.id msv.bid
++             (binding_context ctx))
+       in
+       (* *)
+       (ctx, Some pat)
+@@ -1219,14 +1215,10 @@
+       let ctx =
+         (* Using the projection type as the type of the symbolic value - it
+            doesn't really matter *)
+-        let sv : V.symbolic_value = { sv_id = mv.consumed; sv_ty = ty } in
+-        {
+-          ctx with
+-          var_id_to_default =
+-            FVarId.Map.add var.id
+-              (symbolic_value_to_texpr ctx sv)
+-              ctx.var_id_to_default;
+-        }
++        let ty = ctx_translate_fwd_ty ctx ty in
++        with_binding_context ctx
++          (SymbolicToPureBindings.register_projection_default var.id mv.consumed ty
++             (binding_context ctx))
+       in
+       (ctx, Some pat)
+   | EEmpty | EProjLoans _ | EProjBorrows _ -> [%craise] ctx.span "Unreachable"
+--- /dev/null
++++ b/symbolic/SymbolicToPureBindings.ml
+@@ -0,0 +1,59 @@
++open Pure
++open PureUtils
++module V = Values
++
++(** The exact variable/default portion of [SymbolicToPureCore.bs_ctx]. It has
++    no complete function signature, return callback or opaque environment.
++    The original translators project/update this state without changing their
++    other context fields or their abstraction/level guards. *)
++type t = {
++  span : Meta.span;
++  sv_to_var : fvar V.SymbolicValueId.Map.t;
++  fresh_fvar_id : unit -> fvar_id;
++  fvars : fvar FVarId.Map.t;
++  fvars_tys : ty FVarId.Map.t;
++  mut_borrow_to_consumed : texpr V.BorrowId.Map.t;
++  var_id_to_default : texpr FVarId.Map.t;
++}
++
++let fresh_var (basename : string option) (ty : ty) (ctx : t) : t * fvar =
++  let id = ctx.fresh_fvar_id () in
++  let var = { id; basename; ty } in
++  let ctx = { ctx with fvars = FVarId.Map.add id var ctx.fvars } in
++  let ctx = { ctx with fvars_tys = FVarId.Map.add id var.ty ctx.fvars_tys } in
++  (ctx, var)
++
++let bind_symbolic (basename : string option) (identity : V.symbolic_value_id)
++    (ty : ty) (ctx : t) : t * fvar =
++  let ctx, var = fresh_var basename ty ctx in
++  ({ ctx with sv_to_var = V.SymbolicValueId.Map.add identity var ctx.sv_to_var }, var)
++
++let lookup_var_for_symbolic_value (identity : V.symbolic_value_id) (ctx : t) : fvar option =
++  match V.SymbolicValueId.Map.find_opt identity ctx.sv_to_var with
++  | Some var -> Some var
++  | None ->
++      [%save_error] ctx.span
++        ("Could not find var for symbolic value: " ^ V.SymbolicValueId.to_string identity);
++      None
++
++let symbolic_value_to_texpr (identity : V.symbolic_value_id) (translated_ty : ty) (ctx : t) : texpr =
++  if ty_is_unit translated_ty then mk_unit_texpr
++  else match lookup_var_for_symbolic_value identity ctx with
++    | Some var -> mk_texpr_from_fvar var
++    | None -> { e = EError (None, "Could not find var for symbolic value: " ^ V.SymbolicValueId.to_string identity);
++        ty = translated_ty }
++
++(** Missing borrow defaults are intentionally retained: the original
++    translator permits them for abstractions introduced by loops. *)
++let register_borrow_default (variable : fvar_id) (borrow : V.borrow_id) (ctx : t) : t =
++  match V.BorrowId.Map.find_opt borrow ctx.mut_borrow_to_consumed with
++  | None -> ctx
++  | Some value -> { ctx with var_id_to_default = FVarId.Map.add variable value ctx.var_id_to_default }
++
++(** Lookup uses the immediate current symbolic name. It never follows that
++    name's own default to an earlier version. Type translation and fresh
++    allocation retain their original order in the calling wrappers. *)
++let register_projection_default (variable : fvar_id) (consumed : V.symbolic_value_id)
++    (translated_ty : ty) (ctx : t) : t =
++  let value = symbolic_value_to_texpr consumed translated_ty ctx in
++  { ctx with var_id_to_default = FVarId.Map.add variable value ctx.var_id_to_default }

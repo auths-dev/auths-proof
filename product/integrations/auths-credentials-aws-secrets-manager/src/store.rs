@@ -96,12 +96,7 @@ impl<A: SecretsApi> ConnectionCredentialStore for AwsSecretsManagerStore<A> {
         {
             return Err(CredentialStoreError::Unavailable);
         }
-        let commitment =
-            CredentialReferenceCommitment::of(connection_id, generation, &fetched.bytes);
-        if !commitment.matches(binding.reference_commitment()) {
-            return Err(CredentialStoreError::Substitution);
-        }
-        Ok(StoredSecretLease::from_store(fetched.bytes, deadline))
+        StoredSecretLease::from_store(binding, fetched.bytes, deadline)
     }
 
     async fn replace(

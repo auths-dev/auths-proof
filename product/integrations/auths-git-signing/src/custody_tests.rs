@@ -74,7 +74,7 @@ impl Repository {
         )
         .expect("trust");
         let trust =
-            GitTrust::decode(&encode_verifier_context(&context).expect("encode")).expect("decode");
+            GitTrust::decode(&auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("encode")).expect("decode");
         self.with_registries(|registries| trust.with_revocations(revocations, registries))
             .expect("revocations verify")
     }

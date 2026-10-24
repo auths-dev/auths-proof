@@ -389,6 +389,7 @@ For every accepted context:
 proptest! {
     #[test]
     fn accepted_context_has_one_encoding(case in context_strategy()) {
+        let case = auths_codec::CanonicalTrustedContext::new(case)?;
         let encoded = encode_verifier_context(&case)?;
         let decoded = decode_verifier_context(&encoded)?;
         prop_assert_eq!(decoded, case);

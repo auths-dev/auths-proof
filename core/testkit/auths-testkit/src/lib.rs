@@ -64,6 +64,8 @@ use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
 mod action_decode;
+mod closed;
+pub use closed::closed_signature_vectors;
 mod approval;
 mod bounded_policy;
 mod kernel_checks;
@@ -304,6 +306,21 @@ impl Identity {
             principal_kind: PrincipalKind::DidKey(evidence),
             principal,
         }
+    }
+
+    fn did_key_p256(seed: u8) -> Self {
+        let mut scalar = [0; 32];
+        scalar[31] = seed.max(1);
+        let key = P256SigningKey::from_bytes((&scalar).into()).expect("fixed P-256 scalar");
+        let evidence = DidKeyEvidence::new(
+            Multikey::from_public_key(
+                MultikeyType::P256,
+                key.verifying_key().to_encoded_point(true).as_bytes().to_vec(),
+            )
+            .expect("fixed did:key P-256"),
+        );
+        let principal = evidence.principal().expect("derived did:key principal");
+        Self { key: TestKey::P256(key), principal_kind: PrincipalKind::DidKey(evidence), principal }
     }
 
     fn did_web_ed25519(principal: &str, seed: u8) -> Self {
@@ -1069,8 +1086,8 @@ fn fixture(
     CorpusFixture {
         name,
         class,
-        proof_bytes: encode_bundle(bundle).expect("canonical proof"),
-        context_bytes: encode_verifier_context(&context).expect("canonical context"),
+        proof_bytes: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("canonical proof"),
+        context_bytes: auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context"),
         canonical_action,
         raw_action_bytes: None,
         expected,
@@ -3930,7 +3947,7 @@ pub fn did_key_p256_compact_point() -> CorpusFixture {
 
 fn decoded_bundle(fixture: &CorpusFixture) -> ProofBundle {
     let context = decode_context(fixture);
-    decode_bundle(fixture.proof_bytes(), context.limits()).expect("repository-owned proof")
+    decode_bundle(fixture.proof_bytes(), context.limits()).expect("repository-owned proof").into_value()
 }
 
 fn replace_context(
@@ -3959,7 +3976,7 @@ fn replace_context(
     .expect("limited context");
     fixture.name = name;
     fixture.class = "invalid";
-    fixture.context_bytes = encode_verifier_context(&limited).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&limited)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = expected;
     fixture
 }
@@ -4028,7 +4045,7 @@ fn replace_bundle(
 ) -> CorpusFixture {
     fixture.name = name;
     fixture.class = "invalid";
-    fixture.proof_bytes = encode_bundle(bundle).expect("canonical proof");
+    fixture.proof_bytes = auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("canonical proof");
     fixture.expected = expected;
     fixture
 }
@@ -4383,7 +4400,7 @@ pub fn wrong_audience() -> CorpusFixture {
         .expect("request context");
     fixture.name = "wrong-audience";
     fixture.class = "denied";
-    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = Expected::Denied(DenialReason::AudienceMismatch);
     fixture
 }
@@ -4406,7 +4423,7 @@ pub fn wrong_challenge() -> CorpusFixture {
         .expect("request context");
     fixture.name = "wrong-challenge";
     fixture.class = "denied";
-    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = Expected::Denied(DenialReason::ChallengeMismatch);
     fixture
 }
@@ -4424,7 +4441,7 @@ pub fn composition_requirement_not_met() -> CorpusFixture {
         .expect("composition replacement");
     fixture.name = "composition-requirement-not-met";
     fixture.class = "denied";
-    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = Expected::Denied(DenialReason::CompositionRequirementNotMet);
     fixture
 }
@@ -4442,7 +4459,7 @@ pub fn verifier_configuration_mismatch() -> CorpusFixture {
         .expect("configuration replacement");
     fixture.name = "verifier-configuration-mismatch";
     fixture.class = "denied";
-    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = Expected::Denied(DenialReason::VerifierConfigurationMismatch);
     fixture
 }
@@ -4450,6 +4467,7 @@ pub fn verifier_configuration_mismatch() -> CorpusFixture {
 fn decode_context(fixture: &CorpusFixture) -> TrustedContext {
     auths_codec::decode_verifier_context(fixture.context_bytes())
         .expect("repository-owned canonical context")
+        .into_value()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4517,7 +4535,7 @@ fn registry_semantics_fixture(
         Expected::Indeterminate(_) => "indeterminate",
         Expected::Authorized => "valid",
     };
-    fixture.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = expected;
     fixture
 }
@@ -4613,7 +4631,7 @@ fn accepted_extension_without_handler() -> CorpusFixture {
     );
     fixture.name = "accepted-extension-without-handler";
     fixture.class = "indeterminate";
-    fixture.context_bytes = encode_verifier_context(&replacement).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = Expected::Indeterminate(Requirement::UnsupportedCriticalExtension);
     fixture
 }
@@ -5525,6 +5543,7 @@ fn build_corpus() -> Vec<CorpusFixture> {
             Expected::Denied(DenialReason::OpaqueAttachmentNotAllowed),
         ),
     ];
+    corpus.extend(closed_signature_vectors());
     corpus.extend(marker_delegation_vectors());
     corpus.extend(bounded_policy::bounded_policy_vectors());
     corpus.extend(observation::observation_corpus());

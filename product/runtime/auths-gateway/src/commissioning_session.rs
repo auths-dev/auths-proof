@@ -210,6 +210,7 @@ impl CommissioningSession<'_> {
         &self,
         command: &VerifiedCommand,
     ) -> Result<CommissionedAction, &'static str> {
+        let command = command.projection();
         let [actor] = command.actors.as_slice() else {
             return Err("gateway.commissioning.binding-mismatch");
         };

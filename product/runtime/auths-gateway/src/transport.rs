@@ -39,6 +39,9 @@ pub(crate) enum GatewayTransportError {
     /// DNS, binding, or request construction failed before network entry.
     #[error("transport was not entered")]
     NotEntered,
+    /// The original authority/entry deadline failed at the final dispatch gate.
+    #[error("entry deadline expired before transport")]
+    EntryDeadline,
 }
 
 /// Write transport evidence, never provider-effect confirmation.
@@ -81,16 +84,9 @@ impl ProviderResponse {
     }
 }
 
-/// Provider entry used by the execution path. The production implementation
-/// is the pinned HTTPS transport holding one credential lease; tests supply a
-/// counting provider. No method may retry a write.
-pub(crate) trait ProviderPort {
-    /// Sends one closed write after a durable claim.
-    async fn write(
-        &self,
-        request: &ClosedProviderRequest,
-    ) -> Result<WriteTransportOutcome, GatewayTransportError>;
-
+/// Read-only provider access. Possessing a leased read port cannot dispatch a
+/// write; production writes additionally require the native verified command.
+pub(crate) trait ProviderReadPort {
     /// Performs one bounded GET of an action read or observation and returns
     /// the complete response, or `None` after a transport failure or an
     /// oversized body.
@@ -105,7 +101,18 @@ pub(crate) trait ProviderPort {
     async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse>;
 }
 
-/// A borrowed provider is the provider.
+/// Test/harness provider write entry. Production dispatch uses the checked
+/// HTTP leaf directly, with its original native verification handle and gate.
+#[cfg(any(test, feature = "testkit-harness"))]
+pub(crate) trait ProviderPort: ProviderReadPort {
+    /// Sends one closed write after a durable claim. No implementation retries.
+    async fn write(
+        &self,
+        request: &ClosedProviderRequest,
+    ) -> Result<WriteTransportOutcome, GatewayTransportError>;
+}
+
+#[cfg(any(test, feature = "testkit-harness"))]
 impl<P: ProviderPort> ProviderPort for &P {
     async fn write(
         &self,
@@ -113,7 +120,10 @@ impl<P: ProviderPort> ProviderPort for &P {
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
         (**self).write(request).await
     }
+}
 
+/// Borrowing a read port does not add write capability.
+impl<P: ProviderReadPort> ProviderReadPort for &P {
     async fn action_read(
         &self,
         url: &str,
@@ -136,14 +146,7 @@ pub(crate) struct LeasedTransport<'a> {
     pub(crate) lease: &'a StoredSecretLease,
 }
 
-impl ProviderPort for LeasedTransport<'_> {
-    async fn write(
-        &self,
-        request: &ClosedProviderRequest,
-    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.transport.write(request, self.lease).await
-    }
-
+impl ProviderReadPort for LeasedTransport<'_> {
     async fn action_read(
         &self,
         url: &str,
@@ -172,6 +175,8 @@ impl ProviderPort for LeasedTransport<'_> {
 /// An IPv6-only destination is rejected in this first version.
 pub(crate) struct GatewayHttpTransport {
     client: Client,
+    approved_namespace: String,
+    approved_recipe_digest: [u8; 32],
     origin: String,
     /// Where requests for `origin` are sent: `origin` itself except in a
     /// `loopback-provider` development build.
@@ -226,6 +231,8 @@ impl GatewayHttpTransport {
         let client = pinned_client(hostname, pinned)?;
         Ok(Self {
             client,
+            approved_namespace: recipe.namespace().as_str().to_owned(),
+            approved_recipe_digest: *recipe.digest(),
             origin: origin.to_owned(),
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
@@ -250,6 +257,7 @@ impl GatewayHttpTransport {
         let origin = review.origin();
         let client = Client::builder()
             .no_proxy()
+            .retry(reqwest::retry::never())
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(5))
             .timeout(MAX_TRANSPORT_DURATION)
@@ -258,6 +266,8 @@ impl GatewayHttpTransport {
             .map_err(|_| GatewayTransportError::NotEntered)?;
         Ok(Self {
             client,
+            approved_namespace: recipe.namespace().as_str().to_owned(),
+            approved_recipe_digest: *recipe.digest(),
             origin: origin.to_owned(),
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
@@ -272,13 +282,19 @@ impl GatewayHttpTransport {
     /// (version headers, the account-scope header, and the derived
     /// `Idempotency-Key`, each only when declared) are sent as built. A
     /// version mismatch is reported with the response, which is recorded as
-    /// usual because the gateway never interprets a write body.
+    /// usual because the gateway never interprets a write body. The trusted
+    /// caller's gate re-samples the original command's authority and installed
+    /// entry bounds after request construction, immediately before dispatch.
     pub(crate) async fn write(
         &self,
         request: &ClosedProviderRequest,
         lease: &StoredSecretLease,
+        entry_allows: impl FnOnce() -> bool,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        if request.credential_requirement() != &self.requirement || !self.owns_url(request.url()) {
+        if !auths_gateway_kernel::attempt_binding::installation_matches(
+            request.namespace().as_str().as_bytes(), request.recipe_digest(),
+            self.approved_namespace.as_bytes(), &self.approved_recipe_digest,
+        ) || request.credential_requirement() != &self.requirement || !self.owns_url(request.url()) {
             return Err(GatewayTransportError::NotEntered);
         }
         let secret = lease
@@ -303,6 +319,13 @@ impl GatewayHttpTransport {
             .body(request.body().to_vec())
             .build()
             .map_err(|_| GatewayTransportError::NotEntered)?;
+        // Building the HTTP request may take time. Recheck the same lease and
+        // the native command's current entry gate after construction, with no
+        // await before execute. This gate receives no credential or request.
+        if !entry_allows() {
+            return Err(GatewayTransportError::EntryDeadline);
+        }
+        lease.expose(Instant::now()).map_err(|_| GatewayTransportError::NotEntered)?;
         if let Some(witness) = &self.witness {
             witness.write();
         }
@@ -405,6 +428,7 @@ impl GatewayHttpTransport {
         Self {
             client: Client::builder()
                 .no_proxy()
+                .retry(reqwest::retry::never())
                 .redirect(reqwest::redirect::Policy::none())
                 .pool_max_idle_per_host(0)
                 .build()
@@ -426,7 +450,11 @@ impl GatewayHttpTransport {
         candidate.starts_with(&self.origin)
             && candidate.as_bytes().get(self.origin.len()) == Some(&b'/')
             && Url::parse(candidate).is_ok_and(|url| {
-                url.origin().ascii_serialization() == self.origin
+                // The transport must send the approved target verbatim.
+                // Reject dot-segment, backslash and other parser rewrites
+                // before exposing a credential or building the HTTP request.
+                url.as_str() == candidate
+                    && url.origin().ascii_serialization() == self.origin
                     && url.query().is_none()
                     && url.fragment().is_none()
                     && url.username().is_empty()
@@ -446,17 +474,29 @@ fn provider_header_value(header: &RequestHeader) -> Result<HeaderValue, GatewayT
 }
 
 fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTransportError> {
+    pinned_client_builder(hostname, pinned)
+        .build()
+        .map_err(|_| GatewayTransportError::NotEntered)
+}
+
+/// Shared settings for the production client and its local TLS wire oracle.
+/// The oracle supplies a test root after this complete policy; production
+/// always builds directly with the platform's normal trusted roots.
+fn pinned_client_builder(hostname: &str, pinned: SocketAddr) -> reqwest::ClientBuilder {
     Client::builder()
         .https_only(true)
         .no_proxy()
+        .retry(reqwest::retry::never())
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(5))
         .timeout(MAX_TRANSPORT_DURATION)
         .pool_max_idle_per_host(0)
         .resolve(hostname, pinned)
-        .build()
-        .map_err(|_| GatewayTransportError::NotEntered)
 }
+
+#[cfg(test)]
+#[path = "transport_wire_tests.rs"]
+mod wire_tests;
 
 fn credential_headers(
     requirement: &CredentialRequirement,
@@ -649,6 +689,8 @@ mod tests {
                     .pool_max_idle_per_host(0)
                     .build()
                     .expect("client"),
+                approved_namespace: recipe.namespace().as_str().to_owned(),
+                approved_recipe_digest: *recipe.digest(),
                 origin: recipe.review().origin().to_owned(),
                 target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
                 requirement: recipe.review().credential().clone(),
@@ -673,7 +715,7 @@ mod tests {
             );
             assert_eq!(witness.snapshot().read_transport_entries, 0);
             assert!(matches!(
-                transport.write(&request, &lease).await,
+                transport.write(&request, &lease, || true).await,
                 Ok(WriteTransportOutcome::ResponseRecorded { status: 200, .. })
             ));
             let observation = request.observation().expect("observation");

@@ -380,7 +380,7 @@ fn configuration_bitflip() -> CorpusFixture {
     fixture.name = "conformance-configuration-bitflip";
     fixture.class = "denied";
     fixture.context_bytes =
-        encode_verifier_context(&replacement).expect("canonical conformance context");
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical conformance context");
     fixture.expected = Expected::Denied(DenialReason::VerifierConfigurationMismatch);
     fixture
 }
@@ -409,7 +409,7 @@ fn stale_principal_status() -> Result<CorpusFixture, String> {
     fixture.name = "conformance-stale-principal-status";
     fixture.class = "indeterminate";
     fixture.context_bytes =
-        encode_verifier_context(&replacement).map_err(|error| error.to_string())?;
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).map_err(|error| error.to_string())?;
     fixture.expected = Expected::Indeterminate(Requirement::StaleStatus);
     Ok(fixture)
 }
@@ -435,7 +435,7 @@ fn work_limit_minus_one() -> CorpusFixture {
     fixture.name = "conformance-work-limit-minus-one";
     fixture.class = "denied";
     fixture.context_bytes =
-        encode_verifier_context(&replacement).expect("canonical conformance context");
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical conformance context");
     fixture.expected = Expected::Denied(DenialReason::ResourceLimitExceeded);
     fixture
 }

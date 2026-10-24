@@ -1,17 +1,17 @@
 //! Deterministic encoding of approval requirements, approver anchors, signed
 //! approvals, and reported approval satisfactions.
 
-use crate::cbor::Decoder;
+use crate::cbor::{Decoder, Encoder};
 use crate::{
-    CodecError,
+    CanonicalSignedApproval, CodecError,
     decode::{
         V1Decoder, array, digest_bytes, ensure_complete, evidence, is_null, key, map, null,
-        optional_budget, parsed_texts, signature, status_policy, text,
+        optional_budget, signature, status_policy, text,
     },
     encode::{
-        V1Encoder, array as encode_array, bytes, encode_error, encode_evidence,
+        V1Encoder, array as encode_array, bytes, encode_error,
         encode_optional_budget, encode_signature, encode_signature_descriptor,
-        encode_status_policy, finish, key as encode_key, map as encode_map, text as encode_text,
+        encode_status_policy, key as encode_key, map as encode_map, text as encode_text,
     },
 };
 use alloc::vec::Vec;
@@ -20,8 +20,15 @@ use auths_model::{
     ApprovalSatisfaction, ApprovalStatement, ApproverAnchor, Audience, Challenge, Digest,
     LimitKind, MAX_APPROVAL_EVIDENCE, MAX_APPROVAL_REQUIREMENTS_PER_GRANT,
     MAX_APPROVAL_REQUIREMENTS_PER_VERIFICATION, MAX_APPROVERS_PER_REQUIREMENT,
-    MAX_SIGNED_APPROVAL_BYTES, MediaType, PrincipalId, PrincipalMethodId, ProtocolVersion,
+    MAX_SIGNED_APPROVAL_BYTES, MediaType, PrincipalId, ProtocolVersion,
     SignatureDescriptor, SignedApproval, Timestamp, ValidityWindow, VerifierLimits,
+};
+
+// Keep the concrete borrowed sorting/array layouts within the formal native
+// reference-capacity envelope. Payloads remain borrowed throughout encoding.
+const _: () = {
+    assert!(core::mem::size_of::<(ApprovalRequirementId, &ApprovalRequirement)>() <= 40);
+    assert!(core::mem::size_of::<&ApprovalRequirement>() <= 8);
 };
 
 fn timestamp(decoder: &mut V1Decoder<'_>) -> Result<Timestamp, CodecError> {
@@ -36,10 +43,7 @@ pub(crate) fn encode_approval_requirement_to(
 ) -> Result<(), CodecError> {
     encode_map(encoder, 2)?;
     encode_key(encoder, 0)?;
-    encode_array(encoder, requirement.approvers().len())?;
-    for approver in requirement.approvers() {
-        encode_text(encoder, approver.as_str())?;
-    }
+    crate::text_list::encode_principal_ids(encoder, requirement.approvers())?;
     encode_key(encoder, 1)?;
     encoder.u16(requirement.threshold()).map_err(encode_error)?;
     Ok(())
@@ -48,7 +52,7 @@ pub(crate) fn encode_approval_requirement_to(
 fn approval_requirement(decoder: &mut V1Decoder<'_>) -> Result<ApprovalRequirement, CodecError> {
     map(decoder, 2)?;
     key(decoder, 0)?;
-    let approvers = parsed_texts(decoder, MAX_APPROVERS_PER_REQUIREMENT, PrincipalId::parse)?;
+    let approvers = crate::text_list::principal_ids(decoder, MAX_APPROVERS_PER_REQUIREMENT)?;
     key(decoder, 1)?;
     let threshold = decoder.u16().map_err(|_| CodecError::Malformed)?;
     ApprovalRequirement::new(approvers, threshold).map_err(CodecError::from)
@@ -63,7 +67,9 @@ fn approval_requirement(decoder: &mut V1Decoder<'_>) -> Result<ApprovalRequireme
 pub fn encode_approval_requirement(
     requirement: &ApprovalRequirement,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_approval_requirement_to(encoder, requirement))
+    let mut encoder = Encoder::new(Vec::new());
+    encode_approval_requirement_to(&mut encoder, requirement)?;
+    Ok(encoder.into_writer())
 }
 
 /// Returns the requirements paired with their identifiers, in ascending
@@ -75,23 +81,55 @@ pub fn encode_approval_requirement(
 pub fn sorted_approval_requirements(
     requirements: &[ApprovalRequirement],
 ) -> Result<Vec<(ApprovalRequirementId, &ApprovalRequirement)>, CodecError> {
-    let mut sorted = Vec::with_capacity(requirements.len());
-    for requirement in requirements {
-        sorted.push((crate::approval_requirement_id(requirement)?, requirement));
-    }
-    sorted.sort_by_key(|(identifier, _)| *identifier);
-    Ok(sorted)
+    Ok(sort_requirement_ref_keys(derive_requirement_ref_keys(requirements)?))
 }
 
-fn encode_requirement_list_to(
+fn derive_requirement_ref_keys(
+    requirements: &[ApprovalRequirement],
+) -> Result<Vec<(ApprovalRequirementId, &ApprovalRequirement)>, CodecError> {
+    crate::collections::try_fold_items!(requirements,
+        Vec::with_capacity(requirements.len()), current, _index, requirement =>
+            push_keyed_requirement(current, requirement))
+}
+
+fn requirement_ref_sort_key(entry: &(ApprovalRequirementId, &ApprovalRequirement)) -> ApprovalRequirementId {
+    entry.0
+}
+
+fn sort_requirement_ref_keys<'a>(
+    mut values: Vec<(ApprovalRequirementId, &'a ApprovalRequirement)>,
+) -> Vec<(ApprovalRequirementId, &'a ApprovalRequirement)> {
+    values.sort_by_key(requirement_ref_sort_key);
+    values
+}
+
+fn sorted_requirement_refs(requirements: &[ApprovalRequirement]) -> Result<Vec<&ApprovalRequirement>, CodecError> {
+    Ok(crate::canonical_value::unkey_records(sorted_approval_requirements(requirements)?))
+}
+
+pub(crate) fn normalize_requirement_values(
+    requirements: &[ApprovalRequirement],
+    maximum: usize,
+) -> Result<Vec<ApprovalRequirement>, CodecError> {
+    if requirements.len() > maximum {
+        return Err(CodecError::LimitExceeded);
+    }
+    let sorted = sorted_approval_requirements(requirements)?;
+    let mut output = Vec::with_capacity(sorted.len());
+    let mut position = 0;
+    while position < sorted.len() {
+        output.push(sorted[position].1.clone());
+        position += 1;
+    }
+    Ok(output)
+}
+
+fn encode_requirement_values_to(
     encoder: &mut V1Encoder,
     requirements: &[ApprovalRequirement],
 ) -> Result<(), CodecError> {
-    let sorted = sorted_approval_requirements(requirements)?;
-    encode_array(encoder, sorted.len())?;
-    for (_, requirement) in sorted {
-        encode_approval_requirement_to(encoder, requirement)?;
-    }
+    encode_array(encoder, requirements.len())?;
+    crate::collections::write_items!(requirements, requirement => encode_approval_requirement_to(encoder, requirement))?;
     Ok(())
 }
 
@@ -100,11 +138,14 @@ fn encode_requirement_list_to(
 ///
 /// # Errors
 ///
-/// Returns [`CodecError`] if the requirements cannot be represented.
+/// Returns [`CodecError`] if the canonical value cannot be represented. The
+/// encoder writes its stored order and does not normalize a raw model value.
 pub fn encode_approval_requirements(
-    requirements: &ApprovalRequirements,
+    requirements: &crate::CanonicalApprovalRequirements,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_requirement_list_to(encoder, requirements.as_slice()))
+    let mut encoder = Encoder::new(Vec::new());
+    encode_requirement_values_to(&mut encoder, requirements.as_slice())?;
+    Ok(encoder.into_writer())
 }
 
 /// Decodes the exact bytes of an `approval-requirement-v1` extension.
@@ -114,32 +155,38 @@ pub fn encode_approval_requirements(
 /// Returns [`CodecError::LimitExceeded`] above four requirements or sixteen
 /// approvers, and a typed error for malformed, invalid, or non-canonical
 /// bytes, including requirements out of identifier order.
-pub fn decode_approval_requirements(input: &[u8]) -> Result<ApprovalRequirements, CodecError> {
+pub fn decode_approval_requirements(input: &[u8]) -> Result<crate::CanonicalApprovalRequirements, CodecError> {
     if input.len() > auths_model::HARD_MAX_EXTENSION_BYTES {
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
     let count = array(&mut decoder, MAX_APPROVAL_REQUIREMENTS_PER_GRANT)?;
-    let mut requirements = Vec::with_capacity(count);
-    for _ in 0..count {
-        requirements.push(approval_requirement(&mut decoder)?);
-    }
+    let requirements = crate::collections::read_items!(count, approval_requirement(&mut decoder))?;
     let requirements = ApprovalRequirements::new(requirements).map_err(|error| match error {
         auths_model::ModelError::CollectionLimitExceeded => CodecError::LimitExceeded,
         other => CodecError::Model(other),
     })?;
     ensure_complete(&decoder, input)?;
-    if encode_approval_requirements(&requirements)?.as_slice() != input {
-        return Err(CodecError::NonCanonical);
-    }
-    Ok(requirements)
+    let requirements = crate::CanonicalApprovalRequirements::new(requirements)?;
+    crate::canonical::accept(input, encode_approval_requirements(&requirements)?, requirements)
 }
 
 pub(crate) fn encode_context_requirements(
     encoder: &mut V1Encoder,
     requirements: &[ApprovalRequirement],
 ) -> Result<(), CodecError> {
-    encode_requirement_list_to(encoder, requirements)
+    if requirements.len() > MAX_APPROVAL_REQUIREMENTS_PER_VERIFICATION {
+        return Err(CodecError::LimitExceeded);
+    }
+    let ordered = sorted_requirement_refs(requirements)?;
+    encode_requirement_refs(encoder, ordered)
+}
+
+fn encode_requirement_refs(encoder: &mut V1Encoder, requirements: Vec<&ApprovalRequirement>) -> Result<(), CodecError> {
+    let requirements = requirements.as_slice();
+    encode_array(encoder, requirements.len())?;
+    crate::collections::write_items!(requirements, requirement => encode_approval_requirement_to(encoder, requirement))?;
+    Ok(())
 }
 
 pub(crate) fn context_requirements(
@@ -147,10 +194,7 @@ pub(crate) fn context_requirements(
     limits: &VerifierLimits,
 ) -> Result<Vec<ApprovalRequirement>, CodecError> {
     let count = array(decoder, limits.get(LimitKind::ApprovalRequirements))?;
-    let mut requirements = Vec::with_capacity(count);
-    for _ in 0..count {
-        requirements.push(approval_requirement(decoder)?);
-    }
+    let requirements = crate::collections::read_items!(count, approval_requirement(decoder))?;
     Ok(requirements)
 }
 
@@ -159,26 +203,7 @@ pub(crate) fn encode_approver_anchors(
     anchors: &[ApproverAnchor],
 ) -> Result<(), CodecError> {
     encode_array(encoder, anchors.len())?;
-    for anchor in anchors {
-        encode_map(encoder, 5)?;
-        encode_key(encoder, 0)?;
-        encode_text(encoder, anchor.principal().as_str())?;
-        encode_key(encoder, 1)?;
-        encode_array(encoder, anchor.accepted_methods().len())?;
-        for method in anchor.accepted_methods() {
-            encode_text(encoder, method.as_str())?;
-        }
-        encode_key(encoder, 2)?;
-        encoder
-            .u64(anchor.validity().not_before().get())
-            .map_err(encode_error)?;
-        encode_key(encoder, 3)?;
-        encoder
-            .u64(anchor.validity().expires_at().get())
-            .map_err(encode_error)?;
-        encode_key(encoder, 4)?;
-        encode_status_policy(encoder, anchor.status_policy())?;
-    }
+    crate::collections::write_items!(anchors, anchor => encode_approver_anchor(encoder, anchor))?;
     Ok(())
 }
 
@@ -187,30 +212,7 @@ pub(crate) fn approver_anchors(
     limits: &VerifierLimits,
 ) -> Result<Vec<ApproverAnchor>, CodecError> {
     let count = array(decoder, limits.get(LimitKind::ApproverAnchors))?;
-    let mut anchors = Vec::with_capacity(count);
-    for _ in 0..count {
-        map(decoder, 5)?;
-        key(decoder, 0)?;
-        let principal = PrincipalId::parse(text(decoder)?)?;
-        key(decoder, 1)?;
-        let methods = parsed_texts(
-            decoder,
-            limits.get(LimitKind::RegistryEntries),
-            PrincipalMethodId::parse,
-        )?;
-        key(decoder, 2)?;
-        let not_before = timestamp(decoder)?;
-        key(decoder, 3)?;
-        let expires_at = timestamp(decoder)?;
-        key(decoder, 4)?;
-        let status = status_policy(decoder)?;
-        anchors.push(ApproverAnchor::new(
-            principal,
-            methods,
-            ValidityWindow::new(not_before, expires_at)?,
-            status,
-        )?);
-    }
+    let anchors = crate::collections::read_items!(count, approver_anchor(decoder, limits))?;
     Ok(anchors)
 }
 
@@ -238,11 +240,12 @@ pub(crate) fn encode_approval_statement_to(
     encode_key(encoder, 7)?;
     encode_optional_budget(encoder, statement.requested_budget())?;
     encode_key(encoder, 8)?;
-    if let Some(attributes) = statement.attributes() {
-        bytes(encoder, attributes.as_bytes())?;
-    } else {
-        encoder.null();
-    }
+    let attributes = statement.attributes();
+    let attribute_bytes = match attributes.as_ref() {
+        Some(attributes) => Some(attributes.as_bytes()),
+        None => None,
+    };
+    crate::encode::encode_optional_digest(encoder, attribute_bytes)?;
     encode_key(encoder, 9)?;
     encode_text(encoder, statement.audience().as_str())?;
     encode_key(encoder, 10)?;
@@ -311,7 +314,9 @@ fn approval_statement(decoder: &mut V1Decoder<'_>) -> Result<ApprovalStatement, 
 ///
 /// Returns [`CodecError`] if the statement cannot be represented.
 pub fn encode_approval_statement(statement: &ApprovalStatement) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_approval_statement_to(encoder, statement))
+    let mut encoder = Encoder::new(Vec::new());
+    encode_approval_statement_to(&mut encoder, statement)?;
+    Ok(encoder.into_writer())
 }
 
 /// Encodes the canonical approval signing object.
@@ -323,13 +328,13 @@ pub fn encode_approval_signing_input(
     statement: &ApprovalStatement,
     descriptor: &SignatureDescriptor,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| {
-        encode_map(encoder, 2)?;
-        encode_key(encoder, 0)?;
-        encode_approval_statement_to(encoder, statement)?;
-        encode_key(encoder, 1)?;
-        encode_signature_descriptor(encoder, descriptor)
-    })
+    let mut encoder = Encoder::new(Vec::new());
+    encode_map(&mut encoder, 2)?;
+    encode_key(&mut encoder, 0)?;
+    encode_approval_statement_to(&mut encoder, statement)?;
+    encode_key(&mut encoder, 1)?;
+    encode_signature_descriptor(&mut encoder, descriptor)?;
+    Ok(encoder.into_writer())
 }
 
 pub(crate) fn encode_signed_approval_to(
@@ -342,20 +347,26 @@ pub(crate) fn encode_signed_approval_to(
     encode_key(encoder, 1)?;
     encode_signature(encoder, approval.signature())?;
     encode_key(encoder, 2)?;
-    encode_array(encoder, approval.evidence().len())?;
-    for object in approval.evidence() {
-        encode_evidence(encoder, object)?;
-    }
+    crate::encode::encode_evidence_objects(encoder, approval.evidence())?;
     Ok(())
 }
 
 /// Encodes one signed approval.
+/// Requires explicit canonical construction, including evidence content IDs.
 ///
 /// # Errors
 ///
 /// Returns [`CodecError`] if the approval cannot be represented.
-pub fn encode_signed_approval(approval: &SignedApproval) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_signed_approval_to(encoder, approval))
+pub fn encode_signed_approval(approval: &CanonicalSignedApproval) -> Result<Vec<u8>, CodecError> {
+    encode_signed_approval_value(approval.as_value())
+}
+
+// The signed-object commitment uses this same borrowed writer. Hashing a raw
+// model is not a claim that its evidence or signature has been authenticated.
+pub(crate) fn encode_signed_approval_value(approval: &SignedApproval) -> Result<Vec<u8>, CodecError> {
+    let mut encoder = Encoder::new(Vec::new());
+    encode_signed_approval_to(&mut encoder, approval)?;
+    Ok(encoder.into_writer())
 }
 
 /// Decodes one signed approval from inside a proof bundle and enforces its
@@ -372,10 +383,7 @@ pub(crate) fn signed_approval(
     let signature = signature(decoder, limits)?;
     key(decoder, 2)?;
     let count = array(decoder, MAX_APPROVAL_EVIDENCE)?;
-    let mut objects = Vec::with_capacity(count);
-    for _ in 0..count {
-        objects.push(evidence(decoder, limits)?);
-    }
+    let objects = crate::collections::read_items!(count, evidence(decoder, limits))?;
     if decoder.position().saturating_sub(start) > MAX_SIGNED_APPROVAL_BYTES {
         return Err(CodecError::LimitExceeded);
     }
@@ -400,13 +408,12 @@ pub fn decode_approval_statement(
     let mut decoder = Decoder::new(input);
     let statement = approval_statement(&mut decoder)?;
     ensure_complete(&decoder, input)?;
-    if encode_approval_statement(&statement)?.as_slice() != input {
-        return Err(CodecError::NonCanonical);
-    }
-    Ok(statement)
+    crate::canonical::accept(input, encode_approval_statement(&statement)?, statement)
 }
 
 /// Decodes one standalone signed approval of at most 4 KiB.
+/// Returns an immutable carrier with content-consistent evidence. The
+/// signature and approver authority still require verification.
 ///
 /// # Errors
 ///
@@ -415,7 +422,7 @@ pub fn decode_approval_statement(
 pub fn decode_signed_approval(
     input: &[u8],
     limits: &VerifierLimits,
-) -> Result<SignedApproval, CodecError> {
+) -> Result<CanonicalSignedApproval, CodecError> {
     limits.validate()?;
     if input.len() > MAX_SIGNED_APPROVAL_BYTES {
         return Err(CodecError::LimitExceeded);
@@ -423,10 +430,8 @@ pub fn decode_signed_approval(
     let mut decoder = Decoder::new(input);
     let approval = signed_approval(&mut decoder, limits)?;
     ensure_complete(&decoder, input)?;
-    if encode_signed_approval(&approval)?.as_slice() != input {
-        return Err(CodecError::NonCanonical);
-    }
-    Ok(approval)
+    let approval = crate::canonical_value::checked_signed_approval(approval)?;
+    crate::canonical::accept(input, encode_signed_approval(&approval)?, approval)
 }
 
 pub(crate) fn encode_approval_satisfactions(
@@ -434,16 +439,7 @@ pub(crate) fn encode_approval_satisfactions(
     satisfactions: &[ApprovalSatisfaction],
 ) -> Result<(), CodecError> {
     encode_array(encoder, satisfactions.len())?;
-    for satisfaction in satisfactions {
-        encode_map(encoder, 2)?;
-        encode_key(encoder, 0)?;
-        bytes(encoder, satisfaction.requirement().as_bytes())?;
-        encode_key(encoder, 1)?;
-        encode_array(encoder, satisfaction.approvals().len())?;
-        for approval in satisfaction.approvals() {
-            bytes(encoder, approval.as_bytes())?;
-        }
-    }
+    crate::collections::write_items!(satisfactions, satisfaction => encode_approval_satisfaction(encoder, satisfaction))?;
     Ok(())
 }
 
@@ -451,20 +447,84 @@ pub(crate) fn approval_satisfactions(
     decoder: &mut V1Decoder<'_>,
 ) -> Result<Vec<ApprovalSatisfaction>, CodecError> {
     let count = array(decoder, MAX_APPROVAL_REQUIREMENTS_PER_VERIFICATION)?;
-    let mut satisfactions = Vec::with_capacity(count);
-    for _ in 0..count {
-        map(decoder, 2)?;
-        key(decoder, 0)?;
-        let requirement = ApprovalRequirementId::new(digest_bytes(decoder)?);
-        key(decoder, 1)?;
-        let approvals_count = array(decoder, MAX_APPROVERS_PER_REQUIREMENT)?;
-        let mut approvals = Vec::with_capacity(approvals_count);
-        for _ in 0..approvals_count {
-            approvals.push(ApprovalDigest::new(digest_bytes(decoder)?));
-        }
-        satisfactions.push(ApprovalSatisfaction::new(requirement, approvals)?);
-    }
+    let satisfactions = crate::collections::read_items!(count, approval_satisfaction(decoder))?;
     Ok(satisfactions)
+}
+
+fn encode_approver_anchor(encoder: &mut V1Encoder, anchor: &ApproverAnchor) -> Result<(), CodecError> {
+    encode_map(encoder, 5)?;
+    encode_key(encoder, 0)?;
+    encode_text(encoder, anchor.principal().as_str())?;
+    encode_key(encoder, 1)?;
+    crate::text_list::encode_principal_methods(encoder, anchor.accepted_methods())?;
+    encode_key(encoder, 2)?;
+    encoder
+        .u64(anchor.validity().not_before().get())
+        .map_err(encode_error)?;
+    encode_key(encoder, 3)?;
+    encoder
+        .u64(anchor.validity().expires_at().get())
+        .map_err(encode_error)?;
+    encode_key(encoder, 4)?;
+    encode_status_policy(encoder, anchor.status_policy())?;
+    Ok(())
+}
+
+fn encode_approval_satisfaction(encoder: &mut V1Encoder, satisfaction: &ApprovalSatisfaction) -> Result<(), CodecError> {
+    encode_map(encoder, 2)?;
+    encode_key(encoder, 0)?;
+    bytes(encoder, satisfaction.requirement().as_bytes())?;
+    encode_key(encoder, 1)?;
+    encode_approval_digests(encoder, satisfaction.approvals())?;
+    Ok(())
+}
+
+fn encode_approval_digests(encoder: &mut V1Encoder, approvals: &[ApprovalDigest]) -> Result<(), CodecError> {
+    encode_array(encoder, approvals.len())?;
+    crate::collections::write_items!(approvals, approval => bytes(encoder, approval.as_bytes()))?;
+    Ok(())
+}
+
+fn approval_digest(decoder: &mut V1Decoder<'_>) -> Result<ApprovalDigest, CodecError> {
+    Ok(ApprovalDigest::new(digest_bytes(decoder)?))
+}
+
+fn approver_anchor(decoder: &mut V1Decoder<'_>, limits: &VerifierLimits) -> Result<ApproverAnchor, CodecError> {
+    map(decoder, 5)?;
+    key(decoder, 0)?;
+    let principal = PrincipalId::parse(text(decoder)?)?;
+    key(decoder, 1)?;
+    let methods = crate::text_list::principal_methods(decoder, limits.get(LimitKind::RegistryEntries))?;
+    key(decoder, 2)?;
+    let not_before = timestamp(decoder)?;
+    key(decoder, 3)?;
+    let expires_at = timestamp(decoder)?;
+    key(decoder, 4)?;
+    let status = status_policy(decoder)?;
+    Ok(ApproverAnchor::new(
+        principal,
+        methods,
+        ValidityWindow::new(not_before, expires_at)?,
+        status,
+    )?)
+}
+
+fn approval_satisfaction(decoder: &mut V1Decoder<'_>) -> Result<ApprovalSatisfaction, CodecError> {
+    map(decoder, 2)?;
+    key(decoder, 0)?;
+    let requirement = ApprovalRequirementId::new(digest_bytes(decoder)?);
+    key(decoder, 1)?;
+    let approvals_count = array(decoder, MAX_APPROVERS_PER_REQUIREMENT)?;
+    let approvals = crate::collections::read_items!(approvals_count, approval_digest(decoder))?;
+    Ok(ApprovalSatisfaction::new(requirement, approvals)?)
+}
+
+fn push_keyed_requirement<'a>(
+    mut keyed: Vec<(ApprovalRequirementId, &'a ApprovalRequirement)>,
+    requirement: &'a ApprovalRequirement,
+) -> Result<Vec<(ApprovalRequirementId, &'a ApprovalRequirement)>, CodecError> {
+    keyed.push((crate::approval_requirement_id(requirement)?, requirement));
+    Ok(keyed)
 }
 
 #[cfg(test)]
@@ -498,8 +558,9 @@ mod tests {
 
     #[test]
     fn requirement_lists_encode_in_identifier_order_and_reject_other_orders() {
-        let requirements =
-            ApprovalRequirements::new(vec![requirement(0, 3, 2), requirement(1, 3, 2)]).unwrap();
+        let requirements = crate::CanonicalApprovalRequirements::new(
+            ApprovalRequirements::new(vec![requirement(0, 3, 2), requirement(1, 3, 2)]).unwrap(),
+        ).unwrap();
         let bytes = encode_approval_requirements(&requirements).unwrap();
         let decoded = decode_approval_requirements(&bytes).unwrap();
         assert_eq!(encode_approval_requirements(&decoded).unwrap(), bytes);
@@ -519,7 +580,9 @@ mod tests {
             .map(|index| requirement(index, 2, 1))
             .collect();
         let bytes =
-            encode_approval_requirements(&ApprovalRequirements::new(at_limit).unwrap()).unwrap();
+            encode_approval_requirements(&crate::CanonicalApprovalRequirements::new(
+                ApprovalRequirements::new(at_limit).unwrap(),
+            ).unwrap()).unwrap();
         assert!(decode_approval_requirements(&bytes).is_ok());
         let mut over = bytes.clone();
         over[0] += 1;

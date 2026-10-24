@@ -1,0 +1,28 @@
+--- a/llbc/Substitute.ml
++++ b/llbc/Substitute.ml
+@@ -6,6 +6,25 @@
+ open Types
+ open Values
+ open LlbcAst
++
++(** Erase all regions for runtime type comparison and value expansion.
++    Charon's generic-variable substitution preserves [RStatic] and [RBody];
++    it is not the full runtime erasure used by [TypesUtils.ty_erase_regions].
++    Keep all regionful signature/generic substitution and global-reference
++    instantiation unchanged. In particular, global handling must still see
++    [RStatic] before creating its dummy shared loan.
++
++    Only region labels are erased here: reference kinds, pointee types and
++    generic structure remain significant. Loan/borrow checks and regionful
++    call signatures remain authoritative. *)
++let erase_regions (ty : ty) : ty =
++  let visitor =
++    object
++      inherit [_] map_ty
++      method! visit_region _ _ = RErased
++    end
++  in
++  visitor#visit_ty () ty
+ 
+ (* Fails if the variable is bound *)
+ let expect_free_var span (var : 'id de_bruijn_var) : 'id =

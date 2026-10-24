@@ -1,7 +1,10 @@
 # AP-SPEC-061: End-to-end machine-checked verifier
 
-- **Status:** Draft. It was written on owner direction before its epic starts
-  (board §4, 2026-09-22), and nothing in it is implemented.
+- **Status:** In implementation under AP-SPEC-069. Component qualification is
+  recorded there; complete byte-to-authority verification remains open.
+  The closed registry source cutover and four-family positive corpus additions
+  are written but unverified; see AP-SPEC-069 §13.48. Their presence does not
+  establish the full verifier claim or the exact-release gates.
   - A feasibility spike on 2026-09-26 checked the translation route and the
     crypto candidate against `main` at `8b96f2ca` (§10). Its findings are folded
     into §2–§5 and §8.

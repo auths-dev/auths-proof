@@ -174,6 +174,9 @@ impl<P: ProviderPort> ProviderPort for OracleProvider<P> {
         self.inner.write(request).await
     }
 
+}
+
+impl<P: ProviderReadPort> ProviderReadPort for OracleProvider<P> {
     async fn action_read(
         &self,
         url: &str,

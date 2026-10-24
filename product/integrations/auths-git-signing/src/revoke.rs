@@ -174,7 +174,7 @@ pub fn sign_revocation(
     )
     .map_err(|_| SignError::Assembly)?;
     Ok(GitSignatureEnvelope::new(
-        encode_bundle(&bundle).map_err(|_| SignError::Assembly)?,
+        auths_codec::CanonicalProofBundle::new(bundle).and_then(|canonical| encode_bundle(&canonical)).map_err(|_| SignError::Assembly)?,
         encode_canonical_action(&canonical).map_err(|_| SignError::Assembly)?,
     )?)
 }

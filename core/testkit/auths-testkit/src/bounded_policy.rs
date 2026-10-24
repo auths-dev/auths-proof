@@ -35,11 +35,10 @@ fn commitment(policy: &[u8]) -> PolicyCommitment {
 }
 
 fn body(policy: &[u8], parent: Option<Digest>) -> Vec<u8> {
-    encode_bounded_policy_commitment(
-        &BoundedPolicyCommitment::new(commitment(policy), policy.to_vec(), parent)
-            .expect("bounded body"),
-    )
-    .expect("canonical body")
+    let value = BoundedPolicyCommitment::new(commitment(policy), policy.to_vec(), parent)
+        .expect("bounded body");
+    let canonical = auths_codec::CanonicalBoundedPolicyCommitment::new(value).expect("policy opening");
+    encode_bounded_policy_commitment(&canonical).expect("canonical body")
 }
 
 fn link(parent: &[u8]) -> Digest {

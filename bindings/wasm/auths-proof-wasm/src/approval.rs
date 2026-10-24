@@ -533,7 +533,7 @@ impl ApprovalCollectorV1 {
             .native()
             .map_err(|_| refusal(ApprovalCode::Oversized))?;
         let bundle = collection.assemble(&action).map_err(refusal)?;
-        auths_codec::encode_bundle(&bundle).map_err(js_error)
+        auths_codec::CanonicalProofBundle::new(bundle).and_then(|canonical| auths_codec::encode_bundle(&canonical)).map_err(js_error)
     }
 }
 

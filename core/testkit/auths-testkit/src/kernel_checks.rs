@@ -138,7 +138,7 @@ fn body_carriage(
         source.permission().clone(),
         source.requested_budget().cloned(),
     );
-    fixture.proof_bytes = encode_bundle(&rebuilt).expect("canonical proof");
+    fixture.proof_bytes = auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&rebuilt)).and_then(|canonical| encode_bundle(&canonical)).expect("canonical proof");
     fixture.name = name;
     fixture.class = class_of(expected);
     fixture.expected = expected;
@@ -158,7 +158,7 @@ pub(crate) fn evaluation_time_after_validity() -> CorpusFixture {
         .expect("evaluation time remains inside the snapshot windows");
     fixture.name = "evaluation-time-after-validity";
     fixture.class = "denied";
-    fixture.context_bytes = encode_verifier_context(&replacement).expect("canonical context");
+    fixture.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     fixture.expected = Expected::Denied(DenialReason::ActionOutsideValidity);
     fixture
 }
@@ -316,7 +316,7 @@ fn attachment_descriptor_set_mismatch() -> CorpusFixture {
         bundle.canonical_body().map(<[u8]>::to_vec),
     )
     .expect("proof without descriptors");
-    fixture.proof_bytes = encode_bundle(&rebuilt).expect("canonical proof");
+    fixture.proof_bytes = auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&rebuilt)).and_then(|canonical| encode_bundle(&canonical)).expect("canonical proof");
     fixture.class = "denied";
     fixture.expected = Expected::Denied(DenialReason::UnusedCriticalAttachment);
     fixture
@@ -857,7 +857,7 @@ fn composition_floor(
         .expect("composition replacement");
     source.name = name;
     source.class = "denied";
-    source.context_bytes = encode_verifier_context(&replacement).expect("canonical context");
+    source.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     source.expected = Expected::Denied(DenialReason::CompositionRequirementNotMet);
     source
 }
@@ -955,7 +955,7 @@ fn with_limits(
         Expected::Authorized => "valid",
         Expected::Denied(_) | Expected::Indeterminate(_) => "invalid",
     };
-    source.context_bytes = encode_verifier_context(&replacement).expect("canonical context");
+    source.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&replacement)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     source.expected = expected;
     source
 }
@@ -1064,7 +1064,7 @@ fn with_context(
     let context = transform(&decode_context(&source));
     source.name = name;
     source.class = class_of(expected);
-    source.context_bytes = encode_verifier_context(&context).expect("canonical context");
+    source.context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("canonical context");
     source.expected = expected;
     source
 }
@@ -1690,7 +1690,7 @@ fn embedded_body_before_attachments() -> CorpusFixture {
         Some(SWAPPED_BODY.to_vec()),
     )
     .expect("proof with another body");
-    fixture.proof_bytes = encode_bundle(&rebuilt).expect("canonical proof");
+    fixture.proof_bytes = auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&rebuilt)).and_then(|canonical| encode_bundle(&canonical)).expect("canonical proof");
     fixture.class = "denied";
     fixture
 }

@@ -1094,6 +1094,7 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
                     path,
                     "formal/algebra-contract-v1.toml"
                         | "formal/qualification/aeneas/qualification.toml"
+                        | "formal/qualification/aeneas/native-serde-callbacks-v1.json"
                         | "formal/qualification/aeneas/source-closure.json"
                         | "xtask/src/formal.rs"
                         | "xtask/src/formal_qualification.rs"
@@ -1110,14 +1111,17 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
                         | "xtask/src/kani_harness.rs"
                 )
         }
-        FormalClosureKind::Toolchain => matches!(
-            path,
-            "formal/translation-toolchain.lock"
-                | "formal/lean-toolchain"
-                | "formal/lake-manifest.json"
-                | ".github/actions/setup-lean/action.yml"
-                | ".github/actions/setup-rust-cache/action.yml"
-        ),
+        FormalClosureKind::Toolchain => {
+            path.starts_with("formal/qualification/aeneas/toolchain/")
+                || matches!(
+                    path,
+                    "formal/translation-toolchain.lock"
+                        | "formal/lean-toolchain"
+                        | "formal/lake-manifest.json"
+                        | ".github/actions/setup-lean/action.yml"
+                        | ".github/actions/setup-rust-cache/action.yml"
+                )
+        }
         FormalClosureKind::Evidence => {
             path == ".github/workflows/ci.yml"
                 || path == ".github/workflows/formal-artifact-updater.yml"
@@ -2943,6 +2947,26 @@ serde = "2"
             "xtask/ci-plan/src/lib.rs",
             FormalClosureKind::Evidence
         ));
+    }
+
+    #[test]
+    fn callback_presence_contract_changes_invalidate_translation_reuse() {
+        assert!(formal_closure_contains(
+            "formal/qualification/aeneas/native-serde-callbacks-v1.json",
+            FormalClosureKind::Translation,
+        ));
+    }
+
+    #[test]
+    fn translator_patch_build_and_regression_sources_invalidate_toolchain_reuse() {
+        for path in [
+            "formal/qualification/aeneas/toolchain/runtime-region-erasure-v1.patch",
+            "formal/qualification/aeneas/toolchain/aeneas.nix",
+            "formal/qualification/aeneas/toolchain/tests/runtime_region_erasure_test.ml",
+            "formal/qualification/aeneas/toolchain/tests/dune",
+        ] {
+            assert!(formal_closure_contains(path, FormalClosureKind::Toolchain));
+        }
     }
 
     #[test]

@@ -1,0 +1,125 @@
+--- a/src/dune
++++ b/src/dune
+@@ -113,6 +113,7 @@
+   SymbolicToPure
+   SymbolicToPureAbs
+   SymbolicToPureBindings
++  SymbolicToPureBorrowLevels
+   SymbolicToPureCore
+   SymbolicToPureExpressions
+   SymbolicToPureTypes
+--- a/src/symbolic/SymbolicToPureTypes.ml
++++ b/src/symbolic/SymbolicToPureTypes.ml
+@@ -448,6 +448,15 @@
+     (decls_ctx : C.decls_ctx) (get_region_group : T.region -> T.region_group_id)
+     (gid : T.region_group_id) (ty : T.ty) : int =
+   let type_infos = decls_ctx.type_ctx.type_infos in
++  let analysis = TypesAnalysis.analyze_ty span type_infos ty in
++  if analysis.contains_nested_mut then
++    (* The old aggregate approximation loses nested group paths. Use every
++       instantiated field and preserve the original native occurrence check.
++       No failed/opaque/recursive case receives a guessed level count. *)
++    (try snd (SymbolicToPureBorrowLevels.compute span decls_ctx get_region_group gid ty)
++     with SymbolicToPureBorrowLevels.Unsupported message ->
++       [%craise_opt_span] span ("Unsupported nested mutable-ADT level analysis: " ^ message))
++  else
+   let keep_region r = gid = get_region_group r in
+   let max_level = ref 0 in
+   let save_count (outer_regions : T.RegionGroupId.Set.t) =
+--- /dev/null
++++ b/src/symbolic/SymbolicToPureBorrowLevels.ml
+@@ -0,0 +1,94 @@
++open Types
++module C = Contexts
++
++(** Exact finite source field structure for nested mutable-borrow level
++    analysis. This is not a complete backward signature or a value/loan rule.
++    Borrow-free values remain existing opaque data; borrowed opaque/recursive
++    declarations and unresolved type forms refuse this checked extension. *)
++type tree = { source : ty; node : node }
++and node =
++  | Atom
++  | Shared of region * tree
++  | Mutable of region * tree
++  | Box of tree
++  | Tuple of tree list
++  | Nominal of type_decl_ref * generic_params * row list
++and row = { variant : variant_id option; fields : (int * string option * tree) list }
++
++exception Unsupported of string
++let unsupported text = raise (Unsupported text)
++
++let describe (span : Meta.span option) (context : C.decls_ctx) (source : ty) : tree =
++  let type_infos = context.type_ctx.type_infos in
++  let rec visit stack source =
++    (match source with
++     | TVar _ | TTraitType _ | TDynTrait _ | TFnDef _ | TFnPtr _ | TError _ | TRawPtr _ ->
++         unsupported "nested borrow levels require complete resolved reference/field types"
++     | _ -> ());
++    let info = TypesAnalysis.analyze_ty span type_infos source in
++    let node = if not info.contains_borrow then Atom else match source with
++      | TRef (region, child, RShared) -> Shared (region, visit stack child)
++      | TRef (region, child, RMut) -> Mutable (region, visit stack child)
++      | TAdt { id = TBuiltin TBox; generics = { regions = []; types = [child]; const_generics = []; trait_refs = [] } } -> Box (visit stack child)
++      | TAdt { id = TTuple; generics = { regions = []; types; const_generics = []; trait_refs = [] } } -> Tuple (List.map (visit stack) types)
++      | TAdt ({ id = TAdtId identity; generics } as reference) ->
++          if List.mem identity stack then unsupported "recursive borrowed ADTs require an inductive level analysis";
++          let declaration = match TypeDeclId.Map.find_opt identity context.type_ctx.type_decls with
++            | Some declaration -> declaration | None -> unsupported "a nested borrowed declaration is absent" in
++          let original_rows = match declaration.kind with
++            | Struct fields -> [None, fields]
++            | Enum variants -> List.map (fun (variant : variant) -> Some variant.id, variant.fields) variants
++            | Alias _ | Union _ | Opaque | TDeclError _ -> unsupported "a borrowed alias/union/opaque/error type needs its complete representation semantics" in
++          let actual_rows = Substitute.type_decl_get_instantiated_variants_fields_types
++            (Option.value span ~default:declaration.item_meta.span) declaration generics in
++          if List.map fst original_rows <> List.map fst actual_rows then unsupported "nested level instantiation changed the complete variant roster";
++          let subst = Substitute.make_subst_from_generics __FILE__ __LINE__ span declaration.generics generics Self in
++          let requirements = Substitute.predicates_substitute subst declaration.generics in
++          let rows = List.map2 (fun (variant, originals) (actual_variant, types) ->
++            if variant <> actual_variant || List.length originals <> List.length types then unsupported "nested level instantiation omitted a source field";
++            { variant; fields = List.mapi (fun index (field, ty) -> index, field.field_name, visit (identity :: stack) ty) (List.combine originals types) }
++          ) original_rows actual_rows in
++          Nominal (reference, requirements, rows)
++      | _ -> unsupported "this borrowed container has no complete nested-level traversal" in
++    { source; node }
++  in visit [] source
++
++let children tree = match tree.node with
++  | Atom -> [] | Shared (_, child) | Mutable (_, child) | Box child -> [child]
++  | Tuple fields -> fields | Nominal (_, _, rows) -> List.concat_map (fun row -> List.map (fun (_, _, child) -> child) row.fields) rows
++
++(** This follows the original native predicate's source occurrence meaning,
++    including occurrences below shared references. The level traversal itself
++    stops at shared nodes, as the original translator does. *)
++let rec mentions (keep : region -> bool) tree =
++  (match tree.node with Mutable (region, _) -> keep region | _ -> false) ||
++    List.exists (mentions keep) (children tree)
++
++let rec exact_mentions (infos : TypesAnalysis.type_infos) keep tree =
++  mentions keep tree = TypesUtils.ty_has_mut_borrow_for_region_in_pred infos keep tree.source &&
++    List.for_all (exact_mentions infos keep) (children tree)
++
++let checked_tree span context get_group target source =
++  let tree = describe span context source in
++  let keep region = get_group region = target in
++  if not (exact_mentions context.C.type_ctx.type_infos keep tree) then
++    unsupported "complete instantiated nested fields disagree with native mutable-region occurrence analysis";
++  tree
++
++let rec maximum get_group target outer tree =
++  let count () = RegionGroupId.Set.cardinal outer in
++  let max_children () = List.fold_left (fun result child -> max result (maximum get_group target outer child)) (count ()) (children tree) in
++  match tree.node with
++  | Atom | Shared _ -> count ()
++  | Mutable (region, child) ->
++      let group = get_group region in
++      if group = target then RegionGroupId.Set.cardinal (RegionGroupId.Set.add group outer)
++      else if mentions (fun region -> get_group region = target) child then
++        maximum get_group target (RegionGroupId.Set.add group outer) child
++      else count ()
++  | Box child -> maximum get_group target outer child
++  | Tuple _ | Nominal _ -> max_children ()
++
++let compute span context get_group target source =
++  let tree = checked_tree span context get_group target source in
++  tree, maximum get_group target RegionGroupId.Set.empty tree

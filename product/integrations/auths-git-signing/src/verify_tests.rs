@@ -260,7 +260,7 @@ fn trust(root: &DidKeySigner, methods: &[&dyn PrincipalMethod]) -> GitTrust {
         VerifierLimits::default(),
     )
     .expect("context");
-    let encoded = auths_codec::encode_verifier_context(&context).expect("encode trust");
+    let encoded = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).expect("encode trust");
     GitTrust::decode(&encoded).expect("trust round-trips through its canonical bytes")
 }
 
@@ -374,8 +374,7 @@ fn verification_derives_the_request_from_the_object() {
 
     let other = GitTrust::new(
         auths_codec::decode_verifier_context(
-            &auths_codec::encode_verifier_context(
-                &world
+            &auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&world
                     .trust()
                     .context_for_tests()
                     .for_request(
@@ -383,11 +382,10 @@ fn verification_derives_the_request_from_the_object() {
                         Challenge::new([0; 32]),
                         Timestamp::new(NOW),
                     )
-                    .expect("context"),
-            )
+                    .expect("context"))).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))
             .expect("encode"),
         )
-        .expect("decode"),
+        .expect("decode").into_value(),
     )
     .expect("trust");
     assert_eq!(

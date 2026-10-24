@@ -137,7 +137,7 @@ jobs:
       - name: Build pinned Aeneas and Charon
         run: >-
           nix build
-          github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
+          --file formal/qualification/aeneas/toolchain/aeneas.nix
           --out-link target/formal-tools
       - name: Run release checks and generate complete subjects
         run: cargo xtask release-check

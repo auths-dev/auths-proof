@@ -36,7 +36,7 @@ impl SignatureSuite for Ed25519Suite {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(ED25519_V1.as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(ED25519_V1.as_bytes(), &[])
     }
 
     fn validate_key(&self, verification_key: &[u8]) -> Result<(), SignatureError> {
@@ -86,7 +86,7 @@ impl SignatureSuite for P256Sha256Suite {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(P256_SHA256_V1.as_bytes(), core::iter::empty())
+        auths_ports::configuration_id_from_parts(P256_SHA256_V1.as_bytes(), &[])
     }
 
     fn validate_key(&self, verification_key: &[u8]) -> Result<(), SignatureError> {

@@ -143,6 +143,139 @@ theorem closed_window_cannot_charge (state : State) (operation : O.Operation) (w
 theorem crash_preserves_charges (state : State) (worker : O.Worker) :
     (step state (.processCrash worker)).bounds = state.bounds := rfl
 
+/-- A known logical operation cannot charge any chain again, even when a
+retry has another worker, different policy links, or a different value. -/
+theorem known_operation_cannot_charge_again (state : State) (operation : O.Operation)
+    (owner worker : O.Worker) (arrival : C.Arrival) (acknowledged : Bool)
+    (known : state.ownership.claims operation = some owner) :
+    attempt state operation worker arrival acknowledged = state := by
+  simp [attempt, known]
+
+private theorem claim_records_fresh_operation (state : O.State)
+    (operation : O.Operation) (worker : O.Worker) (acknowledged : Bool)
+    (fresh : state.claims operation = none) :
+    (claim state operation worker acknowledged).claims operation = some worker := by
+  simp [claim, Auths.Product.AdmissionHistory.admit,
+    Auths.Product.AdmissionHistory.fits, fresh]
+
+/-- Both successful reservations and terminal refusals retain the winning
+logical claim. A lost acknowledgement affects its volatile handle only. -/
+theorem attempt_records_fresh_operation (state : State) (operation : O.Operation)
+    (worker : O.Worker) (arrival : C.Arrival) (acknowledged : Bool)
+    (fresh : state.ownership.claims operation = none) :
+    (attempt state operation worker arrival acknowledged).ownership.claims operation = some worker := by
+  unfold attempt
+  rw [if_pos fresh]
+  split
+  · exact claim_records_fresh_operation _ _ _ _ fresh
+  · split <;> exact claim_records_fresh_operation _ _ _ _ fresh
+
+private theorem attempt_keeps_known_owner (state : State) (operation : O.Operation)
+    (owner : O.Worker) (target : O.Operation) (worker : O.Worker)
+    (arrival : C.Arrival) (acknowledged : Bool)
+    (known : state.ownership.claims operation = some owner) :
+    (attempt state target worker arrival acknowledged).ownership.claims operation = some owner := by
+  unfold attempt
+  split
+  · split
+    · exact Auths.Product.AdmissionHistory.admitted_claim_stays _ _ _ _ _ _ known
+    · split <;> exact Auths.Product.AdmissionHistory.admitted_claim_stays _ _ _ _ _ _ known
+  · exact known
+
+theorem step_keeps_known_owner (state : State) (event : Event)
+    (operation : O.Operation) (owner : O.Worker)
+    (known : state.ownership.claims operation = some owner) :
+    (step state event).ownership.claims operation = some owner := by
+  cases event with
+  | admission target worker arrival acknowledged =>
+    exact attempt_keeps_known_owner _ _ _ _ _ _ _ known
+  | processCrash worker => exact known
+  | writeEntry target worker =>
+    simp only [step, Auths.Product.AdmissionHistory.enter]
+    split <;> exact known
+  | collection => exact known
+  | readOnlyRecovery => exact known
+  | failedBeforeCommit => exact known
+
+/-- Every finite suffix preserves the durable owner, including a suffix with
+collection and a retry under another chain or counter arrangement. -/
+theorem every_suffix_keeps_known_owner (state : State) (events : List Event)
+    (operation : O.Operation) (owner : O.Worker)
+    (known : state.ownership.claims operation = some owner) :
+    (run state events).ownership.claims operation = some owner := by
+  induction events generalizing state with
+  | nil => exact known
+  | cons event rest ih =>
+    exact ih _ (step_keeps_known_owner _ _ _ _ known)
+
+/-- A committed admission whose acknowledgement is lost cannot be charged a
+second time after any finite suffix, regardless of the retry's worker/value/
+policy links. Other operations in the suffix may still spend their allowance. -/
+theorem lost_acknowledgement_cannot_recharge_after_any_suffix
+    (state : State) (operation : O.Operation) (owner retryWorker : O.Worker)
+    (first retry : C.Arrival) (suffix : List Event)
+    (acknowledged : Bool) (fresh : state.ownership.claims operation = none) :
+    let after := run (attempt state operation owner first false) suffix
+    attempt after operation retryWorker retry acknowledged = after := by
+  dsimp only
+  apply known_operation_cannot_charge_again _ _ owner
+  exact every_suffix_keeps_known_owner _ _ _ _
+    (attempt_records_fresh_operation _ _ _ _ _ fresh)
+
+/-- Lost versus received acknowledgement cannot undo the charged aggregate
+state. The reference permits no acknowledgement-driven counter rollback. -/
+theorem acknowledgement_does_not_change_aggregate_charge (state : State)
+    (operation : O.Operation) (worker : O.Worker) (arrival : C.Arrival) :
+    (attempt state operation worker arrival false).bounds =
+      (attempt state operation worker arrival true).bounds := by
+  unfold attempt
+  split_ifs <;> rfl
+
+/-- A fixed-window collection fence cannot be reversed by a later arrival's
+clock facts, policy links, crash or read-only recovery. -/
+theorem step_preserves_closed_window (state : State) (event : Event)
+    (closed : state.closed = true) : (step state event).closed = true := by
+  cases event with
+  | admission operation worker arrival acknowledged =>
+    simp [step, attempt, closed]
+  | processCrash worker => exact closed
+  | writeEntry operation worker => exact closed
+  | collection => rfl
+  | readOnlyRecovery => exact closed
+  | failedBeforeCommit => exact closed
+
+theorem step_in_closed_window_cannot_charge (state : State) (event : Event)
+    (closed : state.closed = true) : (step state event).bounds = state.bounds := by
+  cases event with
+  | admission operation worker arrival acknowledged =>
+    simp [step, attempt, closed]
+  | processCrash worker => rfl
+  | writeEntry operation worker => rfl
+  | collection => rfl
+  | readOnlyRecovery => rfl
+  | failedBeforeCommit => rfl
+
+/-- Every arbitrary finite suffix after the shared fence leaves the aggregate
+state unchanged, even when a different worker supplies an earlier clock value.
+This is a fixed-window reference result; durable backend fence correspondence
+and actual slot deletion remain separate source obligations. -/
+theorem every_suffix_after_collection_preserves_capacity
+    (state : State) (events : List Event) (closed : state.closed = true) :
+    (run state events).closed = true ∧ (run state events).bounds = state.bounds := by
+  induction events generalizing state with
+  | nil => exact ⟨closed, rfl⟩
+  | cons event rest ih =>
+    have nextClosed := step_preserves_closed_window state event closed
+    have nextBounds := step_in_closed_window_cannot_charge state event closed
+    have later := ih (step state event) nextClosed
+    exact ⟨later.1, later.2.trans nextBounds⟩
+
+theorem collection_cannot_reopen_under_any_later_history
+    (state : State) (events : List Event) :
+    (run (step state .collection) events).closed = true ∧
+    (run (step state .collection) events).bounds = state.bounds := by
+  exact every_suffix_after_collection_preserves_capacity (step state .collection) events rfl
+
 namespace Examples
 private def rootPolicy : Auths.Product.CeilingCount.Policy :=
   ⟨[1], 5, 60, 2, some ⟨10, none⟩, none⟩

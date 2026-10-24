@@ -1,0 +1,36 @@
+--- a/src/symbolic/SymbolicToPureBindings.ml
++++ b/src/symbolic/SymbolicToPureBindings.ml
+@@ -57,3 +57,33 @@
+     (translated_ty : ty) (ctx : t) : t =
+   let value = symbolic_value_to_texpr consumed translated_ty ctx in
+   { ctx with var_id_to_default = FVarId.Map.add variable value ctx.var_id_to_default }
++
++
++(** Store a reconstructed default expression without rebinding the fresh
++    symbolic result. This does not evaluate a default or execute an ending.
++    The narrow registry validates the target type and every captured free
++    variable against its current native declarations. Full bound-variable,
++    constructor-schema and source/loan adequacy remain with the caller. *)
++let register_checked_default_expression (variable : fvar_id) (value : texpr)
++    (ctx : t) : t =
++  let declared identity expected =
++    match FVarId.Map.find_opt identity ctx.fvars,
++          FVarId.Map.find_opt identity ctx.fvars_tys with
++    | Some actual, Some ty when actual.id = identity && actual.ty = ty && ty = expected -> ()
++    | _ -> invalid_arg "native default expression uses an absent or differently typed current variable"
++  in
++  declared variable value.ty;
++  let visitor = object
++    inherit [_] iter_expr as super
++    method! visit_texpr env expression =
++      (match expression.e with
++       | FVar identity ->
++           if identity = variable then invalid_arg "a native default cannot capture its own fresh result";
++           declared identity expression.ty
++       | BVar _ | App _ | Lambda _ | Let (false, _, _, _)
++       | Switch (_, Match _) | Qualif { id = AdtCons _; _ } -> ()
++       | _ -> invalid_arg "native reconstructed defaults require explicit algebraic expressions and current variable captures");
++      super#visit_texpr env expression
++  end in
++  visitor#visit_texpr () value;
++  { ctx with var_id_to_default = FVarId.Map.add variable value ctx.var_id_to_default }

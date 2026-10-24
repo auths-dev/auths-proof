@@ -486,6 +486,9 @@ func decodePrincipalSnapshot(value *cborValue) (statusSnapshot[principalStatus],
 	if err := exactMap(value, 6); err != nil {
 		return statusSnapshot[principalStatus]{}, err
 	}
+	if _, err := bytesValue(mustMap(value, 0), 32); err != nil {
+		return statusSnapshot[principalStatus]{}, err
+	}
 	observedValue, _ := mapValue(value, 1)
 	validValue, _ := mapValue(value, 2)
 	statementsValue, _ := mapValue(value, 3)
@@ -503,11 +506,31 @@ func decodePrincipalSnapshot(value *cborValue) (statusSnapshot[principalStatus],
 	if err != nil {
 		return statusSnapshot[principalStatus]{}, err
 	}
+	if observed > valid || len(nodes) > 512 {
+		return statusSnapshot[principalStatus]{}, errors.New("invalid status snapshot bounds")
+	}
+	if checkpoints, err := arrayValue(checkpointsValue); err != nil || len(checkpoints) > 512 {
+		return statusSnapshot[principalStatus]{}, errors.New("invalid checkpoint collection")
+	}
+	if trust, err := arrayValue(trustValue); err != nil || len(trust) > 1024 {
+		return statusSnapshot[principalStatus]{}, errors.New("invalid status trust collection")
+	}
 	result := statusSnapshot[principalStatus]{observedAt: observed, validUntil: valid}
+	seenStatements := make(map[string]struct{}, len(nodes))
 	for _, node := range nodes {
 		statement, err := decodePrincipalStatus(node)
 		if err != nil {
 			return statusSnapshot[principalStatus]{}, err
+		}
+		// Canonical statement bytes exclude the signature envelope. Full
+		// content equality needs no content-ID collision assumption.
+		key := string(statement.statement.raw)
+		if _, repeated := seenStatements[key]; repeated {
+			return statusSnapshot[principalStatus]{}, errors.New("duplicate snapshot statement")
+		}
+		seenStatements[key] = struct{}{}
+		if statement.observedAt > observed || statement.validUntil < valid {
+			return statusSnapshot[principalStatus]{}, errors.New("snapshot exceeds statement validity")
 		}
 		result.statements = append(result.statements, statement)
 	}
@@ -522,6 +545,9 @@ func decodeGrantSnapshot(value *cborValue) (statusSnapshot[grantStatus], error) 
 	if err := exactMap(value, 6); err != nil {
 		return statusSnapshot[grantStatus]{}, err
 	}
+	if _, err := bytesValue(mustMap(value, 0), 32); err != nil {
+		return statusSnapshot[grantStatus]{}, err
+	}
 	observedValue, _ := mapValue(value, 1)
 	validValue, _ := mapValue(value, 2)
 	statementsValue, _ := mapValue(value, 3)
@@ -539,11 +565,31 @@ func decodeGrantSnapshot(value *cborValue) (statusSnapshot[grantStatus], error) 
 	if err != nil {
 		return statusSnapshot[grantStatus]{}, err
 	}
+	if observed > valid || len(nodes) > 512 {
+		return statusSnapshot[grantStatus]{}, errors.New("invalid status snapshot bounds")
+	}
+	if checkpoints, err := arrayValue(checkpointsValue); err != nil || len(checkpoints) > 512 {
+		return statusSnapshot[grantStatus]{}, errors.New("invalid checkpoint collection")
+	}
+	if trust, err := arrayValue(trustValue); err != nil || len(trust) > 1024 {
+		return statusSnapshot[grantStatus]{}, errors.New("invalid status trust collection")
+	}
 	result := statusSnapshot[grantStatus]{observedAt: observed, validUntil: valid}
+	seenStatements := make(map[string]struct{}, len(nodes))
 	for _, node := range nodes {
 		statement, err := decodeGrantStatus(node)
 		if err != nil {
 			return statusSnapshot[grantStatus]{}, err
+		}
+		// Canonical statement bytes exclude the signature envelope. Full
+		// content equality needs no content-ID collision assumption.
+		key := string(statement.statement.raw)
+		if _, repeated := seenStatements[key]; repeated {
+			return statusSnapshot[grantStatus]{}, errors.New("duplicate snapshot statement")
+		}
+		seenStatements[key] = struct{}{}
+		if statement.observedAt > observed || statement.validUntil < valid {
+			return statusSnapshot[grantStatus]{}, errors.New("snapshot exceeds statement validity")
 		}
 		result.statements = append(result.statements, statement)
 	}
@@ -559,7 +605,11 @@ func decodeStatusTrust(value *cborValue) ([]statusTrustRule, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(nodes) > 1024 {
+		return nil, errors.New("invalid status trust collection")
+	}
 	result := make([]statusTrustRule, 0, len(nodes))
+	seen := make(map[[2]string]struct{}, len(nodes))
 	for _, node := range nodes {
 		if err := exactMap(node, 4); err != nil {
 			return nil, err
@@ -572,6 +622,11 @@ func decodeStatusTrust(value *cborValue) ([]statusTrustRule, error) {
 		if err != nil {
 			return nil, err
 		}
+		key := [2]string{method, issuer}
+		if _, repeated := seen[key]; repeated {
+			return nil, errors.New("duplicate status trust rule")
+		}
+		seen[key] = struct{}{}
 		minimumSequence, err := uintValue(mustMap(node, 2))
 		if err != nil {
 			return nil, err

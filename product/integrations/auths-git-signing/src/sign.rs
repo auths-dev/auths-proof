@@ -328,7 +328,7 @@ pub fn sign_payload(
         Some(canonical.body().to_vec()),
     )
     .map_err(|_| SignError::Assembly)?;
-    let proof = encode_bundle(&bundle).map_err(|_| SignError::Assembly)?;
+    let proof = auths_codec::CanonicalProofBundle::new(bundle).and_then(|canonical| encode_bundle(&canonical)).map_err(|_| SignError::Assembly)?;
     let action_bytes = encode_canonical_action(&canonical).map_err(|_| SignError::Assembly)?;
     Ok(GitSignatureEnvelope::new(proof, action_bytes)?)
 }

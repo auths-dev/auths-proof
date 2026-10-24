@@ -165,7 +165,7 @@ fn verify_many_v1(
 fn decode_diagnostic_result_v1(result_cbor: &[u8]) -> PyResult<NativeVerificationResult> {
     let portable = auths_codec::decode_verification_result(result_cbor).map_err(runtime_error)?;
     Ok(NativeVerificationResult {
-        portable,
+        portable: portable.into_value(),
         result_cbor: result_cbor.to_vec(),
         action: None,
     })

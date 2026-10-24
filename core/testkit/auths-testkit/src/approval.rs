@@ -273,7 +273,9 @@ fn extensions(requirements: &[ApprovalRequirement]) -> CriticalExtensions {
         return CriticalExtensions::empty();
     }
     let bytes = encode_approval_requirements(
-        &ApprovalRequirements::new(requirements.to_vec()).expect("bounded requirement list"),
+        &auths_codec::CanonicalApprovalRequirements::new(
+            ApprovalRequirements::new(requirements.to_vec()).expect("bounded requirement list"),
+        ).expect("canonical requirement value"),
     )
     .expect("canonical requirements");
     CriticalExtensions::new(vec![
@@ -850,7 +852,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
         vec![approval(A); 128],
     );
     let (bundle, context, canonical) = build_bundle(&repeated);
-    let item = encode_signed_approval(&bundle.approvals()[0]).expect("approval bytes");
+    let item = auths_codec::CanonicalSignedApproval::new(auths_model::SignedApproval::clone(&bundle.approvals()[0])).and_then(|canonical| encode_signed_approval(&canonical)).expect("approval bytes");
     let base = fixture(
         repeated.name,
         class_of(repeated.expected),

@@ -16,12 +16,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+#[path = "provider_json_tests.rs"]
+mod provider_json_tests;
+
 /// The largest integer a basis, locator, or bind may carry: 2^53 − 1.
 pub(crate) const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
 /// The largest account identifier the account read accepts.
 pub(crate) const MAX_ACCOUNT_BYTES: usize = 256;
 /// Seconds between native verification and the last moment of entry.
-pub(crate) const ENTRY_DEADLINE_SECONDS: u64 = 60;
+pub(crate) use auths_gateway_kernel::deadline::MAX_ENTRY_ELAPSED_SECONDS as ENTRY_DEADLINE_SECONDS;
 /// The largest number of stored locator values.
 const MAX_LOCATOR_VALUES: usize = 2;
 /// The largest stored observation template, in encoded path bytes.
@@ -77,7 +81,7 @@ pub(crate) enum CeilingReading {
 impl CeilingCheck {
     /// Reads the basis and binds from a complete 2xx JSON response body.
     pub(crate) fn read(&self, body: &[u8], arguments: &Map<String, Value>) -> CeilingReading {
-        let Ok(document) = serde_json::from_slice::<Value>(body) else {
+        let Ok(document) = super::strict_json::from_slice::<Value>(body) else {
             return CeilingReading::Unavailable;
         };
         let Some(value) = json_integer(&document, &self.json_pointer) else {
@@ -213,7 +217,7 @@ impl ObservationTemplate {
     /// bytes that is a safe path value, or a non-negative integer of at most
     /// 2^53 − 1 written in decimal. Only the values are kept.
     pub(crate) fn extract_locator(&self, body: &[u8]) -> Option<BTreeMap<String, String>> {
-        let document: Value = serde_json::from_slice(body).ok()?;
+        let document: Value = super::strict_json::from_slice(body).ok()?;
         let mut locator = BTreeMap::new();
         for segment in &self.segments {
             let TemplateSegment::ResponseField { pointer, max_bytes } = segment else {
@@ -281,7 +285,7 @@ impl ObservationTemplate {
             return None;
         }
         let url = format!("{}{}", self.origin, String::from_utf8(path).ok()?);
-        let expected = serde_json::from_str(&self.expected).ok()?;
+        let expected = super::strict_json::from_slice(self.expected.as_bytes()).ok()?;
         Some(ClosedObservationRequest {
             url,
             headers: self
@@ -419,15 +423,15 @@ impl CompiledRecipe {
         let Some(source) = &self.source.observation else {
             return Ok(None);
         };
+        let field_names = super::field_projection::field_names(&self.plans.field_schemas)
+            .map_err(super::GatewayRecipeError::from_construct)?;
         let mut segments = Vec::with_capacity(source.path.len());
         for segment in &source.path {
             let plan = match segment {
                 PathSegment::Fixed { value } => SegmentPlan::Fixed(value.as_bytes().to_vec()),
                 PathSegment::Field { name } => SegmentPlan::Field(
-                    self.fields
-                        .keys()
-                        .position(|field| field == name)
-                        .ok_or(GatewayRecipeError::ActionMismatch)?,
+                    auths_gateway_kernel::path_compiler::lower_field(&field_names, name.as_bytes())
+                        .map_err(|_| GatewayRecipeError::ActionMismatch)?,
                 ),
                 PathSegment::ResponseField { pointer, max_bytes } => {
                     segments.push(TemplateSegment::ResponseField {

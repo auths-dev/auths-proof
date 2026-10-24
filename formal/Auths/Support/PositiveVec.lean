@@ -21,6 +21,12 @@ theorem SizedList.length {α : Type u} {n : Nat} (value : SizedList α n) : valu
   | nil => rfl
   | cons head tail ih => simp [toList, ih]
 
+/-- List projection shared by later positive-carrier extraction units. -/
+def Vec.val {α : Type u} (value : Vec α) : List α := value.elements.toList
+
+theorem Vec.property {α : Type u} (value : Vec α) : value.val.length ≤ Usize.max := by
+  simpa only [Vec.val, SizedList.length] using value.bound
+
 def SizedList.ofList {α : Type u} : (values : List α) → SizedList α values.length
   | [] => .nil
   | head :: tail => .cons head (ofList tail)

@@ -30,7 +30,7 @@ theorem decode_encode_exact (input : Slice Std.U8)
     (limits : auths_model.VerifierLimits) (action : auths_model.CanonicalAction)
     (accepted : decode.decode_canonical_action input limits = ok (.Ok action)) :
     ∃ bytes, encode.encode_canonical_action action = ok (.Ok bytes) ∧ bytes.val = input.val := by
-  unfold decode.decode_canonical_action at accepted
+  unfold decode.decode_canonical_action canonical.accept canonical.accept_with_error at accepted
   simp only [Bind.bind, Aeneas.Std.bind] at accepted
   repeat' first
     | casesm* _ × _

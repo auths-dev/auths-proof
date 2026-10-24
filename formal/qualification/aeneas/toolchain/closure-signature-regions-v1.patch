@@ -1,0 +1,90 @@
+--- a/charon/src/bin/charon-driver/translate/translate_closures.rs
++++ b/charon/src/bin/charon-driver/translate/translate_closures.rs
+@@ -139,6 +139,55 @@
+ }
+ 
+ impl<'tcx> ItemTransCtx<'tcx, '_> {
++    /// Complete only erased labels from the actual closure signature. Known
++    /// labels, binders, types, constants and dictionary structure are immutable.
++    fn complete_closure_regions(
++        &mut self,
++        span: Span,
++        mut original: Ty,
++        source: &Ty,
++    ) -> Result<Ty, Error> {
++        let mut original_shape = original.clone();
++        original_shape.dyn_visit_mut(|region: &mut Region| *region = Region::Erased);
++        let mut source_shape = source.clone();
++        source_shape.dyn_visit_mut(|region: &mut Region| *region = Region::Erased);
++        if original_shape != source_shape {
++            raise_error!(self, span, "closure virtual type differs from its source signature shape");
++        }
++        let mut regions = Vec::new();
++        source.dyn_visit(|region: &Region| regions.push(region.clone()));
++        let mut regions = regions.into_iter();
++        let mut disagrees = false;
++        original.dyn_visit_mut(|region: &mut Region| match regions.next() {
++            Some(actual) if *region == Region::Erased => *region = actual,
++            Some(actual) if actual != Region::Erased && *region != actual => disagrees = true,
++            Some(_) => {},
++            None => disagrees = true,
++        });
++        if disagrees || regions.next().is_some() {
++            raise_error!(self, span, "known closure regions disagree with their source signature");
++        }
++        Ok(original)
++    }
++
++    fn translate_closure_trait_predicate(
++        &mut self,
++        span: Span,
++        args: &hax::ClosureArgs,
++        vimpl: &hax::VirtualTraitImpl,
++    ) -> Result<TraitDeclRef, Error> {
++        let mut predicate = self.translate_trait_predicate(span, &vimpl.trait_pred)?;
++        if predicate.generics.types.len() != 2 {
++            raise_error!(self, span, "closure trait source predicate has unexpected Self/Args arity");
++        }
++        let signature = self.translate_fun_sig(span, args.fn_sig.hax_skip_binder_ref())?;
++        let source_inputs = Ty::mk_tuple(signature.inputs);
++        predicate.generics.types[1] = self.complete_closure_regions(
++            span, predicate.generics.types[1].clone(), &source_inputs,
++        )?;
++        Ok(predicate)
++    }
++
+     /// Translate a reference to the closure ADT.
+     pub fn translate_closure_type_ref(
+         &mut self,
+@@ -493,7 +542,7 @@
+             ClosureKind::FnMut => fn_mut_impl.as_ref().unwrap(),
+             ClosureKind::Fn => fn_impl.as_ref().unwrap(),
+         };
+-        let implemented_trait = self.translate_trait_predicate(span, &vimpl.trait_pred)?;
++        let implemented_trait = self.translate_closure_trait_predicate(span, args, vimpl)?;
+         let method_id = self.translate_trait_method_id(implemented_trait.id, &vimpl.methods[0])?;
+ 
+         let impl_ref = self.translate_closure_impl_ref(span, args, target_kind)?;
+@@ -559,6 +608,22 @@
+             ClosureKind::Fn => fn_impl.as_ref().unwrap(),
+         };
+         let mut timpl = self.translate_virtual_trait_impl(def_id, item_meta, vimpl)?;
++        timpl.impl_trait = self.translate_closure_trait_predicate(span, args, vimpl)?;
++        if !self.monomorphize() && target_kind == ClosureKind::FnOnce {
++            if timpl.types.elem_count() != 1 {
++                raise_error!(self, span, "closure FnOnce source must provide exactly one Output type");
++            }
++            let signature = self.translate_fun_sig(span, args.fn_sig.hax_skip_binder_ref())?;
++            let source_output = signature.output.move_under_binder();
++            for (_, output) in timpl.types.iter_mut_indexed() {
++                if !output.params.is_empty() {
++                    raise_error!(self, span, "closure Output unexpectedly has associated generic parameters");
++                }
++                output.skip_binder.value = self.complete_closure_regions(
++                    span, output.skip_binder.value.clone(), &source_output,
++                )?;
++            }
++        }
+ 
+         // Construct the `call_*` method reference.
+         let trait_decl_id = timpl.impl_trait.id;

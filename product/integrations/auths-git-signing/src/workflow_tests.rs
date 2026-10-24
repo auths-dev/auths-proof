@@ -62,7 +62,7 @@ impl Operator {
             window_from(NOW - 60, 365 * 86_400).expect("window"),
         )
         .expect("trust");
-        encode_verifier_context(&context).expect("encode")
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("encode")
     }
 
     fn trust(&self, revocations: &[Vec<u8>]) -> Result<GitTrust, TrustError> {

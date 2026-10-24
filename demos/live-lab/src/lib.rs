@@ -242,7 +242,7 @@ pub fn generate_variants(fixture: DemoFixtureBytes) -> Result<Vec<GeneratedVaria
     }
     let wrong_context = auths_codec::decode_verifier_context(&fixture.context)?
         .with_configuration(VerifierConfigurationId::new([0xa5; 32]))?;
-    let wrong_context = auths_codec::encode_verifier_context(&wrong_context)?;
+    let wrong_context = auths_codec::CanonicalTrustedContext::new(wrong_context).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?;
 
     let specifications = [
         (

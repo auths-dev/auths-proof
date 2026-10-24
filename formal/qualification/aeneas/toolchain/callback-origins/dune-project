@@ -1,0 +1,2 @@
+(lang dune 3.7)
+(name native_callback_origins)

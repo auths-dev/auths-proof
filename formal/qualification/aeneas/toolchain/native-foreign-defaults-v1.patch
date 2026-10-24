@@ -1,0 +1,144 @@
+--- a/src/symbolic/SymbolicToPureBindings.ml
++++ b/src/symbolic/SymbolicToPureBindings.ml
+@@ -64,8 +64,8 @@
+     The narrow registry validates the target type and every captured free
+     variable against its current native declarations. Full bound-variable,
+     constructor-schema and source/loan adequacy remain with the caller. *)
+-let register_checked_default_expression (variable : fvar_id) (value : texpr)
+-    (ctx : t) : t =
++let check_default_expression (variable : fvar_id) (value : texpr)
++    (ctx : t) : unit =
+   let declared identity expected =
+     match FVarId.Map.find_opt identity ctx.fvars,
+           FVarId.Map.find_opt identity ctx.fvars_tys with
+@@ -85,5 +85,55 @@
+        | _ -> invalid_arg "native reconstructed defaults require explicit algebraic expressions and current variable captures");
+       super#visit_texpr env expression
+   end in
+-  visitor#visit_texpr () value;
++  visitor#visit_texpr () value
++
++let register_checked_default_expression (variable : fvar_id) (value : texpr)
++    (ctx : t) : t =
++  check_default_expression variable value ctx;
+   { ctx with var_id_to_default = FVarId.Map.add variable value ctx.var_id_to_default }
++
++
++(** Generate internal lets for defaulted foreign-parent outputs. Ignored
++    fields remain in their existing context; no value is invented for them.
++    Open binders are retained exactly, and dependencies between default lets
++    are ordered before closing. This does not change the registry or expose
++    new function parameters. *)
++let materialize_pattern_defaults (patterns : tpat list) (ctx : t) :
++    (tpat * texpr) list =
++  let seen = ref FVarId.Set.empty in
++  let rec leaves (pattern : tpat) = match pattern.pat with
++    | PIgnored -> []
++    | PAdt node -> List.concat_map leaves node.fields
++    | POpen (variable, _) ->
++        if pattern.ty <> variable.ty || FVarId.Set.mem variable.id !seen then
++          invalid_arg "native default pattern has a changed type or repeated fresh binder";
++        (match FVarId.Map.find_opt variable.id ctx.fvars with
++         | Some actual when actual = variable -> ()
++         | _ -> invalid_arg "native default pattern does not name its actual current declaration");
++        seen := FVarId.Set.add variable.id !seen;
++        let value = match FVarId.Map.find_opt variable.id ctx.var_id_to_default with
++          | Some value -> value
++          | None -> invalid_arg "native foreign-parent output has no registered current default" in
++        check_default_expression variable.id value ctx;
++        [pattern, value]
++    | PBound _ | PConstant _ ->
++        invalid_arg "native foreign defaults require open binder or explicit ignored/constructor patterns"
++  in
++  let bindings = List.concat_map leaves patterns in
++  let dependencies (value : texpr) =
++    let ids = ref FVarId.Set.empty in
++    let visitor = object inherit [_] iter_expr
++      method! visit_FVar _ identity = ids := FVarId.Set.add identity !ids
++    end in visitor#visit_texpr () value; !ids
++  in
++  let identity ((pattern : tpat), _) = match pattern.pat with
++    | POpen (variable, _) -> variable.id | _ -> invalid_arg "non-leaf materialized native default" in
++  let rec order pending = match pending with
++    | [] -> []
++    | _ ->
++        let targets = List.fold_left (fun ids binding -> FVarId.Set.add (identity binding) ids) FVarId.Set.empty pending in
++        let ready, waiting = List.partition (fun (_, value) -> FVarId.Set.is_empty (FVarId.Set.inter targets (dependencies value))) pending in
++        if ready = [] then invalid_arg "cyclic native foreign default dependencies cannot be materialized";
++        ready @ order waiting
++  in
++  order bindings
+--- a/src/symbolic/SymbolicToPureExpressions.ml
++++ b/src/symbolic/SymbolicToPureExpressions.ml
+@@ -179,6 +179,21 @@
+       !ctx.type_ctx.type_decls pat bound
+   in
+   (!ctx, (pat, bound))
++
++(** Foreign synthesis outputs may use current defaults only along the
++    actual function's strict region ancestry. Independent lifetimes retain
++    their existing translation behavior. *)
++let is_strict_synthesis_ancestor (ctx : bs_ctx) target candidate =
++  if target = candidate then false else
++  let hierarchy = RegionsHierarchy.compute_regions_hierarchy_for_sig (Some ctx.span)
++    ctx.decls_ctx.crate (LlbcAstUtils.bound_fun_sig_of_decl ctx.fun_decl) in
++  let rec ancestors path group =
++    if List.mem group path then [%craise] ctx.span "cyclic synthesis region ancestry";
++    let entry = match List.filter (fun (entry : T.region_var_group) -> entry.id = group) hierarchy with
++      | [entry] -> entry | _ -> [%craise] ctx.span "missing or ambiguous synthesis region group" in
++    List.concat_map (fun parent -> parent :: ancestors (group :: path) parent) entry.parents
++  in
++  List.mem candidate (ancestors [] target)
+ 
+ let rec translate_expr (e : S.expr) (ctx : bs_ctx) : texpr =
+   [%ldebug "e:\n" ^ bs_ctx_expr_to_string ctx e];
+@@ -1018,12 +1033,13 @@
+     let monadic = false in
+     mk_closed_checked_lets __FILE__ __LINE__ ctx monadic eqs next_e)
+   else
+-    (* Check that the region abstraction only consumes values but does not output any *)
+     let ctx, outputs = abs_to_given_back None abs abs_level ctx in
+-    [%cassert] ctx.span (outputs = []) "Unimplemented";
+-
+-    (* No outputs: we can ignore it *)
+-    translate_expr e ctx
++    if outputs = [] then translate_expr e ctx
++    else if is_strict_synthesis_ancestor ctx bid rg_id then
++      let bindings = SymbolicToPureBindings.materialize_pattern_defaults outputs (binding_context ctx) in
++      let next = translate_expr e ctx in
++      mk_closed_checked_lets __FILE__ __LINE__ ctx false bindings next
++    else [%craise] ctx.span "non-ancestor synthesis input outputs require their own continuation"
+ 
+ and translate_end_abstraction_fun_call (ectx : C.eval_ctx) (abs : V.abs)
+     (abs_level : abs_level) (e : S.expr) (call_id : V.fun_call_id)
+@@ -1154,7 +1170,6 @@
+     (e : S.expr) (ctx : bs_ctx) (rg_id : T.RegionGroupId.id)
+     (abs_level : abs_level) : texpr =
+   [%ltrace "Translating ended synthesis abstraction: " ^ abs_to_string ctx abs];
+-  [%cassert] ctx.span (abs_level = 0) "Unimplemented";
+   (* If we end the abstraction which consumed the return value of the function
+      we are synthesizing, we get back the borrows which were inside. Those borrows
+      are actually input arguments of the backward function we are synthesizing.
+@@ -1195,6 +1210,7 @@
+      or not *)
+ 
+   if rg_id = bid then (
++    [%cassert] ctx.span (abs_level = 0) "Unimplemented";
+     let inputs =
+       match T.RegionGroupId.Map.find_opt rg_id ctx.backward_inputs with
+       | None -> [%internal_error] ctx.span
+@@ -1249,8 +1265,13 @@
+     let monadic = false in
+     mk_closed_checked_lets __FILE__ __LINE__ ctx monadic given_back_inputs
+       next_e)
++  else if is_strict_synthesis_ancestor ctx bid rg_id then
++    let ctx, outputs = abs_to_given_back_no_mp abs abs_level ctx in
++    let bindings = SymbolicToPureBindings.materialize_pattern_defaults outputs (binding_context ctx) in
++    let next = translate_expr e ctx in
++    mk_closed_checked_lets __FILE__ __LINE__ ctx false bindings next
+   else
+-    (* We just ignore *)
++    (* Independent lifetimes retain the existing behavior. *)
+     translate_expr e ctx
+ 
+ and translate_end_abstraction_join_or_loop (ectx : C.eval_ctx) (abs : V.abs)

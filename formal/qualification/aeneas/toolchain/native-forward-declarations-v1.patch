@@ -1,0 +1,115 @@
+--- a/src/symbolic/SymbolicToPureTypes.ml
++++ b/src/symbolic/SymbolicToPureTypes.ml
+@@ -278,6 +278,84 @@
+   | Alias _ -> [%craise] span "type aliases should have been removed earlier"
+   | T.Union _ | T.Opaque | T.TDeclError _ -> Opaque
+ 
++(** A nested borrow changes backward ownership channels, but its forward
++    algebraic declaration still contains every original field. Check that
++    declaration independently of [translate_type_decl_kind] before admitting
++    it. This certificate says nothing about ending, heap or loan adequacy;
++    those original translation checks remain mandatory. Unknown source forms
++    and opaque/union/error nested declarations do not receive a certificate. *)
++let rec complete_forward_type_matches (ctx : Contexts.decls_ctx)
++    (span : Meta.span option) (source : T.ty) (actual : ty) : bool =
++  let all2 predicate left right =
++    List.length left = List.length right && List.for_all2 predicate left right in
++  let recurse = complete_forward_type_matches ctx span in
++  let arguments (source : T.generic_args) (actual : generic_args) =
++    all2 recurse source.types actual.types &&
++    actual.const_generics = List.map
++      (fun (value : T.constant_expr) -> translate_constant_expr_kind span value.kind)
++      source.const_generics &&
++    actual.trait_refs = List.map
++      (translate_trait_ref span (translate_sty span)) source.trait_refs in
++  let unary builtin child = match actual with
++    | TAdt (TBuiltin actual_builtin,
++        { types = [value]; const_generics = []; trait_refs = [] }) ->
++        actual_builtin = builtin && recurse child value
++    | _ -> false in
++  match source, actual with
++  | T.TRef (_, child, _), _ -> recurse child actual
++  | T.TAdt { id = T.TBuiltin T.TBox; generics =
++      { regions = []; types = [child]; const_generics = []; trait_refs = [] } }, _ ->
++      recurse child actual
++  | T.TAdt { id = T.TTuple; generics =
++      { regions = []; types; const_generics = []; trait_refs = [] } }, _ ->
++      (match types with
++       | [one] -> recurse one actual
++       | _ -> (match actual with TAdt (TTuple, generics) ->
++           arguments { T.regions = []; types; const_generics = []; trait_refs = [] } generics
++           | _ -> false))
++  | T.TAdt { id = T.TAdtId identity; generics }, TAdt (TAdtId actual_id, actual_args) ->
++      identity = actual_id && T.TypeDeclId.Map.mem identity ctx.type_ctx.type_decls &&
++      arguments generics actual_args
++  | T.TAdt { id = T.TBuiltin T.TStr; generics }, TAdt (TBuiltin TStr, actual_args) ->
++      arguments generics actual_args
++  | T.TArray (child, length), TAdt (TBuiltin TArray,
++      { types = [value]; const_generics = [actual_length]; trait_refs = [] }) ->
++      recurse child value && actual_length = translate_constant_expr_kind span length.kind
++  | T.TSlice child, _ -> unary TSlice child
++  | T.TRawPtr (child, T.RMut), _ -> unary (TRawPtr Mut) child
++  | T.TRawPtr (child, T.RShared), _ -> unary (TRawPtr Const) child
++  | T.TVar variable, TVar actual_variable -> variable = actual_variable
++  | T.TLiteral literal, TLiteral actual_literal ->
++      translate_literal_type literal = actual_literal
++  | T.TNever, TNever -> true
++  | T.TTraitType (reference, name, generics), TTraitType (actual_reference, actual_name) ->
++      generics = TypesUtils.empty_generic_args && name = actual_name &&
++      actual_reference = translate_strait_ref span reference
++  | _ -> false
++
++let complete_nested_forward_kind (ctx : Contexts.decls_ctx) (span : Meta.span)
++    (source : T.type_decl_kind) (actual : type_decl_kind) : bool =
++  let all2 predicate left right =
++    List.length left = List.length right && List.for_all2 predicate left right in
++  let field (source : T.field) (actual : field) =
++    source.field_name = actual.field_name && source.attr_info = actual.field_attr_info &&
++    complete_forward_type_matches ctx (Some span) source.field_ty actual.field_ty in
++  let variant index (source : T.variant) (actual : variant) =
++    T.VariantId.to_int source.id = index && source.variant_name = actual.variant_name &&
++    source.attr_info = actual.variant_attr_info && all2 field source.fields actual.fields &&
++    (match source.discriminant with
++     | V.VScalar (SignedScalar (kind, value)) ->
++         actual.ty = TInt kind && Z.equal value (Z.of_int actual.discriminant)
++     | V.VScalar (UnsignedScalar (kind, value)) ->
++         actual.ty = TUInt kind && Z.equal value (Z.of_int actual.discriminant)
++     | _ -> false) in
++  match source, actual with
++  | T.Struct sources, Struct actuals -> all2 field sources actuals
++  | T.Enum sources, Enum actuals ->
++      all2 (fun (index, source) actual -> variant index source actual)
++        (List.mapi (fun index source -> index, source) sources) actuals
++  | _ -> false
++
+ (** Translate a type definition from LLBC
+ 
+     Remark: this is not symbolic to pure but LLBC to pure. Still, I don't see
+@@ -291,12 +369,14 @@
+   let def_id = def.T.def_id in
+   let name = Print.name_to_string env def.item_meta.name in
+   let span = def.item_meta.span in
+-  (* Can't translate types with nested borrows for now *)
++  let kind = translate_type_decl_kind span def.T.kind in
++  (* Preserve the original refusal for nested declarations outside the checked
++     complete forward-field path. No backward/ending/loan guard is bypassed. *)
+   [%cassert] span
+-    (not
+-       (TypesUtils.type_decl_has_nested_mut_borrows (Some span)
+-          ctx.type_ctx.type_infos def))
+-    "ADTs containing nested mutable borrows are not supported yet";
++    (not (TypesUtils.type_decl_has_nested_mut_borrows (Some span)
++            ctx.type_ctx.type_infos def) ||
++     complete_nested_forward_kind ctx span def.T.kind kind)
++    "Nested mutable ADT requires a complete checked forward declaration";
+   let generics, preds = translate_generic_params (Some span) def.generics in
+   [%ldebug
+     let ctx = PrintPure.decls_ctx_to_fmt_env ctx in
+@@ -304,7 +384,6 @@
+     ^ PrintPure.generic_params_to_string ctx generics];
+   let explicit_info = compute_explicit_info generics [] in
+   [%ldebug "explicit info:\n" ^ show_explicit_info explicit_info];
+-  let kind = translate_type_decl_kind span def.T.kind in
+   let item_meta = def.item_meta in
+   (* Lookup the builtin information, if there is *)
+   let builtin_info =

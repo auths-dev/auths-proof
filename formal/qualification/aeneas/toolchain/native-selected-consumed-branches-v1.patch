@@ -1,0 +1,66 @@
+--- a/src/symbolic/SymbolicToPureValues.ml
++++ b/src/symbolic/SymbolicToPureValues.ml
+@@ -584,6 +584,21 @@
+   (* Return *)
+   value
+ 
++(** The two branches of an ended ignored mutable wrapper describe distinct
++    ending levels. A full nominal container must not force traversal of the
++    other branch's still-active header merely because its own fields are
++    unfiltered. Preserve all fields *inside* the selected branch, and leave
++    the other branch for its actual ending. The existing ambiguous-result
++    guards remain: this helper does not merge independent source versions. *)
++and selected_tavalue_to_consumed_aux ~(filter : bool) (ctx : bs_ctx)
++    (ectx : C.eval_ctx) (abs_regions : T.RegionId.Set.t) (abs_level : abs_level)
++    (current_level : abs_level) (av : V.tavalue) : texpr option =
++  match compute_tavalue_proj_kind ctx.span ctx.type_ctx.type_infos abs_regions
++      abs_level current_level av with
++  | LoanProj BMut ->
++      tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level current_level av
++  | LoanProj BShared | BorrowProj _ | UnknownProj -> None
++
+ and adt_avalue_to_consumed_aux ~(filter : bool) (ctx : bs_ctx)
+     (ectx : C.eval_ctx) (abs_regions : T.RegionId.Set.t) (abs_level : abs_level)
+     (current_level : abs_level) (av : V.tavalue) (adt_v : V.adt_avalue) :
+@@ -648,11 +663,11 @@
+   | AEndedIgnoredMutLoan { child; given_back; given_back_meta = _ } -> (
+       (* This happens with nested borrows: we need to dive in *)
+       let child =
+-        tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
++        selected_tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
+           current_level child
+       in
+       let given_back =
+-        tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
++        selected_tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
+           (current_level + 1) given_back
+       in
+       match (child, given_back) with
+@@ -681,11 +696,11 @@
+       None
+   | V.AEndedIgnoredMutBorrow { child; given_back; given_back_meta = _ } -> (
+       let child =
+-        tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
++        selected_tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
+           current_level child
+       in
+       let given_back =
+-        tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
++        selected_tavalue_to_consumed_aux ~filter ctx ectx abs_regions abs_level
+           (current_level + 1) given_back
+       in
+       match (child, given_back) with
+@@ -743,7 +758,12 @@
+           (* No inner loans because of additional nested borrows *)
+           None
+       | _ -> [%craise] ctx.span "Unimplemented")
+-  | AEmpty | AProjLoans _ | AProjBorrows _ -> [%craise] ctx.span "Unreachable"
++  | AEmpty | AProjLoans _ | AProjBorrows _ ->
++      let header = match aproj with AEmpty -> "empty" | AProjLoans _ -> "active-loan"
++        | AProjBorrows _ -> "active-borrow" | _ -> "invalid" in
++      [%craise] ctx.span ("Unsupported consumed projector header=" ^ header ^
++        " selected_level=" ^ string_of_int abs_level ^
++        " current_level=" ^ string_of_int current_level)
+ 
+ let tavalue_to_consumed (ctx : bs_ctx) (ectx : C.eval_ctx)
+     (abs_regions : T.RegionId.Set.t) (abs_level : abs_level) (av : V.tavalue) :

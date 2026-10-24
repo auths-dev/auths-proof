@@ -35,12 +35,7 @@ impl PolicyIdentifier {
     /// Returns [`ModelError::InvalidBoundedPolicy`] for an empty or oversized
     /// value or a byte outside the closed vocabulary.
     pub fn parse(value: &str, maximum: usize) -> Result<Self, ModelError> {
-        if value.is_empty()
-            || value.len() > maximum
-            || !value.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b':' | b'_' | b'-')
-            })
-        {
+        if !policy_identifier_valid(value, maximum) {
             return Err(ModelError::InvalidBoundedPolicy);
         }
         Ok(Self(String::from(value)))
@@ -50,6 +45,29 @@ impl PolicyIdentifier {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+pub(crate) fn policy_identifier_byte_allowed(byte: u8) -> bool {
+    (byte >= b'0' && byte <= b'9')
+        || (byte >= b'A' && byte <= b'Z')
+        || (byte >= b'a' && byte <= b'z')
+        || matches!(byte, b'.' | b'/' | b':' | b'_' | b'-')
+}
+
+fn policy_identifier_has_invalid(bytes: &[u8]) -> bool {
+    let mut position = 0;
+    while position < bytes.len() {
+        if !policy_identifier_byte_allowed(bytes[position]) {
+            return true;
+        }
+        position += 1;
+    }
+    false
+}
+
+fn policy_identifier_valid(value: &str, maximum: usize) -> bool {
+    let bytes = value.as_bytes();
+    !bytes.is_empty() && bytes.len() <= maximum && !policy_identifier_has_invalid(bytes)
 }
 
 /// Immutable commitment to one closed policy and its evaluator.
@@ -77,9 +95,9 @@ impl PolicyCommitment {
         evaluator_semantic_id: PolicyIdentifier,
     ) -> Result<Self, ModelError> {
         if policy_version == 0
-            || policy_type.0.len() > MAX_POLICY_IDENTIFIER_BYTES
-            || canonicalization_id.0.len() > MAX_POLICY_CANONICALIZATION_BYTES
-            || evaluator_semantic_id.0.len() > MAX_POLICY_IDENTIFIER_BYTES
+            || policy_type.as_str().len() > MAX_POLICY_IDENTIFIER_BYTES
+            || canonicalization_id.as_str().len() > MAX_POLICY_CANONICALIZATION_BYTES
+            || evaluator_semantic_id.as_str().len() > MAX_POLICY_IDENTIFIER_BYTES
         {
             return Err(ModelError::InvalidBoundedPolicy);
         }
@@ -197,3 +215,7 @@ pub fn bounded_policy_link_accepts(
         None => parent_digest.is_none(),
     }
 }
+
+#[cfg(test)]
+#[path = "bounded_policy_identifier_tests.rs"]
+mod tests;

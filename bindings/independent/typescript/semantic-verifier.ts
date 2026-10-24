@@ -581,22 +581,53 @@ function validateStatusScopes(trust: StatusTrust[], anchors: Anchor[]): void {
   }
 }
 
-function snapshot<T>(value: V, decode: (entry: V) => T): Snapshot<T> {
+function snapshot<T extends { statement: V; observedAt: bigint; validUntil: bigint }>(
+  value: V, decode: (entry: V) => T,
+): Snapshot<T> {
   exactMap(value, 6);
-  const trust = array(mapAt(value, 5)).map((rule) => {
+  bytes(mapAt(value, 0), 32);
+  const observedAt = uint(mapAt(value, 1));
+  const validUntil = uint(mapAt(value, 2));
+  const statementValues = array(mapAt(value, 3));
+  const checkpointValues = array(mapAt(value, 4));
+  const trustValues = array(mapAt(value, 5));
+  if (observedAt > validUntil || statementValues.length > 512 ||
+      checkpointValues.length > 512 || trustValues.length > 1024) {
+    throw new Error("invalid status snapshot bounds");
+  }
+  const statements = statementValues.map(decode);
+  const seenStatements = new Set<string>();
+  for (const statement of statements) {
+    // The primitive decoder enforces canonical CBOR. Compare complete signed
+    // statement content without the signature envelope, using exact bytes
+    // rather than assuming collision resistance of its content identifier.
+    const key = Buffer.from(statement.statement.raw).toString("hex");
+    if (seenStatements.has(key)) throw new Error("duplicate snapshot statement");
+    seenStatements.add(key);
+    if (statement.observedAt > observedAt || statement.validUntil < validUntil) {
+      throw new Error("snapshot exceeds statement validity");
+    }
+  }
+  const seenTrust = new Set<string>();
+  const trust = trustValues.map((rule) => {
     exactMap(rule, 4);
+    const method = text(mapAt(rule, 0));
+    const issuer = text(mapAt(rule, 1));
+    const key = JSON.stringify([method, issuer]);
+    if (seenTrust.has(key)) throw new Error("duplicate status trust rule");
+    seenTrust.add(key);
     return {
-      method: text(mapAt(rule, 0)),
-      issuer: text(mapAt(rule, 1)),
+      method,
+      issuer,
       minimumSequence: uint(mapAt(rule, 2)),
       scope: statusScope(mapAt(rule, 3)),
     };
   });
   return {
-    observedAt: uint(mapAt(value, 1)),
-    validUntil: uint(mapAt(value, 2)),
-    statements: array(mapAt(value, 3)).map(decode),
-    checkpoints: array(mapAt(value, 4)).map((entry) => bytes(entry, 32)),
+    observedAt,
+    validUntil,
+    statements,
+    checkpoints: checkpointValues.map((entry) => bytes(entry, 32)),
     trust,
   };
 }

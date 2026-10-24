@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .composition()
         .expected_plan()
         .ok_or("example context must require an exact plan")?;
-    let context_bytes = auths_codec::encode_verifier_context(&context)?;
+    let context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?;
 
     let result = Engine::new(registries).verify_cbor(PROOF, ACTION, &context_bytes)?;
     let explanation = result.explanation();

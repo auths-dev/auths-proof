@@ -182,6 +182,7 @@ pub(crate) fn bindings_conformance() -> Result<(), String> {
             "--test",
             "bindings/independent/typescript/ed25519-encoding.test.ts",
             "bindings/independent/typescript/p256-corpus.test.ts",
+            "bindings/independent/typescript/snapshot-uniqueness.test.ts",
         ],
         &root(),
         None,

@@ -490,9 +490,7 @@ impl McpQuorumProofBuilderV1 {
                 )?)
             })
             .collect::<Result<Vec<_>, EngineError>>()?;
-        Ok(auths_codec::encode_bundle(
-            &quorum.proposal.assemble(&action.native()?, &approvals)?,
-        )?)
+        Ok(auths_codec::CanonicalProofBundle::new(quorum.proposal.assemble(&action.native()?, &approvals)?).and_then(|canonical| auths_codec::encode_bundle(&canonical))?)
     }
 }
 

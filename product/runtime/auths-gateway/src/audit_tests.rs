@@ -95,7 +95,7 @@ fn bundle(
     context: &TrustedContext,
     entries: &[Value],
 ) -> (Vec<u8>, AuditPins, [u8; 32]) {
-    let trust = auths_codec::encode_verifier_context(context).expect("context bytes");
+    let trust = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).expect("context bytes");
     let digest: [u8; 32] = Sha256::digest(&trust).into();
     let document = json!({
         "schema": crate::AUDIT_BUNDLE_SCHEMA,

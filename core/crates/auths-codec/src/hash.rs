@@ -3,11 +3,12 @@
 use crate::{
     CodecError,
     encode::{
-        encode_evidence_content, encode_grant_status_statement, encode_principal_status_statement,
-        encode_verification_result_digest_input,
+        encode_bundle_value, encode_evidence_content, encode_grant_status_statement,
+        encode_principal_status_statement, encode_verification_result_digest_input,
+        encode_verifier_context_value,
     },
-    encode_action_envelope, encode_action_signing_input, encode_authorization_plan, encode_bundle,
-    encode_grant_signing_input, encode_grant_statement, encode_verifier_context,
+    encode_action_envelope, encode_action_signing_input, encode_authorization_plan,
+    encode_grant_signing_input, encode_grant_statement,
 };
 use alloc::vec::Vec;
 use auths_model::{
@@ -256,7 +257,7 @@ pub fn attachment_digest(attachment: &[u8]) -> AttachmentDigest {
 ///
 /// Returns [`CodecError`] if deterministic encoding of the bundle fails.
 pub fn proof_digest(bundle: &ProofBundle) -> Result<Digest, CodecError> {
-    Ok(raw_sha256(&encode_bundle(bundle)?))
+    Ok(raw_sha256(&encode_bundle_value(bundle)?))
 }
 
 /// Derives the deterministic public trusted-context digest.
@@ -265,10 +266,24 @@ pub fn proof_digest(bundle: &ProofBundle) -> Result<Digest, CodecError> {
 ///
 /// Returns [`CodecError`] if deterministic encoding of the context fails.
 pub fn context_digest(context: &TrustedContext) -> Result<ContextDigest, CodecError> {
-    Ok(ContextDigest::from_digest(domain_hash(
-        IdentifierType::Context,
-        &encode_verifier_context(context)?,
-    )?))
+    let (digest, _) = context_digest_and_size(context)?;
+    Ok(digest)
+}
+
+/// Derives the public context commitment and its exact encoded byte count.
+///
+/// Both results describe the same deterministic encoding. This borrowed path
+/// uses the canonical encoder's writer once, without cloning model payloads or
+/// requiring callers to normalize a second owned context just to account for
+/// its encoded size. The digest is a commitment, not an authorization verdict.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if context encoding or commitment derivation fails.
+pub fn context_digest_and_size(context: &TrustedContext) -> Result<(ContextDigest, usize), CodecError> {
+    let encoded = encode_verifier_context_value(context)?;
+    let digest = ContextDigest::from_digest(domain_hash(IdentifierType::Context, &encoded)?);
+    Ok((digest, encoded.len()))
 }
 
 /// Computes the digest of the canonical portable-result projection with the
@@ -429,7 +444,7 @@ pub fn approval_signing_preimage(
 /// Returns [`CodecError`] if the approval cannot be encoded.
 pub fn approval_digest(approval: &SignedApproval) -> Result<ApprovalDigest, CodecError> {
     Ok(ApprovalDigest::from_digest(raw_sha256(
-        &crate::encode_signed_approval(approval)?,
+        &crate::approval::encode_signed_approval_value(approval)?,
     )))
 }
 
