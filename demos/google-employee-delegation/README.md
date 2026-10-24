@@ -8,7 +8,8 @@ This checkout contains the task/read contracts, native exact MCP verification
 bridge, native child-grant planning, durable SQLite admission and release gate,
 and a strict `demo_co` artifact importer. OAuth state/validation, encrypted
 token custody, key-possession employee enrollment and a closed Drive GET
-adapter are present as broker components. It is **not a runnable Google demo**.
+adapter, generation-checked refresh and employee offboarding are present as
+broker components. It is **not a runnable Google demo**.
 There is no HTTP workbench, agent process, receipt signer or packaged install yet. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
