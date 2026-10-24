@@ -288,8 +288,11 @@ Before dispatch, atomically claim the challenge and reserve call/byte capacity. 
 > charge after failures. This enforces the 8 MiB aggregate ceiling
 > conservatively across processes. The Drive adapter now records GETs started
 > and response body bytes actually read into signed receipts, including bytes
-> read before an oversize refusal. A durable per-attempt outcome ledger and
-> crash-recovery evidence remain to be added before the full claim is made.
+> read before an oversize refusal. Each fixed Drive GET is also recorded in
+> SQLite before dispatch, with streamed bytes and an outcome; a row left
+> `started` after a crash remains an unknown outcome. Recovery of abandoned
+> in-flight slots and end-to-end crash evidence remain to be added before the
+> full claim is made.
 
 Keep the fetched body private to the broker until validation and the final release gate succeed. Record `proof_verified`, `admitted`, `provider_denied`/`content_fetched`, `release_committed` and actual transport delivery/unknown status separately. A successful provider fetch is not proof the agent received its contents.
 

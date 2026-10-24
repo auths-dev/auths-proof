@@ -9,7 +9,7 @@ from typing import Protocol
 from .admission import AdmissionDenied, AdmissionStore
 from .authority import verify_read
 from .contracts import ReadCommand, TaskDescriptor
-from .google_drive import GoogleDenied, ProviderTrace
+from .google_drive import GoogleDenied, GoogleDriveReader, ProviderTrace
 from .receipts import ReceiptStore
 
 
@@ -42,6 +42,8 @@ def execute_read(
     try:
         if not store.current(reservation):
             raise AdmissionDenied("task changed before provider dispatch")
+        if isinstance(provider, GoogleDriveReader):
+            provider.set_attempt_observer(store.attempt_observer(reservation))
         # Provider content remains in this process. A failed or ambiguous fetch
         # retains its conservative call, attempt and byte charges.
         provider_stage = "requested"

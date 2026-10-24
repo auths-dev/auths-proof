@@ -124,6 +124,28 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(self.store.release(second, b"ok", now=self.now), b"ok")
         self.store.fail(third)
 
+    def test_provider_attempts_survive_restart_with_unknown_outcome(self) -> None:
+        command = self.verified()
+        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        reservation = self.store.claim(self.task, command, challenge, now=self.now)
+        observer = self.store.attempt_observer(reservation)
+        with self.assertRaises(AdmissionDenied):
+            observer.begin(2, "content")
+        observer.begin(1, "metadata")
+        observer.observed(1, 17)
+        observer.finish(1, "http_200")
+        observer.begin(2, "content")
+        observer.observed(2, 9)
+        with self.assertRaises(AdmissionDenied):
+            observer.observed(2, 1024)
+        reopened = AdmissionStore(self.path)
+        self.assertEqual(reopened.attempts_for(reservation), (
+            (1, "metadata", "http_200", 17),
+            (2, "content", "started", 9),
+        ))
+        reopened.fail(reservation)
+        self.assertEqual(reopened.attempts_for(reservation)[1][2], "started")
+
     def test_outside_task_body_cannot_get_challenge(self) -> None:
         with self.assertRaises(AdmissionDenied):
             self.store.issue_challenge(self.task, b"0" * 32, now=self.now)

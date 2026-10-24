@@ -68,6 +68,14 @@ class AdmissionStore:
                   status TEXT NOT NULL DEFAULT 'issued',
                   FOREIGN KEY(task_id) REFERENCES tasks(id)
                 );
+                CREATE TABLE IF NOT EXISTS provider_attempts (
+                  challenge BLOB NOT NULL, ordinal INTEGER NOT NULL,
+                  phase TEXT NOT NULL, status TEXT NOT NULL,
+                  response_bytes INTEGER NOT NULL DEFAULT 0,
+                  started_at INTEGER NOT NULL, finished_at INTEGER,
+                  PRIMARY KEY(challenge, ordinal),
+                  FOREIGN KEY(challenge) REFERENCES challenges(value)
+                );
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(tasks)")}
             if "reserved_provider_bytes" not in columns:
@@ -202,6 +210,17 @@ class AdmissionStore:
                 db.execute("UPDATE tasks SET in_flight=in_flight-1 WHERE id=? AND in_flight>0", (reservation.task_id,))
             db.commit()
 
+    def attempt_observer(self, reservation: Reservation) -> ProviderAttemptLedger:
+        """Persist every fixed Drive GET before dispatch, then observed bytes/outcome."""
+        return ProviderAttemptLedger(self, reservation)
+
+    def attempts_for(self, reservation: Reservation) -> tuple[tuple, ...]:
+        """Trusted diagnostic view; a started row may mean the broker crashed."""
+        with self._connect() as db:
+            return tuple(db.execute("""SELECT ordinal,phase,status,response_bytes
+                FROM provider_attempts WHERE challenge=? ORDER BY ordinal""",
+                (reservation.challenge,)).fetchall())
+
     def current(self, reservation: Reservation, *, now: int | None = None) -> bool:
         now = int(time.time()) if now is None else now
         with self._connect() as db:
@@ -234,3 +253,56 @@ class AdmissionStore:
                        (connection_id,))
             db.commit()
             return next_generation
+
+
+class ProviderAttemptLedger:
+    """Durable per-GET observations tied to one admitted challenge."""
+
+    def __init__(self, store: AdmissionStore, reservation: Reservation) -> None:
+        self.store = store
+        self.reservation = reservation
+
+    def begin(self, ordinal: int, phase: str) -> None:
+        if (ordinal, phase) not in {(1, "metadata"), (2, "content")}:
+            raise AdmissionDenied("provider attempt is outside closed read")
+        with self.store._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT status FROM challenges WHERE value=? AND task_id=?",
+                             (self.reservation.challenge, self.reservation.task_id)).fetchone()
+            if row != ("claimed",):
+                raise AdmissionDenied("provider attempt is unavailable")
+            if ordinal == 2 and db.execute("""SELECT status FROM provider_attempts
+                WHERE challenge=? AND ordinal=1""", (self.reservation.challenge,)).fetchone() is None:
+                raise AdmissionDenied("metadata attempt is missing")
+            db.execute("""INSERT INTO provider_attempts
+                (challenge,ordinal,phase,status,started_at) VALUES(?,?,?,'started',?)""",
+                (self.reservation.challenge, ordinal, phase, int(time.time())))
+            db.commit()
+
+    def observed(self, ordinal: int, count: int) -> None:
+        if ordinal not in {1, 2} or not 0 < count <= 16_384:
+            raise AdmissionDenied("provider byte observation is invalid")
+        maximum = MAX_METADATA_BYTES + 1 if ordinal == 1 else self.reservation.max_bytes + 1
+        with self.store._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            changed = db.execute("""UPDATE provider_attempts
+                SET response_bytes=response_bytes+? WHERE challenge=? AND ordinal=?
+                AND status='started' AND response_bytes+?<=?""",
+                (count, self.reservation.challenge, ordinal, count, maximum)).rowcount
+            if changed != 1:
+                raise AdmissionDenied("provider byte observation exceeds reservation")
+            db.commit()
+
+    def finish(self, ordinal: int, status: str) -> None:
+        allowed = {"redirect_refused", "encoding_refused", "limit_refused", "transport_unknown"}
+        if status not in allowed and not (status.startswith("http_") and status[5:].isdigit()
+                                         and 100 <= int(status[5:]) <= 599):
+            raise AdmissionDenied("provider attempt outcome is invalid")
+        with self.store._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            changed = db.execute("""UPDATE provider_attempts SET status=?,finished_at=?
+                WHERE challenge=? AND ordinal=? AND status='started'""",
+                (status, int(time.time()), self.reservation.challenge, ordinal)).rowcount
+            if changed != 1:
+                raise AdmissionDenied("provider attempt is unavailable")
+            db.commit()

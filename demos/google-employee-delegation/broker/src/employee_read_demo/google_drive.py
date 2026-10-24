@@ -9,6 +9,7 @@ import socket
 import ssl
 import time
 from dataclasses import dataclass
+from typing import Protocol
 from urllib.parse import quote
 
 from .contracts import MAX_METADATA_BYTES, ReadCommand, TaskDescriptor
@@ -34,6 +35,29 @@ class ProviderTrace:
 
     requests_started: int = 0
     response_bytes: int = 0
+    observer: ProviderAttemptObserver | None = None
+
+    def begin(self, phase: str) -> int:
+        ordinal = self.requests_started + 1
+        if self.observer is not None:
+            self.observer.begin(ordinal, phase)
+        self.requests_started = ordinal
+        return ordinal
+
+    def observed(self, ordinal: int, count: int) -> None:
+        if self.observer is not None:
+            self.observer.observed(ordinal, count)
+        self.response_bytes += count
+
+    def finish(self, ordinal: int, status: str) -> None:
+        if self.observer is not None:
+            self.observer.finish(ordinal, status)
+
+
+class ProviderAttemptObserver(Protocol):
+    def begin(self, ordinal: int, phase: str) -> None: ...
+    def observed(self, ordinal: int, count: int) -> None: ...
+    def finish(self, ordinal: int, status: str) -> None: ...
 
 
 class _PinnedGoogleConnection(http.client.HTTPSConnection):
@@ -58,10 +82,11 @@ class _PinnedGoogleConnection(http.client.HTTPSConnection):
         raise GoogleUnavailable("Google TLS connection failed") from last_error
 
 
-def _get(path: str, token: str, limit: int, trace: ProviderTrace) -> tuple[int, bytes, str]:
+def _get(path: str, token: str, limit: int, trace: ProviderTrace,
+         phase: str) -> tuple[int, bytes, str]:
     connection = _PinnedGoogleConnection(HOST, timeout=15, context=ssl.create_default_context())
+    ordinal = trace.begin(phase)
     try:
-        trace.requests_started += 1
         connection.request("GET", path, headers={
             "Authorization": f"Bearer {token}",
             "Accept-Encoding": "identity",
@@ -69,23 +94,30 @@ def _get(path: str, token: str, limit: int, trace: ProviderTrace) -> tuple[int, 
         })
         response = connection.getresponse()
         if response.status in {301, 302, 303, 307, 308}:
+            trace.finish(ordinal, "redirect_refused")
             raise GoogleUnavailable("Google returned a redirect")
         if response.getheader("Content-Encoding", "identity") != "identity":
+            trace.finish(ordinal, "encoding_refused")
             raise GoogleUnavailable("Google returned encoded content")
         declared = response.getheader("Content-Length")
         if declared is not None and (not declared.isascii() or not declared.isdecimal() or int(declared) > limit):
+            trace.finish(ordinal, "limit_refused")
             raise GoogleUnavailable("Google response exceeds byte limit")
         body = bytearray()
         while len(body) <= limit:
             part = response.read(min(16_384, limit + 1 - len(body)))
-            trace.response_bytes += len(part)
+            if part:
+                trace.observed(ordinal, len(part))
             body.extend(part)
             if not part:
                 break
         if len(body) > limit:
+            trace.finish(ordinal, "limit_refused")
             raise GoogleUnavailable("Google response exceeds byte limit")
+        trace.finish(ordinal, f"http_{response.status}")
         return response.status, bytes(body), response.getheader("Content-Type", "")
     except (OSError, http.client.HTTPException) as error:
+        trace.finish(ordinal, "transport_unknown")
         raise GoogleUnavailable("Google request failed") from error
     finally:
         connection.close()
@@ -98,6 +130,9 @@ class GoogleDriveReader:
         self.tokens = tokens
         self.trace = ProviderTrace()
 
+    def set_attempt_observer(self, observer: ProviderAttemptObserver) -> None:
+        self.trace.observer = observer
+
     def _metadata(self, command: ReadCommand) -> tuple[dict, str]:
         if command not in self.task.calls():
             raise GoogleDenied("document is outside approved task")
@@ -106,7 +141,8 @@ class GoogleDriveReader:
         lease = self.tokens.lease(self.task)
         file_id = quote(command.file_id, safe="")
         metadata_path = f"/drive/v3/files/{file_id}?fields=id,mimeType,size,trashed,capabilities(canDownload)"
-        status, body, content_type = _get(metadata_path, lease.access_token, METADATA_LIMIT, self.trace)
+        status, body, content_type = _get(metadata_path, lease.access_token, METADATA_LIMIT,
+                                          self.trace, "metadata")
         if status in {401, 403, 404}:
             raise GoogleDenied("Google refused document metadata")
         if status != 200 or "application/json" not in content_type:
@@ -131,11 +167,11 @@ class GoogleDriveReader:
 
     def inspect_exact(self, command: ReadCommand) -> None:
         """Check employee-readable metadata without fetching document content."""
-        self.trace = ProviderTrace()
+        self.trace = ProviderTrace(observer=self.trace.observer)
         self._metadata(command)
 
     def read_exact(self, command: ReadCommand) -> bytes:
-        self.trace = ProviderTrace()
+        self.trace = ProviderTrace(observer=self.trace.observer)
         metadata, access_token = self._metadata(command)
         file_id = quote(command.file_id, safe="")
         mime = metadata["mimeType"]
@@ -143,7 +179,8 @@ class GoogleDriveReader:
             path = f"/drive/v3/files/{file_id}/export?mimeType=text%2Fplain"
         else:
             path = f"/drive/v3/files/{file_id}?alt=media"
-        status, content, content_type = _get(path, access_token, command.max_bytes, self.trace)
+        status, content, content_type = _get(path, access_token, command.max_bytes,
+                                              self.trace, "content")
         if status in {401, 403, 404}:
             raise GoogleDenied("Google refused document content")
         if status != 200 or "text/plain" not in content_type:

@@ -29,7 +29,7 @@ class GoogleDriveTests(unittest.TestCase):
 
     def test_approved_document_uses_only_fixed_metadata_and_content_gets(self) -> None:
         calls: list[str] = []
-        def get(path: str, token: str, limit: int, trace: ProviderTrace):
+        def get(path: str, token: str, limit: int, trace: ProviderTrace, phase: str):
             self.assertEqual(token, "synthetic-employee-token")
             calls.append(path)
             trace.requests_started += 1
@@ -60,7 +60,7 @@ class GoogleDriveTests(unittest.TestCase):
         self.assertEqual(self.vault.leases, 0)
 
     def test_provider_download_restriction_blocks_content_get(self) -> None:
-        def get(path: str, token: str, limit: int, trace: ProviderTrace):
+        def get(path: str, token: str, limit: int, trace: ProviderTrace, phase: str):
             trace.requests_started += 1
             return 200, json.dumps({
                 "id": "file-A", "mimeType": "text/plain",
@@ -72,7 +72,7 @@ class GoogleDriveTests(unittest.TestCase):
 
     def test_preparation_inspects_only_metadata(self) -> None:
         calls: list[str] = []
-        def get(path: str, token: str, limit: int, trace: ProviderTrace):
+        def get(path: str, token: str, limit: int, trace: ProviderTrace, phase: str):
             trace.requests_started += 1
             calls.append(path)
             return 200, json.dumps({
@@ -112,7 +112,7 @@ class GoogleDriveTests(unittest.TestCase):
         trace = ProviderTrace()
         with patch("employee_read_demo.google_drive._PinnedGoogleConnection", Connection):
             with self.assertRaises(GoogleUnavailable):
-                _get("/fixed", "synthetic-token", 5, trace)
+                _get("/fixed", "synthetic-token", 5, trace, "metadata")
         self.assertEqual(trace.requests_started, 1)
         self.assertEqual(trace.response_bytes, 6)
 
