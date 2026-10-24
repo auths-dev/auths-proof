@@ -43,6 +43,7 @@ class AdmissionStore:
         else:
             os.close(descriptor)
         with self._connect() as db:
+            db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS connections (
                   id TEXT PRIMARY KEY, company TEXT NOT NULL, employee TEXT NOT NULL,
@@ -72,6 +73,7 @@ class AdmissionStore:
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
         db.execute("PRAGMA busy_timeout=10000")
         db.execute("PRAGMA foreign_keys=ON")
+        db.execute("PRAGMA synchronous=FULL")
         return db
 
     def enroll(self, task: TaskDescriptor) -> None:
