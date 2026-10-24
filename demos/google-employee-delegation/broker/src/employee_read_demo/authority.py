@@ -36,7 +36,7 @@ def verify_read(
         raise ValueError("invalid proof, action or challenge size")
     from auths import _native
     from auths.self_hosted import (
-        ExactMcpTool, IntegerField, StringField, EnumField, AuthorizedCommand,
+        ExactMcpTool, IntegerField, StringField, AuthorizedCommand,
         verify_command,
     )
 
@@ -45,7 +45,7 @@ def verify_read(
         name="google_drive_document_read",
         command_type=ReadCommand,
         fields={
-            "contract": EnumField(("google-drive-document-read/v1",)),
+            "contract": StringField(1, 64),
             "company_id": StringField(1, 64),
             "instance_id": StringField(1, 64),
             "task_id": StringField(1, 256),
@@ -53,7 +53,7 @@ def verify_read(
             "connection_id": StringField(1, 256),
             "connection_generation": IntegerField(1, 2**31 - 1),
             "file_id": StringField(1, 256),
-            "output": EnumField(("text",)),
+            "output": StringField(1, 16),
             "max_bytes": IntegerField(1, 262_144),
         },
     )
