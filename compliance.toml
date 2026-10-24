@@ -2047,16 +2047,17 @@ kind = "npm"
 layer = "demos"
 path = "demos/google-employee-delegation"
 core_apis = []
-protocol_versions = ["auths-proof/v1", "auths.mcp/2", "auths.google-read-task/v1", "demo-co/connections/v1", "demo-co/access-expectations/v1"]
+protocol_versions = ["auths-proof/v1", "auths.mcp/2", "auths.google-read-task/v1", "auths.employee-read-receipt/v1", "demo-co/connections/v1", "demo-co/access-expectations/v1", "demo-co/scenario-result/v1"]
 wire_objects = ["CanonicalAction", "ProofBundle", "TaskDescriptor", "ReadCommand"]
 fixture_suites = ["demos/google-employee-delegation/contracts/examples"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2"]
 transports = []
-configuration_inputs = ["operator-pins", "trusted-context-template", "demo-co-export"]
-security_state = ["task-ledger", "challenge-ledger", "release-commitment"]
+configuration_inputs = ["operator-pins", "trusted-context-template", "demo-co-export", "google-oauth-config", "token-encryption-key", "receipt-signing-key", "installed-image-digests"]
+security_state = ["task-ledger", "challenge-ledger", "provider-attempt-ledger", "release-commitment", "broker-runtime-lock", "encrypted-employee-credentials", "company-scoped-browser-sessions"]
 
 [packages.auths-google-employee-delegation-demo.claims]
 demo-conformance-fixture = ["demos/google-employee-delegation/broker/tests/test_demo_co_contract.py#test_local_fixture_is_valid_but_never_imported_as_live"]
-runtime-enforcement-boundary = ["demos/google-employee-delegation/broker/tests/test_admission.py#test_replay_and_release_after_revocation_are_denied", "demos/google-employee-delegation/broker/tests/test_admission.py#test_two_connections_share_atomic_capacity"]
+runtime-enforcement-boundary = ["demos/google-employee-delegation/broker/tests/test_admission.py#test_replay_and_release_after_revocation_are_denied", "demos/google-employee-delegation/broker/tests/test_admission.py#test_two_processes_share_atomic_capacity_and_provider_byte_reservations", "demos/google-employee-delegation/broker/tests/test_admission.py#test_crashed_broker_reopens_slot_without_refunding_charges", "demos/google-employee-delegation/broker/tests/test_google_drive.py#test_deadline_interrupts_a_trickling_header_parser", "demos/google-employee-delegation/broker/tests/test_oauth_custody.py#test_offboarding_closes_admission_and_token_custody", "demos/google-employee-delegation/broker/tests/test_workbench.py#test_other_company_browser_cookie_cannot_authorize_this_workbench"]
+receipt-producer-consumer = ["demos/google-employee-delegation/broker/tests/test_task_authority.py#test_real_chain_and_exact_action_pass_read_boundary", "demos/google-employee-delegation/broker/tests/test_admission.py#test_receipt_write_failure_rolls_back_release_commitment"]
