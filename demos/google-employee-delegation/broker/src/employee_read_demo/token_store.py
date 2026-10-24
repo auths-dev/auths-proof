@@ -10,11 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
+import requests
 
 from .admission import AdmissionDenied, AdmissionStore
 from .contracts import TaskDescriptor
 from .enrollment import EnrollmentStore
-from .google_oauth import CONNECT_SCOPES, OAuthResult
+from .google_oauth import CONNECT_SCOPES, OAuthResult, TOKEN_URL
 
 
 @dataclass(frozen=True)
@@ -23,17 +24,45 @@ class TokenLease:
     expires_at: int
 
 
+def _exchange_refresh(client_id: str, client_secret: str, refresh_token: str) -> dict:
+    session = requests.Session()
+    session.trust_env = False
+    try:
+        response = session.post(TOKEN_URL, data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }, timeout=15, allow_redirects=False, stream=True)
+        if response.status_code != 200:
+            raise AdmissionDenied("Google refresh was refused")
+        raw = response.raw.read(32_769)
+        if len(raw) > 32_768:
+            raise AdmissionDenied("Google refresh response exceeded limit")
+        result = json.loads(raw)
+        if type(result) is not dict:
+            raise AdmissionDenied("Google refresh response is invalid")
+        return result
+    except (requests.RequestException, ValueError, UnicodeDecodeError) as error:
+        raise AdmissionDenied("Google refresh was unavailable") from error
+    finally:
+        session.close()
+
+
 class TokenVault:
-    def __init__(self, path: Path, *, encryption_key: bytes, client_id: str) -> None:
+    def __init__(self, path: Path, *, encryption_key: bytes, client_id: str,
+                 refresh_client_secret: str | None = None) -> None:
         self.path = path
         self.fernet = Fernet(encryption_key)
         self.client_id = client_id
+        self.refresh_client_secret = refresh_client_secret
         EnrollmentStore(path)
         with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS credentials (
                 connection TEXT PRIMARY KEY, ciphertext BLOB NOT NULL,
                 client_id TEXT NOT NULL, issuer TEXT NOT NULL, subject TEXT NOT NULL,
                 scopes TEXT NOT NULL, expires_at INTEGER NOT NULL,
+                refresh_nonce TEXT, refreshing_until INTEGER,
                 FOREIGN KEY(connection) REFERENCES connections(id)
             )""")
 
@@ -78,15 +107,20 @@ class TokenVault:
         with self._connect() as db:
             row = db.execute("""SELECT c.company,c.employee,c.binding_ref,c.generation,c.status,
                 t.ciphertext,t.client_id,t.issuer,t.subject,t.scopes,t.expires_at
-                FROM connections c JOIN credentials t ON t.connection=c.id WHERE c.id=?""",
+                FROM connections c JOIN credentials t ON t.connection=c.id
+                JOIN employee_bindings b ON b.binding_ref=c.binding_ref
+                WHERE c.id=? AND b.status='active' AND b.company=c.company
+                AND b.principal=c.employee AND b.issuer=t.issuer AND b.subject=t.subject""",
                 (task.connection_id,)).fetchone()
         if row is None or row[:5] != (
             task.company_id, task.employee_principal, task.identity_binding_ref,
             task.connection_generation, "active",
         ) or row[6] != self.client_id or row[7] not in {"accounts.google.com", "https://accounts.google.com"}:
             raise AdmissionDenied("employee credential is unavailable")
-        if not CONNECT_SCOPES.issubset(set(row[9].split())) or now + 30 >= row[10]:
-            raise AdmissionDenied("employee consent expired or incomplete")
+        if not CONNECT_SCOPES.issubset(set(row[9].split())):
+            raise AdmissionDenied("employee consent is incomplete")
+        if now + 30 >= row[10]:
+            return self._refresh(task, now=now)
         try:
             token = json.loads(self.fernet.decrypt(row[5]))
         except (InvalidToken, ValueError, UnicodeDecodeError) as error:
@@ -96,6 +130,73 @@ class TokenVault:
             raise AdmissionDenied("employee access token is unavailable")
         return TokenLease(access, row[10])
 
+    def _refresh(self, task: TaskDescriptor, *, now: int) -> TokenLease:
+        if not self.refresh_client_secret:
+            raise AdmissionDenied("employee access token expired; refresh is not configured")
+        nonce = secrets.token_urlsafe(24)
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("""SELECT c.company,c.employee,c.binding_ref,c.generation,c.status,
+                t.ciphertext,t.client_id,t.issuer,t.subject,t.scopes,t.refresh_nonce,t.refreshing_until
+                FROM connections c JOIN credentials t ON t.connection=c.id
+                JOIN employee_bindings b ON b.binding_ref=c.binding_ref
+                WHERE c.id=? AND b.status='active' AND b.company=c.company
+                AND b.principal=c.employee AND b.issuer=t.issuer AND b.subject=t.subject""",
+                (task.connection_id,)).fetchone()
+            if (row is None or row[:5] != (
+                    task.company_id, task.employee_principal, task.identity_binding_ref,
+                    task.connection_generation, "active",
+                ) or row[6] != self.client_id or not CONNECT_SCOPES.issubset(set(row[9].split()))
+                    or (row[10] is not None and row[11] is not None and row[11] > now)):
+                raise AdmissionDenied("employee refresh is unavailable")
+            changed = db.execute("""UPDATE credentials SET refresh_nonce=?,refreshing_until=?
+                WHERE connection=?""", (nonce, now + 30, task.connection_id)).rowcount
+            if changed != 1:
+                raise AdmissionDenied("employee refresh is unavailable")
+            db.commit()
+        try:
+            token = json.loads(self.fernet.decrypt(row[5]))
+            refresh_token = token.get("refresh_token")
+            if not isinstance(refresh_token, str) or not refresh_token:
+                raise AdmissionDenied("employee refresh token is unavailable")
+            result = _exchange_refresh(self.client_id, self.refresh_client_secret, refresh_token)
+            access = result.get("access_token")
+            expires_in = result.get("expires_in")
+            scopes = result.get("scope")
+            if (not isinstance(access, str) or not access or type(expires_in) is not int
+                    or not 1 <= expires_in <= 86_400 or (scopes is not None
+                    and (not isinstance(scopes, str) or not CONNECT_SCOPES.issubset(set(scopes.split()))))):
+                raise AdmissionDenied("Google refresh response is incomplete")
+            rotated = result.get("refresh_token", refresh_token)
+            if not isinstance(rotated, str) or not rotated:
+                raise AdmissionDenied("Google refresh token is invalid")
+            ciphertext = self.fernet.encrypt(json.dumps({
+                "access_token": access, "refresh_token": rotated,
+            }, separators=(",", ":")).encode("utf-8"))
+            with self._connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                changed = db.execute("""UPDATE credentials SET ciphertext=?,expires_at=?,
+                    refresh_nonce=NULL,refreshing_until=NULL
+                    WHERE connection=? AND refresh_nonce=? AND EXISTS (
+                      SELECT 1 FROM connections WHERE id=? AND company=? AND employee=?
+                      AND binding_ref=? AND generation=? AND status='active')
+                    AND EXISTS (SELECT 1 FROM employee_bindings WHERE binding_ref=?
+                      AND company=? AND principal=? AND issuer=? AND subject=? AND status='active')""", (
+                        ciphertext, now + expires_in, task.connection_id, nonce,
+                        task.connection_id, task.company_id, task.employee_principal,
+                        task.identity_binding_ref, task.connection_generation,
+                        task.identity_binding_ref, task.company_id, task.employee_principal,
+                        row[7], row[8],
+                    )).rowcount
+                db.commit()
+            if changed != 1:
+                raise AdmissionDenied("connection changed during refresh")
+            return TokenLease(access, now + expires_in)
+        finally:
+            with self._connect() as db:
+                db.execute("""UPDATE credentials SET refresh_nonce=NULL,refreshing_until=NULL
+                    WHERE connection=? AND refresh_nonce=?""", (task.connection_id, nonce))
+
     def disconnect(self, connection_id: str) -> int:
         # Admission closes release before token deletion. A crash in between
         # leaves ciphertext inaccessible to the lease path.
@@ -103,3 +204,22 @@ class TokenVault:
         with self._connect() as db:
             db.execute("DELETE FROM credentials WHERE connection=?", (connection_id,))
         return generation
+
+    def offboard(self, binding_ref: str) -> None:
+        """Disable an employee and all their task/credential generations atomically."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            changed = db.execute("""UPDATE employee_bindings SET status='disabled'
+                WHERE binding_ref=? AND status='active'""", (binding_ref,)).rowcount
+            if changed != 1:
+                raise AdmissionDenied("employee binding is unavailable")
+            connections = [row[0] for row in db.execute(
+                "SELECT id FROM connections WHERE binding_ref=?", (binding_ref,),
+            )]
+            for connection_id in connections:
+                db.execute("""UPDATE connections SET generation=generation+1,status='disconnected'
+                    WHERE id=? AND status='active'""", (connection_id,))
+                db.execute("""UPDATE tasks SET status='revoked',revision=revision+1
+                    WHERE connection=? AND status='active'""", (connection_id,))
+                db.execute("DELETE FROM credentials WHERE connection=?", (connection_id,))
+            db.commit()

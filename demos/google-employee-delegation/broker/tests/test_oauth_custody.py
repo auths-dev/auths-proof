@@ -4,11 +4,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from cryptography.fernet import Fernet
 
 from employee_read_demo.admission import AdmissionDenied, AdmissionStore
+from employee_read_demo.authority import VerifiedRead, native_body_digest
 from employee_read_demo.google_oauth import (
     CONNECT_SCOPES, GoogleOAuth, GoogleOAuthConfig, OAuthRejected,
     OAuthResult, OAuthStateStore,
@@ -62,6 +64,81 @@ class OAuthCustodyTests(unittest.TestCase):
         self.assertEqual(vault.lease(descriptor, now=self.now).access_token, "synthetic-access-token")
         self.assertNotIn(b"synthetic-access-token", self.path.read_bytes())
         self.assertEqual(vault.disconnect(connection_id), 2)
+        with self.assertRaises(AdmissionDenied):
+            vault.lease(descriptor, now=self.now)
+
+    def test_refresh_is_generation_checked_and_cannot_resurrect_disconnect(self) -> None:
+        vault = TokenVault(self.path, encryption_key=Fernet.generate_key(), client_id="client-id",
+                           refresh_client_secret="operator-secret")
+        result = OAuthResult("connect", "https://accounts.google.com", "google-subject-a",
+                             None, CONNECT_SCOPES, "old-access", "old-refresh", 1)
+        with vault._connect() as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
+                VALUES(?,?,?,?,?,?,?,?)""", (
+                    "binding-1", "atlas-studio", "person-a", result.issuer, result.subject,
+                    "employee-principal", b"synthetic-identity", "a" * 64,
+                ))
+        connection_id = vault.link(company="atlas-studio", employee_principal="employee-principal",
+                                   binding_ref="binding-1", identity=result, now=self.now)
+        descriptor = type(task(self.now))(**{**task(self.now).__dict__, "connection_id": connection_id})
+        def disconnect_then_return(client_id: str, client_secret: str, refresh_token: str) -> dict:
+            self.assertEqual(refresh_token, "old-refresh")
+            vault.disconnect(connection_id)
+            return {"access_token": "new-access", "expires_in": 3600}
+        with patch("employee_read_demo.token_store._exchange_refresh", disconnect_then_return):
+            with self.assertRaises(AdmissionDenied):
+                vault.lease(descriptor, now=self.now + 2)
+        with self.assertRaises(AdmissionDenied):
+            vault.lease(descriptor, now=self.now + 3)
+
+    def test_parallel_refresh_is_refused_and_success_retains_subject(self) -> None:
+        vault = TokenVault(self.path, encryption_key=Fernet.generate_key(), client_id="client-id",
+                           refresh_client_secret="operator-secret")
+        result = OAuthResult("connect", "https://accounts.google.com", "google-subject-a",
+                             None, CONNECT_SCOPES, "old-access", "old-refresh", 1)
+        with vault._connect() as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
+                VALUES(?,?,?,?,?,?,?,?)""", (
+                    "binding-1", "atlas-studio", "person-a", result.issuer, result.subject,
+                    "employee-principal", b"synthetic-identity", "a" * 64,
+                ))
+        connection_id = vault.link(company="atlas-studio", employee_principal="employee-principal",
+                                   binding_ref="binding-1", identity=result, now=self.now)
+        descriptor = type(task(self.now))(**{**task(self.now).__dict__, "connection_id": connection_id})
+        def exchange(client_id: str, client_secret: str, refresh_token: str) -> dict:
+            with self.assertRaises(AdmissionDenied):
+                vault.lease(descriptor, now=self.now + 2)
+            return {"access_token": "new-access", "expires_in": 3600}
+        with patch("employee_read_demo.token_store._exchange_refresh", exchange):
+            lease = vault.lease(descriptor, now=self.now + 2)
+        self.assertEqual(lease.access_token, "new-access")
+        self.assertEqual(vault.lease(descriptor, now=self.now + 3).access_token, "new-access")
+
+    def test_offboarding_closes_admission_and_token_custody(self) -> None:
+        vault = TokenVault(self.path, encryption_key=Fernet.generate_key(), client_id="client-id")
+        result = OAuthResult("connect", "https://accounts.google.com", "google-subject-a",
+                             None, CONNECT_SCOPES, "access", None, 3600)
+        with vault._connect() as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,identity_packet,bundle_digest)
+                VALUES(?,?,?,?,?,?,?,?)""", (
+                    "binding-1", "atlas-studio", "person-a", result.issuer, result.subject,
+                    "employee-principal", b"synthetic-identity", "a" * 64,
+                ))
+        connection_id = vault.link(company="atlas-studio", employee_principal="employee-principal",
+                                   binding_ref="binding-1", identity=result, now=self.now)
+        descriptor = type(task(self.now))(**{**task(self.now).__dict__, "connection_id": connection_id})
+        store = AdmissionStore(self.path)
+        store.enroll(descriptor)
+        command = descriptor.calls()[0]
+        challenge = store.issue_challenge(descriptor, native_body_digest(command), now=self.now)
+        reservation = store.claim(descriptor, VerifiedRead(command, b"x" * 32, "authorized"),
+                                  challenge, now=self.now)
+        vault.offboard("binding-1")
+        with self.assertRaises(AdmissionDenied):
+            store.release(reservation, b"content", now=self.now)
         with self.assertRaises(AdmissionDenied):
             vault.lease(descriptor, now=self.now)
 
