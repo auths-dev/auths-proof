@@ -153,6 +153,9 @@ key file and an approved model ID. The Nginx relay image is pinned in
 need to be built and pinned from installed artifacts before this becomes an
 installation kit. Compose validation and relay syntax checks alone do not
 prove the runtime isolation claim.
+The [synthetic isolation probe](evidence/isolation-synthetic-2026-10-24.md)
+records actual Docker network, mount and route observations with a mock broker.
+It does not substitute for the installed-image and live acceptance run.
 
 For live Google mode, add `compose.live.yaml`. It mounts only the broker's
 operator files and accepted export directory. The export directory must hold

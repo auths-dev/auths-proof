@@ -18,10 +18,11 @@ services:
   browser-relay:
     image: ${AP070_NGINX_IMAGE:-nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10}
     entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m", "/var/run:rw,nosuid,size=1m"]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m,uid=101,gid=101", "/var/run:rw,nosuid,size=1m,uid=101,gid=101"]
     volumes:
       - ./isolation/browser-relay.conf:/etc/nginx/nginx.conf:ro
     ports:
@@ -32,10 +33,11 @@ services:
   agent-relay:
     image: ${AP070_NGINX_IMAGE:-nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10}
     entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m", "/var/run:rw,nosuid,size=1m"]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m,uid=101,gid=101", "/var/run:rw,nosuid,size=1m,uid=101,gid=101"]
     volumes:
       - ./isolation/agent-relay.conf:/etc/nginx/nginx.conf:ro
     depends_on: [broker]
@@ -44,10 +46,11 @@ services:
   model-relay:
     image: ${AP070_NGINX_IMAGE:-nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10}
     entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m", "/var/run:rw,nosuid,size=1m"]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m,uid=101,gid=101", "/var/run:rw,nosuid,size=1m,uid=101,gid=101"]
     volumes:
       - ./isolation/model-relay.conf:/etc/nginx/nginx.conf:ro
     networks: [agent_private, model_egress]
