@@ -47,7 +47,7 @@ class GoogleOAuthConfig:
             raise ValueError("redirect URI has an invalid port") from error
         loopback = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"} and port is not None
         external = parsed.scheme == "https" and parsed.hostname and port in {None, 443}
-        if not (loopback or external) or parsed.username or parsed.password or not parsed.path.startswith("/"):
+        if not (loopback or external) or parsed.username or parsed.password or (external and not parsed.path.startswith("/")):
             raise ValueError("redirect URI must be registered loopback or HTTPS")
         if parsed.query or parsed.fragment:
             raise ValueError("redirect URI must be exact and parameter-free")

@@ -178,7 +178,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._check_host()
             parsed = urlsplit(self.path)
-            if parsed.path == "/":
+            if parsed.path == "/" and not any(key in parse_qs(parsed.query, keep_blank_values=True)
+                                               for key in ("state", "code", "error")):
                 body = files("employee_read_demo").joinpath("web", "index.html").read_bytes()
                 self.send_response(HTTPStatus.OK)
                 self._headers("text/html; charset=utf-8", len(body))
@@ -285,7 +286,7 @@ class Handler(BaseHTTPRequestHandler):
                                                      expected_subject=session.subject if kind == ["connect"] else None)
                 self._redirect(uri, cookie=session.cookie if created else None)
                 return
-            if parsed.path == "/api/v1/google/callback":
+            if parsed.path == "/":
                 if self.workbench.company is None or self.workbench.oauth is None:
                     raise OAuthRejected("Google is unavailable")
                 query = parse_qs(parsed.query)
@@ -649,7 +650,7 @@ def main() -> int:
     if args.oauth_config is not None:
         config = GoogleOAuthConfig(**json.loads(_private_file(args.oauth_config, 4096)))
         config.validate()
-        if config.redirect_uri != origin + "/api/v1/google/callback":
+        if config.redirect_uri != origin:
             parser.error("Google redirect URI must match this loopback workbench")
         oauth = GoogleOAuth(config, OAuthStateStore(args.state_db))
     vault = None

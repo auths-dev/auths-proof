@@ -82,7 +82,8 @@ Google credentials. Its state directory must be private (`0700`), and the
 database is created with private permissions. With a live accepted export,
 pass operator-reviewed `--connections`, `--access-expectations`, `--pins` and
 `--scenario-result` paths. The optional `--oauth-config` file contains
-`client_id`, `client_secret`, the exact loopback `redirect_uri`, and
+`client_id`, `client_secret`, the exact loopback origin `redirect_uri` (for
+example, `http://127.0.0.1:8765` for a Desktop OAuth client), and
 `hosted_domain`; `--fernet-key` points to a separate private encryption key
 file. Both operator secret files must have mode `0600`. The workbench binds
 only to `127.0.0.1`.
@@ -214,7 +215,7 @@ operator files and accepted export directory. The export directory must hold
 `connections.json`, `access-expectations.json` and a `scenarios/` directory
 with `scenario-result-*.json` files in the same order as the operator's digest
 pins. The broker's OAuth redirect remains exactly
-`http://127.0.0.1:8765/api/v1/google/callback`; its all-interface bind is
+`http://127.0.0.1:8765`; its all-interface bind is
 permitted only inside Docker behind the relays. The agent key and package
 remain in its own read-only mount, and its model key is mounted only into the
 agent. Model selection and summarization send selected synthetic document

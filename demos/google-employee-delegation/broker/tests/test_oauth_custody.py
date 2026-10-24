@@ -29,10 +29,14 @@ class OAuthCustodyTests(unittest.TestCase):
         self.path = Path(self.temp.name) / "broker.sqlite3"
         self.now = int(time.time())
 
+    def test_desktop_loopback_origin_is_valid_redirect(self) -> None:
+        GoogleOAuthConfig("client-id", "synthetic-secret", "http://127.0.0.1:8765",
+                          "example.invalid").validate()
+
     def test_state_is_one_use_and_connect_requires_bound_subject(self) -> None:
         states = OAuthStateStore(self.path)
         oauth = GoogleOAuth(GoogleOAuthConfig(
-            "client-id", "operator-secret", "http://127.0.0.1:8765/api/v1/google/callback",
+            "client-id", "operator-secret", "http://127.0.0.1:8765",
             "example.invalid",
         ), states)
         browser = BrowserSessionStore(self.path)
@@ -192,7 +196,7 @@ class OAuthCustodyTests(unittest.TestCase):
         config = Path(self.temp.name) / "oauth.json"
         config.write_text(json.dumps({
             "client_id": "client-id", "client_secret": "synthetic-secret",
-            "redirect_uri": "http://127.0.0.1:8765/api/v1/google/callback",
+            "redirect_uri": "http://127.0.0.1:8765",
             "hosted_domain": "example.invalid",
         }))
         config.chmod(0o600)

@@ -417,7 +417,7 @@ Proposed application routes:
 POST /operator/v1/companies/import          # Accept pinned demo_co contract
 GET  /api/v1/session
 GET  /api/v1/google/authorize
-GET  /api/v1/google/callback
+GET  /?state=...&code=... (Desktop OAuth loopback callback)
 POST /api/v1/employees/enroll               # Authenticated identity + key possession
 POST /api/v1/agents/register                # Distinct agent key possession
 POST /api/v1/tasks/prepare                  # Employee review descriptor/canonical calls

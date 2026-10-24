@@ -15,6 +15,7 @@ from employee_read_demo.agent_registry import AgentRegistry
 from employee_read_demo.browser_sessions import BrowserSessionStore
 from employee_read_demo.demo_co_contract import ImportStatus
 from employee_read_demo.enrollment import EnrollmentStore
+from employee_read_demo.google_oauth import OAuthResult
 from employee_read_demo.task_proposals import TaskProposalStore
 from employee_read_demo.task_approval import TaskApprovalStore
 from employee_read_demo.task_activation import TaskActivationStore
@@ -116,6 +117,32 @@ class WorkbenchTests(unittest.TestCase):
             self.assertEqual(response.getheader("Cache-Control"), "no-store")
             self.assertIn(marker, content)
             connection.close()
+
+    def test_desktop_oauth_callback_uses_root_and_rotates_session(self) -> None:
+        session = self.server.workbench.sessions.create()
+        self.server.workbench = replace(
+            self.server.workbench,
+            company=SimpleNamespace(bundle={"company_id": "atlas-studio"}),
+            oauth=SimpleNamespace(complete=lambda **kwargs: OAuthResult(
+                "login", "https://accounts.google.com", "google-subject-a",
+                "employee@example.invalid", frozenset(), "access-token", None, 3600,
+            )),
+        )
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
+        connection.request("GET", "/?state=state-a&code=code-a",
+                           headers={"Cookie": f"ap070_session={session.cookie}"})
+        response = connection.getresponse()
+        response.read()
+        self.assertEqual(response.status, 303)
+        self.assertEqual(response.getheader("Location"), "/")
+        rotated_cookie = response.getheader("Set-Cookie")
+        self.assertIsNotNone(rotated_cookie)
+        self.assertNotIn(session.cookie, rotated_cookie)
+        connection.close()
+
+        status, data, _ = self.request("GET", "/?state=&code=code-a")
+        self.assertEqual(status, 403)
+        self.assertEqual(data["error"], "Google callback is incomplete")
 
     def test_other_company_browser_cookie_cannot_authorize_this_workbench(self) -> None:
         sessions = self.server.workbench.sessions
