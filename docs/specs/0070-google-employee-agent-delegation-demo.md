@@ -172,6 +172,13 @@ person ID and compares the access matrix only with Google mappings. This
 local export validates but still reports Google `not_configured`; its local
 PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 
+> **Current export check (25 October 2026):** The consumer also validates
+> producer generation-0017 with operator-derived pins. Google still reports
+> `not_configured`, so this is a schema check, not a live baseline or an
+> accepted company import. The producer's live tenant and independent probes
+> remain its own work; this broker retains the pinned JSON consumer shim until
+> those artifacts exist.
+
 Spec 0001 names connection/evidence schemas but does not yet specify a byte-exact access-matrix export. Add a companion `demo-co/access-expectations/v1` artifact in `demo_co` before end-to-end implementation acceptance. It contains stable fixture person/resource IDs, provider identity/resource mappings, expected baseline outcomes, dataset version and independent probe evidence references.
 
 Pin both artifact schemas and example vectors in the Auths demo. Unknown/missing versions produce actionable errors, not guessed fields. Changes needed in `demo_co` belong in that repository; this spec records the cross-repository deliverable without introducing a mutable dependency.

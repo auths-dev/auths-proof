@@ -56,9 +56,10 @@ the public Auths API, and sends it to the broker's proof-only read route. The
 broker rebuilds the expected proof from its own stored grant chain before the
 native verifier admits a read and signs a receipt.
 It is **not yet a runnable live Google demo**. The workbench now shows
-employee-scoped task status, remaining limits and verified receipt JSON;
-the container isolation layout is present, but installed image builds and
-deployed isolation acceptance are still pending. The
+employee-scoped task status, remaining limits and verified receipt JSON.
+Hosted CI has built the installed broker and agent images and exercised their
+Compose route, network and mount boundaries; registry publication and live
+deployment acceptance remain pending. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
 schema and operator commitments; a local fixture still produces
@@ -171,13 +172,14 @@ The Compose file requires operator supplied **digest-pinned installed broker
 and agent images** (`AP070_BROKER_IMAGE`, `AP070_AGENT_IMAGE`), the host runtime
 UID/GID, a private broker state directory, a private agent directory, a model
 key file and an approved model ID. The Nginx relay image is pinned in
-`versions.lock.json`. The matching broker/agent images and Auths wheel still
-need to be built and pinned from installed artifacts before this becomes an
-installation kit. Compose validation and relay syntax checks alone do not
-prove the runtime isolation claim.
+`versions.lock.json`. CI has built matching broker/agent images from an
+installed branch wheel; publish and pin their registry manifests and the
+matching SDK artifact before this becomes an installation kit. Compose
+validation and relay syntax checks alone do not prove runtime isolation.
 The [synthetic isolation probe](evidence/isolation-synthetic-2026-10-24.md)
 records actual Docker network, mount and route observations with a mock broker.
-It does not substitute for the installed-image and live acceptance run.
+The installed-image probe below supersedes that synthetic result for built
+image isolation, while live acceptance remains unrun.
 Use the [live acceptance record template](evidence/live-acceptance-template.md)
 for the exact-revision operator walkthrough once the dedicated Google tenant
 and independent `demo_co` probes are ready. Every unrun case remains pending.
