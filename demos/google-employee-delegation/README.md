@@ -17,8 +17,12 @@ The Drive adapter also measures GETs started and response bytes read for the
 signed broker receipt. Each fixed Drive GET also gets a durable SQLite attempt
 row before dispatch, updated as bytes arrive. Those observed counts are
 distinct from the durable worst-case reservation; a crash can leave a
-`started` attempt with an unknown outcome. Recovery of abandoned in-flight
-slots is still pending.
+`started` attempt with an unknown outcome. The workbench holds an exclusive
+OS lock on its broker database. On restart, after acquiring that lock, it
+marks predecessor claims abandoned and reopens their in-flight slots without
+refunding call, attempt or byte charges. The started provider attempt remains
+an unknown outcome. Only the lock-holding workbench may dispatch reads from
+that database.
 Each Drive GET now has a 15-second total deadline, capped by task expiry.
 DNS waits use bounded daemon resolver slots; connect, TLS, headers and every
 body read use only the time remaining on that deadline. A timed-out read is

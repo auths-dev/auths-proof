@@ -303,9 +303,11 @@ Before dispatch, atomically claim the challenge and reserve call/byte capacity. 
 > and response body bytes actually read into signed receipts, including bytes
 > read before an oversize refusal. Each fixed Drive GET is also recorded in
 > SQLite before dispatch, with streamed bytes and an outcome; a row left
-> `started` after a crash remains an unknown outcome. Recovery of abandoned
-> in-flight slots and end-to-end crash evidence remain to be added before the
-> full claim is made.
+> `started` after a crash remains an unknown outcome. The workbench now holds
+> an exclusive OS lock on the broker database; a successor marks predecessor
+> claims abandoned and reopens in-flight slots without refunding charges.
+> A process-crash test checks this recovery. Live restart and provider evidence
+> remain required before the full claim is made.
 > Each fixed Drive GET is now bounded by a 15-second total deadline, capped
 > by task expiry, including a bounded DNS wait and remaining-time socket I/O.
 

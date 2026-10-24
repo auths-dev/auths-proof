@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 import multiprocessing
+import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -34,6 +35,17 @@ def _claim_in_process(path: str, descriptor: TaskDescriptor, value: bytes,
         outcomes.put("admitted")
     except AdmissionDenied:
         outcomes.put("denied")
+
+
+def _crash_during_provider_read(path: str, descriptor: TaskDescriptor,
+                                challenge: bytes, now: int) -> None:
+    store = AdmissionStore(Path(path))
+    runtime = store.open_runtime()
+    verified = VerifiedRead(descriptor.calls()[0], b"x" * 32, "authorized")
+    reservation = store.claim(descriptor, verified, challenge, now=now)
+    store.attempt_observer(reservation).begin(1, "metadata")
+    assert runtime.descriptor is not None
+    os._exit(0)
 
 
 class AdmissionTests(unittest.TestCase):
@@ -123,6 +135,41 @@ class AdmissionTests(unittest.TestCase):
         third = AdmissionStore(self.path).claim(wide, command, challenges[2], now=self.now)
         self.assertEqual(self.store.release(second, b"ok", now=self.now), b"ok")
         self.store.fail(third)
+
+    def test_crashed_broker_reopens_slot_without_refunding_charges(self) -> None:
+        command = self.verified()
+        digest = native_body_digest(command.command)
+        challenge = self.store.issue_challenge(self.task, digest, now=self.now)
+        context = multiprocessing.get_context("spawn")
+        worker = context.Process(target=_crash_during_provider_read,
+                                 args=(str(self.path), self.task, challenge, self.now))
+        worker.start()
+        worker.join(timeout=15)
+        if worker.is_alive():
+            worker.terminate()
+            worker.join(timeout=5)
+            self.fail("crashed broker worker did not exit")
+        self.assertEqual(worker.exitcode, 0)
+        reopened = AdmissionStore(self.path)
+        runtime = reopened.open_runtime()
+        self.addCleanup(runtime.close)
+        self.assertEqual(runtime.abandoned_claims, 1)
+        with reopened._connect() as db:
+            task_row = db.execute("""SELECT calls,attempts,charged_bytes,
+                reserved_provider_bytes,in_flight FROM tasks WHERE id=?""",
+                (self.task.task_id,)).fetchone()
+            old_state = db.execute("SELECT status FROM challenges WHERE value=?",
+                                   (challenge,)).fetchone()
+            attempt = db.execute("""SELECT status FROM provider_attempts
+                WHERE challenge=? AND ordinal=1""", (challenge,)).fetchone()
+        self.assertEqual(task_row, (1, 2, 1024, MAX_METADATA_BYTES + 1026, 0))
+        self.assertEqual(old_state, ("abandoned",))
+        self.assertEqual(attempt, ("started",))
+        fresh = reopened.issue_challenge(self.task, digest, now=self.now)
+        reservation = reopened.claim(self.task, command, fresh, now=self.now)
+        with self.assertRaises(AdmissionDenied):
+            reopened.claim(self.task, command, challenge, now=self.now)
+        self.assertEqual(reopened.release(reservation, b"ok", now=self.now), b"ok")
 
     def test_provider_attempts_survive_restart_with_unknown_outcome(self) -> None:
         command = self.verified()

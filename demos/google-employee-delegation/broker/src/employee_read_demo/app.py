@@ -18,7 +18,7 @@ from importlib.resources import files
 from urllib.parse import parse_qs, urlsplit
 
 from .browser_sessions import BrowserSession, BrowserSessionStore, SessionDenied
-from .admission import AdmissionDenied
+from .admission import AdmissionDenied, AdmissionStore
 from .agent_registry import AgentDenied, AgentRegistry
 from .demo_co_contract import (
     CompanyImport, OperatorPins, ImportStatus,
@@ -584,8 +584,19 @@ class Handler(BaseHTTPRequestHandler):
 
 class WorkbenchServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], workbench: Workbench) -> None:
-        super().__init__(address, Handler)
+        self.runtime = AdmissionStore(workbench.sessions.path).open_runtime()
+        try:
+            super().__init__(address, Handler)
+        except BaseException:
+            self.runtime.close()
+            raise
         self.workbench = workbench
+
+    def server_close(self) -> None:
+        try:
+            super().server_close()
+        finally:
+            self.runtime.close()
 
 
 def _private_file(path: Path, max_bytes: int) -> bytes:

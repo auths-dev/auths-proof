@@ -7,6 +7,7 @@ import sqlite3
 import time
 import os
 import stat
+import fcntl
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -26,6 +27,19 @@ class Reservation:
     task_revision: int
     connection_generation: int
     max_bytes: int
+
+
+@dataclass
+class BrokerRuntimeLease:
+    """Exclusive workbench ownership of one broker database until server close."""
+
+    descriptor: int | None
+    abandoned_claims: int
+
+    def close(self) -> None:
+        if self.descriptor is not None:
+            os.close(self.descriptor)
+            self.descriptor = None
 
 
 class AdmissionStore:
@@ -88,6 +102,34 @@ class AdmissionStore:
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA synchronous=FULL")
         return db
+
+    def open_runtime(self) -> BrokerRuntimeLease:
+        """Acquire one workbench lease and close claims from its dead predecessor.
+
+        The deployed broker must be the only process dispatching reads from
+        this database. The OS releases the advisory lock on process death.
+        Conservative call, attempt and byte charges are never refunded.
+        """
+        lock_path = self.path.with_name(self.path.name + ".runtime.lock")
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            if stat.S_IMODE(os.fstat(descriptor).st_mode) & 0o077:
+                raise PermissionError("broker runtime lock must be private")
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise AdmissionDenied("broker runtime already owns this state") from error
+            with self._connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                abandoned = db.execute("""SELECT COUNT(*) FROM challenges
+                    WHERE status='claimed'""").fetchone()[0]
+                db.execute("UPDATE challenges SET status='abandoned' WHERE status='claimed'")
+                db.execute("UPDATE tasks SET in_flight=0 WHERE in_flight>0")
+                db.commit()
+            return BrokerRuntimeLease(descriptor, abandoned)
+        except BaseException:
+            os.close(descriptor)
+            raise
 
     def enroll(self, task: TaskDescriptor) -> None:
         """Persist a task after the caller has verified its signed grant chain."""
