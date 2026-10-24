@@ -2041,3 +2041,22 @@ security_state = ["gateway-owned-attempts", "gateway-owned-credentials", "app-ow
 demo-conformance-fixture = ["demos/airtable-gateway/selftest.py#test_native_refusals_replay_race_and_loss"]
 runtime-enforcement-boundary = ["demos/airtable-gateway/selftest.py#test_application_isolation_and_native_audit"]
 receipt-producer-consumer = ["demos/airtable-gateway/tests/browser.py#test_packaged_workbench_and_unsigned_evidence"]
+
+[packages.auths-google-employee-delegation-demo]
+kind = "npm"
+layer = "demos"
+path = "demos/google-employee-delegation"
+core_apis = []
+protocol_versions = ["auths-proof/v1", "auths.mcp/2", "auths.google-read-task/v1", "demo-co/connections/v1", "demo-co/access-expectations/v1"]
+wire_objects = ["CanonicalAction", "ProofBundle", "TaskDescriptor", "ReadCommand"]
+fixture_suites = ["demos/google-employee-delegation/contracts/examples"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/2"]
+transports = []
+configuration_inputs = ["operator-pins", "trusted-context-template", "demo-co-export"]
+security_state = ["task-ledger", "challenge-ledger", "release-commitment"]
+
+[packages.auths-google-employee-delegation-demo.claims]
+demo-conformance-fixture = ["demos/google-employee-delegation/broker/tests/test_demo_co_contract.py#test_local_fixture_is_valid_but_never_imported_as_live"]
+runtime-enforcement-boundary = ["demos/google-employee-delegation/broker/tests/test_admission.py#test_replay_and_release_after_revocation_are_denied", "demos/google-employee-delegation/broker/tests/test_admission.py#test_two_connections_share_atomic_capacity"]

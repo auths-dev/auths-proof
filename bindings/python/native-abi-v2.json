@@ -87,6 +87,7 @@
     "identity_descriptor_signing_preimage_v1",
     "identity_signing_preimage_v1",
     "mcp_call",
+    "mcp_body_digest",
     "native_abi_version",
     "open_approval_request",
     "plan_child",

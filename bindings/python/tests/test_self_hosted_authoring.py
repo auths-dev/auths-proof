@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import hashlib
 from dataclasses import dataclass, replace
 
 import pytest
@@ -54,6 +55,13 @@ TOOL = ExactMcpTool(
     command_type=Change,
     fields={"value": StringField(min_length=1, max_length=32)},
 )
+
+
+def test_mcp_body_digest_is_the_native_exact_call_body() -> None:
+    call = _native.mcp_call("example-service", "set_value", b'{"value":"approved"}')
+    canonical = (b'{"arguments":{"value":"approved"},"name":"set_value",'
+                 b'"profile":"auths.mcp","profile_version":2,"service":"example-service"}')
+    assert bytes(_native.mcp_body_digest(call)) == hashlib.sha256(canonical).digest()
 
 
 class ExternalSigner:

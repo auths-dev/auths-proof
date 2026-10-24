@@ -1,0 +1,154 @@
+{
+  "access_expectations": {
+    "path": "access-expectations.json",
+    "schema_version": "demo-co/access-expectations/v1",
+    "sha256": "b68df43c1d23f6a392099ba3728239ace8dc83d5297694b3d3078f48516717d1"
+  },
+  "bundle_generation": 1,
+  "capabilities": {
+    "clickhouse": {
+      "evidence_ref": null,
+      "observed_at": null,
+      "provenance": "local_service",
+      "reason": "No live probe is attached to this export.",
+      "status": "prerequisite_missing"
+    },
+    "google_workspace": {
+      "evidence_ref": null,
+      "observed_at": null,
+      "provenance": "fixture",
+      "reason": "Dedicated tenant, employee OAuth and effective ACL probes are not configured.",
+      "status": "not_configured"
+    },
+    "oidc": {
+      "evidence_ref": null,
+      "observed_at": null,
+      "provenance": "local_service",
+      "reason": "No live probe is attached to this export.",
+      "status": "prerequisite_missing"
+    },
+    "postgres": {
+      "evidence_ref": null,
+      "observed_at": null,
+      "provenance": "local_service",
+      "reason": "No live probe is attached to this export.",
+      "status": "prerequisite_missing"
+    }
+  },
+  "company_id": "atlas-studio",
+  "credential_refs": {},
+  "dataset_version": "atlas-v1",
+  "definition_hash": "2f0cc70c256969b40fdae0c393b22479cbe62e8c3781f9d858136cb1c332e68c",
+  "generated_at": "2026-10-24T12:00:00Z",
+  "google_tenant": null,
+  "instance_id": "example-01",
+  "mode": "local",
+  "people": [
+    {
+      "issuer": null,
+      "logical_person_id": "person-morgan",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-jules",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-samira",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-avery",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-ren",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-drew",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    }
+  ],
+  "resources": [
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-employee-handbook",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Employee handbook"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-project-a-status",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Project A status"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-project-b-plan",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Project B plan"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-sales-playbook",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Sales playbook"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-finance-budget",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Finance budget"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-payroll",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Synthetic payroll"
+    }
+  ],
+  "schema_version": "demo-co/connections/v1",
+  "services": []
+}

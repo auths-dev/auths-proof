@@ -648,6 +648,15 @@ fn review_mcp_call<'py>(
     ))
 }
 
+/// Returns the exact native MCP body digest for a reviewed call. This is the
+/// value carried by `AllowedBodyDigests` in a child grant.
+#[pyfunction]
+fn mcp_body_digest<'py>(py: Python<'py>, call: PyRef<'_, PyMcpCall>) -> PyResult<Bound<'py, PyBytes>> {
+    let body = call.inner.canonical_bytes().map_err(value_error)?;
+    let digest = auths_codec::body_digest(&body);
+    Ok(PyBytes::new(py, digest.as_bytes()))
+}
+
 #[pyfunction]
 fn commit_mcp_plan(py: Python<'_>, calls: Vec<Py<PyMcpCall>>) -> PyResult<PyNativeMcpPlan> {
     if calls.is_empty() || calls.len() > 256 {
@@ -1337,6 +1346,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(validate_mcp_service, module)?)?;
     module.add_function(wrap_pyfunction!(mcp_call, module)?)?;
     module.add_function(wrap_pyfunction!(review_mcp_call, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_body_digest, module)?)?;
     module.add_function(wrap_pyfunction!(commit_mcp_plan, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_mcp_call_action, module)?)?;
     module.add_function(wrap_pyfunction!(authorize_mcp, module)?)?;

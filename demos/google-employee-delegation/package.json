@@ -1,0 +1,8 @@
+{
+  "name": "auths-google-employee-delegation-demo",
+  "version": "0.1.0",
+  "description": "Application-owned employee Google read delegation demo",
+  "scripts": {
+    "test": "PYTHONPATH=broker/src python3 -m unittest discover -s broker/tests -v"
+  }
+}
