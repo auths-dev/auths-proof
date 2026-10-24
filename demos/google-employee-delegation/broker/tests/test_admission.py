@@ -146,6 +146,24 @@ class AdmissionTests(unittest.TestCase):
         reopened.fail(reservation)
         self.assertEqual(reopened.attempts_for(reservation)[1][2], "started")
 
+    def test_receipt_write_failure_rolls_back_release_commitment(self) -> None:
+        command = self.verified()
+        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        reservation = self.store.claim(self.task, command, challenge, now=self.now)
+
+        def refused_write(_db):
+            raise RuntimeError("synthetic receipt storage failure")
+
+        with self.assertRaises(RuntimeError):
+            self.store.release(reservation, b"approved", now=self.now,
+                               on_commit=refused_write)
+        with self.store._connect() as db:
+            state = db.execute("SELECT status FROM challenges WHERE value=?", (challenge,)).fetchone()
+            in_flight = db.execute("SELECT in_flight FROM tasks WHERE id=?", (self.task.task_id,)).fetchone()
+        self.assertEqual(state, ("claimed",))
+        self.assertEqual(in_flight, (1,))
+        self.assertEqual(self.store.release(reservation, b"approved", now=self.now), b"approved")
+
     def test_outside_task_body_cannot_get_challenge(self) -> None:
         with self.assertRaises(AdmissionDenied):
             self.store.issue_challenge(self.task, b"0" * 32, now=self.now)

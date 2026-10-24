@@ -72,10 +72,11 @@ class ReceiptStore:
         db.execute("PRAGMA synchronous=FULL")
         return db
 
-    def record(self, *, task: TaskDescriptor, verified: VerifiedRead, challenge: bytes,
-               provider_stage: str, release_stage: str, content: bytes | None,
-               trace: ProviderTrace | None = None,
-               now: int | None = None) -> SignedReadReceipt:
+    def prepare(self, *, task: TaskDescriptor, verified: VerifiedRead, challenge: bytes,
+                provider_stage: str, release_stage: str, content: bytes | None,
+                trace: ProviderTrace | None = None,
+                now: int | None = None) -> SignedReadReceipt:
+        """Sign a receipt without publishing it before the release transaction."""
         if provider_stage not in {"not_contacted", "requested", "provider_denied", "content_fetched"}:
             raise ValueError("invalid provider stage")
         if release_stage not in {"not_committed", "committed"}:
@@ -121,10 +122,24 @@ class ReceiptStore:
             "signer_id": self.signer_id,
         }
         signature = _b64(self.signing_key.sign(PREFIX + canonical_json(payload)))
-        receipt = SignedReadReceipt(payload, signature)
+        return SignedReadReceipt(payload, signature)
+
+    def persist(self, db: sqlite3.Connection, task_id: str,
+                receipt: SignedReadReceipt) -> None:
+        """Insert under the caller's transaction, including a release gate."""
+        db.execute("INSERT INTO read_receipts(id,task_id,receipt,created_at) VALUES(?,?,?,?)",
+                   (receipt.payload["receipt_id"], task_id, receipt.json_bytes(),
+                    receipt.payload["observed_at"]))
+
+    def record(self, *, task: TaskDescriptor, verified: VerifiedRead, challenge: bytes,
+               provider_stage: str, release_stage: str, content: bytes | None,
+               trace: ProviderTrace | None = None,
+               now: int | None = None) -> SignedReadReceipt:
+        receipt = self.prepare(task=task, verified=verified, challenge=challenge,
+                               provider_stage=provider_stage, release_stage=release_stage,
+                               content=content, trace=trace, now=now)
         with self._connect() as db:
-            db.execute("INSERT INTO read_receipts(id,task_id,receipt,created_at) VALUES(?,?,?,?)",
-                       (receipt_id, task.task_id, receipt.json_bytes(), now))
+            self.persist(db, task.task_id, receipt)
         return receipt
 
     def load(self, receipt_id: str) -> SignedReadReceipt | None:

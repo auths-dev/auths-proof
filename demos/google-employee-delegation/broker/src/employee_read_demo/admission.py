@@ -9,6 +9,7 @@ import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .authority import VerifiedRead, native_body_digest
 from .contracts import MAX_ATTEMPTS, MAX_METADATA_BYTES, MAX_PROVIDER_RESPONSE_BYTES, TaskDescriptor
@@ -176,7 +177,8 @@ class AdmissionStore:
             db.commit()
             return Reservation(challenge, task.task_id, row[13], row[5], verified.command.max_bytes)
 
-    def release(self, reservation: Reservation, content: bytes, *, now: int | None = None) -> bytes:
+    def release(self, reservation: Reservation, content: bytes, *, now: int | None = None,
+                on_commit: Callable[[sqlite3.Connection], None] | None = None) -> bytes:
         """Serialize release commitment with revoke; return bytes only on success."""
         now = int(time.time()) if now is None else now
         if len(content) > reservation.max_bytes:
@@ -197,6 +199,8 @@ class AdmissionStore:
                 raise AdmissionDenied("release is unavailable")
             db.execute("UPDATE challenges SET status='released' WHERE value=?", (reservation.challenge,))
             db.execute("UPDATE tasks SET in_flight=in_flight-1 WHERE id=? AND in_flight>0", (reservation.task_id,))
+            if on_commit is not None:
+                on_commit(db)
             db.commit()
         return content
 

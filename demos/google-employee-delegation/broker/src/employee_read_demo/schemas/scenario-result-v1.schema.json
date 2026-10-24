@@ -18,6 +18,54 @@
     }
   },
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "expected": {
+                "const": "allow"
+              },
+              "observed": {
+                "const": "allow"
+              }
+            }
+          },
+          {
+            "properties": {
+              "expected": {
+                "const": "deny"
+              },
+              "observed": {
+                "const": "deny"
+              }
+            }
+          }
+        ],
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "expected",
+          "observed",
+          "evidence_refs"
+        ]
+      }
+    }
+  ],
   "properties": {
     "action": {
       "anyOf": [

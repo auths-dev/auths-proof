@@ -32,6 +32,8 @@ def execute_read(
     provider: GoogleReadPort,
     receipts: ReceiptStore | None = None,
 ) -> ReadOutcome:
+    if receipts is not None and not store.path.samefile(receipts.path):
+        raise ValueError("receipt and admission stores must share one database")
     evaluation_time = int(time.time())
     verified = verify_read(
         proof=proof, action=action, trusted_template=trusted_template,
@@ -39,6 +41,7 @@ def execute_read(
     )
     reservation = store.claim(task, verified, challenge, now=evaluation_time)
     provider_stage = "not_contacted"
+    receipt = None
     try:
         if not store.current(reservation):
             raise AdmissionDenied("task changed before provider dispatch")
@@ -51,7 +54,18 @@ def execute_read(
         if not isinstance(content, bytes):
             raise TypeError("provider returned non-byte content")
         provider_stage = "content_fetched"
-        released = store.release(reservation, content)
+        trace = getattr(provider, "trace", None)
+        if receipts is not None:
+            receipt = receipts.prepare(
+                task=task, verified=verified, challenge=challenge,
+                provider_stage="content_fetched", release_stage="committed",
+                content=content, trace=trace if isinstance(trace, ProviderTrace) else None,
+            )
+        released = store.release(
+            reservation, content,
+            on_commit=None if receipt is None else
+                lambda db: receipts.persist(db, task.task_id, receipt),
+        )
     except BaseException as error:
         if isinstance(error, GoogleDenied):
             provider_stage = "provider_denied"
@@ -62,11 +76,5 @@ def execute_read(
                             provider_stage=provider_stage, release_stage="not_committed",
                             content=None, trace=trace if isinstance(trace, ProviderTrace) else None)
         raise
-    trace = getattr(provider, "trace", None)
-    receipt = None if receipts is None else receipts.record(
-        task=task, verified=verified, challenge=challenge,
-        provider_stage="content_fetched", release_stage="committed", content=released,
-        trace=trace if isinstance(trace, ProviderTrace) else None,
-    )
     return ReadOutcome(released, verified.native_code, True,
                        None if receipt is None else receipt.payload["receipt_id"])

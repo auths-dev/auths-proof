@@ -155,7 +155,7 @@ Required bundle capabilities are `google_workspace` ready, real Drive resource m
 
 > **Agent scenario handoff (24 October 2026):** The producer's revised
 > `scenario-result-v1` schema (SHA-256
-> `d93a76cf5c69fe4bb8f733f04493e3905e2e53946a85dba98984d3e89670e805`)
+> `137f92fc1d347df09e047f79a6ea27b0accc6784cbcc3dc7dcb277bc275caba0`)
 > now has optional agent, delegation, delegated-resource, action and boundary
 > fields. This consumer pins that schema and its local non-ready example. The
 > fields describe independent scenario evidence; they never create an Auths
@@ -302,6 +302,11 @@ Before dispatch, atomically claim the challenge and reserve call/byte capacity. 
 > `started` after a crash remains an unknown outcome. Recovery of abandoned
 > in-flight slots and end-to-end crash evidence remain to be added before the
 > full claim is made.
+
+> The successful release state and signed read receipt are now inserted in
+> one SQLite transaction. A failed receipt write rolls back release commitment;
+> transport delivery remains `unknown` because an HTTP write is outside that
+> transaction.
 
 Keep the fetched body private to the broker until validation and the final release gate succeed. Record `proof_verified`, `admitted`, `provider_denied`/`content_fetched`, `release_committed` and actual transport delivery/unknown status separately. A successful provider fetch is not proof the agent received its contents.
 

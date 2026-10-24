@@ -113,6 +113,22 @@ class DemoCoContractTests(unittest.TestCase):
         observed = validate_scenario_result(scenario, self.pins)
         self.assertEqual(observed["status"], "not_configured")
 
+    def test_agent_scenario_cannot_pass_with_mismatched_outcome(self) -> None:
+        scenario = json.loads((EXAMPLES / "scenario-result-local-not-ready.json").read_text())
+        scenario.update({
+            "mode": "google", "status": "pass", "person_id": "person-morgan",
+            "agent_id": "agent-01", "delegation_id": "task-01",
+            "delegated_resources": ["project-a-brief"],
+            "resource_id": "project-a-brief", "action": "read",
+            "boundary": "provider-and-delegation", "expected": "allow",
+            "observed": "deny", "evidence_refs": ["independent-probe.json"],
+            "failure_reason": None,
+        })
+        path = self.root / "scenario-result.json"
+        path.write_text(json.dumps(scenario))
+        with self.assertRaises(ContractRejected):
+            validate_scenario_result(path, self.pins)
+
 
 if __name__ == "__main__":
     unittest.main()

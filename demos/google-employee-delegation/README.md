@@ -19,6 +19,9 @@ row before dispatch, updated as bytes arrive. Those observed counts are
 distinct from the durable worst-case reservation; a crash can leave a
 `started` attempt with an unknown outcome. Recovery of abandoned in-flight
 slots is still pending.
+Successful release commitment and the signed read receipt share one SQLite
+transaction. A failed receipt insert rolls back the release; actual HTTP
+delivery remains a separate unknown stage.
 A loopback HTTP workbench now provides server-held sessions, CSRF checks,
 Google login/consent callbacks and employee key-possession enrollment routes.
 It also registers a distinct agent key through its own one-use challenge,
