@@ -7,11 +7,13 @@ from dataclasses import asdict
 from pathlib import Path
 
 from auths import _native
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from employee_read_demo.admission import AdmissionDenied, AdmissionStore
 from employee_read_demo.authority import native_body_digest
 from employee_read_demo.contracts import canonical_json
 from employee_read_demo.read_executor import execute_read
+from employee_read_demo.receipts import ReceiptStore, SignedReadReceipt, verify_receipt
 from employee_read_demo.task_authority import plan_agent_grant
 from test_admission import task
 
@@ -121,13 +123,21 @@ class TaskAuthorityTests(unittest.TestCase):
                 assert requested == command
                 return b"approved text"
         provider = Provider()
+        receipts = ReceiptStore(Path(directory.name) / "broker.sqlite3", Ed25519PrivateKey.generate())
         outcome = execute_read(
             task=descriptor, challenge=challenge, proof=proof, action=canonical_action,
             trusted_template=_native.inspect_trusted_context(template), store=store,
-            provider=provider,
+            provider=provider, receipts=receipts,
         )
         self.assertEqual(outcome.content, b"approved text")
         self.assertEqual(provider.calls, 1)
+        receipt = receipts.load(outcome.receipt_id)
+        self.assertIsNotNone(receipt)
+        self.assertTrue(verify_receipt(receipt, receipts.public_key))
+        self.assertEqual(receipt.payload["release_stage"], "committed")
+        self.assertNotIn(b"approved text", receipt.json_bytes())
+        altered = SignedReadReceipt({**receipt.payload, "released_bytes": 1}, receipt.signature)
+        self.assertFalse(verify_receipt(altered, receipts.public_key))
         with self.assertRaises(AdmissionDenied):
             execute_read(
                 task=descriptor, challenge=challenge, proof=proof, action=canonical_action,
