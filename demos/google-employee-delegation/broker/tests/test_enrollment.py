@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from auths.identity.authoring import create_raw_key_ed25519_identity, prepare_identity_message
 from employee_read_demo.demo_co_contract import CompanyImport
-from employee_read_demo.enrollment import EnrollmentDenied, EnrollmentStore
+from employee_read_demo.enrollment import EnrollmentDenied, EnrollmentStore, VerifiedGoogleSubject
 from employee_read_demo.google_oauth import LOGIN_SCOPES, OAuthResult
 
 
@@ -40,6 +40,9 @@ class EnrollmentTests(unittest.TestCase):
         ))
         self.assertEqual(binding.principal, identity.identity_id)
         self.assertEqual(binding.subject, "subject-a")
+        self.assertEqual(self.store.lookup(self.company, VerifiedGoogleSubject(
+            "connect", binding.issuer, binding.subject,
+        )), binding)
         with self.assertRaises(EnrollmentDenied):
             asyncio.run(self.store.complete(self.company, self.login, nonce, identity.to_bytes(), signature))
 

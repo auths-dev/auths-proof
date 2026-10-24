@@ -16,6 +16,8 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 
+from .browser_sessions import BrowserSessionStore, SessionDenied
+
 ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 LOGIN_SCOPES = frozenset({"openid", "email"})
@@ -65,13 +67,12 @@ class OAuthResult:
 
 class OAuthStateStore:
     def __init__(self, path: Path) -> None:
-        from .admission import AdmissionStore
         self.path = path
-        AdmissionStore(path)
+        self.sessions = BrowserSessionStore(path)
         with self._connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS oauth_states (
                 state TEXT PRIMARY KEY, kind TEXT NOT NULL, nonce TEXT NOT NULL,
-                verifier TEXT NOT NULL, expected_subject TEXT,
+                verifier TEXT NOT NULL, expected_subject TEXT, session_hash TEXT NOT NULL,
                 expires INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0
             )""")
 
@@ -80,25 +81,38 @@ class OAuthStateStore:
         db.execute("PRAGMA busy_timeout=10000")
         return db
 
-    def create(self, kind: str, expected_subject: str | None, now: int) -> tuple[str, str, str]:
+    def create(self, kind: str, expected_subject: str | None, now: int,
+               browser_cookie: str) -> tuple[str, str, str]:
         if kind not in {"login", "connect"} or (kind == "connect" and not expected_subject):
             raise ValueError("invalid OAuth lifecycle transition")
+        session = self.sessions.get(browser_cookie, now=now)
+        if kind == "connect" and session.subject != expected_subject:
+            raise OAuthRejected("Drive consent must match signed-in employee")
         state = secrets.token_urlsafe(32)
         nonce = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(64)
         with self._connect() as db:
-            db.execute("INSERT INTO oauth_states(state,kind,nonce,verifier,expected_subject,expires) VALUES(?,?,?,?,?,?)",
-                       (state, kind, nonce, verifier, expected_subject, now + 300))
+            db.execute("""INSERT INTO oauth_states
+                (state,kind,nonce,verifier,expected_subject,session_hash,expires)
+                VALUES(?,?,?,?,?,?,?)""",
+                (state, kind, nonce, verifier, expected_subject,
+                 hashlib.sha256(browser_cookie.encode("ascii")).hexdigest(), now + 300))
         return state, nonce, verifier
 
-    def consume(self, state: str, now: int) -> tuple[str, str, str, str | None]:
+    def consume(self, state: str, now: int, browser_cookie: str) -> tuple[str, str, str, str | None]:
         if not state or len(state) > 128:
             raise OAuthRejected("OAuth state is invalid")
+        try:
+            self.sessions.get(browser_cookie, now=now)
+        except SessionDenied as error:
+            raise OAuthRejected("browser session is unavailable") from error
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT kind,nonce,verifier,expected_subject,expires,used FROM oauth_states WHERE state=?",
+            row = db.execute("""SELECT kind,nonce,verifier,expected_subject,expires,used,session_hash
+                FROM oauth_states WHERE state=?""",
                              (state,)).fetchone()
-            if row is None or row[5] or now >= row[4]:
+            if (row is None or row[5] or now >= row[4] or
+                    row[6] != hashlib.sha256(browser_cookie.encode("ascii")).hexdigest()):
                 raise OAuthRejected("OAuth state is unavailable")
             db.execute("UPDATE oauth_states SET used=1 WHERE state=?", (state,))
             db.commit()
@@ -111,8 +125,10 @@ class GoogleOAuth:
         self.config = config
         self.states = states
 
-    def begin(self, kind: str, *, expected_subject: str | None = None) -> tuple[str, str]:
-        state, nonce, verifier = self.states.create(kind, expected_subject, int(time.time()))
+    def begin(self, kind: str, *, browser_cookie: str,
+              expected_subject: str | None = None) -> tuple[str, str]:
+        state, nonce, verifier = self.states.create(kind, expected_subject,
+                                                    int(time.time()), browser_cookie)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
         scopes = LOGIN_SCOPES if kind == "login" else CONNECT_SCOPES
         parameters = {
@@ -130,9 +146,10 @@ class GoogleOAuth:
             parameters["access_type"] = "offline"
         return AUTHORIZE_URL + "?" + urlencode(parameters), state
 
-    def complete(self, *, state: str, code: str, now: int | None = None) -> OAuthResult:
+    def complete(self, *, state: str, code: str, browser_cookie: str,
+                 now: int | None = None) -> OAuthResult:
         now = int(time.time()) if now is None else now
-        kind, nonce, verifier, expected_subject = self.states.consume(state, now)
+        kind, nonce, verifier, expected_subject = self.states.consume(state, now, browser_cookie)
         if not code or len(code) > 4096:
             raise OAuthRejected("authorization code is invalid")
         session = requests.Session()

@@ -11,6 +11,7 @@ from cryptography.fernet import Fernet
 
 from employee_read_demo.admission import AdmissionDenied, AdmissionStore
 from employee_read_demo.authority import VerifiedRead, native_body_digest
+from employee_read_demo.browser_sessions import BrowserSessionStore, SessionDenied
 from employee_read_demo.google_oauth import (
     CONNECT_SCOPES, GoogleOAuth, GoogleOAuthConfig, OAuthRejected,
     OAuthResult, OAuthStateStore,
@@ -32,13 +33,39 @@ class OAuthCustodyTests(unittest.TestCase):
             "client-id", "operator-secret", "http://127.0.0.1:8765/api/v1/google/callback",
             "example.invalid",
         ), states)
-        uri, state = oauth.begin("connect", expected_subject="google-subject-a")
+        browser = BrowserSessionStore(self.path)
+        anonymous = browser.create()
+        session = browser.login(anonymous, issuer="https://accounts.google.com",
+                                subject="google-subject-a")
+        with self.assertRaises(OAuthRejected):
+            oauth.begin("connect", browser_cookie=session.cookie,
+                        expected_subject="google-subject-b")
+        uri, state = oauth.begin("connect", browser_cookie=session.cookie,
+                                expected_subject="google-subject-a")
         query = parse_qs(urlsplit(uri).query)
         self.assertEqual(query["code_challenge_method"], ["S256"])
         self.assertIn("https://www.googleapis.com/auth/drive.readonly", query["scope"][0])
-        self.assertEqual(states.consume(state, int(time.time()))[3], "google-subject-a")
         with self.assertRaises(OAuthRejected):
-            states.consume(state, int(time.time()))
+            states.consume(state, int(time.time()), browser.create().cookie)
+        self.assertEqual(states.consume(state, int(time.time()), session.cookie)[3],
+                         "google-subject-a")
+        with self.assertRaises(OAuthRejected):
+            states.consume(state, int(time.time()), session.cookie)
+
+    def test_browser_session_rotates_and_checks_csrf(self) -> None:
+        sessions = BrowserSessionStore(self.path)
+        original = sessions.create(now=self.now)
+        sessions.check_csrf(original, original.csrf)
+        with self.assertRaises(SessionDenied):
+            sessions.check_csrf(original, "wrong")
+        signed_in = sessions.login(original, issuer="https://accounts.google.com",
+                                   subject="google-subject-a", now=self.now)
+        self.assertNotEqual(original.cookie, signed_in.cookie)
+        self.assertNotEqual(original.csrf, signed_in.csrf)
+        with self.assertRaises(SessionDenied):
+            sessions.get(original.cookie, now=self.now)
+        self.assertEqual(sessions.get(signed_in.cookie, now=self.now).subject,
+                         "google-subject-a")
 
     def test_encrypted_token_is_bound_and_disconnect_closes_lease(self) -> None:
         vault = TokenVault(self.path, encryption_key=Fernet.generate_key(), client_id="client-id")

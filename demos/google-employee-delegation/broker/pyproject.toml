@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 auths-google-read-doctor = "employee_read_demo.doctor:main"
+auths-google-read-workbench = "employee_read_demo.app:main"
 
 [build-system]
 requires = ["setuptools>=75"]

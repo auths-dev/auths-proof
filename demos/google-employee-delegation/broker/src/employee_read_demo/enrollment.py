@@ -29,7 +29,14 @@ class EmployeeBinding:
     binding_ref: str
 
 
-def _person(company: CompanyImport, identity: OAuthResult) -> str:
+@dataclass(frozen=True)
+class VerifiedGoogleSubject:
+    kind: str
+    issuer: str
+    subject: str
+
+
+def _person(company: CompanyImport, identity: OAuthResult | VerifiedGoogleSubject) -> str:
     if not company.google_ready or not company.adoptable or identity.kind not in {"login", "connect"}:
         raise EnrollmentDenied("Google employee enrollment is unavailable")
     matching = [p for p in company.bundle["people"] if p["provider"] == "google"
@@ -66,7 +73,7 @@ class EnrollmentStore:
         db.execute("PRAGMA busy_timeout=10000")
         return db
 
-    def prepare(self, company: CompanyImport, identity: OAuthResult,
+    def prepare(self, company: CompanyImport, identity: OAuthResult | VerifiedGoogleSubject,
                 identity_packet: bytes, *, now: int | None = None) -> tuple[str, bytes]:
         person = _person(company, identity)
         if not 1 <= len(identity_packet) <= 4096:
@@ -93,7 +100,7 @@ class EnrollmentStore:
                  identity.subject, digest, company.bundle_sha256, expires))
         return nonce, message
 
-    async def complete(self, company: CompanyImport, identity: OAuthResult,
+    async def complete(self, company: CompanyImport, identity: OAuthResult | VerifiedGoogleSubject,
                        nonce: str, identity_packet: bytes, signature: bytes,
                        *, now: int | None = None) -> EmployeeBinding:
         person = _person(company, identity)
@@ -144,3 +151,17 @@ class EnrollmentStore:
                 ))
         return EmployeeBinding(company.bundle["company_id"], person, identity.issuer,
                                identity.subject, principal, binding_ref)
+
+    def lookup(self, company: CompanyImport, identity: VerifiedGoogleSubject) -> EmployeeBinding:
+        person = _person(company, identity)
+        with self._connect() as db:
+            row = db.execute("""SELECT principal,binding_ref FROM employee_bindings
+                WHERE company=? AND person=? AND issuer=? AND subject=?
+                AND bundle_digest=? AND status='active'""", (
+                    company.bundle["company_id"], person, identity.issuer,
+                    identity.subject, company.bundle_sha256,
+                )).fetchone()
+        if row is None:
+            raise EnrollmentDenied("employee is not enrolled for this company generation")
+        return EmployeeBinding(company.bundle["company_id"], person,
+                               identity.issuer, identity.subject, row[0], row[1])

@@ -10,8 +10,10 @@ and a strict `demo_co` artifact importer. OAuth state/validation, encrypted
 token custody, key-possession employee enrollment and a closed Drive GET
 adapter, generation-checked refresh and employee offboarding are present as
 broker components. A broker-signed private read receipt records release observations.
-It is **not a runnable Google demo**. There is no HTTP workbench, agent process,
-receipt page or packaged install yet. The
+A loopback HTTP workbench now provides server-held sessions, CSRF checks,
+Google login/consent callbacks and employee key-possession enrollment routes.
+It is **not a runnable Google demo**. The task controls, agent process,
+receipt page and packaged install are still absent. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned
 schema and operator commitments; a local fixture still produces
@@ -27,6 +29,20 @@ task and challenge state, not Google content or tokens.
 
 ```sh
 auths-google-read-doctor
+```
+
+The loopback workbench can show honest local prerequisite status without
+Google credentials. Its state directory must be private (`0700`), and the
+database is created with private permissions. With a live accepted export,
+pass operator-reviewed `--connections`, `--access-expectations`, `--pins` and
+`--scenario-result` paths. The optional `--oauth-config` file contains
+`client_id`, `client_secret`, the exact loopback `redirect_uri`, and
+`hosted_domain`; `--fernet-key` points to a separate private encryption key
+file. Both operator secret files must have mode `0600`. The workbench binds
+only to `127.0.0.1`.
+
+```sh
+auths-google-read-workbench --state-db /path/to/private/broker.sqlite3
 ```
 
 `demo_co` owns provider provisioning, fixture ACLs, baseline probes and
