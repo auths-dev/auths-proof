@@ -10,6 +10,8 @@ services:
       - /exports/connections.json
       - --access-expectations
       - /exports/access-expectations.json
+      - --google-verification
+      - /exports/google-verification.json
       - --scenario-dir
       - /exports/scenarios
       - --pins

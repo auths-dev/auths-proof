@@ -14,6 +14,10 @@
     "scenario_result": {
       "version": "demo-co/scenario-result/v1",
       "schema_sha256": "137f92fc1d347df09e047f79a6ea27b0accc6784cbcc3dc7dcb277bc275caba0"
+    },
+    "google_verification": {
+      "version": "demo-co/google-verification/v1",
+      "schema_sha256": "ec84f3ffcb28b72ff8b349b1ba79ac7ccfaa9f275567c54c26d2058e6bf68ee8"
     }
   },
   "google_live_status": "not_configured",

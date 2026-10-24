@@ -176,8 +176,11 @@ PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 > producer generation-0017 with operator-derived pins. Google still reports
 > `not_configured`, so this is a schema check, not a live baseline or an
 > accepted company import. The producer's live tenant and independent probes
-> remain its own work; this broker retains the pinned JSON consumer shim until
-> those artifacts exist.
+> remain its own work. The consumer now pins the producer's
+> `demo-co/google-verification/v1` schema (SHA-256
+> `ec84f3ffcb28b72ff8b349b1ba79ac7ccfaa9f275567c54c26d2058e6bf68ee8`)
+> and requires the operator-pinned verification artifact for a live import.
+> The JSON consumer shim remains until those producer artifacts exist.
 
 Spec 0001 names connection/evidence schemas but does not yet specify a byte-exact access-matrix export. Add a companion `demo-co/access-expectations/v1` artifact in `demo_co` before end-to-end implementation acceptance. It contains stable fixture person/resource IDs, provider identity/resource mappings, expected baseline outcomes, dataset version and independent probe evidence references.
 

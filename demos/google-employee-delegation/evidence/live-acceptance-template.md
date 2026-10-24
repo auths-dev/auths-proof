@@ -14,7 +14,8 @@ out of the copy.
 | Auths wheel filename and SHA-256 | Pending |
 | Broker, agent and relay registry manifest digests | Pending |
 | `demo_co` commit, export generation and bundle SHA-256 | Pending |
-| Connections, access-expectations and scenario-result schema SHA-256s | Pending |
+| Connections, access-expectations, Google-verification and scenario-result schema SHA-256s | Pending |
+| Operator-pinned `google-verification.json` digest and independent probes | Pending |
 | Dedicated Google customer ID and domain (redacted reference) | Pending |
 | OAuth client type, registered redirect and requested scopes | Pending |
 | Setup-only admin grants and employee consent evidence | Pending |

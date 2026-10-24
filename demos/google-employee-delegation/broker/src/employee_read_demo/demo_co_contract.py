@@ -36,6 +36,7 @@ class OperatorPins:
     google_customer_id: str
     google_primary_domain: str
     scenario_sha256: tuple[str, ...] = ()
+    google_verification_sha256: str | None = None
 
     def validate(self) -> None:
         if not all(HEX64.fullmatch(x) for x in (self.definition_hash, self.bundle_sha256, self.expectation_hash)):
@@ -46,6 +47,8 @@ class OperatorPins:
             raise ContractRejected("missing operator identity pin")
         if len(self.scenario_sha256) > 4096 or any(not HEX64.fullmatch(x) for x in self.scenario_sha256):
             raise ContractRejected("invalid scenario digest pin")
+        if self.google_verification_sha256 is not None and not HEX64.fullmatch(self.google_verification_sha256):
+            raise ContractRejected("invalid Google verification digest pin")
 
 
 @dataclass(frozen=True)
@@ -187,7 +190,8 @@ def validate_artifacts(connections: Path, access_expectations: Path, pins: Opera
 
 def inspect_exports(connections: Path | None, access_expectations: Path | None,
                     pins: OperatorPins | None = None,
-                    scenario_results: tuple[Path, ...] = ()) -> ImportStatus:
+                    scenario_results: tuple[Path, ...] = (),
+                    google_verification: Path | None = None) -> ImportStatus:
     if connections is None or access_expectations is None or pins is None:
         return ImportStatus("not_configured", "not_configured", "not_configured",
                             "demo_co exports and operator pins have not been supplied")
@@ -196,7 +200,8 @@ def inspect_exports(connections: Path | None, access_expectations: Path | None,
         if not accepted.google_ready:
             return accepted.status
         return import_company(connections, access_expectations, pins,
-                              scenario_results=scenario_results).status
+                              scenario_results=scenario_results,
+                              google_verification=google_verification).status
     except ContractPending as error:
         return ImportStatus("not_configured", "validated", "validated", str(error))
     except ContractRejected as error:
@@ -204,10 +209,14 @@ def inspect_exports(connections: Path | None, access_expectations: Path | None,
 
 
 def import_company(connections: Path, access_expectations: Path, pins: OperatorPins,
-                   *, scenario_results: tuple[Path, ...] = ()) -> CompanyImport:
+                   *, scenario_results: tuple[Path, ...] = (),
+                   google_verification: Path | None = None) -> CompanyImport:
     accepted = validate_artifacts(connections, access_expectations, pins)
     if not accepted.google_ready:
         raise ContractPending(accepted.status.reason)
+    if google_verification is None or pins.google_verification_sha256 is None:
+        raise ContractPending("pinned independent Google verification is missing")
+    validate_google_verification(google_verification, pins, accepted)
     if not scenario_results or len(scenario_results) != len(pins.scenario_sha256):
         raise ContractPending("pinned independent Google scenario results are missing")
     observed: set[tuple[str, str, str]] = set()
@@ -224,6 +233,52 @@ def import_company(connections: Path, access_expectations: Path, pins: OperatorP
     if not required or not required <= observed:
         raise ContractRejected("passing access cases lack pinned independent scenarios")
     return CompanyImport(accepted.bundle, accepted.expectations, accepted.bundle_sha256, True, True)
+
+
+def validate_google_verification(path: Path, pins: OperatorPins,
+                                 accepted: CompanyImport) -> dict[str, Any]:
+    """Pin producer-owned live Google probes before accepting its company export."""
+    pins.validate()
+    if pins.google_verification_sha256 is None:
+        raise ContractPending("Google verification digest pin is missing")
+    verification, raw = _load(path, "google-verification-v1.schema.json")
+    if hashlib.sha256(raw).hexdigest() != pins.google_verification_sha256:
+        raise ContractRejected("Google verification digest disagrees with operator pin")
+    if verification.get("schema_version") != "demo-co/google-verification/v1":
+        raise ContractRejected("unsupported Google verification version")
+    if (verification["company"], verification["instance"],
+            verification["definition_hash"], verification["customer_id"]) != (
+                pins.company_id, pins.instance_id, pins.definition_hash,
+                pins.google_customer_id):
+        raise ContractRejected("Google verification namespace mismatch")
+    if not verification["passed"] or not verification["people"] or not verification["probes"]:
+        raise ContractRejected("independent Google verification did not pass")
+    if len(verification["people"]) > 256 or len(verification["probes"]) > 4096:
+        raise ContractRejected("Google verification exceeds broker limits")
+    _unique(verification["people"], "person")
+    _unique(verification["probes"], "person", "resource")
+    people = {person["logical_person_id"]: person for person in accepted.bundle["people"]
+              if person["provider"] == "google"}
+    if {observed["person"] for observed in verification["people"]} != set(people):
+        raise ContractRejected("Google person observations are incomplete")
+    for observed in verification["people"]:
+        expected = people.get(observed["person"])
+        if (expected is None or observed["directory_id"] != expected["provider_directory_id"]
+                or observed["subject"] != expected["provider_subject"]):
+            raise ContractRejected("Google person observation disagrees with mapping")
+    observed_probes = {(probe["person"], probe["resource"]): probe
+                       for probe in verification["probes"]}
+    if any(not probe["passed"] or probe["observed"] != probe["expected"]
+           or probe["http_status"] is None for probe in verification["probes"]):
+        raise ContractRejected("Google verification contains a failed probe")
+    for case in accepted.expectations["cases"]:
+        if case["status"] != "pass":
+            continue
+        probe = observed_probes.get((case["logical_person_id"], case["logical_resource_id"]))
+        if (probe is None or not probe["passed"] or probe["expected"] != case["expected"]
+                or probe["observed"] != case["expected"] or probe["http_status"] is None):
+            raise ContractRejected("passing access case lacks matching Google probe")
+    return verification
 
 
 def validate_scenario_result(path: Path, pins: OperatorPins) -> dict[str, Any]:

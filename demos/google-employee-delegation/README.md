@@ -81,8 +81,10 @@ auths-google-read-doctor
 The loopback workbench can show honest local prerequisite status without
 Google credentials. Its state directory must be private (`0700`), and the
 database is created with private permissions. With a live accepted export,
-pass operator-reviewed `--connections`, `--access-expectations`, `--pins` and
-`--scenario-result` paths. The optional `--oauth-config` file contains
+pass operator-reviewed `--connections`, `--access-expectations`,
+`--google-verification`, `--pins` and `--scenario-result` paths. The pin file
+must include the exact `google_verification_sha256` for a live import. The
+optional `--oauth-config` file contains
 `client_id`, `client_secret`, the exact loopback origin `redirect_uri` (for
 example, `http://127.0.0.1:8765` for a Desktop OAuth client), and
 `hosted_domain`; `--fernet-key` points to a separate private encryption key
@@ -214,7 +216,8 @@ the registry digest fields remain empty.
 
 For live Google mode, add `compose.live.yaml`. It mounts only the broker's
 operator files and accepted export directory. The export directory must hold
-`connections.json`, `access-expectations.json` and a `scenarios/` directory
+`connections.json`, `access-expectations.json`, `google-verification.json`
+and a `scenarios/` directory
 with `scenario-result-*.json` files in the same order as the operator's digest
 pins. The broker's OAuth redirect remains exactly
 `http://127.0.0.1:8765`; its all-interface bind is

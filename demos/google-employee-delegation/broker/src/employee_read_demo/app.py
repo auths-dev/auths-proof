@@ -612,6 +612,7 @@ def main() -> int:
     parser.add_argument("--state-db", required=True, type=Path)
     parser.add_argument("--connections", type=Path)
     parser.add_argument("--access-expectations", type=Path)
+    parser.add_argument("--google-verification", type=Path)
     parser.add_argument("--scenario-result", type=Path, action="append", default=[])
     parser.add_argument("--scenario-dir", type=Path,
                         help="directory of operator-pinned scenario-result-*.json exports")
@@ -640,11 +641,12 @@ def main() -> int:
     if args.pins is not None:
         pins = OperatorPins(**json.loads(_private_file(args.pins, 4096)))
     status = inspect_exports(args.connections, args.access_expectations, pins,
-                             scenario_results)
+                             scenario_results, args.google_verification)
     company = None
     if status.google == "ready" and pins and args.connections and args.access_expectations:
         company = import_company(args.connections, args.access_expectations, pins,
-                                 scenario_results=scenario_results)
+                                 scenario_results=scenario_results,
+                                 google_verification=args.google_verification)
     sessions = BrowserSessionStore(args.state_db)
     oauth = None
     if args.oauth_config is not None:

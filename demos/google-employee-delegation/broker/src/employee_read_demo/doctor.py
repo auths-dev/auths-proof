@@ -13,6 +13,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Inspect AP-SPEC-070 prerequisites")
     parser.add_argument("--connections", type=Path)
     parser.add_argument("--access-expectations", type=Path)
+    parser.add_argument("--google-verification", type=Path)
     parser.add_argument("--scenario-result", type=Path, action="append", default=[])
     parser.add_argument("--pins", type=Path, help="operator-reviewed JSON pin set")
     args = parser.parse_args()
@@ -25,7 +26,7 @@ def main() -> int:
         except (OSError, ValueError, TypeError) as error:
             parser.error(f"invalid pin file: {error}")
     status = inspect_exports(args.connections, args.access_expectations, pins,
-                             tuple(args.scenario_result))
+                             tuple(args.scenario_result), args.google_verification)
     print(json.dumps({"contract": "auths.google-read-doctor/v1", **status.__dict__}, sort_keys=True))
     return 0 if status.google == "ready" else 2
 

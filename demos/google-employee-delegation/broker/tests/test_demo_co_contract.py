@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 
 from employee_read_demo.demo_co_contract import (
-    ContractPending, ContractRejected, OperatorPins, import_company,
-    validate_artifacts, validate_scenario_result,
+    CompanyImport, ContractPending, ContractRejected, OperatorPins, import_company,
+    validate_artifacts, validate_google_verification, validate_scenario_result,
 )
 
 
@@ -23,6 +23,7 @@ class DemoCoContractTests(unittest.TestCase):
             ("connections", "connections-v1.schema.json"),
             ("access_expectations", "access-expectations-v1.schema.json"),
             ("scenario_result", "scenario-result-v1.schema.json"),
+            ("google_verification", "google-verification-v1.schema.json"),
         ):
             expected = lock["demo_co_contracts"][name]["schema_sha256"]
             self.assertEqual(hashlib.sha256((SCHEMAS / filename).read_bytes()).hexdigest(), expected)
@@ -128,6 +129,66 @@ class DemoCoContractTests(unittest.TestCase):
         path.write_text(json.dumps(scenario))
         with self.assertRaises(ContractRejected):
             validate_scenario_result(path, self.pins)
+
+    def test_google_verification_requires_pinned_matching_independent_probes(self) -> None:
+        accepted = CompanyImport(
+            {"people": [
+                {"provider": "google", "logical_person_id": "person-a",
+                 "provider_directory_id": "directory-a", "provider_subject": "subject-a"},
+                {"provider": "google", "logical_person_id": "person-b",
+                 "provider_directory_id": "directory-b", "provider_subject": "subject-b"},
+            ]},
+            {"cases": [
+                {"logical_person_id": "person-a", "logical_resource_id": "document-a",
+                 "status": "pass", "expected": "allow"},
+                {"logical_person_id": "person-b", "logical_resource_id": "document-a",
+                 "status": "pass", "expected": "deny"},
+            ]},
+            "bundle-digest", True,
+        )
+        verification = {
+            "schema_version": "demo-co/google-verification/v1",
+            "company": self.pins.company_id, "instance": self.pins.instance_id,
+            "definition_hash": self.pins.definition_hash,
+            "customer_id": self.pins.google_customer_id,
+            "checked_at": "2026-10-25T00:00:00Z", "passed": True,
+            "people": [
+                {"person": "person-a", "directory_id": "directory-a",
+                 "subject": "subject-a", "suspended": False},
+                {"person": "person-b", "directory_id": "directory-b",
+                 "subject": "subject-b", "suspended": False},
+            ],
+            "probes": [
+                {"person": "person-a", "resource": "document-a", "expected": "allow",
+                 "observed": "allow", "passed": True, "http_status": 200,
+                 "content_sha256": "a" * 64},
+                {"person": "person-b", "resource": "document-a", "expected": "deny",
+                 "observed": "deny", "passed": True, "http_status": 404},
+            ],
+        }
+        path = self.root / "google-verification.json"
+
+        def pinned() -> OperatorPins:
+            path.write_text(json.dumps(verification))
+            return OperatorPins(**{**self.pins.__dict__,
+                                   "google_verification_sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+
+        pins = pinned()
+        self.assertTrue(validate_google_verification(path, pins, accepted)["passed"])
+        verification["probes"][1]["observed"] = "allow"
+        path.write_text(json.dumps(verification))
+        with self.assertRaises(ContractRejected):
+            validate_google_verification(path, pins, accepted)
+        with self.assertRaises(ContractRejected):
+            validate_google_verification(path, pinned(), accepted)
+        verification["probes"][1]["observed"] = "deny"
+        verification["people"][1]["subject"] = "wrong-subject"
+        with self.assertRaises(ContractRejected):
+            validate_google_verification(path, pinned(), accepted)
+        verification["people"][1]["subject"] = "subject-b"
+        verification["probes"].pop()
+        with self.assertRaises(ContractRejected):
+            validate_google_verification(path, pinned(), accepted)
 
 
 if __name__ == "__main__":
