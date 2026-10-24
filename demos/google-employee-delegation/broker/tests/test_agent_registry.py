@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from auths.identity.authoring import create_raw_key_ed25519_identity, prepare_identity_message
 
 from employee_read_demo.agent_registry import AgentDenied, AgentRegistry
+from employee_read_demo.authority_identity import authority_for_identity_packet
 from employee_read_demo.enrollment import EmployeeBinding
 
 
@@ -27,7 +28,7 @@ class AgentRegistryTests(unittest.TestCase):
         employee = identity_for(Ed25519PrivateKey.generate())
         self.employee = EmployeeBinding(
             "atlas-studio", "person-morgan", "https://accounts.google.com",
-            "google-subject-a", employee.identity_id, "binding-a",
+            "google-subject-a", authority_for_identity_packet(employee.to_bytes())[0], "binding-a",
         )
         with self.registry._connect() as db:
             db.execute("""INSERT INTO employee_bindings
@@ -43,7 +44,7 @@ class AgentRegistryTests(unittest.TestCase):
         key = Ed25519PrivateKey.generate()
         identity = identity_for(key)
         nonce, message, principal = self.registry.prepare(self.employee, identity.to_bytes())
-        self.assertEqual(principal, identity.identity_id)
+        self.assertEqual(principal, authority_for_identity_packet(identity.to_bytes())[0])
         signature = key.sign(prepare_identity_message(identity, message=message).signing_preimage)
         bound = asyncio.run(self.registry.complete(
             self.employee, nonce, identity.to_bytes(), signature,
@@ -58,7 +59,7 @@ class AgentRegistryTests(unittest.TestCase):
     def test_employee_key_cannot_be_registered_as_agent(self) -> None:
         key = Ed25519PrivateKey.generate()
         identity = identity_for(key)
-        same = EmployeeBinding(**{**self.employee.__dict__, "principal": identity.identity_id})
+        same = EmployeeBinding(**{**self.employee.__dict__, "principal": authority_for_identity_packet(identity.to_bytes())[0]})
         with self.assertRaises(AgentDenied):
             self.registry.prepare(same, identity.to_bytes())
 

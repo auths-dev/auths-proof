@@ -134,7 +134,8 @@ class EnrollmentStore:
             raise EnrollmentDenied("Auths key possession could not be verified")
         if int(time.time()) >= row[6]:
             raise EnrollmentDenied("enrollment challenge expired")
-        principal = result.value.identity.identity_id
+        from .authority_identity import authority_for_identity_packet
+        principal, _ = authority_for_identity_packet(identity_packet)
         binding_ref = commitment("auths.employee-binding/v1", {
             "company_id": company.bundle["company_id"], "person": person,
             "issuer": identity.issuer, "subject": identity.subject,

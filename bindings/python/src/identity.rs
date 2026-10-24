@@ -3,6 +3,7 @@ use auths_identity::{
     VerificationMaterial, VerificationRelationship,
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
+use auths_raw_key::{RawKeyDescriptor, RawKeyType};
 use auths_signature_ed25519::Ed25519Verifier;
 use pyo3::{prelude::*, types::PyBytes};
 
@@ -203,6 +204,16 @@ fn raw_key_identity_v2<'py>(
     Ok(PyBytes::new(py, &packet))
 }
 
+/// Derive the target-V1 authority principal and evidence for an Ed25519 key.
+/// The caller can use a V2 identity proof of possession for this same public key.
+#[pyfunction]
+fn raw_key_ed25519_authority_v1(public_key: &[u8]) -> PyResult<(String, Vec<u8>)> {
+    let descriptor = RawKeyDescriptor::new(RawKeyType::Ed25519, public_key.to_vec())
+        .map_err(|_| crate::errors::malformed_input("invalid Ed25519 public key"))?;
+    let principal = descriptor.principal().map_err(value_error)?.to_string();
+    Ok((principal, descriptor.encode()))
+}
+
 #[pyfunction]
 fn validate_raw_key_identity_v2(
     method_id: &str,
@@ -309,6 +320,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     module.add_function(wrap_pyfunction!(encode_public_identity_v1, module)?)?;
     module.add_function(wrap_pyfunction!(raw_key_identity_v2, module)?)?;
+    module.add_function(wrap_pyfunction!(raw_key_ed25519_authority_v1, module)?)?;
     module.add_function(wrap_pyfunction!(validate_raw_key_identity_v2, module)?)?;
     module.add_function(wrap_pyfunction!(identity_signing_preimage_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_ed25519_preimage_v1, module)?)?;

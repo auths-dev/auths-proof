@@ -14,6 +14,10 @@ A loopback HTTP workbench now provides server-held sessions, CSRF checks,
 Google login/consent callbacks and employee key-possession enrollment routes.
 It also registers a distinct agent key through its own one-use challenge,
 bound to the active employee enrollment.
+Identity possession uses the SDK's `raw-key-v2` packet. The same verified
+Ed25519 public key is projected through the native SDK into the target-V1
+principal and evidence used by the grant verifier. The employee and agent
+keys remain distinct.
 The employee can prepare a finite task from the imported Google catalog;
 the broker checks each selected file's metadata under that employee's
 connection before persisting a review-only descriptor. Preparation does not

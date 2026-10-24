@@ -26,13 +26,12 @@ class AgentBinding:
 
 
 def _principal(packet: bytes) -> str:
-    from auths.identity import IdentityOk, raw_key_ed25519
-    decoded = raw_key_ed25519().decode(packet)
-    if not isinstance(decoded, IdentityOk):
+    from .authority_identity import authority_for_identity_packet
+    try:
+        principal, _ = authority_for_identity_packet(packet)
+    except ValueError as exc:
         raise AgentDenied("agent identity packet is invalid")
-    if decoded.value.method_id != "raw-key-v2":
-        raise AgentDenied("agent identity method is unsupported")
-    return decoded.value.identity_id
+    return principal
 
 
 class AgentRegistry:
@@ -134,7 +133,7 @@ class AgentRegistry:
         })
         from auths.identity import IdentityOk, authenticate_message
         verified = await authenticate_message(identity_packet, message=message, signature=signature)
-        if not isinstance(verified, IdentityOk) or verified.value.identity.identity_id != principal:
+        if not isinstance(verified, IdentityOk) or verified.value.identity.to_bytes() != identity_packet:
             raise AgentDenied("agent key possession could not be verified")
         if int(time.time()) >= row[5]:
             raise AgentDenied("agent registration challenge expired")
