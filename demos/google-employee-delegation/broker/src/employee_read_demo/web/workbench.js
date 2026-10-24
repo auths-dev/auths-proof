@@ -281,6 +281,10 @@ async function loadAgentResult() {
       native: payload.native_code, provider: payload.provider_stage,
       release: payload.release_stage, delivery: payload.transport_delivery });
   }
+  const citations = Array.from(result.summary.matchAll(/\[([^\[\]\n]{1,256})\]/g), match => match[1]);
+  if (!citations.length || citations.some(fileId => !seen.has(fileId))) {
+    throw new Error("Agent summary cites a source without a verified read");
+  }
   byId("task-id").value = result.task_id;
   byId("task-status-json").textContent = JSON.stringify(task, null, 2);
   byId("result-summary").textContent = result.summary;

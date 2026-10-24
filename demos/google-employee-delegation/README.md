@@ -177,6 +177,9 @@ prove the runtime isolation claim.
 The [synthetic isolation probe](evidence/isolation-synthetic-2026-10-24.md)
 records actual Docker network, mount and route observations with a mock broker.
 It does not substitute for the installed-image and live acceptance run.
+Use the [live acceptance record template](evidence/live-acceptance-template.md)
+for the exact-revision operator walkthrough once the dedicated Google tenant
+and independent `demo_co` probes are ready. Every unrun case remains pending.
 
 `Dockerfile` is the image recipe. The image builder must place exactly one
 Linux-compatible `auths-0.0.1rc1-*.whl` in `artifacts/` and supply its reviewed

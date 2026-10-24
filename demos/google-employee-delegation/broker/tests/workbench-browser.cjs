@@ -73,16 +73,23 @@ async function main() {
   byId("activation-call").value = "1";
   await vm.runInContext("prepareActivation()", context);
   assert.equal(posts[1].call_index, 1);
-  const agentResult = JSON.stringify({ task_id: "task-1", summary: "Synthetic summary",
+  const agentResult = JSON.stringify({ task_id: "task-1", summary: "Synthetic summary [file-A]",
     source_ids: ["file-A"], receipt_ids: { "file-A": "receipt-A" } });
   byId("result-file").files = [{ size: agentResult.length, text: async () => agentResult }];
   await vm.runInContext("loadAgentResult()", context);
   assert.equal(byId("result-view").hidden, false);
-  assert.equal(byId("result-summary").textContent, "Synthetic summary");
+  assert.equal(byId("result-summary").textContent, "Synthetic summary [file-A]");
   assert.equal(byId("result-sources").options.length, 1);
   receiptResourceRef = "wrong-resource";
   await assert.rejects(vm.runInContext("loadAgentResult()", context),
     /Cited receipt does not prove/);
+  assert.equal(byId("result-view").hidden, true);
+  receiptResourceRef = nodeCrypto.createHash("sha256").update("file-A").digest("hex");
+  const wrongCitation = agentResult.replace("[file-A]", "[file-B]");
+  byId("result-file").files = [{ size: wrongCitation.length,
+    text: async () => wrongCitation }];
+  await assert.rejects(vm.runInContext("loadAgentResult()", context),
+    /source without a verified read/);
   assert.equal(byId("result-view").hidden, true);
   console.log("browser activation selects an exact approved call");
 }
