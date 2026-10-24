@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from employee_read_demo.app import Workbench, WorkbenchServer
+from employee_read_demo.agent_registry import AgentRegistry
 from employee_read_demo.browser_sessions import BrowserSessionStore
 from employee_read_demo.demo_co_contract import ImportStatus
 from employee_read_demo.enrollment import EnrollmentStore
@@ -19,13 +20,15 @@ class WorkbenchTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         path = Path(self.temp.name) / "broker.sqlite3"
         state = Workbench(
-            BrowserSessionStore(path), None, EnrollmentStore(path), None, None,
+            BrowserSessionStore(path), None, EnrollmentStore(path), AgentRegistry(path),
+            None, None,
             ImportStatus("not_configured", "validated", "validated", "Google is absent"),
             "http://127.0.0.1:0",
         )
         self.server = WorkbenchServer(("127.0.0.1", 0), state)
         self.server.workbench = Workbench(
-            state.sessions, None, state.enrollment, None, None, state.status,
+            state.sessions, None, state.enrollment, state.agents,
+            None, None, state.status,
             f"http://127.0.0.1:{self.server.server_port}",
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)

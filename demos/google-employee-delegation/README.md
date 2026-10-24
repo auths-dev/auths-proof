@@ -12,6 +12,8 @@ adapter, generation-checked refresh and employee offboarding are present as
 broker components. A broker-signed private read receipt records release observations.
 A loopback HTTP workbench now provides server-held sessions, CSRF checks,
 Google login/consent callbacks and employee key-possession enrollment routes.
+It also registers a distinct agent key through its own one-use challenge,
+bound to the active employee enrollment.
 It is **not a runnable Google demo**. The task controls, agent process,
 receipt page and packaged install are still absent. The
 `demo_co` has published provisional versioned schemas and local-mode examples,

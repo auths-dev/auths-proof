@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from .browser_sessions import BrowserSession, BrowserSessionStore, SessionDenied
 from .admission import AdmissionDenied
+from .agent_registry import AgentDenied, AgentRegistry
 from .demo_co_contract import (
     CompanyImport, OperatorPins, ImportStatus,
     import_company, inspect_exports,
@@ -52,6 +53,7 @@ class Workbench:
     sessions: BrowserSessionStore
     oauth: GoogleOAuth | None
     enrollment: EnrollmentStore
+    agents: AgentRegistry
     vault: TokenVault | None
     company: CompanyImport | None
     status: ImportStatus
@@ -278,8 +280,32 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"principal": binding.principal,
                                            "binding_ref": binding.binding_ref})
                 return
+            if path in {"/api/v1/agents/register/prepare", "/api/v1/agents/register"}:
+                if self.workbench.company is None or not session.issuer or not session.subject:
+                    raise AgentDenied("agent registration is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                packet = _b64(body.get("identity_packet", ""), max_bytes=4096)
+                if path.endswith("/prepare"):
+                    nonce, message, principal = self.workbench.agents.prepare(employee, packet)
+                    self._json(HTTPStatus.OK, {
+                        "nonce": nonce, "agent_principal": principal,
+                        "message": base64.urlsafe_b64encode(message).decode("ascii"),
+                    })
+                    return
+                nonce = body.get("nonce")
+                if not isinstance(nonce, str) or len(nonce) > 128:
+                    raise ValueError("agent registration nonce is invalid")
+                signature = _b64(body.get("signature", ""), max_bytes=256)
+                agent = asyncio.run(self.workbench.agents.complete(
+                    employee, nonce, packet, signature,
+                ))
+                self._json(HTTPStatus.OK, {"agent_principal": agent.agent_principal})
+                return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-        except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied) as error:
+        except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied, AgentDenied) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
 
 
@@ -334,7 +360,8 @@ def main() -> int:
         vault = TokenVault(args.state_db, encryption_key=_private_file(args.fernet_key, 128).strip(),
                            client_id=oauth.config.client_id,
                            refresh_client_secret=oauth.config.client_secret)
-    workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db), vault,
+    workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
+                          AgentRegistry(args.state_db), vault,
                           company, status, origin)
     with WorkbenchServer(("127.0.0.1", args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)
