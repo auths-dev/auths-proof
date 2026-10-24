@@ -344,16 +344,19 @@ Run broker and agent under distinct container/OS security boundaries. Only the b
 > a Compose layout with separate browser, agent and model relays. The agent
 > joins only an internal network containing its two relays; the agent relay
 > exposes only challenge and proof-call POST routes. The broker state and
-> operator files have no agent mount. Installed broker/agent images, runtime
-> filesystem/API/network inspection and live provider acceptance are still
-> required before this is an isolation claim. A synthetic Docker probe recorded
+> operator files have no agent mount. A registry-pinned live deployment and
+> provider acceptance are still required for the full isolation claim. A
+> synthetic Docker probe recorded
 > actual agent network, mount and relay-route behavior in
 > `demos/google-employee-delegation/evidence/isolation-synthetic-2026-10-24.md`;
 > it used a mock broker and does not qualify the installed live deployment.
 > An image recipe now verifies an input Linux SDK wheel digest and installs
 > broker/agent wheels into separate runtime images. Hosted CI built both roles
 > from a matching branch wheel and checked entry points and source isolation.
-> Registry image digests and an installed Compose acceptance run are pending.
+> A later hosted installed-container probe exercised the Compose route,
+> network and mount boundaries; its evidence is in
+> `demos/google-employee-delegation/evidence/isolation-installed-ci-2026-10-24.md`.
+> Registry image digests and the live Google acceptance run remain pending.
 
 Do not call a same-user process split credential isolation if the agent can read its sibling's files/process state or invoke its operator API. Acceptance must exercise the actual filesystem, API and network restrictions. Public broker endpoints still require complete proof/task checks; their reachability alone provides no authority.
 

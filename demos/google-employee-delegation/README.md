@@ -179,9 +179,11 @@ those digest references. The developer image build downloads third-party
 dependency wheels; pin and review its resulting image digest before handing
 it to an operator. [Hosted CI run 40138190022](https://github.com/auths-dev/auths-proof/actions/runs/40138190022)
 built both roles from a matching branch-built Linux SDK wheel and verified
-their installed entry points and absent source trees. CI did not publish
-registry images or run the installed Compose deployment, so the registry
-digest fields remain empty.
+their installed entry points and absent source trees. A later
+[installed-container CI probe](evidence/isolation-installed-ci-2026-10-24.md)
+also exercised the Compose route, network and mount boundaries with those
+images. CI did not publish registry images or run a live Google scenario, so
+the registry digest fields remain empty.
 
 For live Google mode, add `compose.live.yaml`. It mounts only the broker's
 operator files and accepted export directory. The export directory must hold
