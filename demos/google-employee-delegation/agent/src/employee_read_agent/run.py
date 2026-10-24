@@ -132,7 +132,9 @@ class HttpBroker:
                 raise ValueError("broker redirect is forbidden")
 
         try:
-            with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
+            with urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), NoRedirect(),
+            ).open(request, timeout=30) as response:
                 if response.geturl() != self.origin + path:
                     raise ValueError("broker redirect is forbidden")
                 raw = response.read(1_000_001)
