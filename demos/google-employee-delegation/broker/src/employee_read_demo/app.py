@@ -9,6 +9,7 @@ import binascii
 import json
 import stat
 from dataclasses import dataclass
+from dataclasses import asdict
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +26,8 @@ from .demo_co_contract import (
 from .enrollment import EnrollmentDenied, EnrollmentStore, VerifiedGoogleSubject
 from .google_oauth import GoogleOAuth, GoogleOAuthConfig, OAuthRejected, OAuthStateStore
 from .token_store import TokenVault
+from .task_proposals import TaskDenied, TaskProposalStore
+from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 
 COOKIE = "ap070_session"
 MAX_JSON = 16_384
@@ -54,6 +57,7 @@ class Workbench:
     oauth: GoogleOAuth | None
     enrollment: EnrollmentStore
     agents: AgentRegistry
+    proposals: TaskProposalStore
     vault: TokenVault | None
     company: CompanyImport | None
     status: ImportStatus
@@ -304,9 +308,46 @@ class Handler(BaseHTTPRequestHandler):
                 ))
                 self._json(HTTPStatus.OK, {"agent_principal": agent.agent_principal})
                 return
+            if path == "/api/v1/tasks/prepare":
+                if (self.workbench.company is None or self.workbench.vault is None
+                        or not session.issuer or not session.subject
+                        or not session.connection_id):
+                    raise TaskDenied("task preparation is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                agent_principal = body.get("agent_principal")
+                resources = body.get("logical_resource_ids")
+                purpose = body.get("purpose")
+                if (not isinstance(agent_principal, str)
+                        or not isinstance(resources, list)
+                        or any(not isinstance(item, str) for item in resources)
+                        or not isinstance(purpose, str)):
+                    raise ValueError("task selection is invalid")
+                agent = self.workbench.agents.lookup(employee, agent_principal)
+                task = self.workbench.proposals.prepare(
+                    company=self.workbench.company, employee=employee,
+                    agent=agent, connection_id=session.connection_id,
+                    logical_resource_ids=tuple(resources), purpose=purpose,
+                    vault=self.workbench.vault,
+                    inspector_factory=lambda descriptor: GoogleDriveReader(
+                        descriptor, self.workbench.vault,
+                    ),
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "prepared_only", "task": asdict(task),
+                    "task_commitment": task.digest,
+                    "approved_calls": [asdict(call) for call in task.calls()],
+                })
+                return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-        except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied, AgentDenied) as error:
+        except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied,
+                AgentDenied, TaskDenied, AdmissionDenied, GoogleDenied) as error:
             self._json(HTTPStatus.FORBIDDEN, {"error": str(error)})
+        except GoogleUnavailable:
+            self._json(HTTPStatus.SERVICE_UNAVAILABLE,
+                       {"error": "Google document check is unavailable"})
 
 
 class WorkbenchServer(ThreadingHTTPServer):
@@ -361,7 +402,7 @@ def main() -> int:
                            client_id=oauth.config.client_id,
                            refresh_client_secret=oauth.config.client_secret)
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
-                          AgentRegistry(args.state_db), vault,
+                          AgentRegistry(args.state_db), TaskProposalStore(args.state_db), vault,
                           company, status, origin)
     with WorkbenchServer(("127.0.0.1", args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

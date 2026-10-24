@@ -60,6 +60,19 @@ class GoogleDriveTests(unittest.TestCase):
             with self.assertRaises(GoogleDenied):
                 self.reader.read_exact(self.task.calls()[0])
 
+    def test_preparation_inspects_only_metadata(self) -> None:
+        calls: list[str] = []
+        def get(path: str, token: str, limit: int):
+            calls.append(path)
+            return 200, json.dumps({
+                "id": "file-A", "mimeType": "text/plain", "size": "100",
+                "capabilities": {"canDownload": True},
+            }).encode(), "application/json"
+        with patch("employee_read_demo.google_drive._get", get):
+            self.reader.inspect_exact(self.task.calls()[0])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("fields=id,mimeType", calls[0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,6 +15,7 @@ import requests
 from .admission import AdmissionDenied, AdmissionStore
 from .contracts import TaskDescriptor
 from .enrollment import EnrollmentStore
+from .enrollment import EmployeeBinding
 from .google_oauth import CONNECT_SCOPES, OAuthResult, TOKEN_URL
 
 
@@ -215,6 +216,24 @@ class TokenVault:
                 AND t.issuer=? AND t.subject=? AND b.issuer=t.issuer
                 AND b.subject=t.subject""", (connection_id, issuer, subject)).fetchone()
         return row is not None
+
+    def connection_generation(self, connection_id: str,
+                              employee: EmployeeBinding) -> int:
+        with self._connect() as db:
+            row = db.execute("""SELECT c.generation FROM connections c
+                JOIN credentials t ON t.connection=c.id
+                JOIN employee_bindings b ON b.binding_ref=c.binding_ref
+                WHERE c.id=? AND c.status='active' AND b.status='active'
+                AND c.company=? AND c.employee=? AND c.binding_ref=?
+                AND b.company=c.company AND b.principal=c.employee
+                AND t.issuer=? AND t.subject=? AND b.issuer=t.issuer
+                AND b.subject=t.subject""", (
+                    connection_id, employee.company_id, employee.principal,
+                    employee.binding_ref, employee.issuer, employee.subject,
+                )).fetchone()
+        if row is None:
+            raise AdmissionDenied("employee connection is unavailable")
+        return row[0]
 
     def offboard(self, binding_ref: str) -> None:
         """Disable an employee and all their task/credential generations atomically."""

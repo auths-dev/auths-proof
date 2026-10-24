@@ -14,7 +14,11 @@ A loopback HTTP workbench now provides server-held sessions, CSRF checks,
 Google login/consent callbacks and employee key-possession enrollment routes.
 It also registers a distinct agent key through its own one-use challenge,
 bound to the active employee enrollment.
-It is **not a runnable Google demo**. The task controls, agent process,
+The employee can prepare a finite task from the imported Google catalog;
+the broker checks each selected file's metadata under that employee's
+connection before persisting a review-only descriptor. Preparation does not
+activate authority or permit an agent read.
+It is **not a runnable Google demo**. Task authorization, the agent process,
 receipt page and packaged install are still absent. The
 `demo_co` has published provisional versioned schemas and local-mode examples,
 but no independent live Google probes. The importer validates the exact pinned

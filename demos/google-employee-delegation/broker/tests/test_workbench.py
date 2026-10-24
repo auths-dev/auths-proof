@@ -12,6 +12,7 @@ from employee_read_demo.agent_registry import AgentRegistry
 from employee_read_demo.browser_sessions import BrowserSessionStore
 from employee_read_demo.demo_co_contract import ImportStatus
 from employee_read_demo.enrollment import EnrollmentStore
+from employee_read_demo.task_proposals import TaskProposalStore
 
 
 class WorkbenchTests(unittest.TestCase):
@@ -21,13 +22,13 @@ class WorkbenchTests(unittest.TestCase):
         path = Path(self.temp.name) / "broker.sqlite3"
         state = Workbench(
             BrowserSessionStore(path), None, EnrollmentStore(path), AgentRegistry(path),
-            None, None,
+            TaskProposalStore(path), None, None,
             ImportStatus("not_configured", "validated", "validated", "Google is absent"),
             "http://127.0.0.1:0",
         )
         self.server = WorkbenchServer(("127.0.0.1", 0), state)
         self.server.workbench = Workbench(
-            state.sessions, None, state.enrollment, state.agents,
+            state.sessions, None, state.enrollment, state.agents, state.proposals,
             None, None, state.status,
             f"http://127.0.0.1:{self.server.server_port}",
         )
@@ -73,6 +74,9 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(status, 503)
         status, _, _ = self.request("POST", "/api/v1/session/logout",
                                     cookie=session_cookie, csrf="wrong")
+        self.assertEqual(status, 403)
+        status, _, _ = self.request("POST", "/api/v1/tasks/prepare",
+                                    cookie=session_cookie, csrf=data["csrf"])
         self.assertEqual(status, 403)
         status, _, _ = self.request("POST", "/api/v1/session/logout",
                                     cookie=session_cookie, csrf=data["csrf"])

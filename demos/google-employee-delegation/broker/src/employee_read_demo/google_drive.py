@@ -81,7 +81,7 @@ class GoogleDriveReader:
         self.task = task
         self.tokens = tokens
 
-    def read_exact(self, command: ReadCommand) -> bytes:
+    def _metadata(self, command: ReadCommand) -> tuple[dict, str]:
         if command not in self.task.calls():
             raise GoogleDenied("document is outside approved task")
         if int(time.time()) >= self.task.expires_at:
@@ -104,16 +104,27 @@ class GoogleDriveReader:
         if not isinstance(capabilities, dict) or capabilities.get("canDownload") is not True:
             raise GoogleDenied("Google does not permit download")
         mime = metadata.get("mimeType")
-        if mime == DOC_MIME:
-            path = f"/drive/v3/files/{file_id}/export?mimeType=text%2Fplain"
-        elif mime == TEXT_MIME:
+        if mime not in {DOC_MIME, TEXT_MIME}:
+            raise GoogleDenied("unsupported Google document type")
+        if mime == TEXT_MIME:
             size = metadata.get("size")
             if size is not None and (not str(size).isdecimal() or int(size) > command.max_bytes):
                 raise GoogleDenied("document exceeds approved byte limit")
-            path = f"/drive/v3/files/{file_id}?alt=media"
+        return metadata, lease.access_token
+
+    def inspect_exact(self, command: ReadCommand) -> None:
+        """Check employee-readable metadata without fetching document content."""
+        self._metadata(command)
+
+    def read_exact(self, command: ReadCommand) -> bytes:
+        metadata, access_token = self._metadata(command)
+        file_id = quote(command.file_id, safe="")
+        mime = metadata["mimeType"]
+        if mime == DOC_MIME:
+            path = f"/drive/v3/files/{file_id}/export?mimeType=text%2Fplain"
         else:
-            raise GoogleDenied("unsupported Google document type")
-        status, content, content_type = _get(path, lease.access_token, command.max_bytes)
+            path = f"/drive/v3/files/{file_id}?alt=media"
+        status, content, content_type = _get(path, access_token, command.max_bytes)
         if status in {401, 403, 404}:
             raise GoogleDenied("Google refused document content")
         if status != 200 or "text/plain" not in content_type:
