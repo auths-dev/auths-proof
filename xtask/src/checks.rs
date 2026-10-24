@@ -372,6 +372,7 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
             "pip",
             "install",
             "demos/google-employee-delegation/broker",
+            "demos/google-employee-delegation/agent",
         ],
     )?;
     command_in(
