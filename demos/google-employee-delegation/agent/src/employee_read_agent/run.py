@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import re
 import stat
 import urllib.error
 import urllib.request
@@ -201,6 +202,9 @@ class OpenAIModel:
         )
         if len(text) > 12_000:
             raise ValueError("model summary exceeds bounds")
+        cited = re.findall(r"\[([^\[\]\n]{1,256})\]", text)
+        if not cited or any(source_id not in sources for source_id in cited):
+            raise ValueError("model summary has missing or unknown source citations")
         return text
 
 
