@@ -403,9 +403,11 @@ The review screen shows the real account binding and exact selected IDs behind r
 > explicit prepare/review/sign steps. Agent registration and activation
 > require signatures from the separate agent process. Employee-scoped task
 > status, revocation, package export and signed receipt JSON routes are
-> present. Live provider content and complete result/evidence presentation
-> remain pending Google setup and process-isolation acceptance; the local UI
-> does not label these stages passed.
+> present. The browser can now import the isolated agent's JSON result and
+> check each cited source against an employee-scoped, broker-verified receipt
+> before displaying its summary and read stages. The summary remains labeled
+> as agent-reported text. Live provider content and the full walkthrough
+> remain pending Google setup; the local UI does not label those stages passed.
 
 Proposed application routes:
 

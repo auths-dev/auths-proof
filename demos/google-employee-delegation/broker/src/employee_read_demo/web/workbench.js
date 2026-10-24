@@ -227,6 +227,74 @@ async function loadReceipt() {
   message("Receipt signature verified against the broker receipt key.");
 }
 
+async function loadAgentResult() {
+  byId("result-view").hidden = true;
+  byId("result-summary").textContent = "";
+  byId("result-sources").replaceChildren();
+  const file = byId("result-file").files[0];
+  if (!file || file.size > 1_000_000) throw new Error("Choose a bounded agent result JSON file");
+  const result = JSON.parse(await file.text());
+  if (!result || typeof result !== "object" || Array.isArray(result) ||
+      typeof result.task_id !== "string" || result.task_id.length > 256 ||
+      typeof result.summary !== "string" || result.summary.length > 100_000 ||
+      !Array.isArray(result.source_ids) || !result.source_ids.length ||
+      result.source_ids.length > 8 ||
+      !result.receipt_ids || typeof result.receipt_ids !== "object" ||
+      Array.isArray(result.receipt_ids) ||
+      Object.keys(result.receipt_ids).length !== result.source_ids.length) {
+    throw new Error("Agent result has an invalid shape");
+  }
+  const task = await api(`/api/v1/tasks/${encodeURIComponent(result.task_id)}`);
+  if (task.task.task_id !== result.task_id ||
+      (value("task-id") && value("task-id") !== result.task_id)) {
+    throw new Error("Agent result belongs to another task");
+  }
+  const approved = new Set(task.approved_calls.map(call => call.file_id));
+  const seen = new Set();
+  const sources = [];
+  for (const fileId of result.source_ids) {
+    if (typeof fileId !== "string" || !approved.has(fileId) || seen.has(fileId) ||
+        !Object.hasOwn(result.receipt_ids, fileId) ||
+        typeof result.receipt_ids[fileId] !== "string" ||
+        result.receipt_ids[fileId].length > 128) {
+      throw new Error("Agent result cites an invalid approved source");
+    }
+    seen.add(fileId);
+    const receipt = await api(`/api/v1/receipts/${encodeURIComponent(result.receipt_ids[fileId])}`);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(fileId));
+    const resourceRef = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+    const payload = receipt.payload;
+    if (receipt.verified !== true || payload.task_id !== result.task_id ||
+        payload.task_commitment !== task.task_commitment ||
+        payload.company_id !== task.task.company_id ||
+        payload.employee_principal !== task.task.employee_principal ||
+        payload.agent_principal !== task.task.agent_principal ||
+        payload.connection_id !== task.task.connection_id ||
+        payload.connection_generation !== task.task.connection_generation ||
+        payload.receipt_id !== result.receipt_ids[fileId] ||
+        payload.resource_ref !== resourceRef ||
+        payload.provider_stage !== "content_fetched" ||
+        payload.release_stage !== "committed") {
+      throw new Error("Cited receipt does not prove this task's released source");
+    }
+    sources.push({ fileId, receiptId: payload.receipt_id,
+      native: payload.native_code, provider: payload.provider_stage,
+      release: payload.release_stage, delivery: payload.transport_delivery });
+  }
+  byId("task-id").value = result.task_id;
+  byId("task-status-json").textContent = JSON.stringify(task, null, 2);
+  byId("result-summary").textContent = result.summary;
+  const list = byId("result-sources");
+  list.replaceChildren();
+  for (const source of sources) {
+    const item = document.createElement("li");
+    item.textContent = `${source.fileId}: receipt ${source.receiptId}; native ${source.native}; Google ${source.provider}; release ${source.release}; delivery ${source.delivery}`;
+    list.append(item);
+  }
+  byId("result-view").hidden = false;
+  message(`Agent result loaded; ${sources.length} cited broker receipts verified. Transport delivery remains separately observed.`);
+}
+
 function bind(id, action) {
   byId(id).addEventListener("click", async () => {
     byId(id).disabled = true;
@@ -260,6 +328,7 @@ async function start() {
   bind("task-status", loadTask);
   bind("revoke", revokeTask);
   bind("receipt-load", loadReceipt);
+  bind("result-load", loadAgentResult);
 }
 
 start().catch(error => message(error.message || String(error)));

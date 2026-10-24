@@ -72,6 +72,15 @@
 
   <section aria-labelledby="evidence-heading">
     <h2 id="evidence-heading">5. Read evidence</h2>
+    <p>Load the JSON printed by the isolated agent. The summary is agent-reported text; each cited read is checked against this employee's broker-signed receipt.</p>
+    <label>Agent result JSON<input id="result-file" type="file" accept="application/json,.json"></label>
+    <button id="result-load" type="button">Load result and verify cited reads</button>
+    <div id="result-view" hidden>
+      <h3>Agent summary</h3>
+      <pre id="result-summary"></pre>
+      <h3>Broker-verified source reads</h3>
+      <ul id="result-sources"></ul>
+    </div>
     <label>Receipt ID<input id="receipt-id" autocomplete="off"></label>
     <button id="receipt-load" type="button">Verify and view receipt</button>
     <pre id="receipt-json">The agent’s result lists receipt IDs for each read.</pre>

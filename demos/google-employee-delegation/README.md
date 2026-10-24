@@ -131,6 +131,10 @@ package has public grants and call descriptors, never Google tokens. The agent
 needs a broker loopback origin and its own model API key. Its selected document
 text is sent to the configured model provider for summarization, so only
 synthetic demo content should be used until that data path is reviewed.
+The agent prints a JSON result. The employee can load that file in the browser
+workbench; it checks each cited source against the employee-scoped broker
+receipt, shows the task limits and stages, and displays the summary as
+agent-reported text. This import does not turn the summary into signed evidence.
 
 ```sh
 auths-google-read-operator init-receipt-key --key-file /private/operator/receipt.seed
