@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from auths.identity import IdentityOk, raw_key_ed25519
+from auths.identity import IdentityOk, authenticate_message, raw_key_ed25519
 from auths.identity.authoring import (
     create_raw_key_ed25519_identity,
     prepare_identity_message,
@@ -34,5 +34,10 @@ def test_authored_raw_key_identity_uses_the_canonical_descriptor_preimage() -> N
 
         assert isinstance(authenticated, IdentityOk)
         assert not isinstance(changed, IdentityOk)
+        packet_result = await authenticate_message(
+            identity.to_bytes(), message=message, signature=signature,
+        )
+        assert isinstance(packet_result, IdentityOk)
+        assert packet_result.value.identity.identity_id == identity.identity_id
 
     asyncio.run(scenario())
