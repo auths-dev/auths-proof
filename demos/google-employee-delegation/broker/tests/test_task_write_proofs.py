@@ -1,0 +1,79 @@
+"""Human browser signature preimages and native task action assembly."""
+
+from __future__ import annotations
+
+import unittest
+
+from auths import _native
+from auths.identity.authoring import create_raw_key_ed25519_identity
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+from employee_read_demo.authority_identity import authority_for_identity_packet
+from employee_read_demo.contracts import canonical_json
+from employee_read_demo.enrollment import EmployeeBinding
+from employee_read_demo.operator_authority import OperatorDenied, OperatorRoot
+from employee_read_demo.task_write_authority import issue_task_write_authority
+from employee_read_demo.task_write_proofs import (
+    prepare_exact_confirmation, prepare_task_approval, task_commitment,
+)
+
+
+class TaskWriteProofTests(unittest.TestCase):
+    def test_browser_signature_yields_exact_task_and_confirmation_proofs(self) -> None:
+        human_key = Ed25519PrivateKey.generate()
+        public = human_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        identity = create_raw_key_ed25519_identity(public).to_bytes()
+        human, _ = authority_for_identity_packet(identity)
+        binding = EmployeeBinding(
+            "atlas-studio", "person-jules", "https://accounts.google.com",
+            "synthetic-subject", human, "synthetic-binding",
+        )
+        authority = issue_task_write_authority(
+            OperatorRoot(bytes([0x21]) * 32), binding, identity,
+            provider_service="google-docs-delegation-demo",
+            provider_tool="replace_project_a_marker_v2", now=1000, lifetime=600,
+        )
+        card = {
+            "schema": "auths.agent-task/1", "task_id": "task-1",
+            "company_id": "atlas-studio", "human_principal": human,
+            "agent_principal": "agent-principal", "agent_key_fingerprint": "a" * 64,
+            "connection_id": "jules-google", "connection_generation": 1,
+            "connection_subject": "jules-subject", "read_scopes": [],
+            "write_scopes": [{"handle": "working-doc", "recipe_digest": "b" * 64,
+                              "verb": "edit"}],
+            "delivery_channel": "agent-channel", "not_before": 1000,
+            "expires_at": 1300, "max_provider_calls": 0,
+            "max_releases": 0, "max_release_bytes": 0, "max_writes": 1,
+            "write_approval_mode": "exact", "operator_policy_digest": "c" * 64,
+            "purpose": "Edit the Project A working document",
+        }
+        prepared = prepare_task_approval(authority, card, now=1100)
+        signed = prepared.complete(human_key.sign(prepared.signing_preimage), now=1101)
+        self.assertGreater(len(signed.proof), 0)
+        self.assertGreater(len(signed.action), 0)
+        commitment = task_commitment(card)
+        self.assertEqual(commitment, bytes(_native.commit_canonical_v1(
+            "auths.agent-task.v1",
+            _native.canonicalize_mcp_arguments_json(canonical_json(card)),
+        )).hex())
+        intent = {
+            "task_id": "task-1", "task_commitment": commitment,
+            "operation_id": "write-1", "action_commitment": "d" * 64,
+            "request_commitment": "e" * 64, "recipe_digest": "b" * 64,
+            "resource_handle": "working-doc", "verb": "edit",
+            "connection_id": "jules-google", "connection_generation": 1,
+            "connection_subject": "jules-subject",
+        }
+        confirm = prepare_exact_confirmation(authority, intent, now=1110)
+        confirmed = confirm.complete(human_key.sign(confirm.signing_preimage), now=1111)
+        self.assertGreater(len(confirmed.proof), 0)
+        self.assertGreater(len(confirmed.action), 0)
+        with self.assertRaises(Exception):
+            confirm.complete(bytes(64), now=1111)
+        with self.assertRaises(OperatorDenied):
+            prepared.complete(human_key.sign(prepared.signing_preimage), now=1131)
+
+
+if __name__ == "__main__":
+    unittest.main()

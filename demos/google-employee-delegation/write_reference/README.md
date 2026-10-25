@@ -99,6 +99,13 @@ Jules's enrolled identity and the operator-reviewed recipe profile/digest.
 It prints only a redacted summary; the package contains signed native grants
 and a trust template, no Google credential or human signing key. The browser
 and isolated agent must still complete their own signatures.
+The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
+now prepares separate native preimages for a reviewed task card and an exact
+closed-write intent. It completes each proof only with a signature from the
+enrolled human key, which the browser currently holds. Its card commitment
+uses the gateway's domain-separated canonicalization. This is native proof
+construction, not a served Jules approval screen or an installed gateway
+activation.
 
 `task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
 verifies the human's native signed task and registers its budget once.
