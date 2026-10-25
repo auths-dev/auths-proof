@@ -486,11 +486,20 @@ mod tests {
     };
 
     #[tokio::test]
+    async fn managed_read_joins_native_task_provider_and_registered_agent() {
+        run_managed_read(false).await;
+    }
+
+    #[tokio::test]
+    async fn no_send_after_release_entry_has_a_durable_charged_receipt() {
+        run_managed_read(true).await;
+    }
+
     #[allow(
         clippy::too_many_lines,
         reason = "one installed-style fixture spans task, native proof, credential, provider and agent channel"
     )]
-    async fn managed_read_joins_native_task_provider_and_registered_agent() {
+    async fn run_managed_read(fail_before_content: bool) {
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
         let read_recipe = recipe();
@@ -712,7 +721,14 @@ mod tests {
             agent_ready.store(true, Ordering::SeqCst);
             stream.write_u32(64).await.expect("signature length");
             stream.write_all(&signature).await.expect("signature");
-            let length = stream.read_u32().await.expect("content length") as usize;
+            let length = match stream.read_u32().await {
+                Ok(length) => length as usize,
+                Err(error) if fail_before_content => {
+                    assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
+                    return Vec::new();
+                }
+                Err(error) => panic!("content length: {error}"),
+            };
             let mut content = vec![0; length];
             stream.read_exact(&mut content).await.expect("content");
             let length = stream.read_u32().await.expect("ack length") as usize;
@@ -759,7 +775,7 @@ mod tests {
             },
             ledger,
         };
-        let read_session = task_session
+        let mut read_session = task_session
             .read_session(TaskReadOperatorInputs {
                 recipe: read_recipe,
                 provider: bound.provider_kind().clone(),
@@ -773,20 +789,28 @@ mod tests {
                 agent_identity_packet: packet,
             })
             .expect("installed read session");
+        if fail_before_content {
+            read_session.channel.fail_before_content_for_test();
+        }
         let result = read_session
             .read("task-1", &signed.proof, &signed.action)
             .await;
-        assert!(
-            matches!(
-                result,
-                ManagedReleaseResult::AgentAcknowledged {
-                    released_bytes: 5,
-                    ..
-                }
-            ),
-            "{result:?}"
-        );
-        assert_eq!(agent_server.await.expect("agent"), b"Ready");
+        if fail_before_content {
+            assert_eq!(result, ManagedReleaseResult::NotDelivered);
+            assert!(agent_server.await.expect("agent").is_empty());
+        } else {
+            assert!(
+                matches!(
+                    result,
+                    ManagedReleaseResult::AgentAcknowledged {
+                        released_bytes: 5,
+                        ..
+                    }
+                ),
+                "{result:?}"
+            );
+            assert_eq!(agent_server.await.expect("agent"), b"Ready");
+        }
         provider_server.await.expect("provider");
         let state = task_session
             .ledger
@@ -794,10 +818,22 @@ mod tests {
             .expect("ledger")
             .expect("task");
         assert_eq!(state.counts(), (1, 1, 5));
-        assert_eq!(state.stage("read-1"), Some(ReleaseStage::AgentAcknowledged));
+        let stage = if fail_before_content {
+            ReleaseStage::NotDelivered
+        } else {
+            ReleaseStage::AgentAcknowledged
+        };
+        assert_eq!(state.stage("read-1"), Some(stage));
         let status = serde_json::to_value(task_session.status("task-1").expect("task status"))
             .expect("redacted status");
-        assert_eq!(status["reads"][0]["stage"], "agent-acknowledged");
+        assert_eq!(
+            status["reads"][0]["stage"],
+            if fail_before_content {
+                "not-delivered"
+            } else {
+                "agent-acknowledged"
+            }
+        );
         assert_eq!(status["released_bytes"], 5);
         let public = status.to_string();
         assert!(!public.contains(subject));

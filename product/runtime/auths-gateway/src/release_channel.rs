@@ -51,6 +51,8 @@ pub(crate) struct UnixAgentReleaseChannel {
     socket: PathBuf,
     channel_name: String,
     agent_identity_packet: Vec<u8>,
+    #[cfg(test)]
+    fail_before_content: bool,
 }
 
 /// A socket peer that proved possession of the registered agent key under a
@@ -58,6 +60,8 @@ pub(crate) struct UnixAgentReleaseChannel {
 pub(crate) struct AuthenticatedReleaseChannel {
     stream: UnixStream,
     agent_identity_packet: Vec<u8>,
+    #[cfg(test)]
+    fail_before_content: bool,
 }
 
 impl UnixAgentReleaseChannel {
@@ -80,7 +84,14 @@ impl UnixAgentReleaseChannel {
             socket,
             channel_name,
             agent_identity_packet,
+            #[cfg(test)]
+            fail_before_content: false,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_before_content_for_test(&mut self) {
+        self.fail_before_content = true;
     }
 
     /// Authenticate the peer before the caller charges or sends a release.
@@ -114,13 +125,16 @@ impl UnixAgentReleaseChannel {
         Ok(AuthenticatedReleaseChannel {
             stream,
             agent_identity_packet: self.agent_identity_packet.clone(),
+            #[cfg(test)]
+            fail_before_content: self.fail_before_content,
         })
     }
 }
 
 impl AuthenticatedReleaseChannel {
-    /// Called only after `release-entered` is durable. A failure may have sent
-    /// bytes and is always reported as unknown; this method never retries.
+    /// Called only after `release-entered` is durable. A failure before the
+    /// first content write proves no content was sent; later failures have an
+    /// unknown delivery outcome. This method never retries.
     pub(crate) async fn deliver(
         mut self,
         task: &ApprovedAgentTask,
@@ -141,6 +155,10 @@ impl AuthenticatedReleaseChannel {
             return Err(no_content());
         }
         let length = u32::try_from(content.len()).map_err(|_| no_content())?;
+        #[cfg(test)]
+        if self.fail_before_content {
+            self.stream.shutdown().await.map_err(|_| no_content())?;
+        }
         // A failed or partial frame header may expose length framing, but no
         // content bytes. Once write_all starts, a partial content
         // write is possible and the outcome must remain unknown.
@@ -381,6 +399,7 @@ mod tests {
         let channel = AuthenticatedReleaseChannel {
             stream,
             agent_identity_packet: packet,
+            fail_before_content: false,
         };
         let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).expect("key");
         let result = channel
