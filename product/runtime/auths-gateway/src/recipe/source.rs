@@ -72,17 +72,34 @@ pub(super) struct CreatedChildSource {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "expected", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum CreatedChildCheckSource {
-    CandidateId { json_pointer: String },
-    ParentOnly { json_pointer: String },
-    Title { json_pointer: String },
-    Marker { json_pointer: String },
-    Literal { json_pointer: String, value: Value },
+    CandidateId {
+        json_pointer: String,
+    },
+    /// Provider metadata stores the parent as one scalar ID.
+    Parent {
+        json_pointer: String,
+    },
+    /// Provider metadata stores the sole parent in a one-item array.
+    ParentOnly {
+        json_pointer: String,
+    },
+    Title {
+        json_pointer: String,
+    },
+    Marker {
+        json_pointer: String,
+    },
+    Literal {
+        json_pointer: String,
+        value: Value,
+    },
 }
 
 impl CreatedChildCheckSource {
     pub(super) fn pointer(&self) -> &str {
         match self {
             Self::CandidateId { json_pointer }
+            | Self::Parent { json_pointer }
             | Self::ParentOnly { json_pointer }
             | Self::Title { json_pointer }
             | Self::Marker { json_pointer }

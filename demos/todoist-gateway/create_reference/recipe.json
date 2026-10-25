@@ -1,0 +1,53 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "a4dfc2aac289eb8e9f9ed321eb55900c8c2c01d46d10a1f985e671b2f6c0bc94",
+  "service": "todoist-delegation-demo",
+  "tool": "create_project_task_v1",
+  "operator_namespace": "todoist-created-child-demo",
+  "credential": {"kind": "bearer"},
+  "origin": "https://api.todoist.com",
+  "task_binding": {"resource_field": "project_id", "verb": "create"},
+  "created_child": {
+    "response_id_pointer": "/id",
+    "maximum_id_bytes": 64,
+    "parent_field": "project_id",
+    "title_field": "content",
+    "marker_field": "recovery_marker",
+    "metadata_checks": [
+      {"expected": "candidate-id", "json_pointer": "/id"},
+      {"expected": "parent", "json_pointer": "/project_id"},
+      {"expected": "title", "json_pointer": "/content"},
+      {"expected": "marker", "json_pointer": "/description"}
+    ]
+  },
+  "write": {
+    "method": "POST",
+    "path": [
+      {"kind": "fixed", "value": "api"},
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "tasks"}
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "project_id": {"kind": "field", "name": "project_id"},
+          "content": {"kind": "field", "name": "content"},
+          "description": {"kind": "field", "name": "recovery_marker"}
+        }
+      }
+    }
+  },
+  "observation": {
+    "path": [
+      {"kind": "fixed", "value": "api"},
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "tasks"},
+      {"kind": "response-field", "pointer": "/id", "max_bytes": 64}
+    ],
+    "json_pointer": "/content",
+    "expected_field": "content",
+    "maximum_response_bytes": 16384
+  }
+}

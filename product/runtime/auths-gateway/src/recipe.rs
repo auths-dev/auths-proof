@@ -1253,6 +1253,7 @@ impl CreatedChildRequest {
             };
             match check {
                 Check::CandidateId { .. } => observed.as_str() == Some(candidate_id),
+                Check::Parent { .. } => observed.as_str() == Some(self.parent.as_str()),
                 Check::ParentOnly { .. } => observed.as_array().is_some_and(|items| {
                     items.len() == 1 && items[0].as_str() == Some(self.parent.as_str())
                 }),

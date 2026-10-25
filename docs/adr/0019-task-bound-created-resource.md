@@ -24,6 +24,11 @@ scope before entry. The crash gap between the attempt and task journals still
 needs a verified reconciliation path. This ADR
 authorizes no production claim by itself.
 
+A test-only Todoist create recipe now exercises the same compiler and metadata
+comparison with a scalar project parent on a second HTTPS domain. Google Drive
+still uses a sole-parent array. No Todoist credential or live child effect has
+been tested.
+
 **Date:** 25 October 2026
 
 ## Context

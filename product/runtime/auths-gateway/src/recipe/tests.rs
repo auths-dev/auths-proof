@@ -42,6 +42,12 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
                 "../../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
             ),
         ),
+        "todoist-created-child" => (
+            include_bytes!("../../../../../demos/todoist-gateway/create_reference/recipe.json"),
+            include_bytes!(
+                "../../../../../demos/todoist-gateway/create_reference/profile.lock.json"
+            ),
+        ),
         "airtable-task-edit" => (
             include_bytes!("../../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!(
@@ -398,6 +404,13 @@ fn created_child_declaration_requires_a_closed_task_create_and_consumed_fields()
         json!([{"expected":"candidate-id","json_pointer":"/id"}]),
         json!([
             {"expected":"candidate-id","json_pointer":"/id"},
+            {"expected":"parent","json_pointer":"/project_id"},
+            {"expected":"parent-only","json_pointer":"/parents"},
+            {"expected":"title","json_pointer":"/name"},
+            {"expected":"marker","json_pointer":"/properties/auths_operation_marker"}
+        ]),
+        json!([
+            {"expected":"candidate-id","json_pointer":"/id"},
             {"expected":"parent-only","json_pointer":"/parents"},
             {"expected":"title","json_pointer":"/name"},
             {"expected":"marker","json_pointer":"/name"}
@@ -516,6 +529,69 @@ async fn created_child_candidate_survives_restart_without_granting_child_authori
         Some(&"child_ABC-123".to_owned())
     );
     assert_eq!(snapshot.observation_match(), None);
+}
+
+#[test]
+fn second_https_domain_binds_a_scalar_parent_without_provider_code() {
+    let recipe = compiled("todoist-created-child");
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "create-task-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "project_id": "6XGgm6PHrGgMpCFX",
+            "content": "Prepare handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32)),
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed Todoist request");
+    assert_eq!(request.url(), "https://api.todoist.com/api/v1/tasks");
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("JSON body"),
+        json!({
+            "project_id": "6XGgm6PHrGgMpCFX",
+            "content": "Prepare handoff",
+            "description": format!("ap071_{}", "d".repeat(32)),
+        }),
+    );
+    let child = request.created_child().expect("reviewed child declaration");
+    let response = br#"{"id":"6XGgmFVcrG5RRjVr"}"#;
+    let candidate = child
+        .candidate_id(200, true, response)
+        .expect("response-derived candidate");
+    let metadata = json!({
+        "id": candidate,
+        "project_id": "6XGgm6PHrGgMpCFX",
+        "content": "Prepare handoff",
+        "description": format!("ap071_{}", "d".repeat(32)),
+    });
+    let body = serde_json::to_vec(&metadata).expect("metadata JSON");
+    assert!(child.verify_metadata(&candidate, &body).is_some());
+    for changed in [
+        json!({"project_id": "another-project"}),
+        json!({"content": "Different title"}),
+        json!({"description": "other-marker"}),
+        json!({"id": "other-task"}),
+        json!({"project_id": ["6XGgm6PHrGgMpCFX"]}),
+    ] {
+        let mut candidate_metadata = metadata.clone();
+        candidate_metadata
+            .as_object_mut()
+            .expect("object")
+            .extend(changed.as_object().expect("object").clone());
+        assert!(
+            child
+                .verify_metadata(
+                    &candidate,
+                    &serde_json::to_vec(&candidate_metadata).expect("JSON"),
+                )
+                .is_none(),
+            "changed provider metadata must not bind a child",
+        );
+    }
 }
 
 #[test]

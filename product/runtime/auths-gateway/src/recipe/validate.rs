@@ -891,7 +891,8 @@ fn validate_created_child(
             && child.metadata_checks.iter().all(|check| {
                 let kind = match check {
                     CreatedChildCheckSource::CandidateId { .. } => "candidate-id",
-                    CreatedChildCheckSource::ParentOnly { .. } => "parent-only",
+                    CreatedChildCheckSource::Parent { .. }
+                    | CreatedChildCheckSource::ParentOnly { .. } => "parent",
                     CreatedChildCheckSource::Title { .. } => "title",
                     CreatedChildCheckSource::Marker { .. } => "marker",
                     CreatedChildCheckSource::Literal { value, .. } => {
@@ -905,7 +906,7 @@ fn validate_created_child(
                     && check_pointers.insert(check.pointer())
                     && (kind == "literal" || check_kinds.insert(kind))
             })
-            && ["candidate-id", "parent-only", "title", "marker"]
+            && ["candidate-id", "parent", "title", "marker"]
                 .iter()
                 .all(|kind| check_kinds.contains(kind));
         if binding.verb != TaskWriteVerb::Create
