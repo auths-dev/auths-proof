@@ -359,8 +359,8 @@ demo_co now has a separate versioned AP-SPEC-071 Project A folder, working Doc,
 Jules `drive.file` consent and independent probe export. The broker's
 `validate_write_handoff` pins that export, and the private Jules credential
 shim checks the OAuth client, scopes and current UserInfo subject. A read-only
-live preflight has confirmed that Jules can still see the pinned folder and
-working Doc and that its original baseline remains intact; its
+live preflight confirmed that Jules could see the pinned folder and working
+Doc before the first edit; its
 [redacted observation](evidence/2026-10-25-jules-readonly-preflight.json)
 records the exact producer generation and source revision. The checked-in
 `auths-google-write-handoff` command is still a deliberately closed installed
@@ -377,8 +377,9 @@ sees the plan, the workbench verifies the registered agent signature, task and
 acknowledged read, then asks the gateway to compare the staged source with its
 keyed commitment to the exact acknowledged release. The comparison emits no
 content or plain hash. An acknowledged byte count alone does not establish
-this match. No live Google write or independent post-write inspection has
-qualified this development path yet.
+this match. The first live Jules edit and independent post-write inspection
+qualified the edit path. The paired create/populate path still needs its own
+live run.
 For a paired create, the operator obtains demo_co's fresh, private
 `google write-inspect` observation after Jules's effect plan is recorded, then
 uses `auths-google-planned-create` with its exact file SHA-256. The command
