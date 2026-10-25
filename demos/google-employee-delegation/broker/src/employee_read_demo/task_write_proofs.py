@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from .contracts import canonical_json, commitment
 from .operator_authority import OperatorDenied
 from .task_write_authority import (
-    APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL, TASK_SERVICE,
+    APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL, RECOVERY_TOOL,
+    TASK_SERVICE,
     TaskWriteAuthority,
 )
 
@@ -75,16 +76,18 @@ def _prepare(authority: TaskWriteAuthority, *, tool: str,
     from auths import _native
 
     now = int(time.time()) if now is None else now
-    if (tool not in (APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL)
+    if (tool not in (APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL,
+                    RECOVERY_TOOL)
             or not authority.not_before <= now < authority.expires_at - 1):
         raise OperatorDenied("human task authority expired")
     grant = {
         APPROVAL_TOOL: authority.approval_grant,
         CONFIRMATION_TOOL: authority.confirmation_grant,
         EFFECT_PLAN_TOOL: authority.effect_plan_grant,
+        RECOVERY_TOOL: authority.recovery_grant,
     }[tool]
     if grant is None:
-        raise OperatorDenied("effect-plan authority is unavailable")
+        raise OperatorDenied("human task tool authority is unavailable")
     terminal = _native.parse_signed("grant", grant.signed_grant)
     challenge = authority.challenge
     arguments = bytes(_native.canonicalize_mcp_arguments_json(canonical_json(payload)))
@@ -129,6 +132,20 @@ def prepare_effect_plan_confirmation(authority: TaskWriteAuthority, plan: dict,
         raise OperatorDenied("reviewed effect plan is invalid")
     return _prepare(authority, tool=EFFECT_PLAN_TOOL,
                     payload={"plan": plan}, now=now)
+
+
+def prepare_recovered_child_confirmation(
+    authority: TaskWriteAuthority, recovery: dict,
+    *, now: int | None = None,
+) -> PreparedHumanAction:
+    if (type(recovery) is not dict
+            or recovery.get("schema") != "auths.agent-recovered-child/1"
+            or type(recovery.get("task_id")) is not str
+            or type(recovery.get("candidate_id")) is not str
+            or type(recovery.get("attestation_commitment")) is not str):
+        raise OperatorDenied("reviewed recovered child is invalid")
+    return _prepare(authority, tool=RECOVERY_TOOL,
+                    payload={"recovery": recovery}, now=now)
 
 
 def task_commitment(card: dict) -> str:

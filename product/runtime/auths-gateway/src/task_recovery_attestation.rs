@@ -75,6 +75,10 @@ impl VerifiedRecoveryAttestation {
         &self.commitment
     }
 
+    pub(crate) fn valid_until(&self) -> u64 {
+        self.statement.valid_until
+    }
+
     pub(crate) fn search_report_sha256(&self) -> &str {
         &self.statement.search_report_sha256
     }
@@ -85,6 +89,10 @@ impl VerifiedRecoveryAttestation {
 
     pub(crate) fn candidate_metadata_sha256(&self) -> &str {
         &self.statement.candidate_metadata_sha256
+    }
+
+    pub(crate) fn baseline_sha256(&self) -> &str {
+        &self.statement.baseline_sha256
     }
 }
 

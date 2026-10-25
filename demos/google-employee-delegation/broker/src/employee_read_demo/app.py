@@ -721,6 +721,48 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"task_id": body["task_id"],
                                             "gateway": outcome})
                 return
+            if path in {"/api/v1/write/recovered-child/prepare",
+                        "/api/v1/write/recovered-child/authorize",
+                        "/api/v1/write/recovered-child/execute"}:
+                flow = self.workbench.write_confirmation
+                if (self.workbench.finance_read_target is not None or flow is None
+                        or flow.companion_recipe_path is None):
+                    raise OperatorDenied("paired recovered-child review is unavailable")
+                employee, agent, _, _, _ = self._write_bindings(session)
+                if path.endswith("/prepare"):
+                    if set(body) != {"task_id"} or type(body["task_id"]) is not str:
+                        raise ValueError("recovery task ID is invalid")
+                    prepared = flow.prepare_recovered_child(
+                        task_id=body["task_id"], employee=employee, agent=agent)
+                    self._json(HTTPStatus.OK, {
+                        "status": "awaiting_recovered_child_confirmation",
+                        "nonce": prepared.nonce,
+                        "task_id": prepared.task_id,
+                        "review": prepared.review,
+                        "signing_preimage": base64.urlsafe_b64encode(
+                            prepared.signing_preimage).decode("ascii"),
+                        "expires_at": prepared.expires_at,
+                    })
+                    return
+                if path.endswith("/authorize"):
+                    if set(body) != {"nonce", "signature"}:
+                        raise ValueError("recovery signature is incomplete")
+                    if type(body["nonce"]) is not str or not 1 <= len(body["nonce"]) <= 128:
+                        raise ValueError("recovery nonce is invalid")
+                    directory = flow.complete_recovered_child(
+                        nonce=body["nonce"], employee=employee, agent=agent,
+                        signature=_b64(body["signature"], max_bytes=64))
+                    self._json(HTTPStatus.OK, {
+                        "status": "confirmed_pending_child_metadata_check",
+                        "task_id": directory.name,
+                    })
+                    return
+                if set(body) != {"task_id"} or type(body["task_id"]) is not str:
+                    raise ValueError("recovery task ID is invalid")
+                result = flow.submit_recovered_child(
+                    task_id=body["task_id"], employee=employee, agent=agent)
+                self._json(HTTPStatus.OK, result)
+                return
             if path in {"/api/v1/write/tasks/revoke", "/api/v1/write/tasks/status"}:
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.gateway_state_dir is None:

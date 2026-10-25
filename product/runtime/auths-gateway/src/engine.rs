@@ -32,6 +32,10 @@ use crate::task_effect_plan::verify_effect_plan;
 #[cfg(unix)]
 use crate::task_populate_attestation::{ExpectedPopulatePreflight, verify_populate_preflight};
 #[cfg(unix)]
+use crate::task_recovery_attestation::{ExpectedRecoveryAttestation, verify_recovery_attestation};
+#[cfg(unix)]
+use crate::task_recovery_confirmation::verify_recovery_confirmation;
+#[cfg(unix)]
 use crate::task_write::{
     ApprovedTaskWrite, CONFIRMATION_TOOL, TaskWriteBinding, admit_bounded_upfront_write,
     derive_exact_write_intent, verify_exact_write_confirmation,
@@ -2169,6 +2173,165 @@ impl TaskWriteSession<'_> {
             attempt_stage: "unknown",
             authority: "none",
         })
+    }
+
+    /// Bind a response-less create only after one independently joined
+    /// candidate, a new native human recovery action, and a fresh Jules
+    /// metadata GET. This never invokes the provider create request.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the native proof, durable attempt and provider read boundaries remain explicit"
+    )]
+    pub async fn recover_created_child(
+        &self,
+        proofs: TaskWriteProofs<'_>,
+        attestation_report: &[u8],
+        recovery_proof: &[u8],
+        recovery_action: &[u8],
+    ) -> Result<String, &'static str> {
+        if self.engine.recipe.created_child_fields().is_none() {
+            return Err("gateway.task.recovery-not-create");
+        }
+        let pin = self
+            .recovery_attestation
+            .as_ref()
+            .ok_or("gateway.task.recovery-not-installed")?;
+        // This check has no side effect. Repeat it after the provider GET so
+        // an intervening recorded response cannot be mistaken for recovery.
+        self.create_recovery_inputs(proofs.task_id).await?;
+        let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
+        let state = self
+            .ledger
+            .load(proofs.task_id)
+            .map_err(|_| "gateway.task.recovery-state")?
+            .ok_or("gateway.task.recovery-state")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.recovery-inactive")?;
+        let plan = state
+            .effect_plan()
+            .ok_or("gateway.task.recovery-plan-required")?;
+        let pending = task
+            .descriptor()
+            .pending_child
+            .as_ref()
+            .ok_or("gateway.task.recovery-pending-child")?;
+        let expected = ExpectedRecoveryAttestation {
+            task_id: proofs.task_id,
+            task_commitment: &hex::encode(task.commitment()),
+            pending,
+            plan,
+            public_key_sha256: &pin.key_sha256(),
+            rule_digest: &pin.rule_digest,
+        };
+        let attestation =
+            verify_recovery_attestation(attestation_report, &pin.public_key_hex, &expected, now)
+                .ok_or("gateway.task.recovery-attestation")?;
+        let human_action_commitment = verify_recovery_confirmation(
+            &self.engine.trusted_context,
+            &task,
+            plan,
+            &attestation,
+            recovery_proof,
+            recovery_action,
+            now,
+        )
+        .map_err(|_| "gateway.task.recovery-human-action")?;
+        if proofs.confirmation.is_some() {
+            return Err("gateway.task.recovery-extra-confirmation");
+        }
+        let verified = verify_detailed(
+            &self.engine.recipe,
+            &self.engine.trusted_context,
+            now,
+            proofs.agent_proof,
+            proofs.agent_action,
+        )
+        .map_err(|_| "gateway.task.recovery-agent-proof")?;
+        let intent = derive_exact_write_intent(
+            &task,
+            &verified,
+            &self.engine.recipe,
+            &self.binding,
+            None,
+            now,
+        )
+        .map_err(|_| "gateway.task.recovery-intent")?;
+        let approved = ApprovedTaskWrite::from_recorded_effect_plan_reconciliation(plan, intent)
+            .map_err(|_| "gateway.task.recovery-plan-mismatch")?;
+        let request = &verified.request;
+        let child = request
+            .created_child()
+            .ok_or("gateway.task.recovery-not-create")?;
+        let locator = child
+            .recovered_locator(attestation.candidate_id())
+            .ok_or("gateway.task.recovery-candidate")?;
+        let observation = request
+            .observation_template()
+            .and_then(|template| template.request(Some(&locator)))
+            .ok_or("gateway.task.recovery-observation-plan")?;
+        let io = EngineIo {
+            engine: self.engine,
+            proof: proofs.agent_proof,
+            action: proofs.agent_action,
+            started: Instant::now(),
+            prepared: OnceLock::new(),
+            task_write: Some(TaskWriteAdmission {
+                task: &task,
+                pins: &self.pins,
+                binding: &self.binding,
+                approved: &approved,
+                ledger: &self.ledger,
+                child_scope: None,
+                preflight_valid_until: None,
+            }),
+            commissioning: None,
+            commissioned_action: OnceLock::new(),
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await?;
+        if !io.reload().await {
+            return Err("gateway.task.recovery-connection-changed");
+        }
+        let lease = io.lease().await.ok_or("gateway.task.recovery-credential")?;
+        let response = io
+            .action_read(
+                &lease,
+                observation.url(),
+                observation.headers(),
+                observation.maximum_response_bytes(),
+            )
+            .await;
+        let body = response
+            .as_ref()
+            .and_then(ProviderResponse::usable_body)
+            .ok_or("gateway.task.recovery-metadata")?;
+        if observation.read_back(None, body)
+            != Some(crate::recipe::ReadBack::Value { matched: true })
+        {
+            return Err("gateway.task.recovery-metadata");
+        }
+        let verified_child = child
+            .verify_metadata(attestation.candidate_id(), body)
+            .ok_or("gateway.task.recovery-metadata")?;
+        if verified_child.metadata_digest() != attestation.candidate_metadata_sha256() {
+            return Err("gateway.task.recovery-metadata-changed");
+        }
+        if !io.reload().await {
+            return Err("gateway.task.recovery-connection-changed");
+        }
+        self.create_recovery_inputs(proofs.task_id).await?;
+        self.ledger
+            .bind_recovered_child(
+                &approved,
+                plan,
+                &verified_child,
+                &attestation,
+                &human_action_commitment,
+                wall_clock_seconds().ok_or("gateway.task.recovery-clock")?,
+            )
+            .map_err(|_| "gateway.task.recovery-binding")?;
+        Ok(attestation.candidate_id().to_owned())
     }
 
     /// Reconcile a recorded create response after a crash between the
@@ -4687,6 +4850,252 @@ pub(crate) mod tests {
                 .bound_child_scope()
                 .is_none(),
             "recovery inputs cannot bind a child"
+        );
+
+        let candidate_id = "child_ABC-124";
+        let metadata = format!(
+            "{{\"id\":\"{candidate_id}\",\"name\":\"Auths AP-071 Project A handoff\",\"parents\":[\"project-a-folder\"],\"properties\":{{\"auths_operation_marker\":\"ap071_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\"}},\"mimeType\":\"application/vnd.google-apps.document\",\"driveId\":\"0ACsJUU1uex2wUk9PVA\",\"trashed\":false,\"createdTime\":\"2026-10-25T10:04:00Z\"}}"
+        );
+        let metadata_digest = hex::encode(sha2::Sha256::digest(metadata.as_bytes()));
+        let recovery_statement = json!({
+            "schema": "auths.gateway-task-create-recovery-attestation/1",
+            "task_id": recovery["task_id"],
+            "task_commitment": recovery["task_commitment"],
+            "plan_commitment": recovery["plan_commitment"],
+            "content_commitment": recovery["content_commitment"],
+            "create_operation_id": recovery["create_operation_id"],
+            "create_recipe_digest": recovery["create_recipe_digest"],
+            "action_commitment": recovery["action_commitment"],
+            "request_commitment": recovery["request_commitment"],
+            "candidate_id": candidate_id,
+            "parent_id": recovery["parent_id"],
+            "title": recovery["title"],
+            "marker": recovery["marker"],
+            "connection_id": recovery["connection_id"],
+            "connection_generation": recovery["connection_generation"],
+            "connection_subject": recovery["connection_subject"],
+            "recovery_rule_digest": recovery["recovery_rule_digest"],
+            "search_report_sha256": "7".repeat(64),
+            "producer_observation_sha256": "8".repeat(64),
+            "baseline_sha256": "9".repeat(64),
+            "candidate_metadata_sha256": metadata_digest,
+            "checked_at": now,
+            "valid_until": now + 180,
+        });
+        let mut recovery_preimage = b"auths.gateway-task-create-recovery-attestation/1\0".to_vec();
+        recovery_preimage.extend(
+            serde_json_canonicalizer::to_vec(&recovery_statement)
+                .expect("canonical recovery statement"),
+        );
+        let recovery_signature = recovery_key.sign(&recovery_preimage);
+        let recovery_report = serde_json_canonicalizer::to_vec(&json!({
+            "statement": recovery_statement,
+            "signature_b64": Base64Unpadded::encode_string(&recovery_signature.to_bytes()),
+        }))
+        .expect("signed recovery report");
+        let recovery_grant = harness::grant_for(
+            &root,
+            &human.principal,
+            now,
+            TASK_SERVICE,
+            crate::task_recovery_confirmation::RECOVERY_TOOL,
+        )
+        .expect("human recovery grant");
+        let mut recovery_args = Map::new();
+        recovery_args.insert(
+            "recovery".to_owned(),
+            json!({
+                "schema": "auths.agent-recovered-child/1",
+                "task_id": recovery["task_id"],
+                "task_commitment": recovery["task_commitment"],
+                "plan_commitment": recovery["plan_commitment"],
+                "create_operation_id": recovery["create_operation_id"],
+                "candidate_id": candidate_id,
+                "parent_id": recovery["parent_id"],
+                "title": recovery["title"],
+                "marker": recovery["marker"],
+                "content_commitment": recovery["content_commitment"],
+                "attestation_commitment":
+                    hex::encode(sha2::Sha256::digest(&recovery_report)),
+                "expires_at": now + 120,
+            }),
+        );
+        let recovery_human = submission_for(
+            &root,
+            &human,
+            &recovery_grant,
+            &recovery_args,
+            &[],
+            TASK_SERVICE,
+            crate::task_recovery_confirmation::RECOVERY_TOOL,
+            now,
+        );
+        let mut changed_recovery_args = recovery_args.clone();
+        changed_recovery_args["recovery"]["candidate_id"] = json!("other-child");
+        let changed_recovery = submission_for(
+            &root,
+            &human,
+            &recovery_grant,
+            &changed_recovery_args,
+            &[],
+            TASK_SERVICE,
+            crate::task_recovery_confirmation::RECOVERY_TOOL,
+            now,
+        );
+        let mut changed_report = recovery_report.clone();
+        *changed_report.last_mut().expect("report byte") ^= 1;
+        assert_eq!(
+            unknown_session
+                .recover_created_child(
+                    TaskWriteProofs {
+                        task_id: "task-create-unknown",
+                        agent_proof: &unknown_signed.proof,
+                        agent_action: &unknown_signed.action,
+                        confirmation: None,
+                    },
+                    &changed_report,
+                    &recovery_human.proof,
+                    &recovery_human.action,
+                )
+                .await,
+            Err("gateway.task.recovery-attestation"),
+            "changed independent evidence cannot trigger a metadata GET"
+        );
+        assert_eq!(
+            unknown_session
+                .recover_created_child(
+                    TaskWriteProofs {
+                        task_id: "task-create-unknown",
+                        agent_proof: &unknown_signed.proof,
+                        agent_action: &unknown_signed.action,
+                        confirmation: None,
+                    },
+                    &recovery_report,
+                    &changed_recovery.proof,
+                    &changed_recovery.action,
+                )
+                .await,
+            Err("gateway.task.recovery-human-action"),
+            "a newly signed but changed child cannot trigger a metadata GET"
+        );
+        drop(unknown_session);
+        let recovery_listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("recovery metadata listener");
+        engine.loopback_port = Some(recovery_listener.local_addr().expect("address").port());
+        let unknown_session = engine
+            .task_write_session(&installation_bytes, &state_root)
+            .expect("recovery task session after restart");
+        let provider = tokio::spawn(async move {
+            for changed in [true, false] {
+                let (mut stream, _) = recovery_listener.accept().await.expect("recovery GET");
+                let mut request = [0_u8; 4096];
+                let size = stream.read(&mut request).await.expect("recovery request");
+                assert!(
+                    std::str::from_utf8(&request[..size])
+                        .expect("request text")
+                        .starts_with("GET /drive/v3/files/child_ABC-124?"),
+                    "recovery may only fetch the exact candidate"
+                );
+                let body = if changed {
+                    metadata.replace("10:04:00Z", "10:04:01Z")
+                } else {
+                    metadata.clone()
+                };
+                let headers = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                stream.write_all(headers.as_bytes()).await.expect("headers");
+                stream.write_all(body.as_bytes()).await.expect("metadata");
+            }
+        });
+        assert_eq!(
+            unknown_session
+                .recover_created_child(
+                    TaskWriteProofs {
+                        task_id: "task-create-unknown",
+                        agent_proof: &unknown_signed.proof,
+                        agent_action: &unknown_signed.action,
+                        confirmation: None,
+                    },
+                    &recovery_report,
+                    &recovery_human.proof,
+                    &recovery_human.action,
+                )
+                .await,
+            Err("gateway.task.recovery-metadata-changed"),
+            "a semantically matching but changed metadata response cannot bind"
+        );
+        assert!(
+            unknown_session
+                .ledger
+                .load("task-create-unknown")
+                .expect("journal after changed metadata")
+                .expect("task after changed metadata")
+                .bound_child_scope()
+                .is_none()
+        );
+        assert_eq!(
+            unknown_session
+                .recover_created_child(
+                    TaskWriteProofs {
+                        task_id: "task-create-unknown",
+                        agent_proof: &unknown_signed.proof,
+                        agent_action: &unknown_signed.action,
+                        confirmation: None,
+                    },
+                    &recovery_report,
+                    &recovery_human.proof,
+                    &recovery_human.action,
+                )
+                .await,
+            Ok(candidate_id.to_owned()),
+        );
+        provider.await.expect("two candidate metadata reads");
+        let recovered_state = unknown_session
+            .ledger
+            .load("task-create-unknown")
+            .expect("recovery journal")
+            .expect("recovered task");
+        assert_eq!(
+            recovered_state
+                .bound_child_scope()
+                .expect("bound recovered child")
+                .handle,
+            candidate_id,
+        );
+        assert_eq!(recovered_state.write_count(), 1);
+        let saved = serde_json::to_value(&recovered_state).expect("recovered journal JSON");
+        assert!(saved["child_binding"]["response_digest"].is_null());
+        assert_eq!(
+            saved["child_binding"]["recovery"]["search_report_sha256"],
+            "7".repeat(64),
+        );
+        let preflight_inputs = serde_json::to_value(
+            unknown_session
+                .populate_preflight_inputs("task-create-unknown")
+                .expect("recovered child supports the same population preflight"),
+        )
+        .expect("recovered population inputs JSON");
+        assert_eq!(preflight_inputs["child_id"], candidate_id);
+        assert_eq!(preflight_inputs["parent_id"], "project-a-folder");
+        assert_eq!(
+            unknown_session
+                .recover_created_child(
+                    TaskWriteProofs {
+                        task_id: "task-create-unknown",
+                        agent_proof: &unknown_signed.proof,
+                        agent_action: &unknown_signed.action,
+                        confirmation: None,
+                    },
+                    &recovery_report,
+                    &recovery_human.proof,
+                    &recovery_human.action,
+                )
+                .await,
+            Err("gateway.task.recovery-plan-mismatch"),
+            "a bound child cannot be recovered a second time"
         );
     }
 

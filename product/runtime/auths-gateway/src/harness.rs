@@ -447,6 +447,7 @@ pub(crate) fn context_for_agent_and_task_profiles(
         ("auths-agent-task", "approve_agent_task_v1"),
         ("auths-agent-task", "confirm_agent_write_v1"),
         ("auths-agent-task", "confirm_agent_effect_plan_v1"),
+        ("auths-agent-task", "confirm_agent_recovered_child_v1"),
     ]);
     context_for_profiles(
         &[root],

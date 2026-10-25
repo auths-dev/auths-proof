@@ -110,11 +110,22 @@ class TaskOperatorCliTests(unittest.TestCase):
                 output=paired_output, now=1000,
             )
             paired_raw = json.loads(paired_output.read_bytes())
-            self.assertEqual(paired_raw["schema"], "auths.ap071-task-authority/4")
+            self.assertEqual(paired_raw["schema"], "auths.ap071-task-authority/5")
             paired = load_task_write_package(paired_output, now=1000)
             self.assertEqual(paired.companion_write.recipe_digest, populate_digest)
+            self.assertIsNotNone(paired.authority.recovery_grant)
+            self.assertNotEqual(
+                paired.authority.recovery_grant.signed_grant,
+                paired.authority.effect_plan_grant.signed_grant,
+            )
             self.assertEqual(paired.authority.companion_write_service,
                              "google-docs-delegation-demo")
+            bad_recovery = paired_raw | {"recovery_grant_b64": "invalid"}
+            bad_recovery_path = private / "bad-recovery.json"
+            bad_recovery_path.write_text(json.dumps(bad_recovery))
+            os.chmod(bad_recovery_path, 0o600)
+            with self.assertRaises(OperatorDenied):
+                load_task_write_package(bad_recovery_path, now=1000)
             tampered_pair = private / "tampered-pair.json"
             paired_raw["companion_write"]["parent_grant_b64"] = "invalid"
             tampered_pair.write_text(json.dumps(paired_raw))

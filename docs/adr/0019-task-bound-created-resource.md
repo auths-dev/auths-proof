@@ -227,9 +227,15 @@ candidate metadata, and a validity window of at most three minutes, capped
 by the original observations' five-minute freshness windows. Its output
 is evidence only. The private Google operator can now sign the joined report
 after validating the gateway's unknown-attempt facts, Jules's bounded search
-and demo_co's pinned blank-child observation. The native human recovery
-action, fresh metadata read and task-journal `recovered` transition are still
-to be implemented; the verifier alone cannot create a child scope.
+and demo_co's pinned blank-child observation. A separate native human recovery
+action binds the candidate and attestation digest to the original plan. The
+gateway checks that action, repeats the unknown-attempt check, performs a
+fresh credential-bearing metadata GET for exactly that child, compares its
+raw digest with Jules's search observation, and atomically records a
+`recovered` child binding with no fabricated response digest. A loopback
+fixture covers this path and refuses altered operator evidence, a changed
+human candidate and replay. Live Google evidence and browser use of the new
+recovery review remain open.
 
 The private `task-create-recovery-inputs` command now reads the active task,
 immutable plan, one reserved create and durable attempt before the operator

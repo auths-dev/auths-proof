@@ -246,6 +246,9 @@ def issue_task_package(
         "human_evidence_b64": encode(authority.approval_grant.employee_evidence),
     }
     if companion_profile is not None:
+        package["schema"] = "auths.ap071-task-authority/5"
+        package["recovery_grant_b64"] = encode(
+            authority.recovery_grant.signed_grant)
         package["companion_write"] = {
             "service": companion_profile[0], "tool": companion_profile[1],
             "recipe_digest": companion_write_recipe_digest,

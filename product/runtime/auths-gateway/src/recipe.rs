@@ -1231,6 +1231,21 @@ impl VerifiedCreatedChild {
 }
 
 impl CreatedChildRequest {
+    /// Build only the response-field substitution for this exact recovered ID.
+    /// It is used for a read-only metadata request and never recorded as a
+    /// provider response locator or response digest.
+    pub(crate) fn recovered_locator(
+        &self,
+        candidate_id: &str,
+    ) -> Option<std::collections::BTreeMap<String, String>> {
+        self.valid_id(candidate_id).then(|| {
+            std::collections::BTreeMap::from([(
+                self.response_id_pointer.clone(),
+                candidate_id.to_owned(),
+            )])
+        })
+    }
+
     pub(crate) fn verify_metadata(
         &self,
         candidate_id: &str,

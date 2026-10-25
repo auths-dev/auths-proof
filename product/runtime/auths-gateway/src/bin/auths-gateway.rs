@@ -566,6 +566,27 @@ mod unix {
             #[arg(long)]
             task_id: String,
         },
+        /// Bind one response-less create after a pinned independent
+        /// attestation, a new human recovery signature and a fresh metadata
+        /// GET. This command never retries the provider create.
+        TaskRecoverChild {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long)]
+            attestation: PathBuf,
+            #[arg(long)]
+            recovery_proof: PathBuf,
+            #[arg(long)]
+            recovery_action: PathBuf,
+        },
         /// Development operator only: reverify the original signed create
         /// after a recorded response, read its child metadata once, and bind
         /// that child in the task journal. Without exact confirmation files,
@@ -4143,6 +4164,51 @@ mod unix {
         Ok(())
     }
 
+    async fn task_recover_child(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        attestation: PathBuf,
+        recovery_proof: PathBuf,
+        recovery_action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let attestation = read_bounded(&attestation, 8_192)?;
+        let recovery_proof = read_bounded(&recovery_proof, 4 * 1024 * 1024)?;
+        let recovery_action = read_bounded(&recovery_action, 64 * 1024)?;
+        let child_id = session
+            .recover_created_child(
+                TaskWriteProofs {
+                    task_id: &task_id,
+                    agent_proof: &agent_proof,
+                    agent_action: &agent_action,
+                    confirmation: None,
+                },
+                &attestation,
+                &recovery_proof,
+                &recovery_action,
+            )
+            .await?;
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "schema": "auths.gateway-child-recovery/1",
+                "outcome": "child-bound",
+                "source": "recovered",
+                "child_id": child_id,
+            }))
+            .map_err(|_| "gateway.task.invalid-response")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
         read_back: Option<String>,
@@ -5174,6 +5240,28 @@ mod unix {
             Command::TaskCreateRecoveryInputs { state_dir, task_id } => {
                 task_create_recovery_inputs(state_dir, task_id).await
             }
+            Command::TaskRecoverChild {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                attestation,
+                recovery_proof,
+                recovery_action,
+            } => {
+                task_recover_child(
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    attestation,
+                    recovery_proof,
+                    recovery_action,
+                )
+                .await
+            }
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -5807,6 +5895,40 @@ mod unix {
                     .expect("read-only recovery input request parses")
                     .command,
                 Command::TaskCreateRecoveryInputs { .. }
+            ));
+        }
+
+        #[test]
+        fn recovered_child_binding_requires_original_agent_and_new_human_proofs() {
+            let base = [
+                "auths-gateway",
+                "task-recover-child",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--recipe-digest",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+                "--attestation",
+                "recovery.json",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend([
+                "--recovery-proof",
+                "human.proof",
+                "--recovery-action",
+                "human.action",
+            ]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("complete recovered-child evidence parses")
+                    .command,
+                Command::TaskRecoverChild { .. }
             ));
         }
 

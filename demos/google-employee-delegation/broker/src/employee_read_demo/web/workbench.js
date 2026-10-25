@@ -11,6 +11,7 @@ let preparedTask = null;
 let preparedActivation = null;
 let preparedWriteTask = null;
 let preparedWriteConfirmation = null;
+let preparedRecoveredChild = null;
 let activationTaskId = null;
 
 async function api(path, body = null) {
@@ -362,6 +363,50 @@ async function submitApprovedWrite() {
   message("Gateway submission recorded. Run the independent demo_co write inspection before claiming an observed edit.");
 }
 
+async function prepareRecoveredChild() {
+  const result = await api("/api/v1/write/recovered-child/prepare", {
+    task_id: value("write-confirm-task-id"),
+  });
+  if (result.review.recovery.task_id !== result.task_id ||
+      result.review.attempt_stage !== "unknown" ||
+      result.review.authority_before_confirmation !== "none") {
+    throw new Error("Recovered child review does not match the unknown attempt");
+  }
+  preparedRecoveredChild = result;
+  byId("recovered-child-details").textContent = JSON.stringify(result.review, null, 2);
+  byId("recovered-child-review").hidden = false;
+  message("Review the original account and create, one candidate, parent, title, marker, content commitment and both independent evidence pins before signing.");
+}
+
+async function authorizeRecoveredChild() {
+  if (!preparedRecoveredChild) throw new Error("Review one recovered child first");
+  if (Date.now() / 1000 >= preparedRecoveredChild.expires_at) {
+    throw new Error("Recovered child review expired; inspect the attempt and evidence again");
+  }
+  const signature = await signEmployee(preparedRecoveredChild.signing_preimage);
+  const result = await api("/api/v1/write/recovered-child/authorize", {
+    nonce: preparedRecoveredChild.nonce, signature,
+  });
+  if (result.task_id !== preparedRecoveredChild.task_id ||
+      result.status !== "confirmed_pending_child_metadata_check") {
+    throw new Error("Confirmed recovered child differs from the reviewed task");
+  }
+  byId("recovered-child-status").textContent = JSON.stringify(result, null, 2);
+  byId("recovered-child-review").hidden = true;
+  byId("recovered-child-execute").hidden = false;
+  preparedRecoveredChild = null;
+  message("Jules signed this exact candidate. The gateway has not bound it; the next step performs one fresh metadata GET and rechecks the original unknown attempt.");
+}
+
+async function executeRecoveredChild() {
+  const result = await api("/api/v1/write/recovered-child/execute", {
+    task_id: value("write-confirm-task-id"),
+  });
+  byId("recovered-child-status").textContent = JSON.stringify(result, null, 2);
+  byId("recovered-child-execute").hidden = true;
+  message("The gateway bound the independently checked child. A fresh population preflight is still required before one agent-signed populate action.");
+}
+
 async function revokeWriteTask() {
   const taskId = value("write-confirm-task-id");
   if (!taskId) throw new Error("Enter the signed agent task ID first");
@@ -609,6 +654,12 @@ async function start() {
     }
   }
   byId("write-confirmation").hidden = !session.task_write_confirmation_available;
+  byId("recovered-child-confirmation").hidden = !session.task_write_paired_available;
+  if (session.task_write_paired_available) {
+    bind("recovered-child-prepare", prepareRecoveredChild);
+    bind("recovered-child-authorize", authorizeRecoveredChild);
+    bind("recovered-child-execute", executeRecoveredChild);
+  }
   if (session.task_write_confirmation_available) {
     if (session.task_read_only_available) {
       byId("write-confirmation-heading").textContent = "Read attempt activity";

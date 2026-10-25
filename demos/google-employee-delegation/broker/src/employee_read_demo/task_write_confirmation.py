@@ -10,6 +10,7 @@ a provider write itself or opens a credential.
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import re
 import secrets
@@ -21,7 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.exceptions import InvalidSignature
+
 from .agent_registry import AgentBinding
+from .contracts import commitment
 from .authority_identity import raw_key_public_for_identity_packet
 from .demo_co_contract import _unique_pairs
 from .enrollment import EmployeeBinding
@@ -34,8 +39,15 @@ from .task_write_operator_cli import _reviewed_profile
 from .task_write_package import load_task_write_package
 from .task_write_proofs import (
     PreparedHumanAction, prepare_effect_plan_confirmation,
-    prepare_exact_confirmation, task_commitment,
+    prepare_exact_confirmation, prepare_recovered_child_confirmation,
+    task_commitment,
 )
+from .google_create_preflight import _canonical_json
+from .task_recovery_operator import DOMAIN as RECOVERY_DOMAIN
+from .task_recovery_operator import INPUT_SCHEMA as RECOVERY_INPUT_SCHEMA
+from .task_recovery_operator import SCHEMA as RECOVERY_ATTESTATION_SCHEMA
+from .task_recovery_operator import _INPUT_FIELDS as RECOVERY_INPUT_FIELDS
+from .task_write_card import _installation
 
 
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
@@ -85,6 +97,26 @@ class _PendingEffectPlan:
     action: PreparedHumanAction
 
 
+@dataclass(frozen=True)
+class PreparedRecoveredChild:
+    nonce: str
+    task_id: str
+    review: dict
+    signing_preimage: bytes
+    expires_at: int
+
+
+@dataclass(frozen=True)
+class _PendingRecoveredChild:
+    employee: EmployeeBinding
+    agent: AgentBinding
+    task_id: str
+    inputs: dict
+    attestation_sha256: str
+    recovery: dict
+    action: PreparedHumanAction
+
+
 class TaskWriteConfirmationFlow:
     def __init__(self, *, authority_path: Path, installation_path: Path,
                  recipe_path: Path, profile_lock_path: Path,
@@ -120,6 +152,7 @@ class TaskWriteConfirmationFlow:
         self.gateway_state_dir = gateway_state_dir
         self._pending: dict[str, _Pending] = {}
         self._pending_plans: dict[str, _PendingEffectPlan] = {}
+        self._pending_recovery: dict[str, _PendingRecoveredChild] = {}
         self._lock = threading.Lock()
 
     def _binary(self) -> Path:
@@ -432,6 +465,240 @@ class TaskWriteConfirmationFlow:
                 "effect-plan record outcome is unknown; inspect state",
             )
         return directory
+
+    def _recovery_review(self, task_id: str, employee: EmployeeBinding,
+                         agent: AgentBinding, now: int) -> tuple[dict, dict, bytes, str]:
+        """Join the native unknown-attempt facts with one signed private report.
+
+        This owner-side check is for the browser display. The gateway repeats
+        native admission, attestation verification, attempt checks and a fresh
+        candidate metadata GET before it can bind the child.
+        """
+        if self.gateway_state_dir is None or self.companion_recipe_path is None:
+            raise OperatorDenied("paired recovery is not installed")
+        card = self._owned_task_card(task_id, employee)
+        if (card.get("agent_principal") != agent.agent_principal
+                or card.get("write_approval_mode") != "exact"
+                or type(card.get("pending_child")) is not dict
+                or type(card.get("expires_at")) is not int
+                or now >= card["expires_at"]):
+            raise OperatorDenied("recovered child differs from signed task")
+        directory = self._task_dir(task_id)
+        try:
+            completed = subprocess.run([
+                str(self._binary()), "task-create-recovery-inputs",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+            ], capture_output=True, check=False, timeout=30)
+            if completed.returncode != 0 or len(completed.stdout) > 8192:
+                raise OperatorDenied("gateway has no response-less create")
+            inputs = json.loads(completed.stdout, object_pairs_hook=_unique_pairs)
+            report = _private_read(directory / "recovery-attestation.json", 8192)
+            envelope = json.loads(report, object_pairs_hook=_unique_pairs)
+            plan_raw = _private_read(directory / "effect-plan.json", 8192)
+            plan = json.loads(plan_raw, object_pairs_hook=_unique_pairs)
+        except (OSError, PermissionError, subprocess.TimeoutExpired,
+                UnicodeDecodeError, ValueError) as error:
+            raise OperatorDenied("private recovery review is unavailable") from error
+        if (type(inputs) is not dict or set(inputs) != RECOVERY_INPUT_FIELDS
+                or inputs.get("schema") != RECOVERY_INPUT_SCHEMA
+                or inputs.get("task_id") != task_id
+                or inputs.get("task_commitment") != task_commitment(card)
+                or inputs.get("attempt_stage") != "unknown"
+                or inputs.get("authority") != "none"
+                or type(envelope) is not dict
+                or set(envelope) != {"statement", "signature_b64"}
+                or type(envelope["statement"]) is not dict
+                or type(envelope["signature_b64"]) is not str
+                or report != _canonical_json(envelope)):
+            raise OperatorDenied("recovery evidence disagrees with task")
+        if (type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/1"
+                or plan.get("task_id") != task_id
+                or type(plan.get("initial_text")) is not str
+                or not 1 <= len(plan["initial_text"].encode("utf-8")) <= 192
+                or plan_raw != _canonical_json(plan)
+                or commitment("auths.agent-effect-plan.v1", plan)
+                != inputs["plan_commitment"]
+                or hashlib.sha256(
+                    b"auths.agent-effect-plan-content/1\0"
+                    + plan["initial_text"].encode("utf-8")
+                ).hexdigest() != inputs["content_commitment"]):
+            raise OperatorDenied("recovery plan content differs from signed task")
+        statement = envelope["statement"]
+        expected = {
+            "schema": RECOVERY_ATTESTATION_SCHEMA,
+            **{name: inputs[name] for name in (
+                "task_id", "task_commitment", "plan_commitment",
+                "content_commitment", "create_operation_id",
+                "create_recipe_digest", "action_commitment",
+                "request_commitment", "parent_id", "title", "marker",
+                "connection_id", "connection_generation",
+                "connection_subject", "recovery_rule_digest",
+            )},
+        }
+        if (set(statement) != set(expected) | {
+                "candidate_id", "search_report_sha256",
+                "producer_observation_sha256", "baseline_sha256",
+                "candidate_metadata_sha256", "checked_at", "valid_until"}
+                or any(statement.get(key) != value for key, value in expected.items())
+                or type(statement.get("candidate_id")) is not str
+                or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", statement["candidate_id"])
+                or any(type(statement.get(key)) is not str
+                       or _HEX64.fullmatch(statement[key]) is None
+                       for key in ("search_report_sha256",
+                                   "producer_observation_sha256", "baseline_sha256",
+                                   "candidate_metadata_sha256"))
+                or type(statement.get("checked_at")) is not int
+                or type(statement.get("valid_until")) is not int
+                or not statement["checked_at"] <= now < statement["valid_until"]
+                or statement["valid_until"] > inputs["plan_expires_at"]
+                or statement["valid_until"] - statement["checked_at"] > 180):
+            raise OperatorDenied("recovery statement disagrees with original create")
+        pin = _installation(self.installation_path).get("recovery_attestation")
+        if (type(pin) is not dict
+                or pin.get("rule_digest") != inputs["recovery_rule_digest"]
+                or type(pin.get("public_key_hex")) is not str):
+            raise OperatorDenied("recovery evidence signer is not installed")
+        try:
+            public = bytes.fromhex(pin["public_key_hex"])
+            signature = base64.urlsafe_b64decode(
+                envelope["signature_b64"] + "=" * (-len(envelope["signature_b64"]) % 4))
+            if (len(public) != 32 or len(signature) != 64
+                    or hashlib.sha256(public).hexdigest()
+                    != inputs["recovery_key_sha256"]):
+                raise ValueError("recovery key changed")
+            Ed25519PublicKey.from_public_bytes(public).verify(
+                signature, RECOVERY_DOMAIN + _canonical_json(statement))
+        except (InvalidSignature, ValueError, TypeError) as error:
+            raise OperatorDenied("recovery attestation signature is invalid") from error
+        if (_private_read(directory / "recovery-attestation.json", 8192) != report
+                or now >= statement["valid_until"]):
+            raise OperatorDenied("recovery evidence changed during review")
+        return inputs, statement, report, plan["initial_text"]
+
+    def prepare_recovered_child(self, *, task_id: str,
+                                employee: EmployeeBinding,
+                                agent: AgentBinding,
+                                now: int | None = None) -> PreparedRecoveredChild:
+        now = int(time.time()) if now is None else now
+        inputs, statement, report, approved_text = self._recovery_review(
+            task_id, employee, agent, now)
+        expires_at = min(now + 180, statement["valid_until"],
+                         inputs["plan_expires_at"])
+        recovery = {
+            "schema": "auths.agent-recovered-child/1",
+            "task_id": task_id,
+            "task_commitment": inputs["task_commitment"],
+            "plan_commitment": inputs["plan_commitment"],
+            "create_operation_id": inputs["create_operation_id"],
+            "candidate_id": statement["candidate_id"],
+            "parent_id": inputs["parent_id"],
+            "title": inputs["title"],
+            "marker": inputs["marker"],
+            "content_commitment": inputs["content_commitment"],
+            "attestation_commitment": hashlib.sha256(report).hexdigest(),
+            "expires_at": expires_at,
+        }
+        package = load_task_write_package(self.authority_path, now=now)
+        action = prepare_recovered_child_confirmation(
+            package.authority, recovery, now=now)
+        nonce = secrets.token_urlsafe(24)
+        with self._lock:
+            self._pending_recovery[nonce] = _PendingRecoveredChild(
+                employee, agent, task_id, inputs, hashlib.sha256(report).hexdigest(),
+                recovery, action)
+        return PreparedRecoveredChild(nonce, task_id, {
+            "recovery": recovery,
+            "account_subject": inputs["connection_subject"],
+            "attempt_stage": inputs["attempt_stage"],
+            "authority_before_confirmation": inputs["authority"],
+            "search_report_sha256": statement["search_report_sha256"],
+            "producer_observation_sha256":
+                statement["producer_observation_sha256"],
+            "baseline_sha256": statement["baseline_sha256"],
+            "candidate_metadata_sha256":
+                statement["candidate_metadata_sha256"],
+            "approved_initial_text": approved_text,
+        }, action.signing_preimage, min(action.expires_at, expires_at))
+
+    def complete_recovered_child(self, *, nonce: str,
+                                 employee: EmployeeBinding,
+                                 agent: AgentBinding, signature: bytes,
+                                 now: int | None = None) -> Path:
+        now = int(time.time()) if now is None else now
+        with self._lock:
+            pending = self._pending_recovery.pop(nonce, None)
+        if (pending is None or pending.employee != employee
+                or pending.agent != agent
+                or now >= pending.recovery["expires_at"]
+                or now >= pending.action.expires_at):
+            raise OperatorDenied("recovered child review is unavailable")
+        inputs, statement, report, approved_text = self._recovery_review(
+            pending.task_id, employee, agent, now)
+        if (inputs != pending.inputs
+                or hashlib.sha256(report).hexdigest()
+                != pending.attestation_sha256
+                or statement["candidate_id"] != pending.recovery["candidate_id"]
+                or hashlib.sha256(
+                    b"auths.agent-effect-plan-content/1\0"
+                    + approved_text.encode("utf-8")
+                ).hexdigest() != pending.recovery["content_commitment"]):
+            raise OperatorDenied("recovered child changed during review")
+        signed = pending.action.complete(signature, now=now)
+        directory = self._task_dir(pending.task_id)
+        _private_write(directory / "recovery.proof", signed.proof)
+        try:
+            _private_write(directory / "recovery.action", signed.action)
+        except BaseException:
+            (directory / "recovery.proof").unlink(missing_ok=True)
+            raise
+        return directory
+
+    def submit_recovered_child(self, *, task_id: str,
+                               employee: EmployeeBinding,
+                               agent: AgentBinding) -> dict:
+        if self.gateway_state_dir is None or self.companion_recipe_path is None:
+            raise OperatorDenied("paired recovery is not installed")
+        self._recovery_review(task_id, employee, agent, int(time.time()))
+        directory = self._task_dir(task_id)
+        for name, maximum in (("agent.proof", 4 * 1024 * 1024),
+                              ("agent.action", 64 * 1024),
+                              ("recovery.proof", 4 * 1024 * 1024),
+                              ("recovery.action", 64 * 1024)):
+            _private_read(directory / name, maximum)
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-recover-child",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+                "--recipe-digest", load_task_write_package(
+                    self.authority_path).recipe_digest,
+                "--agent-proof", str(directory / "agent.proof"),
+                "--agent-action", str(directory / "agent.action"),
+                "--attestation", str(directory / "recovery-attestation.json"),
+                "--recovery-proof", str(directory / "recovery.proof"),
+                "--recovery-action", str(directory / "recovery.action"),
+            ], capture_output=True, check=False, timeout=90)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied(
+                "recovered child outcome is unknown; inspect state before retry",
+            ) from error
+        if result.returncode != 0 or len(result.stdout) > 4096:
+            raise OperatorDenied(
+                "recovered child outcome is unknown; inspect state before retry",
+            )
+        try:
+            outcome = json.loads(result.stdout, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise OperatorDenied("recovered child outcome is malformed") from error
+        if (type(outcome) is not dict
+                or set(outcome) != {"schema", "outcome", "source", "child_id"}
+                or outcome.get("schema") != "auths.gateway-child-recovery/1"
+                or outcome.get("outcome") != "child-bound"
+                or outcome.get("source") != "recovered"
+                or type(outcome.get("child_id")) is not str):
+            raise OperatorDenied("recovered child outcome is malformed")
+        return outcome
 
     def activate(self, task_id: str) -> None:
         """Register the browser-signed task once in the private gateway journal."""

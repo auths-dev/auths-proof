@@ -14,7 +14,8 @@ from employee_read_demo.authority_identity import authority_for_identity_packet
 from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied, OperatorRoot
 from employee_read_demo.task_write_authority import (
-    APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL, TASK_SERVICE,
+    APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL, RECOVERY_TOOL,
+    TASK_SERVICE,
     issue_task_write_authority, plan_agent_companion_write_grant,
     plan_agent_read_grant, plan_agent_write_grant,
 )
@@ -77,6 +78,15 @@ class TaskWriteAuthorityTests(unittest.TestCase):
             companion_write_service="google-docs-delegation-demo",
             companion_write_tool="populate_created_project_a_document_v1",
             now=1000, lifetime=600,
+        )
+        recovery_grant = _native.parse_signed(
+            "grant", authority.recovery_grant.signed_grant,
+        )
+        _verify_action(
+            authority, service=TASK_SERVICE, tool=RECOVERY_TOOL,
+            key=human_key, actor=human, actor_evidence=human_evidence,
+            terminal=recovery_grant, grants=[recovery_grant],
+            grant_evidence=[[_evidence(root.evidence)]],
         )
         for service, tool, plan, grant in (
             (authority.provider_service, authority.provider_tool,

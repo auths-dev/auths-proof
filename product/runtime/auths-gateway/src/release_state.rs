@@ -11,6 +11,7 @@ use crate::task_activation::TaskWriteScope;
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
 use crate::task_effect_plan::VerifiedEffectPlan;
 use crate::task_populate_attestation::{ExpectedPopulatePreflight, VerifiedPopulatePreflight};
+use crate::task_recovery_attestation::VerifiedRecoveryAttestation;
 use crate::task_write::ApprovedTaskWrite;
 use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
@@ -90,11 +91,27 @@ struct BoundChild {
     populate_recipe_digest: String,
     action_commitment: String,
     request_commitment: String,
-    response_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    response_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovery: Option<RecoveredChildEvidence>,
     metadata_digest: String,
     id: String,
     connection_generation: u64,
     connection_subject: String,
+}
+
+/// A response-less binding has its own human signature and two independently
+/// checked observations. It deliberately has no provider response digest.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveredChildEvidence {
+    attestation_commitment: String,
+    human_action_commitment: String,
+    search_report_sha256: String,
+    producer_observation_sha256: String,
+    baseline_sha256: String,
+    search_metadata_sha256: String,
 }
 
 /// An exact native-verified agent action, projected by the future admission
@@ -733,7 +750,8 @@ impl ReleaseTaskState {
             populate_recipe_digest: pending.populate_recipe_digest.clone(),
             action_commitment: intent.action_commitment.clone(),
             request_commitment: intent.request_commitment.clone(),
-            response_digest: hex::encode(response_digest),
+            response_digest: Some(hex::encode(response_digest)),
+            recovery: None,
             metadata_digest: child.metadata_digest().to_owned(),
             id: child.id().to_owned(),
             connection_generation: intent.connection_generation,
@@ -741,6 +759,57 @@ impl ReleaseTaskState {
         };
         if intent.task_id != self.task_id
             || !same_commitment(&self.task_commitment, &intent.task_commitment)
+            || !self.valid_child_binding(&binding)
+        {
+            return Err(ReleaseStateError::Binding);
+        }
+        self.child_binding = Some(binding);
+        Ok(())
+    }
+
+    fn bind_recovered_child(
+        &mut self,
+        approved: &ApprovedTaskWrite,
+        plan: &VerifiedEffectPlan,
+        child: &VerifiedCreatedChild,
+        attestation: &VerifiedRecoveryAttestation,
+        human_action_commitment: &str,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        self.active(now)?;
+        if !self.recovery_create_reserved(plan) {
+            return Err(ReleaseStateError::Replay);
+        }
+        let intent = approved.intent();
+        let pending = self
+            .activated_card
+            .as_ref()
+            .and_then(|card| card.pending_child.as_ref())
+            .ok_or(ReleaseStateError::Binding)?;
+        let binding = BoundChild {
+            create_operation_id: intent.operation_id.clone(),
+            create_recipe_digest: intent.recipe_digest.clone(),
+            populate_recipe_digest: pending.populate_recipe_digest.clone(),
+            action_commitment: intent.action_commitment.clone(),
+            request_commitment: intent.request_commitment.clone(),
+            response_digest: None,
+            recovery: Some(RecoveredChildEvidence {
+                attestation_commitment: attestation.commitment().to_owned(),
+                human_action_commitment: human_action_commitment.to_owned(),
+                search_report_sha256: attestation.search_report_sha256().to_owned(),
+                producer_observation_sha256: attestation.producer_observation_sha256().to_owned(),
+                baseline_sha256: attestation.baseline_sha256().to_owned(),
+                search_metadata_sha256: attestation.candidate_metadata_sha256().to_owned(),
+            }),
+            metadata_digest: child.metadata_digest().to_owned(),
+            id: child.id().to_owned(),
+            connection_generation: intent.connection_generation,
+            connection_subject: intent.connection_subject.clone(),
+        };
+        if intent.task_id != self.task_id
+            || !same_commitment(&self.task_commitment, &intent.task_commitment)
+            || &plan.create != intent
+            || child.id() != attestation.candidate_id()
             || !self.valid_child_binding(&binding)
         {
             return Err(ReleaseStateError::Binding);
@@ -768,7 +837,20 @@ impl ReleaseTaskState {
             && write.recipe_digest == binding.create_recipe_digest
             && write.action_commitment == binding.action_commitment
             && write.request_commitment == binding.request_commitment
-            && valid_digest(&binding.response_digest)
+            && match (&binding.response_digest, &binding.recovery) {
+                (Some(response), None) => valid_digest(response),
+                (None, Some(recovery)) => [
+                    &recovery.attestation_commitment,
+                    &recovery.human_action_commitment,
+                    &recovery.search_report_sha256,
+                    &recovery.producer_observation_sha256,
+                    &recovery.baseline_sha256,
+                    &recovery.search_metadata_sha256,
+                ]
+                .into_iter()
+                .all(|value| valid_digest(value)),
+                _ => false,
+            }
             && valid_digest(&binding.metadata_digest)
             && !binding.id.is_empty()
             && binding.id.len() <= 128
@@ -1541,6 +1623,27 @@ impl FileReleaseTaskLedger {
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(&approved.intent().task_id, |state| {
             state.bind_created_child(approved, child, response_digest, now)
+        })
+    }
+
+    pub(crate) fn bind_recovered_child(
+        &self,
+        approved: &ApprovedTaskWrite,
+        plan: &VerifiedEffectPlan,
+        child: &VerifiedCreatedChild,
+        attestation: &VerifiedRecoveryAttestation,
+        human_action_commitment: &str,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(&approved.intent().task_id, |state| {
+            state.bind_recovered_child(
+                approved,
+                plan,
+                child,
+                attestation,
+                human_action_commitment,
+                now,
+            )
         })
     }
 

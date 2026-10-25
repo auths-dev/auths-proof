@@ -23,6 +23,7 @@ TASK_SERVICE = "auths-agent-task"
 APPROVAL_TOOL = "approve_agent_task_v1"
 CONFIRMATION_TOOL = "confirm_agent_write_v1"
 EFFECT_PLAN_TOOL = "confirm_agent_effect_plan_v1"
+RECOVERY_TOOL = "confirm_agent_recovered_child_v1"
 _TOOL = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 
 
@@ -48,6 +49,7 @@ class TaskWriteAuthority:
     companion_write_tool: str | None = None
     companion_write_parent_grant: EmployeeAuthority | None = None
     effect_plan_grant: EmployeeAuthority | None = None
+    recovery_grant: EmployeeAuthority | None = None
 
 
 def _permission(service: str, tool: str) -> tuple[str, str]:
@@ -114,6 +116,11 @@ def issue_task_write_authority(
         service=TASK_SERVICE, tool=EFFECT_PLAN_TOOL, now=now,
         lifetime=lifetime, remaining_depth=0,
     )
+    recovery = (root.issue_employee_for_tool(
+        binding=binding, identity_packet=identity_packet,
+        service=TASK_SERVICE, tool=RECOVERY_TOOL, now=now,
+        lifetime=lifetime, remaining_depth=0,
+    ) if companion_write_service is not None else None)
     write_parent = root.issue_employee_for_tool(
         binding=binding, identity_packet=identity_packet,
         service=provider_service, tool=provider_tool, now=now,
@@ -147,6 +154,8 @@ def issue_task_write_authority(
                    _permission(TASK_SERVICE, CONFIRMATION_TOOL),
                    _permission(TASK_SERVICE, EFFECT_PLAN_TOOL),
                    _permission(provider_service, provider_tool)]
+    if recovery is not None:
+        permissions.append(_permission(TASK_SERVICE, RECOVERY_TOOL))
     audiences = [task_audience, provider_audience]
     if read_audience is not None and read_tool is not None:
         permissions.append(_permission(read_service, read_tool))
@@ -175,7 +184,7 @@ def issue_task_write_authority(
         approval, confirmation, write_parent, challenge, now, now + lifetime,
         read_service, read_tool, read_parent,
         companion_write_service, companion_write_tool, companion_write_parent,
-        effect_plan,
+        effect_plan, recovery,
     )
 
 
