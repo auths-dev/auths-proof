@@ -88,6 +88,10 @@ jobs:
               -t "$image" .
             docker run --rm --entrypoint sh "$image" -c \
               "command -v $cli && test ! -e /build/$role"
+            if [ "$role" = broker ]; then
+              docker run --rm --entrypoint sh "$image" -c \
+                'command -v auths-google-read-partial-smoke'
+            fi
           done
       - name: Publish images and pin registry manifests
         env:
