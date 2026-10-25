@@ -86,7 +86,7 @@ jobs:
       - name: Check installed CLI entry points and runtime source isolation
         run: |
           docker run --rm --entrypoint sh auths-google-read-broker:ci -c \
-            'command -v auths-google-read-workbench && command -v auths-google-read-partial-smoke && test ! -e /build/broker'
+            'command -v auths-google-read-workbench && command -v auths-google-read-partial-smoke && command -v auths-google-read-partial-delegation-lab && test ! -e /build/broker'
           docker run --rm --entrypoint sh auths-google-read-agent:ci -c \
             'command -v auths-google-read-agent && test ! -e /build/agent'
       - name: Probe installed Compose containers and restricted routes

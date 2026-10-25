@@ -454,6 +454,22 @@ The review screen shows the real account binding and exact selected IDs behind r
 > as agent-reported text. Live provider content and the full walkthrough
 > remain pending Google setup; the local UI does not label those stages passed.
 
+> **Partial live delegation note (25 October 2026):** A separate operator-
+> assisted lab bypasses the missing demo_co *versioned export* using its
+> owner-only Jules partial probe and existing grant. A human reviewed one
+> exact Project A task and signed a native employee-to-agent grant with a
+> fresh browser key. A distinct agent key signed the action; native
+> authorization released 1,249 bytes through two Google requests, matching
+> the producer's independent content hash. Project B was denied before a
+> provider request, the receipt signature verified, and revocation denied a
+> new challenge. The browser signer was not authenticated by Google as Jules,
+> and the agent key ran in the diagnostic broker process. This is useful
+> minimum flow evidence, not §14 acceptance. TODO after the demo_co agent
+> finishes: consume its complete versioned export for the normal importer
+> and repeat with browser Google identity binding, separate agent process,
+> and the remaining employee and provider controls. Do not synthesize the
+> missing demo_co export in this repository.
+
 Proposed application routes:
 
 ```text

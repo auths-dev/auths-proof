@@ -149,6 +149,29 @@ before credential resolution. The generated descriptor is diagnostic and has
 no native employee or agent signature; the result explicitly records this
 limit and cannot be used as full delegation acceptance evidence.
 
+For the minimum human-signature demonstration, the separate installed
+`auths-google-read-partial-delegation-lab` command accepts the same five
+private inputs and `--out` arguments as `auths-google-read-partial-smoke`.
+It serves a one-use review page at `http://127.0.0.1:8870/`. The operator
+reviews the exact Jules account, Project A file, excluded Project B file,
+agent principal, expiry and byte/call limits, then signs with a fresh,
+non-exportable browser Ed25519 key. The broker verifies that signature on a
+native employee-to-agent grant. A distinct agent key signs the exact MCP
+action; the broker verifies the proof, uses Jules's existing grant for one
+live Project A read, checks the result against the producer's independent
+hash, rejects a Project B challenge, verifies the receipt, and rejects a new
+challenge after revocation. The redacted result is written only to the
+operator-private `--out` path. Run this on a trusted local machine with an
+owner-only report, OAuth client file, grant file and output directory.
+
+This is an operator-assisted diagnostic: Google verifies the *existing grant*
+as Jules, but does not authenticate the person signing in this browser as
+Jules. The agent uses a distinct principal but runs inside the diagnostic
+broker process. The production importer and token vault remain closed. It
+does not count as employee onboarding or full AP-SPEC-070 acceptance. A
+complete demo_co versioned export, browser identity binding, and isolated
+agent run are still needed for that acceptance.
+
 The browser review flow uses a non-exportable Ed25519 employee key stored in
 that browser's IndexedDB, keyed by the signed-in Google subject. Clearing the
 browser profile removes access to that key. The workbench returns the native
