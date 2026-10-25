@@ -9,6 +9,7 @@ grants remain on the employee key. No provider credential enters this module.
 from __future__ import annotations
 
 import re
+import secrets
 import time
 from dataclasses import dataclass
 
@@ -35,6 +36,7 @@ class TaskWriteAuthority:
     approval_grant: EmployeeAuthority
     confirmation_grant: EmployeeAuthority
     write_parent_grant: EmployeeAuthority
+    challenge: bytes
     not_before: int
     expires_at: int
 
@@ -104,11 +106,12 @@ def issue_task_write_authority(
         _native.self_contained_configuration(), None, 1, 1, 1,
         [anchor], assurance, None, None, "none-v1", ["raw-key-v1"], [],
     )
-    provider_context = compiled.bind_request(provider_audience, bytes(32), now)
+    challenge = secrets.token_bytes(32)
+    provider_context = compiled.bind_request(provider_audience, challenge, now)
     return TaskWriteAuthority(
         provider_service, provider_tool, root.principal, binding.principal,
         bytes(_native.inspect_trusted_context(provider_context)),
-        approval, confirmation, write_parent, now, now + lifetime,
+        approval, confirmation, write_parent, challenge, now, now + lifetime,
     )
 
 

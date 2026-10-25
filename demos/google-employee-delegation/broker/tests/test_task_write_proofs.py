@@ -49,6 +49,7 @@ class TaskWriteProofTests(unittest.TestCase):
             "purpose": "Edit the Project A working document",
         }
         prepared = prepare_task_approval(authority, card, now=1100)
+        self.assertEqual(prepared.challenge, authority.challenge)
         signed = prepared.complete(human_key.sign(prepared.signing_preimage), now=1101)
         self.assertGreater(len(signed.proof), 0)
         self.assertGreater(len(signed.action), 0)
@@ -72,7 +73,7 @@ class TaskWriteProofTests(unittest.TestCase):
         with self.assertRaises(Exception):
             confirm.complete(bytes(64), now=1111)
         with self.assertRaises(OperatorDenied):
-            prepared.complete(human_key.sign(prepared.signing_preimage), now=1131)
+            prepared.complete(human_key.sign(prepared.signing_preimage), now=1401)
 
 
 if __name__ == "__main__":

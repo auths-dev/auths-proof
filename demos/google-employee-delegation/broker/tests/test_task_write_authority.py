@@ -33,7 +33,7 @@ def _evidence(raw: bytes) -> tuple[str, str, bytes]:
 
 def _verify_action(authority, *, service: str, tool: str, key, actor: str,
                    actor_evidence: bytes, terminal, grants, grant_evidence) -> None:
-    now, challenge = 1100, bytes([3]) * 32
+    now, challenge = 1100, authority.challenge
     arguments = _native.canonicalize_mcp_arguments_json(
         json.dumps({"task_id": "synthetic-task"}).encode("utf-8"),
     )

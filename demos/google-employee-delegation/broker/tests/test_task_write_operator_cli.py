@@ -70,6 +70,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(package["recipe_digest"], digest)
             self.assertEqual(len(package["recipe_source_sha256"]), 64)
             self.assertEqual(len(package["profile_lock_sha256"]), 64)
+            self.assertEqual(len(base64.urlsafe_b64decode(package["challenge_b64"])), 32)
             self.assertEqual(package["expires_at"], 4600)
             self.assertNotIn("token", output.read_text().lower())
             _native.parse_trusted_context(base64.urlsafe_b64decode(

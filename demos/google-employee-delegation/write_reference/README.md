@@ -110,6 +110,13 @@ enrolled human key, which the browser currently holds. Its card commitment
 uses the gateway's domain-separated canonicalization. This is native proof
 construction, not a served Jules approval screen or an installed gateway
 activation.
+The private authority package pins a fresh 32-byte operator challenge into
+the installed trust context. Human and agent actions for that installation
+must sign that same challenge; the gateway does not accept an agent-selected
+challenge. The current development task command re-verifies the human task
+action on every write, so its native five-minute maximum action window also
+limits the live edit round trip. A durable active-task lookup that does not
+depend on a still-live initial signature is required for longer sessions.
 
 `task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
 verifies the human's native signed task and registers its budget once.

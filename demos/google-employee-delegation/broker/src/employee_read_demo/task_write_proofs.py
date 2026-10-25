@@ -8,7 +8,6 @@ provider request; a proof from this module does not authorize provider I/O.
 
 from __future__ import annotations
 
-import secrets
 import time
 from dataclasses import dataclass
 
@@ -80,19 +79,20 @@ def _prepare(authority: TaskWriteAuthority, *, tool: str,
         raise OperatorDenied("human task authority expired")
     grant = authority.approval_grant if tool == APPROVAL_TOOL else authority.confirmation_grant
     terminal = _native.parse_signed("grant", grant.signed_grant)
-    challenge = secrets.token_bytes(32)
+    challenge = authority.challenge
     arguments = bytes(_native.canonicalize_mcp_arguments_json(canonical_json(payload)))
     call = _native.mcp_call(TASK_SERVICE, tool, arguments)
     prepared = _native.prepare_mcp_call_action(
         call, _native.Principal(authority.human_principal), terminal,
-        challenge, now, 30,
+        challenge, now, 300 if tool == APPROVAL_TOOL else 30,
     )
     signing = _native.prepare_signing(
         prepared.unsigned, "raw-key-v1", authority.human_principal, "ed25519-v1",
     )
     return PreparedHumanAction(
         tool, arguments, bytes(signing.signing_preimage), challenge, now,
-        min(now + 30, authority.expires_at), authority, prepared, signing, terminal,
+        min(now + 300 if tool == APPROVAL_TOOL else now + 30,
+            authority.expires_at), authority, prepared, signing, terminal,
     )
 
 

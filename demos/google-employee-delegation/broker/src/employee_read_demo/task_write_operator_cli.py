@@ -136,6 +136,7 @@ def issue_task_package(
         "not_before": authority.not_before,
         "expires_at": authority.expires_at,
         "trusted_template_b64": encode(authority.trusted_template),
+        "challenge_b64": encode(authority.challenge),
         "approval_grant_b64": encode(authority.approval_grant.signed_grant),
         "confirmation_grant_b64": encode(authority.confirmation_grant.signed_grant),
         "write_parent_grant_b64": encode(authority.write_parent_grant.signed_grant),
