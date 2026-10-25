@@ -78,3 +78,17 @@ run-owned record was retired. The redacted result records one provider call,
 one release of seven bytes and one write. The gateway's separate synthetic
 recipient-mismatch case covers a forged proof at its native admission
 boundary.
+
+A fifth disposable run
+(`/private/tmp/ap071-airtable-wrong-recipe-20261025-2201`) used gateway binary
+SHA-256 `f17084b2796ba7deee148814054f1b3f50beeb8af5ab4e401359fe8ee50460a7`.
+The distinct agent signed a read action carrying a changed recipe digest
+through its public task package. The installed gateway returned `not-entered`
+with `gateway.release.native-proof`; task status was unchanged from its
+zero-call, zero-release state. The allowed read then reached Airtable, was
+acknowledged by the agent and charged one provider call, one release and
+seven bytes. The exact confirmed PATCH was observed by the provider, and an
+independent operator GET confirmed the approved value and gateway echo. The
+run-owned record `recltn8I6tC22UfSo` was retired; the ownership journal has
+`retired=true` and the redacted result reports verified cleanup. This adds an
+installed wrong-recipe refusal without claiming the full §6 corpus is done.
