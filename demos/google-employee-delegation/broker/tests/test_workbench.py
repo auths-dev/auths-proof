@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import base64
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -105,6 +106,32 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(packet["identity_packet"])
         self.assertTrue(packet["principal"])
+
+    def test_session_reports_existing_jules_employee_key(self) -> None:
+        context = JulesWriteContext(
+            {"company_id": "atlas-studio", "people": []},
+            "c" * 64, "jules-subject",
+        )
+        self.server.workbench = replace(self.server.workbench, company=context)
+        sessions = self.server.workbench.sessions
+        logged_in = sessions.login(
+            sessions.create(), issuer="https://accounts.google.com",
+            subject="jules-subject", company="atlas-studio",
+        )
+        with sqlite3.connect(self.server.workbench.enrollment.path) as db:
+            db.execute("""INSERT INTO employee_bindings
+                (binding_ref,company,person,issuer,subject,principal,
+                 identity_packet,bundle_digest) VALUES(?,?,?,?,?,?,?,?)""", (
+                    "jules-binding", "atlas-studio", "jules",
+                    "https://accounts.google.com", "jules-subject",
+                    "key:sha256:existing", b"existing-packet", "c" * 64,
+                ))
+        status, payload, _ = self.request(
+            "GET", "/api/v1/session",
+            cookie=f"ap070_session={logged_in.cookie}",
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["employee_principal"], "key:sha256:existing")
 
     def test_workbench_assets_are_served_with_no_store(self) -> None:
         for path, marker in (("/", b"Review and authorize one task"),

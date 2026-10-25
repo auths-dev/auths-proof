@@ -103,12 +103,21 @@ function showActivationCalls(taskId, calls) {
 async function enrollEmployee() {
   const key = await employeeKey(true);
   const packet = await api("/api/v1/identity/packet", { public_key: key.publicKey });
+  if (session.employee_principal) {
+    if (packet.principal !== session.employee_principal) {
+      throw new Error("This browser key differs from the employee key already enrolled for this Google account");
+    }
+    byId("employee-principal").textContent = `Employee principal: ${packet.principal}`;
+    message("Using this browser’s already enrolled employee key.");
+    return;
+  }
   const challenge = await api("/api/v1/employees/enroll/prepare", { identity_packet: packet.identity_packet });
   const signature = await signEmployee(challenge.signing_preimage);
   const result = await api("/api/v1/employees/enroll", {
     identity_packet: packet.identity_packet, nonce: challenge.nonce, signature,
   });
   byId("employee-principal").textContent = `Employee principal: ${result.principal}`;
+  session.employee_principal = result.principal;
   message("Employee Auths key enrolled for this Google account.");
 }
 
@@ -538,6 +547,9 @@ async function start() {
   session = await api("/api/v1/session");
   byId("status").textContent = `Google: ${session.google_status}; company: ${session.company_id || "not configured"}`;
   byId("employee").textContent = session.subject ? `Signed in as Google subject ${session.subject}` : "No Google account signed in.";
+  if (session.employee_principal) {
+    byId("employee-principal").textContent = `Employee principal: ${session.employee_principal}`;
+  }
   byId("drive").textContent = session.drive_connected ? "Drive connected under this employee." : "Drive is not connected.";
   byId("disconnect").hidden = !session.drive_connected;
   if (session.google_status === "jules_write_only") {
@@ -551,7 +563,9 @@ async function start() {
     byId("drive").textContent = "The existing Jules Drive grant is held by the operator.";
     for (const id of ["connect-drive", "general-task", "general-run", "general-evidence"])
       byId(id).hidden = true;
-    message("Sign in as Jules, enroll this browser key, then register the separate agent.");
+    message(session.employee_principal
+      ? "Jules’s employee key is enrolled; review the pinned task or register a distinct agent."
+      : "Sign in as Jules, enroll this browser key, then register the separate agent.");
   } else if (session.google_status !== "ready") {
     message("Google is not configured. Live task controls remain unavailable.");
   }

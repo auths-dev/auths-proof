@@ -251,6 +251,18 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/v1/session":
                 session, created = self._session(create=True)
+                employee_principal = None
+                if (self.workbench.company is not None
+                        and session.issuer and session.subject):
+                    try:
+                        employee_principal = self.workbench.enrollment.lookup(
+                            self.workbench.company,
+                            VerifiedGoogleSubject(
+                                "login", session.issuer, session.subject,
+                            ),
+                        ).principal
+                    except EnrollmentDenied:
+                        pass
                 drive_connected = bool(
                     session.connection_id and session.issuer and session.subject
                     and self.workbench.vault is not None
@@ -265,6 +277,7 @@ class Handler(BaseHTTPRequestHandler):
                     "google_status": self.workbench.status.google,
                     "company_id": None if self.workbench.company is None else self.workbench.company.bundle["company_id"],
                     "subject": session.subject,
+                    "employee_principal": employee_principal,
                     "drive_connected": drive_connected,
                     "task_write_available": bool(
                         self.workbench.write_browser is not None
