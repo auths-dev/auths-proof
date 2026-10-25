@@ -29,13 +29,13 @@ bounded revision and tab ID, and confirm Drive `capabilities.canEdit=true`
 for that exact child. A stale revision or unknown populate response requires
 reconciliation; no silent retry or rebase is allowed.
 
-The preflight also accepts only a single blank paragraph with one terminal
-newline and consistent provider-returned indexes. demo_co did not retain the
-probe's pre-insert body structure, so this narrow parser is a fail-closed
-assumption for the first live child. If a fresh Jules read returns another
-shape, capture only its redacted structural summary and review the parser
-before entry. The recipe uses `endOfSegmentLocation` and never assumes a
-numeric insertion index.
+The preflight accepts the blank structure observed on the first live child:
+one section break ending at index 1, followed by one paragraph at indexes
+1–2 containing only a terminal newline. The narrow parser also retains its
+single-paragraph synthetic case. It rejects other body elements and text.
+This structural check must run on a fresh Jules read before entry; an admin
+read is diagnostic evidence only. The recipe uses `endOfSegmentLocation` and
+never assumes a numeric insertion index.
 
 `google_create_preflight.py` now joins these parsers with the existing
 subject-checked Jules token lease and three bounded, redirect-free GETs:
@@ -51,11 +51,22 @@ The human-signed task card names the populate recipe digest but contains no
 arbitrary child ID. Only a child ID durably bound after the reserved create and
 credential-bearing metadata observation can become a one-time edit scope in
 the shared task journal. A different ID or digest and a second population
-operation are refused before provider entry. The exact human confirmation
-for this second action is still required by the current gateway path. The
-private task journal can now record a native human effect plan with the
-exact initial text commitment and this populate recipe and operation before
-create reservation. The exact create can consume that recorded plan without a second signature.
-The current submission path does not yet consume the plan for population
-admission, so a second exact confirmation remains required. No live provider effect or independent demo_co verdict
-has yet been obtained for this reference.
+operation are refused before provider entry. The private task journal can
+record a native human effect plan with the exact initial text commitment,
+populate recipe and operation before create reservation. Planned population
+requires an installed preflight signer pin, a fresh signed Jules child
+preflight and a still-valid plan. The first live create reached Google before
+an incomplete installation and short plan lifetime were found; the child
+remains blank. A fresh authorization for only the remaining effect is
+required. No live populate effect or independent populated-child verdict has
+yet been obtained for this reference.
+
+For the interrupted first run, the development workbench can accept a
+private `--task-write-created-child` pin. It prepares a **new** task with one
+static edit scope on the already bound child, no create and no read release.
+The pin fixes the child metadata and the SHA-256 and byte count of the
+previously signed complete draft. During exact review, the broker refreshes
+Jules's subject, metadata, `canEdit`, blank tab and revision; it compares the
+agent's signed text and target to those pins before asking for a new human
+signature. This continuation is a demo recovery path. It neither extends the
+expired two-effect plan nor qualifies the original single-plan journey.

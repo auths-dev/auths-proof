@@ -224,6 +224,24 @@ class TaskOperatorCliTests(unittest.TestCase):
             paired_installed.write_text(json.dumps(
                 paired_pins, sort_keys=True, separators=(",", ":")))
             os.chmod(paired_installed, 0o600)
+            with self.assertRaisesRegex(
+                    OperatorDenied, "populate preflight signer is not installed"):
+                build_exact_write_card(
+                    paired, employee, agent,
+                    installation_path=paired_installed,
+                    recipe_path=create_reference / "recipe.json",
+                    profile_lock_path=create_reference / "profile.lock.json",
+                    resource_handle="project-a-folder",
+                    purpose="Create and populate one Project A handoff",
+                    companion_recipe_path=populate_reference / "recipe.json",
+                    companion_profile_lock_path=populate_reference / "profile.lock.json",
+                    pending_child=paired_card["pending_child"], now=1010,
+                )
+            paired_pins["populate_preflight"] = {
+                "public_key_hex": "1" * 64, "rule_digest": "2" * 64,
+            }
+            paired_installed.write_text(json.dumps(
+                paired_pins, sort_keys=True, separators=(",", ":")))
             paired_flow = TaskWriteBrowserFlow(
                 authority_path=paired_output, installation_path=paired_installed,
                 recipe_path=create_reference / "recipe.json",

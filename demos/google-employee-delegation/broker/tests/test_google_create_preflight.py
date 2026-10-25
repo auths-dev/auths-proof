@@ -153,6 +153,11 @@ class JulesChildPreflightTests(unittest.TestCase):
         document = {"documentId": pins.candidate_id, "revisionId": "revision-1",
                     "tabs": [{"tabProperties": {"tabId": "t.0"},
                               "childTabs": [], "documentTab": {"body": {"content": [
+                                  {"endIndex": 1,
+                                   "sectionBreak": {"sectionStyle": {
+                                       "columnSeparatorStyle": "NONE",
+                                       "contentDirection": "LEFT_TO_RIGHT",
+                                       "sectionType": "CONTINUOUS"}}},
                                   {"startIndex": 1, "endIndex": 2,
                                    "paragraph": {"elements": [{
                                        "startIndex": 1, "endIndex": 2,

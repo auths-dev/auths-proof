@@ -177,6 +177,8 @@ def build_exact_write_card(
             raise OperatorDenied("task has no reviewed companion write")
     else:
         companion = package.companion_write
+        if installation.get("populate_preflight") is None:
+            raise OperatorDenied("populate preflight signer is not installed")
         if (verb != "create" or companion_recipe_path is None
                 or companion_profile_lock_path is None
                 or type(pending_child) is not dict

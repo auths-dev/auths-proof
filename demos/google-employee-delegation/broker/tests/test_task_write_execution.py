@@ -230,7 +230,8 @@ class TaskWriteExecutionTests(unittest.TestCase):
             self.assertEqual(prepared.plan["initial_text"],
                              "Agent's approved Project A handoff")
             self.assertEqual(prepared.plan["create"], reviewed.intent)
-            self.assertEqual(prepared.plan["expires_at"], 1180)
+            self.assertEqual(prepared.plan["expires_at"], 1900)
+            self.assertEqual(prepared.expires_at, 1300)
             self.assertEqual(prepared.signing_preimage, b"exact-plan-preimage")
             with patch("employee_read_demo.task_write_confirmation.subprocess.run") as run:
                 draft.write_text("altered after review", encoding="utf-8")

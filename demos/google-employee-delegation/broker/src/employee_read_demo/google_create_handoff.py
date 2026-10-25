@@ -69,6 +69,57 @@ class CreatedChildMetadataPins:
             raise ContractRejected("created-child metadata pins are invalid")
 
 
+@dataclass(frozen=True)
+class CreatedChildContinuationTarget:
+    """Operator-pinned target for a new, exact-confirmation edit task.
+
+    This pin does not extend an expired create plan. The new task and exact
+    confirmation must be signed separately, and Jules must freshly observe
+    the blank child before entry.
+    """
+
+    child: CreatedChildMetadataPins
+    text_sha256: str
+    text_bytes: int
+
+    @classmethod
+    def from_document(cls, document: Mapping[str, object]) -> "CreatedChildContinuationTarget":
+        if (type(document) is not dict
+                or set(document) != {"schema", "child_id", "parent_id",
+                                     "drive_id", "title", "marker_value",
+                                     "text_sha256", "text_bytes"}
+                or document["schema"] != "auths.ap071-created-child-continuation/1"
+                or type(document["text_sha256"]) is not str
+                or HEX64.fullmatch(document["text_sha256"]) is None
+                or type(document["text_bytes"]) is not int
+                or not 1 <= document["text_bytes"] <= 192):
+            raise ContractRejected("created-child continuation pin is invalid")
+        child = CreatedChildMetadataPins(
+            candidate_id=document["child_id"],
+            parent_id=document["parent_id"],
+            drive_id=document["drive_id"],
+            title=document["title"],
+            marker_value=document["marker_value"],
+        )
+        child.validate()
+        return cls(child, document["text_sha256"], document["text_bytes"])
+
+    def require_exact_action(self, arguments: Mapping[str, object], *,
+                             child_id: str, tab_id: str,
+                             revision_id: str) -> None:
+        """Match the staged agent action to the fresh Jules child read."""
+        text = arguments.get("text")
+        if (arguments.get("document_id") != self.child.candidate_id
+                or arguments.get("document_id") != child_id
+                or arguments.get("tab_id") != tab_id
+                or arguments.get("required_revision_id") != revision_id
+                or type(text) is not str
+                or len(text.encode("utf-8")) != self.text_bytes
+                or hashlib.sha256(text.encode("utf-8")).hexdigest()
+                != self.text_sha256):
+            raise ContractRejected("agent population differs from fresh Jules preflight")
+
+
 def created_child_metadata_url(pins: CreatedChildMetadataPins) -> str:
     """Build the fixed Google metadata GET for the response-derived child."""
     pins.validate()
@@ -250,19 +301,35 @@ def validate_created_child_docs_read(document: Mapping[str, object],
 
 
 def _require_blank_single_tab(document_tab: Mapping[str, object]) -> None:
-    """Fail closed unless the fresh body is one newline-only paragraph.
+    """Fail closed unless the fresh body ends in one newline-only paragraph.
 
-    demo_co did not retain the probe's pre-insert body structure. We therefore
-    compare the response's own indexes and reject any unobserved layout; no
-    numeric insertion offset is assumed or sent by the recipe.
+    The first live child showed a leading section break and a newline-only
+    paragraph. Compare the response's own indexes and reject other layouts;
+    no numeric insertion offset is assumed or sent by the recipe.
     """
     body = document_tab.get("body")
     if type(body) is not dict or type(body.get("content")) is not list:
         raise ContractRejected("created-child Docs body is unavailable")
     content = body["content"]
-    if len(content) != 1 or type(content[0]) is not dict:
+    if len(content) == 2:
+        section = content[0]
+        if (type(section) is not dict
+                or set(section) != {"endIndex", "sectionBreak"}
+                or section["endIndex"] != 1
+                or type(section["sectionBreak"]) is not dict
+                or set(section["sectionBreak"]) != {"sectionStyle"}
+                or type(section["sectionBreak"]["sectionStyle"]) is not dict
+                or set(section["sectionBreak"]["sectionStyle"]) != {
+                    "columnSeparatorStyle", "contentDirection", "sectionType"
+                }):
+            raise ContractRejected("created-child Doc has unsupported section break")
+        paragraph_element = content[1]
+    elif len(content) == 1:
+        paragraph_element = content[0]
+    else:
         raise ContractRejected("created-child Doc is not a blank single paragraph")
-    paragraph_element = content[0]
+    if type(paragraph_element) is not dict:
+        raise ContractRejected("created-child Doc has unsupported body elements")
     paragraph = paragraph_element.get("paragraph")
     if (type(paragraph) is not dict
             or any(key not in {"startIndex", "endIndex", "paragraph"}

@@ -12,6 +12,7 @@ from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import (
     CHILD_TITLE,
     CreateRecoverySearch,
+    CreatedChildContinuationTarget,
     CreatedChildMetadataPins,
     CreateObservationPins,
     created_child_docs_url,
@@ -63,6 +64,32 @@ def _write(path: Path, document: dict) -> str:
 
 
 class GoogleCreateHandoffTests(unittest.TestCase):
+    def test_existing_child_continuation_pins_exact_text_and_fresh_revision(self) -> None:
+        text = "Project A handoff from the separate agent"
+        pin = {
+            "schema": "auths.ap071-created-child-continuation/1",
+            "child_id": "child_ABC-123", "parent_id": "project-a-folder",
+            "drive_id": "shared-drive-1", "title": CHILD_TITLE,
+            "marker_value": "ap071_" + "d" * 32,
+            "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "text_bytes": len(text.encode()),
+        }
+        target = CreatedChildContinuationTarget.from_document(pin)
+        action = {"document_id": pin["child_id"], "tab_id": "t.0",
+                  "required_revision_id": "rev-1", "text": text}
+        target.require_exact_action(action, child_id=pin["child_id"],
+                                    tab_id="t.0", revision_id="rev-1")
+        for change in ({"document_id": "other-child"},
+                       {"tab_id": "other-tab"},
+                       {"required_revision_id": "old-revision"},
+                       {"text": text + "!"}):
+            with self.subTest(change=change), self.assertRaises(ContractRejected):
+                target.require_exact_action(action | change,
+                                            child_id=pin["child_id"],
+                                            tab_id="t.0", revision_id="rev-1")
+        with self.assertRaises(ContractRejected):
+            CreatedChildContinuationTarget.from_document(pin | {"extra": True})
+
     def test_recovery_search_exhausts_pages_without_granting_child_authority(self) -> None:
         marker = "ap071_" + "d" * 32
         search = CreateRecoverySearch(
@@ -143,10 +170,18 @@ class GoogleCreateHandoffTests(unittest.TestCase):
         self.assertEqual(created_child_edit_access_url(pins),
                          "https://www.googleapis.com/drive/v3/files/child_ABC-123"
                          "?supportsAllDrives=true&fields=id,parents,capabilities(canEdit)")
-        blank_body = {"content": [{"startIndex": 1, "endIndex": 2,
+        blank_body = {"content": [{"endIndex": 1,
+                                    "sectionBreak": {"sectionStyle": {
+                                        "columnSeparatorStyle": "NONE",
+                                        "contentDirection": "LEFT_TO_RIGHT",
+                                        "sectionType": "CONTINUOUS"}}},
+                                   {"startIndex": 1, "endIndex": 2,
                                     "paragraph": {"elements": [
                                         {"startIndex": 1, "endIndex": 2,
-                                         "textRun": {"content": "\n"}}]}}]}
+                                         "textRun": {"content": "\n", "textStyle": {}}}],
+                                                  "paragraphStyle": {
+                                                      "direction": "LEFT_TO_RIGHT",
+                                                      "namedStyleType": "NORMAL_TEXT"}}}]}
         document = {"documentId": pins.candidate_id, "revisionId": "rev-1",
                     "tabs": [{"tabProperties": {"tabId": "t.0"},
                               "documentTab": {"body": blank_body}, "childTabs": []}]}
@@ -165,7 +200,8 @@ class GoogleCreateHandoffTests(unittest.TestCase):
             {"tabs": [{**document["tabs"][0], "documentTab": {"body": {
                 "content": [{**blank_body["content"][0], "endIndex": 3}]}}}]},
             {"tabs": [{**document["tabs"][0], "documentTab": {"body": {
-                "content": [{**blank_body["content"][0], "paragraph": {
+                "content": [blank_body["content"][0],
+                            {**blank_body["content"][1], "paragraph": {
                     "elements": [{"startIndex": 1, "endIndex": 6,
                                   "textRun": {"content": "text\n"}}]}}]}}}]},
         ):

@@ -38,7 +38,10 @@ from .task_write_browser import TaskWriteBrowserFlow
 from .task_write_confirmation import TaskWriteConfirmationFlow
 from .task_write_card import _installation
 from .task_write_package import load_task_write_package
-from .google_create_handoff import prepare_create_inputs
+from .google_create_handoff import (
+    CreatedChildContinuationTarget, prepare_create_inputs,
+)
+from .google_create_preflight import preflight_jules_created_child
 from .write_handoff import WriteHandoffPins, validate_write_handoff
 from .jules_write_context import JulesWriteContext
 from .google_write_credential import WriteCredentialPins
@@ -92,6 +95,7 @@ class Workbench:
     write_evidence: Path | None = None
     write_pins: WriteHandoffPins | None = None
     write_confirmation: TaskWriteConfirmationFlow | None = None
+    write_target: CreatedChildContinuationTarget | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -481,10 +485,16 @@ class Handler(BaseHTTPRequestHandler):
                         employee=employee, agent=agent,
                         employee_identity_packet=human_packet,
                         agent_identity_packet=agent_packet,
-                        resource_handle=(evidence["folder_id"] if paired else
-                                         evidence["document_id"]),
-                        resource_label=("Project A destination folder" if paired else
-                                        evidence["document_title"]),
+                        resource_handle=(
+                            evidence["folder_id"] if paired else
+                            self.workbench.write_target.child.candidate_id
+                            if self.workbench.write_target is not None else
+                            evidence["document_id"]),
+                        resource_label=(
+                            "Project A destination folder" if paired else
+                            self.workbench.write_target.child.title
+                            if self.workbench.write_target is not None else
+                            evidence["document_title"]),
                         pending_child=pending_child,
                         read_resource_handle=(evidence["probe_document_id"]
                                               if self.workbench.write_browser.read_recipe_path
@@ -946,6 +956,8 @@ def main() -> int:
                         help="opt in to task activation and reviewed write submission")
     parser.add_argument("--task-write-credential-pins", type=Path)
     parser.add_argument("--task-write-grant", type=Path)
+    parser.add_argument("--task-write-created-child", type=Path,
+                        help="private pin for an existing blank child in a new edit task")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -1056,9 +1068,13 @@ def main() -> int:
     if args.task_companion_write_recipe is not None and not all(
             option is not None for option in write_options):
         parser.error("companion write requires the task-write installation")
+    if args.task_write_created_child is not None and not all(
+            option is not None for option in write_options):
+        parser.error("created-child continuation requires task-write inputs")
     write_browser = None
     write_pins = None
     write_confirmation = None
+    write_target = None
     if all(option is not None for option in write_options):
         if company is None:
             parser.error("task write requires an accepted company import")
@@ -1075,10 +1091,28 @@ def main() -> int:
                 and (write_pins.evidence_sha256 != company.bundle_sha256
                      or write_pins.jules_subject != company.jules_subject)):
             parser.error("task write pins differ from Jules-only enrollment generation")
-        validate_write_handoff(args.task_write_evidence, write_pins)
+        write_evidence = validate_write_handoff(args.task_write_evidence, write_pins)
+        if args.task_write_created_child is not None:
+            if args.task_companion_write_recipe is not None:
+                parser.error("created-child continuation cannot issue another create")
+            write_target = CreatedChildContinuationTarget.from_document(json.loads(
+                _private_file(args.task_write_created_child, 4096),
+                object_pairs_hook=_unique_pairs,
+            ))
+            if (write_target.child.parent_id != write_evidence["folder_id"]
+                    or write_target.child.drive_id != write_evidence["drive_id"]):
+                parser.error("created-child continuation differs from pinned Project A")
         loaded = load_task_write_package(args.task_write_authority)
         if loaded.company_id != write_pins.company:
             parser.error("task authority company disagrees with producer")
+        if (args.task_write_created_child is not None
+                and (loaded.read is not None
+                     or loaded.companion_write is not None
+                     or (loaded.authority.provider_service,
+                         loaded.authority.provider_tool) != (
+                             "google-docs-delegation-demo",
+                             "populate_created_project_a_document_v1"))):
+            parser.error("created-child continuation requires the populate-only recipe")
         read_paths = (args.task_read_recipe, args.task_read_profile_lock)
         if (loaded.read is None and any(path is not None for path in read_paths)) or (
                 loaded.read is not None and not all(path is not None for path in read_paths)):
@@ -1112,6 +1146,10 @@ def main() -> int:
     if (args.task_write_gateway_state_dir is not None
             and args.task_write_gateway_bin is None):
         parser.error("gateway execution requires review and Jules preflight inputs")
+    if (args.task_write_created_child is not None
+            and (not all(option is not None for option in confirmation_options)
+                 or args.task_write_gateway_state_dir is None)):
+        parser.error("created-child continuation requires Jules preflight and gateway execution")
     if args.task_write_gateway_bin is not None:
         if write_browser is None:
             parser.error("gateway review requires the task write installation")
@@ -1143,6 +1181,19 @@ def main() -> int:
             parser.error("Jules preflight pins disagree with gateway installation")
 
         def google_edit_preflight(card, reviewed):
+            if write_target is not None:
+                observed_child = preflight_jules_created_child(
+                    args.task_write_evidence, args.task_write_grant,
+                    credential_pins, write_target.child,
+                    connection_id=card["connection_id"],
+                    connection_generation=card["connection_generation"],
+                )
+                write_target.require_exact_action(
+                    reviewed.arguments, child_id=observed_child.child_id,
+                    tab_id=observed_child.tab_id,
+                    revision_id=observed_child.revision_id,
+                )
+                return
             observed = preflight_jules_edit(
                 args.task_write_evidence, args.task_write_grant,
                 credential_pins, connection_id=card["connection_id"],
@@ -1177,7 +1228,8 @@ def main() -> int:
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
                           vault, company, status, origin, trusted_template, expected_root,
                           agent_transport, service, write_browser,
-                          args.task_write_evidence, write_pins, write_confirmation)
+                          args.task_write_evidence, write_pins, write_confirmation,
+                          write_target)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

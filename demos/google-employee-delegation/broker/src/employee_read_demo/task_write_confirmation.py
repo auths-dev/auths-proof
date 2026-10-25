@@ -342,7 +342,10 @@ class TaskWriteConfirmationFlow:
                 or package.companion_write.recipe_digest
                 != pending.get("populate_recipe_digest")):
             raise OperatorDenied("reviewed populate recipe changed")
-        expires_at = min(now + 180, card["expires_at"])
+        # The signed review challenge still expires after five minutes. Once
+        # signed, allow time for the producer baseline, create observation,
+        # Jules child preflight and the agent's separate populate signature.
+        expires_at = min(now + 900, card["expires_at"])
         if expires_at <= now:
             raise OperatorDenied("effect plan expired before review")
         draft, draft_digest = self._agent_draft(
