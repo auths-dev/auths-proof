@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from dataclasses import asdict, replace
@@ -16,6 +17,7 @@ from employee_read_demo.google_create_v3_handoff import (
     CreateV3BaselinePins, CreateV3CandidateBlankPins, CreateV3FinalPins,
     CreateV3NeighborPins, validate_create_v3_candidate_blank,
     validate_create_v3_observation, validate_create_v3_precreate_baseline,
+    validate_create_v3_recovery_handoff,
 )
 
 
@@ -205,6 +207,47 @@ class CreateV3ConsumerTests(unittest.TestCase):
                         replace(self.candidate_pins, observation_sha256=digest),
                     )
         self._write(self.candidate_path, self.candidate)
+
+    def test_recovery_handoff_joins_only_one_exact_private_candidate(self) -> None:
+        report_path = self.root / "recovery-search-test.json"
+        report = {
+            "schema": "auths.ap071-create-recovery-search/1",
+            "task_id": "task-1", "create_operation_id": "create-1",
+            "baseline_sha256": self.pins.baseline_sha256,
+            "authority": "none",
+            "result": {
+                "candidate_id": "doc-new", "candidate_count": 1,
+                "parent_id": "folder-A", "drive_id": "drive-A",
+                "marker_value": "ap071_" + "c" * 32,
+                "page_sha256": ["2" * 64], "metadata_sha256": "3" * 64,
+                "checked_at": int((self.baseline_at + timedelta(minutes=2)).timestamp()),
+                "connection_id": "jules-connection",
+                "connection_generation": 1,
+                "connection_subject": "subject-1", "status": "single",
+            },
+        }
+
+        def check(value: dict) -> dict:
+            sha = self._write(report_path, value)
+            os.chmod(report_path, 0o600)
+            return validate_create_v3_recovery_handoff(
+                self.baseline_path, self.candidate_path, report_path,
+                self.candidate_pins, task_id="task-1",
+                create_operation_id="create-1",
+                connection_id="jules-connection", connection_generation=1,
+                search_report_sha256=sha,
+            )
+
+        self.assertEqual(check(report)["candidate_id"], "doc-new")
+        for change in (
+            {"authority": "child-bound"},
+            {"baseline_sha256": "0" * 64},
+            {"result": report["result"] | {"status": "zero"}},
+            {"result": report["result"] | {"candidate_id": "other-child"}},
+            {"result": report["result"] | {"connection_subject": "other"}},
+        ):
+            with self.subTest(change=change), self.assertRaises(ContractRejected):
+                check(report | change)
 
 
 if __name__ == "__main__":

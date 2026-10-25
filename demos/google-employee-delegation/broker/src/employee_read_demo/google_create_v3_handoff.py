@@ -7,14 +7,16 @@ They do not infer that Auths caused the observed Google state.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+import stat
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from importlib.resources import files
 from pathlib import Path
 
-from .demo_co_contract import ContractRejected, _load
-from .google_create_handoff import CHILD_TITLE, MARKER
+from .demo_co_contract import ContractRejected, _load, _unique_pairs
+from .google_create_handoff import CHILD_TITLE, MARKER, MAX_RECOVERY_PAGES
 
 
 SCHEMA_SHA256 = {
@@ -386,3 +388,68 @@ def validate_create_v3_candidate_blank(
             or created_at - baseline_at > timedelta(minutes=5)):
         raise ContractRejected("v3 blank candidate falls outside pinned create window")
     return candidate
+
+
+def validate_create_v3_recovery_handoff(
+    baseline_path: Path, candidate_path: Path, search_report_path: Path,
+    pins: CreateV3CandidateBlankPins, *, task_id: str,
+    create_operation_id: str, connection_id: str,
+    connection_generation: int, search_report_sha256: str,
+) -> dict:
+    """Join two read-only observations by exact task facts; grant nothing."""
+    pins.validate()
+    if (type(task_id) is not str or not 1 <= len(task_id) <= 128
+            or type(create_operation_id) is not str
+            or not 1 <= len(create_operation_id) <= 128
+            or type(connection_id) is not str
+            or not 1 <= len(connection_id) <= 256
+            or type(connection_generation) is not int
+            or connection_generation < 1
+            or type(search_report_sha256) is not str
+            or HEX64.fullmatch(search_report_sha256) is None
+            or not search_report_path.is_file() or search_report_path.is_symlink()
+            or stat.S_IMODE(search_report_path.stat().st_mode) & 0o077
+            or search_report_path.stat().st_size > 8192):
+        raise ContractRejected("private recovery handoff pins are invalid")
+    raw = search_report_path.read_bytes()
+    if len(raw) > 8192 or hashlib.sha256(raw).hexdigest() != search_report_sha256:
+        raise ContractRejected("recovery search report differs from operator pin")
+    try:
+        report = json.loads(raw, object_pairs_hook=_unique_pairs)
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ContractRejected("recovery search report is malformed") from error
+    if (type(report) is not dict
+            or set(report) != {"schema", "task_id", "create_operation_id",
+                               "baseline_sha256", "result", "authority"}
+            or report.get("schema") != "auths.ap071-create-recovery-search/1"
+            or report.get("task_id") != task_id
+            or report.get("create_operation_id") != create_operation_id
+            or report.get("baseline_sha256") != pins.baseline.baseline_sha256
+            or report.get("authority") != "none"):
+        raise ContractRejected("recovery search report differs from task pins")
+    result = report["result"]
+    if (type(result) is not dict
+            or set(result) != {
+                "candidate_id", "candidate_count", "parent_id", "drive_id",
+                "marker_value", "page_sha256", "metadata_sha256",
+                "checked_at", "connection_id", "connection_generation",
+                "connection_subject", "status",
+            }
+            or result["status"] != "single"
+            or result["candidate_count"] != 1
+            or result["candidate_id"] != pins.candidate_id
+            or result["parent_id"] != pins.baseline.folder_id
+            or result["drive_id"] != pins.baseline.drive_id
+            or result["marker_value"] != pins.marker
+            or result["connection_id"] != connection_id
+            or result["connection_generation"] != connection_generation
+            or result["connection_subject"] != pins.baseline.jules_subject
+            or type(result["checked_at"]) is not int
+            or type(result["page_sha256"]) is not list
+            or not 1 <= len(result["page_sha256"]) <= MAX_RECOVERY_PAGES
+            or any(type(value) is not str or HEX64.fullmatch(value) is None
+                   for value in result["page_sha256"])
+            or type(result["metadata_sha256"]) is not str
+            or HEX64.fullmatch(result["metadata_sha256"]) is None):
+        raise ContractRejected("recovery search lacks one exact Jules candidate")
+    return validate_create_v3_candidate_blank(baseline_path, candidate_path, pins)
