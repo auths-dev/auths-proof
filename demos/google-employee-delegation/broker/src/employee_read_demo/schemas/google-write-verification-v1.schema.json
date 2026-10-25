@@ -1,0 +1,177 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "baseline_byte_count": {
+      "title": "Baseline Byte Count",
+      "type": "integer"
+    },
+    "baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Sha256",
+      "type": "string"
+    },
+    "canonical_documents_mutated": {
+      "const": false,
+      "default": false,
+      "title": "Canonical Documents Mutated",
+      "type": "boolean"
+    },
+    "cleanup_logical_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Cleanup Logical Ids",
+      "type": "array"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "dataset_version": {
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "document_can_edit": {
+      "title": "Document Can Edit",
+      "type": "boolean"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "document_mime_type": {
+      "title": "Document Mime Type",
+      "type": "string"
+    },
+    "document_title": {
+      "title": "Document Title",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_can_add_children": {
+      "title": "Folder Can Add Children",
+      "type": "boolean"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "folder_title": {
+      "title": "Folder Title",
+      "type": "string"
+    },
+    "granted_scopes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Granted Scopes",
+      "type": "array"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_email": {
+      "title": "Jules Email",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "marker": {
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "probe_created_as_jules": {
+      "title": "Probe Created As Jules",
+      "type": "boolean"
+    },
+    "probe_document_id": {
+      "title": "Probe Document Id",
+      "type": "string"
+    },
+    "probe_edited_as_jules": {
+      "title": "Probe Edited As Jules",
+      "type": "boolean"
+    },
+    "probe_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Probe Sha256",
+      "type": "string"
+    },
+    "project_b_write_capability_denied": {
+      "title": "Project B Write Capability Denied",
+      "type": "boolean"
+    },
+    "revision_id": {
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-write-verification/v1",
+      "default": "demo-co/google-write-verification/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "dataset_version",
+    "customer_id",
+    "observed_at",
+    "jules_subject",
+    "jules_email",
+    "granted_scopes",
+    "drive_id",
+    "folder_id",
+    "folder_title",
+    "folder_can_add_children",
+    "document_id",
+    "document_title",
+    "document_mime_type",
+    "document_can_edit",
+    "project_b_write_capability_denied",
+    "tab_id",
+    "revision_id",
+    "marker",
+    "baseline_sha256",
+    "baseline_byte_count",
+    "probe_document_id",
+    "probe_created_as_jules",
+    "probe_edited_as_jules",
+    "probe_sha256",
+    "cleanup_logical_ids"
+  ],
+  "title": "GoogleWriteEvidence",
+  "type": "object"
+}

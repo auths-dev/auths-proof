@@ -1,16 +1,27 @@
-"""AP-SPEC-071 producer handoff until demo_co publishes a write contract.
+"""Pinned consumer of demo_co's write fixture evidence.
 
-This module deliberately cannot activate a write. The producer owns the
-versioned fixture and independent probe schema; inventing either here would
-turn a local placeholder into false provider evidence.
+Producer readiness is distinct from an installed Auths write path. This
+module never loads OAuth material or authorizes a provider mutation.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from .demo_co_contract import ContractRejected, _load
+
+
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+WRITE_SCOPES = frozenset({
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/drive.file",
+})
 
 
 class WriteHandoffPending(RuntimeError):
@@ -22,6 +33,8 @@ class WriteHandoffStatus:
     contract: str
     status: str
     reason: str
+    producer_ready: bool = False
+    evidence_sha256: str | None = None
 
     @property
     def ready(self) -> bool:
@@ -31,21 +44,84 @@ class WriteHandoffStatus:
         raise WriteHandoffPending(self.reason)
 
 
-def inspect_write_handoff(export: Path | None = None) -> WriteHandoffStatus:
-    """Report the unimplemented producer contract without trusting local files.
+@dataclass(frozen=True)
+class WriteHandoffPins:
+    company: str
+    instance: str
+    definition_hash: str
+    customer_id: str
+    jules_subject: str
+    jules_email: str
+    evidence_sha256: str
 
-    Even a supplied file is not evidence until its versioned schema, operator
-    pins and independent provider probes have been reviewed and implemented.
-    Avoid reading it: it may contain private data and has no accepted format.
+    def validate(self) -> None:
+        if (not all((self.company, self.instance, self.customer_id,
+                     self.jules_subject, self.jules_email))
+                or not HEX64.fullmatch(self.definition_hash)
+                or not HEX64.fullmatch(self.evidence_sha256)):
+            raise ContractRejected("write handoff operator pins are invalid")
+
+
+def validate_write_handoff(export: Path, pins: WriteHandoffPins) -> dict:
+    """Validate one exact producer generation without granting write authority."""
+    pins.validate()
+    evidence, raw = _load(export, "google-write-verification-v1.schema.json")
+    if hashlib.sha256(raw).hexdigest() != pins.evidence_sha256:
+        raise ContractRejected("write handoff digest disagrees with operator pin")
+    if (evidence["company"], evidence["instance"], evidence["definition_hash"],
+            evidence["customer_id"], evidence["jules_subject"], evidence["jules_email"]) != (
+            pins.company, pins.instance, pins.definition_hash, pins.customer_id,
+            pins.jules_subject, pins.jules_email):
+        raise ContractRejected("write handoff identity disagrees with operator pin")
+    scopes = evidence["granted_scopes"]
+    if (len(scopes) != 3 or set(scopes) != WRITE_SCOPES
+            or not evidence["folder_can_add_children"]
+            or not evidence["document_can_edit"]
+            or not evidence["probe_created_as_jules"]
+            or not evidence["probe_edited_as_jules"]
+            or not evidence["project_b_write_capability_denied"]
+            or evidence.get("canonical_documents_mutated", False)):
+        raise ContractRejected("write handoff lacks required independent probes")
+    for name, maximum in (("document_id", 64), ("folder_id", 128),
+                          ("tab_id", 16), ("revision_id", 128), ("marker", 48)):
+        value = evidence[name]
+        if not value or len(value.encode("utf-8")) > maximum or any(c.isspace() for c in value):
+            raise ContractRejected("write handoff has an unsupported resource bound")
+    if (evidence["document_mime_type"] != "application/vnd.google-apps.document"
+            or type(evidence["baseline_byte_count"]) is not int
+            or not 0 < evidence["baseline_byte_count"] <= 16_384
+            or not HEX64.fullmatch(evidence["baseline_sha256"])
+            or not HEX64.fullmatch(evidence["probe_sha256"])):
+        raise ContractRejected("write handoff baseline is invalid")
+    return evidence
+
+
+def inspect_write_handoff(export: Path | None = None,
+                          pins: WriteHandoffPins | None = None) -> WriteHandoffStatus:
+    """Report producer readiness separately from installed write readiness.
+
+    An unpinned file never activates the write path. Even a pinned, passing
+    producer generation still requires Auths authority, custody and execution.
     """
-    if export is None:
-        reason = "demo_co has not published a versioned Google write handoff"
-    else:
-        reason = "a local file is not a reviewed Google write handoff"
+    if export is None or pins is None:
+        reason = "producer export and operator pins have not both been supplied"
+        return WriteHandoffStatus(
+            contract="auths.demo-co-google-write-handoff-status/v1",
+            status="write_not_configured", reason=reason,
+        )
+    try:
+        validate_write_handoff(export, pins)
+    except (ContractRejected, OSError, ValueError) as error:
+        return WriteHandoffStatus(
+            contract="auths.demo-co-google-write-handoff-status/v1",
+            status="producer_rejected", reason=str(error),
+        )
     return WriteHandoffStatus(
-        contract="auths.demo-co-google-write-handoff-status/v0",
+        contract="auths.demo-co-google-write-handoff-status/v1",
         status="write_not_configured",
-        reason=reason,
+        reason="producer generation is pinned; installed Auths task write is not configured",
+        producer_ready=True,
+        evidence_sha256=pins.evidence_sha256,
     )
 
 

@@ -50,5 +50,6 @@ and refresh lease for Jules. Her saved read-only grant is insufficient.
 demo_co owns the folder, working Doc, ACL, consent probes and versioned export;
 Auths owns authority, connection custody, recipe admission and receipts.
 The [write handoff shim](../broker/src/employee_read_demo/write_handoff.py)
-stays `write_not_configured` until the producer contract and independent
-probes are reviewed.
+validates a digest-pinned producer generation and its independent probes but
+stays `write_not_configured` until the installed Auths task gate, credential
+lease, fresh preflight and independent post-write inspection are wired.
