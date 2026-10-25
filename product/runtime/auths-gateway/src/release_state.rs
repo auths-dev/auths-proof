@@ -86,6 +86,7 @@ struct BoundChild {
     create_operation_id: String,
     create_recipe_digest: String,
     populate_recipe_digest: String,
+    action_commitment: String,
     request_commitment: String,
     response_digest: String,
     metadata_digest: String,
@@ -591,6 +592,7 @@ impl ReleaseTaskState {
             create_operation_id: intent.operation_id.clone(),
             create_recipe_digest: intent.recipe_digest.clone(),
             populate_recipe_digest: pending.populate_recipe_digest.clone(),
+            action_commitment: intent.action_commitment.clone(),
             request_commitment: intent.request_commitment.clone(),
             response_digest: hex::encode(response_digest),
             metadata_digest: child.metadata_digest().to_owned(),
@@ -625,6 +627,7 @@ impl ReleaseTaskState {
             && pending.parent_handle == write.resource_handle
             && write.verb == crate::task_activation::TaskWriteVerb::Create
             && write.recipe_digest == binding.create_recipe_digest
+            && write.action_commitment == binding.action_commitment
             && write.request_commitment == binding.request_commitment
             && valid_digest(&binding.response_digest)
             && valid_digest(&binding.metadata_digest)

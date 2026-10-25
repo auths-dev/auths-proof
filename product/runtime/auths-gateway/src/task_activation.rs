@@ -720,6 +720,19 @@ mod tests {
                 .is_err(),
             "changed request cannot bind"
         );
+        let mut changed_action = create.intent().clone();
+        changed_action.action_commitment = "8".repeat(64);
+        assert!(
+            reopened
+                .bind_created_child(
+                    &ApprovedTaskWrite::from_test_intent(changed_action),
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "a different signed action cannot bind the reserved create"
+        );
         reopened
             .bind_created_child(
                 &create,
