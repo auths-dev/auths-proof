@@ -321,6 +321,46 @@ def run(env_file: Path, root: Path, binary: Path) -> None:
     _write_json(agent_dir / "write-package.json", signed.agent_package)
     common = {"task_id": signed.task_id,
               "task_commitment": task_commitment(prepared.card)}
+    excluded_record = record[:-1] + ("Z" if record[-1] != "Z" else "Y")
+    _write_json(agent_dir / "excluded-read-arguments.json", {
+        **common, "operator_namespace": "airtable-read-demo",
+        "operation_id": "airtable-read-excluded", "recipe_digest": READ_DIGEST,
+        "resource_id": excluded_record, "agent_principal": agent_principal,
+    })
+    excluded_output = _private_dir(agent_dir / "excluded-read-output", create=True)
+    _agent("sign-read", "--key-file", agent_dir / "agent.seed",
+           "--package-file", agent_dir / "read-package.json",
+           "--arguments-file", agent_dir / "excluded-read-arguments.json",
+           "--out-dir", excluded_output)
+    excluded_receiver = _agent(
+        "serve-release", "--key-file", agent_dir / "agent.seed",
+        "--socket", channel, "--output", agent_dir / "excluded-source.bin",
+        "--task-id", signed.task_id,
+        "--task-commitment", common["task_commitment"],
+        "--operation-id", "airtable-read-excluded",
+        "--resource-handle", excluded_record,
+        "--channel-name", "airtable-agent-local", wait=False,
+    )
+    try:
+        _wait_for(channel, excluded_receiver)
+        excluded = _gateway(
+            binary, "task-read-submit", "--state-dir", state,
+            "--task-id", signed.task_id,
+            "--agent-proof", excluded_output / "read.proof",
+            "--agent-action", excluded_output / "read.action",
+        )
+    finally:
+        if excluded_receiver.poll() is None:
+            excluded_receiver.terminate()
+        excluded_receiver.communicate(timeout=5)
+        if channel.is_socket():
+            channel.unlink()
+    zero = _gateway(binary, "task-status", "--state-dir", state,
+                    "--task-id", signed.task_id)
+    if (excluded != {"outcome": "not-entered", "code": "gateway.release.scope"}
+            or zero.get("provider_calls") != 0
+            or zero.get("releases") != 0):
+        raise RuntimeError("excluded Airtable read entered provider or released content")
     read_operation = "airtable-read-one"
     _write_json(agent_dir / "read-arguments.json", {
         **common, "operator_namespace": "airtable-read-demo",
@@ -414,6 +454,8 @@ def run(env_file: Path, root: Path, binary: Path) -> None:
         "read_outcome": release.get("outcome"),
         "write_outcome": outcome.get("outcome"),
         "independent_readback": "approved-with-echo",
+        "excluded_read_outcome": excluded.get("outcome"),
+        "excluded_read_code": excluded.get("code"),
         "gateway_status": status,
         "cleanup": "pending",
     })

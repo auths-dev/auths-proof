@@ -35,6 +35,8 @@ and PATCH recipes, signs a mixed task with separate development human and
 agent keys, runs the agent in a separate process, requires its acknowledged
 release and private source comparison, signs an exact write confirmation,
 submits once through the gateway, and independently GETs the result. The
+run first submits an agent-signed read for a different record and requires
+`not-entered` with zero provider calls and zero releases. The
 record is retired in a separate cleanup command, which checks the ownership
 journal and verifies its absence. A successful run is installed mechanism
 evidence; the PAT still supplies no employee-subject claim or production
@@ -59,5 +61,5 @@ python demos/airtable-gateway/read_reference/installed_conformance.py cleanup \
 If a run fails after fixture creation, preserve its private root and execute
 `cleanup` once the effect has been inspected. Do not start another run on the
 same root. The [25 October live run](../../../docs/program-log/2026-10-25-ap071-airtable-live.md)
-records one acknowledged seven-byte release, one observed write and verified
-record retirement.
+records the excluded-resource denial, one acknowledged seven-byte release,
+one observed write, a later replay denial and verified record retirement.

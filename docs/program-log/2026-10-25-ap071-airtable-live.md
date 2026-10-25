@@ -38,6 +38,14 @@ write. The authenticated channel received no second content frame. This is
 one installed replay denial with zero additional provider requests, not the
 full hostile corpus.
 
+A second disposable run (`/private/tmp/ap071-airtable-negative-20261025-1804`)
+put an agent-signed read for a different record through the installed gateway
+before the permitted read. It returned `not-entered` with
+`gateway.release.scope`; status still showed zero provider calls and zero
+releases. The permitted read and exact PATCH then succeeded with one provider
+call, one acknowledged release, seven bytes and one observed write. The
+independent readback passed and the second run-owned record was retired.
+
 This proves one installed second-provider task/read/exact-write mechanism
 using the same native gateway path. The Airtable PAT is an operator credential
 with no demonstrated human subject, so this run does **not** prove a second
