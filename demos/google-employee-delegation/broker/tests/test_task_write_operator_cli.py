@@ -383,6 +383,68 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(card["write_approval_mode"], "exact")
             self.assertEqual(card["write_scopes"][0]["handle"], "working-doc")
             self.assertEqual(card["expires_at"], 2810)
+            upfront_pins = json.loads(installed.read_text())
+            upfront_pins["pins"]["allow_bounded_writes"] = True
+            upfront_installed = private / "upfront-task-installation.json"
+            upfront_installed.write_text(json.dumps(
+                upfront_pins, sort_keys=True, separators=(",", ":")))
+            os.chmod(upfront_installed, 0o600)
+            choice = {"document_id": "working-doc", "tab_id": "t.0",
+                      "required_revision_id": "revision-1", "marker": "AP071-test-marker",
+                      "replacement": "Approved"}
+            choices = [choice, {**choice, "replacement": "Pending"}]
+            upfront_card = build_exact_write_card(
+                loaded, employee, agent, installation_path=upfront_installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                resource_handle="working-doc", purpose="Choose one fixed update",
+                upfront_allowed_arguments=choices, now=1010,
+            )
+            self.assertEqual(upfront_card["write_approval_mode"], "bounded-upfront")
+            self.assertEqual(upfront_card["upfront_allowed_arguments"], choices)
+            upfront_flow = TaskWriteBrowserFlow(
+                authority_path=output, installation_path=upfront_installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                upfront_allowed_arguments=choices, private_output_dir=private,
+            )
+            upfront_prepared = upfront_flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="working-doc", resource_label="Project A working Doc",
+                account_label="Jules Google account",
+                purpose="Choose one fixed update", now=1010,
+            )
+            self.assertEqual(upfront_prepared.card["write_approval_mode"],
+                             "bounded-upfront")
+            upfront_completed = upfront_flow.complete(
+                nonce=upfront_prepared.nonce, employee=employee, agent=agent,
+                grant_signature=human_key.sign(upfront_prepared.grant_preimage),
+                task_signature=human_key.sign(upfront_prepared.task_preimage), now=1011,
+            )
+            self.assertEqual(json.loads((upfront_completed.private_task_dir /
+                                         "task-card.json").read_text())["upfront_allowed_arguments"],
+                             choices)
+            with self.assertRaises(OperatorDenied):
+                build_exact_write_card(
+                    loaded, employee, agent, installation_path=installed,
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
+                    resource_handle="working-doc", purpose="Unapproved upfront",
+                    upfront_allowed_arguments=choices, now=1010,
+                )
+            for rejected in ([choice, choice], [{**choice, "document_id": "other-doc"}],
+                             [{**choice, "extra": "unexpected"}]):
+                with self.assertRaises(OperatorDenied):
+                    build_exact_write_card(
+                        loaded, employee, agent,
+                        installation_path=upfront_installed,
+                        recipe_path=REFERENCE / "recipe.json",
+                        profile_lock_path=REFERENCE / "profile.lock.json",
+                        resource_handle="working-doc", purpose="Invalid upfront",
+                        upfront_allowed_arguments=rejected, now=1010,
+                    )
             flow = TaskWriteBrowserFlow(
                 authority_path=output, installation_path=installed,
                 recipe_path=REFERENCE / "recipe.json",
@@ -473,6 +535,71 @@ class TaskOperatorCliTests(unittest.TestCase):
                     (prepared.card["task_id"], "rev-1"),
                     (prepared.card["task_id"], "rev-1"),
                 ])
+                upfront_arguments = {
+                    "operator_namespace": "google-docs-demo",
+                    "operation_id": "upfront-1", "recipe_digest": digest,
+                    "task_id": upfront_prepared.card["task_id"],
+                    "task_commitment": upfront_completed.agent_package["task_commitment"],
+                    **choice,
+                }
+                upfront_proof, upfront_action = sign_write(
+                    upfront_completed.agent_package, upfront_arguments,
+                    AgentKey(agent_seed), now=1012,
+                )
+                upfront_dir = upfront_completed.private_task_dir
+                (upfront_dir / "agent.proof").write_bytes(upfront_proof)
+                (upfront_dir / "agent.action").write_bytes(upfront_action)
+                os.chmod(upfront_dir / "agent.proof", 0o600)
+                os.chmod(upfront_dir / "agent.action", 0o600)
+                upfront_confirmation = TaskWriteConfirmationFlow(
+                    authority_path=output, installation_path=upfront_installed,
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
+                    upfront_allowed_arguments=choices,
+                    private_output_dir=private, gateway_binary=binary,
+                    gateway_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                    gateway_state_dir=private,
+                    preflight=lambda card, reviewed: None,
+                )
+                with self.assertRaisesRegex(OperatorDenied, "no exact confirmation"):
+                    upfront_confirmation.prepare(
+                        task_id=upfront_prepared.card["task_id"],
+                        employee=employee, agent=agent, now=1013,
+                    )
+                import subprocess
+                from unittest.mock import patch
+                actual_run = subprocess.run
+                submissions = []
+
+                def submit_once(command, **kwargs):
+                    if command[1] == "task-submit":
+                        submissions.append(command)
+                        return subprocess.CompletedProcess(command, 0,
+                            b'{"outcome":"response-recorded","status":200}', b'')
+                    return actual_run(command, **kwargs)
+
+                with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                           side_effect=submit_once):
+                    upfront_confirmation.submit(
+                        task_id=upfront_prepared.card["task_id"],
+                        employee=employee, agent=agent, now=1013,
+                    )
+                self.assertEqual(len(submissions), 1)
+                self.assertNotIn("--confirmation-proof", submissions[0])
+                self.assertNotIn("--confirmation-action", submissions[0])
+                unapproved_proof, unapproved_action = sign_write(
+                    upfront_completed.agent_package,
+                    {**upfront_arguments, "operation_id": "upfront-2",
+                     "replacement": "Unapproved"},
+                    AgentKey(agent_seed), now=1013,
+                )
+                (upfront_dir / "agent.proof").write_bytes(unapproved_proof)
+                (upfront_dir / "agent.action").write_bytes(unapproved_action)
+                with self.assertRaisesRegex(OperatorDenied, "outside upfront allowance"):
+                    upfront_confirmation.submit(
+                        task_id=upfront_prepared.card["task_id"],
+                        employee=employee, agent=agent, now=1014,
+                    )
             with self.assertRaises(OperatorDenied):
                 flow.complete(
                     nonce=prepared.nonce, employee=employee, agent=agent,

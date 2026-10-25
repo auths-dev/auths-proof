@@ -76,6 +76,7 @@ def build_exact_write_card(
     companion_recipe_path: Path | None = None,
     companion_profile_lock_path: Path | None = None,
     pending_child: dict | None = None,
+    upfront_allowed_arguments: list[dict] | None = None,
     now: int | None = None,
 ) -> dict:
     """Create one short task tied to the installed gateway and reviewed recipe."""
@@ -108,7 +109,7 @@ def build_exact_write_card(
             or pins["human_principal"] != employee.principal
             or pins["agent_principal"] != agent.agent_principal
             or pins["agent_key_fingerprint"] != agent.identity_packet_sha256
-            or pins["allow_bounded_writes"] is not False
+            or type(pins["allow_bounded_writes"]) is not bool
             or type(pins["connection_id"]) is not str
             or not 1 <= len(pins["connection_id"]) <= 128
             or type(pins["connection_generation"]) is not int
@@ -237,4 +238,29 @@ def build_exact_write_card(
     }
     if pending_child is not None:
         card["pending_child"] = pending_child.copy()
+    if upfront_allowed_arguments is not None:
+        binding_fields = {"operator_namespace", "operation_id", "recipe_digest",
+                          "task_id", "task_commitment"}
+        try:
+            profile = json.loads(profile_lock_path.read_bytes(),
+                                 object_pairs_hook=_unique_pairs)
+            expected_fields = set(profile["command_schema"]["fields"]) - binding_fields
+            serialized = [json.dumps(choice, sort_keys=True, separators=(",", ":"),
+                                     allow_nan=False)
+                          for choice in upfront_allowed_arguments]
+        except (OSError, KeyError, TypeError, ValueError) as error:
+            raise OperatorDenied("bounded upfront choices are malformed") from error
+        resource_field = binding["resource_field"]
+        if (type(upfront_allowed_arguments) is not list
+                or not pins["allow_bounded_writes"] or verb != "edit"
+                or pending_child is not None or package.companion_write is not None
+                or not 1 <= len(upfront_allowed_arguments) <= 4
+                or any(type(choice) is not dict or set(choice) != expected_fields
+                       or choice.get(resource_field) != resource_handle
+                       or len(encoded.encode()) > 4096
+                       for choice, encoded in zip(upfront_allowed_arguments, serialized))
+                or len(set(serialized)) != len(serialized)):
+            raise OperatorDenied("bounded upfront choices disagree with installed task")
+        card["write_approval_mode"] = "bounded-upfront"
+        card["upfront_allowed_arguments"] = upfront_allowed_arguments
     return card

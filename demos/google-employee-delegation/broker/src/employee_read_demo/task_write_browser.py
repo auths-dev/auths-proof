@@ -75,6 +75,7 @@ class TaskWriteBrowserFlow:
                  read_profile_lock_path: Path | None = None,
                  companion_recipe_path: Path | None = None,
                  companion_profile_lock_path: Path | None = None,
+                 upfront_allowed_arguments: list[dict] | None = None,
                  private_output_dir: Path) -> None:
         if (private_output_dir.is_symlink() or not private_output_dir.is_dir()
                 or private_output_dir.stat().st_mode & 0o077):
@@ -87,6 +88,7 @@ class TaskWriteBrowserFlow:
         self.read_profile_lock_path = read_profile_lock_path
         self.companion_recipe_path = companion_recipe_path
         self.companion_profile_lock_path = companion_profile_lock_path
+        self.upfront_allowed_arguments = upfront_allowed_arguments
         self.private_output_dir = private_output_dir
         self._pending: dict[str, _Pending] = {}
         self._lock = threading.Lock()
@@ -113,6 +115,7 @@ class TaskWriteBrowserFlow:
             companion_recipe_path=self.companion_recipe_path,
             companion_profile_lock_path=self.companion_profile_lock_path,
             pending_child=pending_child,
+            upfront_allowed_arguments=self.upfront_allowed_arguments,
         )
         task_action = prepare_task_approval(package.authority, card, now=now)
         child = prepare_agent_delegation(
@@ -189,6 +192,7 @@ class TaskWriteBrowserFlow:
             companion_recipe_path=self.companion_recipe_path,
             companion_profile_lock_path=self.companion_profile_lock_path,
             pending_child=pending.card.get("pending_child"),
+            upfront_allowed_arguments=pending.card.get("upfront_allowed_arguments"),
         )
         for key, reviewed in pending.card.items():
             if key not in {"task_id", "not_before", "expires_at"} and refreshed[key] != reviewed:

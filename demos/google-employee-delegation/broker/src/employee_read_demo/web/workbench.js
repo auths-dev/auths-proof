@@ -194,6 +194,7 @@ async function prepareWriteTask() {
     max_release_bytes: result.card.max_release_bytes,
     max_writes: result.card.max_writes,
     write_approval_mode: result.card.write_approval_mode,
+    upfront_allowed_arguments: result.card.upfront_allowed_arguments || null,
     expires_at: result.card.expires_at,
     recipe_digest: result.card.write_scopes[0].recipe_digest,
     write_tool: result.write_tool,
@@ -203,6 +204,8 @@ async function prepareWriteTask() {
   byId("write-review").hidden = false;
   message(result.card.pending_child
     ? "Review the Project A folder, exact child proposal, agent and limits before signing both child grants and the task. The two-effect content plan is still required before provider entry."
+    : result.card.write_approval_mode === "bounded-upfront"
+      ? "Review every complete allowed edit, the account, destination, agent and one-write limit. One listed choice may be submitted later without another confirmation."
     : "Review the account, destination, agent and limits before signing the task and child grant.");
 }
 
@@ -247,10 +250,13 @@ async function authorizeWriteTask() {
   }, null, 2);
   byId("write-review").hidden = true;
   byId("write-confirm-task-id").value = result.task_id;
-  byId("write-submit").hidden = true;
+  byId("write-submit").hidden = !session.task_write_upfront_available ||
+    !session.task_write_execution_available;
   preparedWriteTask = null;
   message(result.companion_agent_package
     ? "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry."
+    : session.task_write_upfront_available
+      ? "Jules approved the displayed bounded choices. The separate agent must sign one complete choice before the gateway can submit it; no later exact confirmation will be requested."
     : result.status === "activated_awaiting_agent_proposal"
       ? "Jules's task is activated. The separate agent can act within its approved scopes; the edit still needs exact confirmation."
       : "Jules's task is signed. Gateway activation and a separate exact edit confirmation are still required.");
@@ -472,12 +478,13 @@ async function loadAgentResult() {
 function bind(id, action) {
   byId(id).addEventListener("click", async () => {
     byId(id).disabled = true;
-    try { await action(); }
+    let succeeded = false;
+    try { await action(); succeeded = true; }
     catch (error) { message(error.message || String(error)); }
     finally {
       if (!(id === "agent-complete" && !preparedAgent) &&
           !(id === "activate-complete" && !preparedActivation) &&
-          id !== "write-submit") byId(id).disabled = false;
+          (id !== "write-submit" || !succeeded)) byId(id).disabled = false;
     }
   });
 }
@@ -489,8 +496,12 @@ async function start() {
   byId("drive").textContent = session.drive_connected ? "Drive connected under this employee." : "Drive is not connected.";
   byId("disconnect").hidden = !session.drive_connected;
   if (session.google_status === "jules_write_only") {
-    byId("page-title").textContent = "Jules delegates Project A read and write";
-    byId("page-description").textContent = "Jules signs a bounded agent task, then confirms the exact proposed change before the gateway uses her existing Google grant.";
+    byId("page-title").textContent = session.task_write_upfront_available
+      ? "Jules delegates one bounded Project A edit"
+      : "Jules delegates Project A read and write";
+    byId("page-description").textContent = session.task_write_upfront_available
+      ? "Jules signs one short agent task with the complete permitted edits shown in advance. The gateway accepts only one listed choice."
+      : "Jules signs a bounded agent task, then confirms the exact proposed change before the gateway uses her existing Google grant.";
     byId("status").textContent = `Jules-only Project A delegation; company: ${session.company_id}`;
     byId("drive").textContent = "The existing Jules Drive grant is held by the operator.";
     for (const id of ["connect-drive", "general-task", "general-run", "general-evidence"])
@@ -510,18 +521,29 @@ async function start() {
   if (session.task_write_available) {
     bind("write-prepare", prepareWriteTask);
     bind("write-authorize", authorizeWriteTask);
+    if (session.task_write_upfront_available) {
+      byId("write-task-description").textContent = "The account, registered agent, destination and complete allowed edits come from the operator's pinned installation. Review both values before signing. This mode permits one listed edit without a later confirmation.";
+    }
   }
   byId("write-confirmation").hidden = !session.task_write_confirmation_available;
   if (session.task_write_confirmation_available) {
-    if (session.task_write_paired_available) {
+    if (session.task_write_upfront_available) {
+      byId("write-confirmation-heading").textContent = "Submit the agent's bounded choice";
+      byId("write-confirmation-description").textContent = "After the separate agent signs one complete listed choice and the operator stages its proof, submit it through the gateway. The gateway checks the signed task, choice and one-write limit before provider entry.";
+      byId("write-confirm-prepare").hidden = true;
+      byId("write-confirm-authorize").hidden = true;
+      byId("write-submit").textContent = "Submit the agent's approved choice";
+    } else if (session.task_write_paired_available) {
       byId("write-task-description").textContent = "The account, registered agent, Project A folder and limits come from the operator's pinned installation. After the agent drafts, Jules reviews the exact new file and its content in one separate effect-plan signature.";
       byId("write-confirmation-heading").textContent = "Approve the agent's new Project A file";
       byId("write-confirmation-description").textContent = "After the separate agent signs the create action and stages its draft privately, review the exact folder, title, complete content, create request and populate recipe. This signature is recorded before either provider write.";
       byId("write-confirm-prepare").textContent = "Review agent create and draft";
       byId("write-confirm-authorize").textContent = "Sign this exact two-effect plan";
     }
-    bind("write-confirm-prepare", prepareWriteConfirmation);
-    bind("write-confirm-authorize", authorizeWriteConfirmation);
+    if (!session.task_write_upfront_available) {
+      bind("write-confirm-prepare", prepareWriteConfirmation);
+      bind("write-confirm-authorize", authorizeWriteConfirmation);
+    }
     if (session.task_write_execution_available) {
       bind("write-submit", submitApprovedWrite);
       byId("write-status-refresh").hidden = false;

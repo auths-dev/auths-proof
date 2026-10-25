@@ -25,11 +25,15 @@ function byId(id) {
 
 const posts = [];
 let receiptResourceRef = nodeCrypto.createHash("sha256").update("file-A").digest("hex");
+let sessionOverride = null;
+let writePrepareResponse = null;
 async function fetch(url, options = {}) {
   let result;
   if (url === "/api/v1/session") {
-    result = { csrf: "synthetic-csrf", subject: null,
+    result = sessionOverride || { csrf: "synthetic-csrf", subject: null,
       google_status: "not_configured", company_id: null, drive_connected: false };
+  } else if (url === "/api/v1/write/tasks/prepare" && writePrepareResponse) {
+    result = writePrepareResponse;
   } else if (url === "/api/v1/tasks/task-1") {
     result = { task: { task_id: "task-1", company_id: "atlas-studio",
       employee_principal: "employee-A", agent_principal: "agent-A",
@@ -91,7 +95,39 @@ async function main() {
   await assert.rejects(vm.runInContext("loadAgentResult()", context),
     /source without a verified read/);
   assert.equal(byId("result-view").hidden, true);
-  console.log("browser activation selects an exact approved call");
+  elements.clear();
+  sessionOverride = { csrf: "synthetic-csrf", subject: "jules-subject",
+    google_status: "jules_write_only", company_id: "atlas-studio",
+    drive_connected: false, task_write_available: true,
+    task_write_confirmation_available: true, task_write_execution_available: true,
+    task_write_upfront_available: true, task_write_paired_available: false };
+  writePrepareResponse = { account_label: "jules@auths.dev",
+    resource_label: "Project A working Doc", read_resource_label: null,
+    write_tool: "google-docs-delegation-demo/replace_project_a_marker_v2",
+    companion_write_tool: null,
+    card: { agent_principal: "agent-A", read_scopes: [],
+      write_scopes: [{ handle: "working-doc", verb: "edit", recipe_digest: "digest" }],
+      purpose: "One listed update", connection_subject: "jules-subject",
+      connection_generation: 1, max_provider_calls: 0, max_releases: 0,
+      max_release_bytes: 0, max_writes: 1, write_approval_mode: "bounded-upfront",
+      upfront_allowed_arguments: [
+        { document_id: "working-doc", replacement: "Approved" },
+        { document_id: "working-doc", replacement: "Pending" },
+      ], expires_at: 123456, task_id: "task-upfront" },
+  };
+  const upfrontContext = vm.createContext({
+    document: { getElementById: byId, createElement: () => ({}) },
+    fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
+    TextEncoder, Uint8Array,
+  });
+  vm.runInContext(source, upfrontContext);
+  await new Promise(setImmediate);
+  assert.equal(byId("page-title").textContent, "Jules delegates one bounded Project A edit");
+  assert.equal(byId("write-confirm-prepare").hidden, true);
+  await vm.runInContext("prepareWriteTask()", upfrontContext);
+  assert.match(byId("write-card").textContent, /"replacement": "Approved"/);
+  assert.match(byId("write-card").textContent, /"replacement": "Pending"/);
+  console.log("browser activation and bounded choice review passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -282,6 +282,12 @@ class Handler(BaseHTTPRequestHandler):
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
                     ),
+                    "task_write_upfront_available": bool(
+                        self.workbench.write_browser is not None
+                        and self.workbench.write_browser.upfront_allowed_arguments is not None
+                        and self.workbench.write_pins is not None
+                        and session.subject == self.workbench.write_pins.jules_subject
+                    ),
                     "task_write_execution_available": bool(
                         self.workbench.write_confirmation is not None
                         and self.workbench.write_confirmation.gateway_state_dir is not None
@@ -958,6 +964,8 @@ def main() -> int:
     parser.add_argument("--task-write-grant", type=Path)
     parser.add_argument("--task-write-created-child", type=Path,
                         help="private pin for an existing blank child in a new edit task")
+    parser.add_argument("--task-upfront-choices", type=Path,
+                        help="owner-private exact argument choices for one upfront write")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -1071,10 +1079,17 @@ def main() -> int:
     if args.task_write_created_child is not None and not all(
             option is not None for option in write_options):
         parser.error("created-child continuation requires task-write inputs")
+    if args.task_upfront_choices is not None and (not all(
+            option is not None for option in write_options)
+            or args.task_write_created_child is not None
+            or args.task_companion_write_recipe is not None
+            or args.task_write_gateway_state_dir is None):
+        parser.error("bounded upfront requires an installed single-write task")
     write_browser = None
     write_pins = None
     write_confirmation = None
     write_target = None
+    upfront_choices = None
     if all(option is not None for option in write_options):
         if company is None:
             parser.error("task write requires an accepted company import")
@@ -1092,6 +1107,17 @@ def main() -> int:
                      or write_pins.jules_subject != company.jules_subject)):
             parser.error("task write pins differ from Jules-only enrollment generation")
         write_evidence = validate_write_handoff(args.task_write_evidence, write_pins)
+        if args.task_upfront_choices is not None:
+            upfront_document = json.loads(
+                _private_file(args.task_upfront_choices, 16_384),
+                object_pairs_hook=_unique_pairs,
+            )
+            if (type(upfront_document) is not dict
+                    or set(upfront_document) != {"schema", "choices"}
+                    or upfront_document["schema"] != "auths.ap071-upfront-choices/1"
+                    or type(upfront_document["choices"]) is not list):
+                parser.error("bounded upfront choices are malformed")
+            upfront_choices = upfront_document["choices"]
         if args.task_write_created_child is not None:
             if args.task_companion_write_recipe is not None:
                 parser.error("created-child continuation cannot issue another create")
@@ -1134,6 +1160,7 @@ def main() -> int:
             read_profile_lock_path=args.task_read_profile_lock,
             companion_recipe_path=args.task_companion_write_recipe,
             companion_profile_lock_path=args.task_companion_write_profile_lock,
+            upfront_allowed_arguments=upfront_choices,
             private_output_dir=args.task_write_output_dir,
         )
     confirmation_options = (
@@ -1216,6 +1243,7 @@ def main() -> int:
             read_profile_lock_path=args.task_read_profile_lock,
             companion_recipe_path=args.task_companion_write_recipe,
             companion_profile_lock_path=args.task_companion_write_profile_lock,
+            upfront_allowed_arguments=upfront_choices,
             private_output_dir=args.task_write_output_dir,
             gateway_binary=args.task_write_gateway_bin,
             gateway_sha256=args.task_write_gateway_sha256,

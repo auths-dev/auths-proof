@@ -435,8 +435,23 @@ auths-google-planned-populate \
 
 Both effect submissions are one-shot handoffs. An unknown result requires
 inspection of the durable gateway attempt and the independent producer state.
-These commands remain a development operator path; no live Jules create has
-run through them yet.
+These commands remain a development operator path. One live Jules create
+produced a response-bound Project A child, but the paired population did not
+enter because its preflight signer was absent from that installation; see the
+[live create record](../../docs/program-log/2026-10-25-ap071-live-create.md).
+
+For a separately reset bounded-upfront edit test, the operator may supply an
+owner-private `--task-upfront-choices` JSON file when starting the Jules
+workbench. It has schema `auths.ap071-upfront-choices/1` and a `choices` array
+of one to four complete profile argument objects. Each Google edit choice
+must fix the same selected `document_id`, tab, revision and marker, and may
+vary the reviewed `replacement`. The workbench shows every choice on the
+human-signed task card and states that no second confirmation will occur.
+The installed task policy must set `allow_bounded_writes=true`; absent this
+file, the workbench defaults to exact confirmation. The agent still signs
+one complete action, and the gateway admits at most one listed choice. This
+development screen has synthetic ceremony coverage; the live bounded-upfront
+Google run and independent readback remain open.
 
 See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
 for the remaining live acceptance path.

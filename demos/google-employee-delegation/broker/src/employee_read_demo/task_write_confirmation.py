@@ -92,6 +92,7 @@ class TaskWriteConfirmationFlow:
                  read_profile_lock_path: Path | None = None,
                  companion_recipe_path: Path | None = None,
                  companion_profile_lock_path: Path | None = None,
+                 upfront_allowed_arguments: list[dict] | None = None,
                  private_output_dir: Path, gateway_binary: Path,
                  gateway_sha256: str,
                  preflight: Callable[[dict, ReviewedWrite], None] | None = None,
@@ -109,6 +110,7 @@ class TaskWriteConfirmationFlow:
         self.read_profile_lock_path = read_profile_lock_path
         self.companion_recipe_path = companion_recipe_path
         self.companion_profile_lock_path = companion_profile_lock_path
+        self.upfront_allowed_arguments = upfront_allowed_arguments
         self.private_output_dir = private_output_dir
         self.gateway_binary = gateway_binary
         self.gateway_sha256 = gateway_sha256
@@ -191,6 +193,7 @@ class TaskWriteConfirmationFlow:
             companion_recipe_path=self.companion_recipe_path,
             companion_profile_lock_path=self.companion_profile_lock_path,
             pending_child=card.get("pending_child"),
+            upfront_allowed_arguments=self.upfront_allowed_arguments,
         )
         if set(card) != set(refreshed):
             raise OperatorDenied("installed task scope changed")
@@ -231,6 +234,8 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied("paired create requires one effect-plan review")
         now = int(time.time()) if now is None else now
         card, review = self._review(task_id, employee, agent, now)
+        if card["write_approval_mode"] != "exact":
+            raise OperatorDenied("bounded upfront task has no exact confirmation")
         if self.preflight is not None:
             self.preflight(card, review)
         package = load_task_write_package(self.authority_path, now=now)
@@ -552,19 +557,33 @@ class TaskWriteConfirmationFlow:
         now = int(time.time()) if now is None else now
         card, review = self._review(task_id, employee, agent, now)
         directory = self._task_dir(task_id)
-        _private_read(directory / "confirmation.proof", 4 * 1024 * 1024)
-        _private_read(directory / "confirmation.action", 64 * 1024)
+        upfront = card["write_approval_mode"] == "bounded-upfront"
+        if upfront:
+            binding_fields = {"operator_namespace", "operation_id", "recipe_digest",
+                              "task_id", "task_commitment"}
+            choice = {key: value for key, value in review.arguments.items()
+                      if key not in binding_fields}
+            if choice not in card.get("upfront_allowed_arguments", []):
+                raise OperatorDenied("agent choice is outside upfront allowance")
+        else:
+            _private_read(directory / "confirmation.proof", 4 * 1024 * 1024)
+            _private_read(directory / "confirmation.action", 64 * 1024)
         self.preflight(card, review)
-        try:
-            result = subprocess.run([
-                str(self._binary()), "task-submit",
-                "--state-dir", str(self.gateway_state_dir),
-                "--task-id", task_id,
-                "--agent-proof", str(directory / "agent.proof"),
-                "--agent-action", str(directory / "agent.action"),
+        command = [
+            str(self._binary()), "task-submit",
+            "--state-dir", str(self.gateway_state_dir),
+            "--task-id", task_id,
+            "--agent-proof", str(directory / "agent.proof"),
+            "--agent-action", str(directory / "agent.action"),
+        ]
+        if not upfront:
+            command.extend([
                 "--confirmation-proof", str(directory / "confirmation.proof"),
                 "--confirmation-action", str(directory / "confirmation.action"),
-            ], capture_output=True, check=False, timeout=90)
+            ])
+        try:
+            result = subprocess.run(command, capture_output=True,
+                                    check=False, timeout=90)
         except (OSError, subprocess.TimeoutExpired) as error:
             raise OperatorDenied(
                 "gateway write outcome is unknown; inspect state before retry",
