@@ -514,6 +514,7 @@ pub struct CompiledRecipe {
     namespace: OperatorNamespace,
     digest: [u8; 32],
     plans: lower::Plans,
+    fixed_write_query: String,
 }
 
 impl CompiledRecipe {
@@ -552,6 +553,7 @@ impl CompiledRecipe {
         credential_requirement(&source.credential).validate()?;
         validate_origin(&source.origin)?;
         validate::validate_source(&source, &fields)?;
+        let fixed_write_query = release::fixed_query(&source.write.query)?;
         let canonical = serde_json_canonicalizer::to_vec(&source)
             .map_err(|_| GatewayRecipeError::InvalidSource)?;
         let mut hasher = Sha256::new();
@@ -565,6 +567,7 @@ impl CompiledRecipe {
             namespace,
             digest,
             plans,
+            fixed_write_query,
         })
     }
 
@@ -598,6 +601,10 @@ impl CompiledRecipe {
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {
         &self.namespace
+    }
+
+    pub(crate) fn fixed_write_query(&self) -> &str {
+        &self.fixed_write_query
     }
 
     /// What this recipe can prove after an ambiguous write.
@@ -770,6 +777,7 @@ impl CompiledRecipe {
             }
             url.push_str(suffix);
         }
+        url.push_str(&self.fixed_write_query);
         let content_type = match self.plans.write.body {
             construct::BodyPlan::Json(_) => "application/json",
             construct::BodyPlan::Form(_) => "application/x-www-form-urlencoded",

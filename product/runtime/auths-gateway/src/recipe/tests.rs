@@ -144,6 +144,56 @@ fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
 }
 
 #[test]
+fn fixed_write_query_is_reviewed_and_cannot_be_supplied_by_the_agent() {
+    let (source, lock) = fixture("google-docs-edit");
+    let mut source: Value = serde_json::from_slice(source).expect("source");
+    source["write"]["query"] = json!({"supportsAllDrives": "true"});
+    let recipe = CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), lock)
+        .expect("fixed query recipe");
+    assert_eq!(recipe.review_document()["query"], source["write"]["query"]);
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "edit-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "document_id": "doc-Project-A-working",
+            "tab_id": "tab-1",
+            "marker": "marker",
+            "replacement": "replacement",
+            "required_revision_id": "revision-1"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed request");
+    assert_eq!(
+        request.url(),
+        "https://docs.googleapis.com/v1/documents/doc-Project-A-working:batchUpdate?supportsAllDrives=true"
+    );
+    let mut injected = args;
+    injected.insert("supportsAllDrives".into(), json!("false"));
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(&injected, [0x41; 32])
+            .err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
+    for query in [
+        json!({"bad-name": "true"}),
+        json!({"supportsAllDrives": ""}),
+        json!({"supportsAllDrives": "true\nfalse"}),
+    ] {
+        source["write"]["query"] = query;
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), lock)
+                .err(),
+            Some(GatewayRecipeError::UnsafeTemplate)
+        );
+    }
+}
+
+#[test]
 fn airtable_task_edit_uses_the_same_write_admission_contract() {
     let recipe = compiled("airtable-task-edit");
     assert!(recipe.requires_task_admission());

@@ -509,7 +509,7 @@ fn validate_and_lower(
     })
 }
 
-fn fixed_query(query: &BTreeMap<String, String>) -> Result<String, GatewayRecipeError> {
+pub(super) fn fixed_query(query: &BTreeMap<String, String>) -> Result<String, GatewayRecipeError> {
     if query.len() > 4 {
         return Err(GatewayRecipeError::UnsafeTemplate);
     }

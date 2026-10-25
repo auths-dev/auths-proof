@@ -187,6 +187,8 @@ pub(crate) struct GatewayHttpTransport {
     /// `loopback-provider` development build.
     target_origin: String,
     requirement: CredentialRequirement,
+    /// Exact canonical fixed query from the reviewed write recipe.
+    fixed_write_query: String,
     /// Version headers every response must echo with these values.
     required_versions: Vec<(String, String)>,
     #[allow(dead_code)] // Used by the pending installed read-release session.
@@ -243,6 +245,7 @@ impl GatewayHttpTransport {
             origin: origin.to_owned(),
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
+            fixed_write_query: recipe.fixed_write_query().to_owned(),
             required_versions: recipe.required_response_versions(),
             release_digest: None,
             release_maximum_bytes: None,
@@ -289,6 +292,7 @@ impl GatewayHttpTransport {
             origin: origin.to_owned(),
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
+            fixed_write_query: String::new(),
             required_versions: Vec::new(),
             release_digest: Some(*recipe.digest()),
             release_maximum_bytes: Some(recipe.maximum_provider_bytes()),
@@ -323,6 +327,7 @@ impl GatewayHttpTransport {
             origin: origin.to_owned(),
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
+            fixed_write_query: recipe.fixed_write_query().to_owned(),
             required_versions: recipe.required_response_versions(),
             release_digest: None,
             release_maximum_bytes: None,
@@ -355,6 +360,7 @@ impl GatewayHttpTransport {
             origin: recipe.origin().to_owned(),
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
+            fixed_write_query: String::new(),
             required_versions: Vec::new(),
             release_digest: Some(*recipe.digest()),
             release_maximum_bytes: Some(recipe.maximum_provider_bytes()),
@@ -374,7 +380,9 @@ impl GatewayHttpTransport {
         request: &ClosedProviderRequest,
         lease: &StoredSecretLease,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        if request.credential_requirement() != &self.requirement || !self.owns_url(request.url()) {
+        if request.credential_requirement() != &self.requirement
+            || !self.owns_write_url(request.url())
+        {
             return Err(GatewayTransportError::NotEntered);
         }
         let secret = lease
@@ -552,6 +560,7 @@ impl GatewayHttpTransport {
             origin: review.origin().to_owned(),
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: review.credential().clone(),
+            fixed_write_query: recipe.fixed_write_query().to_owned(),
             required_versions: recipe.required_response_versions(),
             release_digest: None,
             release_maximum_bytes: None,
@@ -566,6 +575,12 @@ impl GatewayHttpTransport {
 
     fn owns_url(&self, candidate: &str) -> bool {
         self.owns_url_with_query(candidate, false)
+    }
+
+    fn owns_write_url(&self, candidate: &str) -> bool {
+        self.owns_url_with_query(candidate, true)
+            && Url::parse(candidate)
+                .is_ok_and(|url| url.query() == self.fixed_write_query.strip_prefix('?'))
     }
 
     #[allow(dead_code)]
@@ -763,6 +778,31 @@ mod tests {
             .filter_map(|line| line.strip_prefix("idempotency-key:"))
             .map(str::trim)
             .collect()
+    }
+
+    #[test]
+    fn write_transport_accepts_only_the_compiled_fixed_query() {
+        let lock =
+            include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json");
+        let mut source: Value = serde_json::from_slice(include_bytes!(
+            "../../../../bindings/fixtures/gateway/airtable/recipe.json"
+        ))
+        .expect("source");
+        source["write"]["query"] = json!({"supportsAllDrives": "true"});
+        let recipe = CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source"), lock)
+            .expect("recipe");
+        let transport = GatewayHttpTransport::for_loopback_test(&recipe, 18765);
+        let path = "https://api.airtable.com/v0/example/record";
+        assert!(transport.owns_write_url(&format!("{path}?supportsAllDrives=true")));
+        for candidate in [
+            path.to_owned(),
+            format!("{path}?supportsAllDrives=false"),
+            format!("{path}?supportsAllDrives=true&extra=1"),
+            format!("{path}?supportsAllDrives=true#fragment"),
+        ] {
+            assert!(!transport.owns_write_url(&candidate), "{candidate}");
+        }
+        assert!(!transport.owns_url(&format!("{path}?supportsAllDrives=true")));
     }
 
     #[tokio::test]

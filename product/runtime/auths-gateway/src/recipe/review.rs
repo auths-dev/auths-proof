@@ -11,6 +11,7 @@ use super::recovery::{
 use super::source::{EchoPlacement, IdempotencySource, PathSegment, RecipeSource};
 use super::{CompiledRecipe, CredentialRequirement, MAX_BODY_BYTES, WriteMethod, provider_header};
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 
 /// The review schema both review commands print.
 pub const RECIPE_REVIEW_SCHEMA: &str = "auths.gateway-recipe-review/2";
@@ -35,6 +36,7 @@ pub struct RecipeReview {
     origin: String,
     method: WriteMethod,
     path: Vec<String>,
+    query: BTreeMap<String, String>,
     credential: CredentialRequirement,
     maximum_body_bytes: usize,
     has_observation: bool,
@@ -101,6 +103,11 @@ impl RecipeEchoReview {
 }
 
 impl RecipeReview {
+    /// Fixed, operator-reviewed query values sent only on the write.
+    #[must_use]
+    pub const fn query(&self) -> &BTreeMap<String, String> {
+        &self.query
+    }
     /// Returns the exact MCP service.
     #[must_use]
     pub fn service(&self) -> &str {
@@ -280,6 +287,7 @@ impl CompiledRecipe {
                     _ => String::new(),
                 })
                 .collect(),
+            query: source.write.query.clone(),
             credential: super::credential_requirement(&source.credential),
             maximum_body_bytes: MAX_BODY_BYTES,
             has_observation: source.observation.is_some(),
@@ -343,6 +351,9 @@ impl CompiledRecipe {
             "write_is_conditional": false,
         });
         document["provider_headers"] = provider_headers_document(source);
+        if !review.query().is_empty() {
+            document["query"] = json!(review.query());
+        }
         document["credential_guard"] = self.guard_review();
         if let Some(binding) = task_binding_document(source) {
             document["task_binding"] = binding;

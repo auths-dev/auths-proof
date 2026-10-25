@@ -57,7 +57,7 @@ separate `drive.file` grant. A development-only
 now pipes a checked, short-lived bearer into a new gateway installation with
 the Google UserInfo `sub` as account label. It has synthetic secret-custody
 tests; no live gateway installation or edit has run. Her saved read-only grant
-is insufficient.
+is separate from the checked write-capable `drive.file` grant used here.
 The shim requests the gateway's opt-in, secret-free `--connection-json` install
 result and returns its generated connection ID and credential generation. The
 operator uses those returned values in the task installation and in the
@@ -83,8 +83,9 @@ compiled `recipe_digest`, and operator-controlled `pins`: `company_id`,
 `human_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
 `connection_generation`, `connection_subject`, `delivery_channel`,
 `operator_policy_digest`, `allow_bounded_writes`, and
-`permitted_read_scopes`. The current write-only route sets
-`permitted_read_scopes` to `[]`. Each signed task scope carries its own
+`permitted_read_scopes`. A write-only task sets
+`permitted_read_scopes` to `[]`; a mixed task lists the reviewed read
+connection and source. Each signed task scope carries its own
 connection ID, generation, subject, and recipe digest; the write scope must
 match the installed write connection. The object is installed
 once as a mode-0600 file in the owner-private gateway state directory. The
