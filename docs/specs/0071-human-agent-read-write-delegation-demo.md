@@ -166,6 +166,8 @@ If creation is known to have succeeded but population is unknown or fails, show 
 
 The private operator issuer can now package separate reviewed create and populate parent grants under one native trust context. A synthetic native test has the enrolled human sign both child grants for the same registered agent, then the agent signs a populate action using its own key and public package. The owner-side browser flow also signs and persists both agent packages with a pending-child task card in a synthetic test. Its optional HTTP route can display the pinned folder, fresh marker and operation ID, and collect the paired signatures, but it deliberately leaves the task pending activation. The one-ceremony content effect plan and live provider entry still need integration.
 
+The Google vertical now has a read-only created-child preflight that leases Jules's subject-checked credential and performs bounded child metadata, edit-capability and Docs revision/tab GETs in order. A synthetic test exercises that path; it is not yet called by an installed create/populate executor, and it cannot mint child authority or send a write.
+
 ### 5.4 Bounded upfront mode
 
 In a separate reset run, company policy may permit one short, finite update to a fixed disposable Doc without a second human prompt. The initial task names the Doc, exact allowed range, two enumerated replacement strings, one write, expiry and Google account. Jules's UI explicitly says that a later confirmation will not occur. The agent still signs the exact chosen value; gateway admission and independent readback are unchanged. Any other text, range, Doc, folder, second write or policy change is refused before provider entry. Company policy requiring exact confirmation overrides this mode.

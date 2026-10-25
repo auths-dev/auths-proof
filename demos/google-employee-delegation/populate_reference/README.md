@@ -33,6 +33,13 @@ shape, capture only its redacted structural summary and review the parser
 before entry. The recipe uses `endOfSegmentLocation` and never assumes a
 numeric insertion index.
 
+`google_create_preflight.py` now joins these parsers with the existing
+subject-checked Jules token lease and three bounded, redirect-free GETs:
+child metadata, exact-child `canEdit`, then Docs tabs/revision. A synthetic
+test verifies the request order and refusal when the child leaves the pinned
+folder. The caller still must obtain the child ID from Auths's durable binding
+after native admission; this helper neither binds it nor sends a write.
+
 The human-signed task card names the populate recipe digest but contains no
 arbitrary child ID. Only a child ID durably bound after the reserved create and
 credential-bearing metadata observation can become a one-time edit scope in
