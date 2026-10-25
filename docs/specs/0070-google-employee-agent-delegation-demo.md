@@ -199,6 +199,12 @@ PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 > an Auths delegation, or satisfy the spec's broker-owned OAuth onboarding
 > acceptance. Replace this shim with the pinned producer artifact and the
 > normal broker-owned OAuth connection after the pending handoff is complete.
+> The producer subsequently saved an owner-only, redacted
+> `demo-co/google-partial-probe/v1` report; Auths pinned its digest and ran the
+> [partial consumer smoke](../../demos/google-employee-delegation/evidence/live-partial-consumer-2026-10-25.md).
+> Project A's content hash matched the independent control, and excluded
+> project B was refused before a provider request. This still leaves the full
+> export and signed-agent acceptance work open.
 
 > **Operator pin preparation (25 October 2026):** The installed broker CLI
 > can write a private candidate `pins.json` from one copied export generation.
