@@ -95,3 +95,7 @@ f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:core/crates/auths-verifier/src/authorit
 f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:core/crates/auths-verifier/src/stage_parity_tests.rs:generic-api-key:48
 f9e6eda7d45bf8a135c8b4cce6d662212bb454d9:formal/Auths/Product/JsonStringDocument.lean:generic-api-key:102
 92606918fdb9b6e5163f2e59d210a852004c1e30:formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean:generic-api-key:61
+
+# Reviewed 2026-10-25: this evidence line names a public Auths Git commit
+# revision. The matched value is an immutable source SHA, not a credential.
+3d29a6b0273165f85676f200ff5c6e54c30b12d9:demos/google-employee-delegation/evidence/live-partial-consumer-2026-10-25.md:generic-api-key:8
