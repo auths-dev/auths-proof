@@ -271,6 +271,12 @@ class Handler(BaseHTTPRequestHandler):
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
                     ),
+                    "task_write_paired_available": bool(
+                        self.workbench.write_confirmation is not None
+                        and self.workbench.write_confirmation.companion_recipe_path is not None
+                        and self.workbench.write_pins is not None
+                        and session.subject == self.workbench.write_pins.jules_subject
+                    ),
                     "task_write_execution_available": bool(
                         self.workbench.write_confirmation is not None
                         and self.workbench.write_confirmation.gateway_state_dir is not None
@@ -583,6 +589,49 @@ class Handler(BaseHTTPRequestHandler):
                     "task_id": directory.name,
                 })
                 return
+            if path in {"/api/v1/write/effect-plans/prepare",
+                        "/api/v1/write/effect-plans/authorize"}:
+                flow = self.workbench.write_confirmation
+                if flow is None or flow.companion_recipe_path is None:
+                    raise OperatorDenied("paired effect-plan review is unavailable")
+                employee, agent, _, _, _ = self._write_bindings(session)
+                if path.endswith("/prepare"):
+                    if set(body) != {"task_id"} or type(body["task_id"]) is not str:
+                        raise ValueError("write task ID is invalid")
+                    prepared = flow.prepare_effect_plan(
+                        task_id=body["task_id"], employee=employee, agent=agent,
+                    )
+                    self._json(HTTPStatus.OK, {
+                        "status": "awaiting_exact_effect_plan",
+                        "nonce": prepared.nonce,
+                        "task_id": prepared.task_id,
+                        "agent_principal": prepared.card["agent_principal"],
+                        "account_subject": prepared.card["connection_subject"],
+                        "destination_handle": prepared.plan["create"]["resource_handle"],
+                        "method": prepared.review.method,
+                        "url": prepared.review.url,
+                        "content_type": prepared.review.content_type,
+                        "body": prepared.review.body,
+                        "plan": prepared.plan,
+                        "signing_preimage": base64.urlsafe_b64encode(
+                            prepared.signing_preimage).decode("ascii"),
+                        "expires_at": prepared.expires_at,
+                    })
+                    return
+                if set(body) != {"nonce", "signature"}:
+                    raise ValueError("effect-plan signature is incomplete")
+                nonce = body["nonce"]
+                if type(nonce) is not str or not 1 <= len(nonce) <= 128:
+                    raise ValueError("effect-plan nonce is invalid")
+                directory = flow.complete_effect_plan(
+                    nonce=nonce, employee=employee, agent=agent,
+                    signature=_b64(body["signature"], max_bytes=64),
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "effect_plan_recorded",
+                    "task_id": directory.name,
+                })
+                return
             if path == "/api/v1/write/submissions/execute":
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.gateway_state_dir is None:
@@ -879,7 +928,7 @@ def main() -> int:
     parser.add_argument("--task-write-gateway-bin", type=Path)
     parser.add_argument("--task-write-gateway-sha256")
     parser.add_argument("--task-write-gateway-state-dir", type=Path,
-                        help="opt in to task activation and exact write submission")
+                        help="opt in to task activation and reviewed write submission")
     parser.add_argument("--task-write-credential-pins", type=Path)
     parser.add_argument("--task-write-grant", type=Path)
     parser.add_argument("--port", type=int, default=8765)
@@ -1020,8 +1069,6 @@ def main() -> int:
     if args.task_write_gateway_bin is not None:
         if write_browser is None:
             parser.error("gateway review requires the task write installation")
-        if write_browser.companion_recipe_path is not None:
-            parser.error("paired create/populate effect-plan review is not installed")
         raw_pins = json.loads(_private_file(args.task_write_credential_pins, 4096),
                               object_pairs_hook=_unique_pairs)
         if (type(raw_pins) is not dict
@@ -1070,10 +1117,13 @@ def main() -> int:
             profile_lock_path=args.task_write_profile_lock,
             read_recipe_path=args.task_read_recipe,
             read_profile_lock_path=args.task_read_profile_lock,
+            companion_recipe_path=args.task_companion_write_recipe,
+            companion_profile_lock_path=args.task_companion_write_profile_lock,
             private_output_dir=args.task_write_output_dir,
             gateway_binary=args.task_write_gateway_bin,
             gateway_sha256=args.task_write_gateway_sha256,
-            preflight=google_edit_preflight,
+            preflight=(None if write_browser.companion_recipe_path is not None
+                       else google_edit_preflight),
             gateway_state_dir=args.task_write_gateway_state_dir,
         )
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),

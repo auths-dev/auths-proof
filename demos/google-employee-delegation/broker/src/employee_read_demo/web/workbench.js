@@ -245,6 +245,7 @@ async function authorizeWriteTask() {
   }, null, 2);
   byId("write-review").hidden = true;
   byId("write-confirm-task-id").value = result.task_id;
+  byId("write-submit").hidden = true;
   preparedWriteTask = null;
   message(result.companion_agent_package
     ? "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry."
@@ -254,7 +255,10 @@ async function authorizeWriteTask() {
 }
 
 async function prepareWriteConfirmation() {
-  const result = await api("/api/v1/write/confirmations/prepare", {
+  const paired = session.task_write_paired_available;
+  const result = await api(paired
+    ? "/api/v1/write/effect-plans/prepare"
+    : "/api/v1/write/confirmations/prepare", {
     task_id: value("write-confirm-task-id"),
   });
   preparedWriteConfirmation = result;
@@ -267,11 +271,13 @@ async function prepareWriteConfirmation() {
     url: result.url,
     content_type: result.content_type,
     exact_request_body: result.body,
-    intent: result.intent,
+    ...(paired ? {effect_plan: result.plan} : {intent: result.intent}),
     expires_at: result.expires_at,
   }, null, 2);
   byId("write-confirm-review").hidden = false;
-  message("Review the complete destination and proposed request before signing.");
+  message(paired
+    ? "Review the destination, complete initial text and both effects before signing once."
+    : "Review the complete destination and proposed request before signing.");
 }
 
 async function authorizeWriteConfirmation() {
@@ -280,7 +286,10 @@ async function authorizeWriteConfirmation() {
     throw new Error("The exact edit review expired; review the proposal again");
   }
   const signature = await signEmployee(preparedWriteConfirmation.signing_preimage);
-  const result = await api("/api/v1/write/confirmations/authorize", {
+  const paired = session.task_write_paired_available;
+  const result = await api(paired
+    ? "/api/v1/write/effect-plans/authorize"
+    : "/api/v1/write/confirmations/authorize", {
     nonce: preparedWriteConfirmation.nonce, signature,
   });
   if (result.task_id !== preparedWriteConfirmation.task_id) {
@@ -289,10 +298,12 @@ async function authorizeWriteConfirmation() {
   byId("write-confirm-status").textContent = JSON.stringify(result, null, 2);
   byId("write-confirm-review").hidden = true;
   preparedWriteConfirmation = null;
-  byId("write-submit").hidden = !session.task_write_execution_available;
-  message(session.task_write_execution_available
-    ? "Jules's exact edit is confirmed. Submit it through the gateway when ready."
-    : "Jules's exact edit is confirmed. The gateway has not submitted a provider write yet.");
+  byId("write-submit").hidden = paired || !session.task_write_execution_available;
+  message(paired
+    ? "Jules's exact create-and-populate plan is recorded. Obtain the fresh independent baseline before submitting create; no provider write has been sent."
+    : session.task_write_execution_available
+      ? "Jules's exact edit is confirmed. Submit it through the gateway when ready."
+      : "Jules's exact edit is confirmed. The gateway has not submitted a provider write yet.");
 }
 
 async function submitApprovedWrite() {
@@ -490,6 +501,13 @@ async function start() {
   }
   byId("write-confirmation").hidden = !session.task_write_confirmation_available;
   if (session.task_write_confirmation_available) {
+    if (session.task_write_paired_available) {
+      byId("write-task-description").textContent = "The account, registered agent, Project A folder and limits come from the operator's pinned installation. After the agent drafts, Jules reviews the exact new file and its content in one separate effect-plan signature.";
+      byId("write-confirmation-heading").textContent = "Approve the agent's new Project A file";
+      byId("write-confirmation-description").textContent = "After the separate agent signs the create action and stages its draft privately, review the exact folder, title, complete content, create request and populate recipe. This signature is recorded before either provider write.";
+      byId("write-confirm-prepare").textContent = "Review agent create and draft";
+      byId("write-confirm-authorize").textContent = "Sign this exact two-effect plan";
+    }
     bind("write-confirm-prepare", prepareWriteConfirmation);
     bind("write-confirm-authorize", authorizeWriteConfirmation);
     if (session.task_write_execution_available) {

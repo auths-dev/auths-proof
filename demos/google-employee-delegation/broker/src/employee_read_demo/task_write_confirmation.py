@@ -2,8 +2,9 @@
 
 The agent proof/action are staged as owner-private files under an approved task.
 The installed gateway binary verifies them and compiles the closed request; no
-browser-supplied request or review JSON is accepted. This module never submits
-to the provider or opens a credential.
+browser-supplied request or review JSON is accepted. The paired mode records
+one signed create/populate plan before either effect. This module never sends
+a provider write itself or opens a credential.
 """
 
 from __future__ import annotations
@@ -29,7 +30,10 @@ from .task_write_card import build_exact_write_card
 from .task_write_intent import ReviewedWrite, project_exact_write
 from .task_write_operator_cli import _reviewed_profile
 from .task_write_package import load_task_write_package
-from .task_write_proofs import PreparedHumanAction, prepare_exact_confirmation, task_commitment
+from .task_write_proofs import (
+    PreparedHumanAction, prepare_effect_plan_confirmation,
+    prepare_exact_confirmation, task_commitment,
+)
 
 
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
@@ -48,6 +52,17 @@ class PreparedConfirmation:
 
 
 @dataclass(frozen=True)
+class PreparedEffectPlan:
+    nonce: str
+    task_id: str
+    card: dict
+    review: ReviewedWrite
+    plan: dict
+    signing_preimage: bytes
+    expires_at: int
+
+
+@dataclass(frozen=True)
 class _Pending:
     employee: EmployeeBinding
     agent: AgentBinding
@@ -57,11 +72,23 @@ class _Pending:
     action: PreparedHumanAction
 
 
+@dataclass(frozen=True)
+class _PendingEffectPlan:
+    employee: EmployeeBinding
+    agent: AgentBinding
+    task_id: str
+    review: ReviewedWrite
+    plan: dict
+    action: PreparedHumanAction
+
+
 class TaskWriteConfirmationFlow:
     def __init__(self, *, authority_path: Path, installation_path: Path,
                  recipe_path: Path, profile_lock_path: Path,
                  read_recipe_path: Path | None = None,
                  read_profile_lock_path: Path | None = None,
+                 companion_recipe_path: Path | None = None,
+                 companion_profile_lock_path: Path | None = None,
                  private_output_dir: Path, gateway_binary: Path,
                  gateway_sha256: str,
                  preflight: Callable[[dict, ReviewedWrite], None] | None = None,
@@ -77,6 +104,8 @@ class TaskWriteConfirmationFlow:
         self.profile_lock_path = profile_lock_path
         self.read_recipe_path = read_recipe_path
         self.read_profile_lock_path = read_profile_lock_path
+        self.companion_recipe_path = companion_recipe_path
+        self.companion_profile_lock_path = companion_profile_lock_path
         self.private_output_dir = private_output_dir
         self.gateway_binary = gateway_binary
         self.gateway_sha256 = gateway_sha256
@@ -85,6 +114,7 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied("gateway state directory must be absolute")
         self.gateway_state_dir = gateway_state_dir
         self._pending: dict[str, _Pending] = {}
+        self._pending_plans: dict[str, _PendingEffectPlan] = {}
         self._lock = threading.Lock()
 
     def _binary(self) -> Path:
@@ -113,6 +143,10 @@ class TaskWriteConfirmationFlow:
                 agent: AgentBinding, now: int) -> tuple[dict, ReviewedWrite]:
         directory = self._task_dir(task_id)
         package = load_task_write_package(self.authority_path, now=now)
+        if ((package.companion_write is None) != (self.companion_recipe_path is None)
+                or (self.companion_recipe_path is None)
+                != (self.companion_profile_lock_path is None)):
+            raise OperatorDenied("reviewed companion write changed")
         try:
             card = json.loads(_private_read(directory / "task-card.json", 16_384),
                               object_pairs_hook=_unique_pairs)
@@ -151,6 +185,9 @@ class TaskWriteConfirmationFlow:
             read_profile_lock_path=self.read_profile_lock_path,
             read_resource_handle=(card["read_scopes"][0]["handle"]
                                   if card.get("read_scopes") else None),
+            companion_recipe_path=self.companion_recipe_path,
+            companion_profile_lock_path=self.companion_profile_lock_path,
+            pending_child=card.get("pending_child"),
         )
         if set(card) != set(refreshed):
             raise OperatorDenied("installed task scope changed")
@@ -187,6 +224,8 @@ class TaskWriteConfirmationFlow:
 
     def prepare(self, *, task_id: str, employee: EmployeeBinding,
                 agent: AgentBinding, now: int | None = None) -> PreparedConfirmation:
+        if self.companion_recipe_path is not None:
+            raise OperatorDenied("paired create requires one effect-plan review")
         now = int(time.time()) if now is None else now
         card, review = self._review(task_id, employee, agent, now)
         if self.preflight is not None:
@@ -206,6 +245,8 @@ class TaskWriteConfirmationFlow:
     def complete(self, *, nonce: str, employee: EmployeeBinding,
                  agent: AgentBinding, signature: bytes,
                  now: int | None = None) -> Path:
+        if self.companion_recipe_path is not None:
+            raise OperatorDenied("paired create requires one effect-plan review")
         now = int(time.time()) if now is None else now
         with self._lock:
             pending = self._pending.pop(nonce, None)
@@ -225,6 +266,108 @@ class TaskWriteConfirmationFlow:
         except BaseException:
             (directory / "confirmation.proof").unlink(missing_ok=True)
             raise
+        return directory
+
+    def _agent_draft(self, task_id: str) -> str:
+        try:
+            raw = _private_read(self._task_dir(task_id) / "agent-draft.txt", 192)
+            text = raw.decode("utf-8")
+        except (OSError, PermissionError, UnicodeDecodeError) as error:
+            raise OperatorDenied("private agent draft is unavailable") from error
+        if not text or "\x00" in text:
+            raise OperatorDenied("private agent draft is invalid")
+        return text
+
+    def prepare_effect_plan(self, *, task_id: str, employee: EmployeeBinding,
+                            agent: AgentBinding,
+                            now: int | None = None) -> PreparedEffectPlan:
+        if (self.companion_recipe_path is None or self.gateway_state_dir is None):
+            raise OperatorDenied("paired create plan is not installed")
+        now = int(time.time()) if now is None else now
+        card, review = self._review(task_id, employee, agent, now)
+        pending = card.get("pending_child")
+        arguments = review.arguments
+        intent = review.intent
+        if (type(pending) is not dict or intent.get("verb") != "create"
+                or intent.get("operation_id") != pending.get("create_operation_id")
+                or intent.get("recipe_digest") != pending.get("create_recipe_digest")
+                or intent.get("resource_handle") != pending.get("parent_handle")
+                or arguments.get("title") != pending.get("title")
+                or arguments.get("recovery_marker") != pending.get("marker")):
+            raise OperatorDenied("agent create differs from signed pending child")
+        package = load_task_write_package(self.authority_path, now=now)
+        if (package.companion_write is None
+                or package.companion_write.recipe_digest
+                != pending.get("populate_recipe_digest")):
+            raise OperatorDenied("reviewed populate recipe changed")
+        expires_at = min(now + 180, card["expires_at"])
+        if expires_at <= now:
+            raise OperatorDenied("effect plan expired before review")
+        plan = {
+            "schema": "auths.agent-effect-plan/1",
+            "task_id": task_id,
+            "task_commitment": task_commitment(card),
+            "create": intent,
+            "populate_recipe_digest": package.companion_write.recipe_digest,
+            "populate_operation_id": "populate-" + secrets.token_urlsafe(12),
+            "initial_text": self._agent_draft(task_id),
+            "expires_at": expires_at,
+        }
+        action = prepare_effect_plan_confirmation(package.authority, plan, now=now)
+        nonce = secrets.token_urlsafe(24)
+        with self._lock:
+            self._pending_plans[nonce] = _PendingEffectPlan(
+                employee, agent, task_id, review, plan, action,
+            )
+        return PreparedEffectPlan(
+            nonce, task_id, card, review, plan, action.signing_preimage,
+            min(action.expires_at, expires_at),
+        )
+
+    def complete_effect_plan(self, *, nonce: str, employee: EmployeeBinding,
+                             agent: AgentBinding, signature: bytes,
+                             now: int | None = None) -> Path:
+        now = int(time.time()) if now is None else now
+        with self._lock:
+            pending = self._pending_plans.pop(nonce, None)
+        if (pending is None or pending.employee != employee
+                or pending.agent != agent or now >= pending.plan["expires_at"]
+                or now >= pending.action.expires_at):
+            raise OperatorDenied("effect plan review is unavailable")
+        card, review = self._review(pending.task_id, employee, agent, now)
+        if (review != pending.review or task_commitment(card)
+                != pending.plan["task_commitment"]
+                or self._agent_draft(pending.task_id)
+                != pending.plan["initial_text"]):
+            raise OperatorDenied("agent proposal changed during effect-plan review")
+        signed = pending.action.complete(signature, now=now)
+        directory = self._task_dir(pending.task_id)
+        _private_write(directory / "effect-plan.proof", signed.proof)
+        try:
+            _private_write(directory / "effect-plan.action", signed.action)
+        except BaseException:
+            (directory / "effect-plan.proof").unlink(missing_ok=True)
+            raise
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-record-effect-plan",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", pending.task_id,
+                "--recipe-digest", pending.review.intent["recipe_digest"],
+                "--agent-proof", str(directory / "agent.proof"),
+                "--agent-action", str(directory / "agent.action"),
+                "--plan-proof", str(directory / "effect-plan.proof"),
+                "--plan-action", str(directory / "effect-plan.action"),
+            ], capture_output=True, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied(
+                "effect-plan record outcome is unknown; inspect state",
+            ) from error
+        if (result.returncode != 0 or len(result.stdout) > 4096
+                or result.stdout.strip() != b'{"outcome":"effect-plan-recorded"}'):
+            raise OperatorDenied(
+                "effect-plan record outcome is unknown; inspect state",
+            )
         return directory
 
     def activate(self, task_id: str) -> None:

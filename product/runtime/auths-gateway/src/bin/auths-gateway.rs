@@ -464,7 +464,7 @@ mod unix {
             #[arg(long, requires = "confirmation_proof")]
             confirmation_action: Option<PathBuf>,
             /// Use the immutable, previously recorded human effect plan for
-            /// its exact create operation. Population is not yet supported.
+            /// its exact create or preflight-bound population operation.
             #[arg(long, conflicts_with = "confirmation_proof")]
             recorded_effect_plan: bool,
         },

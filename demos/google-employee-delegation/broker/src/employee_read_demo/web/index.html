@@ -54,7 +54,7 @@
 
   <section id="write-task" aria-labelledby="write-heading" hidden>
     <h2 id="write-heading">Delegate a Project A task</h2>
-    <p>The account, registered agent, source, working Doc and limits come from the operator's pinned installation. Review them before signing. The exact edit will need a separate confirmation after the agent proposes it.</p>
+    <p id="write-task-description">The account, registered agent, source, destination and limits come from the operator's pinned installation. Review them before signing. The agent's exact proposal requires a later confirmation.</p>
     <label>Task purpose<input id="write-purpose" maxlength="512" value="Draft an update to the Project A working document"></label>
     <button id="write-prepare" type="button">Review write task</button>
     <div id="write-review" hidden>
@@ -69,7 +69,7 @@
 
   <section id="write-confirmation" aria-labelledby="write-confirmation-heading" hidden>
     <h2 id="write-confirmation-heading">Confirm the agent's exact edit</h2>
-    <p>After the separate agent signs its proposed action and the operator stages its proof, review the closed request below. Confirming saves Jules's signature; the gateway submission and independent readback are separate steps.</p>
+    <p id="write-confirmation-description">After the separate agent signs its proposed action and the operator stages its proof, review the closed request below. Confirming saves Jules's signature; the gateway submission and independent readback are separate steps.</p>
     <label>Write task ID<input id="write-confirm-task-id" autocomplete="off"></label>
     <button id="write-confirm-prepare" type="button">Review agent proposal</button>
     <div id="write-confirm-review" hidden>

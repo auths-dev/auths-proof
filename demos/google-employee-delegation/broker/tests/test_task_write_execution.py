@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from employee_read_demo.enrollment import EmployeeBinding
@@ -166,6 +167,88 @@ class TaskWriteExecutionTests(unittest.TestCase):
                        [], 0, json.dumps({**status, "private": "leak"}).encode(), b"")):
             with self.assertRaisesRegex(OperatorDenied, "status is unavailable"):
                 self.flow.status(task_id=self.task_id, employee=employee)
+
+    def test_one_effect_plan_records_exact_draft_before_any_provider_write(self) -> None:
+        self.flow.companion_recipe_path = self.root / "populate-recipe"
+        self.flow.companion_profile_lock_path = self.root / "populate-lock"
+        draft = self.task_dir / "agent-draft.txt"
+        draft.write_text("Agent's approved Project A handoff", encoding="utf-8")
+        draft.chmod(0o600)
+        pending_child = {
+            "create_operation_id": "create-1", "create_recipe_digest": "c" * 64,
+            "populate_recipe_digest": "d" * 64,
+            "parent_handle": "project-a-folder", "title": "Project A handoff",
+            "marker": "ap071_" + "e" * 32,
+        }
+        card = {"task_id": self.task_id, "expires_at": 2000,
+                "pending_child": pending_child}
+        reviewed = ReviewedWrite(
+            {"task_id": self.task_id, "operation_id": "create-1",
+             "recipe_digest": "c" * 64, "resource_handle": "project-a-folder",
+             "verb": "create"},
+            {"title": pending_child["title"],
+             "recovery_marker": pending_child["marker"]},
+            "POST", "https://www.googleapis.com/drive/v3/files",
+            "application/json", "{}",
+        )
+        self.flow._review = lambda task_id, employee, agent, now: (card, reviewed)
+        package = SimpleNamespace(
+            companion_write=SimpleNamespace(recipe_digest="d" * 64),
+            authority=object(),
+        )
+
+        def complete(signature: bytes, *, now: int):
+            self.assertEqual(signature, b"signed-by-jules")
+            return SimpleNamespace(proof=b"human-proof", action=b"human-action")
+
+        human_action = SimpleNamespace(
+            signing_preimage=b"exact-plan-preimage", expires_at=1300,
+            complete=complete,
+        )
+        with (
+            patch("employee_read_demo.task_write_confirmation.load_task_write_package",
+                  return_value=package),
+            patch("employee_read_demo.task_write_confirmation.task_commitment",
+                  return_value="a" * 64),
+            patch("employee_read_demo.task_write_confirmation.prepare_effect_plan_confirmation",
+                  return_value=human_action),
+        ):
+            prepared = self.flow.prepare_effect_plan(
+                task_id=self.task_id, employee=None, agent=None, now=1000,
+            )
+            self.assertEqual(prepared.plan["initial_text"],
+                             "Agent's approved Project A handoff")
+            self.assertEqual(prepared.plan["create"], reviewed.intent)
+            self.assertEqual(prepared.plan["expires_at"], 1180)
+            self.assertEqual(prepared.signing_preimage, b"exact-plan-preimage")
+            with patch("employee_read_demo.task_write_confirmation.subprocess.run") as run:
+                draft.write_text("altered after review", encoding="utf-8")
+                with self.assertRaisesRegex(OperatorDenied, "proposal changed"):
+                    self.flow.complete_effect_plan(
+                        nonce=prepared.nonce, employee=None, agent=None,
+                        signature=b"signed-by-jules", now=1001,
+                    )
+                run.assert_not_called()
+
+            draft.write_text("Agent's approved Project A handoff", encoding="utf-8")
+            prepared = self.flow.prepare_effect_plan(
+                task_id=self.task_id, employee=None, agent=None, now=1002,
+            )
+            with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                       return_value=subprocess.CompletedProcess(
+                           [], 0, b'{"outcome":"effect-plan-recorded"}\n', b"")) as run:
+                self.flow.complete_effect_plan(
+                    nonce=prepared.nonce, employee=None, agent=None,
+                    signature=b"signed-by-jules", now=1003,
+                )
+            command = run.call_args.args[0]
+            self.assertEqual(command[1], "task-record-effect-plan")
+            self.assertEqual(command[command.index("--recipe-digest") + 1], "c" * 64)
+            self.assertEqual((self.task_dir / "effect-plan.proof").read_bytes(),
+                             b"human-proof")
+            self.assertEqual((self.task_dir / "effect-plan.action").read_bytes(),
+                             b"human-action")
+            self.assertNotIn("task-submit", command)
 
 
 if __name__ == "__main__":

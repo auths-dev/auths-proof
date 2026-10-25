@@ -121,13 +121,14 @@ single tab and required revision; the agent action must match that tab,
 revision, bound ID, recipe and planned text bytes. This permits one human
 confirmation of both effects while preserving the provider's stale-revision
 check. A lost create response or ambiguous recovery cannot inherit this plan
-as permission to populate an unbound ID. The current code instead requires
-a second exact human confirmation for population, which is a safe interim
-path but does not meet the one-ceremony acceptance condition.
+as permission to populate an unbound ID. The synthetic gateway path now accepts
+one signed effect plan for both writes, while the ordinary separate exact
+confirmation path remains available. The installed Google journey has not
+exercised the one-ceremony path.
 
 A native verifier and private journal transition now accept one effect-plan signature over the closed create intent, one populate recipe and operation, exact initial text and expiry. The journal records a private content digest and byte length before any write, refuses a changed plan, and accepts identical evidence after restart. The owner-side authority package can issue the separate human grant. The create admission path can now consume the exact recorded plan without a second human confirmation, and recorded-response reconciliation can use that immutable plan after a metadata-read failure. Population now requires a fresh, signed preflight bound to the child and consumes the recorded plan in the synthetic gateway path. The following checks remain the execution contract for installed Google execution.
 
-The reviewed populate recipe now declares its text, tab and revision fields, and the compiler excludes other provider-affecting profile fields from this planned request. A native comparison helper rejects changed content, child, tab, operation or expiry against the plan and proposed preflight facts. The gateway now authenticates an operator-pinned signed report, journals its short-lived facts, and consumes them with the recorded human plan in a synthetic two-effect loopback test. The Google signer exists as a vertical helper; installed key custody, a live Jules run and independent effect inspection remain.
+The reviewed populate recipe now declares its text, tab and revision fields, and the compiler excludes other provider-affecting profile fields from this planned request. A native comparison helper rejects changed content, child, tab, operation or expiry against the plan and proposed preflight facts. The gateway now authenticates an operator-pinned signed report, journals its short-lived facts, and consumes them with the recorded human plan in a synthetic two-effect loopback test. A private operator bridge derives the signer's task, plan and child inputs from the gateway journal. The owner browser can prepare Jules's effect-plan signature from a native-reviewed create action and a private draft file, then record the plan before provider entry. The draft file alone does not prove agent authorship; the later agent-signed populate action must match its approved bytes. Installed key custody, a live Jules run and independent effect inspection remain.
 
 The plan format and commit points are part of that future implementation:
 
