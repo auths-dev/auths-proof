@@ -487,19 +487,25 @@ mod tests {
 
     #[tokio::test]
     async fn managed_read_joins_native_task_provider_and_registered_agent() {
-        run_managed_read(false).await;
+        run_managed_read(false, false).await;
     }
 
     #[tokio::test]
     async fn no_send_after_release_entry_has_a_durable_charged_receipt() {
-        run_managed_read(true).await;
+        run_managed_read(true, false).await;
+    }
+
+    #[tokio::test]
+    async fn provider_denial_after_task_admission_releases_no_content() {
+        run_managed_read(false, true).await;
     }
 
     #[allow(
         clippy::too_many_lines,
         reason = "one installed-style fixture spans task, native proof, credential, provider and agent channel"
     )]
-    async fn run_managed_read(fail_before_content: bool) {
+    async fn run_managed_read(fail_before_content: bool, provider_denied: bool) {
+        assert!(!(fail_before_content && provider_denied));
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
         let read_recipe = recipe();
@@ -723,7 +729,7 @@ mod tests {
             stream.write_all(&signature).await.expect("signature");
             let length = match stream.read_u32().await {
                 Ok(length) => length as usize,
-                Err(error) if fail_before_content => {
+                Err(error) if fail_before_content || provider_denied => {
                     assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
                     return Vec::new();
                 }
@@ -757,8 +763,17 @@ mod tests {
                 request.contains("Authorization: Bearer pat-initial")
                     || request.contains("authorization: Bearer pat-initial")
             );
-            let body = br#"{"fields":{"DemoStatus":"Ready"}}"#;
-            stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.expect("headers");
+            let body = if provider_denied {
+                br#"{"error":"forbidden"}"#.as_slice()
+            } else {
+                br#"{"fields":{"DemoStatus":"Ready"}}"#.as_slice()
+            };
+            let status = if provider_denied {
+                "403 Forbidden"
+            } else {
+                "200 OK"
+            };
+            stream.write_all(format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.expect("headers");
             stream.write_all(body).await.expect("body");
         });
         let task_session = TaskWriteSession {
@@ -795,7 +810,13 @@ mod tests {
         let result = read_session
             .read("task-1", &signed.proof, &signed.action)
             .await;
-        if fail_before_content {
+        if provider_denied {
+            assert_eq!(
+                result,
+                ManagedReleaseResult::ProviderUnavailable { status: Some(403) }
+            );
+            assert!(agent_server.await.expect("agent").is_empty());
+        } else if fail_before_content {
             assert_eq!(result, ManagedReleaseResult::NotDelivered);
             assert!(agent_server.await.expect("agent").is_empty());
         } else {
@@ -817,8 +838,17 @@ mod tests {
             .load("task-1")
             .expect("ledger")
             .expect("task");
-        assert_eq!(state.counts(), (1, 1, 5));
-        let stage = if fail_before_content {
+        assert_eq!(
+            state.counts(),
+            if provider_denied {
+                (1, 0, 0)
+            } else {
+                (1, 1, 5)
+            }
+        );
+        let stage = if provider_denied {
+            ReleaseStage::ProviderUnavailable
+        } else if fail_before_content {
             ReleaseStage::NotDelivered
         } else {
             ReleaseStage::AgentAcknowledged
@@ -828,17 +858,23 @@ mod tests {
             .expect("redacted status");
         assert_eq!(
             status["reads"][0]["stage"],
-            if fail_before_content {
+            if provider_denied {
+                "provider-unavailable"
+            } else if fail_before_content {
                 "not-delivered"
             } else {
                 "agent-acknowledged"
             }
         );
-        assert_eq!(status["released_bytes"], 5);
+        assert_eq!(
+            status["released_bytes"],
+            if provider_denied { 0 } else { 5 }
+        );
         let public = status.to_string();
         assert!(!public.contains(subject));
         assert!(!public.contains("content_commitment"));
         assert!(!public.contains("pat-initial"));
+        assert!(!public.contains("forbidden"));
         task_session.revoke("task-1").expect("durable revocation");
         assert_eq!(
             serde_json::to_value(task_session.status("task-1").expect("revoked status"))
