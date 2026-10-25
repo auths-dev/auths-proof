@@ -33,6 +33,34 @@ The studio MUST label these paths distinctly. Importing an SDK adapter or passin
 
 The interface SHOULD generate understandable examples such as “read only project `P` fields `title,status`, at most 10 records,” and “update only `status` on those records, once.” It MUST also show what it cannot infer: whether the provider enforces the claimed account scope, whether a write is idempotent, whether a search is complete, and whether an ambiguous response means an effect occurred.
 
+### 2.1 Proposed interface and handoff
+
+The following is the intended user-facing interface, not an assertion that these commands ship today. The studio is a thin workflow client around released Auths derivation, compilation, verification and operator commands. It does not implement its own recipe compiler.
+
+```text
+adapter propose --source ./pinned-openapi.yaml --operation getItem \
+  --operation updateItem --family https --output ./item-proposal
+  -> draft bundle; unsupported or missing bounds are listed, never guessed
+
+adapter check ./item-proposal --offline
+  -> canonical source/lock/recipe digests, compiler verdict,
+     hostile-corpus results, provider assumptions still unverified
+
+adapter review ./item-proposal --redacted
+  -> account and credential requirements, exact outbound requests,
+     readable resource/field/release/effect limits, recovery rule,
+     changes since the previously installed digest
+
+gateway connection install --proposal ./item-proposal --disabled ...
+  -> existing authenticated operator plane; exact reviewed digest only
+```
+
+For OpenAPI operations already expressible by AP-SPEC-056, `propose` MUST call that deterministic derivation and preserve its source closure, overrides and rejection codes. Provider prose may suggest assumptions and tests, but cannot silently change a derived request. A database schema can yield a draft SQL proposal, never a managed install before §3.2's gate. The proposal directory contains a bounded manifest, exact source snapshot or digest-pinned reference, generated profile and lock, recipe source and compiler output, review text, test-only oracle, hostile corpus, and an explicit assumption checklist. A reviewer can reproduce the compiler result using the manifest without the studio service or the authoring agent.
+
+The authoring agent's proposal capability is intentionally narrow: read selected source snapshots, edit files in one isolated proposal workspace, and invoke offline released validation tools. It has no operator socket, provider credential, human signing key, release signer, or qualification trust-root key. Fetching documentation is an explicit ingestion step into a size-limited snapshot; the compiler then runs offline. If an agent asks for a provider probe, the studio queues a reviewed test request for the independent test or operator plane, with a disposable connection and finite budget. The agent does not receive a general HTTP client with a production token. Prompt injection, tool descriptions and documentation examples cannot supply command-line flags, install approvals, or provider request parameters without becoming visible proposal data and passing the same review.
+
+The handoff is machine-checkable: the studio submits only the canonical proposal digest and immutable bundle to the operator plane; the operator plane re-derives every digest and displays its own review output. A human approval binds those bytes and the selected connection, not a studio session URL or mutable catalog name. No background job automatically advances `draft` to `installed-disabled`, `enabled`, or `qualified`. If a reviewer changes a bound, field or assumption, the bundle is recompiled and the previous approval is void.
+
 ## 3. Closed capability families
 
 ### 3.1 HTTPS read, update, and create
