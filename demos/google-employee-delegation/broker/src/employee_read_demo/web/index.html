@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auths · Employee to agent delegation</title>
+<link rel="stylesheet" href="/style.css">
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Auths · Atlas Studio</p>
+    <h1>Employee to agent Google read</h1>
+    <p>Approve exact documents for one short task. The agent signs each read; the broker keeps your Google credential.</p>
+    <p id="status" role="status">Checking company prerequisites…</p>
+  </header>
+
+  <section aria-labelledby="connection-heading">
+    <h2 id="connection-heading">1. Employee connection</h2>
+    <p id="employee">No Google account signed in.</p>
+    <p id="drive">Drive is not connected.</p>
+    <div class="actions">
+      <a href="/api/v1/google/authorize?kind=login">Sign in with Google</a>
+      <a href="/api/v1/google/authorize?kind=connect">Connect Drive</a>
+      <button id="disconnect" type="button" hidden>Disconnect Drive</button>
+    </div>
+    <p class="hint">Google consent and the Auths employee key are separate steps.</p>
+    <button id="enroll" type="button">Create or use this browser’s employee key</button>
+    <p id="employee-principal"></p>
+  </section>
+
+  <section aria-labelledby="agent-heading">
+    <h2 id="agent-heading">2. Register a distinct agent</h2>
+    <p>Run <code>auths-google-read-agent init-key</code> in the isolated agent environment. Paste only its public identity packet here.</p>
+    <label>Agent identity packet (base64)<textarea id="agent-packet" rows="3"></textarea></label>
+    <div class="actions"><button id="agent-prepare" type="button">Prepare registration</button>
+      <button id="agent-preimage" type="button" disabled>Download signing preimage</button></div>
+    <p>Sign the downloaded bytes with <code>auths-google-read-agent sign-preimage</code>, then paste the returned signature.</p>
+    <label>Agent signature (base64)<textarea id="agent-signature" rows="2"></textarea></label>
+    <button id="agent-complete" type="button" disabled>Register agent</button>
+    <p id="agent-principal"></p>
+  </section>
+
+  <section aria-labelledby="task-heading">
+    <h2 id="task-heading">3. Review and authorize one task</h2>
+    <label>Registered agent principal<input id="task-agent" autocomplete="off"></label>
+    <label>Approved logical document IDs, separated by commas<input id="task-resources" autocomplete="off" placeholder="project-a-brief, project-a-status"></label>
+    <label>Task purpose<input id="task-purpose" maxlength="256" value="Summarize Project A with source references"></label>
+    <button id="task-prepare" type="button">Check access and review exact scope</button>
+    <div id="review" hidden>
+      <p>The broker checked the selected files with your Drive authorization. Review every provider file ID and limit before signing.</p>
+      <pre id="review-json"></pre>
+      <button id="task-authorize" type="button">Sign this exact grant</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="run-heading">
+    <h2 id="run-heading">4. Activate and run</h2>
+    <label>Task ID<input id="task-id" autocomplete="off"></label>
+    <label>Approved call used to prove agent activation
+      <select id="activation-call"></select>
+    </label>
+    <p class="hint">Activation verifies one exact approved call. The signed task still limits every later read to its full reviewed call list.</p>
+    <div class="actions"><button id="activate-prepare" type="button">Prepare agent activation</button>
+      <button id="activate-preimage" type="button" disabled>Download signing preimage</button></div>
+    <label>Agent activation signature (base64)<textarea id="activate-signature" rows="2"></textarea></label>
+    <div class="actions"><button id="activate-complete" type="button" disabled>Activate signed task</button>
+      <button id="task-status" type="button">Show task status and limits</button>
+      <button id="package" type="button">Download agent package</button>
+      <button id="revoke" type="button" class="danger">Revoke task</button></div>
+    <pre id="task-status-json">No task selected.</pre>
+    <p>Move the downloaded public package into the agent environment and run <code>auths-google-read-agent run</code>. Only approved call descriptors and public proof material are exported.</p>
+  </section>
+
+  <section aria-labelledby="evidence-heading">
+    <h2 id="evidence-heading">5. Read evidence</h2>
+    <p>Load the JSON printed by the isolated agent. The summary is agent-reported text; each cited read is checked against this employee's broker-signed receipt.</p>
+    <label>Agent result JSON<input id="result-file" type="file" accept="application/json,.json"></label>
+    <button id="result-load" type="button">Load result and verify cited reads</button>
+    <div id="result-view" hidden>
+      <h3>Agent summary</h3>
+      <pre id="result-summary"></pre>
+      <h3>Broker-verified source reads</h3>
+      <ul id="result-sources"></ul>
+    </div>
+    <label>Receipt ID<input id="receipt-id" autocomplete="off"></label>
+    <button id="receipt-load" type="button">Verify and view receipt</button>
+    <pre id="receipt-json">The agent’s result lists receipt IDs for each read.</pre>
+    <p class="hint">A signed release commitment records broker authorization and provider fetch. Transport delivery remains unknown until separately observed.</p>
+  </section>
+
+  <output id="message" role="status" aria-live="polite"></output>
+</main>
+<script src="/workbench.js" defer></script>
+</body>
+</html>

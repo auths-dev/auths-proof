@@ -1,0 +1,289 @@
+{
+  "$defs": {
+    "AccessCase": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Ref"
+        },
+        "expected": {
+          "$ref": "#/$defs/Expected"
+        },
+        "logical_person_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Logical Person Id",
+          "type": "string"
+        },
+        "logical_resource_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Logical Resource Id",
+          "type": "string"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expected"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "skipped",
+            "not_configured"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "logical_person_id",
+        "logical_resource_id",
+        "expected",
+        "status"
+      ],
+      "title": "AccessCase",
+      "type": "object"
+    },
+    "CapabilityStatus": {
+      "enum": [
+        "ready",
+        "not_configured",
+        "prerequisite_missing",
+        "failed",
+        "unsupported"
+      ],
+      "title": "CapabilityStatus",
+      "type": "string"
+    },
+    "Expected": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "title": "Expected",
+      "type": "string"
+    },
+    "PersonBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "issuer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issuer"
+        },
+        "logical_person_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Logical Person Id",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_directory_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Directory Id"
+        },
+        "provider_subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Subject"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        }
+      },
+      "required": [
+        "logical_person_id",
+        "provider",
+        "status"
+      ],
+      "title": "PersonBinding",
+      "type": "object"
+    },
+    "Provenance": {
+      "enum": [
+        "fixture",
+        "local_service",
+        "live_google",
+        "native_app"
+      ],
+      "title": "Provenance",
+      "type": "string"
+    },
+    "ResourceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "logical_resource_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Logical Resource Id",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_resource_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Resource Id"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "logical_resource_id",
+        "kind",
+        "title",
+        "provider",
+        "provenance",
+        "status"
+      ],
+      "title": "ResourceBinding",
+      "type": "object"
+    },
+    "ResourceKind": {
+      "enum": [
+        "project",
+        "document",
+        "sql",
+        "olap"
+      ],
+      "title": "ResourceKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bundle_generation": {
+      "minimum": 1,
+      "title": "Bundle Generation",
+      "type": "integer"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/AccessCase"
+      },
+      "title": "Cases",
+      "type": "array"
+    },
+    "company_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Company Id",
+      "type": "string"
+    },
+    "dataset_version": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "expectation_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expectation Hash",
+      "type": "string"
+    },
+    "instance_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "people": {
+      "items": {
+        "$ref": "#/$defs/PersonBinding"
+      },
+      "title": "People",
+      "type": "array"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/ResourceBinding"
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "demo-co/access-expectations/v1",
+      "default": "demo-co/access-expectations/v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "definition_hash",
+    "expectation_hash",
+    "instance_id",
+    "company_id",
+    "dataset_version",
+    "bundle_generation",
+    "provider",
+    "people",
+    "resources",
+    "cases"
+  ],
+  "title": "AccessExpectationsArtifact",
+  "type": "object"
+}

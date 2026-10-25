@@ -1,0 +1,29 @@
+services:
+  broker:
+    command:
+      - --state-db
+      - /state/broker.sqlite3
+      - --port
+      - "8765"
+      - --container-bind
+      - --connections
+      - /exports/connections.json
+      - --access-expectations
+      - /exports/access-expectations.json
+      - --google-verification
+      - /exports/google-verification.json
+      - --scenario-dir
+      - /exports/scenarios
+      - --pins
+      - /private/pins.json
+      - --oauth-config
+      - /private/oauth.json
+      - --fernet-key
+      - /private/fernet.key
+      - --trust-file
+      - /private/trust.json
+      - --receipt-key
+      - /private/receipt.seed
+    volumes:
+      - ${AP070_EXPORT_DIR:?set accepted demo_co export directory}:/exports:ro
+      - ${AP070_BROKER_PRIVATE_DIR:?set private broker configuration directory}:/private:ro

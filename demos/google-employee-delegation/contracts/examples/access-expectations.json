@@ -1,0 +1,238 @@
+{
+  "bundle_generation": 1,
+  "cases": [
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-morgan",
+      "logical_resource_id": "doc-project-a-status",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-morgan",
+      "logical_resource_id": "doc-project-b-plan",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-morgan",
+      "logical_resource_id": "doc-payroll",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-jules",
+      "logical_resource_id": "doc-project-a-status",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-jules",
+      "logical_resource_id": "doc-project-b-plan",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-jules",
+      "logical_resource_id": "doc-finance-budget",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-samira",
+      "logical_resource_id": "doc-finance-budget",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-samira",
+      "logical_resource_id": "doc-payroll",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-samira",
+      "logical_resource_id": "doc-project-a-status",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-avery",
+      "logical_resource_id": "doc-sales-playbook",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-avery",
+      "logical_resource_id": "doc-finance-budget",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "allow",
+      "logical_person_id": "person-ren",
+      "logical_resource_id": "doc-project-a-status",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-ren",
+      "logical_resource_id": "doc-project-b-plan",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-ren",
+      "logical_resource_id": "doc-payroll",
+      "observed": null,
+      "status": "not_configured"
+    },
+    {
+      "evidence_ref": null,
+      "expected": "deny",
+      "logical_person_id": "person-drew",
+      "logical_resource_id": "doc-employee-handbook",
+      "observed": null,
+      "status": "not_configured"
+    }
+  ],
+  "company_id": "atlas-studio",
+  "dataset_version": "atlas-v1",
+  "definition_hash": "2f0cc70c256969b40fdae0c393b22479cbe62e8c3781f9d858136cb1c332e68c",
+  "expectation_hash": "1b8896e7bb9bbd212175e59eed1c3805956f6a8df74225a042f106f0bc3d70e6",
+  "instance_id": "example-01",
+  "people": [
+    {
+      "issuer": null,
+      "logical_person_id": "person-morgan",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-jules",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-samira",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-avery",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-ren",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    },
+    {
+      "issuer": null,
+      "logical_person_id": "person-drew",
+      "provider": "google",
+      "provider_directory_id": null,
+      "provider_subject": null,
+      "status": "not_configured"
+    }
+  ],
+  "provider": "google_drive",
+  "resources": [
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-employee-handbook",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Employee handbook"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-project-a-status",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Project A status"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-project-b-plan",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Project B plan"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-sales-playbook",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Sales playbook"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-finance-budget",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Finance budget"
+    },
+    {
+      "kind": "document",
+      "logical_resource_id": "doc-payroll",
+      "provenance": "fixture",
+      "provider": "google_drive",
+      "provider_resource_id": null,
+      "status": "not_configured",
+      "title": "Synthetic payroll"
+    }
+  ],
+  "schema_version": "demo-co/access-expectations/v1"
+}

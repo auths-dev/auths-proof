@@ -364,6 +364,22 @@ pub(crate) fn python_wheel_smoke() -> Result<(), String> {
         &["-m", "pytest", "tests"],
         &root().join("bindings/python"),
         None,
+    )?;
+    command(
+        path_text(&python)?,
+        &[
+            "-m",
+            "pip",
+            "install",
+            "demos/google-employee-delegation/broker",
+            "demos/google-employee-delegation/agent",
+        ],
+    )?;
+    command_in(
+        path_text(&python)?,
+        &["-m", "unittest", "discover", "-s", "broker/tests", "-v"],
+        &root().join("demos/google-employee-delegation"),
+        None,
     )
 }
 

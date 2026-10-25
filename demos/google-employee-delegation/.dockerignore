@@ -1,0 +1,7 @@
+**/__pycache__/
+**/*.pyc
+broker/tests/
+agent/tests/
+evidence/
+contracts/
+isolation/

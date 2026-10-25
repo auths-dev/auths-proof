@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass as _dataclass
 from typing import Sequence as _Sequence
 
 from .._native import (
@@ -8,11 +9,24 @@ from .._native import (
     encode_identity_descriptor_v1 as _encode_descriptor,
     identity_descriptor_signing_preimage_v1 as _signing_preimage,
     raw_key_identity_v2 as _raw_key_identity,
+    raw_key_ed25519_authority_v1 as _raw_key_authority,
 )
 from . import ValidatedIdentity, _validated
 from .adapters import DecodedIdentityRecord, ResolutionEvidence, ResolvedIdentityRecord, VerificationMaterial, VerificationRelationship
 
 _TOKEN = object()
+
+
+@_dataclass(frozen=True)
+class RawKeyAuthorityV1:
+    principal: str
+    evidence: bytes
+
+
+def derive_raw_key_ed25519_authority_v1(public_key: bytes, /) -> RawKeyAuthorityV1:
+    """Project an Ed25519 public key into the target-V1 grant principal."""
+    principal, evidence = _raw_key_authority(bytes(public_key))
+    return RawKeyAuthorityV1(principal, bytes(evidence))
 
 
 class PreparedIdentityMessage:
@@ -78,4 +92,5 @@ def prepare_identity_message(identity: ValidatedIdentity, /, *, message: bytes, 
 __all__ = [
     "PreparedIdentityMessage", "create_raw_key_ed25519_identity",
     "encode_identity", "prepare_identity_message",
+    "RawKeyAuthorityV1", "derive_raw_key_ed25519_authority_v1",
 ]

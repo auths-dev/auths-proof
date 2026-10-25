@@ -204,7 +204,8 @@ struct CertificateOptions {
     root: PathBuf,
     #[arg(long)]
     signer_id: String,
-    #[arg(long)]
+    // URL-safe base64 public keys can begin with '-' and are still values.
+    #[arg(long, allow_hyphen_values = true)]
     public_key: String,
     #[arg(long)]
     issued_at: Option<u64>,
@@ -813,5 +814,38 @@ fn main() -> ExitCode {
             eprintln!("{line}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::{Cli, Command};
+    use clap::Parser as _;
+
+    #[test]
+    fn public_key_starting_with_hyphen_is_a_value() {
+        let cli = Cli::try_parse_from([
+            "auths-qualification",
+            "certify-commissioner",
+            "--root-key",
+            "root.key",
+            "--root",
+            "root.json",
+            "--signer-id",
+            "synthetic-signer",
+            "--public-key",
+            "-leading-url-safe-base64",
+            "--not-before",
+            "1",
+            "--not-after",
+            "2",
+            "--out",
+            "certificate.json",
+        ])
+        .expect("URL-safe public key value must parse");
+        let Command::CertifyCommissioner(options) = cli.command else {
+            panic!("expected commissioner certificate command");
+        };
+        assert_eq!(options.public_key, "-leading-url-safe-base64");
     }
 }

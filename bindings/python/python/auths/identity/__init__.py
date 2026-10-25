@@ -180,7 +180,7 @@ class IdentityClient:
         try:
             method = self._methods.get(identity.method_id)
             if method is None:
-                if identity.method_id not in ("raw-key", "did:key"):
+                if identity.method_id not in ("raw-key", "raw-key-v2", "did:key"):
                     return IdentityRejected("rejected", _error_info("identity.method-unsupported"))
                 now = int(_time.time())
                 record = ResolvedIdentityRecord(identity._record.method_id, identity._record.identity_id, identity._record.method_material, identity._record.relationships, ResolutionEvidence("packet", now, now + 300, ("self-contained",)))

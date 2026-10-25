@@ -648,6 +648,18 @@ fn review_mcp_call<'py>(
     ))
 }
 
+/// Returns the exact native MCP body digest for a reviewed call. This is the
+/// value carried by `AllowedBodyDigests` in a child grant.
+#[pyfunction]
+fn mcp_body_digest<'py>(
+    py: Python<'py>,
+    call: PyRef<'_, PyMcpCall>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let body = call.inner.canonical_bytes().map_err(value_error)?;
+    let digest = auths_codec::body_digest(&body);
+    Ok(PyBytes::new(py, digest.as_bytes()))
+}
+
 #[pyfunction]
 fn commit_mcp_plan(py: Python<'_>, calls: Vec<Py<PyMcpCall>>) -> PyResult<PyNativeMcpPlan> {
     if calls.is_empty() || calls.len() > 256 {
@@ -809,6 +821,24 @@ fn assemble_mcp_proof<'py>(
         PyBytes::new(py, &artifacts.canonical_action),
         PyBytes::new(py, &artifacts.trusted_context),
     ))
+}
+
+/// Extract the one signed action from a bounded native proof bundle.
+/// Applications can reassemble an expected chain from their own stored grants.
+#[pyfunction]
+fn mcp_signed_action_from_proof<'py>(
+    py: Python<'py>,
+    proof_cbor: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let limits = auths_model::VerifierLimits::default_deployment();
+    let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(value_error)?;
+    let [action] = proof.actions() else {
+        return Err(crate::errors::malformed_input(
+            "MCP proof must contain exactly one signed action",
+        ));
+    };
+    let bytes = auths_codec::encode_signed_action(action).map_err(value_error)?;
+    Ok(PyBytes::new(py, &bytes))
 }
 
 fn mcp_proof_artifacts(
@@ -1337,10 +1367,12 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(validate_mcp_service, module)?)?;
     module.add_function(wrap_pyfunction!(mcp_call, module)?)?;
     module.add_function(wrap_pyfunction!(review_mcp_call, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_body_digest, module)?)?;
     module.add_function(wrap_pyfunction!(commit_mcp_plan, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_mcp_call_action, module)?)?;
     module.add_function(wrap_pyfunction!(authorize_mcp, module)?)?;
     module.add_function(wrap_pyfunction!(assemble_mcp_proof, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_signed_action_from_proof, module)?)?;
     module.add_function(wrap_pyfunction!(verify_exact_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(seal_mcp_plan_command, module)?)?;

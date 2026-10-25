@@ -1,0 +1,97 @@
+name: auths-google-employee-read
+
+services:
+  broker:
+    image: ${AP070_BROKER_IMAGE:?set a pinned installed-artifact broker image}
+    entrypoint: ["auths-google-read-workbench"]
+    command: ["--state-db", "/state/broker.sqlite3", "--port", "8765", "--container-bind"]
+    user: "${AP070_RUNTIME_UID:?set host UID}:${AP070_RUNTIME_GID:?set host GID}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    volumes:
+      - ${AP070_BROKER_STATE_DIR:?set private broker state directory}:/state:rw
+    networks: [broker_private, broker_egress]
+
+  browser-relay:
+    image: ${AP070_NGINX_IMAGE:-nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10}
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m,uid=101,gid=101", "/var/run:rw,nosuid,size=1m,uid=101,gid=101"]
+    volumes:
+      - ./isolation/browser-relay.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "127.0.0.1:8765:8080"
+    depends_on: [broker]
+    networks: [broker_private]
+
+  agent-relay:
+    image: ${AP070_NGINX_IMAGE:-nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10}
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m,uid=101,gid=101", "/var/run:rw,nosuid,size=1m,uid=101,gid=101"]
+    volumes:
+      - ./isolation/agent-relay.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [broker]
+    networks: [broker_private, agent_private]
+
+  model-relay:
+    image: ${AP070_NGINX_IMAGE:-nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10}
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/var/cache/nginx:rw,nosuid,size=8m,uid=101,gid=101", "/var/run:rw,nosuid,size=1m,uid=101,gid=101"]
+    volumes:
+      - ./isolation/model-relay.conf:/etc/nginx/nginx.conf:ro
+    networks: [agent_private, model_egress]
+
+  agent:
+    profiles: [task]
+    image: ${AP070_AGENT_IMAGE:?set a pinned installed-artifact agent image}
+    entrypoint: ["auths-google-read-agent"]
+    command:
+      - run
+      - --key-file
+      - /agent/agent.seed
+      - --package-file
+      - /agent/task.json
+      - --broker-origin
+      - http://agent-relay:8080
+      - --model
+      - ${AP070_MODEL_ID:?set approved model ID}
+      - --model-base-url
+      - http://model-relay:8080/v1
+      - --model-api-key-file
+      - /run/secrets/model_api_key
+    user: "${AP070_RUNTIME_UID:?set host UID}:${AP070_RUNTIME_GID:?set host GID}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    volumes:
+      - ${AP070_AGENT_DIR:?set private agent key and package directory}:/agent:ro
+    secrets: [model_api_key]
+    depends_on: [agent-relay, model-relay]
+    networks: [agent_private]
+
+secrets:
+  model_api_key:
+    file: ${AP070_MODEL_API_KEY_FILE:?set private model API key file}
+
+networks:
+  broker_private: {}
+  broker_egress: {}
+  agent_private:
+    internal: true
+  model_egress: {}

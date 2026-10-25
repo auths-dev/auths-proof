@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "Expected": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "title": "Expected",
+      "type": "string"
+    },
+    "GooglePersonObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "directory_id": {
+          "title": "Directory Id",
+          "type": "string"
+        },
+        "person": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Person",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Subject"
+        },
+        "suspended": {
+          "title": "Suspended",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "person",
+        "directory_id",
+        "subject",
+        "suspended"
+      ],
+      "title": "GooglePersonObservation",
+      "type": "object"
+    },
+    "GoogleProbe": {
+      "additionalProperties": false,
+      "properties": {
+        "content_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Sha256"
+        },
+        "expected": {
+          "$ref": "#/$defs/Expected"
+        },
+        "http_status": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Http Status"
+        },
+        "observed": {
+          "enum": [
+            "allow",
+            "deny",
+            "error"
+          ],
+          "title": "Observed",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "person": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Person",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "resource": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Resource",
+          "type": "string"
+        }
+      },
+      "required": [
+        "person",
+        "resource",
+        "expected",
+        "observed",
+        "passed",
+        "http_status"
+      ],
+      "title": "GoogleProbe",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "company": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "instance": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Instance",
+      "type": "string"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "people": {
+      "items": {
+        "$ref": "#/$defs/GooglePersonObservation"
+      },
+      "title": "People",
+      "type": "array"
+    },
+    "probes": {
+      "items": {
+        "$ref": "#/$defs/GoogleProbe"
+      },
+      "title": "Probes",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "demo-co/google-verification/v1",
+      "default": "demo-co/google-verification/v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "customer_id",
+    "checked_at",
+    "passed",
+    "people",
+    "probes"
+  ],
+  "title": "GoogleVerification",
+  "type": "object"
+}

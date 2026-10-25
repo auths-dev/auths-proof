@@ -1,0 +1,29 @@
+{
+  "schema_version": "auths.google-read-demo-lock/v1",
+  "auths_python": "0.0.1rc1",
+  "auths_base_revision": "3e01401fb5aa3fc9433da44bcdaa82ecc7214f1c",
+  "demo_co_contracts": {
+    "connections": {
+      "version": "demo-co/connections/v1",
+      "schema_sha256": "d6bb90825e989e893a26f4a86d1fb17d6f40fa29b72ea0794093eef67686c10d"
+    },
+    "access_expectations": {
+      "version": "demo-co/access-expectations/v1",
+      "schema_sha256": "78ebdf866c95a087da9361302b40792bf3bfe7e7b430b5332f00b4967dc4f5dc"
+    },
+    "scenario_result": {
+      "version": "demo-co/scenario-result/v1",
+      "schema_sha256": "137f92fc1d347df09e047f79a6ea27b0accc6784cbcc3dc7dcb277bc275caba0"
+    },
+    "google_verification": {
+      "version": "demo-co/google-verification/v1",
+      "schema_sha256": "ec84f3ffcb28b72ff8b349b1ba79ac7ccfaa9f275567c54c26d2058e6bf68ee8"
+    }
+  },
+  "google_live_status": "not_configured",
+  "installed_sdk_artifact": null,
+  "python_base_image": "python@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704",
+  "relay_image": "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+  "broker_image_digest": null,
+  "agent_image_digest": null
+}

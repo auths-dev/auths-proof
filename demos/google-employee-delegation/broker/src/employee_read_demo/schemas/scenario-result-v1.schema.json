@@ -1,0 +1,289 @@
+{
+  "$defs": {
+    "Expected": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "title": "Expected",
+      "type": "string"
+    },
+    "Mode": {
+      "enum": [
+        "local",
+        "google"
+      ],
+      "title": "Mode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pass"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "expected": {
+                "const": "allow"
+              },
+              "observed": {
+                "const": "allow"
+              }
+            }
+          },
+          {
+            "properties": {
+              "expected": {
+                "const": "deny"
+              },
+              "observed": {
+                "const": "deny"
+              }
+            }
+          }
+        ],
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "expected",
+          "observed",
+          "evidence_refs"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "enum": [
+            "read",
+            "write"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Action"
+    },
+    "agent_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent Id"
+    },
+    "boundary": {
+      "anyOf": [
+        {
+          "enum": [
+            "provider",
+            "delegation",
+            "provider-and-delegation",
+            "cross-company"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Boundary"
+    },
+    "company_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Company Id",
+      "type": "string"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "dataset_version": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "delegated_resources": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "type": "string"
+      },
+      "title": "Delegated Resources",
+      "type": "array"
+    },
+    "delegation_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Delegation Id"
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "expected": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Expected"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "failure_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Reason"
+    },
+    "instance_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode"
+    },
+    "observed": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Expected"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "person_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Person Id"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "resource_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resource Id"
+    },
+    "sanitized_diagnostics": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Sanitized Diagnostics",
+      "type": "object"
+    },
+    "scenario_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Scenario Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/scenario-result/v1",
+      "default": "demo-co/scenario-result/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_revision": {
+      "minLength": 1,
+      "title": "Source Revision",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "skipped",
+        "not_configured"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "scenario_id",
+    "instance_id",
+    "company_id",
+    "provider",
+    "source_revision",
+    "dataset_version",
+    "mode",
+    "status",
+    "started_at",
+    "completed_at"
+  ],
+  "title": "ScenarioResult",
+  "type": "object"
+}

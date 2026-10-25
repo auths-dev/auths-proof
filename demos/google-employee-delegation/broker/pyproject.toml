@@ -1,0 +1,29 @@
+[project]
+name = "auths-google-employee-delegation-broker"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "auths==0.0.1rc1",
+  "jsonschema>=4.23,<5",
+  "google-auth>=2.35,<3",
+  "requests>=2.32,<3",
+  "certifi>=2024.8.30",
+  "cryptography>=44,<47",
+]
+
+[project.scripts]
+auths-google-read-doctor = "employee_read_demo.doctor:main"
+auths-google-read-workbench = "employee_read_demo.app:main"
+auths-google-read-operator = "employee_read_demo.operator_cli:main"
+auths-google-read-partial-smoke = "employee_read_demo.partial_smoke_cli:main"
+auths-google-read-partial-delegation-lab = "employee_read_demo.partial_delegation_lab:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+employee_read_demo = ["schemas/*.json", "web/*.html", "web/*.js", "web/*.css"]

@@ -1,0 +1,445 @@
+{
+  "$defs": {
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "path",
+        "sha256"
+      ],
+      "title": "ArtifactReference",
+      "type": "object"
+    },
+    "Capability": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Ref"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        }
+      },
+      "required": [
+        "status",
+        "provenance"
+      ],
+      "title": "Capability",
+      "type": "object"
+    },
+    "CapabilityStatus": {
+      "enum": [
+        "ready",
+        "not_configured",
+        "prerequisite_missing",
+        "failed",
+        "unsupported"
+      ],
+      "title": "CapabilityStatus",
+      "type": "string"
+    },
+    "GoogleTenantBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "customer_id": {
+          "title": "Customer Id",
+          "type": "string"
+        },
+        "primary_domain": {
+          "title": "Primary Domain",
+          "type": "string"
+        }
+      },
+      "required": [
+        "customer_id",
+        "primary_domain"
+      ],
+      "title": "GoogleTenantBinding",
+      "type": "object"
+    },
+    "Mode": {
+      "enum": [
+        "local",
+        "google"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "OidcClientBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "description": "Expected ID token audience for this public client.",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Audience",
+          "type": "string"
+        },
+        "client_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Client Id",
+          "type": "string"
+        },
+        "issuer": {
+          "title": "Issuer",
+          "type": "string"
+        },
+        "pkce": {
+          "const": "S256",
+          "title": "Pkce",
+          "type": "string"
+        },
+        "redirect_uris": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Redirect Uris",
+          "type": "array"
+        }
+      },
+      "required": [
+        "issuer",
+        "client_id",
+        "audience",
+        "pkce",
+        "redirect_uris"
+      ],
+      "title": "OidcClientBinding",
+      "type": "object"
+    },
+    "PersonBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "issuer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issuer"
+        },
+        "logical_person_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Logical Person Id",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_directory_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Directory Id"
+        },
+        "provider_subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Subject"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        }
+      },
+      "required": [
+        "logical_person_id",
+        "provider",
+        "status"
+      ],
+      "title": "PersonBinding",
+      "type": "object"
+    },
+    "Provenance": {
+      "enum": [
+        "fixture",
+        "local_service",
+        "live_google",
+        "native_app"
+      ],
+      "title": "Provenance",
+      "type": "string"
+    },
+    "ResourceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "logical_resource_id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Logical Resource Id",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_resource_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Resource Id"
+        },
+        "status": {
+          "$ref": "#/$defs/CapabilityStatus"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "logical_resource_id",
+        "kind",
+        "title",
+        "provider",
+        "provenance",
+        "status"
+      ],
+      "title": "ResourceBinding",
+      "type": "object"
+    },
+    "ResourceKind": {
+      "enum": [
+        "project",
+        "document",
+        "sql",
+        "olap"
+      ],
+      "title": "ResourceKind",
+      "type": "string"
+    },
+    "ServiceEndpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "company_scope": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Company Scope",
+          "type": "string"
+        },
+        "credential_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential Ref"
+        },
+        "service": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Service",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "service",
+        "url",
+        "company_scope"
+      ],
+      "title": "ServiceEndpoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "access_expectations": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "bundle_generation": {
+      "minimum": 1,
+      "title": "Bundle Generation",
+      "type": "integer"
+    },
+    "capabilities": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Capability"
+      },
+      "title": "Capabilities",
+      "type": "object"
+    },
+    "company_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Company Id",
+      "type": "string"
+    },
+    "credential_refs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Credential Refs",
+      "type": "object"
+    },
+    "dataset_version": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "google_tenant": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GoogleTenantBinding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "instance_id": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode"
+    },
+    "oidc_clients": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/OidcClientBinding"
+      },
+      "title": "Oidc Clients",
+      "type": "array"
+    },
+    "people": {
+      "items": {
+        "$ref": "#/$defs/PersonBinding"
+      },
+      "title": "People",
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/ResourceBinding"
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "demo-co/connections/v1",
+      "default": "demo-co/connections/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "services": {
+      "items": {
+        "$ref": "#/$defs/ServiceEndpoint"
+      },
+      "title": "Services",
+      "type": "array"
+    }
+  },
+  "required": [
+    "definition_hash",
+    "instance_id",
+    "company_id",
+    "mode",
+    "bundle_generation",
+    "generated_at",
+    "dataset_version",
+    "capabilities",
+    "people",
+    "resources",
+    "services",
+    "credential_refs",
+    "access_expectations"
+  ],
+  "title": "ConnectionsBundle",
+  "type": "object"
+}
