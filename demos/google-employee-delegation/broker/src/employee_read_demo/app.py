@@ -10,6 +10,7 @@ import json
 import secrets
 import sqlite3
 import stat
+import time
 from dataclasses import dataclass
 from dataclasses import asdict
 from http import HTTPStatus
@@ -42,7 +43,9 @@ from .google_create_handoff import (
     CreatedChildContinuationTarget, prepare_create_inputs,
 )
 from .google_create_preflight import preflight_jules_created_child
-from .write_handoff import WriteHandoffPins, validate_write_handoff
+from .write_handoff import (
+    WriteHandoffPins, validate_current_write_observation, validate_write_handoff,
+)
 from .jules_write_context import JulesWriteContext
 from .google_write_credential import WriteCredentialPins
 from .google_write_preflight import preflight_jules_edit
@@ -977,6 +980,10 @@ def main() -> int:
     parser.add_argument("--task-companion-write-profile-lock", type=Path)
     parser.add_argument("--task-write-output-dir", type=Path)
     parser.add_argument("--task-write-evidence", type=Path)
+    parser.add_argument("--task-write-current-baseline", type=Path,
+                        help="private immutable current working Doc observation")
+    parser.add_argument("--task-write-current-baseline-sha256",
+                        help="operator-reviewed digest of the current observation")
     parser.add_argument("--task-write-pins", type=Path)
     parser.add_argument("--task-write-gateway-bin", type=Path)
     parser.add_argument("--task-write-gateway-sha256")
@@ -1092,6 +1099,12 @@ def main() -> int:
     if any(option is not None for option in write_options) and not all(
             option is not None for option in write_options):
         parser.error("all task-write inputs must be supplied together")
+    if (args.task_write_current_baseline is None) != (
+            args.task_write_current_baseline_sha256 is None):
+        parser.error("current working Doc baseline and digest must be supplied together")
+    if args.task_write_current_baseline is not None and not all(
+            option is not None for option in write_options):
+        parser.error("current working Doc baseline requires task-write inputs")
     if (args.task_companion_write_recipe is None) != (
             args.task_companion_write_profile_lock is None):
         parser.error("companion write recipe and profile lock must be supplied together")
@@ -1129,6 +1142,15 @@ def main() -> int:
                      or write_pins.jules_subject != company.jules_subject)):
             parser.error("task write pins differ from Jules-only enrollment generation")
         write_evidence = validate_write_handoff(args.task_write_evidence, write_pins)
+        if args.task_write_current_baseline is not None:
+            try:
+                validate_current_write_observation(
+                    args.task_write_current_baseline,
+                    args.task_write_current_baseline_sha256,
+                    evidence=write_evidence, now=int(time.time()),
+                )
+            except (ContractRejected, OSError, PermissionError) as error:
+                parser.error(f"current working Doc observation refused: {error}")
         if args.task_upfront_choices is not None:
             upfront_document = json.loads(
                 _private_file(args.task_upfront_choices, 16_384),
@@ -1253,6 +1275,8 @@ def main() -> int:
                 args.task_write_evidence, args.task_write_grant,
                 credential_pins, connection_id=card["connection_id"],
                 connection_generation=card["connection_generation"],
+                current_observation_path=args.task_write_current_baseline,
+                current_observation_sha256=args.task_write_current_baseline_sha256,
             )
             evidence = validate_write_handoff(args.task_write_evidence, write_pins)
             arguments = reviewed.arguments

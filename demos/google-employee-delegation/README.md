@@ -466,6 +466,14 @@ of one to four complete profile argument objects. Each Google edit choice
 must fix the same selected `document_id`, tab, revision and marker, and may
 vary the reviewed `replacement`. The workbench shows every choice on the
 human-signed task card and states that no second confirmation will occur.
+After an earlier legitimate edit to the working Doc, pin a fresh private
+`google-write-observation.json` and its SHA-256 with
+`--task-write-current-baseline` and `--task-write-current-baseline-sha256`.
+The original pinned write verification still establishes Jules's capabilities;
+the later observation supplies only the current content baseline. The broker
+checks its fixture identity and digest, then compares that baseline against a
+fresh Jules export before showing or submitting an edit. If either differs,
+the edit is refused before gateway entry.
 The installed task policy must set `allow_bounded_writes=true`; absent this
 file, the workbench defaults to exact confirmation. The agent still signs
 one complete action, and the gateway admits at most one listed choice. This

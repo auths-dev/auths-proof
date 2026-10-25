@@ -10,10 +10,12 @@ import argparse
 import hashlib
 import json
 import re
+import stat
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .demo_co_contract import ContractRejected, _load
+from .demo_co_contract import ContractRejected, _load, _unique_pairs
 
 
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -22,6 +24,12 @@ WRITE_SCOPES = frozenset({
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/drive.file",
 })
+_GENERATION = re.compile(r"generation-([0-9]{4,})\Z")
+_WRITE_OBSERVATION_FIELDS = {
+    "schema_version", "company", "instance", "definition_hash", "observed_at",
+    "document_id", "tab_id", "revision_id", "content_sha256",
+    "content_byte_count", "original_marker_count",
+}
 
 
 class WriteHandoffPending(RuntimeError):
@@ -98,6 +106,55 @@ def validate_write_handoff(export: Path, pins: WriteHandoffPins) -> dict:
             or not HEX64.fullmatch(evidence["probe_sha256"])):
         raise ContractRejected("write handoff baseline is invalid")
     return evidence
+
+
+def validate_current_write_observation(
+    path: Path, expected_sha256: str, *, evidence: dict, now: int,
+    maximum_age: timedelta | None = None,
+) -> tuple[int, dict]:
+    """Bind a later read-only producer snapshot to the original write fixture.
+
+    The original verification remains the capability proof. This snapshot
+    supplies only the current working Doc content and tab for a later edit.
+    """
+    match = _GENERATION.fullmatch(path.parent.name)
+    if (path.name != "google-write-observation.json" or match is None
+            or int(match.group(1)) < 2
+            or type(expected_sha256) is not str
+            or not HEX64.fullmatch(expected_sha256)
+            or path.is_symlink() or path.parent.is_symlink()
+            or not path.is_file() or not path.parent.is_dir()
+            or stat.S_IMODE(path.stat().st_mode) & 0o077
+            or stat.S_IMODE(path.parent.stat().st_mode) & 0o077
+            or type(now) is not int):
+        raise ContractRejected("current write observation is unavailable")
+    raw = path.read_bytes()
+    if len(raw) > 4096 or hashlib.sha256(raw).hexdigest() != expected_sha256:
+        raise ContractRejected("current write observation digest disagrees with pin")
+    try:
+        observation = json.loads(raw, object_pairs_hook=_unique_pairs)
+        observed = datetime.fromisoformat(observation["observed_at"])
+    except (UnicodeDecodeError, ValueError, KeyError, TypeError) as error:
+        raise ContractRejected("current write observation is malformed") from error
+    if (type(observation) is not dict
+            or set(observation) != _WRITE_OBSERVATION_FIELDS
+            or observation["schema_version"] != "demo-co/google-write-observation/v1"
+            or any(observation[field] != evidence[field] for field in (
+                "company", "instance", "definition_hash", "document_id", "tab_id"))
+            or type(observation["revision_id"]) is not str
+            or not 1 <= len(observation["revision_id"].encode()) <= 128
+            or type(observation["content_sha256"]) is not str
+            or HEX64.fullmatch(observation["content_sha256"]) is None
+            or type(observation["content_byte_count"]) is not int
+            or not 1 <= observation["content_byte_count"] <= 16_384
+            or type(observation["original_marker_count"]) is not int
+            or not 0 <= observation["original_marker_count"] <= 10
+            or observed.tzinfo is None or observed.utcoffset() is None):
+        raise ContractRejected("current write observation differs from verified fixture")
+    age = datetime.fromtimestamp(now, timezone.utc) - observed
+    if age < timedelta(0) or (maximum_age is not None and age > maximum_age):
+        raise ContractRejected("current write observation is stale or in the future")
+    return int(match.group(1)), observation
 
 
 def inspect_write_handoff(export: Path | None = None,

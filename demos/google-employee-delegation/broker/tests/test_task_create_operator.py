@@ -69,6 +69,7 @@ class PlannedCreateOperatorTests(unittest.TestCase):
         self.evidence = {
             "company": "atlas-studio", "instance": "live-test-atlas",
             "definition_hash": "a" * 64, "document_id": "working-doc",
+            "tab_id": "tab-1",
             "folder_id": "project-a-folder",
         }
 

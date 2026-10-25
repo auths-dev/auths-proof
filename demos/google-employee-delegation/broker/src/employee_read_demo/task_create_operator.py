@@ -15,7 +15,7 @@ import re
 import stat
 import subprocess
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
 from .demo_co_contract import ContractRejected, _unique_pairs
@@ -26,7 +26,7 @@ from .google_create_v2_handoff import (
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
 from .task_populate_operator import _credential_pins, _gateway
-from .write_handoff import validate_write_handoff
+from .write_handoff import validate_current_write_observation, validate_write_handoff
 
 
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -34,11 +34,6 @@ _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
 _CHILD_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 _GENERATION = re.compile(r"generation-([0-9]{4,})\Z")
 _MARKER = re.compile(r"ap071_[0-9a-f]{32}\Z")
-_BASELINE_FIELDS = {
-    "schema_version", "company", "instance", "definition_hash", "observed_at",
-    "document_id", "tab_id", "revision_id", "content_sha256",
-    "content_byte_count", "original_marker_count",
-}
 _BASELINE_RECORD_FIELDS = {
     "schema", "task_id", "create_operation_id", "marker", "generation",
     "observation_sha256", "observed_at",
@@ -103,39 +98,14 @@ def _baseline(path: Path, expected_sha256: str, *, evidence: dict,
         return int(match.group(1)), observation, "v2"
     if preserved_blank_path is not None or v2_pins is not None:
         raise OperatorDenied("v2 pins cannot be used with a v1 baseline")
-    if (type(expected_sha256) is not str or _DIGEST.fullmatch(expected_sha256) is None
-            or path.name != "google-write-observation.json"
-            or (match := _GENERATION.fullmatch(path.parent.name)) is None
-            or int(match.group(1)) < 2):
-        raise OperatorDenied("pre-create producer baseline is unavailable")
     try:
-        if path.parent.is_symlink() or path.parent.stat().st_mode & 0o077:
-            raise ValueError("private observation directory")
-        raw = _private_read(path, 4096)
-        observation = json.loads(raw, object_pairs_hook=_unique_pairs)
-        observed = datetime.fromisoformat(observation["observed_at"])
-    except (OSError, PermissionError, ValueError, KeyError, TypeError) as error:
-        raise OperatorDenied("pre-create producer baseline is unavailable") from error
-    if (hashlib.sha256(raw).hexdigest() != expected_sha256
-            or type(observation) is not dict or set(observation) != _BASELINE_FIELDS
-            or observation["schema_version"] != "demo-co/google-write-observation/v1"
-            or any(observation[field] != evidence[field]
-                   for field in ("company", "instance", "definition_hash", "document_id"))
-            or type(observation["tab_id"]) is not str
-            or not 1 <= len(observation["tab_id"].encode()) <= 64
-            or type(observation["revision_id"]) is not str
-            or not 1 <= len(observation["revision_id"].encode()) <= 128
-            or type(observation["content_sha256"]) is not str
-            or _DIGEST.fullmatch(observation["content_sha256"]) is None
-            or type(observation["content_byte_count"]) is not int
-            or not 1 <= observation["content_byte_count"] <= 16_384
-            or type(observation["original_marker_count"]) is not int
-            or not 0 <= observation["original_marker_count"] <= 10
-            or observed.tzinfo is None or observed.utcoffset() is None
-            or not timedelta(0) <= datetime.fromtimestamp(now, timezone.utc) - observed
-            <= timedelta(minutes=5)):
-        raise OperatorDenied("pre-create producer baseline is stale or disagrees with pins")
-    return int(match.group(1)), observation, "v1"
+        generation, observation = validate_current_write_observation(
+            path, expected_sha256, evidence=evidence, now=now,
+            maximum_age=timedelta(minutes=5),
+        )
+    except (ContractRejected, OSError, ValueError) as error:
+        raise OperatorDenied("pre-create producer baseline is stale or disagrees with pins") from error
+    return generation, observation, "v1"
 
 
 def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,

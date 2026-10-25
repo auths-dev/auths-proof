@@ -18,7 +18,7 @@ import requests
 
 from .demo_co_contract import _unique_pairs
 from .google_write_credential import WriteCredentialPins, lease_jules_write_token
-from .write_handoff import validate_write_handoff
+from .write_handoff import validate_current_write_observation, validate_write_handoff
 
 
 MAX_METADATA_BYTES = 32_768
@@ -99,10 +99,30 @@ def _owned(item: dict, *, item_id: str, title: str, mime: str,
 def preflight_jules_edit(evidence_path: Path, grant_path: Path,
                          pins: WriteCredentialPins, *, connection_id: str,
                          connection_generation: int,
+                         current_observation_path: Path | None = None,
+                         current_observation_sha256: str | None = None,
                          now: int | None = None) -> WritePreflight:
     """Check exact run-owned IDs, Jules ACL, current revision and baseline."""
     now = int(time.time()) if now is None else now
     evidence = validate_write_handoff(evidence_path, pins.producer)
+    if (current_observation_path is None) != (current_observation_sha256 is None):
+        raise WritePreflightDenied("current working Doc observation is incomplete")
+    baseline_sha256 = evidence["baseline_sha256"]
+    baseline_byte_count = evidence["baseline_byte_count"]
+    if current_observation_path is not None:
+        try:
+            _, current = validate_current_write_observation(
+                current_observation_path, current_observation_sha256,
+                evidence=evidence, now=now,
+            )
+        except (OSError, ValueError, PermissionError) as error:
+            raise WritePreflightDenied(
+                "current working Doc observation disagrees with pins",
+            ) from error
+        if current["original_marker_count"] != 1:
+            raise WritePreflightDenied("current working Doc marker is unavailable")
+        baseline_sha256 = current["content_sha256"]
+        baseline_byte_count = current["content_byte_count"]
     lease = lease_jules_write_token(
         evidence_path, grant_path, pins, connection_id=connection_id,
         connection_generation=connection_generation, now=now,
@@ -171,13 +191,13 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
             params={"mimeType": "text/plain"},
             maximum=MAX_EXPORT_BYTES, media_type="text/plain",
         )
-        if (len(body) != evidence["baseline_byte_count"]
-                or hashlib.sha256(body).hexdigest() != evidence["baseline_sha256"]
+        if (len(body) != baseline_byte_count
+                or hashlib.sha256(body).hexdigest() != baseline_sha256
                 or body.count(evidence["marker"].encode("utf-8")) != 1):
             raise WritePreflightDenied("working Doc baseline or marker drifted")
         return WritePreflight(
             document_id, evidence["tab_id"], revision,
-            evidence["baseline_sha256"], len(body), 1, now,
+            baseline_sha256, len(body), 1, now,
         )
     finally:
         session.close()

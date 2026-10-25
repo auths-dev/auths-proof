@@ -2,16 +2,69 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from employee_read_demo.write_handoff import (WriteHandoffPending, WriteHandoffPins,
-                                               inspect_write_handoff)
+                                               inspect_write_handoff,
+                                               validate_current_write_observation)
+from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.jules_write_context import JulesWriteContext
 
 
 class WriteHandoffTests(unittest.TestCase):
+    def test_later_edit_uses_only_a_pinned_current_baseline(self) -> None:
+        now = int(datetime(2026, 10, 25, 19, 35, tzinfo=timezone.utc).timestamp())
+        evidence = {
+            "company": "atlas-studio", "instance": "live-test-atlas",
+            "definition_hash": "a" * 64, "document_id": "working-doc",
+            "tab_id": "t.0",
+        }
+        observation = {
+            "schema_version": "demo-co/google-write-observation/v1",
+            **{name: evidence[name] for name in (
+                "company", "instance", "definition_hash", "document_id", "tab_id")},
+            "observed_at": "2026-10-25T19:34:00+00:00",
+            "revision_id": "revision-2", "content_sha256": "b" * 64,
+            "content_byte_count": 179, "original_marker_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            generation = Path(directory) / "generation-0008"
+            generation.mkdir(mode=0o700)
+            path = generation / "google-write-observation.json"
+
+            def write() -> str:
+                path.write_text(json.dumps(observation, sort_keys=True))
+                os.chmod(path, 0o600)
+                return hashlib.sha256(path.read_bytes()).hexdigest()
+
+            digest = write()
+            self.assertEqual(validate_current_write_observation(
+                path, digest, evidence=evidence, now=now,
+                maximum_age=timedelta(minutes=5),
+            )[0], 8)
+            observation["document_id"] = "other-doc"
+            changed_digest = write()
+            with self.assertRaisesRegex(ContractRejected, "digest"):
+                validate_current_write_observation(
+                    path, digest, evidence=evidence, now=now,
+                )
+            with self.assertRaisesRegex(ContractRejected, "verified fixture"):
+                validate_current_write_observation(
+                    path, changed_digest, evidence=evidence, now=now,
+                )
+            observation["document_id"] = evidence["document_id"]
+            observation["observed_at"] = "2026-10-25T19:20:00+00:00"
+            stale_digest = write()
+            with self.assertRaisesRegex(ContractRejected, "stale"):
+                validate_current_write_observation(
+                    path, stale_digest, evidence=evidence, now=now,
+                    maximum_age=timedelta(minutes=5),
+                )
+
     def test_missing_producer_contract_cannot_activate_write(self) -> None:
         status = inspect_write_handoff()
         self.assertEqual(status.status, "write_not_configured")
