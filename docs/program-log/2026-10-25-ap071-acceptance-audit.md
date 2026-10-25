@@ -19,6 +19,11 @@ The native gateway now verifies the shape and signature of a short-lived,
 task-bound operator recovery attestation in a focused synthetic test. No
 operator signer or human recovery action uses it yet, and it has not bound a
 response-less child in the task journal.
+The gateway also has a read-only private command that refuses to emit
+recovery inputs until the original create is the sole reserved write and its
+attempt is `unknown` with no recorded response. The existing recorded-response
+loopback test confirms that this command rejects that other path. A positive
+unknown-attempt run and the signed recovery sequence remain open.
 
 The full spec is **open**. The already verified single-plan Google positive
 case must not be reported as missing; conversely, its manual pre-entry recovery

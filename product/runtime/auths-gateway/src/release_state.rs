@@ -800,6 +800,38 @@ impl ReleaseTaskState {
         self.effect_plan.as_ref()
     }
 
+    /// A response-less recovery search may begin only for the one create
+    /// already reserved under the immutable human plan. This does not infer
+    /// provider entry or bind any candidate.
+    pub(crate) fn recovery_create_reserved(&self, plan: &VerifiedEffectPlan) -> bool {
+        if self.child_binding.is_some() || self.writes.len() != 1 {
+            return false;
+        }
+        let create = &plan.create;
+        let Some(write) = self.writes.get(&create.operation_id) else {
+            return false;
+        };
+        let Some(pending) = self
+            .activated_card
+            .as_ref()
+            .and_then(|card| card.pending_child.as_ref())
+        else {
+            return false;
+        };
+        pending.create_operation_id == create.operation_id
+            && pending.create_recipe_digest == create.recipe_digest
+            && pending.populate_recipe_digest == plan.populate_recipe_digest
+            && pending.parent_handle == create.resource_handle
+            && write.verb == crate::task_activation::TaskWriteVerb::Create
+            && write.resource_handle == create.resource_handle
+            && write.recipe_digest == create.recipe_digest
+            && write.connection_id == create.connection_id
+            && write.connection_generation == create.connection_generation
+            && write.connection_subject == create.connection_subject
+            && write.action_commitment == create.action_commitment
+            && write.request_commitment == create.request_commitment
+    }
+
     pub(crate) fn populate_preflight(&self) -> Option<&VerifiedPopulatePreflight> {
         self.populate_preflight.as_ref()
     }

@@ -557,6 +557,15 @@ mod unix {
             #[arg(long)]
             task_id: String,
         },
+        /// Development operator only: inspect the original task, plan and
+        /// unknown create attempt before any recovered-child search. Grants
+        /// no child scope and makes no provider request.
+        TaskCreateRecoveryInputs {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
         /// Development operator only: reverify the original signed create
         /// after a recorded response, read its child metadata once, and bind
         /// that child in the task journal. Without exact confirmation files,
@@ -4118,6 +4127,22 @@ mod unix {
         Ok(())
     }
 
+    async fn task_create_recovery_inputs(
+        state_dir: PathBuf,
+        task_id: String,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let inputs = session.create_recovery_inputs(&task_id).await?;
+        println!(
+            "{}",
+            serde_json::to_string(&inputs).map_err(|_| "gateway.task.recovery-inputs")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
         read_back: Option<String>,
@@ -5146,6 +5171,9 @@ mod unix {
             Command::TaskPopulatePreflightInputs { state_dir, task_id } => {
                 task_populate_preflight_inputs(state_dir, task_id).await
             }
+            Command::TaskCreateRecoveryInputs { state_dir, task_id } => {
+                task_create_recovery_inputs(state_dir, task_id).await
+            }
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -5760,6 +5788,25 @@ mod unix {
                     .expect("journal preflight input request parses")
                     .command,
                 Command::TaskPopulatePreflightInputs { .. }
+            ));
+        }
+
+        #[test]
+        fn create_recovery_inputs_require_a_task_id() {
+            let base = [
+                "auths-gateway",
+                "task-create-recovery-inputs",
+                "--state-dir",
+                "/state",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend(["--task-id", "task-create-1"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("read-only recovery input request parses")
+                    .command,
+                Command::TaskCreateRecoveryInputs { .. }
             ));
         }
 

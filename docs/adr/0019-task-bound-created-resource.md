@@ -228,6 +228,15 @@ is evidence only. The signer, native human recovery action, fresh metadata
 read and task-journal `recovered` transition are still to be implemented; the
 verifier alone cannot create a child scope.
 
+The private `task-create-recovery-inputs` command now reads the active task,
+immutable plan, one reserved create and durable attempt before the operator
+prepares any candidate attestation. It emits the original commitments and
+signed parent/title/marker only when the attempt projects to `unknown` and
+has no recorded status, response digest or response locator. It labels the
+output `authority: none` and makes no provider request. A recorded response
+must use the response-derived reconciliation path. This is a prerequisite for
+the recovery signer, not a recovery bind.
+
 ### Cleanup and receipts
 
 Activity reports separate create entry, response recording, child binding,

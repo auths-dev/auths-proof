@@ -1698,6 +1698,32 @@ pub struct TaskPopulatePreflightInputs {
     plan_expires_at: u64,
 }
 
+/// Secret-free, journal-derived facts for a read-only response-less create
+/// investigation. This is not a child locator or population permission.
+#[cfg(unix)]
+#[derive(Serialize)]
+pub struct TaskCreateRecoveryInputs {
+    schema: &'static str,
+    task_id: String,
+    task_commitment: String,
+    plan_commitment: String,
+    content_commitment: String,
+    create_operation_id: String,
+    create_recipe_digest: String,
+    action_commitment: String,
+    request_commitment: String,
+    populate_recipe_digest: String,
+    connection_id: String,
+    connection_generation: u64,
+    connection_subject: String,
+    parent_id: String,
+    title: String,
+    marker: String,
+    plan_expires_at: u64,
+    attempt_stage: &'static str,
+    authority: &'static str,
+}
+
 #[cfg(unix)]
 impl PopulatePreflightPin {
     fn valid(&self) -> bool {
@@ -2047,6 +2073,85 @@ impl TaskWriteSession<'_> {
             title: pending.title.clone(),
             marker: pending.marker.clone(),
             plan_expires_at: plan.expires_at,
+        })
+    }
+
+    /// Inspect one durably claimed create whose response was never recorded.
+    /// The private operator uses these facts to bind a bounded search and
+    /// independent observation; this method never searches or grants a child.
+    pub async fn create_recovery_inputs(
+        &self,
+        task_id: &str,
+    ) -> Result<TaskCreateRecoveryInputs, &'static str> {
+        if self.engine.recipe.created_child_fields().is_none() {
+            return Err("gateway.task.recovery-not-create");
+        }
+        let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.recovery-state")?
+            .ok_or("gateway.task.recovery-state")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.recovery-inactive")?;
+        let plan = state
+            .effect_plan()
+            .ok_or("gateway.task.recovery-plan-required")?;
+        let pending = task
+            .descriptor()
+            .pending_child
+            .as_ref()
+            .ok_or("gateway.task.recovery-pending-child")?;
+        if plan.expires_at <= now
+            || plan.create.task_id != task_id
+            || plan.create.task_commitment != hex::encode(task.commitment())
+            || plan.create.recipe_digest != hex::encode(self.engine.recipe.digest())
+            || plan.create.connection_id != self.binding.connection_id
+            || plan.create.connection_generation != self.binding.connection_generation
+            || plan.create.connection_subject != self.binding.connection_subject
+            || !state.recovery_create_reserved(plan)
+        {
+            return Err("gateway.task.recovery-plan-mismatch");
+        }
+        let operation = crate::LogicalOperationId::parse(&plan.create.operation_id)
+            .map_err(|_| "gateway.task.recovery-operation")?;
+        let attempt = self
+            .engine
+            .attempts
+            .read(self.engine.recipe.namespace(), &operation)
+            .await
+            .map_err(|_| "gateway.task.recovery-attempt")?
+            .ok_or("gateway.task.recovery-attempt")?;
+        if attempt.stage() != crate::GatewayAttemptStage::Unknown
+            || attempt.response_status().is_some()
+            || attempt.response_digest().is_some()
+            || attempt.response_locator().is_some()
+            || hex::encode(attempt.action_commitment()) != plan.create.action_commitment
+            || hex::encode(attempt.recipe_digest()) != plan.create.recipe_digest
+        {
+            return Err("gateway.task.recovery-not-response-less");
+        }
+        Ok(TaskCreateRecoveryInputs {
+            schema: "auths.gateway-task-create-recovery-inputs/1",
+            task_id: task_id.to_owned(),
+            task_commitment: hex::encode(task.commitment()),
+            plan_commitment: plan.plan_commitment.clone(),
+            content_commitment: plan.content_commitment.clone(),
+            create_operation_id: plan.create.operation_id.clone(),
+            create_recipe_digest: plan.create.recipe_digest.clone(),
+            action_commitment: plan.create.action_commitment.clone(),
+            request_commitment: plan.create.request_commitment.clone(),
+            populate_recipe_digest: plan.populate_recipe_digest.clone(),
+            connection_id: plan.create.connection_id.clone(),
+            connection_generation: plan.create.connection_generation,
+            connection_subject: plan.create.connection_subject.clone(),
+            parent_id: pending.parent_handle.clone(),
+            title: pending.title.clone(),
+            marker: pending.marker.clone(),
+            plan_expires_at: plan.expires_at,
+            attempt_stage: "unknown",
+            authority: "none",
         })
     }
 
@@ -4020,6 +4125,13 @@ pub(crate) mod tests {
                 &effect_plan.action,
             )
             .expect("record signed effect plan before create reservation");
+        assert!(
+            session
+                .create_recovery_inputs("task-create-reconcile")
+                .await
+                .is_err(),
+            "a signed plan alone cannot nominate a recovered child"
+        );
         assert_eq!(
             session
                 .populate_preflight_inputs("task-create-reconcile")
@@ -4116,14 +4228,23 @@ pub(crate) mod tests {
             ),
             "the provider write entered once and its response was recorded: {result:?}"
         );
+        let reserved_state = session
+            .ledger
+            .load("task-create-reconcile")
+            .expect("task journal")
+            .expect("task state");
+        assert_eq!(reserved_state.write_count(), 1);
+        assert!(
+            reserved_state
+                .recovery_create_reserved(reserved_state.effect_plan().expect("recorded plan"))
+        );
         assert_eq!(
             session
-                .ledger
-                .load("task-create-reconcile")
-                .expect("task journal")
-                .expect("task state")
-                .write_count(),
-            1
+                .create_recovery_inputs("task-create-reconcile")
+                .await
+                .err(),
+            Some("gateway.task.recovery-not-response-less"),
+            "a recorded response must use its own reconciliation path"
         );
         drop(session);
         engine.attempts = installation.attempts.reopen();
