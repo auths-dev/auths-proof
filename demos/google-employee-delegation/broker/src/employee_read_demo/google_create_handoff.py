@@ -147,6 +147,10 @@ class CreateRecoverySearch:
             params["pageToken"] = self._next_token
         return "https://www.googleapis.com/drive/v3/files?" + urlencode(params)
 
+    @property
+    def complete(self) -> bool:
+        return self._complete
+
     def accept_page(self, document: Mapping[str, object]) -> None:
         if self._complete or self._pages >= MAX_RECOVERY_PAGES:
             raise ContractRejected("recovery search cannot accept another page")

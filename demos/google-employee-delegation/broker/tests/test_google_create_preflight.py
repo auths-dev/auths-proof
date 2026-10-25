@@ -8,7 +8,9 @@ from unittest.mock import patch
 
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import CHILD_TITLE, CreatedChildMetadataPins
-from employee_read_demo.google_create_preflight import preflight_jules_created_child
+from employee_read_demo.google_create_preflight import (
+    preflight_jules_created_child, search_jules_created_child,
+)
 
 
 class _Session:
@@ -22,6 +24,59 @@ class _Session:
 
 
 class JulesChildPreflightTests(unittest.TestCase):
+    def test_lost_response_search_rechecks_one_child_without_minting_authority(self) -> None:
+        marker = "ap071_" + "d" * 32
+        child = {
+            "id": "child_ABC-123", "name": CHILD_TITLE,
+            "mimeType": "application/vnd.google-apps.document",
+            "parents": ["project-a-folder"], "driveId": "shared-drive-1",
+            "properties": {"auths_operation_marker": marker},
+            "trashed": False, "createdTime": "2026-10-25T10:03:00Z",
+        }
+        credential = SimpleNamespace(producer=SimpleNamespace())
+        session = _Session()
+        pages = [{"incompleteSearch": False, "files": [],
+                  "nextPageToken": "page-2"},
+                 {"incompleteSearch": False, "files": [child]},
+                 child]
+        with (patch("employee_read_demo.google_create_preflight.validate_write_handoff",
+                    return_value={"folder_id": "project-a-folder",
+                                  "drive_id": "shared-drive-1"}),
+              patch("employee_read_demo.google_create_preflight.lease_jules_write_token",
+                    return_value=SimpleNamespace(access_token="secret-test-token",
+                                                 expires_at=1200)),
+              patch("employee_read_demo.google_create_preflight.requests.Session",
+                    return_value=session),
+              patch("employee_read_demo.google_create_preflight._bounded_get",
+                    side_effect=[json.dumps(page).encode() for page in pages]) as read):
+            candidate = search_jules_created_child(
+                Path("evidence.json"), Path("grant.json"), credential, marker,
+                connection_id="jules-google", connection_generation=1, now=1000,
+            )
+        self.assertEqual(candidate, child["id"])
+        self.assertEqual(read.call_count, 3)
+        self.assertIn("pageToken=page-2", read.call_args_list[1].args[1])
+        self.assertIn("/child_ABC-123?", read.call_args_list[2].args[1])
+        self.assertTrue(session.closed)
+
+        for files in ([], [child, child | {"id": "other-child"}]):
+            with (patch("employee_read_demo.google_create_preflight.validate_write_handoff",
+                        return_value={"folder_id": "project-a-folder",
+                                      "drive_id": "shared-drive-1"}),
+                  patch("employee_read_demo.google_create_preflight.lease_jules_write_token",
+                        return_value=SimpleNamespace(access_token="secret-test-token",
+                                                     expires_at=1200)),
+                  patch("employee_read_demo.google_create_preflight.requests.Session",
+                        return_value=_Session()),
+                  patch("employee_read_demo.google_create_preflight._bounded_get",
+                        return_value=json.dumps({"incompleteSearch": False,
+                                                 "files": files}).encode()) as read):
+                self.assertIsNone(search_jules_created_child(
+                    Path("evidence.json"), Path("grant.json"), credential, marker,
+                    connection_id="jules-google", connection_generation=1, now=1000,
+                ))
+                self.assertEqual(read.call_count, 1)
+
     def test_three_bounded_jules_reads_pin_child_capability_and_blank_revision(self) -> None:
         pins = CreatedChildMetadataPins(
             candidate_id="child_ABC-123", parent_id="project-a-folder",
