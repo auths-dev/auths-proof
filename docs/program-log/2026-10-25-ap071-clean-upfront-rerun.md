@@ -36,6 +36,19 @@ revision. The broker suite passed 136 tests including the consumer's tamper
 case. These are setup checks; no new human delegation or Google write has yet
 occurred in this rerun.
 
+The branch-built broker wheel SHA-256 is
+`46f3b5b003512aef07e860258500a9853cd68db30ff8d1db44b6f15293f13a28`.
+The branch-built agent wheel SHA-256 is
+`766ed92164813381f46122382da0551876b4e421317c8c33a42c39e169f37f6c`.
+An isolated `--no-deps --no-index` install loaded `employee_read_demo` from the
+wheel target, confirmed both pinned rerun schemas and the consumer module were
+packaged, and accepted the private generation 0013/0014 snapshots without the
+repository source path. It also loaded `employee_read_agent` from its separate
+wheel. The installed workbench parsed the complete live launcher and built its
+rerun configuration with the listener replaced by a no-op. This checks package
+contents and startup contract compatibility; it is not the live installed
+Google run.
+
 ## Outcome
 
 Pending the new signed task, separate agent choice, one gateway submission,
