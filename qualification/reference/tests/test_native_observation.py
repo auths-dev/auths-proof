@@ -83,7 +83,7 @@ class Observations(unittest.TestCase):
         self.tuple.update(profile_lock_sha256='3' * 64, gateway_semantic_closure_sha256='4' * 64,
             target={'gateway_package': 'auths-gateway', 'gateway_version': 'synthetic-only',
                 'gateway_build_sha256': '5' * 64, 'store_kind': 'postgresql-v1',
-                'store_schema': 'auths.lifecycle.postgresql/6', 'credential_store_kind': 'aws-secrets-manager-v1'})
+                'store_schema': 'auths.lifecycle.postgresql/7', 'credential_store_kind': 'aws-secrets-manager-v1'})
         key = sha256(b'auths.gateway-logical-operation/1\0' + self.arguments['operator_namespace'].encode()
                      + b'\0' + self.arguments['operation_id'].encode())
         return {'schema': 'auths.gateway-support-bundle/1', 'gateway_package': 'auths-gateway',

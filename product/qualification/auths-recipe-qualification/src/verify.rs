@@ -71,18 +71,25 @@ pub struct QualificationVerdict {
     /// The first reason the deployment is not qualified; `None` exactly when
     /// the state is qualified.
     pub refusal: Option<QualificationRefusal>,
+    /// Inclusive temporal horizon of the selected qualified attestation,
+    /// signer and revocation list. Absent for every refusal.
+    pub valid_through: Option<u64>,
 }
 
 impl QualificationVerdict {
-    const QUALIFIED: Self = Self {
-        state: RecipeQualificationState::Qualified,
-        refusal: None,
-    };
+    const fn qualified(valid_through: u64) -> Self {
+        Self {
+            state: RecipeQualificationState::Qualified,
+            refusal: None,
+            valid_through: Some(valid_through),
+        }
+    }
 
     const fn refused(state: RecipeQualificationState, refusal: QualificationRefusal) -> Self {
         Self {
             state,
             refusal: Some(refusal),
+            valid_through: None,
         }
     }
 
@@ -503,33 +510,62 @@ impl VerifiedQualifications {
         }
         // The attestation nearest to qualified decides: another target's
         // attestation never hides the one that fits.
-        usable
+        let selected = usable
             .iter()
             .map(|(listed, attestation)| {
-                let tuple = &listed.record.body().tuple;
-                let digests_equal = tuple.compiled_recipe_sha256
-                    == deployment.compiled_recipe_sha256
-                    && tuple.profile_lock_sha256 == deployment.profile_lock_sha256
-                    && tuple.provider_contract_id == deployment.provider_contract_id
-                    && tuple.gateway_semantic_closure_sha256
-                        == deployment.gateway_semantic_closure_sha256;
-                if now > attestation.body().statement.not_after || now > signer.not_after {
-                    Refusal::Expired
-                } else if !digests_equal {
-                    Refusal::DigestMismatch
-                } else if tuple.target != deployment.target {
-                    Refusal::TargetMismatch
-                } else {
-                    return None;
-                }
-                .into()
+                evaluate_attestation(
+                    listed,
+                    attestation,
+                    deployment,
+                    now,
+                    signer.not_after,
+                    list.next_update,
+                )
             })
-            .max_by_key(|refusal: &Option<Refusal>| {
-                refusal.map_or(u8::MAX, |refusal| refusal as u8)
-            })
-            .flatten()
-            .map_or(QualificationVerdict::QUALIFIED, |refusal| {
-                QualificationVerdict::refused(State::Stale, refusal)
-            })
+            .max_by_key(|(refusal, valid_through): &(Option<Refusal>, u64)| {
+                (
+                    refusal.map_or(u8::MAX, |refusal| refusal as u8),
+                    *valid_through,
+                )
+            });
+        match selected {
+            Some((None, valid_through)) => QualificationVerdict::qualified(valid_through),
+            Some((Some(refusal), _)) => QualificationVerdict::refused(State::Stale, refusal),
+            None => QualificationVerdict::refused(State::Unqualified, Refusal::Missing),
+        }
     }
+}
+
+/// Evaluates one already authenticated candidate without changing refusal
+/// precedence; successful candidates retain their exact temporal endpoint.
+fn evaluate_attestation(
+    listed: &Listed,
+    attestation: &RecipeQualificationAttestation,
+    deployment: &QualificationTuple,
+    now: u64,
+    signer_not_after: u64,
+    revocations_not_after: u64,
+) -> (Option<QualificationRefusal>, u64) {
+    use QualificationRefusal as Refusal;
+    let tuple = &listed.record.body().tuple;
+    let digests_equal = tuple.compiled_recipe_sha256 == deployment.compiled_recipe_sha256
+        && tuple.profile_lock_sha256 == deployment.profile_lock_sha256
+        && tuple.provider_contract_id == deployment.provider_contract_id
+        && tuple.gateway_semantic_closure_sha256 == deployment.gateway_semantic_closure_sha256;
+    let valid_through = attestation
+        .body()
+        .statement
+        .not_after
+        .min(signer_not_after)
+        .min(revocations_not_after);
+    let refusal = if now > attestation.body().statement.not_after || now > signer_not_after {
+        Refusal::Expired
+    } else if !digests_equal {
+        Refusal::DigestMismatch
+    } else if tuple.target != deployment.target {
+        Refusal::TargetMismatch
+    } else {
+        return (None, valid_through);
+    };
+    (Some(refusal), valid_through)
 }

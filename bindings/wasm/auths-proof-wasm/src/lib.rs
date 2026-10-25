@@ -402,7 +402,9 @@ impl StatusSnapshotV1 {
 /// Returns a JavaScript error for malformed, duplicate, stale, or reordered input.
 #[wasm_bindgen(js_name = parsePrincipalStatusSnapshotV1)]
 pub fn parse_principal_status_snapshot_v1(value: JsValue) -> Result<StatusSnapshotV1, JsValue> {
-    let snapshot = principal_status_snapshot(value).map_err(js_error)?;
+    let snapshot = auths_codec::CanonicalPrincipalStatusSnapshot::new(
+        principal_status_snapshot(value).map_err(js_error)?,
+    ).map_err(js_error)?;
     Ok(StatusSnapshotV1 {
         cbor: auths_codec::encode_principal_status_snapshot(&snapshot).map_err(js_error)?,
         id: snapshot.id().as_bytes().to_vec(),
@@ -417,7 +419,9 @@ pub fn parse_principal_status_snapshot_v1(value: JsValue) -> Result<StatusSnapsh
 /// Returns a JavaScript error for malformed, duplicate, stale, or reordered input.
 #[wasm_bindgen(js_name = parseGrantStatusSnapshotV1)]
 pub fn parse_grant_status_snapshot_v1(value: JsValue) -> Result<StatusSnapshotV1, JsValue> {
-    let snapshot = grant_status_snapshot(value).map_err(js_error)?;
+    let snapshot = auths_codec::CanonicalGrantStatusSnapshot::new(
+        grant_status_snapshot(value).map_err(js_error)?,
+    ).map_err(js_error)?;
     Ok(StatusSnapshotV1 {
         cbor: auths_codec::encode_grant_status_snapshot(&snapshot).map_err(js_error)?,
         id: snapshot.id().as_bytes().to_vec(),
@@ -882,8 +886,8 @@ pub fn compile_trusted_context_v1(
         Challenge::new([0; 32]),
         Timestamp::new(input.evaluation_time),
         assurance_policy(input.assurance).map_err(js_error)?,
-        principal_status,
-        grant_status,
+        principal_status.into_value(),
+        grant_status.into_value(),
         ResourceMatcherId::parse(&input.resource_matcher).map_err(js_error)?,
         ProfilePolicyId::parse(&input.profile_policy).map_err(js_error)?,
         ChannelBindingId::parse(&input.channel_policy).map_err(js_error)?,
@@ -891,7 +895,7 @@ pub fn compile_trusted_context_v1(
     )
     .map_err(js_error)?;
     Ok(TrustedContextCompilationV1 {
-        cbor: auths_codec::encode_verifier_context(&context).map_err(js_error)?,
+        cbor: auths_codec::CanonicalTrustedContext::new(context).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).map_err(js_error)?,
         verifier_configuration: configuration.to_vec(),
     })
 }
@@ -1091,7 +1095,7 @@ fn build_trusted_context_template_native(
                 .collect::<Result<Vec<_>, _>>()?,
         )?;
     }
-    Ok(auths_codec::encode_verifier_context(&template.compile()?)?)
+    Ok(auths_codec::CanonicalTrustedContext::new(template.compile()?).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?)
 }
 
 struct RootGrantInput {
@@ -3367,7 +3371,7 @@ fn prepare_raw_key_authority_native(
     )?;
     Ok(RawKeyAuthorityPreparationV1 {
         statement_cbor: auths_codec::encode_grant_statement(&statement)?,
-        trusted_context_cbor: auths_codec::encode_verifier_context(&context)?,
+        trusted_context_cbor: auths_codec::CanonicalTrustedContext::new(context).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?,
         verifier_configuration: self_contained_v1_configuration()?.to_vec(),
     })
 }
@@ -5349,7 +5353,7 @@ fn bind_trusted_context_request_native(
         Challenge::new(challenge),
         Timestamp::new(evaluation_time),
     )?;
-    Ok(auths_codec::encode_verifier_context(&context)?)
+    Ok(auths_codec::CanonicalTrustedContext::new(context).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?)
 }
 
 /// Correlation identifier carried by every failure minted at this boundary.
@@ -5936,6 +5940,7 @@ mod tests {
         let fixture = auths_testkit::raw_key_chain();
         auths_codec::decode_bundle(fixture.proof_bytes(), &VerifierLimits::default_deployment())
             .unwrap()
+            .into_value()
     }
 
     #[test]
@@ -5948,7 +5953,7 @@ mod tests {
                 self_contained_v1_configuration().unwrap(),
             ))
             .unwrap();
-        let context = auths_codec::encode_verifier_context(&context).unwrap();
+        let context = auths_codec::CanonicalTrustedContext::new(context).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap();
         let result = verify_self_contained_v1(fixture.proof_bytes(), &action, &context).unwrap();
         assert_eq!(
             auths_codec::decode_verification_result(&result)
@@ -6326,7 +6331,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             actual,
-            auths_codec::encode_verifier_context(&expected).unwrap()
+            auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&expected)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap()
         );
     }
 
@@ -6451,7 +6456,7 @@ mod tests {
         for identifier in critical_extensions {
             builder = builder.accept_critical_extension(ExtensionId::parse(identifier).unwrap());
         }
-        auths_codec::encode_verifier_context(&builder.build().unwrap()).unwrap()
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&builder.build().unwrap())).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap()
     }
 
     #[test]
@@ -6589,7 +6594,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             built,
-            auths_codec::encode_verifier_context(&expected).unwrap()
+            auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&expected)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap()
         );
         let decoded = auths_codec::decode_verifier_context(&built).unwrap();
         assert_eq!(decoded.approver_anchors().len(), 3);

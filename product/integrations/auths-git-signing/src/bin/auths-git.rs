@@ -303,7 +303,7 @@ fn trust_init(
     }
     std::fs::write(
         out.join(TRUST_FILE),
-        encode_verifier_context(&context).map_err(|_| fail("could not encode trust"))?,
+        auths_codec::CanonicalTrustedContext::new(context).and_then(|canonical| encode_verifier_context(&canonical)).map_err(|_| fail("could not encode trust"))?,
     )
     .map_err(fail)?;
     println!("wrote {}", out.join(TRUST_FILE).display());

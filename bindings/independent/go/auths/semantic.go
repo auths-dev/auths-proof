@@ -1261,8 +1261,9 @@ func evidenceContent(object *evidenceObject) []byte {
 func verifySignature(suite string, key, message, signature []byte) bool {
 	switch suite {
 	case "ed25519-v1":
-		return len(key) == ed25519.PublicKeySize &&
+		return strictEd25519PointEncoding(key) &&
 			len(signature) == ed25519.SignatureSize &&
+			strictEd25519PointEncoding(signature[:32]) &&
 			ed25519.Verify(ed25519.PublicKey(key), message, signature)
 	case "p256-sha256-v1":
 		if len(signature) != 64 {

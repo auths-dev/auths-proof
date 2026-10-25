@@ -1,0 +1,20 @@
+{
+  "schema": "auths-proof-native-compiler-context/v2",
+  "normalizations": [
+    "native-recipe-qualified-discriminants-v1",
+    "native-recipe-positive-carriers-v1",
+    "native-recipe-json-iterator-placement-v1",
+    "native-recipe-explicit-foreign-context-v1"
+  ],
+  "original_types_sha256": "53e239049ee56a96e7a092e43f0c81361ac9d62369565db524a8a7380c5ee7fd",
+  "normalized_types_sha256": "24549e18a047fca917f629d2a1db27a3112f8174426f79f2145b0ec0e6474848",
+  "original_functions_sha256": "0a3d19c91b4c86cc5afd1e406312d9e5cf552c625c0f8278cdcee3719886e1f4",
+  "normalized_functions_sha256": "5027621795a9c8c37bdad23120b9f40bcee5fb42e8de9a7b6858c19c9241823b",
+  "body_changes": 0,
+  "iterator_definition": "serde_json.map.Iter = alloc.collections.btree.map.Iter String serde_json.value.Value",
+  "foreign_primitive_context": [
+    "NativeArrayLayouts",
+    "NativeSha256Compression",
+    "UrlPrimitives"
+  ]
+}

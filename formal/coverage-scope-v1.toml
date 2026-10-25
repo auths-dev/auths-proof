@@ -13,6 +13,13 @@ schema = "auths-proof-coverage-scope/v1"
 verifier_crate = "core/crates/auths-verifier"
 decision_kernel_crates = ["product/runtime/auths-lifecycle", "product/policy/auths-bounded-policy"]
 translated_crates = [
+    "core/crates/auths-registries",
+    "core/crates/auths-verifier",
+    "core/crates/auths-signature",
+    "core/crates/auths-signature-core",
+    "core/crates/auths-composition",
+    "product/stores/auths-stores",
+    "core/crates/auths-codec",
     "core/crates/auths-model",
     "core/crates/auths-algebra-kernel",
     "core/crates/auths-authority",
@@ -46,15 +53,40 @@ crates = ["core/crates/auths-codec"]
 
 [[components]]
 name = "the signature suites"
-crates = []
+crates = ["core/crates/auths-signature", "core/crates/auths-signature-core"]
+
+[[components]]
+name = "the stateful gateway store backends"
+crates = ["product/stores/auths-stores"]
 
 [files]
+"product/runtime/auths-connections/src/strict_order_tests.rs" = "test-support"
+"product/runtime/auths-connections/src/record_time_tests.rs" = "test-support"
+"product/runtime/auths-connections/src/string_constructor_tests.rs" = "test-support"
+"product/runtime/auths-connections/src/recovery_guard_tests.rs" = "test-support"
+"formal/qualification/aeneas/entrypoints/profile_construction.rs" = "interface"
+"product/runtime/auths-gateway-kernel/src/reservation_batch.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/slot_record.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/entry_authorization.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/reservation_retry.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/counter_aggregation.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/counter_preimages.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/identity.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/frontier.rs" = "decision"
+"core/crates/auths-model/src/principal_scheme_tests.rs" = "test-support"
+"core/crates/auths-model/src/scope_constructor_tests.rs" = "test-support"
+"core/crates/auths-codec/src/scope_decode_tests.rs" = "test-support"
+"core/crates/auths-registries/src/status_selection_tests.rs" = "test-support"
+"core/crates/auths-verifier/src/temporal_tests.rs" = "test-support"
+"core/crates/auths-signature/src/lib.rs" = "crypto"
+"core/crates/auths-signature-core/src/lib.rs" = "crypto"
 "core/crates/auths-algebra-kernel/src/generated.rs" = "decision"
 "core/crates/auths-algebra-kernel/src/lib.rs" = "decision"
 "core/crates/auths-assurance/src/lib.rs" = "decision"
 "core/crates/auths-authority/src/lib.rs" = "decision"
 "core/crates/auths-codec/src/approval.rs" = "decoding"
 "core/crates/auths-codec/src/bounded_policy.rs" = "decoding"
+"core/crates/auths-codec/src/cbor.rs" = "decoding"
 "core/crates/auths-codec/src/decode.rs" = "decoding"
 "core/crates/auths-codec/src/encode.rs" = "decoding"
 "core/crates/auths-codec/src/error.rs" = "decoding"
@@ -62,9 +94,12 @@ crates = []
 "core/crates/auths-codec/src/lib.rs" = "decoding"
 "core/crates/auths-codec/src/observation.rs" = "decoding"
 "core/crates/auths-composition/src/lib.rs" = "decision"
+"core/crates/auths-composition/src/summary.rs" = "decision"
+"core/crates/auths-composition/src/oracle.rs" = "test-support"
 "core/crates/auths-model/src/approval.rs" = "decision"
 "core/crates/auths-model/src/bounded.rs" = "decision"
 "core/crates/auths-model/src/bounded_policy.rs" = "decision"
+"core/crates/auths-model/src/identifier.rs" = "decision"
 "core/crates/auths-model/src/lib.rs" = "decision"
 "core/crates/auths-model/src/observation.rs" = "decision"
 "core/crates/auths-ports/src/binding.rs" = "interface"
@@ -92,6 +127,7 @@ crates = []
 "product/runtime/auths-connections/src/model.rs" = "decision"
 "product/runtime/auths-connections/src/registry.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/construct.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/deadline.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/lib.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/order.rs" = "decision"
 "product/runtime/auths-gateway-kernel/src/outcome.rs" = "decision"
@@ -109,3 +145,12 @@ crates = []
 "product/runtime/auths-lifecycle/src/sealed.rs" = "storage"
 "product/runtime/auths-lifecycle/src/test_support.rs" = "test-support"
 "product/runtime/auths-lifecycle/src/transition.rs" = "decision"
+
+"product/stores/auths-stores/src/gateway_fence.rs" = "decision"
+"product/stores/auths-stores/src/gateway_attempt.rs" = "storage"
+"product/stores/auths-stores/src/lifecycle.rs" = "storage"
+"product/stores/auths-stores/src/lib.rs" = "interface"
+
+
+[extraction_selectors]
+"formal/qualification/aeneas/entrypoints/profile_construction.rs" = "auths_profile_construction"

@@ -1,4 +1,49 @@
+import Auths.Support.BorrowTagTopology
+import Auths.Support.BorrowViewCompatibility
 import qualification.aeneas.generated.model.Funs
+import Auths.Refinement.Identifier
+import Auths.Support.VTableDispatchModel
+import Auths.Support.VTableOwnershipModel
+import Auths.Support.VTableCallScopeModel
+import Auths.Support.SourceClosureCapture
+import qualification.aeneas.cases.SourceClosureCapture
+import qualification.aeneas.cases.ClosedWriterRuntime
+import qualification.aeneas.cases.WriterInputBound
+import qualification.aeneas.cases.BorrowProjection
+import qualification.aeneas.cases.NativeCaptureValue
+import qualification.aeneas.cases.NativeBorrowProtocol
+import qualification.aeneas.cases.NativeBorrowWiring
+import qualification.aeneas.cases.NativeBorrowView
+import qualification.aeneas.cases.NativeBorrowTransport
+import qualification.aeneas.cases.NativeBorrowComposition
+import qualification.aeneas.cases.CurrentBorrowCarrier
+import qualification.aeneas.cases.CurrentBorrowCarrierOrigins
+import qualification.aeneas.cases.NativeBorrowDefaults
+import qualification.aeneas.cases.NativeBorrowExecution
+import qualification.aeneas.cases.NativeBorrowFullABI
+import qualification.aeneas.cases.NativePurePayload
+import qualification.aeneas.cases.NativePureExpressions
+import qualification.aeneas.cases.NativeCurrentWiring
+import qualification.aeneas.cases.NativeCurrentSeeds
+import qualification.aeneas.cases.NativeCaptureClosures
+import qualification.aeneas.cases.NativeDefaultBindings
+import qualification.aeneas.cases.NativeProjectorLevels
+import qualification.aeneas.cases.NativeProjectorKinds
+import qualification.aeneas.cases.NativeConsumedCoverage
+import qualification.aeneas.cases.NativeConsumedReconstruction
+import qualification.aeneas.cases.NativeBindingClosures
+import qualification.aeneas.cases.NativeCompatiblePrograms
+import qualification.aeneas.cases.NativeBorrowLevels
+import qualification.aeneas.cases.NativeBackwardTypes
+import qualification.aeneas.cases.NativeRootOrigins
+import qualification.aeneas.cases.NativeRootPayload
+import qualification.aeneas.cases.NativeRootBindings
+import qualification.aeneas.cases.NativeNestedReconstruction
+import qualification.aeneas.cases.NativeScopedDefaults
+import qualification.aeneas.cases.NativeForeignDefaults
+import qualification.aeneas.cases.NativeOwnedBindings
+import qualification.aeneas.cases.NativeRootPrograms
+import qualification.aeneas.cases.NativeCaptureComponent
 
 open Aeneas Aeneas.Std Result
 open auths_model
@@ -245,3 +290,35 @@ example :
   rfl
 
 #check bounded_policy.digest_equal
+
+-- Identifier witnesses use the translated shipping validator and its exact
+-- refinement. `decide` reduces only the small, independent byte predicate.
+private theorem identifier_case (value : Str) (maximum : Std.Usize)
+    (expected : Bool)
+    (meaning : (!value.val.isEmpty && decide (value.val.length ≤ maximum.val) &&
+      !Auths.Refinement.Identifier.containsExcluded value.val) = expected) :
+    identifier.bounded_identifier_valid value maximum ⦃ result => result = expected ⦄ := by
+  apply WP.spec_mono (Auths.Refinement.Identifier.identifier_exact value maximum)
+  intro result resultEq
+  exact resultEq.trans meaning
+
+private def asciiIdentifier : Str :=
+  ⟨[97#u8, 117#u8, 116#u8, 104#u8, 115#u8], by scalar_tac⟩
+example : identifier.bounded_identifier_valid asciiIdentifier 5#usize ⦃ result => result = true ⦄ := by
+  apply identifier_case
+  decide
+example : identifier.bounded_identifier_valid asciiIdentifier 4#usize ⦃ result => result = false ⦄ := by
+  apply identifier_case
+  decide
+example : identifier.bounded_identifier_valid ⟨[], by scalar_tac⟩ 128#usize ⦃ result => result = false ⦄ := by
+  apply identifier_case
+  decide
+-- U+2028 is whitespace; U+200B is permitted by the pinned character rule.
+example : identifier.bounded_identifier_valid ⟨[226#u8, 128#u8, 168#u8], by scalar_tac⟩ 3#usize
+    ⦃ result => result = false ⦄ := by
+  apply identifier_case
+  decide
+example : identifier.bounded_identifier_valid ⟨[226#u8, 128#u8, 139#u8], by scalar_tac⟩ 3#usize
+    ⦃ result => result = true ⦄ := by
+  apply identifier_case
+  decide

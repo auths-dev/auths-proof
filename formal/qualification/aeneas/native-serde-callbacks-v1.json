@@ -1,0 +1,2838 @@
+{
+  "schema": "auths-proof-native-serde-callbacks/v1",
+  "status": "authored-unqualified-callback-presence-contract",
+  "callbacks": [
+    {
+      "rust_name": "auths_gateway::recipe::_#2::{impl serde_core::ser::Serialize for auths_gateway::recipe::WriteMethod}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.WriteMethod.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe.rs",
+          "begin_line": 163,
+          "end_line": 163
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::serde_decode::{impl serde_core::de::DeserializeSeed<'de, usize> for auths_gateway::recipe::serde_decode::TagSeed}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.serde_decode.TagSeed.Insts.Serde_coreDeDeserializeSeedDeUsize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 56,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::serde_decode::{impl serde_core::de::Visitor<'de, usize> for auths_gateway::recipe::serde_decode::TagVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.serde_decode.TagVisitor.Insts.Serde_coreDeVisitorDeUsize.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 28,
+          "end_line": 30
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::serde_decode::{impl serde_core::de::Visitor<'de, usize> for auths_gateway::recipe::serde_decode::TagVisitor}::visit_bytes",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.serde_decode.TagVisitor.Insts.Serde_coreDeVisitorDeUsize.visit_bytes",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 48,
+          "end_line": 51
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::serde_decode::{impl serde_core::de::Visitor<'de, usize> for auths_gateway::recipe::serde_decode::TagVisitor}::visit_str",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.serde_decode.TagVisitor.Insts.Serde_coreDeVisitorDeUsize.visit_str",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 32,
+          "end_line": 39
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.serde_decode.TagVisitor.Insts.Serde_coreDeVisitorDeUsize.visit_str_loop",
+          "role": "generated-loop",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 35,
+          "end_line": 37
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::serde_decode::{impl serde_core::de::Visitor<'de, usize> for auths_gateway::recipe::serde_decode::TagVisitor}::visit_u64",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.serde_decode.TagVisitor.Insts.Serde_coreDeVisitorDeUsize.visit_u64",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 41,
+          "end_line": 46
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#10::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::BindSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BindSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 140,
+          "end_line": 140
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#11::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::WriteSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.WriteSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 147,
+          "end_line": 147
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#12::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::IdempotencySource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.IdempotencySource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 157,
+          "end_line": 157
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#13::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::IdempotencyLocation}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.IdempotencyLocation.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 180,
+          "end_line": 180
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#14::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::PathSegment}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.PathSegment.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 191,
+          "end_line": 191
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#15::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::BodySource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BodySource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 208,
+          "end_line": 208
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#16::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::FormExpr}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FormExpr.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 215,
+          "end_line": 215
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#17::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::ValueExpr}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ValueExpr.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 231,
+          "end_line": 231
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#18::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::ObservationSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ObservationSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 256,
+          "end_line": 256
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#19::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::EchoPlacement}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.EchoPlacement.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 267,
+          "end_line": 267
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#1::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::CredentialSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.CredentialSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 45,
+          "end_line": 45
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#20::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::EchoSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.EchoSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 276,
+          "end_line": 276
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#21::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::PreEntrySource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.PreEntrySource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 283,
+          "end_line": 283
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#22::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::PreconditionSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.PreconditionSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 295,
+          "end_line": 295
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#2::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::GuardSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.GuardSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 67,
+          "end_line": 67
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#3::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::ProbeSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ProbeSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 79,
+          "end_line": 79
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#4::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::AccountReadSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.AccountReadSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 88,
+          "end_line": 88
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#5::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::DeniedReadSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeniedReadSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 96,
+          "end_line": 96
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#6::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::AccountScopeSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.AccountScopeSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 104,
+          "end_line": 104
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#7::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::BoundsSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BoundsSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 111,
+          "end_line": 111
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#8::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::SumBoundSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.SumBoundSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 118,
+          "end_line": 118
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_#9::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::RelativeCeilingSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.RelativeCeilingSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 126,
+          "end_line": 126
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::_::{impl serde_core::ser::Serialize for auths_gateway::recipe::source::RecipeSource}::serialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.RecipeSource.Insts.Serde_coreSerSerialize.serialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source.rs",
+          "begin_line": 15,
+          "end_line": 15
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ValueExpr}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ValueExpr.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 195,
+          "end_line": 197
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::value_decode::Kind}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.Kind.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 123,
+          "end_line": 127
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ValueExpr> for auths_gateway::recipe::source::value_decode::ExprVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.ExprVisitor.Insts.Serde_coreDeVisitorDeValueExpr.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 160,
+          "end_line": 162
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ValueExpr> for auths_gateway::recipe::source::value_decode::ExprVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.ExprVisitor.Insts.Serde_coreDeVisitorDeValueExpr.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 164,
+          "end_line": 177
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.ExprVisitor.Insts.Serde_coreDeVisitorDeValueExpr.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ValueExpr> for auths_gateway::recipe::source::value_decode::ExprVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.ExprVisitor.Insts.Serde_coreDeVisitorDeValueExpr.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 179,
+          "end_line": 191
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.ExprVisitor.Insts.Serde_coreDeVisitorDeValueExpr.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::value_decode::Kind> for auths_gateway::recipe::source::value_decode::KindVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.KindVisitor.Insts.Serde_coreDeVisitorDeKind.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 109,
+          "end_line": 111
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::value_decode::Kind> for auths_gateway::recipe::source::value_decode::KindVisitor}::visit_str",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.KindVisitor.Insts.Serde_coreDeVisitorDeKind.visit_str",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 113,
+          "end_line": 115
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::value_decode::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::value_decode::Kind> for auths_gateway::recipe::source::value_decode::KindVisitor}::visit_u64",
+      "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.value_decode.KindVisitor.Insts.Serde_coreDeVisitorDeKind.visit_u64",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/source/value_decode.rs",
+          "begin_line": 117,
+          "end_line": 119
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.AccountReadSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::AccountReadSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountReadSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::AccountReadSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountReadSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountReadSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::AccountReadSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountReadSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountReadSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.AccountScopeSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::AccountScopeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountScopeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountScopeSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::AccountScopeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountScopeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountScopeSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountScopeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountScopeSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::AccountScopeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::AccountScopeSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeAccountScopeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeAccountScopeSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BearerFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BearerFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBearerFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBearerFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BearerFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBearerFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBearerFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBearerFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBearerFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BearerFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BearerFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBearerFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBearerFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BindSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BindSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBindSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBindSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BindSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBindSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBindSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBindSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBindSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BindSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BindSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBindSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBindSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BodySource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 201,
+          "end_line": 241
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BodySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize::EnumVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBodySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeBodySource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 205,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BodySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize::EnumVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBodySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeBodySource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 208,
+          "end_line": 223
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBodySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeBodySource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BodySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BodySource}::deserialize::EnumVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBodySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeBodySource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 224,
+          "end_line": 238
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBodySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeBodySource.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.BoundsSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BoundsSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBoundsSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBoundsSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BoundsSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBoundsSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBoundsSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBoundsSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBoundsSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::BoundsSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::BoundsSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeBoundsSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeBoundsSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.CredentialSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 201,
+          "end_line": 241
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::CredentialSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize::EnumVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeCredentialSource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeCredentialSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 205,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::CredentialSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize::EnumVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeCredentialSource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeCredentialSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 208,
+          "end_line": 223
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeCredentialSource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeCredentialSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::CredentialSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::CredentialSource}::deserialize::EnumVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeCredentialSource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeCredentialSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 224,
+          "end_line": 238
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeCredentialSource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeCredentialSource.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeniedReadSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::DeniedReadSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDeniedReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDeniedReadSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::DeniedReadSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDeniedReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDeniedReadSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDeniedReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDeniedReadSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::DeniedReadSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DeniedReadSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDeniedReadSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDeniedReadSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DerivedHeaderFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::DerivedHeaderFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDerivedHeaderFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDerivedHeaderFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::DerivedHeaderFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDerivedHeaderFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDerivedHeaderFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDerivedHeaderFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDerivedHeaderFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::DerivedHeaderFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::DerivedHeaderFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeDerivedHeaderFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeDerivedHeaderFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.EchoPlacement.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 201,
+          "end_line": 241
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::EchoPlacement> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize::EnumVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoPlacement.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeEchoPlacement.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 205,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::EchoPlacement> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize::EnumVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoPlacement.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeEchoPlacement.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 208,
+          "end_line": 223
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoPlacement.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeEchoPlacement.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::EchoPlacement> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoPlacement}::deserialize::EnumVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoPlacement.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeEchoPlacement.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 224,
+          "end_line": 238
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoPlacement.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeEchoPlacement.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.EchoSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::EchoSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeEchoSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::EchoSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeEchoSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeEchoSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::EchoSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::EchoSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeEchoSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeEchoSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FieldFormFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FieldFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldFormFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FieldFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldFormFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldFormFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FieldFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldFormFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldFormFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FieldPathFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FieldPathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldPathFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FieldPathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldPathFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldPathFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FieldPathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FieldPathFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFieldPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFieldPathFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FixedPathFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FixedPathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFixedPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFixedPathFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FixedPathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFixedPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFixedPathFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFixedPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFixedPathFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FixedPathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FixedPathFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFixedPathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFixedPathFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FormBodyFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormBodyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormBodyFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormBodyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormBodyFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormBodyFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormBodyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormBodyFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormBodyFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FormEchoFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormEchoFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormEchoFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormEchoFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormEchoFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormEchoFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormEchoFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormEchoFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeFormEchoFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.FormExpr.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 201,
+          "end_line": 241
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormExpr> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize::EnumVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormExpr.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeFormExpr.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 205,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormExpr> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize::EnumVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormExpr.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeFormExpr.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 208,
+          "end_line": 223
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormExpr.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeFormExpr.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::FormExpr> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::FormExpr}::deserialize::EnumVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormExpr.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeFormExpr.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 224,
+          "end_line": 238
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeFormExpr.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeFormExpr.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.GuardSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::GuardSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeGuardSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeGuardSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::GuardSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeGuardSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeGuardSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeGuardSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeGuardSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::GuardSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::GuardSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeGuardSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeGuardSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.HeaderKeyFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::HeaderKeyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeHeaderKeyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeHeaderKeyFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::HeaderKeyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeHeaderKeyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeHeaderKeyFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeHeaderKeyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeHeaderKeyFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::HeaderKeyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::HeaderKeyFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeHeaderKeyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeHeaderKeyFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.IdempotencyLocation.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::IdempotencyLocation> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencyLocation.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeIdempotencyLocation.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::IdempotencyLocation> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencyLocation.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeIdempotencyLocation.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencyLocation.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeIdempotencyLocation.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::IdempotencyLocation> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencyLocation}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencyLocation.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeIdempotencyLocation.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.IdempotencySource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 201,
+          "end_line": 241
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::IdempotencySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize::EnumVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeIdempotencySource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 205,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::IdempotencySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize::EnumVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeIdempotencySource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 208,
+          "end_line": 223
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeIdempotencySource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::IdempotencySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::IdempotencySource}::deserialize::EnumVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeIdempotencySource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 224,
+          "end_line": 238
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeIdempotencySource.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDeIdempotencySource.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.JsonBodyFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonBodyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonBodyFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonBodyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonBodyFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonBodyFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonBodyFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonBodyFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonBodyFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonBodyFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.JsonEchoFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonEchoFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonEchoFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonEchoFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonEchoFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonEchoFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonEchoFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonEchoFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonEchoFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonEchoFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.JsonFormFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonFormFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonFormFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonFormFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::JsonFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::JsonFormFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeJsonFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeJsonFormFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ObservationSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ObservationSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeObservationSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeObservationSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ObservationSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeObservationSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeObservationSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeObservationSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeObservationSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ObservationSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ObservationSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeObservationSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeObservationSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.OperationIdFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::OperationIdFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeOperationIdFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeOperationIdFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::OperationIdFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeOperationIdFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeOperationIdFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeOperationIdFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeOperationIdFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::OperationIdFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::OperationIdFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeOperationIdFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeOperationIdFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.PathSegment.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 201,
+          "end_line": 241
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PathSegment> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize::EnumVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePathSegment.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDePathSegment.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 205,
+          "end_line": 207
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PathSegment> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize::EnumVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePathSegment.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDePathSegment.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 208,
+          "end_line": 223
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePathSegment.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDePathSegment.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PathSegment> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PathSegment}::deserialize::EnumVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePathSegment.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDePathSegment.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 224,
+          "end_line": 238
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePathSegment.deserialize.EnumVisitor.Insts.Serde_coreDeVisitorDePathSegment.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.PreEntrySource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PreEntrySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreEntrySource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreEntrySource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PreEntrySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreEntrySource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreEntrySource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreEntrySource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreEntrySource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PreEntrySource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreEntrySource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreEntrySource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreEntrySource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.PreconditionSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PreconditionSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreconditionSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreconditionSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PreconditionSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreconditionSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreconditionSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreconditionSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreconditionSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::PreconditionSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::PreconditionSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDePreconditionSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDePreconditionSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ProbeSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ProbeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeProbeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProbeSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ProbeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeProbeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProbeSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeProbeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProbeSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ProbeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ProbeSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeProbeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProbeSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.RecipeSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::RecipeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRecipeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRecipeSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::RecipeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRecipeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRecipeSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRecipeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRecipeSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::RecipeSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RecipeSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRecipeSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRecipeSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.RelativeCeilingSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::RelativeCeilingSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRelativeCeilingSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRelativeCeilingSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::RelativeCeilingSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRelativeCeilingSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRelativeCeilingSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRelativeCeilingSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRelativeCeilingSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::RelativeCeilingSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::RelativeCeilingSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeRelativeCeilingSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeRelativeCeilingSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.ResponsePathFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ResponsePathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeResponsePathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeResponsePathFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ResponsePathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeResponsePathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeResponsePathFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeResponsePathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeResponsePathFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::ResponsePathFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::ResponsePathFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeResponsePathFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeResponsePathFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.StringFormFields.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::StringFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeStringFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeStringFormFields.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::StringFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeStringFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeStringFormFields.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeStringFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeStringFormFields.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::StringFormFields> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::StringFormFields}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeStringFormFields.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeStringFormFields.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.SumBoundSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::SumBoundSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeSumBoundSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeSumBoundSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::SumBoundSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeSumBoundSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeSumBoundSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeSumBoundSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeSumBoundSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::SumBoundSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::SumBoundSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeSumBoundSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeSumBoundSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.WriteSource.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::WriteSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeWriteSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeWriteSource.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::WriteSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeWriteSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeWriteSource.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeWriteSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeWriteSource.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::source::WriteSource> for auths_gateway::recipe::source::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::source::WriteSource}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.source.DeserializeDeWriteSource.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeWriteSource.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::strict_json::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::strict_json::RawChildren<'de>}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.strict_json.RawChildren.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+          "begin_line": 41,
+          "end_line": 43
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::strict_json::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::strict_json::RawChildren<'de>> for auths_gateway::recipe::strict_json::ContainerVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.strict_json.ContainerVisitor.Insts.Serde_coreDeVisitorDeRawChildren.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+          "begin_line": 49,
+          "end_line": 51
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::strict_json::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::strict_json::RawChildren<'de>> for auths_gateway::recipe::strict_json::ContainerVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.strict_json.ContainerVisitor.Insts.Serde_coreDeVisitorDeRawChildren.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+          "begin_line": 63,
+          "end_line": 72
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.strict_json.ContainerVisitor.Insts.Serde_coreDeVisitorDeRawChildren.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::strict_json::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::strict_json::RawChildren<'de>> for auths_gateway::recipe::strict_json::ContainerVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.strict_json.ContainerVisitor.Insts.Serde_coreDeVisitorDeRawChildren.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+          "begin_line": 53,
+          "end_line": 61
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.strict_json.ContainerVisitor.Insts.Serde_coreDeVisitorDeRawChildren.visit_seq_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.ProfileLockFile.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 129,
+          "end_line": 167
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::ProfileLockFile> for auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize::RecordVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.DeserializeDeProfileLockFile.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProfileLockFile.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 147,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::ProfileLockFile> for auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize::RecordVisitor}::visit_map",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.DeserializeDeProfileLockFile.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProfileLockFile.visit_map",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 150,
+          "end_line": 157
+        },
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.DeserializeDeProfileLockFile.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProfileLockFile.visit_map_loop",
+          "role": "generated-loop",
+          "source_file": "/rustc/library/core/src/macros/mod.rs",
+          "begin_line": 430,
+          "end_line": 433
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::ProfileLockFile> for auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::ProfileLockFile}::deserialize::RecordVisitor}::visit_seq",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.DeserializeDeProfileLockFile.deserialize.RecordVisitor.Insts.Serde_coreDeVisitorDeProfileLockFile.visit_seq",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 158,
+          "end_line": 164
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::WriteMethod}::deserialize",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.WriteMethod.Insts.Serde_coreDeDeserialize.deserialize",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 249,
+          "end_line": 266
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::WriteMethod}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::WriteMethod> for auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::WriteMethod}::deserialize::UnitVisitor}::expecting",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.DeserializeDeWriteMethod.deserialize.UnitVisitor.Insts.Serde_coreDeVisitorDeWriteMethod.expecting",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 253,
+          "end_line": 255
+        }
+      ]
+    },
+    {
+      "rust_name": "auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::WriteMethod}::deserialize::{impl serde_core::de::Visitor<'de, auths_gateway::recipe::WriteMethod> for auths_gateway::recipe::{impl serde_core::de::Deserialize<'de> for auths_gateway::recipe::WriteMethod}::deserialize::UnitVisitor}::visit_enum",
+      "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+      "code_units": [
+        {
+          "lean_name": "AuthsNativeRecipe.recipe.DeserializeDeWriteMethod.deserialize.UnitVisitor.Insts.Serde_coreDeVisitorDeWriteMethod.visit_enum",
+          "role": "callback",
+          "source_file": "product/runtime/auths-gateway/src/recipe/serde_decode.rs",
+          "begin_line": 256,
+          "end_line": 263
+        }
+      ]
+    }
+  ]
+}

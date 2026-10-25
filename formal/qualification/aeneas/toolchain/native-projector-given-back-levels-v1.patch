@@ -1,0 +1,96 @@
+--- a/src/symbolic/SymbolicToPureValues.ml
++++ b/src/symbolic/SymbolicToPureValues.ml
+@@ -393,6 +393,46 @@
+ let compute_tavalue_proj_kind span type_infos abs_regions abs_level current_level av =
+   fst (observe_tavalue_proj_kind span type_infos abs_regions abs_level current_level av)
+ 
++(** Select only the ended borrow headers belonging to this exact ending
++    level. An immediate reprojection edge advances one level and retains its
++    own type. Descendant loans are not defaults for the enclosing fresh value:
++    they belong to later levels, and must remain available to those levels.
++    The result deliberately retains every selected header. Materialization must
++    reject an unsupported multi-header layout instead of choosing one value. *)
++let select_projector_given_backs span (selected : abs_level)
++    (current : abs_level) (projector : V.aproj) (source_type : T.ty)
++    : (T.ty * V.ended_proj_borrow_meta) list =
++  [%cassert] span (selected >= 0 && current >= 0)
++    "Projector selection requires nonnegative exact source levels";
++  let rec visit level source_type projector =
++    if level > selected then []
++    else
++      let edges children = List.concat_map
++        (fun ((edge : V.mconsumed_symb), child) ->
++          visit (level + 1) edge.proj_ty child) children in
++      match projector with
++      | V.AEmpty -> []
++      | V.AEndedProjBorrows node ->
++          if level = selected then (
++            [%cassert] span
++              (TypesUtils.ty_erase_regions source_type =
++               TypesUtils.ty_erase_regions node.mvalues.given_back.sv_ty)
++              "A selected given-back value changed more than lifetime annotations";
++            [source_type, node.mvalues])
++          else edges node.loans
++      | V.AEndedProjLoans node ->
++          edges node.consumed @ edges node.borrows
++      | V.AProjBorrows node ->
++          [%cassert] span (level <> selected)
++            "A selected borrow projector must have ended before materialization";
++          edges node.loans
++      | V.AProjLoans node ->
++          [%cassert] span (level <> selected)
++            "A selected loan projector must have ended before materialization";
++          edges node.consumed @ edges node.borrows
++  in
++  visit current source_type projector
++
+ (** A smaller helper which allows us to isolate the logic by which we handle
+     ADTs. *)
+ let gtranslate_adt_fields ~(project_borrows : bool)
+@@ -954,32 +994,24 @@
+         let ty = translate_fwd_ty (Some ctx.span) ctx.decls_ctx ty in
+         (ctx, Some (mk_ignored_pat ty))
+ 
+-and aproj_to_given_back_aux (_abs_level : abs_level)
+-    (_current_level : abs_level) (mp : mplace option) (aproj : V.aproj)
++and aproj_to_given_back_aux (abs_level : abs_level)
++    (current_level : abs_level) (mp : mplace option) (aproj : V.aproj)
+     (ty : T.ty) (ctx : bs_ctx) : bs_ctx * tpat option =
+-  match aproj with
+-  | V.AEndedProjLoans { proj = _; consumed; borrows } ->
+-      [%cassert] ctx.span (borrows = []) "Unimplemented";
+-      (match consumed with
+-      | [] | [ _ ] -> ()
+-      | _ -> [%craise] ctx.span "Unimplemented");
+-      (ctx, None)
+-  | AEndedProjBorrows { mvalues = mv; loans } ->
+-      [%cassert] ctx.span (loans = []) "Unreachable";
+-      (* Return the meta-value *)
++  match select_projector_given_backs ctx.span abs_level current_level aproj ty with
++  | [] -> (ctx, None)
++  | [projection_type, mv] ->
++      (* Bind the actual fresh value at the selected level. Its nested loans
++         are visited only when their own level ends; they never supply this
++         pattern's runtime value. *)
+       let ctx, var = fresh_var_for_symbolic_value mv.given_back ctx in
+       let pat = mk_tpat_from_fvar mp var in
+-      (* Register the default value *)
+-      let ctx =
+-        (* Using the projection type as the type of the symbolic value - it
+-           doesn't really matter *)
+-        let ty = ctx_translate_fwd_ty ctx ty in
+-        with_binding_context ctx
+-          (SymbolicToPureBindings.register_projection_default var.id mv.consumed ty
+-             (binding_context ctx))
+-      in
++      let ty = ctx_translate_fwd_ty ctx projection_type in
++      let ctx = with_binding_context ctx
++        (SymbolicToPureBindings.register_projection_default var.id mv.consumed ty
++           (binding_context ctx)) in
+       (ctx, Some pat)
+-  | AEmpty | AProjLoans _ | AProjBorrows _ -> [%craise] ctx.span "Unreachable"
++  | _ -> [%craise] ctx.span
++      "Multiple selected projector headers require explicit nominal reconstruction"
+ 
+ let tavalue_to_given_back (abs_regions : T.RegionId.Set.t)
+     (abs_level : abs_level) (mp : mplace option) (v : V.tavalue) (ctx : bs_ctx)

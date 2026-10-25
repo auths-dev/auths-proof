@@ -49,6 +49,15 @@ denied. There is no fallback or version negotiation.
 | `ed25519-v1` | 32-byte compressed point | 64 bytes | RFC 8032 verification of exact preimage |
 | `p256-sha256-v1` | 33-byte compressed SEC1 | 64-byte `r || s` | ECDSA/SHA-256, low-S required |
 
+An `ed25519-v1` public key uses RFC 8032's canonical compressed encoding:
+the 255-bit little-endian y-coordinate is below `2^255 - 19`, and the high
+bit records the x-coordinate's sign. For y equal to 1 or `2^255 - 20`, x is
+zero and the sign bit must be clear. Noncanonical encodings are invalid keys,
+including when a permissive curve decoder accepts them. Point decompression
+is also required; verification retains the strict implementation's rejection
+of small-order points and malformed signatures. A canonical encoding by
+itself does not authenticate a key or message.
+
 A `p256-sha256-v1` public key is exactly 33 bytes: prefix `0x02` or `0x03`
 followed by the x-coordinate of a point on the curve. The identity (`0x00`),
 uncompressed (`0x04`), compact (`0x05`), and hybrid (`0x06`/`0x07`) SEC1

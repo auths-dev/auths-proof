@@ -1,0 +1,25 @@
+--- a/interp/InterpBorrowsCore.ml
++++ b/interp/InterpBorrowsCore.ml
+@@ -1514,8 +1514,10 @@
+ 
+       method! visit_aproj (abs : abs option) sproj =
+         (match sproj with
+-        | AProjBorrows _ | AEndedProjLoans _ | AEndedProjBorrows _ | AEmpty ->
+-            super#visit_aproj abs sproj
++        (* Recurse exactly once below, including under borrow/ended nodes.
++           Repeating that traversal falsely reports a second occurrence of
++           a single nested loan projector. Keep the uniqueness checks above. *)
++        | AProjBorrows _ | AEndedProjLoans _ | AEndedProjBorrows _ | AEmpty -> ()
+         | AProjLoans aproj_loan ->
+             let abs = Option.get abs in
+             [%sanity_check] span (abs.abs_id = abs_id);
+@@ -1524,8 +1526,7 @@
+ 
+       method! visit_eproj (abs : abs option) sproj =
+         (match sproj with
+-        | EProjBorrows _ | EEndedProjLoans _ | EEndedProjBorrows _ | EEmpty ->
+-            super#visit_eproj abs sproj
++        | EProjBorrows _ | EEndedProjLoans _ | EEndedProjBorrows _ | EEmpty -> ()
+         | EProjLoans aproj_loan ->
+             let abs = Option.get abs in
+             [%sanity_check] span (abs.abs_id = abs_id);

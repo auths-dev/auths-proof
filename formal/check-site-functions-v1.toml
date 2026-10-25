@@ -70,166 +70,206 @@ note = "Bytes after the canonical action's map; ensure_complete returns Malforme
 
 [[sites]]
 site = "decode.action-canonical"
-refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }
-also = [{ file = "core/crates/auths-codec/src/encode.rs", function = "encode_canonical_action" }]
+refusal = { file = "core/crates/auths-codec/src/canonical.rs", function = "accept_with_error" }
+also = [{ file = "core/crates/auths-codec/src/canonical.rs", function = "accept" }, { file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }, { file = "core/crates/auths-codec/src/encode.rs", function = "encode_canonical_action" }]
 stage = "codec: AP-SPEC-061"
 note = "Input that decodes but is not the canonical encoding, as with a non-shortest key or attachments out of order; the re-encoding comparison returns NonCanonical."
 
 [[sites]]
 site = "binding.embedded-body"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }
 stage = "stage 3"
 note = "Body embedded in the proof differs from the canonical action body."
 
 [[sites]]
 site = "binding.profile"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed action profile differs from the canonical action profile."
 
 [[sites]]
 site = "binding.media-type"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed body media type differs from the canonical action media type."
 
 [[sites]]
 site = "binding.body-digest"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed canonical body digest differs from the digest of the canonical body."
 
 [[sites]]
 site = "binding.permission"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed permission differs from the canonical action permission."
 
 [[sites]]
 site = "binding.requested-budget"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed requested budget differs from the canonical action budget."
 
 [[sites]]
 site = "binding.profile-accepted"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
 guard = { file = "core/crates/auths-model/src/lib.rs", function = "AcceptedRegistries::accepts_profile" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stages 2 and 3"
 note = "Action profile not accepted by the trusted context's registries."
 
 [[sites]]
 site = "binding.audience"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed audience differs from the expected audience."
 
 [[sites]]
 site = "binding.challenge"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed challenge differs from the expected challenge."
 
 [[sites]]
 site = "binding.evaluation-time"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
 guard = { file = "core/crates/auths-model/src/lib.rs", function = "ValidityWindow::contains" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stages 2 and 3"
 note = "Evaluation time outside the signed action validity window."
 
 [[sites]]
 site = "binding.channel"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stage 3"
 note = "Signed channel binding differs from the context channel policy."
 
 [[sites]]
 site = "binding.shared-meaning"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
-guard = { file = "core/crates/auths-verifier/src/lib.rs", function = "same_shared_action" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_envelope" }
+guard = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "same_shared_action" }
+also = [{ file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }]
 stage = "stages 2 and 3"
 note = "Plan actions do not share one action meaning."
 
 [[sites]]
 site = "binding.action-extension-accepted"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "evaluate_extensions" }
+refusal = { file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extension" }
 guard = { file = "core/crates/auths-model/src/lib.rs", function = "AcceptedRegistries::accepts_critical_extension" }
+also = [{ file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extensions" }]
 stage = "stages 2 and 3"
 note = "Action critical extension not accepted by the context."
 
 [[sites]]
 site = "binding.action-extension-handler"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "evaluate_extensions" }
+refusal = { file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extension" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ImmutableRegistries::extension_handler" }
+also = [{ file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extensions" }, { file = "core/crates/auths-registries/src/static_core.rs", function = "StaticCoreRegistries::extension_handler" }]
 stage = "stages 2 and 3"
 note = "Accepted action critical extension has no executable handler."
 
 [[sites]]
 site = "binding.action-extension-evaluation"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "evaluate_extensions" }
+refusal = { file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extension" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ExactMarkerExtension::evaluate" }
+also = [{ file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extensions" }]
 stage = "stages 2 and 3"
 note = "Handler rejects the action extension payload; registry_operation_failure maps InvalidInput to local-policy-denied."
 
 [[sites]]
 site = "binding.observation-attachments"
-refusal = { file = "core/crates/auths-verifier/src/observation.rs", function = "validate_observation_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/observation.rs", function = "count_observation_descriptor" }
+also = [{ file = "core/crates/auths-verifier/src/observation.rs", function = "validate_observation_attachments" }]
 stage = "stage 3"
 note = "Signed observation attachments exceed the count or per-attachment byte bound."
 
 [[sites]]
 site = "binding.attachment-descriptors"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_attachments" }
 stage = "stage 3"
 note = "Signed attachment descriptors differ from the bundle's attachment descriptors."
 
 [[sites]]
 site = "binding.attachment-missing"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_descriptor" }
+also = [
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_attachments" },
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "payload_for" },
+]
 stage = "stage 3"
 note = "Required attachment descriptor has no detached bytes."
 
 [[sites]]
 site = "binding.attachment-length"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_descriptor" }
+also = [
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_attachments" },
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "payload_for" },
+]
 stage = "stage 3"
 note = "Detached attachment length differs from its descriptor."
 
 [[sites]]
 site = "binding.attachment-digest"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_descriptor" }
+also = [
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_attachments" },
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "payload_for" },
+]
 stage = "stage 3"
 note = "Detached attachment bytes do not hash to the descriptor digest."
 
 [[sites]]
 site = "binding.attachment-opaque"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "check_descriptor" }
+also = [
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_attachments" },
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "payload_for" },
+]
 stage = "stage 3"
 note = "Encrypted attachment whose descriptor requires it to be inspectable."
 
 [[sites]]
 site = "binding.attachment-unused"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_attachments" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_attachments" }
+also = [
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "has_unused_payload" },
+  { file = "core/crates/auths-verifier/src/action_binding.rs", function = "descriptor_present" },
+]
 stage = "stage 3"
 note = "Detached attachment named by no signed descriptor."
 
 [[sites]]
 site = "binding.profile-policy"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_action_binding" }
+refusal = { file = "core/crates/auths-verifier/src/action_binding.rs", function = "validate_action_binding" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ImmutableRegistries::profile_policy" }
+also = [{ file = "core/crates/auths-registries/src/static_core.rs", function = "StaticCoreRegistries::profile_policy" }]
 stage = "stages 2 and 3"
 note = "Context profile policy has no executable implementation."
 
 [[sites]]
 site = "branch.root-control"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_signed" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "control_for" }]
+refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "signature_failure" }
+also = [
+  { file = "core/crates/auths-verifier/src/signature_control.rs", function = "evaluate_signature" },
+  { file = "core/crates/auths-verifier/src/signature_control.rs", function = "verify_signed" },
+  { file = "core/crates/auths-verifier/src/branch.rs", function = "control_for" },
+]
 stage = "stage 3; signature suites: AP-SPEC-061"
-note = "Root statement signature fails; verify_signed records the failure and verify_branch surfaces it through control_for."
+note = "signature_failure constructs the invalid-signature refusal; evaluate_signature returns it, verify_signed records it, and verify_branch surfaces it through control_for. Keep the whole deciding/caller path in the coverage requirement."
 
 [[sites]]
 site = "branch.untrusted-root"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_branch" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "verify_branch" }
 stage = "stage 3"
 note = "No trust anchor names the branch root principal."
 
@@ -237,22 +277,22 @@ note = "No trust anchor names the branch root principal."
 site = "branch.principal-status-extension-accepted"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "check_status_extensions" }
 guard = { file = "core/crates/auths-model/src/lib.rs", function = "AcceptedRegistries::accepts_critical_extension" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_principal_status" }]
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_principal_status" }]
 stage = "stages 2 and 3"
 note = "Principal status statement carries a critical extension the context does not accept."
 
 [[sites]]
 site = "branch.principal-status-extension-handler"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "check_status_extensions" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_principal_status" }]
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_principal_status" }]
 stage = "stage 3"
 note = "Principal status statement carries an accepted critical extension, which has no status handler."
 
 [[sites]]
 site = "branch.anchor-principal-status"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "status_decision" }
-guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_principal_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::principal" }]
+guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal_from_snapshot" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_principal_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::principal" }]
 stage = "stages 2 and 3"
 note = "Trust anchor principal is revoked in the status snapshot."
 
@@ -260,102 +300,109 @@ note = "Trust anchor principal is revoked in the status snapshot."
 site = "branch.grant-status-extension-accepted"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "check_status_extensions" }
 guard = { file = "core/crates/auths-model/src/lib.rs", function = "AcceptedRegistries::accepts_critical_extension" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_grant_status" }]
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_grant_status" }]
 stage = "stages 2 and 3"
 note = "Grant status statement carries a critical extension the context does not accept."
 
 [[sites]]
 site = "branch.grant-status-extension-handler"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "check_status_extensions" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_grant_status" }]
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_grant_status" }]
 stage = "stage 3"
 note = "Grant status statement carries an accepted critical extension, which has no status handler."
 
 [[sites]]
 site = "branch.grant-status"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "status_decision" }
-guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_grant" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_grant_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::grant" }]
+guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_grant_from_snapshot" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_grant_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::grant" }]
 stage = "stages 2 and 3"
 note = "Grant is revoked in the grant status snapshot."
 
 [[sites]]
 site = "branch.subject-principal-status"
 refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "status_decision" }
-guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "check_principal_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::principal" }]
+guard = { file = "core/crates/auths-registries/src/lib.rs", function = "select_principal_from_snapshot" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "check_principal_status" }, { file = "core/crates/auths-registries/src/lib.rs", function = "ExactStatusMethod::principal" }]
 stage = "stages 2 and 3"
 note = "Grant subject principal is revoked in the status snapshot."
 
 [[sites]]
 site = "branch.resource-matcher"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_resource_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "validate_resource_constraints" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ImmutableRegistries::resource_matcher" }
 stage = "stage 2"
 note = "Context resource matcher has no executable implementation."
 
 [[sites]]
 site = "branch.grant-namespace"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_resource_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "check_resource" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "UriNamespaceMatcher::matches" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_resource_constraints" }, { file = "core/crates/auths-verifier/src/branch.rs", function = "check_grant_resources" }, { file = "core/crates/auths-verifier/src/branch.rs", function = "check_namespace" }]
 stage = "stage 2"
 note = "Grant permission resource outside every anchor namespace."
 
 [[sites]]
 site = "branch.action-namespace"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_resource_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "check_resource" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "UriNamespaceMatcher::matches" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_resource_constraints" }, { file = "core/crates/auths-verifier/src/branch.rs", function = "check_grant_resources" }, { file = "core/crates/auths-verifier/src/branch.rs", function = "check_namespace" }]
 stage = "stage 2"
 note = "Action permission resource outside every anchor namespace."
 
 [[sites]]
 site = "branch.budget-edge-algebra"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "advance_budget" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ImmutableRegistries::budget_algebra" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }]
 stage = "stage 2"
 note = "Parent budget ceiling algebra on a delegation edge has no implementation."
 
 [[sites]]
 site = "branch.budget-edge-mismatch"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "advance_budget" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::attenuates" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }]
 stage = "stage 2"
 note = "Child and parent ceilings use different algebras; InvalidInput maps to local-policy-denied."
 
 [[sites]]
 site = "branch.budget-edge"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "advance_budget" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::attenuates" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }]
 stage = "stage 2"
 note = "Child budget ceiling exceeds its parent's."
 
 [[sites]]
 site = "branch.budget-absent"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "check_terminal_budget" }
 guard = { file = "core/crates/auths-model/src/lib.rs", function = "AcceptedRegistries::profile_budget_expression" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }]
 stage = "stage 2"
 note = "Bounded terminal authority with no requested budget from a profile that can express one."
 
 [[sites]]
 site = "branch.budget-algebra"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "check_terminal_budget" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ImmutableRegistries::budget_algebra" }
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }]
 stage = "stage 2"
 note = "Terminal budget ceiling algebra has no implementation."
 
 [[sites]]
 site = "branch.budget-request-mismatch"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "check_terminal_budget" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::covers" }
-also = [{ file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::attenuates" }]
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }, { file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::attenuates" }]
 stage = "stage 2"
 note = "Requested budget and terminal ceiling use different algebras; InvalidInput maps to local-policy-denied."
 
 [[sites]]
 site = "branch.budget-coverage"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_budget_constraints" }
+refusal = { file = "core/crates/auths-verifier/src/branch.rs", function = "check_terminal_budget" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::covers" }
-also = [{ file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::attenuates" }]
+also = [{ file = "core/crates/auths-verifier/src/branch.rs", function = "validate_budget_constraints" }, { file = "core/crates/auths-registries/src/lib.rs", function = "NumericBudgetAlgebra::attenuates" }]
 stage = "stage 2"
 note = "Requested budget exceeds the terminal ceiling."
 
@@ -363,7 +410,7 @@ note = "Requested budget exceeds the terminal ceiling."
 site = "branch.requirement-dropped"
 refusal = { file = "core/crates/auths-verifier/src/observation.rs", function = "require_parent_requirements" }
 guard = { file = "core/crates/auths-verifier/src/observation.rs", function = "chain_requirements" }
-also = [{ file = "core/crates/auths-model/src/observation.rs", function = "observation_schema_equal" }, { file = "core/crates/auths-model/src/observation.rs", function = "requirement_subject_equal" }]
+also = [{ file = "core/crates/auths-verifier/src/observation.rs", function = "every_parent_addressed" }, { file = "core/crates/auths-verifier/src/observation.rs", function = "addresses_parent" }, { file = "core/crates/auths-model/src/observation.rs", function = "observation_schema_equal" }, { file = "core/crates/auths-model/src/observation.rs", function = "requirement_subject_equal" }]
 stage = "stage 3"
 note = "Child grant addresses none of a parent observation requirement; an unreadable child list counts as empty."
 
@@ -449,9 +496,9 @@ note = "Child drops a parent critical extension, or adds one its law refuses."
 
 [[sites]]
 site = "branch.grant-extension"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "evaluate_extensions" }
+refusal = { file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extension" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "BoundedPolicyCommitmentExtension::evaluate" }
-also = [{ file = "core/crates/auths-registries/src/lib.rs", function = "decode_bounded_policy" }, { file = "core/crates/auths-codec/src/bounded_policy.rs", function = "decode_bounded_policy_commitment" }]
+also = [{ file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_extensions" }, { file = "core/crates/auths-registries/src/lib.rs", function = "decode_bounded_policy" }, { file = "core/crates/auths-codec/src/bounded_policy.rs", function = "decode_bounded_policy_commitment" }]
 stage = "stages 2 and 3; codec: AP-SPEC-061"
 note = "Grant critical extension payload rejected by its handler; InvalidInput maps to local-policy-denied."
 
@@ -502,15 +549,16 @@ note = "Action body digest not allowed by the terminal action constraint."
 
 [[sites]]
 site = "branch.assurance-claim"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "validate_assurance_claims" }
+refusal = { file = "core/crates/auths-verifier/src/policy.rs", function = "validate_claim" }
 guard = { file = "core/crates/auths-registries/src/lib.rs", function = "ImmutableRegistries::assurance_claim" }
+also = [{ file = "core/crates/auths-verifier/src/policy.rs", function = "validate_report" }, { file = "core/crates/auths-verifier/src/policy.rs", function = "validate_assurance_claims" }, { file = "core/crates/auths-registries/src/static_core.rs", function = "StaticCoreRegistries::assurance_claim" }]
 stage = "stages 2 and 3"
 note = "Participant assurance claim kind has no registered rule."
 
 [[sites]]
 site = "branch.assurance-requirement"
-refusal = { file = "core/crates/auths-assurance/src/lib.rs", function = "evaluate_with_implications" }
-also = [{ file = "core/crates/auths-verifier/src/lib.rs", function = "evaluate_branch_assurance" }]
+refusal = { file = "core/crates/auths-assurance/src/lib.rs", function = "evaluate_requirement" }
+also = [{ file = "core/crates/auths-assurance/src/lib.rs", function = "evaluate_report" }, { file = "core/crates/auths-assurance/src/lib.rs", function = "select_claim" }, { file = "core/crates/auths-assurance/src/lib.rs", function = "claim_matches" }, { file = "core/crates/auths-assurance/src/lib.rs", function = "parameters_present" }, { file = "core/crates/auths-assurance/src/lib.rs", function = "evaluate_with_implications" }, { file = "core/crates/auths-verifier/src/policy.rs", function = "evaluate_branch_assurance" }, { file = "core/crates/auths-verifier/src/policy.rs", function = "implication_holds" }]
 stage = "stages 2 and 3"
 note = "No exact or implied participant claim satisfies an assurance requirement."
 
@@ -563,19 +611,22 @@ note = "A grant-carried requirement reaches its threshold only with approvals wh
 
 [[sites]]
 site = "composition.authorized-branches"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_authority_measured" }
+refusal = { file = "core/crates/auths-verifier/src/authority.rs", function = "check_composition" }
+also = [{ file = "core/crates/auths-verifier/src/authority.rs", function = "verify_authority_measured" }, { file = "core/crates/auths-verifier/src/authority.rs", function = "distinct_principals" }, { file = "core/crates/auths-verifier/src/authority.rs", function = "record_branch" }]
 stage = "stage 2"
 note = "Fewer authorized branches than the composition minimum."
 
 [[sites]]
 site = "composition.distinct-actors"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_authority_measured" }
+refusal = { file = "core/crates/auths-verifier/src/authority.rs", function = "check_composition" }
+also = [{ file = "core/crates/auths-verifier/src/authority.rs", function = "verify_authority_measured" }, { file = "core/crates/auths-verifier/src/authority.rs", function = "distinct_principals" }, { file = "core/crates/auths-verifier/src/authority.rs", function = "record_branch" }]
 stage = "stage 2"
 note = "Fewer distinct actors than the composition minimum."
 
 [[sites]]
 site = "composition.distinct-roots"
-refusal = { file = "core/crates/auths-verifier/src/lib.rs", function = "verify_authority_measured" }
+refusal = { file = "core/crates/auths-verifier/src/authority.rs", function = "check_composition" }
+also = [{ file = "core/crates/auths-verifier/src/authority.rs", function = "verify_authority_measured" }, { file = "core/crates/auths-verifier/src/authority.rs", function = "distinct_principals" }, { file = "core/crates/auths-verifier/src/authority.rs", function = "record_branch" }]
 stage = "stage 2"
 note = "Fewer distinct roots than the composition minimum."
 

@@ -186,7 +186,7 @@ async fn check_with_transport(
 fn probe_passes(response: Option<&ProviderResponse>, pointer: &str, equals: &Value) -> bool {
     response
         .and_then(ProviderResponse::usable_body)
-        .and_then(|body| serde_json::from_slice::<Value>(body).ok())
+        .and_then(|body| crate::recipe::strict_json::from_slice::<Value>(body).ok())
         .is_some_and(|document| document.pointer(pointer) == Some(equals))
 }
 
@@ -201,6 +201,18 @@ mod tests {
 
     const VERSION: &str = "2025-03-31.basil";
     const PLATFORM: &str = "acct_TESTPLATFORM1";
+
+    #[test]
+    fn ambiguous_credential_probe_responses_are_unavailable() {
+        for body in [br#"{"livemode":false,"livemode":true}"#.as_slice(),
+            br#"{"livemode":true,"\u006civemode":true}"#,
+            br#"{"livemode":true,"other":{"x":1,"x":2}}"#] {
+            let response = ProviderResponse { status: 200, version_ok: true, body: body.to_vec() };
+            assert!(!probe_passes(Some(&response), "/livemode", &json!(true)));
+        }
+        let response = ProviderResponse { status: 200, version_ok: true, body: br#"{"livemode":true}"#.to_vec() };
+        assert!(probe_passes(Some(&response), "/livemode", &json!(true)));
+    }
 
     fn stripe() -> CompiledRecipe {
         let corpus: Value = serde_json::from_str(include_str!(

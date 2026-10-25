@@ -16,6 +16,8 @@ version = "0.67.0"
 [aeneas]
 repository = "https://github.com/AeneasVerif/aeneas"
 commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
+patch = "formal/qualification/aeneas/toolchain/runtime-region-erasure-v1.patch"
+patch_sha256 = "51857c8f645de3d7146ef09088db1bfa3240f637309fb2e504d39220ecd4c362"
 declared_lean_toolchain = "leanprover/lean4:v4.31.0"
 
 [charon]

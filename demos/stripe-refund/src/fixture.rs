@@ -257,7 +257,7 @@ pub fn authorization_fixture(
     let kernel = AuthsKernel::new(context, methods, suites).unwrap();
     AuthorizationFixture {
         verifier: Verifier::new(Arc::new(kernel)),
-        proof: encode_bundle(&bundle).unwrap(),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).unwrap(),
         request: RequestContext::new(action.executor_audience(), challenge, now).unwrap(),
         human_principal: human.principal.to_string(),
         workflow_principal: workflow.principal.to_string(),

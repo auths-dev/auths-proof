@@ -288,6 +288,7 @@ impl CommissioningBudget {
         {
             GatewayInsert::Inserted => Ok(initial),
             GatewayInsert::Exists { .. } => self.load(),
+            GatewayInsert::ClosedWindow { .. } => Err(CommissioningBudgetRefusal::Corrupt),
         }
     }
 

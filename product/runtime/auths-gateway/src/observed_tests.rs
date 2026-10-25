@@ -274,7 +274,7 @@ pub(crate) fn submission(
         .expect("commitment")
         .as_bytes();
     Submission {
-        proof: encode_bundle(&bundle).expect("proof bytes"),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
         action,
         commitment,
     }
@@ -294,14 +294,12 @@ fn forged_read_back(signer: &Signer, claimed: &PrincipalId, record: &str, value:
     let descriptor = signer.descriptor();
     let signature =
         signer.sign(&observation_signing_preimage(&statement, &descriptor).expect("preimage"));
-    encode_signed_observation(
-        &SignedObservation::new(
+    auths_codec::CanonicalSignedObservation::new(auths_model::SignedObservation::clone(&SignedObservation::new(
             statement,
             SignatureEnvelope::new(descriptor, signature),
             vec![signer.evidence()],
         )
-        .expect("observation"),
-    )
+        .expect("observation"))).and_then(|canonical| encode_signed_observation(&canonical))
     .expect("observation bytes")
 }
 
@@ -704,14 +702,12 @@ fn did_key_read_back(signer: &Signer, record: &str, value: &str) -> (PrincipalId
     let evidence_object = object(
         auths_codec::evidence_id(&object(auths_model::EvidenceId::new([0; 32]))).expect("id"),
     );
-    let bytes = encode_signed_observation(
-        &SignedObservation::new(
+    let bytes = auths_codec::CanonicalSignedObservation::new(auths_model::SignedObservation::clone(&SignedObservation::new(
             statement,
             SignatureEnvelope::new(descriptor, signature),
             vec![evidence_object],
         )
-        .expect("observation"),
-    )
+        .expect("observation"))).and_then(|canonical| encode_signed_observation(&canonical))
     .expect("observation bytes");
     (principal, bytes)
 }
@@ -836,7 +832,7 @@ fn sdk_submission(
         .expect("commitment")
         .as_bytes();
     Submission {
-        proof: encode_bundle(proof.proof()).expect("proof bytes"),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(proof.proof())).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
         action,
         commitment,
     }
@@ -1066,7 +1062,7 @@ fn threshold_submission(
         .expect("commitment")
         .as_bytes();
     Submission {
-        proof: encode_bundle(&bundle).expect("proof bytes"),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("proof bytes"),
         action,
         commitment,
     }

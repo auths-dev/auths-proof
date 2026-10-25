@@ -210,6 +210,7 @@ impl CommissioningSession<'_> {
         &self,
         command: &VerifiedCommand,
     ) -> Result<CommissionedAction, &'static str> {
+        let command = command.projection();
         let [actor] = command.actors.as_slice() else {
             return Err("gateway.commissioning.binding-mismatch");
         };
@@ -219,6 +220,17 @@ impl CommissioningSession<'_> {
         };
         self.check(&action)?;
         Ok(action)
+    }
+
+    pub(super) fn entry_bound(
+        &self,
+        action: &CommissionedAction,
+    ) -> Result<auths_gateway_kernel::deadline::EntryBound, &'static str> {
+        self.check(action)?;
+        Ok(auths_gateway_kernel::deadline::EntryBound {
+            not_after: self.authority.entry_not_after(),
+            inclusive: false,
+        })
     }
 
     pub(super) fn check(&self, action: &CommissionedAction) -> Result<(), &'static str> {

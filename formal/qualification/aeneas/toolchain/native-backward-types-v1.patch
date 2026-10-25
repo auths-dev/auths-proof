@@ -1,0 +1,50 @@
+--- a/src/symbolic/SymbolicToPureBorrowLevels.ml
++++ b/src/symbolic/SymbolicToPureBorrowLevels.ml
+@@ -92,3 +92,31 @@
+ let compute span context get_group target source =
+   let tree = checked_tree span context get_group target source in
+   tree, maximum get_group target RegionGroupId.Set.empty tree
++
++
++(** Preserve the original backward type rules for references, tuples and
++    boxes, but decide a borrowed nominal from its complete instantiated field
++    paths rather than the old one-region aggregate approximation. Selecting a
++    nominal retains its complete real forward type; this is not field erasure,
++    an expression lowering rule or a complete source/loan refinement. *)
++let translate_back span context get_group target level ~forward source =
++  if level < 0 then unsupported "a backward type level cannot be negative";
++  let tree = checked_tree span context get_group target source in
++  let keep outer = RegionGroupId.Set.cardinal outer > level in
++  let stop outer source = if keep outer then Some (forward source) else None in
++  let rec visit outer tree = match tree.node with
++    | Atom | Shared _ -> stop outer tree.source
++    | Mutable (region, child) ->
++        let group = get_group region in
++        if mentions (fun region -> get_group region = target) child then
++          visit (RegionGroupId.Set.add group outer) child
++        else if group = target then stop (RegionGroupId.Set.add group outer) child.source
++        else None
++    | Box child -> visit outer child
++    | Tuple fields ->
++        (match List.filter_map (visit outer) fields with
++         | [] -> None | types -> Some (PureUtils.mk_simpl_tuple_ty types))
++    | Nominal _ ->
++        if maximum get_group target outer tree > level then Some (forward tree.source) else None
++  in
++  tree, visit RegionGroupId.Set.empty tree
+--- a/src/symbolic/SymbolicToPureTypes.ml
++++ b/src/symbolic/SymbolicToPureTypes.ml
+@@ -570,6 +570,13 @@
+ and translate_back_ty_aux (span : Meta.span option) (decls_ctx : C.decls_ctx)
+     (get_region_group : T.region -> T.region_group_id) (gid : T.region_group_id)
+     (level : int) (ty : T.ty) : ty option =
++  let analysis = TypesAnalysis.analyze_ty span decls_ctx.type_ctx.type_infos ty in
++  if analysis.contains_nested_mut then
++    (try snd (SymbolicToPureBorrowLevels.translate_back span decls_ctx get_region_group gid level
++        ~forward:(translate_fwd_ty span decls_ctx) ty)
++     with SymbolicToPureBorrowLevels.Unsupported message ->
++       [%craise_opt_span] span ("Unsupported nested mutable-ADT backward type: " ^ message))
++  else
+   let type_infos = decls_ctx.type_ctx.type_infos in
+   let keep_region r = gid = get_region_group r in
+   let keep (outer_regions : T.RegionGroupId.Set.t) : bool =

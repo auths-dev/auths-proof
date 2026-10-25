@@ -469,7 +469,7 @@ fn verdict_context(root: &Signer, observer: &GatewayObserver) -> Vec<u8> {
             Timestamp::new(VERDICT_AT),
         )
         .expect("bound context");
-    auths_codec::encode_verifier_context(&context).expect("context bytes")
+    auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).expect("context bytes")
 }
 
 /// The grant requirement every verdict case carries: the outcome of

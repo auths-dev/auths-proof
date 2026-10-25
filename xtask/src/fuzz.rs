@@ -889,7 +889,7 @@ fn rebound_context(context: &[u8], configuration: auths_model::VerifierConfigura
     auths_codec::decode_verifier_context(context)
         .ok()
         .and_then(|decoded| decoded.with_configuration(configuration).ok())
-        .and_then(|rebound| auths_codec::encode_verifier_context(&rebound).ok())
+        .and_then(|rebound| auths_codec::CanonicalTrustedContext::new(rebound).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).ok())
         .unwrap_or_else(|| context.to_vec())
 }
 

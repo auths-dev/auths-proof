@@ -6,17 +6,49 @@
 extern crate alloc;
 
 mod approval;
+mod authority;
+use authority::verify_authority_measured;
+#[cfg(test)]
+mod authority_reference;
+#[cfg(test)]
+mod authority_parity_tests;
+mod action_binding;
+mod branch;
+use branch::{control_for, verify_branch};
+#[cfg(test)]
+use branch::branch_chain;
+#[cfg(test)]
+use auths_model::ApprovalSatisfaction;
+use action_binding::validate_action_binding;
+pub mod closed;
+mod collections;
 pub mod causal;
 mod observation;
+mod ordered_set;
+mod policy;
+use policy::{evaluate_branch_assurance, evaluate_extensions};
+#[cfg(test)]
+mod policy_parity_tests;
+mod resolution;
+mod signature_control;
+mod sealed;
+pub use sealed::{SealedVerificationResult, VerifiedAction, VerifiedAuthority};
+pub(crate) use sealed::bind_verified_action;
+mod work_meter;
+use work_meter::WorkMeter;
+pub(crate) use resolution::resolve_proof;
+pub(crate) use signature_control::verify_principal_control;
+use signature_control::evaluate_signature;
+use ordered_set::OrderedSet;
 pub mod trace;
 
-use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 use auths_assurance::{evaluate_with_implications, grant_issuer_role};
 use auths_authority::EffectiveAuthority;
 use auths_codec::{
     CodecError, action_id, action_signing_preimage, attachment_digest, body_digest, context_digest,
     decode_bundle, decode_canonical_action, decode_verifier_context, encode_canonical_action,
-    encode_verification_result, encode_verifier_context, grant_id, grant_signing_preimage,
+    encode_verification_result, grant_id, grant_signing_preimage,
     grant_status_id, grant_status_signing_preimage, plan_id, principal_status_id,
     principal_status_signing_preimage, proof_digest,
 };
@@ -24,7 +56,7 @@ use auths_composition::{
     BranchOutcome, EvaluationEvent, evaluate_observed as evaluate_plan_observed,
 };
 use auths_model::{
-    ActionId, ApprovalSatisfaction, AssuranceSatisfaction, CanonicalAction, ContextDigest,
+    ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest,
     DenialReason, Digest, EvidenceObject, GrantId, GrantStatusId, ObservationSatisfaction,
     ParticipantAssurance, ParticipantRole, PlanId, PortableVerificationResult, PrincipalId,
     PrincipalStatusId, ProfileBudgetExpression, ProofBundle, ProofRef, Requirement,
@@ -34,10 +66,15 @@ use auths_model::{
     status_issuer_in_scope,
 };
 use auths_ports::{
+    AssuranceClaimRule as _, BudgetAlgebra as _,
+    CriticalExtensionHandler as _, PrincipalMethod as _, ProfilePolicy as _,
+    SignatureSuite as _, StatusMethod as _,
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
     RegistryOperationError, SignatureError, SignatureInput, StatusDecision,
     diagnostics::DiagnosticMode,
 };
+use auths_registries::RegistryAccess;
+#[cfg(test)]
 use auths_registries::ImmutableRegistries;
 use trace::{
     FactKind, FactOrigin, FactResult, FactValue, TraceCollector, TraceError, VerificationTrace,
@@ -120,23 +157,18 @@ impl DecodedProof {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct GrantRecord {
     id: GrantId,
     index: usize,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct ActionRecord {
     id: ActionId,
     index: usize,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct WorkMeter {
-    used: u64,
-    limit: u64,
-}
 
 struct AuthorityDiagnostics {
     collect: bool,
@@ -204,31 +236,6 @@ impl AuthorityDiagnostics {
     }
 }
 
-impl WorkMeter {
-    const fn new(limit: u64) -> Self {
-        Self { used: 0, limit }
-    }
-
-    const fn from_used(limit: u64, used: u64) -> Self {
-        Self { used, limit }
-    }
-
-    fn reserve(&mut self, maximum: u64) -> Result<(), VerificationFailure> {
-        let next = self
-            .used
-            .checked_add(maximum)
-            .ok_or(VerificationFailure::Denied(
-                DenialReason::ResourceLimitExceeded,
-            ))?;
-        if next > self.limit {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ResourceLimitExceeded,
-            ));
-        }
-        self.used = next;
-        Ok(())
-    }
-}
 
 /// Proof whose complete digest graph has been resolved.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -260,7 +267,11 @@ struct VerifiedControl {
     result: Result<ControlEvidence, VerificationFailure>,
 }
 
-/// Resolved proof whose signed statements have established principal control.
+/// Resolved proof with a recorded principal-control result for each statement.
+///
+/// Non-resource failures remain facts for branch evaluation: an invalid
+/// alternative branch does not by itself deny a sufficient authorization plan.
+/// Resource exhaustion aborts the stage. This value is not an action capability.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ControlVerifiedProof {
     resolved: ResolvedProof,
@@ -282,163 +293,13 @@ impl ControlVerifiedProof {
     }
 }
 
-/// Authority established by an authorizing plan, covering every branch that
-/// authorized, whether or not the plan needed that branch.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerifiedAuthority {
-    canonical_action: CanonicalAction,
-    proof_digest: Digest,
-    context_digest: ContextDigest,
-    plan_id: PlanId,
-    action_ids: Vec<ActionId>,
-    authorized_branches: Vec<ProofRef>,
-    assurance: Vec<ParticipantAssurance>,
-    assurance_satisfactions: Vec<AssuranceSatisfaction>,
-    observation_satisfactions: Vec<ObservationSatisfaction>,
-    approval_satisfactions: Vec<ApprovalSatisfaction>,
-    work_units: u64,
-}
-
-/// Sealed data consumed by downstream profile decoders.
-///
-/// Fields have no public constructor. Applications can obtain this value only
-/// from a complete verification: [`verify`], [`verify_explained`], or
-/// [`verify_v1_sealed`].
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerifiedAction {
-    canonical_action: CanonicalAction,
-    proof_digest: Digest,
-    context_digest: ContextDigest,
-    plan_id: PlanId,
-    action_ids: Vec<ActionId>,
-    authorized_branches: Vec<ProofRef>,
-    assurance: Vec<ParticipantAssurance>,
-    assurance_satisfactions: Vec<AssuranceSatisfaction>,
-    observation_satisfactions: Vec<ObservationSatisfaction>,
-    approval_satisfactions: Vec<ApprovalSatisfaction>,
-    work_units: u64,
-}
-
-/// Portable decision data paired with the sealed action from the same run.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SealedVerificationResult {
-    portable: PortableVerificationResult,
-    cbor: Vec<u8>,
-    action: Option<Box<VerifiedAction>>,
-}
-
-impl SealedVerificationResult {
-    /// Returns the language-neutral decision data.
-    #[must_use]
-    pub const fn portable(&self) -> &PortableVerificationResult {
-        &self.portable
-    }
-
-    /// Returns the canonical portable decision bytes.
-    #[must_use]
-    pub fn cbor(&self) -> &[u8] {
-        &self.cbor
-    }
-
-    /// Returns the sealed action only when the decision is authorized.
-    #[must_use]
-    pub fn action(&self) -> Option<&VerifiedAction> {
-        self.action.as_deref()
-    }
-
-    /// Consumes the result into decision data, canonical bytes, and capability.
-    #[must_use]
-    pub fn into_parts(
-        self,
-    ) -> (
-        PortableVerificationResult,
-        Vec<u8>,
-        Option<Box<VerifiedAction>>,
-    ) {
-        (self.portable, self.cbor, self.action)
-    }
-}
-
-impl VerifiedAction {
-    /// Returns exact profile-canonical bytes and derived meaning.
-    #[must_use]
-    pub const fn canonical_action(&self) -> &CanonicalAction {
-        &self.canonical_action
-    }
-
-    /// Returns the canonical proof digest.
-    #[must_use]
-    pub const fn proof_digest(&self) -> Digest {
-        self.proof_digest
-    }
-
-    /// Returns the public trusted-context digest.
-    #[must_use]
-    pub const fn context_digest(&self) -> ContextDigest {
-        self.context_digest
-    }
-
-    /// Returns the authorization-plan identifier.
-    #[must_use]
-    pub const fn plan_id(&self) -> PlanId {
-        self.plan_id
-    }
-
-    /// Returns action identifiers for every authorized branch in canonical
-    /// order.
-    #[must_use]
-    pub fn action_ids(&self) -> &[ActionId] {
-        &self.action_ids
-    }
-
-    /// Returns the proof reference of every authorized branch, whether or not
-    /// the plan needed it, in ascending order.
-    #[must_use]
-    pub fn authorized_branches(&self) -> &[ProofRef] {
-        &self.authorized_branches
-    }
-
-    /// Returns role-indexed assurance reports for every authorized branch.
-    #[must_use]
-    pub fn assurance(&self) -> &[ParticipantAssurance] {
-        &self.assurance
-    }
-
-    /// Returns canonical evidence selected for each assurance requirement.
-    #[must_use]
-    pub fn assurance_satisfactions(&self) -> &[AssuranceSatisfaction] {
-        &self.assurance_satisfactions
-    }
-
-    /// Returns, for each observation requirement in every authorized branch,
-    /// the signed observation attachment that satisfied it.
-    #[must_use]
-    pub fn observation_satisfactions(&self) -> &[ObservationSatisfaction] {
-        &self.observation_satisfactions
-    }
-
-    /// Returns, for each approval requirement of the trusted context and of
-    /// every authorized branch's chain, the approvals that counted: one per
-    /// counted approver.
-    #[must_use]
-    pub fn approval_satisfactions(&self) -> &[ApprovalSatisfaction] {
-        &self.approval_satisfactions
-    }
-
-    /// Returns deterministic proof-kernel work charged.
-    #[must_use]
-    pub const fn work_units(&self) -> u64 {
-        self.work_units
-    }
-}
-
 /// Runs the complete pure target V1 verifier.
 #[must_use]
-pub fn verify(
+pub fn verify<R: RegistryAccess + ?Sized>(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
 ) -> VerificationOutcome {
     verify_internal(
         proof_bytes,
@@ -457,11 +318,11 @@ pub fn verify(
 /// Returns [`TraceError::CapacityExceeded`] before verification when bounded
 /// diagnostic memory cannot be reserved. The ordinary [`verify`] API remains
 /// available and unaffected.
-pub fn verify_explained(
+pub fn verify_explained<R: RegistryAccess + ?Sized>(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
 ) -> Result<ExplainedVerification, TraceError> {
     let mut trace = TraceCollector::collect(trace::HARD_MAX_TRACE_EVENTS)?;
     let outcome = verify_internal(
@@ -568,9 +429,9 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
     }
 }
 
-fn record_configuration_facts(
+fn record_configuration_facts<R: RegistryAccess + ?Sized>(
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
     trace: &mut TraceCollector,
 ) -> (Option<u32>, Option<u32>) {
     let configuration_matches = context.configuration() == registries.configuration_id();
@@ -629,11 +490,11 @@ fn record_failure(
 }
 
 #[allow(clippy::too_many_lines)]
-fn verify_internal(
+fn verify_internal<R: RegistryAccess + ?Sized>(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
     trace: &mut TraceCollector,
 ) -> VerificationOutcome {
     let (configuration_node, registry_node) =
@@ -963,11 +824,11 @@ fn record_composition_decision(
 ///
 /// Returns [`CodecError`] only if the constructed portable result cannot be
 /// canonically encoded.
-pub fn verify_v1(
+pub fn verify_v1<R: RegistryAccess + ?Sized>(
     proof_cbor: &[u8],
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
 ) -> Result<Vec<u8>, CodecError> {
     verify_v1_sealed(
         proof_cbor,
@@ -984,11 +845,11 @@ pub fn verify_v1(
 ///
 /// Returns [`CodecError`] only if the constructed portable result cannot be
 /// canonically encoded.
-pub fn verify_v1_sealed(
+pub fn verify_v1_sealed<R: RegistryAccess + ?Sized>(
     proof_cbor: &[u8],
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
 ) -> Result<SealedVerificationResult, CodecError> {
     let proof_input_digest = body_digest(proof_cbor);
     let action_input_digest = body_digest(canonical_action_cbor);
@@ -1046,32 +907,32 @@ pub fn verify_v1_sealed(
 /// language-neutral result for every verdict.
 #[must_use]
 #[allow(clippy::too_many_lines)]
-pub fn verify_portable(
+pub fn verify_portable<R: RegistryAccess + ?Sized>(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
 ) -> PortableVerificationResult {
     verify_portable_sealed(proof_bytes, canonical_action, context, registries).0
 }
 
 #[allow(clippy::too_many_lines)]
-fn verify_portable_sealed(
+fn verify_portable_sealed<R: RegistryAccess + ?Sized>(
     proof_bytes: &[u8],
     canonical_action: &CanonicalAction,
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
+    registries: &R,
 ) -> (PortableVerificationResult, Option<Box<VerifiedAction>>) {
     let action_bytes = infallible_encoding(encode_canonical_action(canonical_action));
-    let context_bytes = infallible_encoding(encode_verifier_context(context));
+    let (public_context_digest, context_byte_count) =
+        infallible_encoding(auths_codec::context_digest_and_size(context));
     let proof_input_digest = body_digest(proof_bytes);
     let action_digest = body_digest(&action_bytes);
-    let public_context_digest = infallible_encoding(context_digest(context));
     let local_configuration = registries.configuration_id();
     let mut resources = VerificationResources::new(
         u64::try_from(proof_bytes.len()).unwrap_or(u64::MAX),
         u64::try_from(action_bytes.len()).unwrap_or(u64::MAX),
-        u64::try_from(context_bytes.len()).unwrap_or(u64::MAX),
+        u64::try_from(context_byte_count).unwrap_or(u64::MAX),
         0,
         0,
         0,
@@ -1248,8 +1109,8 @@ fn verify_portable_sealed(
 /// Unwraps the canonical encoding, or digest, of an already constructed model
 /// value.
 fn infallible_encoding<T>(encoded: Result<T, CodecError>) -> T {
-    // INVARIANT: the V1 encoders write into a `Vec`, whose minicbor writer
-    // cannot fail, and frame only lengths that fit in `u64`, so no
+    // INVARIANT: the V1 encoders write valid major tags into a `Vec` and
+    // frame only lengths that fit in `u64`, so no
     // constructed model value makes them return `Err`.
     encoded.expect("canonical V1 encoding of a constructed model value cannot fail")
 }
@@ -1258,9 +1119,10 @@ fn seal_portable(
     portable: PortableVerificationResult,
     action: Option<Box<VerifiedAction>>,
 ) -> Result<SealedVerificationResult, CodecError> {
-    let cbor = encode_verification_result(&portable)?;
+    let canonical = auths_codec::CanonicalVerificationResult::new(portable)?;
+    let cbor = encode_verification_result(&canonical)?;
     Ok(SealedVerificationResult {
-        portable,
+        portable: canonical.into_value(),
         cbor,
         action,
     })
@@ -1325,473 +1187,11 @@ pub fn decode_proof(
     let bundle = decode_bundle(proof_bytes, context.limits()).map_err(codec_failure)?;
     let digest = proof_digest(&bundle).map_err(codec_failure)?;
     Ok(DecodedProof {
-        bundle,
+        bundle: bundle.into_value(),
         proof_digest: digest,
     })
 }
 
-/// Resolves and validates the complete digest/reference graph.
-///
-/// # Errors
-///
-/// Returns a stable denial for missing, duplicate, cyclic, mismatched,
-/// ambiguous, or unused critical references.
-pub(crate) fn resolve_proof(
-    decoded: DecodedProof,
-    context: &TrustedContext,
-) -> Result<ResolvedProof, VerificationFailure> {
-    let bundle = decoded.bundle();
-    let computed_plan_id = plan_id(bundle.plan()).map_err(codec_failure)?;
-    require_expected_plan(context, computed_plan_id)?;
-    let mut grants = Vec::with_capacity(bundle.grants().len());
-    for (index, grant) in bundle.grants().iter().enumerate() {
-        grants.push(GrantRecord {
-            id: grant_id(grant.statement()).map_err(codec_failure)?,
-            index,
-        });
-    }
-    grants.sort_by_key(|record| record.id);
-    if grants.windows(2).any(|window| window[0].id == window[1].id) {
-        return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-    }
-    let mut actions = Vec::with_capacity(bundle.actions().len());
-    let mut proof_refs = BTreeSet::new();
-    for (index, action) in bundle.actions().iter().enumerate() {
-        if action.envelope().authorization_plan() != computed_plan_id {
-            return Err(VerificationFailure::Denied(
-                DenialReason::PlanActionMismatch,
-            ));
-        }
-        if !proof_refs.insert(action.envelope().proof_ref()) {
-            return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-        }
-        actions.push(ActionRecord {
-            id: action_id(action.envelope()).map_err(codec_failure)?,
-            index,
-        });
-    }
-    actions.sort_by_key(|record| record.id);
-    if actions
-        .windows(2)
-        .any(|window| window[0].id == window[1].id)
-    {
-        return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-    }
-
-    let shape = bundle
-        .plan()
-        .validate(context.limits())
-        .map_err(|_| VerificationFailure::Denied(DenialReason::AuthorizationPlanInvalid))?;
-    if shape.leaves().len() != bundle.actions().len()
-        || shape.leaves().iter().any(|reference| {
-            !bundle
-                .actions()
-                .iter()
-                .any(|action| action.envelope().proof_ref() == *reference)
-        })
-    {
-        return Err(VerificationFailure::Denied(DenialReason::MissingReference));
-    }
-
-    let evidence_ids: BTreeSet<_> = bundle.evidence().iter().map(EvidenceObject::id).collect();
-    if evidence_ids.len() != bundle.evidence().len() {
-        return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-    }
-
-    let principal_status = principal_status_records(context)?;
-    let grant_status = grant_status_records(context)?;
-    let mut bound_statements = BTreeSet::new();
-    for binding in bundle.bindings() {
-        if !bound_statements.insert(binding.statement()) {
-            return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-        }
-        if !statement_exists(
-            binding.statement(),
-            &grants,
-            &actions,
-            &principal_status,
-            &grant_status,
-        ) || binding
-            .evidence()
-            .iter()
-            .any(|id| !evidence_ids.contains(id))
-        {
-            return Err(VerificationFailure::Denied(DenialReason::MissingReference));
-        }
-    }
-
-    let mut used_grants = BTreeSet::new();
-    for action in bundle.actions() {
-        resolve_chain(bundle, &grants, action, &mut used_grants)?;
-    }
-    if used_grants.len() != grants.len() {
-        return Err(VerificationFailure::Denied(
-            DenialReason::UnusedCriticalEvidence,
-        ));
-    }
-
-    reject_duplicate_attachments(bundle)?;
-    validate_carried_status(bundle, context)?;
-    Ok(ResolvedProof {
-        decoded,
-        plan_id: computed_plan_id,
-        grants,
-        actions,
-    })
-}
-
-fn require_expected_plan(
-    context: &TrustedContext,
-    actual: PlanId,
-) -> Result<(), VerificationFailure> {
-    if context
-        .composition()
-        .expected_plan()
-        .is_some_and(|expected| expected != actual)
-    {
-        Err(VerificationFailure::Denied(
-            DenialReason::CompositionRequirementNotMet,
-        ))
-    } else {
-        Ok(())
-    }
-}
-
-/// Verifies exact principal methods, exact signature suites, and all supplied
-/// signed statements.
-///
-/// # Errors
-///
-/// Returns a stable denial or indeterminate requirement. Work is charged
-/// before the configured maximum can be exceeded.
-pub(crate) fn verify_principal_control(
-    resolved: ResolvedProof,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-) -> Result<ControlVerifiedProof, VerificationFailure> {
-    if context.accepted_registries().manifest_id() != registries.manifest_id() {
-        return Err(VerificationFailure::Denied(
-            DenialReason::RegistryManifestMismatch,
-        ));
-    }
-    if context.configuration() != registries.configuration_id() {
-        return Err(VerificationFailure::Denied(
-            DenialReason::VerifierConfigurationMismatch,
-        ));
-    }
-    let mut controls = Vec::new();
-    let mut meter = WorkMeter::new(context.limits().max_work_units());
-    let bundle = resolved.decoded.bundle();
-
-    for record in &resolved.grants {
-        let grant = &bundle.grants()[record.index];
-        let preimage = grant_signing_preimage(grant.statement(), grant.signature().descriptor())
-            .map_err(codec_failure)?;
-        let control = verify_signed(
-            StatementRef::Grant(record.id),
-            grant.statement().issuer(),
-            grant.signature(),
-            &preimage,
-            ControlPurpose::CapabilityDelegation,
-            grant.statement().validity().not_before(),
-            bundle,
-            context,
-            registries,
-            &mut meter,
-        )?;
-        controls.push(control);
-    }
-    for record in &resolved.actions {
-        let action = &bundle.actions()[record.index];
-        let preimage = action_signing_preimage(action.envelope(), action.signature().descriptor())
-            .map_err(codec_failure)?;
-        let control = verify_signed(
-            StatementRef::Action(record.id),
-            action.envelope().actor(),
-            action.signature(),
-            &preimage,
-            ControlPurpose::CapabilityInvocation,
-            action.envelope().validity().not_before(),
-            bundle,
-            context,
-            registries,
-            &mut meter,
-        )?;
-        controls.push(control);
-    }
-    verify_status_controls(bundle, context, registries, &mut meter, &mut controls)?;
-    for control in &controls {
-        let Ok(evidence) = &control.result else {
-            continue;
-        };
-        let bound: BTreeSet<_> = bundle
-            .bindings()
-            .iter()
-            .find(|binding| binding.statement() == control.statement)
-            .map(auths_model::ControlBinding::evidence)
-            .unwrap_or_default()
-            .iter()
-            .copied()
-            .collect();
-        let consumed: BTreeSet<_> = evidence.consumed_evidence().iter().copied().collect();
-        if bound != consumed {
-            return Err(VerificationFailure::Denied(
-                DenialReason::UnusedCriticalEvidence,
-            ));
-        }
-    }
-    let consumed: BTreeSet<_> = bundle
-        .bindings()
-        .iter()
-        .flat_map(auths_model::ControlBinding::evidence)
-        .copied()
-        .chain(
-            context
-                .principal_status_snapshot()
-                .checkpoints()
-                .iter()
-                .chain(context.grant_status_snapshot().checkpoints())
-                .copied(),
-        )
-        .collect();
-    if bundle
-        .evidence()
-        .iter()
-        .any(|evidence| !consumed.contains(&evidence.id()))
-    {
-        return Err(VerificationFailure::Denied(
-            DenialReason::UnusedCriticalEvidence,
-        ));
-    }
-    Ok(ControlVerifiedProof {
-        resolved,
-        controls,
-        work_units: meter.used,
-    })
-}
-
-fn verify_status_controls(
-    bundle: &ProofBundle,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-    controls: &mut Vec<VerifiedControl>,
-) -> Result<(), VerificationFailure> {
-    for status in context.principal_status_snapshot().statements() {
-        let id = principal_status_id(status.statement()).map_err(codec_failure)?;
-        let preimage =
-            principal_status_signing_preimage(status.statement(), status.signature().descriptor())
-                .map_err(codec_failure)?;
-        let control = verify_signed(
-            StatementRef::PrincipalStatus(id),
-            status.statement().issuer(),
-            status.signature(),
-            &preimage,
-            ControlPurpose::Assertion,
-            status.statement().observed_at(),
-            bundle,
-            context,
-            registries,
-            meter,
-        )?;
-        controls.push(control);
-    }
-    for status in context.grant_status_snapshot().statements() {
-        let id = grant_status_id(status.statement()).map_err(codec_failure)?;
-        let preimage =
-            grant_status_signing_preimage(status.statement(), status.signature().descriptor())
-                .map_err(codec_failure)?;
-        let control = verify_signed(
-            StatementRef::GrantStatus(id),
-            status.statement().issuer(),
-            status.signature(),
-            &preimage,
-            ControlPurpose::Assertion,
-            status.statement().observed_at(),
-            bundle,
-            context,
-            registries,
-            meter,
-        )?;
-        controls.push(control);
-    }
-    Ok(())
-}
-
-/// Evaluates action binding, every authority branch, status, assurance, and
-/// the authorization plan.
-///
-/// # Errors
-///
-/// Returns a stable denial or indeterminate requirement.
-#[allow(clippy::too_many_lines)]
-fn verify_authority_measured(
-    controlled: ControlVerifiedProof,
-    canonical_action: &CanonicalAction,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-    diagnostics: &mut AuthorityDiagnostics,
-) -> Result<VerifiedAuthority, VerificationFailure> {
-    validate_action_binding(&controlled, canonical_action, context, registries, meter)?;
-    let context_digest = context_digest(context).map_err(codec_failure)?;
-    let mut authorized_branches = Vec::new();
-    let mut assurance = Vec::new();
-    let mut assurance_satisfactions = Vec::new();
-    let mut observation_satisfactions = Vec::new();
-    let mut approval_requirements = Vec::new();
-    let mut action_ids = Vec::new();
-    let bundle = controlled.resolved.decoded.bundle();
-    let mut approvals = approval::Approvals::new(bundle)?;
-    let approval_inputs = approval::Inputs {
-        controlled: &controlled,
-        canonical: canonical_action,
-        context,
-        registries,
-    };
-
-    let outcome = evaluate_plan_observed(
-        bundle.plan(),
-        context.limits(),
-        &mut |reference| match verify_branch(
-            &controlled,
-            reference,
-            canonical_action,
-            context,
-            registries,
-            meter,
-            &mut approvals,
-            &approval_inputs,
-        ) {
-            Ok(branch) => {
-                authorized_branches.push(reference);
-                action_ids.push(branch.action_id);
-                assurance.extend(branch.assurance);
-                assurance_satisfactions.extend(branch.assurance_satisfactions);
-                observation_satisfactions.extend(branch.observation_satisfactions);
-                approval_requirements.extend(branch.approval_requirements);
-                BranchOutcome::Authorized
-            }
-            Err(VerificationFailure::Denied(reason)) => BranchOutcome::Denied(reason),
-            Err(VerificationFailure::Indeterminate(requirement)) => {
-                BranchOutcome::Indeterminate(requirement)
-            }
-        },
-        &mut |event| diagnostics.record_plan_event(event),
-    )
-    .map_err(VerificationFailure::Denied)?;
-
-    match outcome {
-        BranchOutcome::Authorized => {}
-        BranchOutcome::Denied(reason) => return Err(VerificationFailure::Denied(reason)),
-        BranchOutcome::Indeterminate(requirement) => {
-            return Err(VerificationFailure::Indeterminate(requirement));
-        }
-        BranchOutcome::StructurallyInvalid(reason) => {
-            return Err(VerificationFailure::Denied(reason));
-        }
-    }
-    let composition = context.composition();
-    let distinct_actors: BTreeSet<_> = assurance
-        .iter()
-        .filter(|report| report.role() == ParticipantRole::Actor)
-        .map(ParticipantAssurance::principal)
-        .collect();
-    let distinct_roots: BTreeSet<_> = assurance
-        .iter()
-        .filter(|report| report.role() == ParticipantRole::Root)
-        .map(ParticipantAssurance::principal)
-        .collect();
-    diagnostics.record_composition_counts(
-        authorized_branches.len(),
-        distinct_actors.len(),
-        distinct_roots.len(),
-    );
-    if authorized_branches.len() < usize::from(composition.minimum_authorized_branches())
-        || distinct_actors.len() < usize::from(composition.minimum_distinct_actors())
-        || distinct_roots.len() < usize::from(composition.minimum_distinct_roots())
-    {
-        return Err(VerificationFailure::Denied(
-            DenialReason::CompositionRequirementNotMet,
-        ));
-    }
-    approval_requirements.extend(evaluate_context_approvals(
-        &mut approvals,
-        &approval_inputs,
-        meter,
-        diagnostics,
-    )?);
-    let approval_satisfactions = approvals.satisfactions(&approval_requirements);
-    assurance.sort_by(|left, right| {
-        left.role()
-            .cmp(&right.role())
-            .then_with(|| left.principal().cmp(right.principal()))
-    });
-    assurance.dedup();
-    action_ids.sort();
-    action_ids.dedup();
-    authorized_branches.sort();
-    authorized_branches.dedup();
-    assurance_satisfactions.sort();
-    assurance_satisfactions.dedup();
-    observation_satisfactions.sort();
-    observation_satisfactions.dedup();
-    let ControlVerifiedProof { resolved, .. } = controlled;
-    Ok(VerifiedAuthority {
-        canonical_action: canonical_action.clone(),
-        proof_digest: resolved.decoded.proof_digest,
-        context_digest,
-        plan_id: resolved.plan_id,
-        action_ids,
-        authorized_branches,
-        assurance,
-        assurance_satisfactions,
-        observation_satisfactions,
-        approval_satisfactions,
-        work_units: meter.used,
-    })
-}
-
-/// Evaluates the trusted context's approval requirements once the plan has
-/// authorized and the composition floors hold, records each for the trace,
-/// and returns their identifiers.
-fn evaluate_context_approvals(
-    approvals: &mut approval::Approvals<'_>,
-    inputs: &approval::Inputs<'_, '_>,
-    meter: &mut WorkMeter,
-    diagnostics: &mut AuthorityDiagnostics,
-) -> Result<Vec<auths_model::ApprovalRequirementId>, VerificationFailure> {
-    let requirements = approval::context_requirements(inputs.context)?;
-    let result = approvals.evaluate_list(&requirements, inputs, meter);
-    for (identifier, _) in &requirements {
-        if let Some(evaluated) = approvals.get(*identifier) {
-            diagnostics.record_context_approval(evaluated);
-        }
-    }
-    result?;
-    Ok(requirements
-        .into_iter()
-        .map(|(identifier, _)| identifier)
-        .collect())
-}
-
-/// Seals a verified authority result as a downstream-consumable action.
-#[must_use]
-pub(crate) fn bind_verified_action(authority: VerifiedAuthority) -> VerifiedAction {
-    VerifiedAction {
-        canonical_action: authority.canonical_action,
-        proof_digest: authority.proof_digest,
-        context_digest: authority.context_digest,
-        plan_id: authority.plan_id,
-        action_ids: authority.action_ids,
-        authorized_branches: authority.authorized_branches,
-        assurance: authority.assurance,
-        assurance_satisfactions: authority.assurance_satisfactions,
-        observation_satisfactions: authority.observation_satisfactions,
-        approval_satisfactions: authority.approval_satisfactions,
-        work_units: authority.work_units,
-    }
-}
 
 fn codec_failure(error: CodecError) -> VerificationFailure {
     match error {
@@ -1810,283 +1210,6 @@ fn codec_failure(error: CodecError) -> VerificationFailure {
     }
 }
 
-fn principal_status_records(
-    context: &TrustedContext,
-) -> Result<Vec<PrincipalStatusId>, VerificationFailure> {
-    let mut values = Vec::new();
-    for status in context.principal_status_snapshot().statements() {
-        values.push(principal_status_id(status.statement()).map_err(codec_failure)?);
-    }
-    values.sort();
-    if values.windows(2).any(|window| window[0] == window[1]) {
-        return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-    }
-    Ok(values)
-}
-
-fn grant_status_records(
-    context: &TrustedContext,
-) -> Result<Vec<GrantStatusId>, VerificationFailure> {
-    let mut values = Vec::new();
-    for status in context.grant_status_snapshot().statements() {
-        values.push(grant_status_id(status.statement()).map_err(codec_failure)?);
-    }
-    values.sort();
-    if values.windows(2).any(|window| window[0] == window[1]) {
-        return Err(VerificationFailure::Denied(DenialReason::DuplicateObject));
-    }
-    Ok(values)
-}
-
-fn statement_exists(
-    statement: StatementRef,
-    grants: &[GrantRecord],
-    actions: &[ActionRecord],
-    principal_status: &[PrincipalStatusId],
-    grant_status: &[GrantStatusId],
-) -> bool {
-    match statement {
-        StatementRef::Grant(id) => grants.binary_search_by_key(&id, |record| record.id).is_ok(),
-        StatementRef::Action(id) => actions
-            .binary_search_by_key(&id, |record| record.id)
-            .is_ok(),
-        StatementRef::PrincipalStatus(id) => principal_status.binary_search(&id).is_ok(),
-        StatementRef::GrantStatus(id) => grant_status.binary_search(&id).is_ok(),
-    }
-}
-
-fn resolve_chain(
-    bundle: &ProofBundle,
-    grants: &[GrantRecord],
-    action: &SignedAction,
-    used: &mut BTreeSet<GrantId>,
-) -> Result<(), VerificationFailure> {
-    let mut cursor = action.envelope().terminal_grant();
-    let mut branch = BTreeSet::new();
-    while let Some(id) = cursor {
-        if !branch.insert(id) {
-            return Err(VerificationFailure::Denied(DenialReason::ReferenceCycle));
-        }
-        let position = grants
-            .binary_search_by_key(&id, |record| record.id)
-            .map_err(|_| VerificationFailure::Denied(DenialReason::MissingReference))?;
-        let grant = &bundle.grants()[grants[position].index];
-        cursor = grant.statement().parent();
-        used.insert(id);
-    }
-    Ok(())
-}
-
-fn reject_duplicate_attachments(bundle: &ProofBundle) -> Result<(), VerificationFailure> {
-    if bundle
-        .attachments()
-        .windows(2)
-        .any(|window| window[0].digest() == window[1].digest())
-    {
-        Err(VerificationFailure::Denied(
-            DenialReason::DuplicateAttachment,
-        ))
-    } else {
-        Ok(())
-    }
-}
-
-/// Rejects a proof-carried status statement that the snapshot supersedes or
-/// does not hold, in two passes: every rollback check (principal-status
-/// statements, then grant-status statements) before any holding check.
-///
-/// Rollback compares only statements with the carried statement's subject,
-/// method, and issuer. A sequence number orders one issuer's statements under
-/// one method, so a statement from another issuer, which may be out of scope
-/// for every branch, never supersedes the holder's own.
-fn validate_carried_status(
-    bundle: &ProofBundle,
-    context: &TrustedContext,
-) -> Result<(), VerificationFailure> {
-    if bundle.principal_status().iter().any(|carried| {
-        let carried = carried.statement();
-        context
-            .principal_status_snapshot()
-            .statements()
-            .iter()
-            .map(SignedPrincipalStatus::statement)
-            .any(|current| {
-                current.principal() == carried.principal()
-                    && current.method() == carried.method()
-                    && current.issuer() == carried.issuer()
-                    && current.sequence() > carried.sequence()
-            })
-    }) || bundle.grant_status().iter().any(|carried| {
-        let carried = carried.statement();
-        context
-            .grant_status_snapshot()
-            .statements()
-            .iter()
-            .map(SignedGrantStatus::statement)
-            .any(|current| {
-                current.grant_id() == carried.grant_id()
-                    && current.method() == carried.method()
-                    && current.issuer() == carried.issuer()
-                    && current.sequence() > carried.sequence()
-            })
-    }) {
-        return Err(VerificationFailure::Denied(
-            DenialReason::StatusSequenceRollback,
-        ));
-    }
-    if bundle.principal_status().iter().any(|carried| {
-        !context
-            .principal_status_snapshot()
-            .statements()
-            .contains(carried)
-    }) || bundle.grant_status().iter().any(|carried| {
-        !context
-            .grant_status_snapshot()
-            .statements()
-            .contains(carried)
-    }) {
-        Err(VerificationFailure::Denied(DenialReason::DigestMismatch))
-    } else {
-        Ok(())
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn verify_signed(
-    statement: StatementRef,
-    principal: &PrincipalId,
-    signature: &SignatureEnvelope,
-    signing_preimage: &[u8],
-    purpose: ControlPurpose,
-    asserted_signing_time: Timestamp,
-    bundle: &ProofBundle,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<VerifiedControl, VerificationFailure> {
-    let result = evaluate_signature(
-        principal,
-        signature,
-        signing_preimage,
-        purpose,
-        asserted_signing_time,
-        || bound_evidence(bundle, statement),
-        context,
-        registries,
-        meter,
-    );
-    if result
-        == Err(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ))
-    {
-        return Err(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ));
-    }
-    Ok(VerifiedControl {
-        statement,
-        principal: principal.clone(),
-        result,
-    })
-}
-
-/// Establishes principal control over one signature: the registered principal
-/// method and signature suite, the control evidence `evidence` returns, whose
-/// types the context must accept, and work reserved before evaluation. Every
-/// failure is returned, resource exhaustion included; the caller decides
-/// which failures stop the verification.
-#[allow(clippy::too_many_arguments)]
-fn evaluate_signature<'e>(
-    principal: &PrincipalId,
-    signature: &SignatureEnvelope,
-    signing_preimage: &[u8],
-    purpose: ControlPurpose,
-    asserted_signing_time: Timestamp,
-    evidence: impl FnOnce() -> Result<Vec<&'e EvidenceObject>, VerificationFailure>,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<ControlEvidence, VerificationFailure> {
-    let descriptor = signature.descriptor();
-    let method = registries
-        .principal_method(context.accepted_registries(), descriptor.principal_method())
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedPrincipalMethod,
-        ))?;
-    let suite = registries
-        .signature_suite(context.accepted_registries(), descriptor.suite())
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedSignatureSuite,
-        ))?;
-    let evidence = evidence()?;
-    if evidence.iter().any(|object| {
-        !context
-            .accepted_registries()
-            .accepts_evidence_type(object.evidence_type())
-    }) {
-        return Err(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedEvidenceType,
-        ));
-    }
-    let method_reservation = method.maximum_work_units();
-    meter.reserve(method_reservation)?;
-    meter.reserve(suite.work_units())?;
-    let control = method
-        .evaluate_control(
-            PrincipalControlInput {
-                principal,
-                verification_method: descriptor.verification_method(),
-                signature_suite: descriptor.suite(),
-                purpose,
-                signing_preimage,
-                signature: signature.signature().as_slice(),
-                asserted_signing_time,
-                evidence: &evidence,
-                evaluation_time: context.evaluation_time(),
-            },
-            DiagnosticMode::Discard,
-        )
-        .into_result()
-        .map_err(control_failure)?;
-    if control.work_units() > method_reservation {
-        return Err(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ));
-    }
-    suite
-        .verify(SignatureInput {
-            verification_key: control.verification_key(),
-            signing_preimage: control.signature_message().unwrap_or(signing_preimage),
-            signature: signature.signature().as_slice(),
-        })
-        .map_err(signature_failure)?;
-    Ok(control)
-}
-
-fn bound_evidence(
-    bundle: &ProofBundle,
-    statement: StatementRef,
-) -> Result<Vec<&EvidenceObject>, VerificationFailure> {
-    let binding = bundle
-        .bindings()
-        .iter()
-        .find(|binding| binding.statement() == statement)
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::MissingPrincipalEvidence,
-        ))?;
-    let mut objects = Vec::with_capacity(binding.evidence().len());
-    for id in binding.evidence() {
-        objects.push(
-            bundle
-                .evidence()
-                .iter()
-                .find(|object| object.id() == *id)
-                .ok_or(VerificationFailure::Denied(DenialReason::MissingReference))?,
-        );
-    }
-    Ok(objects)
-}
 
 fn control_failure(error: PrincipalControlError) -> VerificationFailure {
     match error {
@@ -2121,533 +1244,52 @@ fn signature_failure(_error: SignatureError) -> VerificationFailure {
     VerificationFailure::Denied(DenialReason::InvalidSignature)
 }
 
-fn validate_action_binding(
-    controlled: &ControlVerifiedProof,
-    canonical: &CanonicalAction,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    let bundle = controlled.resolved.decoded.bundle();
-    if bundle
-        .canonical_body()
-        .is_some_and(|body| body != canonical.body())
-    {
-        return Err(VerificationFailure::Denied(
-            DenialReason::ActionBodyMismatch,
-        ));
-    }
-    let expected_digest = body_digest(canonical.body());
-    let first = bundle
-        .actions()
-        .first()
-        .ok_or(VerificationFailure::Denied(
-            DenialReason::AuthorizationPlanInvalid,
-        ))?
-        .envelope();
-    for signed in bundle.actions() {
-        let action = signed.envelope();
-        if action.profile() != canonical.profile()
-            || action.body_media_type() != canonical.media_type()
-            || action.canonical_body_digest() != expected_digest
-            || action.permission() != canonical.permission()
-            || action.requested_budget() != canonical.requested_budget()
-        {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ActionBodyMismatch,
-            ));
-        }
-        if !context
-            .accepted_registries()
-            .accepts_profile(action.profile())
-        {
-            return Err(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedProfile,
-            ));
-        }
-        if action.audience() != context.expected_audience() {
-            return Err(VerificationFailure::Denied(DenialReason::AudienceMismatch));
-        }
-        if action.challenge() != context.expected_challenge() {
-            return Err(VerificationFailure::Denied(DenialReason::ChallengeMismatch));
-        }
-        if !action.validity().contains(context.evaluation_time()) {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ActionOutsideValidity,
-            ));
-        }
-        if action.channel_binding() != context.channel_policy() {
-            return Err(VerificationFailure::Denied(DenialReason::LocalPolicyDenied));
-        }
-        if !same_shared_action(first, action) {
-            return Err(VerificationFailure::Denied(
-                DenialReason::PlanActionMismatch,
-            ));
-        }
-        evaluate_extensions(action.extensions(), context, registries, meter)?;
-        observation::validate_observation_attachments(signed)?;
-    }
-    validate_attachments(bundle, canonical, context)?;
-    let profile_policy = registries
-        .profile_policy(context.accepted_registries(), context.profile_policy())
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedProfilePolicy,
-        ))?;
-    meter.reserve(profile_policy.maximum_work_units(canonical))?;
-    match profile_policy
-        .evaluate(canonical)
-        .map_err(registry_operation_failure)?
-    {
-        ProfileDecision::Accept => Ok(()),
-        ProfileDecision::Deny => Err(VerificationFailure::Denied(DenialReason::LocalPolicyDenied)),
-    }
-}
-
-fn validate_attachments(
-    bundle: &ProofBundle,
-    canonical: &CanonicalAction,
-    context: &TrustedContext,
-) -> Result<(), VerificationFailure> {
-    let descriptors = bundle
-        .actions()
-        .first()
-        .map(|action| action.envelope().attachments())
-        .unwrap_or_default();
-    if descriptors != bundle.attachments() {
-        return Err(VerificationFailure::Denied(
-            DenialReason::UnusedCriticalAttachment,
-        ));
-    }
-    if descriptors
-        .windows(2)
-        .any(|window| window[0].digest() == window[1].digest())
-        || canonical
-            .detached_attachments()
-            .windows(2)
-            .any(|window| window[0].digest() == window[1].digest())
-    {
-        return Err(VerificationFailure::Denied(
-            DenialReason::DuplicateAttachment,
-        ));
-    }
-    let total = canonical
-        .detached_attachments()
-        .iter()
-        .try_fold(0usize, |total, attachment| {
-            total.checked_add(attachment.bytes().len())
-        })
-        .ok_or(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ))?;
-    if total
-        > context
-            .limits()
-            .get(auths_model::LimitKind::AttachmentBytes)
-    {
-        return Err(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ));
-    }
-    for descriptor in descriptors {
-        let detached = canonical
-            .detached_attachments()
-            .iter()
-            .find(|attachment| attachment.digest() == descriptor.digest());
-        let Some(detached) = detached else {
-            if matches!(descriptor.presence(), auths_model::Presence::Required) {
-                return Err(VerificationFailure::Denied(DenialReason::AttachmentMissing));
-            }
-            continue;
-        };
-        let length = u64::try_from(detached.bytes().len())
-            .map_err(|_| VerificationFailure::Denied(DenialReason::AttachmentLengthMismatch))?;
-        if length != descriptor.byte_length() {
-            return Err(VerificationFailure::Denied(
-                DenialReason::AttachmentLengthMismatch,
-            ));
-        }
-        if attachment_digest(detached.bytes()) != descriptor.digest() {
-            return Err(VerificationFailure::Denied(
-                DenialReason::AttachmentDigestMismatch,
-            ));
-        }
-        if matches!(
-            descriptor.confidentiality(),
-            auths_model::Confidentiality::Encrypted
-        ) && matches!(
-            descriptor.opacity(),
-            auths_model::Opacity::MustBeInspectable
-        ) {
-            return Err(VerificationFailure::Denied(
-                DenialReason::OpaqueAttachmentNotAllowed,
-            ));
-        }
-    }
-    if canonical.detached_attachments().iter().any(|attachment| {
-        !descriptors
-            .iter()
-            .any(|descriptor| descriptor.digest() == attachment.digest())
-    }) {
-        return Err(VerificationFailure::Denied(
-            DenialReason::UnusedCriticalAttachment,
-        ));
-    }
-    Ok(())
-}
-
-fn same_shared_action(
-    left: &auths_model::ActionEnvelope,
-    right: &auths_model::ActionEnvelope,
-) -> bool {
-    left.profile() == right.profile()
-        && left.body_media_type() == right.body_media_type()
-        && left.canonical_body_digest() == right.canonical_body_digest()
-        && left.permission() == right.permission()
-        && left.requested_budget() == right.requested_budget()
-        && left.audience() == right.audience()
-        && left.challenge() == right.challenge()
-        && left.validity() == right.validity()
-        && left.authorization_plan() == right.authorization_plan()
-        && left.channel_binding() == right.channel_binding()
-        && left.attachments() == right.attachments()
-        && left.extensions() == right.extensions()
-}
 
 /// Authority established for one authorization-plan branch that authorized.
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct BranchAuthority {
     action_id: ActionId,
+    authority_not_after: Timestamp,
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
     approval_requirements: Vec<auths_model::ApprovalRequirementId>,
 }
 
-#[allow(clippy::too_many_arguments)]
-fn verify_branch(
-    controlled: &ControlVerifiedProof,
-    proof_ref: ProofRef,
-    canonical: &CanonicalAction,
+
+
+
+/// Reads only evidence already selected by the assurance evaluator.
+fn assurance_horizon(
+    satisfactions: &[AssuranceSatisfaction],
     context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-    approvals: &mut approval::Approvals<'_>,
-    approval_inputs: &approval::Inputs<'_, '_>,
-) -> Result<BranchAuthority, VerificationFailure> {
-    let bundle = controlled.resolved.decoded.bundle();
-    let action = bundle
-        .actions()
-        .iter()
-        .find(|action| action.envelope().proof_ref() == proof_ref)
-        .ok_or(VerificationFailure::Denied(DenialReason::MissingReference))?;
-    let action_id = action_id(action.envelope()).map_err(codec_failure)?;
-    let chain = branch_chain(&controlled.resolved, action)?;
-    let root_principal = chain.first().map_or(action.envelope().actor(), |grant| {
-        grant.statement().issuer()
-    });
-    let root_statement = match chain.first() {
-        Some(grant) => StatementRef::Grant(grant_id(grant.statement()).map_err(codec_failure)?),
-        None => StatementRef::Action(action_id),
-    };
-    let root_control = control_for(controlled, root_statement)?;
-
-    let mut first_failure = None;
-    for anchor in context
-        .trust_anchors()
-        .iter()
-        .filter(|anchor| anchor.principal() == root_principal)
-    {
-        let branch = BranchInput {
-            controlled,
-            action,
-            action_id,
-            chain: &chain,
-            root_control,
-            canonical,
-            context,
-            registries,
-        };
-        match verify_branch_from_anchor(&branch, anchor, meter, approvals, approval_inputs) {
-            Ok(authority) => return Ok(authority),
-            Err(failure) => first_failure.get_or_insert(failure),
-        };
-    }
-    Err(first_failure.unwrap_or(VerificationFailure::Denied(DenialReason::UntrustedRoot)))
-}
-
-/// Anchor-independent inputs of one branch evaluation.
-struct BranchInput<'a, 'r> {
-    controlled: &'a ControlVerifiedProof,
-    action: &'a SignedAction,
-    action_id: ActionId,
-    chain: &'a [&'a SignedGrant],
-    root_control: (&'a PrincipalId, &'a ControlEvidence),
-    canonical: &'a CanonicalAction,
-    context: &'a TrustedContext,
-    registries: &'a ImmutableRegistries<'r>,
-}
-
-fn verify_branch_from_anchor(
-    branch: &BranchInput<'_, '_>,
-    anchor: &TrustAnchor,
-    meter: &mut WorkMeter,
-    approvals: &mut approval::Approvals<'_>,
-    approval_inputs: &approval::Inputs<'_, '_>,
-) -> Result<BranchAuthority, VerificationFailure> {
-    let BranchInput {
-        controlled,
-        action,
-        action_id,
-        chain,
-        root_control,
-        canonical,
-        context,
-        registries,
-    } = *branch;
-    if !anchor
-        .accepted_methods()
-        .contains(action_or_first_method(action, chain))
-        || anchor.assurance_policy() != context.assurance_policy().id()
-    {
-        return Err(VerificationFailure::Denied(DenialReason::UntrustedRoot));
-    }
-    check_principal_status(
-        controlled,
-        anchor.status_policy(),
-        anchor.principal(),
-        StatusListing::Required,
-        anchor,
-        context,
-        registries,
-        meter,
-    )?;
-    // Every grant subject is checked under the anchor's policy, not the
-    // grant's own: by chain linkage the subjects are every issuer after the
-    // root and the actor, and a grant's policy governs only that grant.
-    for grant in chain {
-        let id = grant_id(grant.statement()).map_err(codec_failure)?;
-        check_grant_status(
-            controlled,
-            grant.statement().status_policy(),
-            id,
-            anchor,
-            context,
-            registries,
-            meter,
-        )?;
-        check_principal_status(
-            controlled,
-            anchor.status_policy(),
-            grant.statement().subject(),
-            StatusListing::RevocationList,
-            anchor,
-            context,
-            registries,
-            meter,
-        )?;
-    }
-    validate_resource_constraints(anchor, chain, action, context, registries, meter)?;
-    validate_budget_constraints(anchor, chain, action, context, registries, meter)?;
-    let mut reports = Vec::new();
-    if chain.is_empty() {
-        reports.push(participant_report(
-            root_control.0,
-            root_control.1,
-            ParticipantRole::Root,
-        )?);
-    }
-    delegate_chain(branch, anchor, &mut reports, meter)?;
-    let action_control = control_for(controlled, StatementRef::Action(action_id))?;
-    reports.push(participant_report(
-        action_control.0,
-        action_control.1,
-        ParticipantRole::Actor,
-    )?);
-    let assurance_satisfactions = evaluate_branch_assurance(&reports, context, registries, meter)?;
-    let observation_satisfactions = observation::Stage {
-        chain,
-        root: anchor.principal(),
-        action,
-        canonical,
-        context,
-        registries,
-    }
-    .evaluate(meter)?;
-    let approval_requirements = approval::chain_requirements(chain)?;
-    approvals.evaluate_list(&approval_requirements, approval_inputs, meter)?;
-    Ok(BranchAuthority {
-        action_id,
-        assurance: reports,
-        assurance_satisfactions,
-        observation_satisfactions,
-        approval_requirements: approval_requirements
-            .into_iter()
-            .map(|(identifier, _)| identifier)
-            .collect(),
-    })
-}
-
-/// Walks the grant chain root to terminal, applying every delegation edge,
-/// and then checks the action against the terminal authority.
-fn delegate_chain(
-    branch: &BranchInput<'_, '_>,
-    anchor: &TrustAnchor,
-    reports: &mut Vec<ParticipantAssurance>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    let mut authority = EffectiveAuthority::from_anchor(anchor);
-    let laws = branch
-        .registries
-        .extension_laws(branch.context.accepted_registries());
-    for (index, grant) in branch.chain.iter().enumerate() {
-        if let Some(parent) = index.checked_sub(1).map(|parent| branch.chain[parent]) {
-            observation::require_parent_requirements(parent, grant)?;
-            meter.reserve(laws.maximum_work_units(
-                grant.statement().extensions(),
-                parent.statement().extensions(),
-            ))?;
-        }
-        let id = grant_id(grant.statement()).map_err(codec_failure)?;
-        authority
-            .delegate(id, grant.statement(), &laws)
-            .map_err(VerificationFailure::Denied)?;
-        let control = control_for(branch.controlled, StatementRef::Grant(id))?;
-        reports.push(participant_report(
-            control.0,
-            control.1,
-            grant_issuer_role(index),
-        )?);
-        evaluate_extensions(
-            grant.statement().extensions(),
-            branch.context,
-            branch.registries,
-            meter,
-        )?;
-    }
-    authority
-        .authorizes(
-            branch.action.envelope(),
-            branch.context.accepted_registries(),
-        )
-        .map_err(VerificationFailure::Denied)
-}
-
-fn evaluate_branch_assurance(
-    reports: &[ParticipantAssurance],
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<Vec<AssuranceSatisfaction>, VerificationFailure> {
-    validate_assurance_claims(reports, context, registries, meter)?;
-    let implications = registries.assurance_implications(context.accepted_registries());
-    for implication in &implications {
-        meter.reserve(implication.maximum_work_units())?;
-    }
-    evaluate_with_implications(
-        context.assurance_policy(),
-        reports,
-        context.evaluation_time(),
-        |claim, target| {
-            implications.iter().any(|implication| {
-                implication.source() == claim.kind()
-                    && implication.target() == target
-                    && implication.implies(claim).unwrap_or(false)
-            })
-        },
-    )
-    .map_err(VerificationFailure::Indeterminate)
-}
-
-fn action_or_first_method<'a>(
-    action: &'a SignedAction,
-    chain: &'a [&SignedGrant],
-) -> &'a auths_model::PrincipalMethodId {
-    chain.first().map_or_else(
-        || action.signature().descriptor().principal_method(),
-        |grant| grant.signature().descriptor().principal_method(),
-    )
-}
-
-fn branch_chain<'a>(
-    resolved: &'a ResolvedProof,
-    action: &SignedAction,
-) -> Result<Vec<&'a SignedGrant>, VerificationFailure> {
-    let bundle = resolved.decoded.bundle();
-    let mut reversed = Vec::new();
-    let mut cursor = action.envelope().terminal_grant();
-    while let Some(id) = cursor {
-        let position = resolved
-            .grants
-            .binary_search_by_key(&id, |record| record.id)
-            .map_err(|_| VerificationFailure::Denied(DenialReason::MissingReference))?;
-        let grant = &bundle.grants()[resolved.grants[position].index];
-        reversed.push(grant);
-        cursor = grant.statement().parent();
-    }
-    reversed.reverse();
-    Ok(reversed)
-}
-
-fn control_for(
-    controlled: &ControlVerifiedProof,
-    statement: StatementRef,
-) -> Result<(&PrincipalId, &ControlEvidence), VerificationFailure> {
-    let control = controlled
-        .controls
-        .iter()
-        .find(|control| control.statement == statement)
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::MissingPrincipalEvidence,
-        ))?;
-    control
-        .result
-        .as_ref()
-        .map(|evidence| (&control.principal, evidence))
-        .map_err(|failure| *failure)
-}
-
-fn participant_report(
-    principal: &PrincipalId,
-    evidence: &ControlEvidence,
-    role: ParticipantRole,
-) -> Result<ParticipantAssurance, VerificationFailure> {
-    ParticipantAssurance::new(
-        principal.clone(),
-        role,
-        evidence.claims().to_vec(),
-        evidence.consumed_evidence().to_vec(),
-        evidence.adapter().clone(),
-        evidence.adapter_version(),
-    )
-    .map_err(|_| VerificationFailure::Denied(DenialReason::ResourceLimitExceeded))
-}
-
-fn evaluate_extensions(
-    extensions: &auths_model::CriticalExtensions,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    for extension in extensions.as_slice() {
-        if !context
-            .accepted_registries()
-            .accepts_critical_extension(extension.id())
-        {
-            return Err(VerificationFailure::Denied(
-                DenialReason::CriticalExtensionUnknown,
-            ));
-        }
-        let handler = registries
-            .extension_handler(context.accepted_registries(), extension.id())
+) -> Result<Timestamp, VerificationFailure> {
+    let mut valid_through = Timestamp::new(u64::MAX);
+    for satisfaction in satisfactions {
+        let requirement = context
+            .assurance_policy()
+            .requirements()
+            .get(usize::from(satisfaction.requirement_index()))
             .ok_or(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedCriticalExtension,
+                Requirement::AssuranceRequirementNotMet,
             ))?;
-        meter.reserve(handler.maximum_work_units(extension))?;
-        handler
-            .evaluate(extension)
-            .map_err(registry_operation_failure)?;
+        if let Some(age) = requirement.maximum_age() {
+            let observed =
+                satisfaction
+                    .claim()
+                    .observed_at()
+                    .ok_or(VerificationFailure::Indeterminate(
+                        Requirement::AssuranceRequirementNotMet,
+                    ))?;
+            valid_through =
+                valid_through.min(Timestamp::new(observed.get().saturating_add(age.get())));
+        }
     }
-    Ok(())
+    Ok(valid_through)
 }
+
+
+
 
 /// Applies the accepted-extension rule to one status statement about a
 /// principal or grant being evaluated.
@@ -2690,99 +1332,17 @@ enum StatusListing {
     RevocationList,
 }
 
-/// Out-of-scope statements (`auths_model::status_issuer_in_scope`) take no
-/// part: they are not control-checked, not extension-checked, and not
-/// selected, so the result is the one the snapshot gives without them. Work
-/// is still reserved for every snapshot statement.
-#[allow(clippy::too_many_arguments)]
-fn check_principal_status(
-    controlled: &ControlVerifiedProof,
-    policy: &StatusPolicy,
-    principal: &PrincipalId,
-    listing: StatusListing,
-    anchor: &TrustAnchor,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-        return Ok(());
-    };
-    let implementation = registries
-        .status_method(context.accepted_registries(), method, true)
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedStatusMethod,
-        ))?;
-    let snapshot = context.principal_status_snapshot();
-    for status in snapshot.statements().iter().filter(|status| {
-        status.statement().principal() == principal
-            && status_issuer_in_scope(snapshot.trust(), status.statement().issuer(), anchor)
-    }) {
-        let identifier = principal_status_id(status.statement()).map_err(codec_failure)?;
-        control_for(controlled, StatementRef::PrincipalStatus(identifier))?;
-        check_status_extensions(status.statement().extensions(), context)?;
-    }
-    meter.reserve(
-        implementation.maximum_work_units(context.principal_status_snapshot().statements().len()),
-    )?;
-    let decision = implementation
-        .principal(
-            policy,
-            context.principal_status_snapshot(),
-            principal,
-            auths_model::StatusView::Anchor(anchor),
-            context.evaluation_time(),
-        )
-        .map_err(registry_operation_failure)?;
-    if matches!(
-        (listing, decision),
-        (StatusListing::RevocationList, StatusDecision::Missing)
-    ) {
-        return Ok(());
-    }
-    status_decision(decision, true)
-}
 
-/// Out-of-scope statements take no part, as for principal status.
-fn check_grant_status(
-    controlled: &ControlVerifiedProof,
-    policy: &StatusPolicy,
-    grant_id: GrantId,
-    anchor: &TrustAnchor,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    let StatusPolicy::SnapshotRequired { method, .. } = policy else {
-        return Ok(());
-    };
-    let implementation = registries
-        .status_method(context.accepted_registries(), method, false)
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedStatusMethod,
-        ))?;
-    let snapshot = context.grant_status_snapshot();
-    for status in snapshot.statements().iter().filter(|status| {
-        status.statement().grant_id() == grant_id
-            && status_issuer_in_scope(snapshot.trust(), status.statement().issuer(), anchor)
-    }) {
-        let identifier = grant_status_id(status.statement()).map_err(codec_failure)?;
-        control_for(controlled, StatementRef::GrantStatus(identifier))?;
-        check_status_extensions(status.statement().extensions(), context)?;
+/// Refuses a registry's unusable temporal witness before sealing authority.
+fn status_horizon(
+    evaluation: auths_ports::StatusEvaluation,
+    evaluation_time: Timestamp,
+) -> Result<Timestamp, VerificationFailure> {
+    if evaluation.valid_through() < evaluation_time {
+        Err(VerificationFailure::Indeterminate(Requirement::StaleStatus))
+    } else {
+        Ok(evaluation.valid_through())
     }
-    meter.reserve(
-        implementation.maximum_work_units(context.grant_status_snapshot().statements().len()),
-    )?;
-    let decision = implementation
-        .grant(
-            policy,
-            context.grant_status_snapshot(),
-            grant_id,
-            auths_model::StatusView::Anchor(anchor),
-            context.evaluation_time(),
-        )
-        .map_err(registry_operation_failure)?;
-    status_decision(decision, false)
 }
 
 fn status_decision(decision: StatusDecision, principal: bool) -> Result<(), VerificationFailure> {
@@ -2811,126 +1371,8 @@ fn status_decision(decision: StatusDecision, principal: bool) -> Result<(), Veri
     }
 }
 
-fn validate_resource_constraints(
-    anchor: &TrustAnchor,
-    chain: &[&SignedGrant],
-    action: &SignedAction,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    let matcher = registries
-        .resource_matcher(context.accepted_registries(), context.resource_matcher())
-        .ok_or(VerificationFailure::Indeterminate(
-            Requirement::UnsupportedResourceMatcher,
-        ))?;
-    let resources = chain
-        .iter()
-        .flat_map(|grant| grant.statement().permissions().as_slice())
-        .map(auths_model::Permission::resource)
-        .chain(core::iter::once(action.envelope().permission().resource()));
-    for resource in resources {
-        let mut allowed = false;
-        for namespace in anchor.resource_namespaces() {
-            meter.reserve(matcher.maximum_work_units(namespace, resource))?;
-            allowed |= matcher
-                .matches(namespace, resource)
-                .map_err(registry_operation_failure)?;
-        }
-        if !allowed {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ResourceNamespaceMismatch,
-            ));
-        }
-    }
-    Ok(())
-}
 
-fn validate_budget_constraints(
-    anchor: &TrustAnchor,
-    chain: &[&SignedGrant],
-    action: &SignedAction,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    let mut parent = anchor.budget_ceiling();
-    for grant in chain {
-        let child = grant.statement().budget_ceiling();
-        if let Some(parent_budget) = parent {
-            let child_budget = child.ok_or(VerificationFailure::Denied(
-                DenialReason::DelegationExpanded,
-            ))?;
-            let algebra = registries
-                .budget_algebra(context.accepted_registries(), parent_budget.algebra())
-                .ok_or(VerificationFailure::Indeterminate(
-                    Requirement::UnsupportedBudgetAlgebra,
-                ))?;
-            meter.reserve(algebra.maximum_work_units())?;
-            if !algebra
-                .attenuates(child_budget, parent_budget)
-                .map_err(registry_operation_failure)?
-            {
-                return Err(VerificationFailure::Denied(
-                    DenialReason::DelegationExpanded,
-                ));
-            }
-        }
-        parent = child;
-    }
-    if let Some(ceiling) = parent {
-        // A bounded terminal authority requires a bounded request *when the
-        // action's profile is able to state one*. An action of a profile that
-        // could have declared a budget and did not states no bound at all, so
-        // there is nothing for the ceiling to bound and it is denied. An action
-        // of a profile whose canonical body has no budget field provably spends
-        // zero, and zero is within every ceiling.
-        let expression = context
-            .accepted_registries()
-            .profile_budget_expression(action.envelope().profile());
-        let Some(requested) = action.envelope().requested_budget() else {
-            return match expression {
-                ProfileBudgetExpression::Inexpressible => Ok(()),
-                ProfileBudgetExpression::Expressible => Err(VerificationFailure::Denied(
-                    DenialReason::BudgetCeilingExceeded,
-                )),
-            };
-        };
-        let algebra = registries
-            .budget_algebra(context.accepted_registries(), ceiling.algebra())
-            .ok_or(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedBudgetAlgebra,
-            ))?;
-        meter.reserve(algebra.maximum_work_units())?;
-        if !algebra
-            .covers(ceiling, requested)
-            .map_err(registry_operation_failure)?
-        {
-            return Err(VerificationFailure::Denied(
-                DenialReason::BudgetCeilingExceeded,
-            ));
-        }
-    }
-    Ok(())
-}
 
-fn validate_assurance_claims(
-    reports: &[ParticipantAssurance],
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-    meter: &mut WorkMeter,
-) -> Result<(), VerificationFailure> {
-    for claim in reports.iter().flat_map(ParticipantAssurance::claims) {
-        let rule = registries
-            .assurance_claim(context.accepted_registries(), claim.kind())
-            .ok_or(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedAssuranceClaim,
-            ))?;
-        meter.reserve(rule.maximum_work_units(claim))?;
-        rule.validate(claim).map_err(registry_operation_failure)?;
-    }
-    Ok(())
-}
 
 fn registry_operation_failure(error: RegistryOperationError) -> VerificationFailure {
     match error {
@@ -2942,6 +1384,13 @@ fn registry_operation_failure(error: RegistryOperationError) -> VerificationFail
         }
     }
 }
+
+#[cfg(test)]
+#[path = "reference_stages.rs"]
+mod reference_stages;
+#[cfg(test)]
+#[path = "stage_parity_tests.rs"]
+mod stage_parity_tests;
 
 #[cfg(test)]
 mod tests {
@@ -3205,7 +1654,7 @@ mod tests {
         )
         .unwrap();
         Fixture {
-            bytes: encode_bundle(&bundle).unwrap(),
+            bytes: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).unwrap(),
             canonical,
             context,
             action: signed_action,
@@ -3559,9 +2008,9 @@ mod tests {
             Some(result.local_configuration())
         );
         assert_ne!(result.result_digest().as_bytes(), &[0; 32]);
-        let bytes = auths_codec::encode_verification_result(&result).unwrap();
+        let bytes = auths_codec::CanonicalVerificationResult::new(auths_model::PortableVerificationResult::clone(&result)).and_then(|canonical| auths_codec::encode_verification_result(&canonical)).unwrap();
         assert_eq!(
-            auths_codec::decode_verification_result(&bytes).unwrap(),
+            auths_codec::decode_verification_result(&bytes).unwrap().into_value(),
             result
         );
     }
@@ -3575,7 +2024,7 @@ mod tests {
         let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
         let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
         let action_bytes = auths_codec::encode_canonical_action(&fixture.canonical).unwrap();
-        let context_bytes = auths_codec::encode_verifier_context(&fixture.context).unwrap();
+        let context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&fixture.context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap();
 
         let bytes = verify_v1(&fixture.bytes, &action_bytes, &context_bytes, &registries).unwrap();
         let decoded = auths_codec::decode_verification_result(&bytes).unwrap();
@@ -3616,7 +2065,7 @@ mod tests {
         let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
         let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
         let action_bytes = auths_codec::encode_canonical_action(&fixture.canonical).unwrap();
-        let context_bytes = auths_codec::encode_verifier_context(&fixture.context).unwrap();
+        let context_bytes = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&fixture.context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap();
 
         let authorized =
             verify_v1_sealed(&fixture.bytes, &action_bytes, &context_bytes, &registries).unwrap();
@@ -3627,6 +2076,11 @@ mod tests {
         assert_eq!(
             authorized.action().unwrap().canonical_action(),
             &fixture.canonical
+        );
+
+        assert_eq!(
+            authorized.action().unwrap().authority_not_after(),
+            Timestamp::new(20)
         );
 
         let denied =
@@ -3642,7 +2096,7 @@ mod tests {
             .with_configuration(empty_registries.configuration_id())
             .unwrap();
         let unsupported_context =
-            auths_codec::encode_verifier_context(&unsupported_context).unwrap();
+            auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&unsupported_context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap();
         let indeterminate = verify_v1_sealed(
             &fixture.bytes,
             &action_bytes,
@@ -4129,3 +2583,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod temporal_tests;

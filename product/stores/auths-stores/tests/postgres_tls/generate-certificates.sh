@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-output=/fixture/generated
+output=/certificates
 mkdir -p "$output"
 rm -f "$output/ca.crt" "$output/ca.key" "$output/server.crt" "$output/server.csr" "$output/server.key" "$output/server.ext"
 

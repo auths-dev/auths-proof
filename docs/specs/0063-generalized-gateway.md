@@ -641,7 +641,7 @@ follows this order. The last column names the epic that adds each new step.
 | 9 | Lease the credential (30-second deadline); apply the prefix guard (§5.2); when declared, the account read (§5.7), then each denied read in order (§5.8) | Recorded `not-entered` | today; guard, account, and denied reads 3 |
 | 10 | When declared, run the pre-entry re-read (§5.3), then the relative-ceiling read and check (§5.6); record their observations and basis in one `attempting → attempting` | Recorded `not-entered`, keeping what was read | 3 |
 | 11 | Increment the in-flight count; reload the shared record; require it unchanged | Recorded `not-entered`, `gateway.connection.changed` | 5 |
-| 12 | Refuse entry after `evaluated_at + 60` seconds, on the gateway clock or the monotonic deadline started at step 1 | Recorded `not-entered`, `gateway.attempt.entry-deadline` | 3 |
+| 12 | Refuse a clock sample before `evaluated_at`, outside the sealed authority/installed-gate horizon, after `evaluated_at + 60`, or outside the monotonic deadline started at step 1; preserve each inclusive/exclusive endpoint | Recorded `not-entered`, `gateway.attempt.entry-deadline` | 3; temporal witness 069 |
 | 13 | Send the one write, with provider headers, the account-scope header, the key or declared field, and the echo | Before network entry: recorded `not-entered`, `gateway.transport.not-entered` | today; account scope 2; other additions 3 |
 | 14 | Record the response (status, digest, locator), or `unknown` | — | today; locator 3 |
 | 15 | Decrement the in-flight count; perform at most one read-back | — | 5; today |
@@ -1519,7 +1519,7 @@ entry, with its test evidence, in the change that introduces it:
 | Kind | Identities |
 | --- | --- |
 | Recipe | `auths.gateway-recipe-source/2`, `auths.gateway-compiled-recipe/2`, `auths.gateway-recipe-review/2`, `auths.gateway-recovery-capability/1` |
-| Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-bounded-sum/1`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/6` |
+| Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-bounded-sum/1`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/7` |
 | Policy | `auths.gateway.argument-ceiling-window-count/2`, `auths.gateway.argument-ceiling-policy/2`, `auths.gateway-counter-set/1` |
 | Evidence | `auths.gateway-pre-entry/1`, `auths.gateway-outcome/2`, `auths.gateway-observe/2`, `auths.gateway-audit-bundle/2`, `auths.gateway-audit-report/2`, `auths.gateway-echo-verification/1`, `auths.gateway-codes/1` |
 | Operator | `auths.gateway-operator-attestation/1`, `auths.gateway-installation/3`, `auths.gateway-admin-request/1`, `auths.gateway-admin-response/1` |
@@ -1577,15 +1577,17 @@ continues. Rolling back is sound because `insert_all` returns only after step
 4 is durable, so a batch file means the engine never received the claim and
 nothing was leased or sent.
 
-### 9.4 PostgreSQL schema 5
+### 9.4 PostgreSQL store
 
-`auths.lifecycle.postgresql/6` replaces `/4`; a `/4` database is refused, not
-migrated. `auths_gateway_attempts` is replaced by:
+The current schema is `auths.lifecycle.postgresql/7` with transactional-store
+contract `/5`. AP-SPEC-069 adds the shared collection fence; `/6` and earlier
+databases are refused without migration. The record table introduced by this
+specification is:
 
 ```sql
 CREATE TABLE auths_gateway_records (
     record_key BYTEA PRIMARY KEY CHECK (octet_length(record_key) = 32),
-    record_kind TEXT NOT NULL CHECK (record_kind IN ('attempt', 'count-slot', 'sum-slot', 'connection')),
+    record_kind TEXT NOT NULL CHECK (record_kind IN ('attempt', 'count-slot', 'sum-slot', 'connection', 'commissioning-budget')),
     expires_at BIGINT NULL,
     record_bytes BYTEA NOT NULL CHECK (octet_length(record_bytes) BETWEEN 1 AND 262144),
     record_sha256 BYTEA NOT NULL CHECK (octet_length(record_sha256) = 32),
@@ -1593,13 +1595,23 @@ CREATE TABLE auths_gateway_records (
 );
 CREATE INDEX auths_gateway_records_expiry
     ON auths_gateway_records (expires_at) WHERE record_kind IN ('count-slot', 'sum-slot');
+CREATE TABLE auths_gateway_collection (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    collected_through BIGINT NULL CHECK (collected_through IS NULL OR collected_through >= 0)
+);
+INSERT INTO auths_gateway_collection (singleton, collected_through) VALUES (TRUE, NULL);
 ```
 
-`insert_all` is one transaction that inserts in ascending key order, each row
+`insert_all` first holds a shared lock on the collection row and refuses the
+whole batch if any slot expires at or before its cutoff. It then inserts in
+ascending key order, each row
 with `ON CONFLICT DO NOTHING RETURNING record_key`. A missing row rolls the
 transaction back and reports that entry's index, and the fixed order prevents
-deadlock. `sweep_expired` deletes at most `limit` rows through the expiry
-index. The pool and statement timeout are the lifecycle store's
+deadlock. `sweep_expired` holds an exclusive lock on the same row, advances
+the cutoff monotonically even for a zero deletion limit, and deletes at most
+`limit` rows through the expiry index in that transaction. Missing collection
+metadata fails closed. A lost acknowledgement cannot authorize execution or
+undo a committed cutoff. The pool and statement timeout are the lifecycle store's
 (`PostgresStoreConfig`).
 
 ### 9.5 Conformance
@@ -1611,6 +1623,8 @@ and `postgres_store_passes_attempt_store_conformance` in `engine.rs`) adds:
   count and sum slots;
 - a crash at every step of the file batch;
 - sweep bounds;
+- collection/admission races, stale clocks, restart, and lost acknowledgements;
+- missing or invalid file-store collection metadata and locks;
 - shared-connection-record visibility across two processes.
 
 The PostgreSQL variants run in the PostgreSQL lifecycle workflow, as today.

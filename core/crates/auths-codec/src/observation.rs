@@ -1,15 +1,16 @@
 //! Deterministic encoding of signed observations, observation requirements,
 //! observer anchors, and reported observation satisfactions.
 
+use crate::cbor::{Decoder, Encoder, Type};
 use crate::{
-    CodecError,
+    CanonicalSignedObservation, CodecError,
     decode::{
         V1Decoder, array, bounded_bytes, digest_bytes, ensure_complete, evidence, key, map,
-        parsed_texts, signature, text,
+        signature, text,
     },
     encode::{
-        V1Encoder, array as encode_array, bytes, encode_error, encode_evidence, encode_signature,
-        encode_signature_descriptor, finish, key as encode_key, map as encode_map,
+        V1Encoder, array as encode_array, bytes, encode_error, encode_signature,
+        encode_signature_descriptor, key as encode_key, map as encode_map,
         text as encode_text,
     },
 };
@@ -21,10 +22,9 @@ use auths_model::{
     MemberValues, ObservationCondition, ObservationFact, ObservationFacts, ObservationRequirement,
     ObservationRequirementId, ObservationRequirements, ObservationSatisfaction,
     ObservationSchemaId, ObservationStatement, ObservationSubject, ObserverAnchor,
-    ObserverAnchorId, PrincipalId, PrincipalMethodId, ResourceId, SignatureDescriptor,
+    ObserverAnchorId, PrincipalId, ResourceId, SignatureDescriptor,
     SignedObservation, Timestamp, UintRange, ValidityWindow, VerifierLimits,
 };
-use minicbor::{Decoder, data::Type};
 
 /// Upper bound on reported observation satisfactions in one result.
 pub(crate) const MAX_OBSERVATION_SATISFACTIONS: usize = 1_024;
@@ -91,14 +91,7 @@ pub(crate) fn encode_observation_statement_to(
         .u64(statement.observed_at().get())
         .map_err(encode_error)?;
     encode_key(encoder, 5)?;
-    encode_array(encoder, statement.facts().as_slice().len())?;
-    for fact in statement.facts().as_slice() {
-        encode_map(encoder, 2)?;
-        encode_key(encoder, 0)?;
-        encode_text(encoder, fact.name().as_str())?;
-        encode_key(encoder, 1)?;
-        encode_fact_value(encoder, fact.value())?;
-    }
+    encode_observation_facts(encoder, statement.facts().as_slice())?;
     Ok(())
 }
 
@@ -116,14 +109,7 @@ fn observation_statement(decoder: &mut V1Decoder<'_>) -> Result<ObservationState
     let observed_at = timestamp(decoder)?;
     key(decoder, 5)?;
     let count = array(decoder, MAX_OBSERVATION_FACTS)?;
-    let mut facts = Vec::with_capacity(count);
-    for _ in 0..count {
-        map(decoder, 2)?;
-        key(decoder, 0)?;
-        let name = fact_name(decoder)?;
-        key(decoder, 1)?;
-        facts.push(ObservationFact::new(name, fact_value(decoder)?));
-    }
+    let facts = crate::collections::read_items!(count, observation_fact(decoder))?;
     Ok(ObservationStatement::new(
         observer,
         schema,
@@ -143,20 +129,24 @@ fn encode_signed_observation_to(
     encode_key(encoder, 1)?;
     encode_signature(encoder, observation.signature())?;
     encode_key(encoder, 2)?;
-    encode_array(encoder, observation.evidence().len())?;
-    for object in observation.evidence() {
-        encode_evidence(encoder, object)?;
-    }
+    crate::encode::encode_evidence_objects(encoder, observation.evidence())?;
     Ok(())
 }
 
 /// Encodes one signed observation as detached attachment bytes.
+/// Requires explicit canonical construction, including evidence content IDs.
 ///
 /// # Errors
 ///
 /// Returns [`CodecError`] if the observation cannot be represented.
-pub fn encode_signed_observation(observation: &SignedObservation) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_signed_observation_to(encoder, observation))
+pub fn encode_signed_observation(observation: &CanonicalSignedObservation) -> Result<Vec<u8>, CodecError> {
+    encode_signed_observation_value(observation.as_value())
+}
+
+pub(crate) fn encode_signed_observation_value(observation: &SignedObservation) -> Result<Vec<u8>, CodecError> {
+    let mut encoder = Encoder::new(Vec::new());
+    encode_signed_observation_to(&mut encoder, observation)?;
+    Ok(encoder.into_writer())
 }
 
 /// Encodes the canonical unsigned observation statement.
@@ -167,7 +157,9 @@ pub fn encode_signed_observation(observation: &SignedObservation) -> Result<Vec<
 pub fn encode_observation_statement(
     statement: &ObservationStatement,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_observation_statement_to(encoder, statement))
+    let mut encoder = Encoder::new(Vec::new());
+    encode_observation_statement_to(&mut encoder, statement)?;
+    Ok(encoder.into_writer())
 }
 
 /// Encodes the canonical observation signing object.
@@ -179,16 +171,18 @@ pub fn encode_observation_signing_input(
     statement: &ObservationStatement,
     descriptor: &SignatureDescriptor,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| {
-        encode_map(encoder, 2)?;
-        encode_key(encoder, 0)?;
-        encode_observation_statement_to(encoder, statement)?;
-        encode_key(encoder, 1)?;
-        encode_signature_descriptor(encoder, descriptor)
-    })
+    let mut encoder = Encoder::new(Vec::new());
+    encode_map(&mut encoder, 2)?;
+    encode_key(&mut encoder, 0)?;
+    encode_observation_statement_to(&mut encoder, statement)?;
+    encode_key(&mut encoder, 1)?;
+    encode_signature_descriptor(&mut encoder, descriptor)?;
+    Ok(encoder.into_writer())
 }
 
 /// Decodes one signed observation attachment of at most 4 KiB.
+/// Returns an immutable carrier with content-consistent evidence. Freshness,
+/// signature validity and observer trust remain separate obligations.
 ///
 /// # Errors
 ///
@@ -197,7 +191,7 @@ pub fn encode_observation_signing_input(
 pub fn decode_signed_observation(
     input: &[u8],
     limits: &VerifierLimits,
-) -> Result<SignedObservation, CodecError> {
+) -> Result<CanonicalSignedObservation, CodecError> {
     limits.validate()?;
     if input.len() > MAX_OBSERVATION_BYTES {
         return Err(CodecError::LimitExceeded);
@@ -210,16 +204,17 @@ pub fn decode_signed_observation(
     let signature = signature(&mut decoder, limits)?;
     key(&mut decoder, 2)?;
     let count = array(&mut decoder, MAX_OBSERVATION_EVIDENCE)?;
-    let mut objects = Vec::with_capacity(count);
-    for _ in 0..count {
-        objects.push(evidence(&mut decoder, limits)?);
-    }
+    let objects = crate::collections::read_items!(count, evidence(&mut decoder, limits))?;
     let observation = SignedObservation::new(statement, signature, objects)?;
     ensure_complete(&decoder, input)?;
-    if encode_signed_observation(&observation)?.as_slice() != input {
-        return Err(CodecError::NonCanonical);
-    }
-    Ok(observation)
+    let observation = crate::canonical_value::checked_signed_observation(observation)?;
+    crate::canonical::accept(input, encode_signed_observation(&observation)?, observation)
+}
+
+fn encode_member_values(encoder: &mut V1Encoder, values: &[FactValue]) -> Result<(), CodecError> {
+    encode_array(encoder, values.len())?;
+    crate::collections::write_items!(values, value => encode_fact_value(encoder, value))?;
+    Ok(())
 }
 
 fn encode_condition(
@@ -247,10 +242,7 @@ fn encode_condition(
             encoder.u64(range.hi()).map_err(encode_error)?;
         }
         ConditionTest::Member(values) => {
-            encode_array(encoder, values.as_slice().len())?;
-            for value in values.as_slice() {
-                encode_fact_value(encoder, value)?;
-            }
+            encode_member_values(encoder, values.as_slice())?;
         }
     }
     Ok(())
@@ -277,15 +269,42 @@ fn condition(decoder: &mut V1Decoder<'_>) -> Result<ObservationCondition, CodecE
         }
         3 => {
             let count = array(decoder, MAX_MEMBER_VALUES)?;
-            let mut values = Vec::with_capacity(count);
-            for _ in 0..count {
-                values.push(fact_value(decoder)?);
-            }
+            let values = crate::collections::read_items!(count, fact_value(decoder))?;
             ConditionTest::Member(MemberValues::new(values)?)
         }
         _ => return Err(CodecError::Malformed),
     };
     Ok(ObservationCondition::new(name, test))
+}
+
+fn encode_observation_subject(
+    encoder: &mut V1Encoder,
+    subject: &ObservationSubject,
+) -> Result<(), CodecError> {
+    encode_map(encoder, 2)?;
+    encode_key(encoder, 0)?;
+    match subject {
+        ObservationSubject::Resource(resource) => {
+            encode_key(encoder, 0)?;
+            encode_key(encoder, 1)?;
+            encode_text(encoder, resource.as_str())?;
+        }
+        ObservationSubject::ActionFact(name) => {
+            encode_key(encoder, 1)?;
+            encode_key(encoder, 1)?;
+            encode_text(encoder, name.as_str())?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_conditions(
+    encoder: &mut V1Encoder,
+    conditions: &[ObservationCondition],
+) -> Result<(), CodecError> {
+    encode_array(encoder, conditions.len())?;
+    crate::collections::write_items!(conditions, condition => encode_condition(encoder, condition))?;
+    Ok(())
 }
 
 fn encode_requirement_to(
@@ -298,29 +317,13 @@ fn encode_requirement_to(
     encode_key(encoder, 1)?;
     encode_text(encoder, requirement.schema().as_str())?;
     encode_key(encoder, 2)?;
-    encode_map(encoder, 2)?;
-    encode_key(encoder, 0)?;
-    match requirement.subject() {
-        ObservationSubject::Resource(resource) => {
-            encode_key(encoder, 0)?;
-            encode_key(encoder, 1)?;
-            encode_text(encoder, resource.as_str())?;
-        }
-        ObservationSubject::ActionFact(name) => {
-            encode_key(encoder, 1)?;
-            encode_key(encoder, 1)?;
-            encode_text(encoder, name.as_str())?;
-        }
-    }
+    encode_observation_subject(encoder, requirement.subject())?;
     encode_key(encoder, 3)?;
     encoder
         .u32(requirement.max_age_seconds())
         .map_err(encode_error)?;
     encode_key(encoder, 4)?;
-    encode_array(encoder, requirement.conditions().len())?;
-    for condition in requirement.conditions() {
-        encode_condition(encoder, condition)?;
-    }
+    encode_conditions(encoder, requirement.conditions())?;
     Ok(())
 }
 
@@ -344,10 +347,7 @@ fn requirement(decoder: &mut V1Decoder<'_>) -> Result<ObservationRequirement, Co
     let max_age_seconds = decoder.u32().map_err(|_| CodecError::Malformed)?;
     key(decoder, 4)?;
     let count = array(decoder, MAX_OBSERVATION_CONDITIONS)?;
-    let mut conditions = Vec::with_capacity(count);
-    for _ in 0..count {
-        conditions.push(condition(decoder)?);
-    }
+    let conditions = crate::collections::read_items!(count, condition(decoder))?;
     ObservationRequirement::new(
         observer_anchor,
         schema,
@@ -366,7 +366,9 @@ fn requirement(decoder: &mut V1Decoder<'_>) -> Result<ObservationRequirement, Co
 pub fn encode_observation_requirement(
     requirement: &ObservationRequirement,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| encode_requirement_to(encoder, requirement))
+    let mut encoder = Encoder::new(Vec::new());
+    encode_requirement_to(&mut encoder, requirement)?;
+    Ok(encoder.into_writer())
 }
 
 /// Encodes the exact bytes of an `observation-requirement-v1` extension.
@@ -377,13 +379,10 @@ pub fn encode_observation_requirement(
 pub fn encode_observation_requirements(
     requirements: &ObservationRequirements,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| {
-        encode_array(encoder, requirements.as_slice().len())?;
-        for requirement in requirements.as_slice() {
-            encode_requirement_to(encoder, requirement)?;
-        }
-        Ok(())
-    })
+    let mut encoder = Encoder::new(Vec::new());
+    encode_array(&mut encoder, requirements.as_slice().len())?;
+    crate::collections::write_items!(requirements.as_slice(), requirement => encode_requirement_to(&mut encoder, requirement))?;
+    Ok(encoder.into_writer())
 }
 
 /// Decodes the exact bytes of an `observation-requirement-v1` extension.
@@ -401,19 +400,13 @@ pub fn decode_observation_requirements(
     }
     let mut decoder = Decoder::new(input);
     let count = array(&mut decoder, MAX_OBSERVATION_REQUIREMENTS_PER_GRANT)?;
-    let mut requirements = Vec::with_capacity(count);
-    for _ in 0..count {
-        requirements.push(requirement(&mut decoder)?);
-    }
+    let requirements = crate::collections::read_items!(count, requirement(&mut decoder))?;
     let requirements = ObservationRequirements::new(requirements).map_err(|error| match error {
         auths_model::ModelError::CollectionLimitExceeded => CodecError::LimitExceeded,
         other => CodecError::Model(other),
     })?;
     ensure_complete(&decoder, input)?;
-    if encode_observation_requirements(&requirements)?.as_slice() != input {
-        return Err(CodecError::NonCanonical);
-    }
-    Ok(requirements)
+    crate::canonical::accept(input, encode_observation_requirements(&requirements)?, requirements)
 }
 
 pub(crate) fn encode_observer_anchors(
@@ -421,36 +414,7 @@ pub(crate) fn encode_observer_anchors(
     anchors: &[ObserverAnchor],
 ) -> Result<(), CodecError> {
     encode_array(encoder, anchors.len())?;
-    for anchor in anchors {
-        encode_map(encoder, 7)?;
-        encode_key(encoder, 0)?;
-        encode_text(encoder, anchor.id().as_str())?;
-        encode_key(encoder, 1)?;
-        encode_text(encoder, anchor.principal().as_str())?;
-        encode_key(encoder, 2)?;
-        encode_array(encoder, anchor.accepted_methods().len())?;
-        for method in anchor.accepted_methods() {
-            encode_text(encoder, method.as_str())?;
-        }
-        encode_key(encoder, 3)?;
-        encode_array(encoder, anchor.schemas().len())?;
-        for schema in anchor.schemas() {
-            encode_text(encoder, schema.as_str())?;
-        }
-        encode_key(encoder, 4)?;
-        encode_array(encoder, anchor.subject_namespaces().len())?;
-        for namespace in anchor.subject_namespaces() {
-            encode_text(encoder, namespace.as_str())?;
-        }
-        encode_key(encoder, 5)?;
-        encoder
-            .u64(anchor.validity().not_before().get())
-            .map_err(encode_error)?;
-        encode_key(encoder, 6)?;
-        encoder
-            .u64(anchor.validity().expires_at().get())
-            .map_err(encode_error)?;
-    }
+    crate::collections::write_items!(anchors, anchor => encode_observer_anchor(encoder, anchor))?;
     Ok(())
 }
 
@@ -459,44 +423,7 @@ pub(crate) fn observer_anchors(
     limits: &VerifierLimits,
 ) -> Result<Vec<ObserverAnchor>, CodecError> {
     let count = array(decoder, MAX_OBSERVER_ANCHORS)?;
-    let mut anchors = Vec::with_capacity(count);
-    for _ in 0..count {
-        map(decoder, 7)?;
-        key(decoder, 0)?;
-        let id = ObserverAnchorId::parse(text(decoder)?)?;
-        key(decoder, 1)?;
-        let principal = PrincipalId::parse(text(decoder)?)?;
-        key(decoder, 2)?;
-        let methods = parsed_texts(
-            decoder,
-            limits.get(LimitKind::RegistryEntries),
-            PrincipalMethodId::parse,
-        )?;
-        key(decoder, 3)?;
-        let schemas = parsed_texts(
-            decoder,
-            limits.get(LimitKind::RegistryEntries),
-            ObservationSchemaId::parse,
-        )?;
-        key(decoder, 4)?;
-        let namespaces = parsed_texts(
-            decoder,
-            limits.get(LimitKind::Permissions),
-            ResourceId::parse,
-        )?;
-        key(decoder, 5)?;
-        let not_before = timestamp(decoder)?;
-        key(decoder, 6)?;
-        let expires_at = timestamp(decoder)?;
-        anchors.push(ObserverAnchor::new(
-            id,
-            principal,
-            methods,
-            schemas,
-            namespaces,
-            ValidityWindow::new(not_before, expires_at)?,
-        )?);
-    }
+    let anchors = crate::collections::read_items!(count, observer_anchor(decoder, limits))?;
     Ok(anchors)
 }
 
@@ -505,13 +432,7 @@ pub(crate) fn encode_observation_satisfactions(
     satisfactions: &[ObservationSatisfaction],
 ) -> Result<(), CodecError> {
     encode_array(encoder, satisfactions.len())?;
-    for satisfaction in satisfactions {
-        encode_map(encoder, 2)?;
-        encode_key(encoder, 0)?;
-        bytes(encoder, satisfaction.requirement().as_bytes())?;
-        encode_key(encoder, 1)?;
-        bytes(encoder, satisfaction.observation().as_bytes())?;
-    }
+    crate::collections::write_items!(satisfactions, satisfaction => encode_observation_satisfaction(encoder, satisfaction))?;
     Ok(())
 }
 
@@ -519,16 +440,98 @@ pub(crate) fn observation_satisfactions(
     decoder: &mut V1Decoder<'_>,
 ) -> Result<Vec<ObservationSatisfaction>, CodecError> {
     let count = array(decoder, MAX_OBSERVATION_SATISFACTIONS)?;
-    let mut satisfactions = Vec::with_capacity(count);
-    for _ in 0..count {
-        map(decoder, 2)?;
-        key(decoder, 0)?;
-        let requirement = ObservationRequirementId::new(digest_bytes(decoder)?);
-        key(decoder, 1)?;
-        let observation = AttachmentDigest::new(digest_bytes(decoder)?);
-        satisfactions.push(ObservationSatisfaction::new(requirement, observation));
-    }
+    let satisfactions = crate::collections::read_items!(count, observation_satisfaction(decoder))?;
     Ok(satisfactions)
+}
+
+fn encode_observation_facts(encoder: &mut V1Encoder, values: &[ObservationFact]) -> Result<(), CodecError> {
+    encode_array(encoder, values.len())?;
+    crate::collections::write_items!(values, fact => encode_observation_fact(encoder, fact))?;
+    Ok(())
+}
+
+fn encode_observation_fact(encoder: &mut V1Encoder, fact: &ObservationFact) -> Result<(), CodecError> {
+    encode_map(encoder, 2)?;
+    encode_key(encoder, 0)?;
+    encode_text(encoder, fact.name().as_str())?;
+    encode_key(encoder, 1)?;
+    encode_fact_value(encoder, fact.value())?;
+    Ok(())
+}
+
+fn encode_observer_anchor(encoder: &mut V1Encoder, anchor: &ObserverAnchor) -> Result<(), CodecError> {
+    encode_map(encoder, 7)?;
+    encode_key(encoder, 0)?;
+    encode_text(encoder, anchor.id().as_str())?;
+    encode_key(encoder, 1)?;
+    encode_text(encoder, anchor.principal().as_str())?;
+    encode_key(encoder, 2)?;
+    crate::text_list::encode_principal_methods(encoder, anchor.accepted_methods())?;
+    encode_key(encoder, 3)?;
+    crate::text_list::encode_observation_schemas(encoder, anchor.schemas())?;
+    encode_key(encoder, 4)?;
+    crate::text_list::encode_resource_ids(encoder, anchor.subject_namespaces())?;
+    encode_key(encoder, 5)?;
+    encoder
+        .u64(anchor.validity().not_before().get())
+        .map_err(encode_error)?;
+    encode_key(encoder, 6)?;
+    encoder
+        .u64(anchor.validity().expires_at().get())
+        .map_err(encode_error)?;
+    Ok(())
+}
+
+fn encode_observation_satisfaction(encoder: &mut V1Encoder, satisfaction: &ObservationSatisfaction) -> Result<(), CodecError> {
+    encode_map(encoder, 2)?;
+    encode_key(encoder, 0)?;
+    bytes(encoder, satisfaction.requirement().as_bytes())?;
+    encode_key(encoder, 1)?;
+    bytes(encoder, satisfaction.observation().as_bytes())?;
+    Ok(())
+}
+
+fn observation_fact(decoder: &mut V1Decoder<'_>) -> Result<ObservationFact, CodecError> {
+    map(decoder, 2)?;
+    key(decoder, 0)?;
+    let name = fact_name(decoder)?;
+    key(decoder, 1)?;
+    Ok(ObservationFact::new(name, fact_value(decoder)?))
+}
+
+fn observer_anchor(decoder: &mut V1Decoder<'_>, limits: &VerifierLimits) -> Result<ObserverAnchor, CodecError> {
+    map(decoder, 7)?;
+    key(decoder, 0)?;
+    let id = ObserverAnchorId::parse(text(decoder)?)?;
+    key(decoder, 1)?;
+    let principal = PrincipalId::parse(text(decoder)?)?;
+    key(decoder, 2)?;
+    let methods = crate::text_list::principal_methods(decoder, limits.get(LimitKind::RegistryEntries))?;
+    key(decoder, 3)?;
+    let schemas = crate::text_list::observation_schemas(decoder, limits.get(LimitKind::RegistryEntries))?;
+    key(decoder, 4)?;
+    let namespaces = crate::text_list::resource_ids(decoder, limits.get(LimitKind::Permissions))?;
+    key(decoder, 5)?;
+    let not_before = timestamp(decoder)?;
+    key(decoder, 6)?;
+    let expires_at = timestamp(decoder)?;
+    Ok(ObserverAnchor::new(
+        id,
+        principal,
+        methods,
+        schemas,
+        namespaces,
+        ValidityWindow::new(not_before, expires_at)?,
+    )?)
+}
+
+fn observation_satisfaction(decoder: &mut V1Decoder<'_>) -> Result<ObservationSatisfaction, CodecError> {
+    map(decoder, 2)?;
+    key(decoder, 0)?;
+    let requirement = ObservationRequirementId::new(digest_bytes(decoder)?);
+    key(decoder, 1)?;
+    let observation = AttachmentDigest::new(digest_bytes(decoder)?);
+    Ok(ObservationSatisfaction::new(requirement, observation))
 }
 
 #[cfg(test)]

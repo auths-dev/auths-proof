@@ -534,7 +534,7 @@ fn collection_json(shown: &QuorumProposal, action: &QuorumAction, inputs: &[Vec<
             .collect::<Vec<_>>(),
     });
     match collection.assemble(action) {
-        Ok(bundle) => value["proof_b64"] = json!(b64(&encode_bundle(&bundle).expect("bytes"))),
+        Ok(bundle) => value["proof_b64"] = json!(b64(&auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("bytes"))),
         Err(code) => value["assemble_code"] = json!(code.as_str()),
     }
     value
@@ -674,11 +674,9 @@ fn generate() -> String {
         ResponseBody::Decline(_) => panic!("not an approval"),
     };
     let in_process = |pair: [&ApprovalResponse; 2]| {
-        encode_bundle(
-            &shown
+        auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&shown
                 .assemble(&action, &pair.map(approval))
-                .expect("in-process bundle"),
-        )
+                .expect("in-process bundle"))).and_then(|canonical| encode_bundle(&canonical))
         .expect("bytes")
     };
 

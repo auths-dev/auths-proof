@@ -9,22 +9,27 @@
 //! argument values and the echo token are left for the leaf.
 
 use super::construct::{
-    AccountScopePlan, ActionReadPlan, BodyPlan, CredentialReadPlan, FormPiece, Header, HeaderPlan,
-    JsonPiece, RequestMethod, ScopeGrammar, SegmentPlan, WritePlan, append_form_encoded,
-    append_json_string,
+    ActionReadPlan, CredentialReadPlan, HeaderPlan,
+    RequestMethod, SegmentPlan, WritePlan,
 };
 use super::source::{
-    BodySource, EchoPlacement, FormExpr, IdempotencySource, PathSegment, RecipeSource, ValueExpr,
+    BodySource, CredentialSource, DeniedReadSource, EchoPlacement, FormExpr, IdempotencySource, PathSegment, RecipeSource, ValueExpr,
 };
 use super::{
-    FieldSchema, GatewayRecipeError, HeaderGrammar, IDEMPOTENCY_HEADER, WriteMethod,
-    provider_header,
+    GatewayRecipeError, WriteMethod,
 };
-use std::collections::BTreeMap;
+use super::validate::ValidatedSource;
+use auths_gateway_kernel::field_projection::FieldSpec;
+use auths_gateway_kernel::path_compiler::{self, NamedSegment};
+use auths_gateway_kernel::header_compiler::{HeaderCompileError, NamedHeader, NamedScope};
+use auths_gateway_kernel::request_compiler::{self, CompileWriteError};
+use auths_gateway_kernel::template_ast::{self, TemplateError};
 
 /// Every plan of one compiled recipe.
 #[derive(Clone, Debug)]
 pub(super) struct Plans {
+    /// Complete immutable field/name pairs used by runtime object projection.
+    pub(super) field_schemas: Vec<FieldSpec>,
     pub(super) write: WritePlan,
     /// Present only for a verified-locator observation.
     pub(super) observation: Option<ActionReadPlan>,
@@ -35,80 +40,79 @@ pub(super) struct Plans {
     pub(super) denied: Vec<CredentialReadPlan>,
 }
 
-struct Lowering<'a> {
-    fields: &'a BTreeMap<String, FieldSchema>,
+struct Lowering {
+    field_names: Vec<Vec<u8>>,
     origin: Vec<u8>,
     headers: HeaderPlan,
 }
 
-/// Accumulates JSON pieces, merging adjacent pre-rendered bytes.
-#[derive(Default)]
-struct JsonPieces {
-    pieces: Vec<JsonPiece>,
-    raw: Vec<u8>,
+/// Copies decoded values and original name/child pairs without rendering
+/// syntax or resolving argument indices. The kernel checks and emits the body.
+fn source_value(value: &ValueExpr) -> template_ast::Value {
+    match value {
+        ValueExpr::String { value } => template_ast::Value::String(value.as_bytes().to_vec()),
+        ValueExpr::Integer { value } => template_ast::Value::Integer(*value),
+        ValueExpr::Boolean { value } => template_ast::Value::Boolean(*value),
+        ValueExpr::Field { name } => template_ast::Value::Field(name.as_bytes().to_vec()),
+        ValueExpr::Object { fields } => template_ast::Value::Object(source_members(fields)),
+        ValueExpr::Array { items } => template_ast::Value::Array(source_values(items)),
+        ValueExpr::Echo => template_ast::Value::AuthorEcho,
+    }
 }
 
-impl JsonPieces {
-    fn raw(&mut self, bytes: &[u8]) {
-        self.raw.extend_from_slice(bytes);
+fn source_values(items: &[ValueExpr]) -> Vec<template_ast::Value> {
+    let mut output = Vec::new();
+    let mut position = 0;
+    while position < items.len() {
+        output.push(source_value(&items[position]));
+        position += 1;
     }
+    output
+}
 
-    fn piece(&mut self, piece: JsonPiece) {
-        self.flush();
-        self.pieces.push(piece);
+fn source_members(fields: &std::collections::BTreeMap<String, ValueExpr>) -> Vec<template_ast::JsonMember> {
+    let mut output = Vec::new();
+    for (name, value) in fields {
+        output.push(template_ast::JsonMember { name: name.as_bytes().to_vec(), value: source_value(value) });
     }
+    output
+}
 
-    fn flush(&mut self) {
-        if !self.raw.is_empty() {
-            self.pieces
-                .push(JsonPiece::Raw(std::mem::take(&mut self.raw)));
+fn source_form_value(value: &FormExpr) -> template_ast::FormValue {
+    match value {
+        FormExpr::String { value } => template_ast::FormValue::String(value.as_bytes().to_vec()),
+        FormExpr::Field { name } => template_ast::FormValue::Field(name.as_bytes().to_vec()),
+        FormExpr::Json { value } => template_ast::FormValue::Json(source_value(value)),
+        FormExpr::Echo => template_ast::FormValue::AuthorEcho,
+    }
+}
+
+fn source_body(body: &BodySource) -> template_ast::Body {
+    match body {
+        BodySource::Json { value } => template_ast::Body::Json(source_value(value)),
+        BodySource::Form { fields } => template_ast::Body::Form(source_form_members(fields)),
+    }
+}
+
+fn source_form_members(fields: &std::collections::BTreeMap<String, FormExpr>) -> Vec<template_ast::FormMember> {
+    let mut output = Vec::new();
+    for (name, value) in fields {
+        output.push(template_ast::FormMember { name: name.as_bytes().to_vec(), value: source_form_value(value) });
+    }
+    output
+}
+
+fn source_echo(echo: &EchoPlacement) -> Result<template_ast::Echo, GatewayRecipeError> {
+    match echo {
+        EchoPlacement::JsonPointer { pointer } => {
+            let tokens = match auths_gateway_kernel::template_members::echo_pointer_tokens(pointer.as_bytes()) {
+                Ok(tokens) => tokens,
+                Err(_) => return Err(GatewayRecipeError::EchoConflict),
+            };
+            Ok(template_ast::Echo::Json(tokens))
         }
+        EchoPlacement::FormField { name } => Ok(template_ast::Echo::Form(name.as_bytes().to_vec())),
     }
-
-    fn finish(mut self) -> Vec<JsonPiece> {
-        self.flush();
-        self.pieces
-    }
-}
-
-/// Accumulates form pieces, merging adjacent pre-rendered bytes.
-#[derive(Default)]
-struct FormPieces {
-    pieces: Vec<FormPiece>,
-    raw: Vec<u8>,
-}
-
-impl FormPieces {
-    fn raw(&mut self, bytes: &[u8]) {
-        self.raw.extend_from_slice(bytes);
-    }
-
-    fn piece(&mut self, piece: FormPiece) {
-        if !self.raw.is_empty() {
-            self.pieces
-                .push(FormPiece::Raw(std::mem::take(&mut self.raw)));
-        }
-        self.pieces.push(piece);
-    }
-
-    fn finish(mut self) -> Vec<FormPiece> {
-        if !self.raw.is_empty() {
-            self.pieces.push(FormPiece::Raw(self.raw));
-        }
-        self.pieces
-    }
-}
-
-/// One member of a JSON object template, in canonical order.
-enum Member<'a> {
-    Value(&'a ValueExpr, Option<&'a [String]>),
-    Echo,
-}
-
-/// One field of a form template, in canonical order.
-enum FormMember<'a> {
-    Value(&'a FormExpr),
-    Echo,
 }
 
 const fn method(method: WriteMethod) -> RequestMethod {
@@ -120,28 +124,31 @@ const fn method(method: WriteMethod) -> RequestMethod {
     }
 }
 
-fn form_encoded(text: &str) -> Vec<u8> {
-    append_form_encoded(Vec::new(), text.as_bytes())
+fn named_path(path: &[PathSegment]) -> Vec<NamedSegment> {
+    let mut output = Vec::new();
+    for segment in path {
+        output.push(match segment {
+            PathSegment::Fixed { value } => NamedSegment::Fixed(value.as_bytes().to_vec()),
+            PathSegment::Field { name } => NamedSegment::Field(name.as_bytes().to_vec()),
+            PathSegment::ResponseField { .. } | PathSegment::Echo => NamedSegment::Unsupported,
+        });
+    }
+    output
 }
 
-impl Lowering<'_> {
-    fn index(&self, name: &str) -> Result<usize, GatewayRecipeError> {
-        self.fields
-            .keys()
-            .position(|field| field == name)
-            .ok_or(GatewayRecipeError::InvalidSource)
+pub(super) fn contains_response_field(path: &[PathSegment]) -> bool {
+    for segment in path {
+        if matches!(segment, PathSegment::ResponseField { .. }) {
+            return true;
+        }
     }
+    false
+}
 
+impl Lowering {
     fn path(&self, path: &[PathSegment]) -> Result<Vec<SegmentPlan>, GatewayRecipeError> {
-        path.iter()
-            .map(|segment| match segment {
-                PathSegment::Fixed { value } => Ok(SegmentPlan::Fixed(value.as_bytes().to_vec())),
-                PathSegment::Field { name } => self.index(name).map(SegmentPlan::Field),
-                PathSegment::ResponseField { .. } | PathSegment::Echo => {
-                    Err(GatewayRecipeError::InvalidSource)
-                }
-            })
-            .collect()
+        path_compiler::lower_path(&self.field_names, &named_path(path))
+            .map_err(|_| GatewayRecipeError::InvalidSource)
     }
 
     fn action_read(&self, path: &[PathSegment]) -> Result<ActionReadPlan, GatewayRecipeError> {
@@ -157,13 +164,8 @@ impl Lowering<'_> {
         method: RequestMethod,
         path: &[PathSegment],
     ) -> Result<CredentialReadPlan, GatewayRecipeError> {
-        let path = path
-            .iter()
-            .map(|segment| match segment {
-                PathSegment::Fixed { value } => Ok(value.as_bytes().to_vec()),
-                _ => Err(GatewayRecipeError::InvalidSource),
-            })
-            .collect::<Result<_, _>>()?;
+        let path = path_compiler::lower_fixed_path(&named_path(path))
+            .map_err(|_| GatewayRecipeError::InvalidSource)?;
         Ok(CredentialReadPlan {
             method,
             origin: self.origin.clone(),
@@ -172,242 +174,170 @@ impl Lowering<'_> {
         })
     }
 
-    fn json_value(
-        &self,
-        value: &ValueExpr,
-        echo: Option<&[String]>,
-        out: &mut JsonPieces,
-    ) -> Result<(), GatewayRecipeError> {
-        match value {
-            ValueExpr::String { value } => {
-                out.raw(&append_json_string(Vec::new(), value.as_bytes()));
-            }
-            ValueExpr::Integer { value } => out.raw(value.to_string().as_bytes()),
-            ValueExpr::Boolean { value } => out.raw(if *value { b"true" } else { b"false" }),
-            ValueExpr::Field { name } => out.piece(JsonPiece::Field(self.index(name)?)),
-            ValueExpr::Array { items } => {
-                out.raw(b"[");
-                for (position, item) in items.iter().enumerate() {
-                    if position > 0 {
-                        out.raw(b",");
-                    }
-                    self.json_value(item, None, out)?;
-                }
-                out.raw(b"]");
-            }
-            ValueExpr::Object { fields } => {
-                let mut members: Vec<(&str, Member<'_>)> = fields
-                    .iter()
-                    .map(|(key, child)| {
-                        let nested = match echo {
-                            Some([first, rest @ ..]) if first == key && !rest.is_empty() => {
-                                Some(rest)
-                            }
-                            _ => None,
-                        };
-                        (key.as_str(), Member::Value(child, nested))
-                    })
-                    .collect();
-                if let Some([last]) = echo {
-                    members.push((last.as_str(), Member::Echo));
-                }
-                members.sort_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
-                out.raw(b"{");
-                for (position, (key, member)) in members.into_iter().enumerate() {
-                    if position > 0 {
-                        out.raw(b",");
-                    }
-                    out.raw(&append_json_string(Vec::new(), key.as_bytes()));
-                    out.raw(b":");
-                    match member {
-                        Member::Value(child, nested) => self.json_value(child, nested, out)?,
-                        Member::Echo => out.piece(JsonPiece::Echo),
-                    }
-                }
-                out.raw(b"}");
-            }
-            ValueExpr::Echo => return Err(GatewayRecipeError::EchoConflict),
-        }
-        Ok(())
+    fn named_body(body: &BodySource, echo: Option<&EchoPlacement>) -> Result<template_ast::NamedTemplate, GatewayRecipeError> {
+        let body = source_body(body);
+        let echo = match echo { Some(echo) => Some(source_echo(echo)?), None => None };
+        template_ast::compile_body(&body, echo.as_ref()).map_err(|error| match error {
+            TemplateError::Shape => GatewayRecipeError::UnsafeTemplate,
+            TemplateError::EchoConflict => GatewayRecipeError::EchoConflict,
+            TemplateError::Resources => GatewayRecipeError::InvalidSource,
+        })
     }
 
-    fn body(
-        &self,
-        body: &BodySource,
-        echo: Option<&EchoPlacement>,
-    ) -> Result<BodyPlan, GatewayRecipeError> {
-        match body {
-            BodySource::Json { value } => {
-                let tokens: Option<Vec<String>> = match echo {
-                    Some(EchoPlacement::JsonPointer { pointer }) => {
-                        Some(pointer.split('/').skip(1).map(str::to_owned).collect())
-                    }
-                    Some(EchoPlacement::FormField { .. }) => {
-                        return Err(GatewayRecipeError::EchoConflict);
-                    }
-                    None => None,
-                };
-                let mut pieces = JsonPieces::default();
-                self.json_value(value, tokens.as_deref(), &mut pieces)?;
-                Ok(BodyPlan::Json(pieces.finish()))
+    fn probe(&self, credential: &CredentialSource) -> Result<Option<CredentialReadPlan>, GatewayRecipeError> {
+        let Some(guard) = credential.guard() else { return Ok(None); };
+        match &guard.probe {
+            Some(probe) => {
+                let lowered = self.credential_read(RequestMethod::Get, &probe.path);
+                match &lowered {
+                    Ok(plan) => Ok(Some(plan.clone())),
+                    Err(error) => Err(*error),
+                }
             }
-            BodySource::Form { fields } => {
-                let mut members: Vec<(&str, FormMember<'_>)> = fields
-                    .iter()
-                    .map(|(name, value)| (name.as_str(), FormMember::Value(value)))
-                    .collect();
-                match echo {
-                    Some(EchoPlacement::FormField { name }) => {
-                        members.push((name.as_str(), FormMember::Echo));
-                    }
-                    Some(EchoPlacement::JsonPointer { .. }) => {
-                        return Err(GatewayRecipeError::EchoConflict);
-                    }
-                    None => {}
+            None => Ok(None),
+        }
+    }
+
+    fn account(&self, credential: &CredentialSource) -> Result<Option<CredentialReadPlan>, GatewayRecipeError> {
+        let Some(guard) = credential.guard() else { return Ok(None); };
+        match &guard.account {
+            Some(account) => {
+                let lowered = self.credential_read(RequestMethod::Get, &account.path);
+                match &lowered {
+                    Ok(plan) => Ok(Some(plan.clone())),
+                    Err(error) => Err(*error),
                 }
-                members.sort_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
-                let mut pieces = FormPieces::default();
-                for (position, (name, member)) in members.into_iter().enumerate() {
-                    if position > 0 {
-                        pieces.raw(b"&");
-                    }
-                    pieces.raw(&form_encoded(name));
-                    pieces.raw(b"=");
-                    match member {
-                        FormMember::Echo => pieces.piece(FormPiece::Echo),
-                        FormMember::Value(FormExpr::String { value }) => {
-                            pieces.raw(&form_encoded(value));
-                        }
-                        FormMember::Value(FormExpr::Field { name }) => {
-                            pieces.piece(FormPiece::Field(self.index(name)?));
-                        }
-                        FormMember::Value(FormExpr::Json { value }) => {
-                            let mut json = JsonPieces::default();
-                            self.json_value(value, None, &mut json)?;
-                            pieces.piece(FormPiece::Json(json.finish()));
-                        }
-                        FormMember::Value(FormExpr::Echo) => {
-                            return Err(GatewayRecipeError::EchoConflict);
-                        }
-                    }
-                }
-                Ok(BodyPlan::Form(pieces.finish()))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn denied(&self, credential: &CredentialSource) -> Result<Vec<CredentialReadPlan>, GatewayRecipeError> {
+        let Some(guard) = credential.guard() else { return Ok(Vec::new()); };
+        match &guard.denied_reads {
+            Some(reads) => self.denied_reads(reads),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    fn denied_reads(&self, reads: &[DeniedReadSource]) -> Result<Vec<CredentialReadPlan>, GatewayRecipeError> {
+        let mut output = Vec::new();
+        for read in reads {
+            let lowered = self.credential_read(denied_read_method(read), &read.path);
+            match &lowered {
+                Ok(plan) => output.push(plan.clone()),
+                Err(error) => return Err(*error),
             }
         }
+        Ok(output)
+    }
+
+}
+
+fn header_source(source: &RecipeSource) -> (Option<Vec<NamedHeader>>, Option<NamedScope>) {
+    let versions = match &source.provider_headers {
+        Some(headers) => {
+            let mut output = Vec::new();
+            for (name, value) in headers {
+                output.push(NamedHeader { name: name.as_bytes().to_vec(), value: value.as_bytes().to_vec() });
+            }
+            Some(output)
+        }
+        None => None,
+    };
+    let account_scope = match &source.account_scope {
+        Some(scope) => Some(NamedScope { name: scope.header.as_bytes().to_vec(), field: scope.field.as_bytes().to_vec() }),
+        None => None,
+    };
+    (versions, account_scope)
+}
+
+fn named_write_body(source: &RecipeSource) -> Result<template_ast::NamedTemplate, GatewayRecipeError> {
+    match &source.echo {
+        Some(echo) => Lowering::named_body(&source.write.body, Some(&echo.write)),
+        None => Lowering::named_body(&source.write.body, None),
     }
 }
 
-fn header_plan(
-    source: &RecipeSource,
-    fields: &BTreeMap<String, FieldSchema>,
-) -> Result<HeaderPlan, GatewayRecipeError> {
-    let versions = source
-        .provider_headers
-        .iter()
-        .flatten()
-        .map(|(name, value)| Header {
-            name: name.as_bytes().to_vec(),
-            value: value.as_bytes().to_vec(),
-        })
-        .collect();
-    let account_scope = source
-        .account_scope
-        .as_ref()
-        .map(|scope| {
-            let entry =
-                provider_header(&scope.header).ok_or(GatewayRecipeError::InvalidAccountScope)?;
-            let grammar = match entry.grammar {
-                HeaderGrammar::StripeAccount => ScopeGrammar::StripeAccount,
-                HeaderGrammar::StripeVersion | HeaderGrammar::IsoDate => {
-                    return Err(GatewayRecipeError::InvalidAccountScope);
-                }
-            };
-            let field = fields
-                .keys()
-                .position(|name| *name == scope.field)
-                .ok_or(GatewayRecipeError::InvalidAccountScope)?;
-            Ok(AccountScopePlan {
-                name: scope.header.as_bytes().to_vec(),
-                field,
-                grammar,
-            })
-        })
-        .transpose()?;
-    Ok(HeaderPlan {
-        versions,
-        account_scope,
-    })
+fn has_idempotency_header(source: &RecipeSource) -> bool {
+    match &source.write.idempotency {
+        Some(IdempotencySource::DerivedHeader { .. }) => true,
+        Some(IdempotencySource::OperationIdField { .. }) | None => false,
+    }
+}
+
+fn denied_read_method(read: &DeniedReadSource) -> RequestMethod {
+    if auths_gateway_kernel::construct::field_name_equal(read.method.as_bytes(), b"HEAD") {
+        RequestMethod::Head
+    } else {
+        RequestMethod::Get
+    }
 }
 
 /// Lowers a source the compile rules accepted.
 pub(super) fn plans(
-    source: &RecipeSource,
-    fields: &BTreeMap<String, FieldSchema>,
+    checked: &ValidatedSource<'_>,
 ) -> Result<Plans, GatewayRecipeError> {
-    let lowering = Lowering {
-        fields,
-        origin: source.origin.as_bytes().to_vec(),
-        headers: header_plan(source, fields)?,
+    let source = checked.source();
+    let parsed_host = checked.parsed_host();
+    let field_schemas = checked.field_specs().to_vec();
+    let body_result = named_write_body(source);
+    let body = match &body_result {
+        Ok(body) => body.clone(),
+        Err(error) => return Err(*error),
     };
-    let write = WritePlan {
+    let path = named_path(&source.write.path);
+    let (versions, account_scope) = header_source(source);
+    let write_source = request_compiler::WriteSource {
         method: method(source.write.method),
-        origin: lowering.origin.clone(),
-        path: lowering.path(&source.write.path)?,
-        headers: lowering.headers.clone(),
-        idempotency_header: matches!(
-            source.write.idempotency,
-            Some(IdempotencySource::DerivedHeader { .. })
-        )
-        .then(|| IDEMPOTENCY_HEADER.as_bytes().to_vec()),
-        body: lowering.body(
-            &source.write.body,
-            source.echo.as_ref().map(|echo| &echo.write),
-        )?,
+        origin: source.origin.as_bytes(),
+        parsed_host: parsed_host.as_bytes(),
+        path: &path,
+        versions: versions.as_deref(),
+        scope: account_scope.as_ref(),
+        idempotency_header: has_idempotency_header(source),
+        body: body.source(),
     };
-    let observation = source
-        .observation
-        .as_ref()
-        .filter(|observation| {
-            !observation
-                .path
-                .iter()
-                .any(|segment| matches!(segment, PathSegment::ResponseField { .. }))
-        })
-        .map(|observation| lowering.action_read(&observation.path))
-        .transpose()?;
-    let pre_entry = source
-        .pre_entry
-        .as_ref()
-        .map(|pre_entry| lowering.action_read(&pre_entry.path))
-        .transpose()?;
-    let relative_ceiling = source
-        .relative_ceiling
-        .as_ref()
-        .map(|ceiling| lowering.action_read(&ceiling.path))
-        .transpose()?;
-    let guard = source.credential.guard();
-    let probe = guard
-        .and_then(|guard| guard.probe.as_ref())
-        .map(|probe| lowering.credential_read(RequestMethod::Get, &probe.path))
-        .transpose()?;
-    let account = guard
-        .and_then(|guard| guard.account.as_ref())
-        .map(|account| lowering.credential_read(RequestMethod::Get, &account.path))
-        .transpose()?;
-    let denied = guard
-        .and_then(|guard| guard.denied_reads.as_ref())
-        .into_iter()
-        .flatten()
-        .map(|read| {
-            let method = if read.method == "HEAD" {
-                RequestMethod::Head
+    let compilation = request_compiler::compile_write(&field_schemas, write_source);
+    let compiled = match &compilation {
+        Ok(compiled) => compiled,
+        Err(error) => return Err(match error {
+            CompileWriteError::Fields => GatewayRecipeError::InvalidProfileLock,
+            CompileWriteError::Origin => GatewayRecipeError::UnsafeOrigin,
+            CompileWriteError::Method | CompileWriteError::Path(_) | CompileWriteError::Body(_) => GatewayRecipeError::InvalidSource,
+            CompileWriteError::Headers(HeaderCompileError::ProviderHeader) => GatewayRecipeError::InvalidProviderHeader,
+            CompileWriteError::Headers(HeaderCompileError::AccountScope) => GatewayRecipeError::InvalidAccountScope,
+        }),
+    };
+    let write = compiled.plan.clone();
+    let lowering = Lowering {
+        field_names: compiled.field_names.clone(),
+        origin: write.origin.clone(),
+        headers: write.headers.clone(),
+    };
+    let observation = match &source.observation {
+        Some(observation) => {
+            if contains_response_field(&observation.path) {
+                None
             } else {
-                RequestMethod::Get
-            };
-            lowering.credential_read(method, &read.path)
-        })
-        .collect::<Result<_, _>>()?;
+                Some(lowering.action_read(&observation.path)?)
+            }
+        }
+        None => None,
+    };
+    let pre_entry = match &source.pre_entry {
+        Some(pre_entry) => Some(lowering.action_read(&pre_entry.path)?),
+        None => None,
+    };
+    let relative_ceiling = match &source.relative_ceiling {
+        Some(ceiling) => Some(lowering.action_read(&ceiling.path)?),
+        None => None,
+    };
+    let probe = lowering.probe(&source.credential)?;
+    let account = lowering.account(&source.credential)?;
+    let denied = lowering.denied(&source.credential)?;
     Ok(Plans {
+        field_schemas,
         write,
         observation,
         pre_entry,

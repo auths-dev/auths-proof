@@ -9,13 +9,556 @@ shipping_target = "workspace-host"
 extraction_target = "workspace-host"
 translation_warnings = []
 required_compiled_external_axioms = 0
+# Reviewed naming normalization, positive bounded-vector carrier, and official recursive-loop extraction flag.
+codegen_normalizations = ["scope-codec-qualified-discriminants-v1", "scope-codec-recursive-loops-v1", "composition-qualified-discriminants-v1", "composition-positive-vector-v1", "composition-recursive-loops-v1", "signature-recursive-loops-v1", "composition-unit-callback-return-v1", "signature-qualified-discriminants-v1", "signature-explicit-primitive-context-v1", "sha256-monomorphic-foreign-names-v1", "sha256-explicit-primitive-context-v1", "p256-monomorphic-export-names-v1", "p256-qualified-discriminants-v1", "p256-explicit-primitive-context-v1", "suite-qualified-discriminants-v1", "suite-explicit-linked-primitive-context-v1", "temporal-qualified-discriminants-v1", "temporal-recursive-loops-v1", "status-selection-qualified-discriminants-v1", "status-selection-recursive-loops-v1", "connection-construction-source-paths-v2", "connections-qualified-discriminants-v1", "protocol-codec-qualified-discriminants-v1", "protocol-codec-positive-vector-v1", "protocol-codec-recursive-loops-v1", "protocol-codec-qualified-sha256-owner-v1"]
 
 source_files = [
+  "formal/Auths/Product/StrictJsonWorklist.lean",
+  "formal/Auths/Product/StrictJsonWorklistCost.lean",
+  "formal/Auths/Product/NativeCompilerValues.lean",
+  "formal/Auths/Product/NativeCompilerContainers.lean",
+  "formal/Auths/Product/NativeCompilerJson.lean",
+  "formal/Auths/Product/NativeCompilerAstMeaning.lean",
+  "formal/Auths/Product/NativeCompilerAst.lean",
+  "formal/Auths/Product/NativeCompilerSchemaModel.lean",
+  "formal/Auths/Product/NativeCompilerBytes.lean",
+  "formal/Auths/Product/NativeCompilerSchemaLookup.lean",
+  "formal/Auths/Product/NativeCompilerSchemaNames.lean",
+  "formal/Auths/Product/NativeCompilerSchemaAtoms.lean",
+  "formal/Auths/Product/NativeCompilerSchemaFields.lean",
+  "formal/Auths/Product/NativeCompilerSchemaParser.lean",
+  "formal/Auths/Product/NativeCompilerSchemaRoot.lean",
+  "formal/Auths/Product/NativeCompilerRulesModel.lean",
+  "formal/Auths/Product/NativeCompilerRuleNames.lean",
+  "formal/Auths/Product/NativeCompilerRuleInterfaces.lean",
+  "formal/Auths/Product/NativeCompilerRules.lean",
+  "formal/Auths/Product/NativeCompilerRequestInputs.lean",
+  "formal/Auths/Product/NativeCompilerEcho.lean",
+  "formal/Auths/Product/NativeCompilerConstruction.lean",
+  "formal/Auths/Product/NativeCompilerPaths.lean",
+  "formal/Auths/Product/NativeCompilerPlanClones.lean",
+  "formal/Auths/Product/NativeCompilerReadModel.lean",
+  "formal/Auths/Product/NativeCompilerReadPlans.lean",
+  "formal/Auths/Product/NativeCompilerRequestChoices.lean",
+  "formal/Auths/Product/NativeCompilerHeaderGrammar.lean",
+  "formal/Auths/Product/NativeCompilerHeaders.lean",
+  "formal/Auths/Product/NativeCompilerBodyViews.lean",
+  "formal/Auths/Product/NativeCompilerBodyClones.lean",
+  "formal/Auths/Product/NativeCompilerBodyResources.lean",
+  "formal/Auths/Product/NativeCompilerBodyLowering.lean",
+  "formal/Auths/Product/NativeCompilerOrigin.lean",
+  "formal/Auths/Product/NativeCompilerWriteClones.lean",
+  "formal/Auths/Product/NativeCompilerWrite.lean",
+  "formal/Auths/Product/NativeCompilerEmitterState.lean",
+  "formal/Auths/Product/TemplateAstKeyAdmission.lean",
+  "formal/Auths/Product/NativeCompilerAstKeys.lean",
+  "formal/Auths/Product/NativeCompilerMemberNames.lean",
+  "formal/Auths/Product/NativeCompilerMemberTargets.lean",
+  "formal/Auths/Product/NativeCompilerAstEcho.lean",
+  "formal/Auths/Product/TemplateMemberMerge.lean",
+  "formal/Auths/Product/NativeCompilerMemberMerge.lean",
+  "formal/Auths/Product/NativeCompilerFormGrammar.lean",
+  "formal/Auths/Product/NativeCompilerMembers.lean",
+  "formal/Auths/Product/NativeCompilerEncoding.lean",
+  "formal/Auths/Product/NativeCompilerEncodingSequences.lean",
+  "formal/Auths/Product/NativeCompilerPrefixes.lean",
+  "formal/Auths/Product/NativeCompilerDecimal.lean",
+  "formal/Auths/Product/NativeCompilerTraversalContext.lean",
+  "formal/Auths/Product/NativeCompilerArrayEmission.lean",
+  "formal/Auths/Product/TemplateAstKeyTraversal.lean",
+  "formal/Auths/Product/NativeCompilerObjectEmission.lean",
+  "formal/Auths/Product/NativeCompilerJsonEmission.lean",
+  "formal/Auths/Product/NativeCompilerFormEmission.lean",
+  "formal/Auths/Product/NativeCompilerBodyEmission.lean",
+  "formal/Auths/Product/NativeCompilerBodyMeaning.lean",
+  "formal/Auths/Product/RecipePlanModel.lean",
+  "formal/Auths/Product/RecipePlanProperties.lean",
+  "formal/Auths/Product/RecipeAdmissionAtoms.lean",
+  "formal/Auths/Product/RecipeCredentialAdmission.lean",
+  "formal/Auths/Product/RecipeLockAdmission.lean",
+  "formal/Auths/Product/NativeCompilerCompileProvenance.lean",
+  "formal/Auths/Product/NativeCompilerSha256Api.lean",
+  "formal/Auths/Product/NativeCompilerSha256Contract.lean",
+  "formal/Auths/Product/NativeCompilerRecipeBinding.lean",
+  "formal/Auths/Product/NativeCompilerDigestHex.lean",
+  "formal/Auths/Product/NativeCompilerLockDigest.lean",
+  "formal/Auths/Product/NativeCompilerOutcome.lean",
+  "formal/Auths/Product/NativeCompilerConstructorTrace.lean",
+  "formal/Auths/Product/NativeCompilerConstructorMeaning.lean",
+  "formal/Auths/Product/NativeCompilerAdmissionRefusal.lean",
+  "formal/Auths/Product/NativeCompilerText.lean",
+  "formal/Auths/Product/NativeCompilerNamespace.lean",
+  "formal/Auths/Product/NativeCompilerCredentialNames.lean",
+  "formal/Auths/Product/NativeCompilerCredentialAdmission.lean",
+  "formal/Auths/Product/RecipeOriginAdmission.lean",
+  "formal/Auths/Product/NativeCompilerByteSlices.lean",
+  "formal/Auths/Product/NativeCompilerOriginDomain.lean",
+  "formal/Auths/Product/NativeCompilerOriginAdmission.lean",
+  "formal/Auths/Product/NativeCompilerPlanInputs.lean",
+  "formal/Auths/Product/NativeCompilerNamedBody.lean",
+  "formal/Auths/Product/NativeCompilerCredentialPlans.lean",
+  "formal/Auths/Product/NativeCompilerCheckedColumns.lean",
+  "formal/Auths/Product/NativeCompilerPlans.lean",
+  "formal/Auths/Product/NativeCompilerPlanMeaning.lean",
+  "formal/Auths/Support/NativeRecipeTypes.lean",
+  "formal/Auths/Support/VTableLifetimeModel.lean",
+  "formal/Auths/Support/VTableDispatchModel.lean",
+  "formal/Auths/Support/VTableOwnershipModel.lean",
+  "formal/Auths/Support/VTableCallScopeModel.lean",
+  "formal/Auths/Support/SourceClosureCapture.lean",
+  "formal/Auths/Support/SourceClosureSyntax.lean",
+  "formal/Auths/Support/SourceClosureRegions.lean",
+  "formal/Auths/Support/ClosedWriterRuntime.lean",
+  "formal/Auths/Support/WriterInputBound.lean",
+  "formal/Auths/Support/BorrowProjection.lean",
+  "formal/Auths/Support/NativeCaptureValue.lean",
+  "formal/Auths/Support/NativeBorrowProtocol.lean",
+  "formal/Auths/Support/NativeBorrowWiring.lean",
+  "formal/Auths/Support/NativeBorrowView.lean",
+  "formal/Auths/Support/BorrowTransport.lean",
+  "formal/Auths/Support/CurrentBorrowCarrier.lean",
+  "formal/Auths/Support/NativeBorrowDefaults.lean",
+  "formal/Auths/Support/NativeBorrowExecution.lean",
+  "formal/Auths/Support/FullBorrowABI.lean",
+  "formal/Auths/Support/NativePurePayload.lean",
+  "formal/Auths/Support/NativePayloadCodec.lean",
+  "formal/Auths/Support/NativeRootPayload.lean",
+  "formal/Auths/Support/NativeRootBindings.lean",
+  "formal/Auths/Support/NativeRootExpressions.lean",
+  "formal/Auths/Support/NativeScopedDefaults.lean",
+  "formal/Auths/Support/NativeForeignDefaults.lean",
+  "formal/Auths/Support/NativeOwnedBindings.lean",
+  "formal/Auths/Support/NativeRootPrograms.lean",
+  "formal/Auths/Support/NativePureExpressions.lean",
+  "formal/Auths/Support/NativeCurrentSeeds.lean",
+  "formal/Auths/Support/NativePureClosures.lean",
+  "formal/Auths/Support/NativeDefaultBindings.lean",
+  "formal/Auths/Support/NativeProjectorLevels.lean",
+  "formal/Auths/Support/NativeProjectorKinds.lean",
+  "formal/Auths/Support/NativeConsumedCoverage.lean",
+  "formal/Auths/Support/NativeBindingWiring.lean",
+  "formal/Auths/Support/NativeInputCompatibility.lean",
+  "formal/Auths/Support/NativeBorrowLevels.lean",
+  "formal/Auths/Support/NativeBackwardTypes.lean",
+  "formal/Auths/Support/NativeTypeSyntax.lean",
+  "formal/Auths/Support/NativeValuePacking.lean",
+  "formal/Auths/Support/BorrowViewMaterialize.lean",
+  "formal/Auths/Support/BorrowViewCompatibility.lean",
+  "formal/Auths/Support/BorrowTagTopology.lean",
+  "formal/Auths/Support/BorrowViewRestriction.lean",
+  "formal/Auths/Support/NativeRecipeFunctions.lean",
+  "formal/Auths/Support/NativeRecipeCoreFunctions.lean",
+  "formal/Auths/Support/NativeRecipeContainerFunctions.lean",
+  "formal/Auths/Support/NativeRecipeStringRanges.lean",
+  "formal/Auths/Support/NativeRecipeUrlTypes.lean",
+  "formal/Auths/Support/NativeRecipeUrlFunctions.lean",
+  "formal/Auths/Support/NativeRecipeCryptoTypes.lean",
+  "formal/Auths/Support/NativeRecipeTypenumFunctions.lean",
+  "formal/Auths/Support/NativeRecipeDigestStructuralFunctions.lean",
+  "formal/Auths/Support/NativeRecipeCryptoPrimitives.lean",
+  "formal/Auths/Support/NativeRecipeDigestFunctions.lean",
+  "formal/qualification/aeneas/generated/native_recipe/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/native_recipe/FunsExternal.lean",
+  "docs/assurance/NATIVE_COMPILER_BOUNDARY.md",
+  "product/runtime/auths-gateway-kernel/src/reservation_batch.rs",
+  "product/runtime/auths-gateway-kernel/src/slot_record.rs",
+  "product/runtime/auths-gateway-kernel/src/entry_authorization.rs",
+  "product/runtime/auths-gateway-kernel/src/write_permit.rs",
+  "product/runtime/auths-gateway/src/submit.rs",
+  "product/runtime/auths-gateway/src/submit_permit_tests.rs",
+  "product/runtime/auths-gateway/src/engine.rs",
+  "product/runtime/auths-gateway/src/audit.rs",
+  "product/runtime/auths-gateway/src/commissioning_session.rs",
+  "product/runtime/auths-gateway/src/commissioning_session/tests.rs",
+  "product/runtime/auths-gateway/src/harness.rs",
+  "product/runtime/auths-gateway/src/quorum_tests.rs",
+  "product/runtime/auths-gateway/src/qualification_simulation.rs",
+  "product/runtime/auths-gateway-kernel/src/deadline.rs",
+  "product/runtime/auths-gateway/src/scenario_tests.rs",
+  "product/runtime/auths-gateway/Cargo.toml",
+  "product/runtime/auths-gateway/src/transport.rs",
+  "product/runtime/auths-gateway/src/transport_wire_tests.rs",
+  "docs/assurance/GATEWAY_TRANSPORT_BOUNDARY.md",
+  "product/runtime/auths-gateway-kernel/src/reservation_retry.rs",
+  "product/runtime/auths-gateway-kernel/src/counter_aggregation.rs",
+  "product/runtime/auths-gateway-kernel/src/counter_preimages.rs",
+  "product/runtime/auths-gateway/src/bounds.rs",
+  "product/runtime/auths-gateway-kernel/src/frontier.rs",
+  "product/runtime/auths-gateway-kernel/src/identity.rs",
+  "product/runtime/auths-gateway/src/recipe.rs",
+  "product/runtime/auths-gateway/src/recipe/lower.rs",
+  "product/runtime/auths-gateway/src/recipe/strict_json.rs",
+  "product/runtime/auths-gateway/src/recipe/runtime.rs",
+  "product/runtime/auths-gateway/src/recipe/provider_json_tests.rs",
+  "product/runtime/auths-gateway/src/pre_entry.rs",
+  "product/runtime/auths-gateway/src/onboarding.rs",
+  "product/runtime/auths-gateway/src/recipe/tests.rs",
+  "product/runtime/auths-gateway/src/store.rs",
+  "product/runtime/auths-gateway/src/connection.rs",
+  "product/runtime/auths-connections/src/model.rs",
+  "core/crates/auths-model/src/principal_scheme_tests.rs",
+  "core/crates/auths-model/src/scope_constructor_tests.rs",
+  "core/crates/auths-model/src/status_snapshot.rs",
+  "core/crates/auths-model/src/snapshot_constructor_tests.rs",
+  "core/crates/auths-model/src/bounded.rs",
+  "core/crates/auths-model/src/collection_scan.rs",
+  "core/crates/auths-model/src/parts.rs",
+  "core/crates/auths-model/src/collection_constructor_tests.rs",
+  "core/crates/auths-codec/tests/snapshot_uniqueness.rs",
+  "core/fixtures/codec/generate_snapshot_uniqueness.py",
+  "core/fixtures/codec/snapshot-uniqueness-v1.json",
+  "core/fixtures/codec/README.md",
+  "bindings/independent/go/auths/snapshot_uniqueness_test.go",
+  "bindings/independent/typescript/snapshot-uniqueness.test.ts",
+  "bindings/independent/go/auths/decode.go",
+  "core/crates/auths-codec/src/scope_decode_tests.rs",
+  "formal/qualification/aeneas/cases/ScopeCodec.lean",
+  "core/crates/auths-registries/Cargo.toml",
+  "core/crates/auths-registries/src/lib.rs",
+  "core/crates/auths-registries/src/status_selection_tests.rs",
+  "formal/qualification/aeneas/cases/StatusSelection.lean",
+  "core/crates/auths-verifier/Cargo.toml",
+  "core/crates/auths-verifier/src/lib.rs",
+  "core/crates/auths-verifier/src/resolution.rs",
+  "core/crates/auths-verifier/src/signature_control.rs",
+  "core/crates/auths-verifier/src/work_meter.rs",
+  "core/crates/auths-verifier/src/sealed.rs",
+  "core/crates/auths-verifier/src/authority.rs",
+  "core/crates/auths-verifier/src/authority_reference.rs",
+  "core/crates/auths-verifier/src/authority_parity_tests.rs",
+  "formal/Auths/Verifier/SealedProjection.lean",
+  "formal/Auths/Verifier/CompositionFloor.lean",
+  "formal/Auths/Crypto/ConfigurationFrame.lean",
+  "core/crates/auths-verifier/src/reference_stages.rs",
+  "core/crates/auths-verifier/src/stage_parity_tests.rs",
+  "core/crates/auths-registries/src/access.rs",
+  "core/crates/auths-registries/src/static_core.rs",
+  "core/crates/auths-registries/src/configuration_reference.rs",
+  "core/crates/auths-registries/src/configuration_tests.rs",
+  "core/crates/auths-assurance/Cargo.toml",
+  "core/crates/auths-assurance/src/lib.rs",
+  "core/crates/auths-assurance/src/reference.rs",
+  "core/crates/auths-assurance/src/parity_tests.rs",
+  "core/crates/auths-verifier/src/policy.rs",
+  "core/crates/auths-verifier/src/policy_parity_tests.rs",
+  "core/adapters/auths-raw-key/Cargo.toml",
+  "core/adapters/auths-raw-key/src/lib.rs",
+  "core/adapters/auths-did-key/Cargo.toml",
+  "core/adapters/auths-did-key/src/lib.rs",
+  "core/crates/auths-verifier/src/closed.rs",
+  "core/crates/auths-verifier/src/closed_tests.rs",
+  "core/crates/auths-verifier/src/approval.rs",
+  "core/crates/auths-verifier/src/collections.rs",
+  "core/crates/auths-verifier/src/ordered_set.rs",
+  "core/crates/auths-verifier/src/approval_reference.rs",
+  "core/crates/auths-verifier/src/approval_parity_tests.rs",
+  "core/crates/auths-verifier/src/observation.rs",
+  "core/crates/auths-verifier/src/action_binding.rs",
+  "core/crates/auths-verifier/src/branch.rs",
+  "core/crates/auths-verifier/src/observation_reference.rs",
+  "core/crates/auths-verifier/src/observation_parity_tests.rs",
+  "core/testkit/auths-testkit/src/lib.rs",
+  "core/testkit/auths-testkit/src/closed.rs",
+  "core/crates/auths-verifier/src/temporal_tests.rs",
+  "formal/qualification/aeneas/cases/TemporalWitness.lean",
+  "core/fixtures/crypto/import_p256_wycheproof.py",
+  "core/fixtures/crypto/p256-sha256-v1.tsv",
+  "core/fixtures/crypto/upstream/ecdsa_secp256r1_sha256_p1363_test.json",
+  "core/fixtures/crypto/README.md",
+  "core/crates/auths-signature/tests/p256_corpus.rs",
+  "bindings/independent/typescript/p256-corpus.test.ts",
+  "bindings/independent/go/auths/p256_corpus_test.go",
+  "bindings/independent/typescript/semantic-verifier.ts",
+  "xtask/src/checks.rs",
+  "core/crates/auths-signature/Cargo.toml",
+  "core/crates/auths-signature/src/lib.rs",
+  "core/crates/auths-ports/Cargo.toml",
+  "core/crates/auths-ports/src/lib.rs",
+  "core/crates/auths-ports/src/configuration.rs",
+  "core/crates/auths-ports/src/configuration_reference.rs",
+  "formal/qualification/aeneas/cases/SuiteAdapters.lean",
+  "formal/Auths/Crypto/P256Primitives.lean",
+  "formal/qualification/aeneas/cases/P256.lean",
+  "formal/Auths/Crypto/Sha256Primitives.lean",
+  "formal/qualification/aeneas/cases/Sha256.lean",
+  "formal/tools/SourceClosure.lean",
+  "formal/Auths/Crypto/NativePrimitives.lean",
+  "core/crates/auths-signature-core/Cargo.toml",
+  "core/crates/auths-signature-core/src/lib.rs",
+  "formal/qualification/aeneas/cases/Signature.lean",
+  "core/crates/auths-composition/Cargo.toml",
+  "core/crates/auths-composition/src/lib.rs",
+  "core/crates/auths-composition/src/summary.rs",
+  "formal/Auths/Support/Discriminant.lean",
+  "formal/Auths/Support/PositiveVec.lean",
+  "formal/Auths/Support/UnitCallback.lean",
+  "formal/qualification/aeneas/cases/Composition.lean",
+  "product/stores/auths-stores/Cargo.toml",
+  "product/stores/auths-stores/src/lib.rs",
+  "product/stores/auths-stores/src/gateway_fence.rs",
+  "formal/qualification/aeneas/cases/Stores.lean",
+  "core/crates/auths-codec/Cargo.toml",
+  "core/crates/auths-codec/src/lib.rs",
+  "core/crates/auths-codec/src/cbor.rs",
+  "core/crates/auths-codec/src/canonical.rs",
+  "core/crates/auths-codec/src/canonical_value.rs",
+  "core/crates/auths-codec/src/canonical_value_tests.rs",
+  "core/crates/auths-author/src/lib.rs",
+  "bindings/python/src/authoring.rs",
+  "bindings/wasm/auths-proof-wasm/src/lib.rs",
+  "core/testkit/auths-testkit/src/approval.rs",
+  "formal/Auths/Codec/CanonicalMatch.lean",
+  "formal/Auths/Codec/ProtocolHash.lean",
+  "formal/Auths/Crypto/ProtocolFraming.lean",
+  "formal/Auths/Crypto/ProtocolFramingTotality.lean",
+  "formal/Auths/Crypto/SigningCallers.lean",
+  "formal/Auths/Crypto/UnsignedWire.lean",
+  "formal/Auths/Crypto/UnsignedObjects.lean",
+  "formal/Auths/Crypto/DescriptorWriter.lean",
+  "formal/Auths/Crypto/UnsignedLeaves.lean",
+  "formal/Auths/Codec/ProtocolArrayWriters.lean",
+  "formal/Auths/Codec/ProtocolTextWriters.lean",
+  "formal/Auths/Crypto/UnsignedCollections.lean",
+  "formal/Auths/Crypto/StatementWriters.lean",
+  "formal/Auths/Crypto/SigningObjectWriters.lean",
+  "formal/Auths/Crypto/ValidatedWriters.lean",
+  "formal/Auths/Crypto/SigningPreimages.lean",
+  "formal/Auths/Crypto/FramedHash.lean",
+  "formal/Auths/Crypto/IdentifierCallers.lean",
+  "formal/Auths/Crypto/EvidenceWriters.lean",
+  "formal/Auths/Crypto/RequirementLeaves.lean",
+  "formal/Auths/Crypto/RequirementWriters.lean",
+  "formal/Auths/Crypto/RequirementIdentifiers.lean",
+  "formal/Auths/Crypto/PlanWire.lean",
+  "formal/Auths/Crypto/PlanWriters.lean",
+  "formal/Auths/Crypto/PlanIdentifier.lean",
+  "formal/Auths/Crypto/EvidenceArrays.lean",
+  "formal/Auths/Crypto/SignedObjectWriters.lean",
+  "formal/Auths/Crypto/SignedCommitments.lean",
+  "formal/Auths/Crypto/BundleObjects.lean",
+  "formal/Auths/Crypto/BundleLeaves.lean",
+  "formal/Auths/Crypto/BundleSelectors.lean",
+  "formal/Auths/Crypto/BundleSorting.lean",
+  "formal/Auths/Crypto/BorrowedKeys.lean",
+  "formal/Auths/Crypto/BundleNormalization.lean",
+  "formal/Auths/Crypto/BundleOrdering.lean",
+  "formal/Auths/Crypto/BundleFieldSorting.lean",
+  "formal/Auths/Crypto/BorrowedFields.lean",
+  "formal/Auths/Crypto/BundleArrays.lean",
+  "formal/Auths/Crypto/BundleWriters.lean",
+  "formal/Auths/Crypto/BundleCommitments.lean",
+  "formal/Auths/Crypto/SnapshotObjects.lean",
+  "formal/Auths/Crypto/SnapshotLeaves.lean",
+  "formal/Auths/Crypto/SnapshotArrays.lean",
+  "formal/Auths/Crypto/SnapshotWriters.lean",
+  "formal/Auths/Crypto/ContextObjects.lean",
+  "formal/Auths/Crypto/ContextLimits.lean",
+  "formal/Auths/Crypto/ContextProfiles.lean",
+  "formal/Auths/Crypto/ContextAnchors.lean",
+  "formal/Auths/Crypto/ContextAnchorArrays.lean",
+  "formal/Auths/Crypto/ContextAssurance.lean",
+  "formal/Auths/Crypto/ContextApproval.lean",
+  "formal/Auths/Crypto/ContextWriters.lean",
+  "formal/Auths/Crypto/ContextCommitments.lean",
+  "formal/Auths/Crypto/BoundedPolicyObjects.lean",
+  "formal/Auths/Crypto/BoundedPolicyWriters.lean",
+  "formal/Auths/Crypto/BoundedPolicyCommitments.lean",
+  "formal/Auths/Crypto/ResultObjects.lean",
+  "formal/Auths/Crypto/ResultLeaves.lean",
+  "formal/Auths/Crypto/ResultAssurance.lean",
+  "formal/Auths/Crypto/ResultSatisfactions.lean",
+  "formal/Auths/Crypto/ResultWriters.lean",
+  "formal/Auths/Crypto/ResultCommitments.lean",
+  "formal/Auths/Codec/PolicyValidity.lean",
+  "formal/Auths/Codec/PolicyIdentifiers.lean",
+  "formal/Auths/Codec/PolicyConstructors.lean",
+  "formal/Auths/Codec/PolicyCanonical.lean",
+  "formal/Auths/Crypto/WireCost.lean",
+  "formal/Auths/Crypto/ResultCost.lean",
+  "formal/Auths/Codec/ResultIntegrity.lean",
+  "formal/Auths/Codec/ProtocolReadHead.lean",
+  "formal/Auths/Codec/ProtocolCursor.lean",
+  "formal/Auths/Codec/ProtocolPayload.lean",
+  "formal/Auths/Codec/ProtocolCollection.lean",
+  "formal/Auths/Codec/ProtocolFields.lean",
+  "formal/Auths/Codec/ProtocolPrimitiveInverse.lean",
+  "formal/Auths/Codec/ProtocolPieces.lean",
+  "formal/Auths/Codec/PolicyInverse.lean",
+  "formal/Auths/Codec/ProtocolStrings.lean",
+  "formal/Auths/Codec/PolicyAccepted.lean",
+  "formal/Auths/Codec/PolicyReadTotal.lean",
+  "formal/Auths/Codec/ProtocolReaderBounds.lean",
+  "formal/Auths/Codec/PolicyCursor.lean",
+  "formal/Auths/Codec/PolicyAssurance.lean",
+  "formal/Auths/Product/WritePermit.lean",
+  "formal/Auths/Product/WritePermitRefinement.lean",
+  "formal/Auths/Product/ClaimedInputRefinement.lean",
+  "formal/Auths/Product/ArgumentBinding.lean",
+  "formal/Auths/Product/ArgumentBindingRefinement.lean",
+  "formal/Auths/Product/DecimalProjection.lean",
+  "formal/Auths/Product/ScalarProjection.lean",
+  "formal/Auths/Product/ScalarProjectionRefinement.lean",
+  "formal/Auths/Product/DecimalProjectionRefinement.lean",
+  "formal/Auths/Product/ScalarProjectionComposition.lean",
+  "formal/Auths/Product/ScalarDispatchRefinement.lean",
+  "formal/Auths/Product/FieldProjection.lean",
+  "formal/Auths/Product/FieldProjectionNames.lean",
+  "formal/Auths/Product/FieldProjectionRows.lean",
+  "formal/Auths/Product/FieldProjectionRefinement.lean",
+  "formal/Auths/Product/RequestBinding.lean",
+  "formal/Auths/Product/RequestBindingRefinement.lean",
+  "formal/Auths/Product/TemplateMembers.lean",
+  "formal/Auths/Product/TemplateMembersRefinement.lean",
+  "formal/Auths/Product/TemplateMemberDomains.lean",
+  "formal/Auths/Product/TemplateMemberDomainsRefinement.lean",
+  "formal/Auths/Product/TemplateTargetRefinement.lean",
+  "formal/Auths/Product/TemplateFormGrammar.lean",
+  "formal/Auths/Product/TemplateFormRefinement.lean",
+  "formal/Auths/Product/TemplateMemberSelection.lean",
+  "formal/Auths/Product/TemplateMemberSelectionRefinement.lean",
+  "formal/Auths/Product/TemplateAst.lean",
+  "formal/Auths/Product/TemplateAstRefinement.lean",
+  "formal/Auths/Product/TemplateAstResources.lean",
+  "formal/Auths/Product/TemplateAstMeaning.lean",
+  "formal/Auths/Product/TemplateAstSourceViews.lean",
+  "formal/Auths/Product/TemplateAstKeysRefinement.lean",
+  "formal/Auths/Product/TemplateAstPrefixRefinement.lean",
+  "formal/Auths/Product/TemplateAstTermination.lean",
+  "formal/Auths/Product/TemplateAstCorrespondence.lean",
+  "formal/Auths/Product/TemplateAstTraversal.lean",
+  "formal/Auths/Product/TemplateAstTraversalRefinement.lean",
+  "formal/Auths/Product/TemplateAstCompilerRefinement.lean",
+  "formal/Auths/Product/TemplateAstRequestComposition.lean",
+  "formal/Auths/Product/TemplateAstAdmission.lean",
+  "formal/Auths/Product/TemplateAstAdmissionRefinement.lean",
+  "formal/Auths/Product/TemplateAstAdmissionBudget.lean",
+  "formal/Auths/Product/TemplateAstAdmissionSelection.lean",
+  "formal/Auths/Product/TemplateAstAdmissionFold.lean",
+  "formal/Auths/Product/TemplateAstJsonAdmission.lean",
+  "formal/Auths/Product/TemplateAstBodyAdmission.lean",
+  "formal/Auths/Product/TemplateAstDemandBounds.lean",
+  "formal/Auths/Product/TemplateAstShapeCoverage.lean",
+  "product/runtime/auths-gateway-kernel/src/template_ast.rs",
+  "product/runtime/auths-gateway-kernel/src/template_members.rs",
+  "formal/Auths/Product/PathCompiler.lean",
+  "formal/Auths/Product/PathCompilerLeaves.lean",
+  "formal/Auths/Product/PathCompilerRefinement.lean",
+  "formal/Auths/Product/PathCompilerComposition.lean",
+  "formal/Auths/Product/BodyCompiler.lean",
+  "formal/Auths/Product/BodyCompilerResources.lean",
+  "formal/Auths/Product/BodyCompilerResourcesRefinement.lean",
+  "formal/Auths/Product/BodyCompilerRefinement.lean",
+  "formal/Auths/Product/BodyCompilerBounds.lean",
+  "formal/Auths/Product/BodyCompilerComposition.lean",
+  "formal/Auths/Product/DerivedTokens.lean",
+  "formal/Auths/Product/DerivedTokensRefinement.lean",
+  "formal/Auths/Product/RecipeBinding.lean",
+  "formal/Auths/Product/RecipeBindingRefinement.lean",
+  "product/runtime/auths-gateway-kernel/src/recipe_binding.rs",
+  "formal/Auths/Product/ProfileSchema.lean",
+  "formal/Auths/Product/ProfileSchemaCorrectness.lean",
+  "formal/Auths/Product/ProfileSchemaFolds.lean",
+  "formal/Auths/Product/ProfileSchemaRefinement.lean",
+  "formal/Auths/Product/ProfileSchemaParserRefinement.lean",
+  "formal/Auths/Product/EchoPointer.lean",
+  "formal/Auths/Product/EchoPointerRefinement.lean",
+  "formal/Auths/Product/AttemptBinding.lean",
+  "formal/Auths/Product/AttemptBindingRefinement.lean",
+  "product/runtime/auths-gateway-kernel/src/attempt_binding.rs",
+  "product/runtime/auths-gateway-kernel/src/profile_schema.rs",
+  "product/runtime/auths-gateway/src/recipe/profile.rs",
+  "formal/Auths/Product/DerivedBodyComposition.lean",
+  "formal/Auths/Product/HeaderCompiler.lean",
+  "formal/Auths/Product/HeaderCompilerLeaves.lean",
+  "formal/Auths/Product/HeaderCompilerRefinement.lean",
+  "formal/Auths/Product/HeaderCompilerComposition.lean",
+  "formal/Auths/Product/RequestCompiler.lean",
+  "formal/Auths/Product/RequestCompilerRefinement.lean",
+  "formal/Auths/Product/RequestCompilerComposition.lean",
+  "product/runtime/auths-gateway-kernel/src/request_compiler.rs",
+  "product/runtime/auths-gateway-kernel/src/header_compiler.rs",
+  "product/runtime/auths-gateway-kernel/src/derived_tokens.rs",
+  "product/runtime/auths-gateway-kernel/src/body_compiler.rs",
+  "formal/Auths/Product/OriginFramingRefinement.lean",
+  "product/runtime/auths-gateway-kernel/src/path_compiler.rs",
+  "product/runtime/auths-gateway/src/recipe/source.rs",
+  "product/runtime/auths-gateway-kernel/src/field_projection.rs",
+  "product/runtime/auths-gateway/src/recipe/validate.rs",
+  "product/runtime/auths-gateway-kernel/src/scalars.rs",
+  "product/runtime/auths-gateway-kernel/src/arguments.rs",
+  "formal/Auths/Product/EntryGate.lean",
+  "formal/Auths/Product/EntryDeadline.lean",
+  "formal/Auths/Product/Refinement/EntryDeadline.lean",
+  "formal/Auths/Product/LeaseBinding.lean",
+  "formal/Auths/Product/LeaseBindingRefinement.lean",
+  "product/runtime/auths-connections/src/credential.rs",
+  "product/integrations/auths-credentials-aws-secrets-manager/src/store.rs",
+  "product/runtime/auths-gateway/src/transport_wire_tests.rs",
+  "product/runtime/auths-gateway/src/submit.rs",
+  "product/runtime/auths-gateway/src/submit_permit_tests.rs",
+  "formal/Auths/Crypto/SigningPreimageResults.lean",
+  "formal/Auths/Codec/ProtocolHeadEncoder.lean",
+  "formal/Auths/Codec/ProtocolEncoderState.lean",
+  "formal/Auths/Codec/ProtocolWriter.lean",
+  "formal/Auths/Codec/ProtocolObjectWriter.lean",
+  "formal/Auths/Codec/ProtocolCanonical.lean",
+  "formal/Auths/Codec/ProtocolReencoding.lean",
+  "formal/Auths/Codec/ProtocolValidity.lean",
+  "formal/Auths/Codec/ProtocolConstructors.lean",
+  "formal/Auths/Codec/ProtocolIdentifiers.lean",
+  "formal/Auths/Codec/ProtocolPrincipalScheme.lean",
+  "formal/Auths/Codec/CollectionInvariants.lean",
+  "formal/Auths/Codec/ProtocolCollectionScans.lean",
+  "formal/Auths/Codec/ProtocolEquality.lean",
+  "formal/Auths/Codec/ProtocolKeyScans.lean",
+  "formal/Auths/Codec/ProtocolSort.lean",
+  "formal/Auths/Codec/ProtocolBoundedSet.lean",
+  "formal/Auths/Codec/Utf8Order.lean",
+  "formal/Auths/Codec/KeyOrder.lean",
+  "formal/Auths/Codec/ProtocolOrdering.lean",
+  "formal/Auths/Codec/ProtocolSets.lean",
+  "formal/Auths/Codec/RequirementKeys.lean",
+  "formal/Auths/Codec/ProtocolVectorEquality.lean",
+  "formal/Auths/Codec/RequirementEquality.lean",
+  "formal/Auths/Codec/RequirementConstructors.lean",
+  "formal/Auths/Codec/CanonicalValues.lean",
+  "formal/Auths/Codec/CanonicalEncoding.lean",
+  "formal/Auths/Codec/CanonicalIntegrity.lean",
+  "formal/Auths/Codec/StableNormalization.lean",
+  "formal/Auths/Codec/OwnedRecords.lean",
+  "formal/Auths/Codec/KeyDerivation.lean",
+  "formal/Auths/Codec/SnapshotOrdering.lean",
+  "formal/Auths/Codec/RecordNormalization.lean",
+  "formal/Auths/Support/ProtocolVec.lean",
+  "formal/Auths/Support/ProtocolDefaults.lean",
+  "formal/Auths/Support/ProtocolCompareSort.lean",
+  "formal/qualification/aeneas/cases/ProtocolCodec.lean",
+
+  "core/crates/auths-codec/src/collections.rs",
+  "core/crates/auths-codec/src/decode.rs",
+  "core/crates/auths-codec/src/encode.rs",
+  "core/crates/auths-codec/src/error.rs",
+  "core/crates/auths-codec/src/approval.rs",
+  "core/crates/auths-codec/src/observation.rs",
+  "core/crates/auths-codec/src/bounded_policy.rs",
+  "core/crates/auths-codec/src/text_list.rs",
+  "core/crates/auths-codec/src/text_list_tests.rs",
+  "core/crates/auths-codec/src/protocol_parity_tests.rs",
+  "core/crates/auths-codec/src/protocol_reference/mod.rs",
+  "core/crates/auths-codec/src/protocol_reference/encode.rs",
+  "core/crates/auths-codec/src/protocol_reference/decode.rs",
+  "core/crates/auths-codec/src/protocol_reference/approval.rs",
+  "core/crates/auths-codec/src/protocol_reference/observation.rs",
+  "core/crates/auths-codec/src/protocol_reference/bounded_policy.rs",
+  "core/crates/auths-codec/src/protocol_reference/hash.rs",
+  "core/crates/auths-codec/src/hash.rs",
+  "formal/qualification/aeneas/cases/Codec.lean",
   ".cargo/config.toml",
   "Cargo.toml",
   "Cargo.lock",
   "core/crates/auths-model/Cargo.toml",
   "core/crates/auths-model/src/lib.rs",
+  "core/crates/auths-model/src/identifier.rs",
   "core/crates/auths-model/src/observation.rs",
   "core/crates/auths-model/src/bounded_policy.rs",
   "core/crates/auths-model/src/approval.rs",
@@ -34,6 +577,7 @@ source_files = [
   "product/runtime/auths-gateway-kernel/Cargo.toml",
   "product/runtime/auths-gateway-kernel/src/lib.rs",
   "product/runtime/auths-gateway-kernel/src/construct.rs",
+  "product/runtime/auths-gateway-kernel/src/deadline.rs",
   "product/runtime/auths-gateway-kernel/src/order.rs",
   "product/runtime/auths-gateway-kernel/src/outcome.rs",
   "product/runtime/auths-gateway-kernel/src/ratio.rs",
@@ -44,8 +588,225 @@ source_files = [
   "product/runtime/auths-connections/src/kernel.rs",
   "formal/algebra-contract-v1.toml",
   "formal/qualification/aeneas/qualification.toml",
+  "formal/qualification/aeneas/native-serde-callbacks-v1.json",
+  "formal/qualification/aeneas/toolchain/aeneas.nix",
+  "formal/qualification/aeneas/toolchain/runtime-region-erasure-v1.patch",
+  "formal/qualification/aeneas/toolchain/index-borrow-regions-v1.patch",
+  "formal/qualification/aeneas/toolchain/index_borrow_regions_fixture.rs",
+  "formal/qualification/aeneas/toolchain/README.md",
+  "formal/qualification/aeneas/toolchain/callback-origins/dune",
+  "formal/qualification/aeneas/toolchain/callback-origins/dune-project",
+  "formal/qualification/aeneas/toolchain/callback-origins/callback_origins.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_shape.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_scope.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_scope_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_shape.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_field.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_cast.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_cast_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_receiver.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_injection.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/signature_instance.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/signature_instance_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_dispatch.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_dispatch_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_specialization.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_specialization_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closed_arguments.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closed_arguments_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_instance.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_instance_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_instances_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_graph.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/dynamic_method.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/virtual_frame_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/virtual_shim.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_roots.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/adapter_graph_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_roots_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/virtual_receiver.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/prepared_injection.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/virtual_source_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/prepared_source_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/capture_return.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/box_return_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/capture_scope.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/capture_scope_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/capture_callsite.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_call.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/box_receiver_call.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_path.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_path_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/box_carrier.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_capture.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_invocation.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_receiver.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_argument.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/carrier_effect.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_value_path.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_return.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_return_call.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/return_signature.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/return_region_certificate.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_capture_candidate.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/writer_runtime.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/writer_input_bound.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_capture_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/borrow_projection.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_capture_value.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_protocol.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_wiring.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_view.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_transport.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/current_borrow_carrier.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_defaults.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_execution.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_full_abi.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_pure_payload.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_payload_layout.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_pure_expressions.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_current_wiring.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_current_seeds.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_capture_closures.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_default_bindings.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_projector_levels.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_projector_kinds.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_consumed_coverage.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_consumed_reconstruction.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_binding_closures.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_compatible_programs.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_borrow_levels.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_backward_types.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_root_origins.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_root_payload.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_root_bindings.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_root_expressions.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_nested_reconstruction.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_scoped_defaults.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_foreign_defaults.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_owned_bindings.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_root_updates.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_root_programs.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/native_type_syntax.ml",
+  "formal/qualification/aeneas/toolchain/native-default-bindings-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-borrow-levels-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-subabstraction-levels-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-backward-types-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-signature-constraints-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-pattern-context-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-scoped-defaults-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-foreign-defaults-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-forward-declarations-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-projector-kind-levels-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-projector-kind-current-types-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-projector-given-back-levels-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-own-synthesis-phases-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-selected-consumed-branches-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-consumed-origin-receipts-v1.patch",
+  "formal/qualification/aeneas/toolchain/native-consumed-current-reconstruction-v1.patch",
+  "formal/qualification/aeneas/toolchain/callback-origins/borrow_projection_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/loan_lookup_cases.ml",
+  "formal/qualification/aeneas/toolchain/loan-lookup-single-traversal-v1.patch",
+  "formal/qualification/aeneas/toolchain/callback-origins/iteration_path.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/iteration_path_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/value_origin.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/value_flow.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/return_capture_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_field_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_initializer.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/method_instance.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/method_instance_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_initializer_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/vtable_shape_cases.ml",
+  "formal/qualification/aeneas/toolchain/vtable_lifetime_fixture.rs",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_equations.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_equations_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/impl_regions.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_match.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/predicate_metadata.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/quantified_dictionary.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/quantified_dictionary_cases.ml",
+  "formal/qualification/aeneas/toolchain/array-unsize-regions-v1.patch",
+  "formal/qualification/aeneas/toolchain/array_unsize_regions_fixture.rs",
+  "formal/qualification/aeneas/toolchain/callback-origins/impl_regions_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/instance_view.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/function_frame.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_closure.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/prepared_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/json_stream.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/json_stream_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/diagnostic.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/diagnostic_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/global_view.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/callable_instance.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/callable_instance_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/quantified_projection.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/source_slice.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/type_view.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closed_type.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closed_type_cases.ml",
+  "formal/qualification/aeneas/toolchain/type_closure_fixture.rs",
+  "formal/qualification/aeneas/toolchain/drop_projection_regions_fixture.rs",
+  "formal/qualification/aeneas/toolchain/callback-origins/quantified_projection_cases.ml",
+  "formal/qualification/aeneas/toolchain/quantified_callable_output_fixture.rs",
+  "formal/qualification/aeneas/toolchain/iterator_parent_regions_fixture.rs",
+  "formal/qualification/aeneas/toolchain/static_trait_object_bound_fixture.rs",
+  "formal/qualification/aeneas/toolchain/source-static-implementation-regions-v1.patch",
+  "formal/qualification/aeneas/toolchain/source-static-implementation-regions-v2.patch",
+  "formal/qualification/aeneas/toolchain/global_closure_fixture.rs",
+  "formal/qualification/aeneas/toolchain/closure-signature-regions-v1.patch",
+  "formal/qualification/aeneas/toolchain/closure_signature_regions_fixture.rs",
+  "formal/qualification/aeneas/toolchain/callback-origins/scoped_substitution_cases.ml",
+  "formal/qualification/aeneas/toolchain/scoped-substitution-v1.patch",
+  "formal/qualification/aeneas/toolchain/callback-origins/frame_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/static_targets.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/static_targets_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/closure_plan.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/region_shape_cases.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/argument_shapes.ml",
+  "formal/qualification/aeneas/toolchain/callback-origins/README.md",
+  "formal/qualification/aeneas/toolchain/tests/dune",
+  "formal/qualification/aeneas/toolchain/tests/runtime_region_erasure_test.ml",
   "formal/translation-toolchain.lock",
   "formal/qualification/aeneas/cases/Model.lean",
+  "formal/qualification/aeneas/cases/SourceClosureCapture.lean",
+  "formal/qualification/aeneas/cases/ClosedWriterRuntime.lean",
+  "formal/qualification/aeneas/cases/WriterInputBound.lean",
+  "formal/qualification/aeneas/cases/BorrowProjection.lean",
+  "formal/qualification/aeneas/cases/NativeCaptureValue.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowProtocol.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowWiring.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowView.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowTransport.lean",
+  "formal/qualification/aeneas/cases/CurrentBorrowCarrier.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowDefaults.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowExecution.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowFullABI.lean",
+  "formal/qualification/aeneas/cases/NativePurePayload.lean",
+  "formal/qualification/aeneas/cases/NativePureExpressions.lean",
+  "formal/qualification/aeneas/cases/NativeCurrentWiring.lean",
+  "formal/qualification/aeneas/cases/NativeCurrentSeeds.lean",
+  "formal/qualification/aeneas/cases/NativeCaptureClosures.lean",
+  "formal/qualification/aeneas/cases/NativeDefaultBindings.lean",
+  "formal/qualification/aeneas/cases/NativeProjectorLevels.lean",
+  "formal/qualification/aeneas/cases/NativeProjectorKinds.lean",
+  "formal/qualification/aeneas/cases/NativeConsumedCoverage.lean",
+  "formal/qualification/aeneas/cases/NativeConsumedReconstruction.lean",
+  "formal/qualification/aeneas/cases/NativeBindingClosures.lean",
+  "formal/qualification/aeneas/cases/NativeCompatiblePrograms.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowLevels.lean",
+  "formal/qualification/aeneas/cases/NativeBackwardTypes.lean",
+  "formal/qualification/aeneas/cases/NativeRootOrigins.lean",
+  "formal/qualification/aeneas/cases/NativeRootPayload.lean",
+  "formal/qualification/aeneas/cases/NativeRootBindings.lean",
+  "formal/qualification/aeneas/cases/NativeNestedReconstruction.lean",
+  "formal/qualification/aeneas/cases/NativeScopedDefaults.lean",
+  "formal/qualification/aeneas/cases/NativeForeignDefaults.lean",
+  "formal/qualification/aeneas/cases/NativeOwnedBindings.lean",
+  "formal/qualification/aeneas/cases/NativeRootPrograms.lean",
+  "formal/qualification/aeneas/cases/NativeCaptureComponent.lean",
+  "formal/qualification/aeneas/cases/CurrentBorrowCarrierOrigins.lean",
+  "formal/qualification/aeneas/cases/NativeBorrowComposition.lean",
   "formal/qualification/aeneas/cases/Algebra.lean",
   "formal/qualification/aeneas/cases/Authority.lean",
   "formal/qualification/aeneas/cases/BoundedPolicy.lean",
@@ -56,9 +817,91 @@ source_files = [
   "xtask/ci-plan/src/lib.rs",
   "xtask/src/formal.rs",
   "xtask/src/formal_qualification.rs",
+  "formal/qualification/aeneas/entrypoints/profile_construction.rs",
 ]
 
 generated_files = [
+  "formal/qualification/aeneas/generated/native_recipe/Types.lean",
+  "formal/qualification/aeneas/generated/native_recipe/Funs.lean",
+  "formal/qualification/aeneas/generated/native_recipe/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/native_recipe/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/native_recipe/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/native_recipe/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/native_recipe/translation.json",
+  "formal/qualification/aeneas/generated/native_recipe/context-normalization.json",
+  "formal/qualification/aeneas/generated/protocol_codec/Types.lean",
+  "formal/qualification/aeneas/generated/protocol_codec/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/protocol_codec/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/protocol_codec/Funs.lean",
+  "formal/qualification/aeneas/generated/protocol_codec/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/protocol_codec/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/protocol_codec/translation.json",
+
+  "formal/qualification/aeneas/generated/standard/CheckedResult.lean",
+  "formal/qualification/aeneas/generated/scope_codec/Types.lean",
+  "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/scope_codec/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/scope_codec/Funs.lean",
+  "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/scope_codec/translation.json",
+  "formal/qualification/aeneas/generated/status_selection/Types.lean",
+  "formal/qualification/aeneas/generated/status_selection/Funs.lean",
+  "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/status_selection/translation.json",
+  "formal/qualification/aeneas/generated/temporal_witness/Types.lean",
+  "formal/qualification/aeneas/generated/temporal_witness/Funs.lean",
+  "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/temporal_witness/translation.json",
+  "formal/qualification/aeneas/generated/suite_adapter/Types.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/Funs.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/suite_adapter/translation.json",
+  "formal/qualification/aeneas/generated/p256/Types.lean",
+  "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/p256/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/p256/Funs.lean",
+  "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/p256/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/p256/translation.json",
+  "formal/qualification/aeneas/generated/p256/name-normalization.json",
+  "formal/qualification/aeneas/generated/sha256/Types.lean",
+  "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/sha256/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/sha256/Funs.lean",
+  "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/sha256/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/sha256/translation.json",
+  "formal/qualification/aeneas/generated/sha256/foreign-name-normalization.json",
+  "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/signature/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/signature/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/signature/Types.lean",
+  "formal/qualification/aeneas/generated/signature/Funs.lean",
+  "formal/qualification/aeneas/generated/signature/translation.json",
+  "formal/qualification/aeneas/generated/composition/Types.lean",
+  "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/composition/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/composition/Funs.lean",
+  "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/composition/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/composition/translation.json",
+  "formal/qualification/aeneas/generated/stores/Types.lean",
+  "formal/qualification/aeneas/generated/stores/Funs.lean",
+  "formal/qualification/aeneas/generated/stores/translation.json",
+  "formal/qualification/aeneas/generated/codec/Types.lean",
+  "formal/qualification/aeneas/generated/codec/Funs.lean",
+  "formal/qualification/aeneas/generated/codec/TypesExternal_Template.lean",
+  "formal/qualification/aeneas/generated/codec/TypesExternal.lean",
+  "formal/qualification/aeneas/generated/codec/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/codec/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/codec/translation.json",
   "formal/qualification/aeneas/generated/model/Types.lean",
   "formal/qualification/aeneas/generated/model/Funs.lean",
   "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean",
@@ -82,13 +925,33 @@ generated_files = [
   "formal/qualification/aeneas/generated/lifecycle/translation.json",
   "formal/qualification/aeneas/generated/gateway/Types.lean",
   "formal/qualification/aeneas/generated/gateway/Funs.lean",
+  "formal/qualification/aeneas/generated/gateway/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean",
   "formal/qualification/aeneas/generated/gateway/translation.json",
   "formal/qualification/aeneas/generated/connections/Types.lean",
+  "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/connections/FunsExternal.lean",
   "formal/qualification/aeneas/generated/connections/Funs.lean",
   "formal/qualification/aeneas/generated/connections/translation.json",
+  "formal/qualification/aeneas/generated/profile_construction/Types.lean",
+  "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean",
+  "formal/qualification/aeneas/generated/profile_construction/FunsExternal.lean",
+  "formal/qualification/aeneas/generated/profile_construction/Funs.lean",
+  "formal/qualification/aeneas/generated/profile_construction/translation.json",
 ]
 
 case_modules = [
+  "qualification.aeneas.cases.ProtocolCodec",
+  "qualification.aeneas.cases.ScopeCodec",
+  "qualification.aeneas.cases.StatusSelection",
+  "qualification.aeneas.cases.TemporalWitness",
+  "qualification.aeneas.cases.SuiteAdapters",
+  "qualification.aeneas.cases.P256",
+  "qualification.aeneas.cases.Sha256",
+  "qualification.aeneas.cases.Signature",
+  "qualification.aeneas.cases.Composition",
+  "qualification.aeneas.cases.Stores",
+  "qualification.aeneas.cases.Codec",
   "qualification.aeneas.cases.Model",
   "qualification.aeneas.cases.Algebra",
   "qualification.aeneas.cases.Authority",
@@ -104,23 +967,299 @@ extraction_rust = "nightly-2026-06-01"
 charon = "0.1.225"
 charon_commit = "527ea8e3b5dcb52edd6aef0f7bc34cc09c11dd59"
 aeneas_commit = "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0"
+aeneas_patch = "formal/qualification/aeneas/toolchain/runtime-region-erasure-v1.patch"
+aeneas_patch_sha256 = "51857c8f645de3d7146ef09088db1bfa3240f637309fb2e504d39220ecd4c362"
 lean_toolchain = "leanprover/lean4:v4.31.0"
 kani = "0.67.0"
+
+[[qualified_delegations]]
+importer_translation_json = "formal/qualification/aeneas/generated/suite_adapter/translation.json"
+importer_local = false
+source_file = "core/crates/auths-signature-core/src/lib.rs"
+rust_symbol = "auths_signature_core::verify_ed25519"
+owner_translation_json = "formal/qualification/aeneas/generated/signature/translation.json"
+owner_lean_declaration = "auths_signature_core.verify_ed25519"
+bridge_artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
+bridge_lean_declaration = "AuthsSuiteAdapters.auths_signature_core.verify_ed25519"
+delegation_theorem = "AuthsSuiteAdapters.ed25519_delegates"
+
+[[qualified_delegations]]
+importer_translation_json = "formal/qualification/aeneas/generated/suite_adapter/translation.json"
+importer_local = false
+source_file = "core/crates/auths-signature-core/src/lib.rs"
+rust_symbol = "auths_signature_core::verify_p256_sha256"
+owner_translation_json = "formal/qualification/aeneas/generated/p256/translation.json"
+owner_lean_declaration = "AuthsNativeP256.verify_p256_sha256"
+bridge_artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
+bridge_lean_declaration = "AuthsSuiteAdapters.auths_signature_core.verify_p256_sha256"
+delegation_theorem = "AuthsSuiteAdapters.p256_delegates"
+
+[[qualified_delegations]]
+importer_translation_json = "formal/qualification/aeneas/generated/protocol_codec/translation.json"
+importer_local = true
+source_file = "core/crates/auths-codec/src/hash.rs"
+rust_symbol = "auths_codec::hash::raw_sha256"
+owner_translation_json = "formal/qualification/aeneas/generated/sha256/translation.json"
+owner_lean_declaration = "AuthsNativeSha256.hash.raw_sha256"
+bridge_artifact = "formal/qualification/aeneas/generated/protocol_codec/FunsExternal.lean"
+bridge_lean_declaration = "AuthsProtocolCodec.hash.raw_sha256"
+delegation_theorem = "AuthsProtocolCodec.raw_sha256_delegates"
+
+[[external_models]]
+id = "scope-codec-transparent-standard-interfaces"
+kind = "transparent-standard-identity-sort-and-range-interface"
+artifact = "formal/qualification/aeneas/generated/scope_codec/FunsExternal.lean"
+rust_symbols = ["alloc::slice::{[T]}::sort", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from", "alloc::vec::{alloc::vec::Vec<T>}::is_empty", "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from", "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from", "core::ops::range::{core::ops::range::RangeInclusive<Idx>}::contains", "core::option::Option::Some", "core::option::{core::option::Option<T>}::ok_or", "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq", "core::result::{core::result::Result<T, E>}::map", "core::result::{core::result::Result<T, E>}::map_err", "core::result::{core::result::Result<T, E>}::unwrap_or", "core::str::converts::from_utf8", "core::str::{str}::as_bytes", "core::str::{str}::is_empty", "core::str::{str}::len"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Checked conversions, Option/Result, UTF-8 and string operations delegate to previously reviewed standard interfaces. Ordinary sorting delegates to the reviewed stable key-sort model with a pure stateless identity key; concrete identity behavior, actual String comparator laws, sorted permutation and constructor validity are proved, not assumed. This is no model of arbitrary stateful FnMut sorting and no proof of Rust standard-library machine code or physical allocation/work. RangeInclusive.contains follows the pinned short-circuit start <= item and item <= end dictionary calls. TypesExternal reuses the existing exact error carrier; no Auths type or algorithm is replaced. Only the four discriminant instance names in Types are qualified; every generated function body is unchanged. Complete byte-decoder correctness and full verification/runtime composition remain open."
+
+[[external_models]]
+id = "status-selection-transparent-standard-interfaces"
+kind = "transparent-standard-binary-search-and-dictionary-projections"
+artifact = "formal/qualification/aeneas/generated/status_selection/FunsExternal.lean"
+rust_symbols = ["core::slice::binary_search", "alloc::string::String::eq", "alloc::string::String::cmp", "core::cmp::PartialOrd::lt", "core::cmp::PartialOrd::gt", "core::cmp::Ord::max"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "String equality/ordering delegate to the existing reviewed transparent model. The binary-search model follows the pinned nightly-2026-06-01 core slice binary_search_by size/base/half loop and final comparison, with an initial length-plus-one fuel bound, checked indexing and checked usize construction. It does not replace search with membership or assume sortedness, authenticity or an Auths visibility decision; the separate kernel-checked search-loop proof establishes total membership on bounded sorted scopes, and the Auths contains wrapper derives exact list membership. The ordered representation invariant is not yet derived from the actual sorting/validation constructor. Scoped comparison/max dictionary adapters project only the pinned standard fields and have unconditional compiled delegation equalities. Every Auths helper, comparison, getter and selector body is translated; no Auths algorithm is opaque and no generated function body changes. Published full-selector results fix the approval view. A separate kernel-checked semantic bridge relates the operational scan to the independent filter/max/tie-set specification; all-view source results require ordered listed-anchor scopes. Evidence authentication, sorting-constructor validity and full verifier composition remain separate obligations."
+
+[[external_models]]
+id = "temporal-transparent-standard-interfaces"
+kind = "transparent-standard-option-and-dictionary-projection"
+artifact = "formal/qualification/aeneas/generated/temporal_witness/FunsExternal.lean"
+rust_symbols = ["core::option::Option::ok_or", "core::cmp::PartialOrd::lt"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Standard Option.ok_or delegates to the previously reviewed transparent model. The scoped PartialOrd default adapter projects exactly the implementation partial_cmp field into the pinned standard default body; its unconditional delegation equality is compiled. The trait_default attribute permits the pinned impl_def macro to resolve the derived nonrecursive Timestamp dictionary. Every Auths function and imported Auths getter/comparison body is translated; no Auths algorithm, clock, witness selection or desired verifier result is an opaque premise. Only discriminant instance names are qualified; every generated function body is unchanged."
+
+[[external_models]]
+id = "suite-private-id-carrier"
+kind = "transparent-observational-string-carrier"
+artifact = "formal/qualification/aeneas/generated/suite_adapter/TypesExternal.lean"
+rust_symbols = ["auths_model::SignatureSuiteId"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The private suite-ID newtype is represented by its bounded byte/string carrier. The proved verify methods do not inspect self.id, so their statements quantify over the broader represented carrier. No constructor validity, canonical suite ID, configured registry membership or runtime selection follows from this representation."
+
+[[external_models]]
+id = "suite-qualified-native-delegation"
+kind = "transparent-qualified-firstparty-function-delegation-and-error-isomorphism"
+artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal.lean"
+rust_symbols = ["auths_signature_core::verify_ed25519", "auths_signature_core::verify_p256_sha256", "core::result::Result::map_err"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The two imported Auths calls delegate directly to their mechanically translated, qualified owning public functions with unchanged key/message/signature slices. Exhaustive error-constructor reboxing has both inverse proofs; standard map_err uses the existing transparent model and the translated error callbacks. The closed qualified_delegations table checks each importing and owning Rust/Lean identity, requires a transparent local owner, and requires both exact owner and bridge constants in a compiled delegation theorem. There is no opaque assumed Auths algorithm, new crypto instance/law, desired-result premise or callback assumption."
+
+[[external_models]]
+id = "p256-monomorphic-export-names"
+kind = "typed-ir-name-only-adaptation"
+artifact = "formal/qualification/aeneas/generated/p256/name-normalization.json"
+rust_symbols = ["auths_signature_core::verify_p256_sha256_with", "auths_signature_core::decode_p256_key_with"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The pinned emitter cannot print Instantiated export paths. Exactly 31 foreign paths receive unique aliases; exactly two unique Auths helper specializations lose only the final name-only Instantiated element, preserving their base source identities. Original concrete names and source spans remain in the ledger. Every body, signature, generic, layout and call/type ID is checked unchanged against the complete typed JSON; the pinned Charon reader reparses the output. Canonical before/after hashes use pinned Charon pretty printing; two fresh translations and generated Lean must match byte-for-byte. No Auths function becomes opaque."
+
+[[external_models]]
+id = "p256-explicit-foreign-types"
+kind = "explicit-parameter-foreign-type-interface"
+artifact = "formal/qualification/aeneas/generated/p256/TypesExternal.lean"
+rust_symbols = ["ecdsa::verifying::VerifyingKey<p256::NistP256>", "ecdsa::Signature<p256::NistP256>", "signature::error::Error"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Foreign key/signature/error types are associated types of the explicit P256Primitives theorem parameter. There is no instance, crypto law, global axiom or opaque Auths type. Per-unit namespace qualification avoids conflating Ed25519 and P-256 implementation parameters. Exact section variables generalize only dependent types and functions; all generated Rust bodies remain unchanged."
+
+[[external_models]]
+id = "p256-explicit-calls-and-standard-results"
+kind = "explicit-foreign-parameters-and-transparent-standard-matches"
+artifact = "formal/qualification/aeneas/generated/p256/FunsExternal.lean"
+rust_symbols = ["ecdsa::VerifyingKey::from_sec1_bytes", "ecdsa::Signature::from_slice", "signature::Verifier::verify", "core::result::Result", "core::convert::TryInto<[u8;64]>", "core::slice::len"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Three actual foreign library calls are transparent projections with displayed functional-contract premises in public wrapper theorems. Monomorphic standard Result/Option/Try/control-flow cases preserve constructors and errors, fixed-array conversion copies exactly 64 source bytes iff length matches, and slice length is exact. The production key validator uses a direct result match, with no erased unit callback or callback assumption. No Auths algorithm is modeled opaquely, no implementation is installed globally, and no crypto-security or arithmetic law is asserted."
+
+[[external_models]]
+id = "sha256-monomorphic-foreign-export-names"
+kind = "metadata-only-foreign-name-aliases"
+artifact = "formal/qualification/aeneas/generated/sha256/foreign-name-normalization.json"
+rust_symbols = ["sha2::Sha256::digest", "core::convert::Into<[u8;32]>::into", "generic_array::GenericArray<u8,U32>"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The pinned emitter cannot print foreign Instantiated path elements. Eleven exact foreign declaration-name paths and their metadata cache copies receive unique export aliases. The ledger retains original names, concrete instantiation metadata and source spans. Its before/after hashes use the pinned Charon canonical printer because short-name cache order and hash-cons memo references are nondeterministic; two fresh canonical translations and generated Lean files must still match byte-for-byte. Every Auths name, all declaration fields other than those foreign names, all bodies, signatures, layouts, generics and call/type IDs are checked unchanged. No foreign function is made transparent and no Auths algorithm is replaced. Normalized foreign rust_name values in this unit are export aliases whose exact original identities are this ledger, not new Rust source symbols."
+
+[[external_models]]
+id = "sha256-explicit-output-interface"
+kind = "explicit-parameter-foreign-output-type"
+artifact = "formal/qualification/aeneas/generated/sha256/TypesExternal.lean"
+rust_symbols = ["generic_array::GenericArray<u8,U32>"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The selected foreign output is an associated type of the explicit Sha256Primitives parameter. No instance, layout identity or cryptographic law is asserted globally. The output conversion remains an explicit selected primitive call, not an assumed identity."
+
+[[external_models]]
+id = "sha256-explicit-one-shot-calls"
+kind = "explicit-parameter-foreign-digest-and-output-conversion"
+artifact = "formal/qualification/aeneas/generated/sha256/FunsExternal.lean"
+rust_symbols = ["digest::qualified_sha256_fun_decls_1", "core::qualified_sha256_fun_decls_2"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The two metadata-name aliases map to the exact original foreign one-shot digest and selected Into<[u8;32]> conversion in the ledger. Transparent projections use explicit implementation parameters. Their functional SHA-256/output contracts are theorem premises. No streaming operation, global crypto axiom, global implementation instance or opaque Auths algorithm is added."
+
+[[external_models]]
+id = "signature-explicit-foreign-types"
+kind = "explicit-parameter-foreign-library-types"
+artifact = "formal/qualification/aeneas/generated/signature/TypesExternal.lean"
+rust_symbols = ["ed25519::Signature", "ed25519_dalek::verifying::VerifyingKey", "signature::error::Error"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Foreign types are associated types of the explicit Ed25519Primitives theorem parameter. There is no default or global instance, opaque Auths type, or axiom. These aliases do not assert any cryptographic law. The generated section generalizes only declarations depending on this implementation parameter."
+
+[[external_models]]
+id = "signature-explicit-foreign-calls"
+kind = "explicit-parameter-foreign-library-calls-and-transparent-result"
+artifact = "formal/qualification/aeneas/generated/signature/FunsExternal.lean"
+rust_symbols = ["core::result::{core::result::Result<T, E>}::ok", "core::result::{core::result::Result<T, E>}::map", "ed25519::{ed25519::Signature}::from_bytes", "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::from_bytes", "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::verify_strict"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The three selected foreign library calls are transparent projections from the explicit Ed25519Primitives parameter. Their exact functional contracts are displayed premises of public-wrapper theorems; no primitive correctness or authenticity is assumed globally. Result-to-Option is an exact transparent standard Result match; Result.map uses the existing reviewed model. Every Auths helper, closure call, wrapper, branch and payload remains mechanically translated."
+
+[[external_models]]
+id = "composition-unit-output-abi"
+kind = "transparent-isomorphic-callback-result-representation"
+artifact = "formal/Auths/Support/UnitCallback.lean"
+rust_symbols = ["core::ops::function::FnMut::call_mut"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The pinned backend erases the concrete unit output of evaluate's stateless observer but retains a generic FnMut dictionary field expecting Unit times state. A single checked dictionary-field adapter restores that component. Both result round trips are proved for every success, failure and divergence value. Every generated Auths function body, constructor, argument, callback call and branch remains unchanged. Only the exact zero-output closure dictionary receives this bridge."
+
+[[external_models]]
+id = "composition-ordered-set-carriers"
+kind = "transparent-standard-library-type-model"
+artifact = "formal/qualification/aeneas/generated/composition/TypesExternal.lean"
+rust_symbols = ["alloc::collections::btree::set::BTreeSet", "alloc::collections::btree::set::IntoIter"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "usize-bounded ordered sequences represent the standard ordered set and its consuming iterator. The shipping closure uses Global allocation and copied fixed-width ProofRef values only. Insertion, uniqueness, order, membership and iterator consumption are proved against the transparent model. The Rust standard-library container implementation and physical allocation remain the named library boundary. No Auths function is opaque."
+
+[[external_models]]
+id = "composition-ordered-set-operations"
+kind = "transparent-standard-library-function-model"
+artifact = "formal/qualification/aeneas/generated/composition/FunsExternal.lean"
+rust_symbols = [
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len",
+  "alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter",
+  "alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next"
+]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "new, insertion, length, consuming conversion and next satisfy ordered-set semantics for the actual Global/ProofRef call sites. The translated ProofRef comparison is proved equal to lawful lexicographic byte order; insertion returns true exactly for fresh members, preserves ordering and exact set membership, and checks the usize bound. This is a standard-container semantic contract, not a proof of tree balancing, memory allocation or runtime cost."
+
+[[external_models]]
+id = "composition-positive-bounded-vector"
+kind = "transparent-isomorphic-standard-library-type-model"
+artifact = "formal/Auths/Support/PositiveVec.lean"
+rust_symbols = ["alloc::vec::Vec", "alloc::vec::{impl core::ops::deref::Deref<[T]> for alloc::vec::Vec<T>}::deref"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "A strictly positive length-indexed list with the same usize bound as the pinned Aeneas Vec. Both conversion round trips and injectivity are proved for all bounded vectors; deref delegates exactly to the pinned implementation. Only the composition extraction uses this carrier, with capacity, length, emptiness and push links delegating to the pinned model or exact sequence views. Push sequence preservation is proved under the pinned usize capacity premise. No function body or Auths algorithm is replaced."
+
+[[external_models]]
+id = "composition-option-default-and-standard-links"
+kind = "transparent-standard-library-model"
+artifact = "formal/qualification/aeneas/generated/composition/FunsExternal.lean"
+rust_symbols = [
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::option::{impl core::default::Default for core::option::Option<T>}::default",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty"
+]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Option::default is None; conversion and Result operations import the existing exact codec models. The positive Vec delegates with_capacity, len and push to the pinned Vec through the proved isomorphism; is_empty views the exact element list. The trait-default Ord::max adapter follows the pinned Rust other-less-than-self branch and preserves its second-argument tie rule. Its sole source call uses Usize and the pinned lawful numeric order. No Auths callback or algorithm is modeled as an external."
+
+[[external_models]]
+id = "codec-utf8-error-erasure"
+kind = "transparent-standard-library-type-model"
+artifact = "formal/qualification/aeneas/generated/codec/TypesExternal.lean"
+rust_symbols = ["core::str::error::Utf8Error"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "The private codec discards every UTF-8 error payload and returns Malformed. Unit models that unobserved payload; no public error field is represented by this erasure."
+
+[[external_models]]
+id = "codec-standard-values-and-utf8"
+kind = "transparent-standard-library-model"
+artifact = "formal/qualification/aeneas/generated/codec/FunsExternal.lean"
+rust_symbols = [
+  "core::option::{core::option::Option<T>}::and_then",
+  "core::convert::num::{impl core::convert::TryFrom<usize> for isize}::try_from",
+  "alloc::slice::{[T]}::sort_by_key",
+  "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from",
+  "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
+  "alloc::vec::{alloc::vec::Vec<T>}::as_slice",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
+  "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from",
+  "core::option::Option::Some",
+  "core::option::{core::option::Option<T>}::as_ref",
+  "core::option::{core::option::Option<T>}::ok_or",
+  "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq",
+  "core::result::{core::result::Result<T, E>}::map",
+  "core::result::{core::result::Result<T, E>}::map_err",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "core::str::converts::from_utf8",
+  "core::str::{str}::as_bytes",
+  "core::str::{str}::is_empty",
+  "core::str::{str}::len",
+ ]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Fallible usize-to-isize uses the pinned exact signed-bound constructor and returns typed failure outside its range. Option.and_then dispatches exactly on Some/None and calls the selected FnOnce once. Checked unsigned conversions, Option/Result combinators, exact UTF-8 validation and string copying, and Vec projections. The sorting model applies to the sole extracted Unit digest-key closure, whose exact stateless behavior is proved by Auths.Codec.Action.attachment_key_stateless, and the lawful lexicographic digest order; it is not a model of arbitrary stateful FnMut callbacks. The imported array/borrowed-string operations use the separately inventoried standard-ordering-and-bytes model."
 
 [[external_models]]
 id = "aeneas-standard-ordering-and-bytes"
 kind = "transparent-standard-library-model"
 artifact = "formal/qualification/aeneas/generated/model/FunsExternal.lean"
 rust_symbols = [
+  "alloc::string::{impl core::cmp::Eq for alloc::string::String}::assert_fields_are_eq",
+  "alloc::string::{impl core::cmp::PartialOrd<alloc::string::String> for alloc::string::String}::partial_cmp",
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
   "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq",
   "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp",
   "alloc::string::{alloc::string::String}::as_bytes",
+  "core::str::{str}::len",
+  "core::str::{str}::is_empty",
+  "core::str::{str}::as_bytes",
 ]
 authority_semantics = false
 reviewed = true
 axiom = false
-scope = "Exact equality and lexicographic ordering for strings and fixed arrays, plus exact UTF-8 bytes for constructor-validated Auths strings; byte conversion fails outside Aeneas' U32 string carrier bound."
+scope = "String PartialOrd returns Some of the same exact lexicographic comparison; the Eq marker returns unit without state. Exact equality and lexicographic ordering for strings and fixed arrays, plus exact UTF-8 bytes for constructor-validated Auths strings; byte conversion fails outside Aeneas' U32 string carrier bound. Borrowed str length, emptiness, and byte projection are exact operations on the Aeneas byte-slice carrier, without assuming UTF-8 validity."
 
 [[external_models]]
 id = "authority-carrier-link"
@@ -214,12 +1353,365 @@ upstream_lines = [1344]
 classification = "Pinned upstream meta proof hole; comments and diagnostic strings are excluded, and audited Auths declarations are separately required to have zero transitive sorryAx dependencies."
 
 [[translations]]
-crate_name = "auths_model"
-translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 135
-external_functions = 4
+crate_name = "auths_codec"
+translation_json = "formal/qualification/aeneas/generated/scope_codec/translation.json"
+local_functions = 25
+external_functions = 37
+opaque_local_functions = 0
+required_symbols = ["auths_codec::cbor::malformed", "auths_codec::cbor::read_head", "auths_codec::cbor::read_tail", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64", "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8", "auths_codec::decode::array", "auths_codec::decode::decode_error", "auths_codec::decode::key", "auths_codec::decode::map", "auths_codec::decode::status_scope", "auths_codec::decode::status_scope_anchor", "auths_codec::decode::status_trust", "auths_codec::decode::status_trust_rule", "auths_codec::decode::text", "auths_codec::error::limit_error", "auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from"]
+allowed_external_symbols = ["alloc::slice::{[T]}::sort", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from", "alloc::vec::{alloc::vec::Vec<T>}::is_empty", "auths_model::identifier::bounded_identifier_valid", "auths_model::identifier::contains_forbidden_identifier", "auths_model::identifier::forbidden_identifier_at", "auths_model::identifier::forbidden_three_byte_prefix", "auths_model::identifier::principal_scheme_byte_valid", "auths_model::identifier::principal_scheme_valid", "auths_model::{auths_model::PrincipalId}::parse", "auths_model::{auths_model::StatusMethodId}::parse", "auths_model::{auths_model::StatusScopeAnchors}::new", "auths_model::{auths_model::StatusTrustRule}::new", "auths_model::{auths_model::TrustAnchorId}::parse", "auths_model::{auths_model::VerifierLimits}::get", "auths_model::{impl core::cmp::Eq for auths_model::TrustAnchorId}::assert_fields_are_eq", "auths_model::{impl core::cmp::Ord for auths_model::TrustAnchorId}::cmp", "auths_model::{impl core::cmp::PartialEq<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::eq", "auths_model::{impl core::cmp::PartialOrd<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::partial_cmp", "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from", "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from", "core::ops::range::{core::ops::range::RangeInclusive<Idx>}::contains", "core::option::Option::Some", "core::option::{core::option::Option<T>}::ok_or", "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq", "core::result::{core::result::Result<T, E>}::map", "core::result::{core::result::Result<T, E>}::map_err", "core::result::{core::result::Result<T, E>}::unwrap_or", "core::str::converts::from_utf8", "core::str::{str}::as_bytes", "core::str::{str}::is_empty", "core::str::{str}::len"]
+
+[[translations]]
+crate_name = "auths_registries"
+translation_json = "formal/qualification/aeneas/generated/status_selection/translation.json"
+local_functions = 9
+external_functions = 58
+opaque_local_functions = 0
+required_symbols = ["auths_registries::{auths_registries::ExactStatusMethod}::freshness", "auths_registries::status_sequence_floor", "auths_registries::select_principal_from_snapshot", "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::principal", "auths_registries::select_grant_from_snapshot", "auths_registries::{impl auths_ports::StatusMethod for auths_registries::ExactStatusMethod}::grant"]
+allowed_external_symbols = ["core::slice::{[T]}::binary_search", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "auths_model::{impl core::cmp::PartialEq<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::eq", "auths_model::{impl core::cmp::Eq for auths_model::TrustAnchorId}::assert_fields_are_eq", "auths_model::{impl core::cmp::PartialEq<auths_model::StatusMethodId> for auths_model::StatusMethodId}::eq", "auths_model::{impl core::cmp::Ord for auths_model::TrustAnchorId}::cmp", "auths_model::{impl core::cmp::PartialOrd<auths_model::TrustAnchorId> for auths_model::TrustAnchorId}::partial_cmp", "auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalId> for auths_model::PrincipalId}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::GrantId> for auths_model::GrantId}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}::eq", "auths_model::{impl core::cmp::Eq for auths_model::Timestamp}::assert_fields_are_eq", "auths_model::{impl core::cmp::Ord for auths_model::Timestamp}::cmp", "auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}::partial_cmp", "auths_model::{auths_model::Timestamp}::new", "auths_model::{auths_model::Timestamp}::get", "auths_model::{auths_model::FreshnessLimit}::get", "auths_model::{impl core::cmp::PartialEq<auths_model::PrincipalState> for auths_model::PrincipalState}::eq", "auths_model::{impl core::cmp::PartialEq<auths_model::GrantState> for auths_model::GrantState}::eq", "auths_model::{auths_model::PrincipalStatusStatement}::method", "auths_model::{auths_model::PrincipalStatusStatement}::principal", "auths_model::{auths_model::PrincipalStatusStatement}::state", "auths_model::{auths_model::PrincipalStatusStatement}::sequence", "auths_model::{auths_model::PrincipalStatusStatement}::observed_at", "auths_model::{auths_model::PrincipalStatusStatement}::valid_until", "auths_model::{auths_model::PrincipalStatusStatement}::issuer", "auths_model::{auths_model::SignedPrincipalStatus}::statement", "auths_model::{auths_model::GrantStatusStatement}::method", "auths_model::{auths_model::GrantStatusStatement}::grant_id", "auths_model::{auths_model::GrantStatusStatement}::state", "auths_model::{auths_model::GrantStatusStatement}::sequence", "auths_model::{auths_model::GrantStatusStatement}::observed_at", "auths_model::{auths_model::GrantStatusStatement}::valid_until", "auths_model::{auths_model::GrantStatusStatement}::issuer", "auths_model::{auths_model::SignedGrantStatus}::statement", "auths_model::{auths_model::StatusScopeAnchors}::contains", "auths_model::{auths_model::TrustAnchor}::principal", "auths_model::{auths_model::TrustAnchor}::id", "auths_model::{auths_model::StatusScope}::covers", "auths_model::{auths_model::StatusTrustRule}::issuer", "auths_model::{auths_model::StatusTrustRule}::scope", "auths_model::status_issuer_in_scope", "auths_model::status_issuer_in_scope", "auths_model::status_issuer_visible", "auths_model::status_issuer_visible", "auths_model::{auths_model::StatusTrustRule}::method", "auths_model::{auths_model::StatusTrustRule}::sequence_floor", "auths_model::{auths_model::PrincipalStatusSnapshot}::observed_at", "auths_model::{auths_model::PrincipalStatusSnapshot}::valid_until", "auths_model::{auths_model::PrincipalStatusSnapshot}::statements", "auths_model::{auths_model::PrincipalStatusSnapshot}::trust", "auths_model::{auths_model::GrantStatusSnapshot}::observed_at", "auths_model::{auths_model::GrantStatusSnapshot}::valid_until", "auths_model::{auths_model::GrantStatusSnapshot}::statements", "auths_model::{auths_model::GrantStatusSnapshot}::trust", "auths_ports::{impl core::cmp::PartialEq<auths_ports::StatusDecision> for auths_ports::StatusDecision}::eq", "auths_ports::{auths_ports::StatusEvaluation}::new"]
+
+[[translations]]
+crate_name = "auths_verifier"
+translation_json = "formal/qualification/aeneas/generated/temporal_witness/translation.json"
+local_functions = 4
+external_functions = 15
+opaque_local_functions = 0
+required_symbols = ["auths_verifier::authority::check_composition", "auths_verifier::sealed::bind_verified_action", "auths_verifier::observation::control_result", "auths_verifier::work_meter::new", "auths_verifier::work_meter::from_used", "auths_verifier::work_meter::reserve", "auths_verifier::assurance_horizon", "auths_verifier::assurance_horizon", "auths_verifier::status_horizon", "auths_verifier::status_decision"]
+allowed_external_symbols = ["core::option::{core::option::Option<T>}::ok_or", "auths_model::{impl core::cmp::PartialEq<auths_model::Timestamp> for auths_model::Timestamp}::eq", "auths_model::{impl core::cmp::Eq for auths_model::Timestamp}::assert_fields_are_eq", "auths_model::{impl core::cmp::Ord for auths_model::Timestamp}::cmp", "auths_model::{impl core::cmp::PartialOrd<auths_model::Timestamp> for auths_model::Timestamp}::partial_cmp", "auths_model::{auths_model::Timestamp}::new", "auths_model::{auths_model::Timestamp}::get", "auths_model::{auths_model::FreshnessLimit}::get", "auths_model::{auths_model::AssuranceClaim}::observed_at", "auths_model::{auths_model::AssuranceRequirement}::maximum_age", "auths_model::{auths_model::AssurancePolicy}::requirements", "auths_model::{auths_model::AssuranceSatisfaction}::requirement_index", "auths_model::{auths_model::AssuranceSatisfaction}::claim", "auths_model::{auths_model::TrustedContext}::assurance_policy", "auths_ports::{auths_ports::StatusEvaluation}::valid_through"]
+
+[[translations]]
+crate_name = "auths_signature"
+translation_json = "formal/qualification/aeneas/generated/suite_adapter/translation.json"
+local_functions = 4
+external_functions = 3
+opaque_local_functions = 0
+required_symbols = ["auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::Ed25519Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_once", "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify", "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::P256Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once", "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify"]
+allowed_external_symbols = ["core::result::{core::result::Result<T, E>}::map_err", "auths_signature_core::verify_ed25519", "auths_signature_core::verify_p256_sha256"]
+
+[[translations]]
+crate_name = "auths_signature_core"
+translation_json = "formal/qualification/aeneas/generated/p256/translation.json"
+local_functions = 14
+external_functions = 10
+opaque_local_functions = 0
+required_symbols = ["auths_signature_core::p256_key_encoding_is_canonical", "auths_signature_core::p256_signature_is_low_s", "auths_signature_core::p256_signature_is_low_s", "auths_signature_core::decode_p256_point", "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::decode", "auths_signature_core::decode_p256_key_with", "auths_signature_core::decode_p256_key", "auths_signature_core::validate_p256_key", "auths_signature_core::parse_p256_signature", "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::parse", "auths_signature_core::verify_p256_equation", "auths_signature_core::{impl auths_signature_core::P256Primitive for auths_signature_core::NativeP256}::verify", "auths_signature_core::verify_p256_sha256_with", "auths_signature_core::verify_p256_sha256"]
+allowed_external_symbols = ["core::qualified_p256_fun_decls_7", "core::qualified_p256_fun_decls_27", "core::qualified_p256_fun_decls_30", "core::qualified_p256_fun_decls_24", "core::qualified_p256_fun_decls_5", "core::qualified_p256_fun_decls_6", "core::qualified_p256_fun_decls_20", "ecdsa::qualified_p256_fun_decls_23", "ecdsa::qualified_p256_fun_decls_29", "ecdsa::qualified_p256_fun_decls_26"]
+
+[[translations]]
+crate_name = "auths_codec"
+translation_json = "formal/qualification/aeneas/generated/sha256/translation.json"
+local_functions = 1
+external_functions = 3
 opaque_local_functions = 0
 required_symbols = [
+  "auths_codec::hash::raw_sha256",
+]
+allowed_external_symbols = [
+  "core::qualified_sha256_fun_decls_2",
+  "digest::qualified_sha256_fun_decls_1",
+  "auths_model::{auths_model::Digest}::new",
+]
+
+[[translations]]
+crate_name = "auths_signature_core"
+translation_json = "formal/qualification/aeneas/generated/signature/translation.json"
+local_functions = 23
+external_functions = 5
+opaque_local_functions = 0
+required_symbols = [
+  "auths_signature_core::ed25519_point_encoding_is_canonical",
+  "auths_signature_core::p256_key_encoding_is_canonical",
+  "auths_signature_core::p256_signature_is_low_s",
+  "auths_signature_core::ed25519_same_coordinate",
+  "auths_signature_core::ed25519_has_small_order_coordinate",
+  "auths_signature_core::ed25519_signature_r_is_allowed",
+  "auths_signature_core::decode_ed25519_point",
+  "auths_signature_core::decode_ed25519_key::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::decode_ed25519_key::closure}::call_once",
+  "auths_signature_core::ed25519_key_encoding",
+  "auths_signature_core::decode_ed25519_key_with",
+  "auths_signature_core::decode_ed25519_key",
+  "auths_signature_core::validate_ed25519_key::{impl core::ops::function::FnOnce<(ed25519_dalek::verifying::VerifyingKey,), ()> for auths_signature_core::validate_ed25519_key::closure}::call_once",
+  "auths_signature_core::validate_ed25519_key",
+  "auths_signature_core::verify_ed25519_with",
+  "auths_signature_core::verify_ed25519_equation",
+  "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ ed25519_dalek::verifying::VerifyingKey, &'_ [u8], &'_ [u8; 64usize]), bool> for auths_signature_core::verify_ed25519::closure#1}::call_once",
+  "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<ed25519_dalek::verifying::VerifyingKey>> for auths_signature_core::verify_ed25519::closure}::call_once",
+  "auths_signature_core::verify_ed25519",
+  "auths_signature_core::decode_p256_key_with",
+  "auths_signature_core::verify_p256_sha256_with",
+]
+allowed_external_symbols = [
+  "core::result::{core::result::Result<T, E>}::ok",
+  "core::result::{core::result::Result<T, E>}::map",
+  "ed25519::{ed25519::Signature}::from_bytes",
+  "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::from_bytes",
+  "ed25519_dalek::verifying::{ed25519_dalek::verifying::VerifyingKey}::verify_strict",
+]
+
+[[translations]]
+crate_name = "auths_composition"
+translation_json = "formal/qualification/aeneas/generated/composition/translation.json"
+local_functions = 14
+external_functions = 27
+opaque_local_functions = 0
+required_symbols = [
+  "auths_composition::{auths_composition::EvaluationEvent}::outcome",
+  "auths_composition::evaluate",
+  "auths_composition::evaluate::{impl core::ops::function::FnMut<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_mut",
+  "auths_composition::evaluate::{impl core::ops::function::FnOnce<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_once",
+  "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::option::{impl core::default::Default for core::option::Option<T>}::default",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len",
+  "alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter",
+  "alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
+  "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}::eq",
+  "auths_model::{impl core::cmp::Eq for auths_model::ProofRef}::assert_fields_are_eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp",
+  "auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}::partial_cmp",
+  "auths_model::{auths_model::AuthorizationPlan}::as_ref",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk",
+  "auths_model::{auths_model::AuthorizationPlan}::validate",
+  "auths_model::{auths_model::Requirement}::code_order",
+  "auths_model::{auths_model::Requirement}::code_precedes",
+  "auths_model::{auths_model::DenialReason}::code_order",
+  "auths_model::{auths_model::DenialReason}::code_precedes",
+  "auths_composition::evaluate_threshold_counts",
+  "auths_composition::summary::threshold",
+  "auths_composition::summary::all",
+  "auths_composition::summary::push",
+  "auths_composition::summary::{impl core::default::Default for auths_composition::summary::Summary}::default",
+  "auths_composition::observe_aggregate",
+  "auths_composition::evaluate_members",
+  "auths_composition::evaluate_node",
+  "auths_composition::evaluate_observed"
+]
+allowed_external_symbols = [
+  "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::option::{impl core::default::Default for core::option::Option<T>}::default",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, alloc::alloc::Global>}::new",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::insert",
+  "alloc::collections::btree::set::{alloc::collections::btree::set::BTreeSet<T, A>}::len",
+  "alloc::collections::btree::set::{impl core::iter::traits::collect::IntoIterator<T, alloc::collections::btree::set::IntoIter<T, A>> for alloc::collections::btree::set::BTreeSet<T, A>}::into_iter",
+  "alloc::collections::btree::set::{impl core::iter::traits::iterator::Iterator<T> for alloc::collections::btree::set::IntoIter<T, A>}::next",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
+  "auths_algebra_kernel::generated::threshold_counts",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::ProofRef> for auths_model::ProofRef}::eq",
+  "auths_model::{impl core::cmp::Eq for auths_model::ProofRef}::assert_fields_are_eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::ProofRef}::cmp",
+  "auths_model::{impl core::cmp::PartialOrd<auths_model::ProofRef> for auths_model::ProofRef}::partial_cmp",
+  "auths_model::{auths_model::AuthorizationPlan}::as_ref",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk_members",
+  "auths_model::{auths_model::AuthorizationPlan}::validate::walk",
+  "auths_model::{auths_model::AuthorizationPlan}::validate",
+  "auths_model::{auths_model::Requirement}::code_order",
+  "auths_model::{auths_model::Requirement}::code_precedes",
+  "auths_model::{auths_model::DenialReason}::code_order",
+  "auths_model::{auths_model::DenialReason}::code_precedes"
+]
+
+[[translations]]
+crate_name = "auths_stores"
+translation_json = "formal/qualification/aeneas/generated/stores/translation.json"
+local_functions = 2
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = [
+  "auths_stores::gateway_fence::gateway_window_open",
+  "auths_stores::gateway_fence::advance_gateway_collection",
+]
+allowed_external_symbols = []
+
+[[translations]]
+crate_name = "auths_codec"
+translation_json = "formal/qualification/aeneas/generated/codec/translation.json"
+local_functions = 80
+external_functions = 78
+opaque_local_functions = 0
+required_symbols = [
+  "auths_codec::cbor::malformed",
+  "auths_codec::cbor::{impl core::cmp::PartialEq<auths_codec::cbor::Type> for auths_codec::cbor::Type}::eq",
+  "auths_codec::cbor::read_tail",
+  "auths_codec::cbor::read_head",
+  "auths_codec::cbor::append_tail",
+  "auths_codec::cbor::encode_head",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::new",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::at",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::position",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::head",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::collection",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::map",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::array",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u64",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u16",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::u8",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::payload",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::bytes",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::str",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::null",
+  "auths_codec::cbor::{auths_codec::cbor::Decoder<'a>}::datatype",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::new",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::into_writer",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::head",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::map",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::array",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::u64",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::u16",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::u8",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::payload",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::bytes",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::str",
+  "auths_codec::cbor::{auths_codec::cbor::Encoder}::null",
+  "auths_codec::decode::decode_error",
+  "auths_codec::decode::map",
+  "auths_codec::error::limit_error",
+  "auths_codec::decode::array",
+  "auths_codec::decode::key",
+  "auths_codec::decode::text",
+  "auths_codec::decode::bounded_bytes",
+  "auths_codec::decode::digest_bytes",
+  "auths_codec::decode::is_null",
+  "auths_codec::decode::null",
+  "auths_codec::error::{impl core::convert::From<auths_model::ModelError> for auths_codec::error::CodecError}::from",
+  "auths_codec::decode::profile_ref",
+  "auths_codec::decode::permission",
+  "auths_codec::decode::budget",
+  "auths_codec::decode::optional_budget",
+  "auths_codec::decode::ensure_complete",
+  "auths_codec::decode::attachment_batch_step",
+  "auths_codec::decode::attachment_batch",
+  "auths_codec::encode::encode_error",
+  "auths_codec::encode::bytes",
+  "auths_codec::encode::key",
+  "auths_codec::encode::map",
+  "auths_codec::encode::encode_canonical_attachment",
+  "auths_codec::encode::text",
+  "auths_codec::encode::encode_budget",
+  "auths_codec::encode::encode_optional_budget",
+  "auths_codec::encode::encode_permission",
+  "auths_codec::encode::encode_profile_ref",
+  "auths_codec::encode::length",
+  "auths_codec::encode::array",
+  "auths_codec::encode::encode_canonical_action",
+  "auths_codec::decode::decode_canonical_action",
+  "auths_codec::hash::preimage_buffer",
+  "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}::call_once",
+  "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure<'_0>}::call_once",
+  "auths_codec::hash::commitment_preimage",
+  "auths_codec::hash::identifier_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::identifier_preimage::closure<'_0>}::call_once",
+  "auths_codec::hash::identifier_preimage",
+  "auths_codec::hash::signing_preimage",
+]
+allowed_external_symbols = [
+  "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for usize}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u8}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<u64, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u16}::try_from",
+  "core::convert::num::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for isize}::try_from",
+  "core::option::Option::Some",
+  "core::option::{core::option::Option<T>}::as_ref",
+  "core::option::{core::option::Option<T>}::ok_or",
+  "core::option::{core::option::Option<T>}::and_then",
+  "core::option::{impl core::cmp::PartialEq<core::option::Option<T>> for core::option::Option<T>}::eq",
+  "core::result::{core::result::Result<T, E>}::map",
+  "core::result::{core::result::Result<T, E>}::map_err",
+  "core::result::{core::result::Result<T, E>}::unwrap_or",
+  "core::str::converts::from_utf8",
+  "core::str::{str}::len",
+  "core::str::{str}::is_empty",
+  "core::str::{str}::as_bytes",
+  "alloc::slice::{[T]}::sort_by_key",
+  "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref",
+  "alloc::string::{impl core::convert::From<&'_0 str> for alloc::string::String}::from",
+  "alloc::vec::{alloc::vec::Vec<T>}::as_slice",
+  "alloc::vec::{alloc::vec::Vec<T>}::is_empty",
+  "auths_model::identifier::forbidden_three_byte_prefix",
+  "auths_model::identifier::forbidden_identifier_at",
+  "auths_model::identifier::contains_forbidden_identifier",
+  "auths_model::identifier::bounded_identifier_valid",
+  "auths_model::{auths_model::MediaType}::parse",
+  "auths_model::{auths_model::ProfileId}::parse",
+  "auths_model::{auths_model::CapabilityId}::parse",
+  "auths_model::{auths_model::ResourceId}::parse",
+  "auths_model::{auths_model::BudgetAlgebraId}::parse",
+  "auths_model::{auths_model::MediaType}::as_str",
+  "auths_model::{auths_model::ProfileId}::as_str",
+  "auths_model::{auths_model::CapabilityId}::as_str",
+  "auths_model::{auths_model::ResourceId}::as_str",
+  "auths_model::{auths_model::BudgetAlgebraId}::as_str",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
+  "auths_model::{auths_model::Digest}::new",
+  "auths_model::{auths_model::Digest}::as_bytes",
+  "auths_model::{impl core::cmp::PartialEq<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::eq",
+  "auths_model::{impl core::cmp::Eq for auths_model::AttachmentDigest}::assert_fields_are_eq",
+  "auths_model::{impl core::cmp::Ord for auths_model::AttachmentDigest}::cmp",
+  "auths_model::{impl core::cmp::PartialOrd<auths_model::AttachmentDigest> for auths_model::AttachmentDigest}::partial_cmp",
+  "auths_model::{auths_model::AttachmentDigest}::new",
+  "auths_model::{auths_model::AttachmentDigest}::as_bytes",
+  "auths_model::{auths_model::ProfileRef}::new",
+  "auths_model::{auths_model::ProfileRef}::id",
+  "auths_model::{auths_model::ProfileRef}::version",
+  "auths_model::{auths_model::Permission}::new",
+  "auths_model::{auths_model::Permission}::capability",
+  "auths_model::{auths_model::Permission}::resource",
+  "auths_model::{auths_model::BudgetCeiling}::new",
+  "auths_model::{auths_model::BudgetCeiling}::algebra",
+  "auths_model::{auths_model::BudgetCeiling}::value",
+  "auths_model::{auths_model::DetachedAttachment}::bytes",
+  "auths_model::{auths_model::DetachedAttachment}::digest",
+  "auths_model::canonical_attachments_valid",
+  "auths_model::{auths_model::CanonicalAction}::new",
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnMut<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_mut",
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments::{impl core::ops::function::FnOnce<(&'_ auths_model::DetachedAttachment,), auths_model::AttachmentDigest> for auths_model::{auths_model::CanonicalAction}::with_detached_attachments::closure}::call_once",
+  "auths_model::{auths_model::CanonicalAction}::with_detached_attachments",
+  "auths_model::{auths_model::CanonicalAction}::profile",
+  "auths_model::{auths_model::CanonicalAction}::media_type",
+  "auths_model::{auths_model::CanonicalAction}::body",
+  "auths_model::{auths_model::CanonicalAction}::permission",
+  "auths_model::{auths_model::CanonicalAction}::requested_budget",
+  "auths_model::{auths_model::CanonicalAction}::detached_attachments",
+  "auths_model::{auths_model::DetachedAttachment}::new",
+  "auths_model::{auths_model::VerifierLimits}::hard",
+  "auths_model::{auths_model::VerifierLimits}::get",
+  "auths_model::{auths_model::VerifierLimits}::validate",
+]
+
+[[translations]]
+crate_name = "auths_model"
+translation_json = "formal/qualification/aeneas/generated/model/translation.json"
+local_functions = 141
+external_functions = 7
+opaque_local_functions = 0
+required_symbols = [
+  "auths_model::status_snapshot::principal_equal",
+  "auths_model::status_snapshot::principal_order",
+  "auths_model::status_snapshot::principal_matches_before",
+  "auths_model::status_snapshot::principal_has_duplicate",
+  "auths_model::status_snapshot::principal_windows_cover",
+  "auths_model::status_snapshot::grant_equal",
+  "auths_model::status_snapshot::grant_order",
+  "auths_model::status_snapshot::grant_matches_before",
+  "auths_model::status_snapshot::grant_has_duplicate",
+  "auths_model::status_snapshot::grant_windows_cover",
+  "auths_model::identifier::bounded_identifier_valid",
+  "auths_model::identifier::contains_forbidden_identifier",
+  "auths_model::identifier::forbidden_identifier_at",
+  "auths_model::identifier::forbidden_three_byte_prefix",
   "auths_model::budget_ceiling_covers_action",
   "auths_model::inclusive_window_contains",
   "auths_model::validity_window_contains",
@@ -287,6 +1779,9 @@ allowed_external_symbols = [
   "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq",
   "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp",
   "alloc::string::{alloc::string::String}::as_bytes",
+  "core::str::{str}::len",
+  "core::str::{str}::is_empty",
+  "core::str::{str}::as_bytes",
 ]
 
 [[translations]]
@@ -369,75 +1864,113 @@ allowed_external_symbols = [
 [[translations]]
 crate_name = "auths_bounded_policy"
 translation_json = "formal/qualification/aeneas/generated/bounded_policy/translation.json"
-local_functions = 28
+local_functions = 29
 external_functions = 0
 opaque_local_functions = 0
-required_symbols = [
-  "auths_bounded_policy::kernel::configuration_match_code",
-  "auths_bounded_policy::kernel::checked_add_u64",
-  "auths_bounded_policy::kernel::checked_sub_u64",
-  "auths_bounded_policy::kernel::checked_mul_u64",
-  "auths_bounded_policy::kernel::checked_div_u64",
-  "auths_bounded_policy::kernel::ceiling_count_code",
-  "auths_bounded_policy::kernel::ceiling_count_tightens",
-  "auths_bounded_policy::kernel::window_index",
-  "auths_bounded_policy::kernel::chain_counts_admit",
-  "auths_bounded_policy::kernel::chain_sums_admit",
-  "auths_bounded_policy::kernel::bytes_equal",
-  "auths_bounded_policy::kernel::values_contain",
-  "auths_bounded_policy::kernel::values_subset",
-  "auths_bounded_policy::kernel::values_narrow",
-  "auths_bounded_policy::kernel::partition_narrows",
-  "auths_bounded_policy::kernel::sum_tightens",
-  "auths_bounded_policy::kernel::scope_tightens",
-  "auths_bounded_policy::kernel::argument_policy_tightens",
-]
+required_symbols = ["auths_bounded_policy::kernel::argument_policy_tightens", "auths_bounded_policy::kernel::bytes_equal", "auths_bounded_policy::kernel::ceiling_count_code", "auths_bounded_policy::kernel::ceiling_count_tightens", "auths_bounded_policy::kernel::chain_counts_admit", "auths_bounded_policy::kernel::chain_sums_admit", "auths_bounded_policy::kernel::checked_add_u64", "auths_bounded_policy::kernel::checked_div_u64", "auths_bounded_policy::kernel::checked_mul_u64", "auths_bounded_policy::kernel::checked_sub_u64", "auths_bounded_policy::kernel::configuration_match_code", "auths_bounded_policy::kernel::partition_narrows", "auths_bounded_policy::kernel::reservation_admission", "auths_bounded_policy::kernel::scope_tightens", "auths_bounded_policy::kernel::sum_tightens", "auths_bounded_policy::kernel::values_contain", "auths_bounded_policy::kernel::values_narrow", "auths_bounded_policy::kernel::values_subset", "auths_bounded_policy::kernel::window_index"]
 allowed_external_symbols = []
 
 [[translations]]
 crate_name = "auths_gateway_kernel"
 translation_json = "formal/qualification/aeneas/generated/gateway/translation.json"
-local_functions = 123
-external_functions = 0
+local_functions = 181
+external_functions = 2
 opaque_local_functions = 0
-required_symbols = [
-  "auths_gateway_kernel::recovery::recovery_capability",
-  "auths_gateway_kernel::construct::construct_write",
-  "auths_gateway_kernel::construct::construct_action_read",
-  "auths_gateway_kernel::construct::construct_credential_read",
-  "auths_gateway_kernel::construct::build_url",
-  "auths_gateway_kernel::construct::build_body",
-  "auths_gateway_kernel::construct::action_headers",
-  "auths_gateway_kernel::construct::scope_value_valid",
-  "auths_gateway_kernel::order::start",
-  "auths_gateway_kernel::order::next_step",
-  "auths_gateway_kernel::order::after_ceiling",
-  "auths_gateway_kernel::transition::valid_transition",
-  "auths_gateway_kernel::transition::consistent",
-  "auths_gateway_kernel::transition::stage_transition_allowed",
-  "auths_gateway_kernel::ratio::relative_basis",
-  "auths_gateway_kernel::ratio::relative_ceiling_admits",
-]
-allowed_external_symbols = []
+required_symbols = ["auths_gateway_kernel::attempt_binding::installation_matches", "auths_gateway_kernel::attempt_binding::claim_matches", "auths_gateway_kernel::template_members::finish_echo_token", "auths_gateway_kernel::template_members::echo_pointer_tokens", "auths_gateway_kernel::profile_schema::member", "auths_gateway_kernel::profile_schema::text_is", "auths_gateway_kernel::profile_schema::one_key", "auths_gateway_kernel::profile_schema::two_keys", "auths_gateway_kernel::profile_schema::three_keys", "auths_gateway_kernel::profile_schema::string_bound", "auths_gateway_kernel::profile_schema::signed_bound", "auths_gateway_kernel::profile_schema::enum_schema", "auths_gateway_kernel::profile_schema::parse_scalar", "auths_gateway_kernel::profile_schema::parse_field", "auths_gateway_kernel::profile_schema::parse_fields", "auths_gateway_kernel::profile_schema::parse_root", "auths_gateway_kernel::profile_schema::binding_fields_match", "auths_gateway_kernel::recipe_binding::lower_hex_byte", "auths_gateway_kernel::recipe_binding::lower_hex_digest", "auths_gateway_kernel::recipe_binding::source_schema_supported", "auths_gateway_kernel::recipe_binding::lock_metadata_valid", "auths_gateway_kernel::recipe_binding::source_matches_profile", "auths_gateway_kernel::recipe_binding::schema_digest_matches", "auths_gateway_kernel::recipe_binding::recipe_digest_input", "auths_gateway_kernel::request_compiler::write_method_allowed", "auths_gateway_kernel::request_compiler::lower_body", "auths_gateway_kernel::request_compiler::compile_write", "auths_gateway_kernel::header_compiler::copy_versions", "auths_gateway_kernel::header_compiler::header_index", "auths_gateway_kernel::header_compiler::version_byte_valid", "auths_gateway_kernel::header_compiler::date_byte_valid", "auths_gateway_kernel::header_compiler::stripe_version_valid", "auths_gateway_kernel::header_compiler::iso_date_valid", "auths_gateway_kernel::header_compiler::version_header_valid", "auths_gateway_kernel::header_compiler::version_headers_valid", "auths_gateway_kernel::header_compiler::lower_versions", "auths_gateway_kernel::header_compiler::lower_scope", "auths_gateway_kernel::header_compiler::lower_headers", "auths_gateway_kernel::derived_tokens::echo_preimage", "auths_gateway_kernel::derived_tokens::idempotency_preimage", "auths_gateway_kernel::derived_tokens::append_digest_hex", "auths_gateway_kernel::derived_tokens::echo_token_bytes", "auths_gateway_kernel::derived_tokens::idempotency_token_bytes", "auths_gateway_kernel::body_compiler::add_resources", "auths_gateway_kernel::body_compiler::json_resources", "auths_gateway_kernel::body_compiler::form_piece_resources", "auths_gateway_kernel::body_compiler::form_resources", "auths_gateway_kernel::body_compiler::lower_json_piece", "auths_gateway_kernel::body_compiler::lower_json", "auths_gateway_kernel::body_compiler::lower_form_piece", "auths_gateway_kernel::body_compiler::lower_form", "auths_gateway_kernel::path_compiler::origin_matches_host", "auths_gateway_kernel::path_compiler::fixed_segment_valid", "auths_gateway_kernel::path_compiler::lower_field", "auths_gateway_kernel::path_compiler::lower_segment", "auths_gateway_kernel::path_compiler::lower_path", "auths_gateway_kernel::path_compiler::lower_fixed_path", "auths_gateway_kernel::template_ast::_::source", "auths_gateway_kernel::template_ast::member_error", "auths_gateway_kernel::template_ast::charge_node", "auths_gateway_kernel::template_ast::rendered_field_allowed", "auths_gateway_kernel::template_ast::json_start", "auths_gateway_kernel::template_ast::form_start", "auths_gateway_kernel::template_ast::json_push", "auths_gateway_kernel::template_ast::form_push", "auths_gateway_kernel::template_ast::json_key_column", "auths_gateway_kernel::template_ast::json_keys", "auths_gateway_kernel::template_ast::form_key_column", "auths_gateway_kernel::template_ast::form_keys", "auths_gateway_kernel::template_ast::json_prefix", "auths_gateway_kernel::template_ast::form_prefix", "auths_gateway_kernel::template_ast::json_value", "auths_gateway_kernel::template_ast::json_array", "auths_gateway_kernel::template_ast::json_array_item", "auths_gateway_kernel::template_ast::json_object", "auths_gateway_kernel::template_ast::json_members", "auths_gateway_kernel::template_ast::json_member", "auths_gateway_kernel::template_ast::json_target", "auths_gateway_kernel::template_ast::json_insertion", "auths_gateway_kernel::template_ast::json_child_echo", "auths_gateway_kernel::template_ast::form_json_allowed", "auths_gateway_kernel::template_ast::form_member", "auths_gateway_kernel::template_ast::form_members", "auths_gateway_kernel::template_ast::form_value", "auths_gateway_kernel::template_ast::compile_body", "auths_gateway_kernel::template_members::byte_less", "auths_gateway_kernel::template_members::form_echo_name_valid", "auths_gateway_kernel::template_members::keys_ordered", "auths_gateway_kernel::template_members::merge_members", "auths_gateway_kernel::template_members::canonical_members", "auths_gateway_kernel::template_members::pointer_tokens_valid", "auths_gateway_kernel::template_members::key_position", "auths_gateway_kernel::template_members::json_echo_target", "auths_gateway_kernel::field_projection::text_member", "auths_gateway_kernel::field_projection::project_request", "auths_gateway_kernel::field_projection::copy_field_names", "auths_gateway_kernel::field_projection::field_names", "auths_gateway_kernel::field_projection::schema_for", "auths_gateway_kernel::field_projection::project_rows", "auths_gateway_kernel::field_projection::project_object", "auths_gateway_kernel::scalars::scalar_valid", "auths_gateway_kernel::scalars::form_schema_allowed", "auths_gateway_kernel::scalars::project_scalar", "auths_gateway_kernel::scalars::string_schema_valid", "auths_gateway_kernel::scalars::string_value_valid", "auths_gateway_kernel::scalars::enum_byte_valid", "auths_gateway_kernel::scalars::enum_variant_valid", "auths_gateway_kernel::scalars::enum_schema_valid", "auths_gateway_kernel::scalars::enum_value_valid", "auths_gateway_kernel::scalars::integer_schema_valid", "auths_gateway_kernel::scalars::integer_value_valid", "auths_gateway_kernel::scalars::magnitude", "auths_gateway_kernel::scalars::decimal_divisor", "auths_gateway_kernel::scalars::append_unsigned_decimal", "auths_gateway_kernel::scalars::integer_bytes", "auths_gateway_kernel::scalars::string_value", "auths_gateway_kernel::scalars::enum_value", "auths_gateway_kernel::scalars::integer_value", "auths_gateway_kernel::scalars::boolean_value", "auths_gateway_kernel::arguments::copy_argument", "auths_gateway_kernel::arguments::named_argument", "auths_gateway_kernel::arguments::unique_fields", "auths_gateway_kernel::arguments::bind_arguments", "auths_gateway_kernel::write_permit::capture_input", "auths_gateway_kernel::write_permit::captured_command", "auths_gateway_kernel::write_permit::captured_time", "auths_gateway_kernel::write_permit::captured_selection", "auths_gateway_kernel::write_permit::empty", "auths_gateway_kernel::write_permit::can_arm", "auths_gateway_kernel::write_permit::spent", "auths_gateway_kernel::write_permit::arm", "auths_gateway_kernel::write_permit::consume", "auths_gateway_kernel::construct::account_bytes_valid", "auths_gateway_kernel::construct::account_scope_header", "auths_gateway_kernel::construct::action_headers", "auths_gateway_kernel::construct::append_bytes", "auths_gateway_kernel::construct::append_form_byte", "auths_gateway_kernel::construct::append_form_encoded", "auths_gateway_kernel::construct::append_form_piece", "auths_gateway_kernel::construct::append_form_pieces", "auths_gateway_kernel::construct::append_json_argument", "auths_gateway_kernel::construct::append_json_byte", "auths_gateway_kernel::construct::append_json_escaped", "auths_gateway_kernel::construct::append_json_piece", "auths_gateway_kernel::construct::append_json_pieces", "auths_gateway_kernel::construct::append_json_string", "auths_gateway_kernel::construct::append_path_byte", "auths_gateway_kernel::construct::append_path_encoded", "auths_gateway_kernel::construct::append_percent", "auths_gateway_kernel::construct::append_segment", "auths_gateway_kernel::construct::append_segments", "auths_gateway_kernel::construct::append_version_headers", "auths_gateway_kernel::construct::build_body", "auths_gateway_kernel::construct::build_url", "auths_gateway_kernel::construct::construct_action_read", "auths_gateway_kernel::construct::construct_credential_read", "auths_gateway_kernel::construct::construct_write", "auths_gateway_kernel::construct::copy_bytes", "auths_gateway_kernel::construct::copy_header", "auths_gateway_kernel::construct::field_index", "auths_gateway_kernel::construct::field_name_equal", "auths_gateway_kernel::construct::fixed_url", "auths_gateway_kernel::construct::form_piece_valid", "auths_gateway_kernel::construct::form_pieces_valid", "auths_gateway_kernel::construct::hex_lower", "auths_gateway_kernel::construct::hex_upper", "auths_gateway_kernel::construct::is_account_byte", "auths_gateway_kernel::construct::is_alphanumeric", "auths_gateway_kernel::construct::is_form_literal", "auths_gateway_kernel::construct::is_path_literal", "auths_gateway_kernel::construct::json_piece_valid", "auths_gateway_kernel::construct::json_pieces_valid", "auths_gateway_kernel::construct::path_error", "auths_gateway_kernel::construct::scope_value_valid", "auths_gateway_kernel::construct::segment_error", "auths_gateway_kernel::construct::segment_value_valid", "auths_gateway_kernel::counter_aggregation::aggregate", "auths_gateway_kernel::counter_aggregation::aggregate_sum", "auths_gateway_kernel::counter_aggregation::contribute", "auths_gateway_kernel::counter_aggregation::contribute_sum", "auths_gateway_kernel::counter_aggregation::count_capacity", "auths_gateway_kernel::counter_aggregation::counter_equal", "auths_gateway_kernel::counter_aggregation::counter_position", "auths_gateway_kernel::counter_aggregation::linked_sum_contribution", "auths_gateway_kernel::counter_aggregation::sum_position", "auths_gateway_kernel::counter_preimages::append_component", "auths_gateway_kernel::counter_preimages::append_coordinates", "auths_gateway_kernel::counter_preimages::append_word", "auths_gateway_kernel::counter_preimages::count_counter_preimage", "auths_gateway_kernel::counter_preimages::count_slot_preimage", "auths_gateway_kernel::counter_preimages::slot_preimage", "auths_gateway_kernel::counter_preimages::sum_counter_preimage", "auths_gateway_kernel::counter_preimages::sum_slot_preimage", "auths_gateway_kernel::deadline::entry_gate_allows", "auths_gateway_kernel::deadline::entry_time_allows", "auths_gateway_kernel::deadline::intersect_entry_bounds", "auths_gateway_kernel::entry_authorization::entry_allows", "auths_gateway_kernel::entry_authorization::profile_allowed", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::candidate", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::new", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::observe", "auths_gateway_kernel::frontier::{auths_gateway_kernel::frontier::FrontierSearch}::probe", "auths_gateway_kernel::identity::connection_record_preimage", "auths_gateway_kernel::identity::logical_operation_preimage", "auths_gateway_kernel::identity::valid_token", "auths_gateway_kernel::order::after_account", "auths_gateway_kernel::order::after_admission", "auths_gateway_kernel::order::after_ceiling", "auths_gateway_kernel::order::after_claim", "auths_gateway_kernel::order::after_credentials", "auths_gateway_kernel::order::after_denied", "auths_gateway_kernel::order::after_pre_entry", "auths_gateway_kernel::order::after_prefix", "auths_gateway_kernel::order::after_read_back", "auths_gateway_kernel::order::after_reads", "auths_gateway_kernel::order::after_response", "auths_gateway_kernel::order::after_write", "auths_gateway_kernel::order::ceiling_from", "auths_gateway_kernel::order::denied_from", "auths_gateway_kernel::order::entry_step", "auths_gateway_kernel::order::go", "auths_gateway_kernel::order::halt", "auths_gateway_kernel::order::lease_failed", "auths_gateway_kernel::order::lease_step", "auths_gateway_kernel::order::next_step", "auths_gateway_kernel::order::not_entered", "auths_gateway_kernel::order::pre_claim", "auths_gateway_kernel::order::pre_claim_step", "auths_gateway_kernel::order::pre_entry_from", "auths_gateway_kernel::order::start", "auths_gateway_kernel::order::stop", "auths_gateway_kernel::ratio::relative_basis", "auths_gateway_kernel::ratio::relative_ceiling_admits", "auths_gateway_kernel::recovery::provider_link", "auths_gateway_kernel::recovery::recovery_capability", "auths_gateway_kernel::recovery::recovery_class", "auths_gateway_kernel::recovery::unknown_resolution", "auths_gateway_kernel::reservation_batch::build_batch", "auths_gateway_kernel::reservation_retry::retry_target", "auths_gateway_kernel::slot_record::counter_hex_matches", "auths_gateway_kernel::slot_record::validate_cumulative", "auths_gateway_kernel::transition::absent", "auths_gateway_kernel::transition::adds_pre_entry", "auths_gateway_kernel::transition::adds_response", "auths_gateway_kernel::transition::checkpoint_valid", "auths_gateway_kernel::transition::consistent", "auths_gateway_kernel::transition::has_link", "auths_gateway_kernel::transition::has_reading", "auths_gateway_kernel::transition::link_equal", "auths_gateway_kernel::transition::observed_stage", "auths_gateway_kernel::transition::permits_response", "auths_gateway_kernel::transition::plan_kept", "auths_gateway_kernel::transition::pre_entry_kept", "auths_gateway_kernel::transition::provider_stage", "auths_gateway_kernel::transition::refusal_stage", "auths_gateway_kernel::transition::requires_response", "auths_gateway_kernel::transition::resolves_unknown", "auths_gateway_kernel::transition::response_kept", "auths_gateway_kernel::transition::same_bytes", "auths_gateway_kernel::transition::same_bytes_from", "auths_gateway_kernel::transition::stage_transition_allowed", "auths_gateway_kernel::transition::valid_transition"]
+allowed_external_symbols = ["core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from", "core::result::{core::result::Result<T, E>}::unwrap_or"]
 
 [[translations]]
 crate_name = "auths_connections"
 translation_json = "formal/qualification/aeneas/generated/connections/translation.json"
-local_functions = 7
-external_functions = 0
+local_functions = 38
+external_functions = 5
 opaque_local_functions = 0
-required_symbols = [
-  "auths_connections::kernel::next_generation",
-  "auths_connections::kernel::state_change",
-  "auths_connections::kernel::rotation",
-  "auths_connections::kernel::retained_generation",
-  "auths_connections::kernel::lease_generation",
-]
-allowed_external_symbols = []
+required_symbols = ["auths_connections::kernel::same_lease_generations", "auths_connections::kernel::ascii_graphic_valid", "auths_connections::kernel::lease_generation", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::next_generation", "auths_connections::kernel::profiles_valid", "auths_connections::kernel::record_change_allows", "auths_connections::kernel::record_times_valid", "auths_connections::kernel::recovery_binding_requirement", "auths_connections::kernel::recovery_lease", "auths_connections::kernel::retained_generation", "auths_connections::kernel::rotation", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::kernel::state_change", "auths_connections::kernel::state_transition_allows", "auths_connections::kernel::strictly_sorted_unique", "auths_connections::kernel::validate_record_shape", "auths_connections::kernel::workloads_valid", "auths_connections::model::{impl core::cmp::Eq for auths_connections::model::ConnectionProfile}::assert_fields_are_eq", "auths_connections::model::{impl core::cmp::Ord for auths_connections::model::ConnectionProfile}::cmp", "auths_connections::model::{impl core::cmp::Ord for auths_connections::model::SemanticId}::cmp", "auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}::eq", "auths_connections::model::{impl core::cmp::PartialEq<auths_connections::model::SemanticId> for auths_connections::model::SemanticId}::eq", "auths_connections::model::{impl core::cmp::PartialOrd<auths_connections::model::ConnectionProfile> for auths_connections::model::ConnectionProfile}::partial_cmp"]
+allowed_external_symbols = ["alloc::string::{alloc::string::String}::as_bytes", "alloc::string::{impl core::cmp::Eq for alloc::string::String}::assert_fields_are_eq", "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp", "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq", "alloc::string::{impl core::cmp::PartialOrd<alloc::string::String> for alloc::string::String}::partial_cmp"]
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/scope_codec/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/scope_codec/FunsExternal_Template.lean"
+count = 18
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/status_selection/FunsExternal_Template.lean"
+count = 3
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/temporal_witness/FunsExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/suite_adapter/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/suite_adapter/FunsExternal_Template.lean"
+count = 3
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/p256/TypesExternal_Template.lean"
+count = 3
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/p256/FunsExternal_Template.lean"
+count = 10
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/sha256/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/sha256/FunsExternal_Template.lean"
+count = 2
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/signature/TypesExternal_Template.lean"
+count = 3
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/signature/FunsExternal_Template.lean"
+count = 5
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/composition/TypesExternal_Template.lean"
+count = 2
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/composition/FunsExternal_Template.lean"
+count = 10
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/codec/TypesExternal_Template.lean"
+count = 1
+compiled = false
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/codec/FunsExternal_Template.lean"
+count = 24
+compiled = false
 
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/model/FunsExternal_Template.lean"
-count = 4
+count = 7
 compiled = false
 
 [[template_axioms]]
@@ -448,4 +1981,40 @@ compiled = false
 [[template_axioms]]
 artifact = "formal/qualification/aeneas/generated/authority/FunsExternal_Template.lean"
 count = 21
+compiled = false
+
+[[external_models]]
+id = "gateway-counter-standard-interfaces"
+kind = "transparent-standard-checked-conversion-and-result-projection"
+artifact = "formal/qualification/aeneas/generated/gateway/FunsExternal.lean"
+rust_symbols = ["core::convert::num::ptr_try_from_impls::{impl core::convert::TryFrom<usize, core::num::error::TryFromIntError> for u64}::try_from", "core::result::{core::result::Result<T, E>}::unwrap_or"]
+authority_semantics = false
+reviewed = true
+axiom = false
+scope = "Reuses the existing reviewed usize-to-u64 checked conversion and Result.unwrap_or definitions, moved unchanged from the codec bridge into generated/standard/CheckedResult.lean so unrelated string/sort models are not imported into gateway proofs. No Auths algorithm is opaque. Counter and slot byte framing is translated from production; SHA-256 collision resistance, allocator behavior, and backend atomicity remain separate contracts."
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/gateway/FunsExternal_Template.lean"
+count = 2
+compiled = false
+
+
+[[translations]]
+crate_name = "auths_profile_construction"
+translation_json = "formal/qualification/aeneas/generated/profile_construction/translation.json"
+local_functions = 4
+external_functions = 17
+opaque_local_functions = 0
+required_symbols = ["auths_connections::model::{auths_connections::model::ConnectionAlias}::parse", "auths_connections::model::{auths_connections::model::ConnectionProfile}::new", "auths_connections::model::{auths_connections::model::ProviderKind}::parse", "auths_connections::model::{auths_connections::model::SemanticId}::parse", "auths_profile_construction::construct", "auths_profile_construction::parse_alias", "auths_profile_construction::parse_provider", "auths_profile_construction::parse_semantic"]
+allowed_external_symbols = ["alloc::string::{alloc::string::String}::as_bytes", "alloc::string::{impl core::ops::deref::Deref<str> for alloc::string::String}::deref", "auths_connections::kernel::lower_tail_valid", "auths_connections::kernel::lower_token_valid", "auths_connections::kernel::semantic_head_valid", "auths_connections::kernel::semantic_id_valid", "auths_connections::kernel::semantic_tail_valid", "auths_connections::model::is_lower_token", "auths_connections::model::{auths_connections::model::ConnectionAlias}::parse", "auths_connections::model::{auths_connections::model::ConnectionProfile}::new", "auths_connections::model::{auths_connections::model::ProviderKind}::parse", "auths_connections::model::{auths_connections::model::SemanticId}::parse", "core::str::{str}::as_bytes"]
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/profile_construction/FunsExternal_Template.lean"
+count = 3
+compiled = false
+
+
+[[template_axioms]]
+artifact = "formal/qualification/aeneas/generated/connections/FunsExternal_Template.lean"
+count = 5
 compiled = false

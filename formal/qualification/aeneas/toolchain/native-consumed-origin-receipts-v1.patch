@@ -1,0 +1,118 @@
+--- a/src/llbc/Values.ml
++++ b/src/llbc/Values.ml
+@@ -194,9 +194,32 @@
+ 
+ type msymbolic_value_id = symbolic_value_id [@@deriving show, eq, ord]
+ 
+-(** "Meta" symbolic value consumed upon ending a loan *)
+-type mconsumed_symb = { sv_id : symbolic_value_id; proj_ty : ty }
++(** Original inputs of the actual symbolic give-back operation. The receiver
++    projection type alone cannot identify which of its fields the incoming
++    borrow owned. Preserve the incoming scope/type and actual fresh type;
++    consumers must derive coverage, never trust a supplied coverage flag. *)
++type consumed_projection_origin = {
++  incoming_id : symbolic_value_id;
++  incoming_projection_type : ty;
++  ended_regions : region_id list;
++  actual_given_type : ty;
++}
+ [@@deriving show, ord]
++
++(** "Meta" symbolic value consumed upon ending a loan. This is diagnostic/
++    translation provenance, not a new semantic value or an execution effect. *)
++type mconsumed_symb = {
++  sv_id : symbolic_value_id;
++  proj_ty : ty;
++  received : consumed_projection_origin;
++}
++[@@deriving show]
++
++(** Keep the original ordering key. Receipt metadata must not change symbolic
++    joins, collection ordering or the existing equality treatment of meta data. *)
++let compare_mconsumed_symb (first : mconsumed_symb) (second : mconsumed_symb) =
++  let identity = compare_symbolic_value_id first.sv_id second.sv_id in
++  if identity <> 0 then identity else Types.compare_ty first.proj_ty second.proj_ty
+ 
+ (** Override: meta-consumed symbols are irrelevant for symbolic execution
+     equality *)
+--- a/src/interp/InterpBorrows.ml
++++ b/src/interp/InterpBorrows.ml
+@@ -691,6 +691,12 @@
+      - if the *outlive* projection intersects the borrow projector: we need to
+        project the inner loans of the given back value.
+   *)
++  let received : consumed_projection_origin = {
++    incoming_id = proj.sv_id;
++    incoming_projection_type = proj.proj_ty;
++    ended_regions = RegionId.Set.elements ended_regions;
++    actual_given_type = nsv.sv_ty;
++  } in
+   let update_mut ~owned ~outlive (_abs : abs) (aproj : aproj_borrows) : aproj =
+     (* We can be in one case, or the other, but not both *)
+     [%sanity_check] span ((not owned) || not outlive);
+@@ -710,7 +716,7 @@
+           }
+       in
+       let consumed : mconsumed_symb =
+-        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty }
++        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty; received }
+       in
+       AProjBorrows { proj; loans = (consumed, loan) :: aproj.loans }
+   in
+@@ -733,7 +739,7 @@
+           }
+       in
+       let consumed : mconsumed_symb =
+-        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty }
++        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty; received }
+       in
+       let { sv_id; proj_ty } : symbolic_proj = proj in
+       EProjBorrows
+@@ -778,13 +784,19 @@
+      - we first update when intersecting with ancestors regions
+      - then we update when intersecting with owned regions
+   *)
++  let received : consumed_projection_origin = {
++    incoming_id = proj.sv_id;
++    incoming_projection_type = proj.proj_ty;
++    ended_regions = RegionId.Set.elements ended_regions;
++    actual_given_type = nsv.sv_ty;
++  } in
+   let subst ~owned ~outlive (_abs : abs) (aproj : aproj_loans) : aproj =
+     [%sanity_check] span ((not owned) || not outlive);
+     if owned then
+       (* There is nothing to project *)
+       let child_proj = AEmpty in
+       let consumed : mconsumed_symb =
+-        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty }
++        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty; received }
+       in
+       AProjLoans
+         { aproj with consumed = (consumed, child_proj) :: aproj.consumed }
+@@ -795,7 +807,7 @@
+           { proj = { aproj.proj with sv_id = nsv.sv_id }; loans = [] }
+       in
+       let consumed : mconsumed_symb =
+-        { sv_id = nsv.sv_id; proj_ty = proj.proj_ty }
++        { sv_id = nsv.sv_id; proj_ty = proj.proj_ty; received }
+       in
+       AProjLoans { aproj with borrows = (consumed, borrow) :: aproj.borrows }
+   in
+@@ -805,7 +817,7 @@
+       (* There is nothing to project *)
+       let child_proj = EEmpty in
+       let consumed : mconsumed_symb =
+-        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty }
++        { sv_id = nsv.sv_id; proj_ty = aproj.proj.proj_ty; received }
+       in
+       EProjLoans
+         { aproj with consumed = (consumed, child_proj) :: aproj.consumed }
+@@ -816,7 +828,7 @@
+           { proj = { aproj.proj with sv_id = nsv.sv_id }; loans = [] }
+       in
+       let consumed : mconsumed_symb =
+-        { sv_id = nsv.sv_id; proj_ty = proj.proj_ty }
++        { sv_id = nsv.sv_id; proj_ty = proj.proj_ty; received }
+       in
+       EProjLoans { aproj with borrows = (consumed, borrow) :: aproj.borrows }
+   in

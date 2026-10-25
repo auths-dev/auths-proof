@@ -273,7 +273,7 @@ pub fn authorization_fixture(
     let kernel = AuthsKernel::new(context, methods, suites).expect("static verifier kernel");
     AuthorizationFixture {
         verifier: Verifier::new(Arc::new(kernel)),
-        proof: encode_bundle(&bundle).expect("canonical proof encoding"),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&bundle)).and_then(|canonical| encode_bundle(&canonical)).expect("canonical proof encoding"),
         request: RequestContext::new(executor_audience, challenge, now)
             .expect("validated request context"),
         human_principal: human.principal.to_string(),

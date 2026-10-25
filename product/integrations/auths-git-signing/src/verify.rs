@@ -100,7 +100,7 @@ impl GitTrust {
     /// Returns [`TrustError::Malformed`] for bytes that are not a canonical
     /// verifier context, and the [`GitTrust::new`] errors.
     pub fn decode(bytes: &[u8]) -> Result<Self, TrustError> {
-        Self::new(decode_verifier_context(bytes).map_err(|_| TrustError::Malformed)?)
+        Self::new(decode_verifier_context(bytes).map_err(|_| TrustError::Malformed)?.into_value())
     }
 
     /// Adds verified revocations from the trust material.

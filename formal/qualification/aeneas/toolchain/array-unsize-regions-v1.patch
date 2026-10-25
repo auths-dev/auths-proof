@@ -1,0 +1,25 @@
+--- a/charon/src/transform/simplify_output/ops_to_function_calls.rs
++++ b/charon/src/transform/simplify_output/ops_to_function_calls.rs
+@@ -17,7 +17,7 @@
+                 op,
+             ),
+         ) => {
+-            if let (TyKind::Ref(_, ty1, kind1), TyKind::Ref(_, ty2, kind2)) =
++            if let (TyKind::Ref(source_region, ty1, kind1), TyKind::Ref(_, ty2, kind2)) =
+                 (src_ty.kind(), tgt_ty.kind())
+                 && let TyKind::Array(arr_ty, len) = ty1.kind()
+                 && let TyKind::Slice(..) = ty2.kind()
+@@ -34,8 +34,12 @@
+                     RefKind::Shared => BuiltinFunId::ArrayToSliceShared,
+                 };
+                 let func = FnPtrKind::mk_builtin(id);
++                // Unsizing preserves the input reference's provenance; it
++                // introduces no borrow or fresh existential lifetime. Retain
++                // that exact source label in the builtin instantiation. The
++                // destination type and all original operand metadata remain.
+                 let generics = GenericArgs::new(
+-                    [Region::Erased].into(),
++                    [source_region.clone()].into(),
+                     [arr_ty.clone()].into(),
+                     [*len.clone()].into(),
+                     [].into(),

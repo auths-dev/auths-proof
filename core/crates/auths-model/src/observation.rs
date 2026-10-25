@@ -15,7 +15,7 @@
 use crate::{
     EvidenceObject, HARD_MAX_PERMISSIONS, HARD_MAX_REGISTRY_ENTRIES, ModelError, PrincipalId,
     PrincipalMethodId, ProtocolVersion, ResourceId, SignatureEnvelope, Timestamp, ValidityWindow,
-    byte_slices_equal, parse_bounded,
+    byte_slices_equal,
 };
 use alloc::{string::String, vec::Vec};
 use core::fmt;
@@ -150,10 +150,7 @@ impl ObservationFacts {
             return Err(ModelError::InvalidObservation);
         }
         facts.sort_by(|left, right| left.name.cmp(&right.name));
-        if facts
-            .windows(2)
-            .any(|window| window[0].name == window[1].name)
-        {
+        if crate::collection_scan::fact_names_repeat(&facts) {
             return Err(ModelError::InvalidObservation);
         }
         Ok(Self(facts))
@@ -246,10 +243,7 @@ impl SignedObservation {
             return Err(ModelError::InvalidObservation);
         }
         evidence.sort_by_key(EvidenceObject::id);
-        if evidence
-            .windows(2)
-            .any(|window| window[0].id() == window[1].id())
-        {
+        if crate::collection_scan::evidence_ids_repeat(&evidence) {
             return Err(ModelError::InvalidObservation);
         }
         Ok(Self {
@@ -324,10 +318,8 @@ impl MemberValues {
         if values.is_empty() || values.len() > MAX_MEMBER_VALUES {
             return Err(ModelError::InvalidObservationRequirement);
         }
-        for (index, value) in values.iter().enumerate() {
-            if values[..index].contains(value) {
-                return Err(ModelError::InvalidObservationRequirement);
-            }
+        if crate::collection_scan::has_duplicates(&values) {
+            return Err(ModelError::InvalidObservationRequirement);
         }
         Ok(Self(values))
     }
@@ -464,10 +456,8 @@ impl ObservationRequirements {
         if requirements.len() > MAX_OBSERVATION_REQUIREMENTS_PER_GRANT {
             return Err(ModelError::CollectionLimitExceeded);
         }
-        for (index, requirement) in requirements.iter().enumerate() {
-            if requirements[..index].contains(requirement) {
-                return Err(ModelError::InvalidObservationRequirement);
-            }
+        if crate::collection_scan::has_duplicates(&requirements) {
+            return Err(ModelError::InvalidObservationRequirement);
         }
         Ok(Self(requirements))
     }

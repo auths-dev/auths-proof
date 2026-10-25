@@ -1,0 +1,66 @@
+--- a/src/symbolic/SymbolicToPureValues.ml
++++ b/src/symbolic/SymbolicToPureValues.ml
+@@ -163,6 +163,7 @@
+ type projector_kind_observation = {
+   projector_level : int;
+   projector_source_type : T.ty;
++  projector_classification_type : T.ty;
+   projector_kind : proj_kind;
+ }
+ 
+@@ -171,7 +172,8 @@
+     proj_kind * projector_kind_observation list =
+   let observations = ref [] in
+   let record level source kind = observations :=
+-    { projector_level = level; projector_source_type = source; projector_kind = kind } :: !observations in
++    { projector_level = level; projector_source_type = source;
++      projector_classification_type = source; projector_kind = kind } :: !observations in
+   let has_borrows = ref false in
+   let has_mut_borrows = ref false in
+   let has_loans = ref false in
+@@ -310,11 +312,17 @@
+   let mutable_in source =
+     TypesUtils.ty_has_mut_borrow_for_region_in_pred type_infos keep_region source in
+   let observations = ref [] in
+-  let record level source kind =
++  let record ?classification_type level source kind =
++    let classification_type = Option.value classification_type ~default:source in
++    [%cassert] span
++      (TypesUtils.ty_erase_regions source = TypesUtils.ty_erase_regions classification_type)
++      "A current projector type changed more than lifetime annotations";
+     observations := { projector_level = level; projector_source_type = source;
+-      projector_kind = kind } :: !observations in
+-  let borrow level source mutable_ = record level source (BorrowProj (if mutable_ then BMut else BShared)) in
+-  let loan level source mutable_ = record level source (LoanProj (if mutable_ then BMut else BShared)) in
++      projector_classification_type = classification_type; projector_kind = kind } :: !observations in
++  let borrow ?classification_type level source mutable_ =
++    record ?classification_type level source (BorrowProj (if mutable_ then BMut else BShared)) in
++  let loan ?classification_type level source mutable_ =
++    record ?classification_type level source (LoanProj (if mutable_ then BMut else BShared)) in
+   let visitor = object (self)
+     inherit [_] InterpBorrowsCore.iter_tavalue_with_levels as super
+     method incr_level (level, source) = level + 1, source
+@@ -341,16 +349,20 @@
+       (match projector with
+        | V.AEmpty -> ()
+        | V.AProjLoans node ->
+-           loan level node.proj.proj_ty (mutable_in node.proj.proj_ty);
++           loan ~classification_type:node.proj.proj_ty level annotation (mutable_in node.proj.proj_ty);
+            edges node.consumed; edges node.borrows
+        | V.AEndedProjLoans node ->
+            loan level annotation (mutable_in annotation);
+            edges node.consumed; edges node.borrows
+        | V.AProjBorrows node ->
+-           borrow level node.proj.proj_ty (mutable_in node.proj.proj_ty);
++           borrow ~classification_type:node.proj.proj_ty level annotation (mutable_in node.proj.proj_ty);
+            edges node.loans
+        | V.AEndedProjBorrows node ->
+-           borrow level annotation (mutable_in annotation);
++           (* The edge keeps the original projection scope; the actual fresh
++              value can carry the ended abstraction's newly scoped regions.
++              Retain both exact types and never guess a region renaming. *)
++           let actual = node.mvalues.given_back.sv_ty in
++           borrow ~classification_type:actual level annotation (mutable_in actual);
+            edges node.loans)
+   end in
+   visitor#visit_tavalue (current_level, av.ty) av;

@@ -1094,6 +1094,7 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
                     path,
                     "formal/algebra-contract-v1.toml"
                         | "formal/qualification/aeneas/qualification.toml"
+                        | "formal/qualification/aeneas/native-serde-callbacks-v1.json"
                         | "formal/qualification/aeneas/source-closure.json"
                         | "xtask/src/formal.rs"
                         | "xtask/src/formal_qualification.rs"
@@ -1110,14 +1111,17 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
                         | "xtask/src/kani_harness.rs"
                 )
         }
-        FormalClosureKind::Toolchain => matches!(
-            path,
-            "formal/translation-toolchain.lock"
-                | "formal/lean-toolchain"
-                | "formal/lake-manifest.json"
-                | ".github/actions/setup-lean/action.yml"
-                | ".github/actions/setup-rust-cache/action.yml"
-        ),
+        FormalClosureKind::Toolchain => {
+            path.starts_with("formal/qualification/aeneas/toolchain/")
+                || matches!(
+                    path,
+                    "formal/translation-toolchain.lock"
+                        | "formal/lean-toolchain"
+                        | "formal/lake-manifest.json"
+                        | ".github/actions/setup-lean/action.yml"
+                        | ".github/actions/setup-rust-cache/action.yml"
+                )
+        }
         FormalClosureKind::Evidence => {
             path == ".github/workflows/ci.yml"
                 || path == ".github/workflows/formal-artifact-updater.yml"
@@ -2136,7 +2140,7 @@ fn local_formal_rust_source_paths_from_values(
     root_names.dedup();
     let mut root_ids = BTreeSet::new();
     for name in root_names {
-        let package_name = name.replace('_', "-");
+        let package_name = formal_shipping_package(&name);
         let ids = ids_by_name
             .get(&package_name)
             .ok_or_else(|| format!("formal source root package is absent: {name}"))?;
@@ -2323,7 +2327,7 @@ fn semantic_formal_cargo_inputs_from_values(
     }
     let mut roots = BTreeSet::new();
     for name in translation_roots {
-        let package_name = name.replace('_', "-");
+        let package_name = formal_shipping_package(name);
         let ids = ids_by_name
             .get(&package_name)
             .ok_or_else(|| format!("translation root package is absent: {name}"))?;
@@ -2394,6 +2398,17 @@ fn semantic_formal_cargo_inputs_from_values(
         }))
         .into_bytes(),
     })
+}
+
+/// The reviewed non-shipping selector has exactly one shipping dependency.
+/// Its source is hashed in qualification.source_files and its temporary lock
+/// is checked against the shipping lock before translation. Other roots must
+/// still resolve to actual workspace packages.
+fn formal_shipping_package(crate_name: &str) -> String {
+    match crate_name {
+        "auths_profile_construction" => "auths-connections".to_owned(),
+        _ => crate_name.replace('_', "-"),
+    }
 }
 
 fn normalized_package_identity(root: &Path, package: &Value) -> Result<Value, String> {
@@ -2614,6 +2629,22 @@ fn append_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formal_selector_has_only_its_reviewed_shipping_dependency() {
+        assert_eq!(
+            formal_shipping_package("auths_profile_construction"),
+            "auths-connections"
+        );
+        assert_eq!(
+            formal_shipping_package("auths_connections"),
+            "auths-connections"
+        );
+        assert_eq!(
+            formal_shipping_package("unreviewed_selector"),
+            "unreviewed-selector"
+        );
+    }
 
     #[test]
     fn parses_rename_and_delete_without_losing_old_paths() {
@@ -2916,6 +2947,26 @@ serde = "2"
             "xtask/ci-plan/src/lib.rs",
             FormalClosureKind::Evidence
         ));
+    }
+
+    #[test]
+    fn callback_presence_contract_changes_invalidate_translation_reuse() {
+        assert!(formal_closure_contains(
+            "formal/qualification/aeneas/native-serde-callbacks-v1.json",
+            FormalClosureKind::Translation,
+        ));
+    }
+
+    #[test]
+    fn translator_patch_build_and_regression_sources_invalidate_toolchain_reuse() {
+        for path in [
+            "formal/qualification/aeneas/toolchain/runtime-region-erasure-v1.patch",
+            "formal/qualification/aeneas/toolchain/aeneas.nix",
+            "formal/qualification/aeneas/toolchain/tests/runtime_region_erasure_test.ml",
+            "formal/qualification/aeneas/toolchain/tests/dune",
+        ] {
+            assert!(formal_closure_contains(path, FormalClosureKind::Toolchain));
+        }
     }
 
     #[test]

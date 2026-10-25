@@ -173,6 +173,42 @@ pub fn chain_sums_admit(sums: &[u64], argument: u64, capacities: &[u64]) -> bool
     true
 }
 
+/// The ordered outcome of count-slot and cumulative-sum admission.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReservationCode {
+    /// Every count and sum counter has room for the requested action.
+    Admit,
+    /// A count or sum-slot frontier has no room, or its vector is malformed.
+    WindowExhausted,
+    /// A cumulative sum would exceed its limit, overflow, or have wrong shape.
+    SumExhausted,
+}
+
+/// Decides one reservation from every distinct counter's current frontier,
+/// smallest capacity and cumulative total. Window exhaustion takes precedence
+/// over sum exhaustion. Shape mismatches and word overflow never admit.
+/// This pure decision does not insert records or grant an execution handle.
+#[must_use]
+pub fn reservation_admission(
+    counts: &[u64],
+    count_capacities: &[u64],
+    sum_slots: &[u64],
+    sum_slot_capacities: &[u64],
+    totals: &[u64],
+    sum_capacities: &[u64],
+    argument: u64,
+) -> ReservationCode {
+    if !chain_counts_admit(counts, count_capacities)
+        || !chain_counts_admit(sum_slots, sum_slot_capacities)
+    {
+        ReservationCode::WindowExhausted
+    } else if !chain_sums_admit(totals, argument, sum_capacities) {
+        ReservationCode::SumExhausted
+    } else {
+        ReservationCode::Admit
+    }
+}
+
 /// A policy's list of admitted values for one named verified argument.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValueList {
@@ -524,6 +560,58 @@ mod proofs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complete_reservation_decision_matches_the_preceding_ordered_guards() {
+        let slices: [&[u64]; 6] = [&[], &[0], &[1], &[u64::MAX], &[0, 1], &[1, u64::MAX]];
+        let mut cases = 0;
+        for counts in slices {
+            for count_caps in slices {
+                for slots in slices {
+                    for slot_caps in slices {
+                        for totals in slices {
+                            for sum_caps in slices {
+                                for argument in [0, 1, u64::MAX] {
+                                    let counts_fit = counts.len() == count_caps.len()
+                                        && counts
+                                            .iter()
+                                            .zip(count_caps)
+                                            .all(|(value, cap)| value < cap);
+                                    let slots_fit = slots.len() == slot_caps.len()
+                                        && slots
+                                            .iter()
+                                            .zip(slot_caps)
+                                            .all(|(value, cap)| value < cap);
+                                    let sums_fit = totals.len() == sum_caps.len()
+                                        && totals.iter().zip(sum_caps).all(|(value, cap)| {
+                                            value
+                                                .checked_add(argument)
+                                                .is_some_and(|next| next <= *cap)
+                                        });
+                                    let expected = if !counts_fit || !slots_fit {
+                                        ReservationCode::WindowExhausted
+                                    } else if !sums_fit {
+                                        ReservationCode::SumExhausted
+                                    } else {
+                                        ReservationCode::Admit
+                                    };
+                                    assert_eq!(
+                                        reservation_admission(
+                                            counts, count_caps, slots, slot_caps, totals, sum_caps,
+                                            argument
+                                        ),
+                                        expected
+                                    );
+                                    cases += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, 139_968);
+    }
 
     #[test]
     fn ceiling_count_checks_the_ceiling_before_the_window() {

@@ -1,0 +1,65 @@
+//! Frozen protocol-object oracle for the AP-SPEC-069 source cutover.
+//!
+//! Snapshot: ce7f1f3c. Model constructors, the unchanged source-proved CBOR
+//! primitives and the error enum are shared leaves. Object readers/writers,
+//! list traversal and all content/signing wrappers are the frozen algorithms.
+//! This module is compiled only under cfg(test); it is not a second production
+//! decoder or an extraction boundary. Snapshot model constructors have their
+//! own frozen oracle for the separately documented global-duplicate correction;
+//! this protocol oracle deliberately uses the current model on both sides.
+#![allow(dead_code, unused_imports, reason = "Frozen whole-protocol test oracle exposes the complete former codec surface")]
+
+//! Deterministic CBOR, domain separation, and content identifiers for Auths
+//! Proof Protocol V1.
+
+
+extern crate alloc;
+
+mod approval;
+mod bounded_policy;
+use crate::cbor;
+mod decode;
+mod encode;
+use crate::error;
+mod hash;
+mod observation;
+
+pub use approval::{
+    decode_approval_requirements, decode_approval_statement, decode_signed_approval,
+    encode_approval_requirement, encode_approval_requirements, encode_approval_signing_input,
+    encode_approval_statement, encode_signed_approval, sorted_approval_requirements,
+};
+pub use bounded_policy::{
+    bounded_policy_digest, bounded_policy_link, decode_bounded_policy_commitment,
+    encode_bounded_policy_commitment,
+};
+pub use decode::{
+    decode_action_envelope, decode_bundle, decode_canonical_action, decode_grant_statement,
+    decode_grant_status_snapshot, decode_grant_status_statement, decode_principal_status_snapshot,
+    decode_principal_status_statement, decode_signed_action, decode_signed_grant,
+    decode_signed_grant_status, decode_signed_principal_status, decode_verification_result,
+    decode_verifier_context,
+};
+pub use encode::{
+    encode_action_envelope, encode_action_signing_input, encode_authorization_plan, encode_bundle,
+    encode_canonical_action, encode_grant_signing_input, encode_grant_statement,
+    encode_grant_status_signing_input, encode_grant_status_snapshot, encode_grant_status_statement,
+    encode_principal_status_signing_input, encode_principal_status_snapshot,
+    encode_principal_status_statement, encode_signed_action, encode_signed_grant,
+    encode_signed_grant_status, encode_signed_principal_status, encode_verification_result,
+    encode_verifier_context,
+};
+pub(crate) use crate::CodecError;
+pub use hash::{
+    action_id, action_signing_preimage, approval_digest, approval_requirement_id,
+    approval_signing_preimage, attachment_digest, body_digest, context_digest, domain_commitment,
+    evidence_id, grant_id, grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
+    observation_requirement_id, observation_signing_preimage, plan_id, principal_status_id,
+    principal_status_signing_preimage, proof_digest, transaction_binding,
+    verification_result_digest,
+};
+pub use observation::{
+    decode_observation_requirements, decode_signed_observation, encode_observation_requirement,
+    encode_observation_requirements, encode_observation_signing_input,
+    encode_observation_statement, encode_signed_observation,
+};

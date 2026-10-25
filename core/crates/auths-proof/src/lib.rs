@@ -90,7 +90,7 @@ impl<'a> Engine<'a> {
             &self.registries,
         )?;
         let portable = decode_verification_result(&cbor)?;
-        Ok(VerificationResult { portable, cbor })
+        Ok(VerificationResult { portable: portable.into_value(), cbor })
     }
 
     /// Executes the sealed native verifier for Rust profile decoders.
@@ -309,7 +309,7 @@ mod tests {
             .unwrap()
             .with_configuration(registries.configuration_id())
             .unwrap();
-        let context = auths_codec::encode_verifier_context(&context).unwrap();
+        let context = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical)).unwrap();
         let engine = Engine::new(registries);
         let action = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
         let result = engine
@@ -318,7 +318,7 @@ mod tests {
         assert_eq!(result.verdict(), Verdict::Authorized);
         assert_eq!(result.code(), "authorized");
         assert_eq!(
-            auths_codec::decode_verification_result(result.as_cbor()).unwrap(),
+            auths_codec::decode_verification_result(result.as_cbor()).unwrap().into_value(),
             *result.portable()
         );
     }

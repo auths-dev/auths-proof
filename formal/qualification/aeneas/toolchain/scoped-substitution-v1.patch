@@ -1,0 +1,62 @@
+--- a/charon-ml/src/Substitute.ml
++++ b/charon-ml/src/Substitute.ml
+@@ -129,8 +129,10 @@
+ (** Move a whole expression under one level of binder. *)
+ let move_under_binder_subst : subst =
+   let shift = function
+-    | Bound (dbid, var) -> Bound (dbid + 1, var)
+-    | Free _ as var -> var
++    | Bound (dbid, var) when dbid >= 0 -> Bound (dbid + 1, var)
++    (* Negative variables are local to a binder entered by the visitor.
++       [shift_subst] restores their depth; they are not captured variables. *)
++    | (Bound _ | Free _) as var -> var
+   in
+   {
+     r_subst = compose empty_subst.r_subst shift;
+@@ -140,11 +142,21 @@
+     tr_self = empty_subst.tr_self;
+   }
+ 
+-(** Visitor that shifts all bound variables by the given delta *)
++(** Shift captured variables while preserving the binders inside an inserted
++    value. Negative indices are the local-variable placeholders used by
++    [shift_subst]; they still need the compensating shift. *)
+ let st_shift_visitor =
+   object (self)
+-    inherit [_] map_statement
+-    method! visit_de_bruijn_id delta dbid = dbid + delta
++    inherit [_] map_statement as super
++
++    method! visit_binder visit_value (delta, cutoff) binder =
++      super#visit_binder visit_value (delta, cutoff + 1) binder
++
++    method! visit_region_binder visit_value (delta, cutoff) binder =
++      super#visit_region_binder visit_value (delta, cutoff + 1) binder
++
++    method! visit_de_bruijn_id (delta, cutoff) dbid =
++      if dbid < 0 || dbid >= cutoff then dbid + delta else dbid
+   end
+ 
+ (* Shift the the substitution under one binder. *)
+@@ -155,17 +167,17 @@
+   {
+     r_subst =
+       compose
+-        (st_shift_visitor#visit_region 1)
++        (st_shift_visitor#visit_region (1, 0))
+         (compose subst.r_subst decr_db_var);
+     ty_subst =
+-      compose (st_shift_visitor#visit_ty 1) (compose subst.ty_subst decr_db_var);
++      compose (st_shift_visitor#visit_ty (1, 0)) (compose subst.ty_subst decr_db_var);
+     cg_subst =
+       compose
+-        (st_shift_visitor#visit_constant_expr_kind 1)
++        (st_shift_visitor#visit_constant_expr_kind (1, 0))
+         (compose subst.cg_subst decr_db_var);
+     tr_subst =
+       compose
+-        (st_shift_visitor#visit_trait_ref_kind 1)
++        (st_shift_visitor#visit_trait_ref_kind (1, 0))
+         (compose subst.tr_subst decr_db_var);
+     tr_self = subst.tr_self;
+   }

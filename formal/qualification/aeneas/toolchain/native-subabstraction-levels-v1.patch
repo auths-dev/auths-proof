@@ -1,0 +1,80 @@
+--- a/src/interp/InterpBorrows.ml
++++ b/src/interp/InterpBorrows.ml
+@@ -1298,9 +1298,15 @@
+   let abs = ctx_lookup_abs ctx abs_id in
+   (* Check whether we need to end sub-abstractions *)
+   let max_level = get_max_sub_abs abs in
+-  if max_level > level then
+-    (* We do: end the sub-abstraction *)
+-    end_abs_aux config span ~snapshots chain abs_id max_level ctx
++  if max_level > level then (
++    (* End every strict higher level, not only the first maximum. The maximum
++       excludes already-ended levels. A successful step must decrease the
++       remaining maximum; refusal cannot become a fabricated empty ending. *)
++    let ctx, cc = end_abs_aux config span ~snapshots chain abs_id max_level ctx in
++    let remaining = ctx_lookup_abs ctx abs_id in
++    [%cassert] span (get_max_sub_abs remaining < max_level)
++      "Ending a strict sub-abstraction did not decrease the pending maximum";
++    comp cc (end_all_sub_abs config span ~snapshots chain abs_id level ctx))
+   else
+     (* No strict sub-abstraction to end. *)
+     (ctx, fun e -> e)
+@@ -1396,12 +1402,12 @@
+             (* Nothing to do for ignored borrows *)
+             ()
+ 
+-      method! visit_aproj env sproj =
++      method! visit_aproj current_level sproj =
+         (match sproj with
+         | AProjBorrows aproj ->
+-            if check_level level then raise (FoundAProjBorrows aproj)
++            if check_level current_level then raise (FoundAProjBorrows aproj)
+         | AProjLoans _ | AEndedProjLoans _ | AEndedProjBorrows _ | AEmpty -> ());
+-        super#visit_aproj env sproj
++        super#visit_aproj current_level sproj
+ 
+       (** We may need to end borrows in "regular" values, because of shared
+           values *)
+--- a/src/interp/InterpBorrowsCore.ml
++++ b/src/interp/InterpBorrowsCore.ml
+@@ -1771,7 +1771,9 @@
+         match sproj with
+         | EProjBorrows { proj = _; loans } ->
+             opt_raise ~is_borrow:true level;
+-            List.iter (fun (_, x) -> self#visit_eproj level x) loans
++            (* Reprojected loans are one level deeper, exactly as in the
++               shared native level visitor. *)
++            List.iter (fun (_, x) -> self#visit_eproj (level + 1) x) loans
+         | EProjLoans { proj = _; consumed; borrows } ->
+             opt_raise ~is_borrow:false level;
+             List.iter (fun (_, x) -> self#visit_eproj (level + 1) x) consumed;
+@@ -1870,8 +1872,10 @@
+       Some (SymbolicValue proj)
+ 
+ let get_max_sub_abs_visitor ?(with_ended = false) ?(with_evalues = false)
+-    (max_level : int ref) =
+-  let save_level level = if level > !max_level then max_level := level in
++    ?(ignore_level = fun _ -> false) (max_level : int ref) =
++  let save_level level =
++    if not (ignore_level level) && level > !max_level then max_level := level
++  in
+   object
+     inherit [_] iter_abs_with_levels as super
+     method incr_level level = level + 1
+@@ -1955,7 +1959,15 @@
+ let get_max_sub_abs ?(with_ended = false) ?(with_evalues = false) (abs : abs) :
+     int =
+   let max_level = ref (-1) in
+-  let visitor = get_max_sub_abs_visitor ~with_ended ~with_evalues max_level in
++  (* Ended concrete/ignored nodes retain metadata and can still be visited.
++     They do not reopen a sub-abstraction recorded as already ended. A caller
++     explicitly requesting ended metadata continues to see every level. *)
++  let ignore_level level =
++    (not with_ended) && AbsLevelSet.mem level abs.ended_subabs
++  in
++  let visitor =
++    get_max_sub_abs_visitor ~with_ended ~with_evalues ~ignore_level max_level
++  in
+   visitor#visit_abs 0 abs;
+   !max_level
+ 

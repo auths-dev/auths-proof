@@ -1,0 +1,99 @@
+--- a/charon/src/transform/simplify_output/index_to_function_calls.rs
++++ b/charon/src/transform/simplify_output/index_to_function_calls.rs
+@@ -4,6 +4,7 @@
+ use crate::transform::TransformCtx;
+ use crate::transform::ctx::{BodyTransformCtx, LlbcStatementTransformCtx};
+ use derive_generic_visitor::*;
++use crate::errors::Level;
+ 
+ use crate::transform::ctx::LlbcPass;
+ 
+@@ -15,6 +16,8 @@
+ #[derive(Visitor)]
+ struct IndexVisitor<'a, 'b> {
+     ctx: &'b mut LlbcStatementTransformCtx<'a>,
++    /// Fresh existential regions introduced by this body's indexing borrows.
++    next_region: &'b mut usize,
+     // When we visit a place, we need to know if it is being accessed mutably or not. Whenever we
+     // visit something that contains a place we push the relevant mutability on this stack.
+     // Unfortunately this requires us to be very careful to catch all the cases where we see
+@@ -37,6 +40,19 @@
+             TyKind::Slice(ty) => (ty.clone(), None),
+             _ => unreachable!("Indexing can only be done on arrays or slices"),
+         };
++
++        // This transformation introduces a real borrow. Give its input,
++        // builtin signature and returned reference one fresh body region,
++        // rather than losing that relationship through Region::Erased.
++        let region_index = *self.next_region;
++        let Some(next_region) = region_index.checked_add(1)
++            .filter(|next| *next <= RegionId::MAX_INDEX) else {
++            self.ctx.ctx.span_err(self.ctx.span,
++                "indexing borrow exceeds the body-region identifier space", Level::ERROR);
++            return;
++        };
++        let region = Region::Body(RegionId::new(region_index));
++        *self.next_region = next_region;
+ 
+         // The built-in function to call.
+         let indexing_function = {
+@@ -49,7 +65,7 @@
+             let generics = GenericArgs {
+                 types: [ty.clone()].into(),
+                 const_generics: len.map(|l| [*l].into()).unwrap_or_default(),
+-                regions: [Region::Erased].into(),
++                regions: [region.clone()].into(),
+                 trait_refs: [].into(),
+             };
+             FnOperand::Regular(FnPtr::new(FnPtrKind::mk_builtin(builtin_fun), generics))
+@@ -62,7 +78,7 @@
+         };
+         let output_ty = {
+             TyKind::Ref(
+-                Region::Erased,
++                region.clone(),
+                 output_inner_ty.clone(),
+                 RefKind::mutable(mut_access),
+             )
+@@ -72,9 +88,12 @@
+         // Push the statements:
+         // `storage_live(tmp0)`
+         // `tmp0 = &{mut}p`
+-        let input_var =
+-            self.ctx
+-                .borrow_to_new_var(subplace.clone(), BorrowKind::mutable(mut_access), None);
++        let input_ty = TyKind::Ref(
++            region.clone(), subplace.ty().clone(), RefKind::mutable(mut_access),
++        ).into_ty();
++        let input_var = self.ctx.fresh_var(None, input_ty);
++        let borrow = self.ctx.borrow(subplace.clone(), BorrowKind::mutable(mut_access));
++        self.ctx.insert_assn_stmt(input_var.clone(), borrow);
+ 
+         // Construct the arguments to pass to the indexing function.
+         let mut args = vec![Operand::Move(input_var)];
+@@ -265,9 +284,14 @@
+     }
+ 
+     fn transform_function(&self, ctx: &mut TransformCtx, decl: &mut FunDecl) {
++        let Some(body) = decl.body.as_structured() else {
++            return;
++        };
++        let mut next_region = body.bound_body_regions;
+         decl.transform_llbc_statements(ctx, |ctx, st: &mut Statement| {
+             let mut visitor = IndexVisitor {
+                 ctx,
++                next_region: &mut next_region,
+                 place_mutability_stack: Vec::new(),
+             };
+             use StatementKind::*;
+@@ -297,6 +321,9 @@
+                     let _ = st.drive_body_mut(&mut visitor);
+                 }
+             }
+-        })
++        });
++        if let Some(body) = decl.body.as_structured_mut() {
++            body.bound_body_regions = next_region;
++        }
+     }
+ }

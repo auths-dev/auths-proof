@@ -1,0 +1,165 @@
+--- a/src/symbolic/SymbolicToPureValues.ml
++++ b/src/symbolic/SymbolicToPureValues.ml
+@@ -160,9 +160,18 @@
+           sure *)
+ [@@deriving show]
+ 
+-let compute_tavalue_proj_kind span type_infos (abs_regions : T.RegionId.Set.t)
++type projector_kind_observation = {
++  projector_level : int;
++  projector_source_type : T.ty;
++  projector_kind : proj_kind;
++}
++
++let compute_tavalue_proj_kind_legacy_with_observations span type_infos (abs_regions : T.RegionId.Set.t)
+     (abs_level : abs_level) (current_level : abs_level) (av : V.tavalue) :
+-    proj_kind =
++    proj_kind * projector_kind_observation list =
++  let observations = ref [] in
++  let record level source kind = observations :=
++    { projector_level = level; projector_source_type = source; projector_kind = kind } :: !observations in
+   let has_borrows = ref false in
+   let has_mut_borrows = ref false in
+   let has_loans = ref false in
+@@ -199,15 +208,13 @@
+         super#visit_tavalue (level, av.ty) av
+ 
+       method! visit_adt_avalue (level, ty) av =
+-        if ty_has_mut_region ty then
+-          if
+-            (* TODO: problem with nested borrows *)
+-            av.borrow_proj
+-          then set_has_mut_borrows level
+-          else set_has_mut_loans level;
++        if ty_has_mut_region ty then (
++          record level ty (if av.borrow_proj then BorrowProj BMut else LoanProj BMut);
++          if av.borrow_proj then set_has_mut_borrows level else set_has_mut_loans level);
+         super#visit_adt_avalue (level, ty) av
+ 
+       method! visit_ALoan (level, ty) lc =
++        record level ty (LoanProj (match lc with AMutLoan _ | AEndedMutLoan _ -> BMut | _ -> BShared));
+         set_has_loans level;
+         begin
+           match lc with
+@@ -222,6 +229,7 @@
+         super#visit_ALoan (level, ty) lc
+ 
+       method! visit_ABorrow (level, ty) bc =
++        record level ty (BorrowProj (match bc with AMutBorrow _ | AEndedMutBorrow _ -> BMut | _ -> BShared));
+         set_has_borrows level;
+         begin
+           match bc with
+@@ -241,6 +249,12 @@
+         (* We forbid nested mutable borrows for now *)
+         let info = TypesAnalysis.analyze_ty (Some span) type_infos ty in
+         [%cassert] span (not info.contains_nested_mut) "Unimplemented";
++        (match aproj with
++         | V.AEndedProjLoans _ | AProjLoans _ ->
++             record level ty (LoanProj (if ty_has_mut_region ty then BMut else BShared))
++         | AEndedProjBorrows _ | AProjBorrows _ ->
++             record level ty (BorrowProj (if ty_has_mut_region ty then BMut else BShared))
++         | AEmpty -> ());
+         match aproj with
+         | V.AEndedProjLoans _ ->
+             set_has_loans level;
+@@ -274,9 +288,98 @@
+   visitor#visit_tavalue (current_level, av.ty) av;
+   [%cassert] span ((not !has_borrows) || not !has_loans) "Unreachable";
+   let to_borrow_kind b = if b then BMut else BShared in
+-  if !has_borrows then BorrowProj (to_borrow_kind !has_mut_borrows)
+-  else if !has_loans then LoanProj (to_borrow_kind !has_mut_loans)
++  let kind = if !has_borrows then BorrowProj (to_borrow_kind !has_mut_borrows)
++    else if !has_loans then LoanProj (to_borrow_kind !has_mut_loans)
++    else UnknownProj in
++  kind, List.rev !observations
++
++let compute_tavalue_proj_kind_legacy span type_infos abs_regions abs_level current_level av =
++  fst (compute_tavalue_proj_kind_legacy_with_observations span type_infos abs_regions abs_level current_level av)
++
++(** Every actual ownership header is classified at its own sub-abstraction
++    level. ADTs and ignored wrappers are structural containers, not additional
++    ownership headers. Reprojection children use the type retained on their
++    immediate meta-consumed edge, rather than their parent's annotation. *)
++let nested_projector_kind_observations span type_infos
++    (abs_regions : T.RegionId.Set.t) (current_level : abs_level)
++    (av : V.tavalue) : projector_kind_observation list =
++  [%cassert] span (current_level >= 0) "A projector current level cannot be negative";
++  let keep_region = function
++    | T.RVar (Free region) -> T.RegionId.Set.mem region abs_regions
++    | _ -> false in
++  let mutable_in source =
++    TypesUtils.ty_has_mut_borrow_for_region_in_pred type_infos keep_region source in
++  let observations = ref [] in
++  let record level source kind =
++    observations := { projector_level = level; projector_source_type = source;
++      projector_kind = kind } :: !observations in
++  let borrow level source mutable_ = record level source (BorrowProj (if mutable_ then BMut else BShared)) in
++  let loan level source mutable_ = record level source (LoanProj (if mutable_ then BMut else BShared)) in
++  let visitor = object (self)
++    inherit [_] InterpBorrowsCore.iter_tavalue_with_levels as super
++    method incr_level (level, source) = level + 1, source
++    method! visit_tavalue (level, _) value = super#visit_tavalue (level, value.V.ty) value
++    method! visit_adt_avalue state value = super#visit_adt_avalue state value
++    method! visit_ALoan ((level, source) as state) content =
++      (match content with
++       | V.AMutLoan _ | V.AEndedMutLoan _ -> loan level source true
++       | V.ASharedLoan _ | V.AEndedSharedLoan _ -> loan level source false
++       | V.AIgnoredMutLoan _ | V.AEndedIgnoredMutLoan _ | V.AIgnoredSharedLoan _ -> ());
++      super#visit_ALoan state content
++    method! visit_ABorrow ((level, source) as state) content =
++      (match content with
++       | V.AMutBorrow _ | V.AEndedMutBorrow _ -> borrow level source true
++       | V.ASharedBorrow _ | V.AEndedSharedBorrow | V.AProjSharedBorrow _ -> borrow level source false
++       | V.AIgnoredMutBorrow _ | V.AEndedIgnoredMutBorrow _ -> ());
++      super#visit_ABorrow state content
++    method! visit_ASymbolic state marker projector =
++      [%sanity_check] span (marker = V.PNone);
++      self#visit_aproj state projector
++    method! visit_aproj (level, annotation) projector =
++      let edges values = List.iter (fun ((meta : V.mconsumed_symb), child) ->
++        self#visit_aproj (level + 1, meta.proj_ty) child) values in
++      (match projector with
++       | V.AEmpty -> ()
++       | V.AProjLoans node ->
++           loan level node.proj.proj_ty (mutable_in node.proj.proj_ty);
++           edges node.consumed; edges node.borrows
++       | V.AEndedProjLoans node ->
++           loan level annotation (mutable_in annotation);
++           edges node.consumed; edges node.borrows
++       | V.AProjBorrows node ->
++           borrow level node.proj.proj_ty (mutable_in node.proj.proj_ty);
++           edges node.loans
++       | V.AEndedProjBorrows node ->
++           borrow level annotation (mutable_in annotation);
++           edges node.loans)
++  end in
++  visitor#visit_tavalue (current_level, av.ty) av;
++  List.rev !observations
++
++let classify_projector_kind_observations span (selected : abs_level)
++    (observations : projector_kind_observation list) : proj_kind =
++  [%cassert] span (selected >= 0 && List.for_all (fun observation -> observation.projector_level >= 0) observations)
++    "Projector classification requires nonnegative exact source levels";
++  let current = List.filter (fun observation -> observation.projector_level = selected) observations in
++  let borrows = List.exists (fun observation -> match observation.projector_kind with BorrowProj _ -> true | _ -> false) current in
++  let loans = List.exists (fun observation -> match observation.projector_kind with LoanProj _ -> true | _ -> false) current in
++  (* Keep the original mixed-polarity refusal. No constructor is silently
++     preferred when one selected level needs both kinds of continuation. *)
++  [%cassert] span ((not borrows) || not loans) "Unreachable";
++  if borrows then BorrowProj (if List.exists (fun observation -> observation.projector_kind = BorrowProj BMut) current then BMut else BShared)
++  else if loans then LoanProj (if List.exists (fun observation -> observation.projector_kind = LoanProj BMut) current then BMut else BShared)
+   else UnknownProj
++
++let observe_tavalue_proj_kind span type_infos abs_regions abs_level current_level (av : V.tavalue) =
++  let information = TypesAnalysis.analyze_ty (Some span) type_infos av.V.ty in
++  if not information.contains_nested_mut then
++    compute_tavalue_proj_kind_legacy_with_observations span type_infos abs_regions abs_level current_level av
++  else
++    let observations = nested_projector_kind_observations span type_infos abs_regions current_level av in
++    classify_projector_kind_observations span abs_level observations, observations
++
++let compute_tavalue_proj_kind span type_infos abs_regions abs_level current_level av =
++  fst (observe_tavalue_proj_kind span type_infos abs_regions abs_level current_level av)
+ 
+ (** A smaller helper which allows us to isolate the logic by which we handle
+     ADTs. *)

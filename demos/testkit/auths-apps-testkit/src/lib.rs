@@ -354,7 +354,7 @@ pub fn demo_fixture_bytes_for_challenge(nonce: [u8; 32]) -> DemoFixtureBytes {
         body: fixture.body,
         canonical_action: fixture.canonical_action,
         proof: fixture.proof,
-        context: encode_verifier_context(&fixture.context).expect("fixed demo context"),
+        context: auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&fixture.context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("fixed demo context"),
         root_principal: fixture.root_principal,
     }
 }
@@ -1057,7 +1057,7 @@ pub fn exact_action_fixture(
     .unwrap();
     ExactActionFixture {
         verifier: Verifier::self_contained(context).unwrap(),
-        proof: encode_bundle(&proof).unwrap(),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&proof)).and_then(|canonical| encode_bundle(&canonical)).unwrap(),
         request: RequestContext::new(audience.as_str(), challenge, now).unwrap(),
         principal: principal.as_str().into(),
     }
@@ -1221,7 +1221,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
     DemoFixture {
         body,
         canonical_action,
-        proof: encode_bundle(&proof).unwrap(),
+        proof: auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&proof)).and_then(|canonical| encode_bundle(&canonical)).unwrap(),
         context,
         root_principal: principal.as_str().into(),
     }

@@ -366,7 +366,7 @@ impl PyApprovalCollection {
             .map_err(refusal)?
             .assemble(&action.inner)
             .map_err(refusal)?;
-        let proof = auths_codec::encode_bundle(&bundle).map_err(value_error)?;
+        let proof = auths_codec::CanonicalProofBundle::new(bundle).and_then(|canonical| auths_codec::encode_bundle(&canonical)).map_err(value_error)?;
         Ok(PyBytes::new(py, &proof))
     }
 }

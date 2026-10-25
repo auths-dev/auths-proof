@@ -1,12 +1,13 @@
 //! Deterministic encoding of `bounded-policy-commitment-v1` extension bodies.
 
+use crate::cbor::{Decoder, Encoder};
 use crate::{
-    CodecError,
+    CanonicalBoundedPolicyCommitment, CodecError,
     decode::{
-        V1Decoder, bounded_bytes, digest_bytes, ensure_complete, is_null, key, map, null, text,
+        V1Decoder, bounded_bytes, decode_error, digest_bytes, ensure_complete, is_null, key, map, null, text,
     },
     encode::{
-        V1Encoder, bytes, encode_error, finish, key as encode_key, map as encode_map,
+        V1Encoder, bytes, encode_error, encode_optional_digest, key as encode_key, map as encode_map,
         text as encode_text,
     },
     hash::domain_commitment,
@@ -17,7 +18,6 @@ use auths_model::{
     MAX_BOUNDED_POLICY_BYTES, MAX_POLICY_CANONICALIZATION_BYTES, MAX_POLICY_IDENTIFIER_BYTES,
     PolicyCommitment, PolicyIdentifier,
 };
-use minicbor::Decoder;
 
 fn encode_commitment(
     encoder: &mut V1Encoder,
@@ -43,7 +43,7 @@ fn commitment(decoder: &mut V1Decoder<'_>) -> Result<PolicyCommitment, CodecErro
     key(decoder, 0)?;
     let policy_type = PolicyIdentifier::parse(text(decoder)?, MAX_POLICY_IDENTIFIER_BYTES)?;
     key(decoder, 1)?;
-    let policy_version = decoder.u16().map_err(|_| CodecError::Malformed)?;
+    let policy_version = decoder.u16().map_err(decode_error)?;
     key(decoder, 2)?;
     let canonicalization_id =
         PolicyIdentifier::parse(text(decoder)?, MAX_POLICY_CANONICALIZATION_BYTES)?;
@@ -62,28 +62,57 @@ fn commitment(decoder: &mut V1Decoder<'_>) -> Result<PolicyCommitment, CodecErro
     .map_err(CodecError::from)
 }
 
+fn parent_digest(decoder: &mut V1Decoder<'_>) -> Result<Option<Digest>, CodecError> {
+    if is_null(decoder)? {
+        null(decoder)?;
+        Ok(None)
+    } else {
+        Ok(Some(Digest::new(digest_bytes(decoder)?)))
+    }
+}
+
+fn body_error(error: auths_model::ModelError) -> CodecError {
+    match error {
+        auths_model::ModelError::CollectionLimitExceeded => CodecError::LimitExceeded,
+        other => CodecError::Model(other),
+    }
+}
+
 /// Encodes the canonical bytes of a `bounded-policy-commitment-v1` extension.
+/// Requires an explicit carrier whose bytes open its declared commitment.
 ///
 /// # Errors
 ///
 /// Returns [`CodecError`] if the body cannot be represented.
 pub fn encode_bounded_policy_commitment(
+    body: &CanonicalBoundedPolicyCommitment,
+) -> Result<Vec<u8>, CodecError> {
+    encode_bounded_policy_commitment_value(body.as_value())
+}
+
+// The decoder checks canonical bytes before the opening digest, preserving
+// the established error precedence through the single authoritative writer.
+pub(crate) fn encode_bounded_policy_commitment_value(
     body: &BoundedPolicyCommitment,
 ) -> Result<Vec<u8>, CodecError> {
-    finish(|encoder| {
-        encode_map(encoder, 3)?;
-        encode_key(encoder, 0)?;
-        encode_commitment(encoder, body.commitment())?;
-        encode_key(encoder, 1)?;
-        bytes(encoder, body.policy())?;
-        encode_key(encoder, 2)?;
-        if let Some(parent) = body.parent() {
-            bytes(encoder, parent.as_bytes())
-        } else {
-            encoder.null().map_err(encode_error)?;
-            Ok(())
-        }
-    })
+    let mut encoder = Encoder::new(Vec::new());
+    encode_bounded_policy_to(&mut encoder, body)?;
+    Ok(encoder.into_writer())
+}
+
+fn encode_bounded_policy_to(encoder: &mut V1Encoder, body: &BoundedPolicyCommitment) -> Result<(), CodecError> {
+    encode_map(encoder, 3)?;
+    encode_key(encoder, 0)?;
+    encode_commitment(encoder, body.commitment())?;
+    encode_key(encoder, 1)?;
+    bytes(encoder, body.policy())?;
+    encode_key(encoder, 2)?;
+    let parent_bytes = match body.parent() {
+        Some(parent) => Some(parent.as_bytes()),
+        None => None,
+    };
+    encode_optional_digest(encoder, parent_bytes)?;
+    Ok(())
 }
 
 /// The digest a commitment's policy bytes must open to.
@@ -116,7 +145,7 @@ pub fn bounded_policy_link(parent_extension: &[u8]) -> Result<Digest, CodecError
 /// bytes.
 pub fn decode_bounded_policy_commitment(
     input: &[u8],
-) -> Result<BoundedPolicyCommitment, CodecError> {
+) -> Result<CanonicalBoundedPolicyCommitment, CodecError> {
     if input.len() > auths_model::HARD_MAX_EXTENSION_BYTES {
         return Err(CodecError::LimitExceeded);
     }
@@ -127,23 +156,9 @@ pub fn decode_bounded_policy_commitment(
     key(&mut decoder, 1)?;
     let policy = bounded_bytes(&mut decoder, MAX_BOUNDED_POLICY_BYTES, false)?;
     key(&mut decoder, 2)?;
-    let parent = if is_null(&decoder)? {
-        null(&mut decoder)?;
-        None
-    } else {
-        Some(Digest::new(digest_bytes(&mut decoder)?))
-    };
+    let parent = parent_digest(&mut decoder)?;
     ensure_complete(&decoder, input)?;
-    let body =
-        BoundedPolicyCommitment::new(commitment, policy, parent).map_err(|error| match error {
-            auths_model::ModelError::CollectionLimitExceeded => CodecError::LimitExceeded,
-            other => CodecError::Model(other),
-        })?;
-    if encode_bounded_policy_commitment(&body)?.as_slice() != input {
-        return Err(CodecError::NonCanonical);
-    }
-    if bounded_policy_digest(body.policy())? != body.commitment().policy_digest() {
-        return Err(CodecError::DigestMismatch);
-    }
-    Ok(body)
+    let body = BoundedPolicyCommitment::new(commitment, policy, parent).map_err(body_error)?;
+    let body = crate::canonical::accept(input, encode_bounded_policy_commitment_value(&body)?, body)?;
+    crate::canonical_value::checked_bounded_policy(body)
 }

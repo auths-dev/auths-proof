@@ -376,7 +376,7 @@ impl GatewayObserver {
                     .map_err(GatewayObserverError::Custody)?
             }
         };
-        let bytes = encode_signed_observation(&signed)
+        let bytes = auths_codec::CanonicalSignedObservation::new(signed).and_then(|canonical| encode_signed_observation(&canonical))
             .map_err(|_| GatewayObserverError::Unrepresentable)?;
         if bytes.len() > auths_model::MAX_OBSERVATION_BYTES {
             return Err(GatewayObserverError::Unrepresentable);
@@ -882,7 +882,7 @@ pub(crate) fn verify_signed(
             signature: signed.signature().signature().as_slice(),
         })
         .ok()?;
-    Some(signed)
+    Some(signed.into_value())
 }
 
 /// Verifies one `auths.gateway-outcome/2` observation offline: a valid

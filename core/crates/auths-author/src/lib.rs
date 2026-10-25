@@ -217,20 +217,20 @@ struct GrantProofMaterial {
 /// Native-owned result of exact proof and request-context assembly.
 #[derive(Clone, Debug)]
 pub struct WorkflowAuthorizationArtifacts {
-    proof: ProofBundle,
-    context: TrustedContext,
+    proof: auths_codec::CanonicalProofBundle,
+    context: auths_codec::CanonicalTrustedContext,
 }
 
 impl WorkflowAuthorizationArtifacts {
     /// Returns the assembled proof bundle.
     #[must_use]
-    pub const fn proof(&self) -> &ProofBundle {
+    pub const fn proof(&self) -> &auths_codec::CanonicalProofBundle {
         &self.proof
     }
 
     /// Returns the request-bound trusted context.
     #[must_use]
-    pub const fn context(&self) -> &TrustedContext {
+    pub const fn context(&self) -> &auths_codec::CanonicalTrustedContext {
         &self.context
     }
 }
@@ -364,6 +364,8 @@ impl WorkflowProofBuilder {
                 action.envelope().validity().not_before(),
             )?
             .with_composition(CompositionRequirement::exact(exact_plan))?;
+        let proof = auths_codec::CanonicalProofBundle::new(proof)?;
+        let context = auths_codec::CanonicalTrustedContext::new(context)?;
         Ok(WorkflowAuthorizationArtifacts { proof, context })
     }
 }

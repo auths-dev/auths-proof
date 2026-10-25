@@ -5,6 +5,7 @@ import {
   createPublicKey,
   verify as cryptoVerify,
 } from "node:crypto";
+import { canonicalEd25519Encoding, strictEd25519PointEncoding } from "./ed25519-encoding.ts";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -580,22 +581,53 @@ function validateStatusScopes(trust: StatusTrust[], anchors: Anchor[]): void {
   }
 }
 
-function snapshot<T>(value: V, decode: (entry: V) => T): Snapshot<T> {
+function snapshot<T extends { statement: V; observedAt: bigint; validUntil: bigint }>(
+  value: V, decode: (entry: V) => T,
+): Snapshot<T> {
   exactMap(value, 6);
-  const trust = array(mapAt(value, 5)).map((rule) => {
+  bytes(mapAt(value, 0), 32);
+  const observedAt = uint(mapAt(value, 1));
+  const validUntil = uint(mapAt(value, 2));
+  const statementValues = array(mapAt(value, 3));
+  const checkpointValues = array(mapAt(value, 4));
+  const trustValues = array(mapAt(value, 5));
+  if (observedAt > validUntil || statementValues.length > 512 ||
+      checkpointValues.length > 512 || trustValues.length > 1024) {
+    throw new Error("invalid status snapshot bounds");
+  }
+  const statements = statementValues.map(decode);
+  const seenStatements = new Set<string>();
+  for (const statement of statements) {
+    // The primitive decoder enforces canonical CBOR. Compare complete signed
+    // statement content without the signature envelope, using exact bytes
+    // rather than assuming collision resistance of its content identifier.
+    const key = Buffer.from(statement.statement.raw).toString("hex");
+    if (seenStatements.has(key)) throw new Error("duplicate snapshot statement");
+    seenStatements.add(key);
+    if (statement.observedAt > observedAt || statement.validUntil < validUntil) {
+      throw new Error("snapshot exceeds statement validity");
+    }
+  }
+  const seenTrust = new Set<string>();
+  const trust = trustValues.map((rule) => {
     exactMap(rule, 4);
+    const method = text(mapAt(rule, 0));
+    const issuer = text(mapAt(rule, 1));
+    const key = JSON.stringify([method, issuer]);
+    if (seenTrust.has(key)) throw new Error("duplicate status trust rule");
+    seenTrust.add(key);
     return {
-      method: text(mapAt(rule, 0)),
-      issuer: text(mapAt(rule, 1)),
+      method,
+      issuer,
       minimumSequence: uint(mapAt(rule, 2)),
       scope: statusScope(mapAt(rule, 3)),
     };
   });
   return {
-    observedAt: uint(mapAt(value, 1)),
-    validUntil: uint(mapAt(value, 2)),
-    statements: array(mapAt(value, 3)).map(decode),
-    checkpoints: array(mapAt(value, 4)).map((entry) => bytes(entry, 32)),
+    observedAt,
+    validUntil,
+    statements,
+    checkpoints: checkpointValues.map((entry) => bytes(entry, 32)),
     trust,
   };
 }
@@ -900,7 +932,9 @@ function multikey(encoded: string): { key: Uint8Array; suite: string } {
   if (!encoded.startsWith("z")) throw new Error("unsupported multibase");
   const decoded = base58(encoded.slice(1));
   if (decoded[0] === 0xed && decoded[1] === 0x01 && decoded.length === 34) {
-    return { key: decoded.slice(2), suite: "ed25519-v1" };
+    const key = decoded.slice(2);
+    if (!canonicalEd25519Encoding(key)) throw new Error("invalid Ed25519 multikey");
+    return { key, suite: "ed25519-v1" };
   }
   if (decoded[0] === 0x80 && decoded[1] === 0x24 && decoded.length === 35) {
     const key = decoded.slice(2);
@@ -1336,9 +1370,11 @@ function p256PublicKey(raw: Uint8Array): KeyObject | undefined {
   }
 }
 
-function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean {
+export function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean {
   if (suite === "ed25519-v1") {
-    return signature.length === 64 && cryptoVerify(null, message, ed25519PublicKey(key), signature);
+    return strictEd25519PointEncoding(key) && signature.length === 64 &&
+      strictEd25519PointEncoding(signature.subarray(0, 32)) &&
+      cryptoVerify(null, message, ed25519PublicKey(key), signature);
   }
   if (suite === "p256-sha256-v1") {
     if (signature.length !== 64) return false;

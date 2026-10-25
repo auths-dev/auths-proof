@@ -78,7 +78,7 @@ def interrupted_state(tuple_value, reviewed, trusted_context_sha256, support):
             and support['deployment'] == 'production'
             and support['credential_store_kind'] == target['credential_store_kind']
             and target['store_kind'] == 'postgresql-v1'
-            and target['store_schema'] == 'auths.lifecycle.postgresql/6'
+            and target['store_schema'] == 'auths.lifecycle.postgresql/7'
             and target['credential_store_kind'] == 'aws-secrets-manager-v1',
             'qualification.observation.interrupted-tuple')
     qualification = support['qualification']

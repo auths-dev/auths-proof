@@ -117,15 +117,73 @@ impl fmt::Debug for CredentialReferenceCommitment {
 pub struct StoredSecretLease {
     bytes: Zeroizing<Vec<u8>>,
     deadline: Instant,
+    binding: CredentialBinding,
 }
 
 impl StoredSecretLease {
-    /// Wraps bytes a credential store has already matched against the
-    /// binding's reference commitment. Only a store implementation may call
-    /// this.
+    /// Validates and wraps bytes returned by a credential store for one exact
+    /// binding. The lease retains both generations and the reference
+    /// commitment, without storing provider or action data.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CredentialStoreError::InvalidSecret`] for an invalid length
+    /// and [`CredentialStoreError::Substitution`] for inconsistent generations
+    /// or unless the bytes open the reference commitment for this connection
+    /// and credential generation.
+    /// Rejected bytes are zeroized when dropped.
+    pub fn from_store(
+        binding: &CredentialBinding,
+        bytes: Zeroizing<Vec<u8>>,
+        deadline: Instant,
+    ) -> Result<Self, CredentialStoreError> {
+        if !valid_secret_length(bytes.len()) {
+            return Err(CredentialStoreError::InvalidSecret);
+        }
+        let generations = kernel::Generations {
+            generation: binding.generation().get(),
+            credential_generation: binding.credential_generation().get(),
+        };
+        if !kernel::same_lease_generations(generations, generations) {
+            return Err(CredentialStoreError::Substitution);
+        }
+        let commitment = credential_commitment(
+            binding.connection_id(),
+            binding.credential_generation(),
+            bytes.as_slice(),
+        );
+        if !commitment.matches(binding.reference_commitment()) {
+            return Err(CredentialStoreError::Substitution);
+        }
+        Ok(Self { bytes, deadline, binding: binding.clone() })
+    }
+
+    /// Whether this lease belongs to the exact binding that prepared an
+    /// entry. Neither a state-only generation change nor a different
+    /// credential generation, connection or commitment may be substituted.
     #[must_use]
-    pub const fn from_store(bytes: Zeroizing<Vec<u8>>, deadline: Instant) -> Self {
-        Self { bytes, deadline }
+    pub fn matches_binding(&self, expected: &CredentialBinding) -> bool {
+        kernel::same_lease_generations(
+            kernel::Generations {
+                generation: expected.generation().get(),
+                credential_generation: expected.credential_generation().get(),
+            },
+            kernel::Generations {
+                generation: self.binding.generation().get(),
+                credential_generation: self.binding.credential_generation().get(),
+            },
+        ) && self.binding.connection_id() == expected.connection_id()
+            && bool::from(self.binding.reference_commitment().ct_eq(expected.reference_commitment()))
+    }
+
+    /// Narrows this lease to the caller's requested deadline. A store may
+    /// return a shorter lease, but cannot extend the gateway's request.
+    #[must_use]
+    pub fn limit_deadline(mut self, deadline: Instant) -> Self {
+        if deadline < self.deadline {
+            self.deadline = deadline;
+        }
+        self
     }
 
     /// Borrows the secret before its deadline.
@@ -391,10 +449,7 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
             .read()
             .map_err(|_| CredentialStoreError::Unavailable)?;
         let stored = binding_entry(&entries, binding)?;
-        Ok(StoredSecretLease {
-            bytes: stored.bytes.clone(),
-            deadline,
-        })
+        StoredSecretLease::from_store(binding, stored.bytes.clone(), deadline)
     }
 
     async fn replace(
@@ -694,10 +749,7 @@ impl PersistentCredentialStore {
             .lock()
             .map_err(|_| CredentialStoreError::Unavailable)?;
         let stored = record_entry(&entries, record)?;
-        Ok(StoredSecretLease {
-            bytes: stored.bytes.clone(),
-            deadline,
-        })
+        StoredSecretLease::from_store(&record.credential_binding(), stored.bytes.clone(), deadline)
     }
 
     /// Checks, without leasing, that this store holds the secret that serves
@@ -981,10 +1033,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
             .lock()
             .map_err(|_| CredentialStoreError::Unavailable)?;
         let stored = binding_entry(&entries, binding)?;
-        Ok(StoredSecretLease {
-            bytes: stored.bytes.clone(),
-            deadline,
-        })
+        StoredSecretLease::from_store(binding, stored.bytes.clone(), deadline)
     }
 
     async fn replace(
@@ -1720,6 +1769,85 @@ mod generation_tests {
             descriptor_commitment: *connection.descriptor_commitment(),
             account_commitment: *connection.account_commitment(),
             credential_reference_commitment: *commitment.as_bytes(),
+        }
+    }
+
+    #[test]
+    fn checked_lease_retains_every_binding_dimension() {
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let secret = b"synthetic-bound-lease";
+        let commitment = CredentialReferenceCommitment::of(&id, generation(1), secret);
+        let expected = binding_at(3, 1, commitment);
+        let lease = StoredSecretLease::from_store(
+            &expected.credential(),
+            Zeroizing::new(secret.to_vec()),
+            Instant::now() + std::time::Duration::from_secs(60),
+        ).unwrap();
+        assert!(lease.matches_binding(&expected.credential()));
+        assert_eq!(lease.expose(Instant::now()).unwrap(), secret);
+        assert_eq!(format!("{lease:?}"), "StoredSecretLease([REDACTED])");
+
+        let mut other_state = expected.clone();
+        other_state.generation = generation(4);
+        assert!(!lease.matches_binding(&other_state.credential()), "state-only changes still bind entry");
+
+        let mut other_credential = expected.clone();
+        other_credential.credential_generation = generation(2);
+        other_credential.credential_reference_commitment =
+            *CredentialReferenceCommitment::of(&id, generation(2), secret).as_bytes();
+        assert!(!lease.matches_binding(&other_credential.credential()));
+
+        let mut other_connection = expected.clone();
+        other_connection.connection_id = ConnectionId::parse(OTHER_CONNECTION).unwrap();
+        other_connection.credential_reference_commitment = *CredentialReferenceCommitment::of(
+            &other_connection.connection_id, generation(1), secret,
+        ).as_bytes();
+        assert!(!lease.matches_binding(&other_connection.credential()));
+
+        let mut other_commitment = expected;
+        other_commitment.credential_reference_commitment[0] ^= 1;
+        assert!(!lease.matches_binding(&other_commitment.credential()));
+    }
+
+    #[test]
+    fn checked_lease_refuses_substituted_or_invalid_secret_bytes() {
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let expected = binding_at(3, 1,
+            CredentialReferenceCommitment::of(&id, generation(1), b"synthetic-bound-lease"));
+        let deadline = Instant::now() + std::time::Duration::from_secs(60);
+        for wrong in [b"other-synthetic-lease".to_vec(), b"synthetic-bound-lease!".to_vec()] {
+            assert_eq!(StoredSecretLease::from_store(&expected.credential(), Zeroizing::new(wrong), deadline)
+                .unwrap_err(), CredentialStoreError::Substitution);
+        }
+        for invalid in [Vec::new(), vec![b'x'; MAXIMUM_SECRET_BYTES + 1]] {
+            assert_eq!(StoredSecretLease::from_store(&expected.credential(), Zeroizing::new(invalid), deadline)
+                .unwrap_err(), CredentialStoreError::InvalidSecret);
+        }
+        let invalid_generations = binding_at(1, 2,
+            CredentialReferenceCommitment::of(&id, generation(2), b"synthetic-bound-lease"));
+        assert_eq!(StoredSecretLease::from_store(
+            &invalid_generations.credential(),
+            Zeroizing::new(b"synthetic-bound-lease".to_vec()),
+            deadline,
+        ).unwrap_err(), CredentialStoreError::Substitution);
+    }
+
+    #[test]
+    fn caller_deadline_narrows_without_extending_a_shorter_store_lease() {
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let secret = b"synthetic-bound-lease";
+        let expected = binding_at(3, 1, CredentialReferenceCommitment::of(&id, generation(1), secret));
+        let start = Instant::now();
+        let short = start + std::time::Duration::from_secs(1);
+        let long = start + std::time::Duration::from_secs(60);
+        for (store_deadline, caller_deadline) in [(long, short), (short, long)] {
+            let lease = StoredSecretLease::from_store(
+                &expected.credential(), Zeroizing::new(secret.to_vec()), store_deadline,
+            ).unwrap().limit_deadline(caller_deadline);
+            assert_eq!(lease.expose(short).unwrap(), secret, "the existing endpoint stays inclusive");
+            assert_eq!(lease.expose(short + std::time::Duration::from_nanos(1)).unwrap_err(),
+                CredentialStoreError::Expired);
+            assert!(lease.matches_binding(&expected.credential()));
         }
     }
 

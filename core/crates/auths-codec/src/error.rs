@@ -20,9 +20,13 @@ pub enum CodecError {
     Model(ModelError),
 }
 
+pub(crate) fn limit_error(_error: core::num::TryFromIntError) -> CodecError {
+    CodecError::LimitExceeded
+}
+
 impl From<ModelError> for CodecError {
-    fn from(error: ModelError) -> Self {
-        Self::Model(error)
+    fn from(model_error: ModelError) -> Self {
+        Self::Model(model_error)
     }
 }
 

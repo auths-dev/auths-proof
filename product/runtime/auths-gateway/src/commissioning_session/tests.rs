@@ -111,7 +111,7 @@ impl Setup {
             &action,
         )
         .expect("native fixture authorization");
-        assert_eq!(verified.actors.len(), 1);
+        assert_eq!(verified.projection().actors.len(), 1);
         let artifacts: Value = serde_json::from_slice(include_bytes!(
             "../../../../../bindings/fixtures/qualification/commissioning-v2.json"
         ))
@@ -127,11 +127,11 @@ impl Setup {
             BoundedText::parse(crate::POSTGRES_STORE_SCHEMA).expect("schema");
         body.statement.binding.trusted_contexts_sha256 = vec![engine.trusted_context_sha256];
         body.statement.binding.principal_sha256 =
-            commissioning_principal_sha256(&verified.actors[0]);
+            commissioning_principal_sha256(&verified.projection().actors[0]);
         body.statement.binding.resources_sha256 =
             Sha256Digest::from_bytes(Sha256::digest(&resources).into());
         body.statement.binding.allowed_actions = vec![Sha256Digest::from_bytes(
-            *verified.request.action_commitment(),
+            *verified.projection().request.action_commitment(),
         )];
         body.statement.binding.maximum_credential_leases = 1;
         let permit = signed(body);

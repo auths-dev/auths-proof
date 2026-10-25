@@ -22,7 +22,7 @@ use auths_model::{
     SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatusMethodId, StatusPolicy, StatusScope,
     StatusScopeAnchors, StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId,
-    TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
@@ -1060,7 +1060,7 @@ fn status_snapshot(
 
 #[pyclass(name = "TrustedContext", frozen, module = "auths._native")]
 pub struct PyTrustedContext {
-    pub(crate) inner: TrustedContext,
+    pub(crate) inner: auths_codec::CanonicalTrustedContext,
 }
 
 #[pymethods]
@@ -1077,14 +1077,14 @@ impl PyTrustedContext {
         evaluation_time: u64,
     ) -> PyResult<Self> {
         Ok(Self {
-            inner: self
+            inner: auths_codec::CanonicalTrustedContext::new(self
                 .inner
                 .for_request(
                     Audience::parse(audience).map_err(value_error)?,
                     Challenge::new(array32(challenge, "challenge")?),
                     Timestamp::new(evaluation_time),
                 )
-                .map_err(value_error)?,
+                .map_err(value_error)?).map_err(value_error)?,
         })
     }
 }
@@ -1198,7 +1198,8 @@ fn compile_trusted_context(
         );
     }
     Ok(PyTrustedContext {
-        inner: builder.build().map_err(value_error)?,
+        inner: auths_codec::CanonicalTrustedContext::new(builder.build().map_err(value_error)?)
+            .map_err(value_error)?,
     })
 }
 

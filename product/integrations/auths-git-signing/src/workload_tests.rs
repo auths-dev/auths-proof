@@ -65,7 +65,7 @@ impl Signing {
             })
             .expect("method sets")
             .expect("trust");
-        GitTrust::decode(&encode_verifier_context(&context).expect("encode")).expect("decode")
+        GitTrust::decode(&auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| encode_verifier_context(&canonical)).expect("encode")).expect("decode")
     }
 
     fn grant(&self, subject: PrincipalId) -> Delegation {

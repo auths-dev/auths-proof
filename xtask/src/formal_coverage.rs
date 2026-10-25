@@ -4,16 +4,21 @@
 //!
 //! The scanner and the metrics are a port of study 006's reference scanner
 //! (`analysis/proof_coverage.py` in auths-research), with its definitions
-//! unchanged: what a function is, when it is translated, refined directly, or
+//! unchanged for historical fixtures: what a function is, when it is translated, refined directly, or
 //! in the refined closure (trait-instance records included), the two weights,
 //! and the five scopes. `reproduces_the_study_at_its_pinned_commit` holds the
 //! port to byte-identical output on the vendored inputs of the study's commit.
+//! Live version 4 also inventories declared non-shipping extraction selectors
+//! and fully translated imported bodies; historical inputs retain their scanner.
+//! Compiled statement constants are used for theorem mentions and
+//! explicit translator metadata for numbered loops. Dot notation and pretty
+//! printing cannot hide or invent edges; loop wrappers retain their real kind.
 
 use crate::*;
 use std::cell::RefCell;
 use std::io::Read as _;
 
-pub(crate) const TOOL_VERSION: &str = "1";
+pub(crate) const TOOL_VERSION: &str = "4";
 pub(crate) const PIN: &str = "8bf2970c68ef01302a70b52861ecc256cf1bb06a";
 const QUALIFICATION: &str = "formal/qualification/aeneas/qualification.toml";
 pub(crate) const SCOPE_PATH: &str = "formal/coverage-scope-v1.toml";
@@ -37,6 +42,13 @@ pub(crate) trait Tree {
     fn read_bytes(&self, path: &str) -> Result<Vec<u8>, String>;
     fn list_files(&self, directory: &str) -> Result<Vec<String>, String>;
     fn reads(&self) -> &RefCell<BTreeMap<String, String>>;
+
+    fn live_source_inventory(&self) -> bool {
+        false
+    }
+    fn relative_source_path(&self, path: &str) -> String {
+        path.to_owned()
+    }
 
     fn read(&self, path: &str) -> Result<String, String> {
         let bytes = self.read_bytes(path)?;
@@ -62,6 +74,17 @@ impl WorkTree {
 }
 
 impl Tree for WorkTree {
+    fn live_source_inventory(&self) -> bool {
+        true
+    }
+    fn relative_source_path(&self, path: &str) -> String {
+        Path::new(path)
+            .strip_prefix(&self.root)
+            .ok()
+            .and_then(Path::to_str)
+            .unwrap_or(path)
+            .replace('\\', "/")
+    }
     fn read_bytes(&self, path: &str) -> Result<Vec<u8>, String> {
         fs::read(self.root.join(path)).map_err(|error| format!("could not read {path}: {error}"))
     }
@@ -429,6 +452,7 @@ pub(crate) struct RustFunction {
     pub(crate) qualified: String,
     pub(crate) begin_line: usize,
     pub(crate) end_line: usize,
+    pub(crate) signature_end_line: usize,
     pub(crate) code_lines: usize,
     pub(crate) in_macro: bool,
 }
@@ -676,6 +700,7 @@ pub(crate) fn scan_rust(path: &str, source: &str) -> ScanResult {
                     qualified: qualified(&stack, &name_token.text),
                     begin_line: qualifier_start(&tokens, index),
                     end_line: tokens[end].line,
+                    signature_end_line: tokens[body].line,
                     code_lines: 0,
                     in_macro: in_macro(&stack),
                 });
@@ -912,6 +937,8 @@ pub(crate) struct ScopeDefinition {
     pub(crate) every_file_listed: bool,
     #[serde(default)]
     pub(crate) components: Vec<Component>,
+    #[serde(default)]
+    pub(crate) extraction_selectors: BTreeMap<String, String>,
     pub(crate) files: BTreeMap<String, String>,
 }
 
@@ -941,6 +968,18 @@ impl ScopeDefinition {
                 ));
             }
         }
+        for (path, namespace) in &scope.extraction_selectors {
+            if !path.starts_with("formal/qualification/aeneas/entrypoints/")
+                || !path.ends_with(".rs")
+                || path.split('/').any(|part| part == "..")
+                || namespace.is_empty()
+                || scope.role(path) != "interface"
+            {
+                return Err(format!(
+                    "extraction selector {path} must be declared non-shipping formal interface source"
+                ));
+            }
+        }
         Ok(scope)
     }
 
@@ -963,6 +1002,7 @@ pub(crate) struct Translated {
     pub(crate) end_line: usize,
     pub(crate) kind: &'static str,
     pub(crate) funs_path: String,
+    pub(crate) declaration_span: bool,
 }
 
 #[derive(Deserialize)]
@@ -974,9 +1014,72 @@ struct QualificationTranslations {
 struct QualificationTranslation {
     translation_json: String,
     local_functions: usize,
+    #[serde(default)]
+    required_symbols: Vec<String>,
 }
 
 type Translations = (Vec<Translated>, Vec<(String, String)>);
+
+// These are compiler-created trait call shims for an anonymous closure, not
+// handwritten `fn` declarations. Keep them in the Lean dependency graph; do
+// not invent a separately scanned Rust function at the closure's inner span.
+fn is_generated_closure_shim(rust_name: &str) -> bool {
+    let Some((owner, implementation)) = rust_name.split_once("::{impl core::ops::function::")
+    else {
+        return false;
+    };
+    let Some((trait_name, receiver)) = implementation.split_once(" for ") else {
+        return false;
+    };
+    let method = if trait_name.starts_with("FnMut<") {
+        "}::call_mut"
+    } else if trait_name.starts_with("FnOnce<") {
+        "}::call_once"
+    } else {
+        return false;
+    };
+    let Some(closure) = receiver
+        .strip_prefix(&format!("{owner}::closure"))
+        .and_then(|name| name.strip_suffix(method))
+    else {
+        return false;
+    };
+    let ordinal = if let Some((ordinal, arguments)) = closure.split_once('<') {
+        if !arguments.ends_with('>') {
+            return false;
+        }
+        ordinal
+    } else {
+        closure
+    };
+    ordinal.is_empty()
+        || ordinal
+            .strip_prefix('#')
+            .is_some_and(|index| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
+}
+
+// Aeneas numbers multiple loops (`_loop0`, `_loop1`); names alone do not
+// identify their wrapper functions. Older fixture reports retain the fallback.
+fn is_translated_loop(item: &Value, lean_name: &str) -> bool {
+    if item.get("loop").is_some_and(Value::is_object) {
+        return true;
+    }
+    let pieces: Vec<&str> = lean_name.rsplitn(3, '.').collect();
+    let second_last = if pieces.len() >= 2 { pieces[1] } else { "" };
+    second_last.contains("_loop") || lean_name.ends_with("_loop")
+}
+
+fn has_translated_source_body(item: &Value, required_import: bool) -> bool {
+    item["is_local"].as_bool() == Some(true)
+        || (required_import
+            && item["is_opaque"].as_bool() == Some(false)
+            && item["lean_file"]
+                .as_str()
+                .is_some_and(|path| path.ends_with("/Funs.lean"))
+            && item["rust_name"]
+                .as_str()
+                .is_some_and(|name| name.starts_with("auths_")))
+}
 
 fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
     let qualification: QualificationTranslations = toml::from_str(&tree.read(QUALIFICATION)?)
@@ -991,11 +1094,6 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
             .ok_or_else(|| format!("{} names no crate", entry.translation_json))?
             .to_owned();
         let funs_path = format!("{}/Funs.lean", parent_directory(&entry.translation_json));
-        if let Some(existing) = funs_files.iter_mut().find(|(name, _)| *name == crate_name) {
-            existing.1.clone_from(&funs_path);
-        } else {
-            funs_files.push((crate_name.clone(), funs_path.clone()));
-        }
         let local: Vec<&Value> = document["functions"]
             .as_array()
             .ok_or_else(|| format!("{} lists no functions", entry.translation_json))?
@@ -1009,7 +1107,47 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 local.len()
             ));
         }
-        for item in local {
+        let namespace = local
+            .first()
+            .and_then(|item| item["lean_name"].as_str())
+            .and_then(|name| name.split('.').next())
+            .filter(|name| !name.is_empty())
+            .ok_or("translation has no local Lean namespace")?;
+        if local.iter().any(|item| {
+            item["lean_name"]
+                .as_str()
+                .and_then(|name| name.split('.').next())
+                != Some(namespace)
+        }) {
+            return Err("one translation unit names inconsistent Lean namespaces".to_owned());
+        }
+        // One Rust crate may have several independently qualified extraction
+        // units. Preserve every function file and its actual Lean namespace.
+        if !funs_files.iter().any(|(_, path)| *path == funs_path) {
+            funs_files.push((namespace.to_owned(), funs_path.clone()));
+        }
+        // Selection-only units expose actual inherent methods as transparent
+        // imported roots. Ordinary units keep their existing local inventory;
+        // delegated imports there are inventoried in their owning unit.
+        let selection_only = local.iter().all(|item| {
+            item["source"]["file"].as_str().is_some_and(|path| {
+                tree.relative_source_path(path)
+                    .starts_with("formal/qualification/aeneas/entrypoints/")
+            })
+        });
+        let selected = document["functions"]
+            .as_array()
+            .ok_or("translation lists no functions")?
+            .iter()
+            .filter(|item| {
+                let required_import = tree.live_source_inventory()
+                    && selection_only
+                    && item["rust_name"].as_str().is_some_and(|name| {
+                        entry.required_symbols.iter().any(|symbol| symbol == name)
+                    });
+                has_translated_source_body(item, required_import)
+            });
+        for item in selected {
             let lean_name = item["lean_name"]
                 .as_str()
                 .ok_or("translation without lean_name")?;
@@ -1017,18 +1155,19 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 .as_str()
                 .ok_or("translation without rust_name")?;
             let source = &item["source"];
-            let file = source["file"].as_str().ok_or("translation without file")?;
+            let reported_file = source["file"].as_str().ok_or("translation without file")?;
+            let file = tree.relative_source_path(reported_file);
             let begin_line = usize::try_from(source["begin_line"].as_u64().ok_or("no begin_line")?)
                 .map_err(|error| error.to_string())?;
             let end_line = usize::try_from(source["end_line"].as_u64().ok_or("no end_line")?)
                 .map_err(|error| error.to_string())?;
-            let pieces: Vec<&str> = lean_name.rsplitn(3, '.').collect();
-            let second_last = if pieces.len() >= 2 { pieces[1] } else { "" };
-            let kind = if second_last.contains("_loop") || lean_name.ends_with("_loop") {
+            let kind = if is_translated_loop(item, lean_name) {
                 "loop"
+            } else if is_generated_closure_shim(rust_name) {
+                "closure-shim"
             } else if begin_line == end_line
                 && tree
-                    .read(file)?
+                    .read(&file)?
                     .lines()
                     .nth(begin_line.saturating_sub(1))
                     .is_some_and(|line| line.contains("#[derive("))
@@ -1046,6 +1185,7 @@ fn load_translations(tree: &dyn Tree) -> Result<Translations, String> {
                 end_line,
                 kind,
                 funs_path: funs_path.clone(),
+                declaration_span: item["is_local"].as_bool() == Some(false),
             });
         }
     }
@@ -1063,15 +1203,15 @@ pub(crate) fn translated_functions(tree: &dyn Tree) -> Result<Vec<Translated>, S
 
 /// Every translated Lean name (loop helpers included) mapped to its function's name.
 fn owner_of(translated: &[Translated]) -> BTreeMap<String, String> {
-    let mut function_by_rust: BTreeMap<&str, &str> = BTreeMap::new();
+    let mut function_by_rust: BTreeMap<(&str, &str), &str> = BTreeMap::new();
     for item in translated.iter().filter(|item| item.kind != "loop") {
-        function_by_rust.insert(&item.rust_name, &item.lean_name);
+        function_by_rust.insert((&item.funs_path, &item.rust_name), &item.lean_name);
     }
     translated
         .iter()
         .filter_map(|item| {
             function_by_rust
-                .get(item.rust_name.as_str())
+                .get(&(item.funs_path.as_str(), item.rust_name.as_str()))
                 .map(|owner| (item.lean_name.clone(), (*owner).to_owned()))
         })
         .collect()
@@ -1106,12 +1246,12 @@ fn lean_call_graph(
         }
     }
     let known: BTreeSet<String> = owners.keys().cloned().collect();
-    let crates: BTreeSet<&str> = translated
+    let namespaces: BTreeSet<&str> = translated
         .iter()
-        .map(|item| item.crate_name.as_str())
+        .filter_map(|item| item.lean_name.split('.').next())
         .collect();
     let mut edges: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for (crate_name, funs_path) in funs_files {
+    for (lean_namespace, funs_path) in funs_files {
         let text: Vec<char> = tree.read(funs_path)?.chars().collect();
         let docs = lean_doc_rust_names(&text);
         for (position, (start, name)) in docs.iter().enumerate() {
@@ -1126,10 +1266,10 @@ fn lean_call_graph(
             let body = text_of(block, definition_end, block.len());
             for identifier in lean_identifiers(&body) {
                 let head = identifier.split('.').next().unwrap_or("");
-                let candidate = if crates.contains(head) {
+                let candidate = if namespaces.contains(head) {
                     identifier.clone()
                 } else {
-                    format!("{crate_name}.{identifier}")
+                    format!("{lean_namespace}.{identifier}")
                 };
                 for callee in resolve(&candidate, &known, instances) {
                     let callee_owner = &owners[&callee];
@@ -1150,6 +1290,10 @@ fn lean_call_graph(
 pub(crate) struct AuditDeclaration {
     pub(crate) name: String,
     pub(crate) statement: String,
+    /// Canonical constants from Lean's compiled statement expression. Historic
+    /// study fixtures predate this field and retain their original scanner.
+    #[serde(default)]
+    pub(crate) statement_constants: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1166,19 +1310,29 @@ fn statement_mentions(
 ) -> Vec<(String, Vec<String>)> {
     let owners = owner_of(translated);
     let known: BTreeSet<String> = owners.keys().cloned().collect();
-    let crates: BTreeSet<&str> = translated
+    let namespaces: BTreeSet<&str> = translated
         .iter()
-        .map(|item| item.crate_name.as_str())
+        .filter_map(|item| item.lean_name.split('.').next())
         .collect();
     let mut mentions: Vec<(String, Vec<String>)> = Vec::new();
     for declaration in &audit.declarations {
         let mut found = BTreeSet::new();
-        for identifier in lean_identifiers(&declaration.statement) {
-            let parts: Vec<&str> = identifier.split('.').collect();
-            for offset in 0..parts.len() {
-                if crates.contains(parts[offset]) {
-                    for name in resolve(&parts[offset..].join("."), &known, instances) {
-                        found.insert(owners[&name].clone());
+        if let Some(constants) = &declaration.statement_constants {
+            // Pretty printing may turn `Type.method value` into `value.method`.
+            // Only the compiled expression establishes the constant's identity.
+            for constant in constants {
+                for name in resolve(constant, &known, instances) {
+                    found.insert(owners[&name].clone());
+                }
+            }
+        } else {
+            for identifier in lean_identifiers(&declaration.statement) {
+                let parts: Vec<&str> = identifier.split('.').collect();
+                for offset in 0..parts.len() {
+                    if namespaces.contains(parts[offset]) {
+                        for name in resolve(&parts[offset..].join("."), &known, instances) {
+                            found.insert(owners[&name].clone());
+                        }
                     }
                 }
             }
@@ -1331,6 +1485,13 @@ pub(crate) fn measure(
             files.insert(path, crate_path.clone());
         }
     }
+    for (path, namespace) in &scope.extraction_selectors {
+        if files.contains_key(path) {
+            return Err(format!("selector {path} overlaps production source"));
+        }
+        file_order.push(path.clone());
+        files.insert(path.clone(), format!("extraction-selector:{namespace}"));
+    }
     let mut scans = BTreeMap::new();
     for path in &file_order {
         scans.insert(path.clone(), scan_rust(path, &tree.read(path)?));
@@ -1361,35 +1522,57 @@ pub(crate) fn measure(
         by_span.insert((function.file.clone(), function.begin_line), function);
     }
     let mut validation = Vec::new();
-    let mut status = BTreeMap::new();
+    let mut status: BTreeMap<(String, usize), Status> = BTreeMap::new();
     for item in translated.iter().filter(|item| item.kind == "function") {
         let found = by_span.get(&(item.file.clone(), item.begin_line));
         let outcome = match found {
             None => "not-found",
-            Some(function) if function.end_line != item.end_line => "end-line-differs",
+            Some(function)
+                if function.end_line != item.end_line
+                    && !(item.declaration_span
+                        && item.end_line == function.signature_end_line
+                        && item.rust_name.rsplit("::").next()
+                            == function.qualified.rsplit("::").next()) =>
+            {
+                "end-line-differs"
+            }
             Some(_) => "matched",
         };
-        validation.push(json!({
+        let mut row = json!({
             "rust_name": item.rust_name,
             "file": item.file,
             "charon_span": [item.begin_line, item.end_line],
             "scanner_span": found.map(|function| json!([function.begin_line, function.end_line])),
             "outcome": outcome,
-        }));
+        });
+        if item.declaration_span {
+            row["span_kind"] = json!("imported-declaration; full Rust body supplied by scanner");
+        }
+        validation.push(row);
         if let Some(function) = found {
-            status.insert(
-                (function.file.clone(), function.begin_line),
-                Status {
-                    lean_name: item.lean_name.clone(),
-                    refined_direct: direct.contains(&item.lean_name),
-                    refined_closure: reached.contains(&item.lean_name),
-                    theorems: mentions
-                        .iter()
-                        .find(|(name, _)| *name == item.lean_name)
-                        .map(|(_, theorems)| theorems.clone())
-                        .unwrap_or_default(),
-                },
-            );
+            let key = (function.file.clone(), function.begin_line);
+            let incoming = Status {
+                lean_name: item.lean_name.clone(),
+                refined_direct: direct.contains(&item.lean_name),
+                refined_closure: reached.contains(&item.lean_name),
+                theorems: mentions
+                    .iter()
+                    .find(|(name, _)| *name == item.lean_name)
+                    .map(|(_, theorems)| theorems.clone())
+                    .unwrap_or_default(),
+            };
+            if let Some(previous) = status.get_mut(&key) {
+                if incoming.refined_direct && !previous.refined_direct {
+                    previous.lean_name.clone_from(&incoming.lean_name);
+                }
+                previous.refined_direct |= incoming.refined_direct;
+                previous.refined_closure |= incoming.refined_closure;
+                previous.theorems.extend(incoming.theorems);
+                previous.theorems.sort();
+                previous.theorems.dedup();
+            } else {
+                status.insert(key, incoming);
+            }
         }
     }
     let audit_sha256 = hex::encode(Sha256::digest(audit_text.as_bytes()));
@@ -2355,6 +2538,17 @@ pub(crate) fn publish(root: &Path) -> Result<Published, String> {
     let scope_text = tree.read(SCOPE_PATH)?;
     let scope = ScopeDefinition::parse(&scope_text)?;
     let audit_text = tree.read(AUDIT_PATH)?;
+    let compiled_audit: Audit = serde_json::from_str(&audit_text)
+        .map_err(|error| format!("invalid {AUDIT_PATH}: {error}"))?;
+    if compiled_audit
+        .declarations
+        .iter()
+        .any(|declaration| declaration.statement_constants.is_none())
+    {
+        return Err(format!(
+            "{AUDIT_PATH} live coverage requires canonical compiled statement constants; regenerate the assurance audit"
+        ));
+    }
     let measurement = measure(&tree, scope, &audit_text)?;
     if !measurement.scope.every_file_listed {
         return Err(format!("{SCOPE_PATH} must give every scoped file a role"));
@@ -3593,7 +3787,161 @@ pub(crate) fn formal_coverage(update: bool) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn explicit_loop_metadata_recognizes_numbered_wrappers_and_bodies() {
+        let metadata = serde_json::json!({"loop": {"id": 1, "pos": [1], "is_body": false}});
+        assert!(super::is_translated_loop(
+            &metadata,
+            "sample.build_batch_loop0"
+        ));
+        assert!(super::is_translated_loop(
+            &metadata,
+            "sample.build_batch_loop1"
+        ));
+        assert!(super::is_translated_loop(
+            &metadata,
+            "sample.build_batch_loop1.body"
+        ));
+        assert!(!super::is_translated_loop(
+            &serde_json::json!({}),
+            "sample.build_batch"
+        ));
+        assert!(super::is_translated_loop(
+            &serde_json::json!({}),
+            "sample.old_loop"
+        ));
+    }
+
     use super::*;
+
+    #[test]
+    fn transparent_auths_imports_are_source_bodies_only_in_live_inventory() {
+        let imported = json!({"is_local": false, "is_opaque": false, "rust_name": "auths_connections::profile::new", "lean_file": "generated/profile/Funs.lean"});
+        assert!(has_translated_source_body(&imported, true));
+        assert!(!has_translated_source_body(&imported, false));
+        assert!(!has_translated_source_body(
+            &json!({"is_local": false, "is_opaque": true, "rust_name": "auths_connections::profile::new", "lean_file": "generated/profile/Funs.lean"}),
+            true
+        ));
+        assert!(!has_translated_source_body(
+            &json!({"is_local": false, "is_opaque": false, "rust_name": "core::word", "lean_file": "generated/profile/Funs.lean"}),
+            true
+        ));
+        assert!(!has_translated_source_body(
+            &json!({"is_local": false, "is_opaque": false, "rust_name": "auths_ports::Trait::method", "lean_file": "generated/profile/Types.lean"}),
+            true
+        ));
+    }
+
+    #[test]
+    fn source_paths_are_normalized_and_selectors_cannot_hide_production() {
+        let tree = WorkTree::new(PathBuf::from("/reviewed"));
+        assert_eq!(
+            tree.relative_source_path("/reviewed/formal/entry.rs"),
+            "formal/entry.rs"
+        );
+        assert_eq!(
+            tree.relative_source_path("core/src/lib.rs"),
+            "core/src/lib.rs"
+        );
+        let base = "schema = \"auths-proof-coverage-scope/v1\"\nverifier_crate = \"core/test\"\ndecision_kernel_crates = []\ntranslated_crates = []\nexcluded_roles = [\"interface\"]\nnontrivial_code_lines = 4\nevery_file_listed = true\n";
+        let selector = "formal/qualification/aeneas/entrypoints/profile.rs";
+        let valid = format!(
+            "{base}[files]\n\"{selector}\" = \"interface\"\n[extraction_selectors]\n\"{selector}\" = \"auths_profile\"\n"
+        );
+        assert!(ScopeDefinition::parse(&valid).is_ok());
+        assert!(
+            ScopeDefinition::parse(&valid.replace(selector, "product/runtime/source.rs")).is_err()
+        );
+        assert!(
+            ScopeDefinition::parse(&valid.replace("= \"interface\"", "= \"decision\"")).is_err()
+        );
+    }
+
+    #[test]
+    fn two_units_of_one_rust_crate_keep_both_lean_namespaces_and_function_files() {
+        let directory = tempfile::tempdir().expect("temporary input tree");
+        let manifest = directory.path().join(QUALIFICATION);
+        fs::create_dir_all(manifest.parent().expect("manifest parent"))
+            .expect("manifest directory");
+        fs::write(&manifest, "[[translations]]\ntranslation_json = \"native/translation.json\"\nlocal_functions = 1\n\n[[translations]]\ntranslation_json = \"codec/translation.json\"\nlocal_functions = 1\n")
+            .expect("two extraction units");
+        for (unit, namespace, function) in [
+            ("native", "AuthsNativeSha256", "raw_sha256"),
+            ("codec", "auths_codec", "signing_preimage"),
+        ] {
+            fs::create_dir_all(directory.path().join(unit)).expect("unit directory");
+            let report = json!({"crate": "auths_codec", "functions": [{
+                "rust_name": format!("auths_codec::hash::{function}"),
+                "lean_name": format!("{namespace}.hash.{function}"),
+                "is_local": true, "is_opaque": false,
+                "source": {"file": "source.rs", "begin_line": 1, "end_line": 2},
+            }]});
+            fs::write(
+                directory.path().join(unit).join("translation.json"),
+                report.to_string(),
+            )
+            .expect("translation report");
+        }
+        let tree = WorkTree::new(directory.path().to_owned());
+        let (translated, files) = load_translations(&tree).expect("both qualified units");
+        assert_eq!(
+            files,
+            vec![
+                (
+                    "AuthsNativeSha256".to_owned(),
+                    "native/Funs.lean".to_owned()
+                ),
+                ("auths_codec".to_owned(), "codec/Funs.lean".to_owned()),
+            ]
+        );
+        let audit = Audit { declarations: vec![AuditDeclaration {
+            name: "both_statements".to_owned(),
+            statement: "AuthsNativeSha256.hash.raw_sha256 bytes = auths_codec.hash.signing_preimage bytes".to_owned(),
+            statement_constants: None,
+        }]};
+        let mentions = statement_mentions(&audit, &translated, true);
+        assert_eq!(mentions.len(), 2);
+        for (_, claims) in mentions {
+            assert_eq!(claims, vec!["both_statements"]);
+        }
+    }
+
+    #[test]
+    fn compiled_constants_recognize_dot_notation_without_accepting_printed_spoofs() {
+        let translated = vec![Translated {
+            rust_name: "auths_kernel::{Search}::probe".to_owned(),
+            lean_name: "auths_kernel.Search.probe".to_owned(),
+            crate_name: "auths_kernel".to_owned(),
+            file: "source.rs".to_owned(),
+            begin_line: 1,
+            end_line: 1,
+            kind: "function",
+            funs_path: "native/Funs.lean".to_owned(),
+            declaration_span: false,
+        }];
+        let audit = Audit {
+            declarations: vec![
+                AuditDeclaration {
+                    name: "dot_notation".to_owned(),
+                    statement: "state.probe = result".to_owned(),
+                    statement_constants: Some(vec!["auths_kernel.Search.probe".to_owned()]),
+                },
+                AuditDeclaration {
+                    name: "printed_spoof".to_owned(),
+                    statement: "auths_kernel.Search.probe = auths_kernel.Search.probe".to_owned(),
+                    statement_constants: Some(Vec::new()),
+                },
+            ],
+        };
+        assert_eq!(
+            statement_mentions(&audit, &translated, true),
+            vec![(
+                "auths_kernel.Search.probe".to_owned(),
+                vec!["dot_notation".to_owned()]
+            )]
+        );
+    }
 
     fn pin_measurement() -> (Measurement, BTreeMap<String, Vec<u8>>) {
         let (tree, reference) = ArchiveTree::open(
@@ -3662,6 +4010,7 @@ mod tests {
             qualified: "verify_branch".to_owned(),
             begin_line: 1,
             end_line: 2,
+            signature_end_line: 1,
             code_lines: 2,
             in_macro: false,
         }];
@@ -3671,5 +4020,53 @@ mod tests {
             begin_line: None,
         };
         assert!(resolve_function(&functions, &absent).is_err());
+    }
+}
+
+#[cfg(test)]
+mod closure_shim_tests {
+    use super::is_generated_closure_shim;
+
+    #[test]
+    fn closure_shims_do_not_hide_handwritten_functions_or_methods() {
+        assert!(is_generated_closure_shim(
+            "auths_composition::evaluate::{impl core::ops::function::FnMut<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_mut"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_composition::evaluate::{impl core::ops::function::FnOnce<(auths_composition::EvaluationEvent,), ()> for auths_composition::evaluate::closure<T0>}::call_once"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(&'_ [u8; 32usize],), core::option::Option<Key>> for auths_signature_core::verify_ed25519::closure}::call_once"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_signature_core::verify_ed25519::{impl core::ops::function::FnOnce<(Key,), bool> for auths_signature_core::verify_ed25519::closure#1}::call_once"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_codec::hash::commitment_preimage::{impl core::ops::function::FnOnce<(usize,), core::option::Option<usize>> for auths_codec::hash::commitment_preimage::closure#1<'_0>}::call_once"
+        ));
+        // A closure's owner may itself be a handwritten trait method. Its
+        // `for` and `impl` segments must not be mistaken for the closure shim.
+        assert!(is_generated_closure_shim(
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::Ed25519Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_once"
+        ));
+        assert!(is_generated_closure_shim(
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::{impl core::ops::function::FnOnce<(auths_signature_core::P256Error,), auths_ports::SignatureError> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once"
+        ));
+        for function in [
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify",
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<T> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::P256Sha256Suite}::verify::closure}::call_once",
+            "auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::{impl core::ops::function::FnOnce<T> for auths_signature::{impl auths_ports::SignatureSuite for auths_signature::Ed25519Suite}::verify::closure}::call_mut",
+            "auths_composition::evaluate",
+            "auths_composition::{auths_composition::EvaluationEvent}::outcome",
+            "auths_model::{impl core::ops::function::FnMut<T> for auths_model::Handler}::call_mut",
+            "auths_model::closure<T>::decide",
+            "auths_model::{impl core::ops::function::FnMut<T> for auths_model::closure<T>}::verify",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::other::closure}::call_once",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closure#invalid}::call_once",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closureNamed}::call_once",
+            "auths_model::verify::{impl core::ops::function::FnOnce<T> for auths_model::verify::closure#invalid<T>}::call_once",
+        ] {
+            assert!(!is_generated_closure_shim(function), "{function}");
+        }
     }
 }

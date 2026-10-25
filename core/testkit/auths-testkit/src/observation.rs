@@ -161,7 +161,7 @@ fn observation(observed_at: u64, facts: Vec<ObservationFact>) -> Vec<u8> {
 fn schema_observation(schema: &str, observed_at: u64, facts: Vec<ObservationFact>) -> Vec<u8> {
     let observer = observer();
     let statement = statement(&observer.principal, schema, SUBJECT, observed_at, facts);
-    encode_signed_observation(&sign_observation(&observer, statement)).expect("observation")
+    auths_codec::CanonicalSignedObservation::new(sign_observation(&observer, statement)).and_then(|canonical| encode_signed_observation(&canonical)).expect("observation")
 }
 
 fn with_corrupted_signature(bytes: &[u8]) -> Vec<u8> {
@@ -178,7 +178,7 @@ fn with_corrupted_signature(bytes: &[u8]) -> Vec<u8> {
         decoded.evidence().to_vec(),
     )
     .expect("corrupted observation");
-    encode_signed_observation(&corrupted).expect("observation")
+    auths_codec::CanonicalSignedObservation::new(corrupted).and_then(|canonical| encode_signed_observation(&canonical)).expect("observation")
 }
 
 fn observer_anchor(id: &str, principal: &PrincipalId, not_before: u64) -> ObserverAnchor {
@@ -540,7 +540,7 @@ fn fact_bounds_statement(tail: FactValue) -> ObservationStatement {
 fn observation_from_statement(statement: ObservationStatement) -> (Vec<u8>, Vec<u8>) {
     let statement_bytes = encode_observation_statement(&statement).expect("statement");
     let signed =
-        encode_signed_observation(&sign_observation(&observer(), statement)).expect("observation");
+        auths_codec::CanonicalSignedObservation::new(sign_observation(&observer(), statement)).and_then(|canonical| encode_signed_observation(&canonical)).expect("observation");
     (signed, statement_bytes)
 }
 
@@ -664,12 +664,10 @@ fn extra_anchors(count: u8) -> Vec<ObserverAnchor> {
 fn over_limit_anchors(mut fixture: CorpusFixture) -> CorpusFixture {
     let context = decode_context(&fixture);
     let encode = |anchors: Vec<ObserverAnchor>| {
-        encode_verifier_context(
-            &context
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context
                 .clone()
                 .with_observer_anchors(anchors)
-                .expect("bounded anchors"),
-        )
+                .expect("bounded anchors"))).and_then(|canonical| encode_verifier_context(&canonical))
         .expect("canonical context")
     };
     let none = encode(Vec::new());
@@ -773,7 +771,7 @@ fn ineligible_vectors() -> Vec<CorpusFixture> {
     let observer = observer();
     let other = |schema: &str, subject: &str, signer: &Identity| {
         let statement = statement(&signer.principal, schema, subject, FRESH, facts(STAGE, 3));
-        encode_signed_observation(&sign_observation(signer, statement)).expect("observation")
+        auths_codec::CanonicalSignedObservation::new(sign_observation(signer, statement)).and_then(|canonical| encode_signed_observation(&canonical)).expect("observation")
     };
     let missing = Requirement::ObservationMissing;
     vec![
@@ -859,7 +857,7 @@ fn chain_vectors() -> Vec<CorpusFixture> {
     let actor = actor();
     let self_observed = {
         let statement = statement(&actor.principal, SCHEMA, SUBJECT, FRESH, facts(STAGE, 3));
-        encode_signed_observation(&sign_observation(&actor, statement)).expect("observation")
+        auths_codec::CanonicalSignedObservation::new(sign_observation(&actor, statement)).and_then(|canonical| encode_signed_observation(&canonical)).expect("observation")
     };
     let parent = default_requirement();
     vec![

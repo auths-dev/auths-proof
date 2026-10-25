@@ -11,7 +11,7 @@
 
 #![allow(clippy::too_many_lines, reason = "scenario tables read top to bottom")]
 
-use crate::engine::{GatewaySubmitResult, VerifiedCommand, replay_refused};
+use crate::engine::{GatewaySubmitResult, VerifiedCommand, VerifiedCommandProjection, replay_refused};
 use crate::harness::{OBSERVER_SEED, ROOT_SEED, Signer, context};
 use crate::pending_vectors::attempts::FILE as SCENARIOS;
 use crate::recipe::GuardChecks;
@@ -19,7 +19,7 @@ use crate::store::BatchCrash;
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::submit::{self, SubmitContext, SubmitIo, account_commitment};
 use crate::transport::{
-    GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
+    GatewayTransportError, ProviderPort, ProviderReadPort, ProviderResponse, WriteTransportOutcome,
 };
 use crate::{
     ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
@@ -66,6 +66,8 @@ struct RecordingStore {
     inner: Arc<dyn GatewayAttemptStore>,
     stages: Mutex<Vec<String>>,
     lose_response_record: AtomicBool,
+    lose_claim_ack: AtomicBool,
+    lose_sweep_ack: AtomicBool,
 }
 
 impl RecordingStore {
@@ -74,6 +76,8 @@ impl RecordingStore {
             inner,
             stages: Mutex::new(Vec::new()),
             lose_response_record: AtomicBool::new(false),
+            lose_claim_ack: AtomicBool::new(false),
+            lose_sweep_ack: AtomicBool::new(false),
         })
     }
 
@@ -112,6 +116,9 @@ impl GatewayAttemptStore for RecordingStore {
                     self.record(&entry.record);
                 }
             }
+            if self.lose_claim_ack.swap(false, Ordering::SeqCst) {
+                return Err(GatewayAttemptError::Unavailable);
+            }
         }
         Ok(inserted)
     }
@@ -120,6 +127,9 @@ impl GatewayAttemptStore for RecordingStore {
         self.inner.insert(entry)?;
         if entry.kind == GatewayRecordKind::Attempt {
             self.record(&entry.record);
+            if self.lose_claim_ack.swap(false, Ordering::SeqCst) {
+                return Err(GatewayAttemptError::Unavailable);
+            }
         }
         Ok(())
     }
@@ -152,7 +162,12 @@ impl GatewayAttemptStore for RecordingStore {
     }
 
     fn sweep_expired(&self, now: u64, limit: usize) -> Result<usize, GatewayAttemptError> {
-        self.inner.sweep_expired(now, limit)
+        let deleted = self.inner.sweep_expired(now, limit)?;
+        if self.lose_sweep_ack.swap(false, Ordering::SeqCst) {
+            Err(GatewayAttemptError::Unavailable)
+        } else {
+            Ok(deleted)
+        }
     }
 }
 
@@ -169,6 +184,7 @@ pub(crate) struct TestIo<'a, P> {
     pub(crate) recipe: Option<&'a CompiledRecipe>,
     pub(crate) clock: AtomicU64,
     deadline_advance: u64,
+    final_clock: Option<u64>,
     secret: Vec<u8>,
     account: [u8; 32],
     leases: AtomicUsize,
@@ -189,10 +205,16 @@ impl<'a, P> TestIo<'a, P> {
             recipe: None,
             clock: AtomicU64::new(NOW),
             deadline_advance: 0,
+            final_clock: None,
             secret: b"rk_test_not-a-real-credential".to_vec(),
             account: account_commitment("acct_TESTPLATFORM1"),
             leases: AtomicUsize::new(0),
         }
+    }
+
+    pub(crate) fn at_entry_time(mut self, now: u64) -> Self {
+        self.final_clock = Some(now);
+        self
     }
 
     pub(crate) fn leases(&self) -> usize {
@@ -207,13 +229,17 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         Some(self.clock.load(Ordering::SeqCst))
     }
 
-    fn verify(&self, _now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        self.verified.clone()
+    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
+        self.verified.clone().map(|mut command| {
+            command.projection_mut_for_test().evaluated_at = now;
+            command
+        })
     }
 
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
         self.recipe.map_or(Ok(()), |recipe| {
-            crate::bounds::bind_account_scope(recipe, verified.bound.as_ref(), &verified.arguments)
+            let projection = verified.projection();
+            crate::bounds::bind_account_scope(recipe, projection.bound.as_ref(), &projection.arguments)
         })
     }
 
@@ -238,17 +264,28 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         Some(self.account)
     }
 
-    fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
-        self.clock.load(Ordering::SeqCst) + self.deadline_advance
-            <= evaluated_at + crate::recipe::ENTRY_DEADLINE_SECONDS
+    fn within_entry_deadline(
+        &self,
+        evaluated_at: u64,
+        bound: auths_gateway_kernel::deadline::EntryBound,
+    ) -> bool {
+        self.final_clock
+            .or_else(|| {
+                self.clock
+                    .load(Ordering::SeqCst)
+                    .checked_add(self.deadline_advance)
+            })
+            .is_some_and(|now| {
+                auths_gateway_kernel::deadline::entry_time_allows(evaluated_at, now, bound)
+            })
     }
 
     async fn write(
         &self,
         _lease: &(),
-        request: &ClosedProviderRequest,
+        command: &VerifiedCommand,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.provider.write(request).await
+        self.provider.write(&command.projection().request).await
     }
 
     async fn action_read(
@@ -327,7 +364,8 @@ pub(crate) fn admitted(
     let request = recipe
         .closed_request_from_arguments(&arguments, commitment)
         .map_err(|error| crate::engine::not_entered(error.code()))?;
-    Ok(VerifiedCommand {
+    Ok(VerifiedCommand::from_test_projection(VerifiedCommandProjection {
+        evaluated_at: now,
         #[cfg(unix)]
         actors: Vec::new(),
         request,
@@ -337,8 +375,13 @@ pub(crate) fn admitted(
         requirements,
         canonical_action,
         validity_seconds,
+        entry_not_after: auths_gateway_kernel::deadline::EntryBound {
+            not_after: now
+                .saturating_add(validity_seconds.min(crate::recipe::ENTRY_DEADLINE_SECONDS)),
+            inclusive: true,
+        },
         observer_refusal: None,
-    })
+    }))
 }
 
 /// Policy `/2` from its members as the fixtures list them.
@@ -483,6 +526,9 @@ impl ProviderPort for RecordProvider {
         })
     }
 
+}
+
+impl ProviderReadPort for RecordProvider {
     async fn action_read(
         &self,
         _url: &str,
@@ -595,7 +641,7 @@ impl Record {
     async fn snapshot(&self, command: &VerifiedCommand) -> GatewayAttemptSnapshot {
         self.store
             .attempts()
-            .read(command.request.namespace(), command.request.operation_id())
+            .read(command.projection().request.namespace(), command.projection().request.operation_id())
             .await
             .expect("read")
             .expect("retained claim")
@@ -635,7 +681,7 @@ async fn run_claim_case(id: &str, backend: Backend) -> (String, usize) {
         record
             .store
             .attempts()
-            .claim(&original.request, *record.recipe.digest(), NOW)
+            .claim(&original.projection().request, NOW)
             .await
             .expect("first claim"),
     );
@@ -803,7 +849,7 @@ async fn normal_write_reaches_observed_by_provider_with_secret_free_evidence() {
     assert_eq!(snapshot.evaluated_at(), NOW);
     assert_eq!(
         evidence.locator(),
-        command.request.observation().expect("obs").url()
+        command.projection().request.observation().expect("obs").url()
     );
     assert_eq!(evidence.echo(), original_token());
     assert_eq!(evidence.evidence(), bytes.as_slice());
@@ -1032,6 +1078,9 @@ impl ProviderPort for TableProvider {
         })
     }
 
+}
+
+impl ProviderReadPort for TableProvider {
     async fn action_read(
         &self,
         url: &str,
@@ -1242,10 +1291,11 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
     {
         let snapshot = attempts
             .read(
-                io.verified.as_ref().expect("verified").request.namespace(),
+                io.verified.as_ref().expect("verified").projection().request.namespace(),
                 io.verified
                     .as_ref()
                     .expect("verified")
+                    .projection()
                     .request
                     .operation_id(),
             )
@@ -1336,7 +1386,7 @@ async fn with_observer_overlap(id: &str) -> (GatewaySubmitResult, usize) {
         NOW,
     )
     .map(|mut command| {
-        command.observer_refusal = Some("gateway.trust.observer-key-in-authority-chain");
+        command.projection_mut_for_test().observer_refusal = Some("gateway.trust.observer-key-in-authority-chain");
         command
     });
     let mut io = TestIo::answering(&provider, command);
@@ -1588,7 +1638,7 @@ async fn conformance_claim_exactly_once_and_replay(backend: Backend) {
         record
             .store
             .attempts()
-            .claim(&original.request, *record.recipe.digest(), NOW)
+            .claim(&original.projection().request, NOW)
             .await,
         Err(GatewayAttemptError::Replay)
     ));
@@ -1757,7 +1807,7 @@ async fn conformance_mechanism_fails_closed(backend: Backend) {
         record
             .store
             .attempts()
-            .read(command.request.namespace(), command.request.operation_id())
+            .read(command.projection().request.namespace(), command.projection().request.operation_id())
             .await,
         Err(GatewayAttemptError::Corrupt),
         "a record /2 is corrupt, not read"
@@ -1981,6 +2031,40 @@ async fn conformance_child_process() {
     {
         std::thread::yield_now();
     }
+    if mode == "fence" {
+        let raw = store.raw();
+        let (deleted, inserted) = tokio::task::spawn_blocking(move || {
+            let mut deleted = 0;
+            let mut inserted = 0;
+            for index in 0..RACE_OPERATIONS {
+                if process == 0 {
+                    deleted += raw.sweep_expired(100, 1).expect("bounded collection");
+                } else {
+                    let claim = attempt_entry(
+                        GatewayAttemptKey::from_bytes(test_key("fence-process-claim", index, None)),
+                        b"claim",
+                    );
+                    let slot = slot_entry(
+                        GatewayRecordKind::CountSlot,
+                        test_key("fence-process-slot", index, None),
+                        b"slot",
+                        100,
+                    );
+                    let result = raw.insert_all(&[claim, slot]).expect("admission");
+                    inserted += usize::from(result == GatewayInsert::Inserted);
+                    assert!(matches!(
+                        result,
+                        GatewayInsert::Exists { .. } | GatewayInsert::ClosedWindow { .. }
+                    ));
+                }
+            }
+            (deleted, inserted)
+        })
+        .await
+        .expect("fence race");
+        println!("RACE {deleted} {inserted}");
+        return;
+    }
     if mode == "batch" {
         let raw = store.raw();
         let won = tokio::task::spawn_blocking(move || {
@@ -2085,9 +2169,480 @@ async fn conformance_sweep_bounds(backend: Backend) {
     .expect("sweep checks");
 }
 
+/// Publishing a cutoff closes the window before any bounded sweep deletes a
+/// slot. Reopening the store and an older clock cannot clear that fact.
+async fn conformance_collection_fence(backend: Backend) {
+    let store = TestAttempts::open(backend);
+    let raw = store.raw();
+    tokio::task::spawn_blocking(move || {
+        let old = slot_entry(
+            GatewayRecordKind::CountSlot,
+            test_key("fence-old", 0, None),
+            b"slot",
+            100,
+        );
+        raw.insert(&old).expect("old slot");
+        assert_eq!(raw.sweep_expired(100, 0), Ok(0));
+        assert!(
+            raw.load(old.kind, &old.key)
+                .expect("retained slot")
+                .is_some()
+        );
+    })
+    .await
+    .expect("publish cutoff");
+    let raw = store.raw();
+    tokio::task::spawn_blocking(move || {
+        let claim = attempt_entry(
+            GatewayAttemptKey::from_bytes(test_key("fence-claim", 0, None)),
+            b"claim",
+        );
+        let count = slot_entry(
+            GatewayRecordKind::CountSlot,
+            test_key("fence-count", 0, None),
+            b"slot",
+            100,
+        );
+        let sum = slot_entry(
+            GatewayRecordKind::SumSlot,
+            test_key("fence-sum", 0, None),
+            b"sum",
+            100,
+        );
+        for closed in [&count, &sum] {
+            assert_eq!(
+                raw.insert_all(&[claim.clone(), closed.clone()]),
+                Ok(GatewayInsert::ClosedWindow {
+                    collected_through: 100
+                })
+            );
+            assert!(raw.load(claim.kind, &claim.key).expect("load").is_none());
+        }
+        assert_eq!(raw.sweep_expired(100, 10), Ok(1));
+        assert_eq!(
+            raw.sweep_expired(1, 0),
+            Ok(0),
+            "a stale collector cannot lower the cutoff"
+        );
+        assert_eq!(
+            raw.insert_all(&[claim.clone(), count]),
+            Ok(GatewayInsert::ClosedWindow {
+                collected_through: 100
+            })
+        );
+        let later = slot_entry(
+            GatewayRecordKind::SumSlot,
+            test_key("fence-later", 0, None),
+            b"sum",
+            101,
+        );
+        assert_eq!(raw.insert_all(&[claim, later]), Ok(GatewayInsert::Inserted));
+    })
+    .await
+    .expect("closed and open windows");
+}
+
+/// A full one-slot window has no second winner on either side of a racing
+/// collector: the old slot excludes the contender before collection, and the
+/// durable cutoff excludes it afterwards.
+async fn conformance_collection_admission_race(backend: Backend) {
+    let store = TestAttempts::open(backend);
+    for round in 0..16 {
+        let (first, second) = (store.raw(), store.raw());
+        tokio::task::spawn_blocking(move || {
+            let expiry = 100 + u64::try_from(round).expect("bounded round");
+            let slot = slot_entry(
+                GatewayRecordKind::CountSlot,
+                test_key("fence-race-slot", round, None),
+                b"slot",
+                expiry,
+            );
+            first.insert(&slot).expect("full window");
+            let claim = attempt_entry(
+                GatewayAttemptKey::from_bytes(test_key("fence-race-claim", round, None)),
+                b"claim",
+            );
+            let barrier = std::sync::Barrier::new(2);
+            std::thread::scope(|scope| {
+                let collect = scope.spawn(|| {
+                    barrier.wait();
+                    first.sweep_expired(expiry, 10)
+                });
+                barrier.wait();
+                let contender = second.insert_all(&[claim.clone(), slot]);
+                assert!(
+                    matches!(
+                        contender,
+                        Ok(GatewayInsert::Exists { .. } | GatewayInsert::ClosedWindow { .. })
+                    ),
+                    "a collected slot must never reopen: {contender:?}"
+                );
+                assert_eq!(collect.join().expect("collector"), Ok(1));
+            });
+            assert!(
+                second
+                    .load(claim.kind, &claim.key)
+                    .expect("no partial claim")
+                    .is_none()
+            );
+        })
+        .await
+        .expect("collection/admission race");
+    }
+}
+
+async fn conformance_collection_from_two_processes(backend: Backend) {
+    let store = TestAttempts::open(backend);
+    let raw = store.raw();
+    tokio::task::spawn_blocking(move || {
+        for index in 0..RACE_OPERATIONS {
+            raw.insert(&slot_entry(
+                GatewayRecordKind::CountSlot,
+                test_key("fence-process-slot", index, None),
+                b"slot",
+                100,
+            ))
+            .expect("full window");
+        }
+    })
+    .await
+    .expect("prefill");
+    let mut deleted = 0;
+    let mut inserted = 0;
+    for line in spawn_children("fence", &store, backend) {
+        let counts: Vec<usize> = line
+            .split(' ')
+            .map(|value| value.parse().expect("count"))
+            .collect();
+        deleted += counts[0];
+        inserted += counts[1];
+    }
+    assert_eq!(deleted, RACE_OPERATIONS);
+    assert_eq!(
+        inserted, 0,
+        "a different process cannot reopen a collected window"
+    );
+    let raw = store.raw();
+    tokio::task::spawn_blocking(move || {
+        for index in 0..RACE_OPERATIONS {
+            let claim = GatewayAttemptKey::from_bytes(test_key("fence-process-claim", index, None));
+            assert!(
+                raw.load(GatewayRecordKind::Attempt, &claim)
+                    .expect("load")
+                    .is_none()
+            );
+        }
+        raw.sweep_expired(1, 0).expect("stale collector");
+        let slot = slot_entry(
+            GatewayRecordKind::SumSlot,
+            test_key("fence-process-stale", 0, None),
+            b"sum",
+            100,
+        );
+        assert_eq!(
+            raw.insert_all(&[slot]),
+            Ok(GatewayInsert::ClosedWindow {
+                collected_through: 100
+            })
+        );
+    })
+    .await
+    .expect("retained cutoff");
+}
+
+async fn conformance_closed_window_has_no_execution_handle(backend: Backend) {
+    let record = Record::open("airtable", backend);
+    let mut command = record.airtable(ORIGINAL, "Approved");
+    command.projection_mut_for_test().bound = Some(crate::bounds::BoundAdmission {
+        links: Vec::new(),
+        argument: 0,
+        window_seconds: 60,
+        window_index: NOW / 60,
+        window_end: NOW + 60,
+        counts: vec![crate::bounds::CountCounter {
+            key: test_key("fence-driver-counter", 0, None),
+            capacity: 1,
+        }],
+        sums: Vec::new(),
+    });
+    let raw = record.store.raw();
+    tokio::task::spawn_blocking(move || raw.sweep_expired(NOW + 120, 0))
+        .await
+        .expect("collector")
+        .expect("publish cutoff");
+    let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
+    let io = TestIo::new(&provider, command.clone());
+    let result = run(
+        record.store.attempts(),
+        &record.recipe,
+        &record.observer,
+        &io,
+    )
+    .await;
+    assert_eq!(
+        result,
+        crate::engine::not_entered("gateway.policy.window-exhausted")
+    );
+    assert_eq!(io.leases(), 0);
+    assert_eq!(provider.writes(), 0);
+    let retained = record.snapshot(&command).await;
+    assert_eq!(retained.stage(), GatewayAttemptStage::NotEntered);
+    assert!(retained.counters().is_empty());
+}
+
+async fn conformance_lost_acknowledgements(backend: Backend) {
+    let record = Record::open("airtable", backend);
+    let raw = RecordingStore::new(record.store.raw());
+    raw.lose_claim_ack.store(true, Ordering::SeqCst);
+    let attempts = GatewayAttempts::new(raw.clone());
+    let command = record.airtable(ORIGINAL, "Approved");
+    let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
+    let io = TestIo::new(&provider, command.clone());
+    let _ = run(&attempts, &record.recipe, &record.observer, &io).await;
+    assert_eq!(
+        io.leases(),
+        0,
+        "a lost claim acknowledgement grants no handle"
+    );
+    assert_eq!(provider.writes(), 0);
+    let reopened = record.store.reopen();
+    let retry = TestIo::new(&provider, command);
+    assert_eq!(
+        run(&reopened, &record.recipe, &record.observer, &retry).await,
+        replay_refused()
+    );
+    assert_eq!(
+        retry.leases(),
+        1,
+        "recovery may lease for its read-only observation"
+    );
+    assert_eq!(provider.reads(), 1);
+    assert_eq!(
+        provider.writes(),
+        0,
+        "lost acknowledgements cannot grant a write"
+    );
+    raw.lose_sweep_ack.store(true, Ordering::SeqCst);
+    tokio::task::spawn_blocking(move || {
+        assert_eq!(
+            raw.sweep_expired(100, 0),
+            Err(GatewayAttemptError::Unavailable)
+        );
+    })
+    .await
+    .expect("lost sweep acknowledgement");
+    let raw = record.store.raw();
+    tokio::task::spawn_blocking(move || {
+        let slot = slot_entry(
+            GatewayRecordKind::SumSlot,
+            test_key("lost-sweep-ack", 0, None),
+            b"slot",
+            100,
+        );
+        assert_eq!(
+            raw.insert_all(&[slot]),
+            Ok(GatewayInsert::ClosedWindow {
+                collected_through: 100
+            })
+        );
+    })
+    .await
+    .expect("retained cutoff");
+}
+
+/// A committed claim/count/sum batch remains charged when its acknowledgement
+/// disappears. A separately reopened backend must reject retries atomically,
+/// including retries that propose different counters. Collection may remove
+/// slots, but neither a retained claim nor its published cutoff can reopen.
+async fn conformance_lost_batch_acknowledgement_retains_capacity(backend: Backend) {
+    let store = TestAttempts::open(backend);
+    let faulted = RecordingStore::new(store.raw());
+    faulted.lose_claim_ack.store(true, Ordering::SeqCst);
+    let committed = tokio::task::spawn_blocking(move || {
+        let entries = vec![
+            attempt_entry(
+                GatewayAttemptKey::from_bytes(test_key("lost-batch-claim", 0, None)),
+                b"original-claim",
+            ),
+            slot_entry(
+                GatewayRecordKind::CountSlot,
+                test_key("lost-batch-count", 0, None),
+                b"original-count",
+                100,
+            ),
+            slot_entry(
+                GatewayRecordKind::SumSlot,
+                test_key("lost-batch-sum", 0, None),
+                b"original-sum",
+                100,
+            ),
+        ];
+        assert_eq!(faulted.insert_all(&entries), Err(GatewayAttemptError::Unavailable));
+        entries
+    })
+    .await
+    .expect("commit followed by lost batch acknowledgement");
+
+    // This opens a new backend instance over the same durable state.
+    let reopened = store.raw();
+    tokio::task::spawn_blocking(move || {
+        for entry in &committed {
+            assert_eq!(
+                reopened.load(entry.kind, &entry.key).expect("retained batch member"),
+                Some(entry.record.clone()),
+            );
+        }
+        for retry in 1..=4 {
+            let entries = vec![
+                attempt_entry(committed[0].key, b"replacement-claim"),
+                slot_entry(
+                    GatewayRecordKind::CountSlot,
+                    test_key("lost-batch-count", retry, None),
+                    b"replacement-count",
+                    100,
+                ),
+                slot_entry(
+                    GatewayRecordKind::SumSlot,
+                    test_key("lost-batch-sum", retry, None),
+                    b"replacement-sum",
+                    100,
+                ),
+            ];
+            assert_eq!(reopened.insert_all(&entries), Ok(GatewayInsert::Exists { index: 0 }));
+            for entry in &entries[1..] {
+                assert_eq!(reopened.load(entry.kind, &entry.key).expect("rejected retry slot"), None);
+            }
+            for entry in &committed {
+                assert_eq!(
+                    reopened.load(entry.kind, &entry.key).expect("unchanged original charge"),
+                    Some(entry.record.clone()),
+                );
+            }
+        }
+        assert_eq!(reopened.sweep_expired(100, 0), Ok(0));
+        assert_eq!(reopened.sweep_expired(100, 64), Ok(2));
+        assert_eq!(reopened.sweep_expired(99, 64), Ok(0));
+        assert_eq!(
+            reopened.load(committed[0].kind, &committed[0].key).expect("claim survives collection"),
+            Some(committed[0].record.clone()),
+        );
+        let stale_window = vec![
+            attempt_entry(
+                GatewayAttemptKey::from_bytes(test_key("lost-batch-after-collection", 0, None)),
+                b"new-logical-claim",
+            ),
+            slot_entry(
+                GatewayRecordKind::CountSlot,
+                test_key("lost-batch-after-collection", 1, None),
+                b"old-window-count",
+                100,
+            ),
+            slot_entry(
+                GatewayRecordKind::SumSlot,
+                test_key("lost-batch-after-collection", 2, None),
+                b"old-window-sum",
+                100,
+            ),
+        ];
+        assert_eq!(
+            reopened.insert_all(&stale_window),
+            Ok(GatewayInsert::ClosedWindow { collected_through: 100 }),
+        );
+        for entry in &stale_window {
+            assert_eq!(reopened.load(entry.kind, &entry.key).expect("closed-window atomic refusal"), None);
+        }
+    })
+    .await
+    .expect("lost batch acknowledgement and collection retain capacity");
+}
+
 /// A connection record committed through one store instance is what every
 /// other instance sharing the store reads next, and a stale compare-and-swap
 /// through another instance is a conflict.
+async fn conformance_expired_entry_preserves_capacity(backend: Backend) {
+    use auths_gateway_kernel::deadline::EntryBound;
+    for (now, inclusive) in [(NOW + 6, true), (NOW + 5, false), (NOW - 1, true)] {
+        let record = Record::open("airtable", backend);
+        let mut command = record.airtable(ORIGINAL, "Approved");
+        command.projection_mut_for_test().entry_not_after = EntryBound {
+            not_after: NOW + 5,
+            inclusive,
+        };
+        command.projection_mut_for_test().bound = Some(crate::bounds::BoundAdmission {
+            links: Vec::new(),
+            argument: 0,
+            window_seconds: 60,
+            window_index: NOW / 60,
+            window_end: NOW + 60,
+            counts: vec![crate::bounds::CountCounter {
+                key: test_key("expired-entry-capacity", 0, None),
+                capacity: 1,
+            }],
+            sums: Vec::new(),
+        });
+        let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
+        let mut io = TestIo::new(&provider, command.clone());
+        io.final_clock = Some(now);
+        let result = run(
+            record.store.attempts(),
+            &record.recipe,
+            &record.observer,
+            &io,
+        )
+        .await;
+        assert_eq!(
+            result,
+            crate::engine::not_entered("gateway.attempt.entry-deadline")
+        );
+        assert_eq!(
+            provider.writes(),
+            0,
+            "an expired or rolled-back clock cannot enter"
+        );
+        let retained = record.snapshot(&command).await;
+        assert_eq!(retained.stage(), GatewayAttemptStage::NotEntered);
+        assert_eq!(
+            retained.counters().len(),
+            1,
+            "admission capacity stays consumed"
+        );
+        let retry = TestIo::new(&provider, command);
+        assert_eq!(
+            run(
+                record.store.attempts(),
+                &record.recipe,
+                &record.observer,
+                &retry
+            )
+            .await,
+            replay_refused()
+        );
+        assert_eq!(retry.leases(), 0);
+    }
+    // Equality remains useful for an inclusive native-authority endpoint.
+    let record = Record::open("airtable", backend);
+    let mut command = record.airtable(ORIGINAL, "Approved");
+    command.projection_mut_for_test().entry_not_after = EntryBound {
+        not_after: NOW + 5,
+        inclusive: true,
+    };
+    let provider = RecordProvider::new(Delivery::Respond, Reading::Faithful);
+    let mut io = TestIo::new(&provider, command);
+    io.final_clock = Some(NOW + 5);
+    let _ = run(
+        record.store.attempts(),
+        &record.recipe,
+        &record.observer,
+        &io,
+    )
+    .await;
+    assert_eq!(
+        provider.writes(),
+        1,
+        "an inclusive endpoint admits its exact final second"
+    );
+}
+
 async fn conformance_shared_connection_record(backend: Backend) {
     let store = TestAttempts::open(backend);
     let (first, second) = (store.raw(), store.raw());
@@ -2136,6 +2691,16 @@ async fn conformance_shared_connection_record(backend: Backend) {
             !matches!(first.load(GatewayRecordKind::Attempt, &key), Ok(Some(_))),
             "a key is read only as its own kind"
         );
+        assert_eq!(
+            first.load(GatewayRecordKind::Attempt, &key),
+            Err(GatewayAttemptError::Corrupt)
+        );
+        let wrong_kind = attempt_entry(key, b"claim");
+        assert_eq!(
+            first.insert_all(std::slice::from_ref(&wrong_kind)),
+            Ok(GatewayInsert::Exists { index: 0 })
+        );
+        assert_eq!(first.insert(&wrong_kind), Err(GatewayAttemptError::Replay));
     })
     .await
     .expect("connection checks");
@@ -2151,12 +2716,62 @@ async fn store_conformance(backend: Backend) {
     conformance_concurrent_claims_from_two_processes(backend).await;
     conformance_batches_from_two_processes(backend).await;
     conformance_sweep_bounds(backend).await;
+    conformance_collection_fence(backend).await;
+    conformance_collection_admission_race(backend).await;
+    conformance_collection_from_two_processes(backend).await;
+    conformance_closed_window_has_no_execution_handle(backend).await;
+    conformance_lost_acknowledgements(backend).await;
+    conformance_lost_batch_acknowledgement_retains_capacity(backend).await;
     conformance_shared_connection_record(backend).await;
+    conformance_expired_entry_preserves_capacity(backend).await;
 }
 
 #[tokio::test]
 async fn file_store_passes_attempt_store_conformance() {
     store_conformance(Backend::File).await;
+}
+
+#[test]
+fn file_store_refuses_lost_or_invalid_collection_state() {
+    for fault in [
+        "missing",
+        "malformed",
+        "obsolete",
+        "oversized",
+        "missing-lock",
+    ] {
+        let directory = tempfile::tempdir().expect("directory");
+        let root = std::fs::canonicalize(directory.path())
+            .expect("canonical")
+            .join("attempts");
+        let store = FileGatewayAttemptStore::open(&root).expect("fresh store");
+        store.sweep_expired(100, 0).expect("durable cutoff");
+        drop(store);
+        let marker = root.join(".collection.json");
+        match fault {
+            "missing" => std::fs::remove_file(&marker).expect("remove marker"),
+            "malformed" => std::fs::write(&marker, b"{}").expect("malformed marker"),
+            "obsolete" => std::fs::write(
+                &marker,
+                br#"{"schema":"auths.gateway-file-store/0","collected_through":null}"#,
+            )
+            .expect("obsolete marker"),
+            "oversized" => std::fs::write(&marker, [0_u8; 513]).expect("oversized marker"),
+            "missing-lock" => {
+                std::fs::remove_file(root.join(".replace.lock")).expect("remove lock");
+            }
+            _ => unreachable!("closed fault table"),
+        }
+        for _ in 0..2 {
+            assert!(
+                matches!(
+                    FileGatewayAttemptStore::open(&root),
+                    Err(GatewayAttemptError::Corrupt)
+                ),
+                "{fault} security state must never reset to a fresh store"
+            );
+        }
+    }
 }
 
 #[tokio::test]

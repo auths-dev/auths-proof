@@ -51,13 +51,15 @@ impl ApprovalRequirement {
     /// more than [`MAX_APPROVERS_PER_REQUIREMENT`], a repeated approver, a zero
     /// threshold, or a threshold above the number of approvers.
     pub fn new(mut approvers: Vec<PrincipalId>, threshold: u16) -> Result<Self, ModelError> {
-        approvers.sort();
         if approvers.is_empty()
             || approvers.len() > MAX_APPROVERS_PER_REQUIREMENT
-            || approvers.windows(2).any(|window| window[0] == window[1])
             || threshold == 0
             || usize::from(threshold) > approvers.len()
         {
+            return Err(ModelError::InvalidApprovalRequirement);
+        }
+        approvers.sort();
+        if crate::collection_scan::adjacent_equal(&approvers) {
             return Err(ModelError::InvalidApprovalRequirement);
         }
         Ok(Self {
@@ -100,10 +102,8 @@ impl ApprovalRequirements {
         if requirements.len() > MAX_APPROVAL_REQUIREMENTS_PER_GRANT {
             return Err(ModelError::CollectionLimitExceeded);
         }
-        for (index, requirement) in requirements.iter().enumerate() {
-            if requirements[..index].contains(requirement) {
-                return Err(ModelError::InvalidApprovalRequirement);
-            }
+        if crate::collection_scan::has_duplicates(&requirements) {
+            return Err(ModelError::InvalidApprovalRequirement);
         }
         Ok(Self(requirements))
     }
@@ -296,10 +296,7 @@ impl SignedApproval {
             return Err(ModelError::InvalidApproval);
         }
         evidence.sort_by_key(EvidenceObject::id);
-        if evidence
-            .windows(2)
-            .any(|window| window[0].id() == window[1].id())
-        {
+        if crate::collection_scan::evidence_ids_repeat(&evidence) {
             return Err(ModelError::InvalidApproval);
         }
         Ok(Self {
@@ -342,11 +339,13 @@ impl ApprovalSatisfaction {
         requirement: ApprovalRequirementId,
         mut approvals: Vec<ApprovalDigest>,
     ) -> Result<Self, ModelError> {
-        approvals.sort();
         if approvals.is_empty()
             || approvals.len() > MAX_APPROVERS_PER_REQUIREMENT
-            || approvals.windows(2).any(|window| window[0] == window[1])
         {
+            return Err(ModelError::InvalidApproval);
+        }
+        approvals.sort();
+        if crate::collection_scan::adjacent_equal(&approvals) {
             return Err(ModelError::InvalidApproval);
         }
         Ok(Self {

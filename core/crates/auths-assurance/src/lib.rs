@@ -39,74 +39,126 @@ pub fn evaluate_with_implications(
     evaluation_time: Timestamp,
     mut implies: impl FnMut(&AssuranceClaim, &auths_model::AssuranceClaimId) -> bool,
 ) -> Result<Vec<AssuranceSatisfaction>, Requirement> {
-    let mut satisfactions = Vec::new();
-    for (index, requirement) in policy.requirements().iter().enumerate() {
-        let selected: Vec<_> = reports
-            .iter()
-            .filter(|report| report.role() == requirement.role())
-            .collect();
-        if selected.is_empty() {
-            return Err(Requirement::AssuranceRequirementNotMet);
-        }
-        let requirement_index =
-            u16::try_from(index).map_err(|_| Requirement::AssuranceRequirementNotMet)?;
-        let required = match requirement.quantifier() {
-            AssuranceQuantifier::Any => 1,
-            AssuranceQuantifier::Every => selected.len(),
+    let mut outcome = Ok(Vec::new());
+    let mut position = 0;
+    while position < policy.requirements().len() && outcome.is_ok() {
+        outcome = match outcome {
+            Ok(satisfactions) => evaluate_requirement(satisfactions, position,
+                &policy.requirements()[position], reports, evaluation_time, &mut implies),
+            Err(failure) => Err(failure),
         };
-        let mut matched = 0usize;
-        for report in selected {
-            let mut candidates: Vec<_> = report
-                .claims()
-                .iter()
-                .filter(|claim| {
-                    (claim.kind() == requirement.claim_kind()
-                        || implies(claim, requirement.claim_kind()))
-                        && requirement
-                            .parameters()
-                            .iter()
-                            .all(|parameter| claim.parameters().binary_search(parameter).is_ok())
-                        && requirement
-                            .source()
-                            .is_none_or(|source| claim.source() == source)
-                        && requirement
-                            .adapter()
-                            .is_none_or(|adapter| report.adapter() == adapter)
-                        && requirement
-                            .adapter_version()
-                            .is_none_or(|version| report.adapter_version() == version)
-                        && requirement.maximum_age().is_none_or(|maximum_age| {
-                            claim.observed_at().is_some_and(|observed_at| {
-                                observed_at <= evaluation_time
-                                    && evaluation_time.get().saturating_sub(observed_at.get())
-                                        <= maximum_age.get()
-                            })
-                        })
-                })
-                .collect();
-            candidates.sort();
-            if let Some(claim) = candidates.first() {
-                matched = matched.saturating_add(1);
-                satisfactions.push(AssuranceSatisfaction::new(
-                    requirement_index,
-                    report.principal().clone(),
-                    (*claim).clone(),
-                    report.evidence().to_vec(),
-                ));
-                if requirement.quantifier() == AssuranceQuantifier::Any {
-                    break;
-                }
-            } else if requirement.quantifier() == AssuranceQuantifier::Every {
-                return Err(Requirement::AssuranceRequirementNotMet);
-            }
-        }
-        if matched < required {
-            return Err(Requirement::AssuranceRequirementNotMet);
-        }
+        position += 1;
     }
+    let mut satisfactions = outcome?;
     satisfactions.sort();
     satisfactions.dedup();
     Ok(satisfactions)
+}
+
+
+struct RequirementProgress {
+    satisfactions: Vec<AssuranceSatisfaction>,
+    matched: usize,
+}
+fn selected_count(reports: &[ParticipantAssurance], role: ParticipantRole) -> usize {
+    let mut count = 0;
+    let mut position = 0;
+    while position < reports.len() {
+        if reports[position].role() == role { count += 1; }
+        position += 1;
+    }
+    count
+}
+fn parameters_present(
+    required: &[(auths_model::ClaimParameterId, auths_model::ClaimParameterId)],
+    actual: &[(auths_model::ClaimParameterId, auths_model::ClaimParameterId)],
+) -> bool {
+    let mut position = 0;
+    let mut present = true;
+    while position < required.len() && present {
+        present = actual.binary_search(&required[position]).is_ok();
+        position += 1;
+    }
+    present
+}
+fn claim_matches<I: FnMut(&AssuranceClaim, &auths_model::AssuranceClaimId) -> bool>(
+    claim: &AssuranceClaim, report: &ParticipantAssurance, requirement: &auths_model::AssuranceRequirement,
+    evaluation_time: Timestamp, implies: &mut I,
+) -> bool {
+    if claim.kind() != requirement.claim_kind() && !implies(claim, requirement.claim_kind()) { return false; }
+    if !parameters_present(requirement.parameters(), claim.parameters()) { return false; }
+    if let Some(source) = requirement.source() && claim.source() != source { return false; }
+    if let Some(adapter) = requirement.adapter() && report.adapter() != adapter { return false; }
+    if let Some(version) = requirement.adapter_version() && report.adapter_version() != version { return false; }
+    match requirement.maximum_age() {
+        None => true,
+        Some(maximum_age) => match claim.observed_at() {
+            None => false,
+            Some(observed_at) => observed_at <= evaluation_time
+                && evaluation_time.get().saturating_sub(observed_at.get()) <= maximum_age.get(),
+        },
+    }
+}
+fn select_claim<'a, I: FnMut(&AssuranceClaim, &auths_model::AssuranceClaimId) -> bool>(
+    report: &'a ParticipantAssurance, requirement: &auths_model::AssuranceRequirement,
+    evaluation_time: Timestamp, implies: &mut I,
+) -> Option<&'a AssuranceClaim> {
+    let mut selected: Option<&AssuranceClaim> = None;
+    let mut position = 0;
+    // Evaluate every claim in its original order, including implication calls,
+    // then retain the same minimum that the old filtered stable sort selected.
+    while position < report.claims().len() {
+        let claim = &report.claims()[position];
+        if claim_matches(claim, report, requirement, evaluation_time, implies) {
+            selected = match selected {
+                None => Some(claim),
+                Some(previous) => if claim < previous { Some(claim) } else { Some(previous) },
+            };
+        }
+        position += 1;
+    }
+    selected
+}
+fn evaluate_report<I: FnMut(&AssuranceClaim, &auths_model::AssuranceClaimId) -> bool>(
+    mut progress: RequirementProgress, report: &ParticipantAssurance,
+    requirement: &auths_model::AssuranceRequirement, requirement_index: u16,
+    evaluation_time: Timestamp, implies: &mut I,
+) -> Result<RequirementProgress, Requirement> {
+    if report.role() != requirement.role() { return Ok(progress); }
+    match select_claim(report, requirement, evaluation_time, implies) {
+        Some(claim) => {
+            progress.matched = progress.matched.saturating_add(1);
+            progress.satisfactions.push(AssuranceSatisfaction::new(requirement_index,
+                report.principal().clone(), claim.clone(), report.evidence().to_vec()));
+            Ok(progress)
+        }
+        None => match requirement.quantifier() {
+            AssuranceQuantifier::Every => Err(Requirement::AssuranceRequirementNotMet),
+            AssuranceQuantifier::Any => Ok(progress),
+        },
+    }
+}
+fn evaluate_requirement<I: FnMut(&AssuranceClaim, &auths_model::AssuranceClaimId) -> bool>(
+    satisfactions: Vec<AssuranceSatisfaction>, index: usize, requirement: &auths_model::AssuranceRequirement,
+    reports: &[ParticipantAssurance], evaluation_time: Timestamp, implies: &mut I,
+) -> Result<Vec<AssuranceSatisfaction>, Requirement> {
+    let selected = selected_count(reports, requirement.role());
+    if selected == 0 { return Err(Requirement::AssuranceRequirementNotMet); }
+    let requirement_index = u16::try_from(index).map_err(|_| Requirement::AssuranceRequirementNotMet)?;
+    let required = match requirement.quantifier() { AssuranceQuantifier::Any => 1, AssuranceQuantifier::Every => selected };
+    let mut outcome = Ok(RequirementProgress { satisfactions, matched: 0 });
+    let mut position = 0;
+    while position < reports.len() && matches!(&outcome, Ok(progress)
+        if requirement.quantifier() != AssuranceQuantifier::Any || progress.matched == 0) {
+        outcome = match outcome {
+            Ok(progress) => evaluate_report(progress, &reports[position], requirement, requirement_index, evaluation_time, implies),
+            Err(failure) => Err(failure),
+        };
+        position += 1;
+    }
+    let progress = outcome?;
+    if progress.matched < required { Err(Requirement::AssuranceRequirementNotMet) }
+    else { Ok(progress.satisfactions) }
 }
 
 /// Returns the role used for the issuer of a grant at `chain_index`.
@@ -118,6 +170,13 @@ pub const fn grant_issuer_role(chain_index: usize) -> ParticipantRole {
         ParticipantRole::Intermediate
     }
 }
+
+#[cfg(test)]
+#[path = "reference.rs"]
+mod reference;
+#[cfg(test)]
+#[path = "parity_tests.rs"]
+mod parity_tests;
 
 #[cfg(test)]
 mod tests {

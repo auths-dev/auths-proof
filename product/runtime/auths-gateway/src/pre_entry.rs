@@ -141,7 +141,8 @@ pub(crate) struct PreEntryObservation {
 
 /// Signs one read-back observation per pointer of a complete 2xx JSON
 /// response with no version mismatch, taken at `observed_at`. `None` when a
-/// pointer is absent or its value has no fact form.
+/// pointer is absent, its value has no fact form, or any object member name
+/// occurs twice in the response's decoded JSON.
 pub(crate) fn sign_observations(
     observer: &GatewayObserver,
     read: &ClosedActionRead,
@@ -152,7 +153,7 @@ pub(crate) fn sign_observations(
     if body.len() > read.maximum_response_bytes() {
         return None;
     }
-    let document: Value = serde_json::from_slice(body).ok()?;
+    let document: Value = crate::recipe::strict_json::from_slice(body).ok()?;
     pointers
         .iter()
         .map(|pointer| {

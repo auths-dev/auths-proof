@@ -11,21 +11,25 @@
 
 use crate::{VerificationFailure, WorkMeter, registry_operation_failure};
 use alloc::vec::Vec;
+use crate::collections::try_fold_items;
 use auths_codec::{CodecError, decode_observation_requirements, decode_signed_observation};
 use auths_model::{
     AttachmentDigest, CanonicalAction, DenialReason, FactValue, MAX_OBSERVATION_ATTACHMENTS,
     MAX_OBSERVATION_BYTES, MAX_OBSERVATION_REQUIREMENTS_PER_CHAIN, OBSERVATION_MEDIA_TYPE,
     ObservationRequirement, ObservationSatisfaction, ObservationSubject, ObserverAnchor,
     PrincipalId, Requirement, RequirementVerdict, ResourceId, SignedAction, SignedGrant,
-    SignedObservation, TrustedContext, observation_conditions_hold, observation_fresh,
+    AttachmentDescriptor, DetachedAttachment, CriticalExtension, EvidenceObject, EvidenceId, FactName,
+    ObservationCondition,
+    SignedObservation, Timestamp, TrustedContext, observation_conditions_hold, observation_fresh,
     observation_schema_equal, observation_subject_equal, principal_id_equal,
     requirement_subject_equal, requirement_verdict,
 };
 use auths_ports::{
-    ControlPurpose, PrincipalControlInput, ProfilePolicy, ResourceMatcher, SignatureInput,
+    ControlPurpose, PrincipalControlInput, PrincipalControlError, ProfilePolicy, ResourceMatcher, SignatureInput,
+    PrincipalMethod as _, SignatureSuite as _,
     diagnostics::DiagnosticMode,
 };
-use auths_registries::{ImmutableRegistries, OBSERVATION_REQUIREMENT_EXTENSION_V1};
+use auths_registries::{RegistryAccess, OBSERVATION_REQUIREMENT_EXTENSION_V1};
 
 /// One decoded observation attachment and its lazily established
 /// authenticity.
@@ -35,14 +39,20 @@ struct Candidate {
     authentic: Option<bool>,
 }
 
+/// The exact selected observation and its inclusive freshness endpoint.
+struct Satisfied {
+    record: ObservationSatisfaction,
+    valid_through: Timestamp,
+}
+
 /// Shared inputs of one branch's observation stage.
-pub(crate) struct Stage<'a, 'r> {
+pub(crate) struct Stage<'a, R: RegistryAccess + ?Sized> {
     pub(crate) chain: &'a [&'a SignedGrant],
     pub(crate) root: &'a PrincipalId,
     pub(crate) action: &'a SignedAction,
     pub(crate) canonical: &'a CanonicalAction,
     pub(crate) context: &'a TrustedContext,
-    pub(crate) registries: &'a ImmutableRegistries<'r>,
+    pub(crate) registries: &'a R,
 }
 
 fn limit_or_malformed(error: CodecError) -> VerificationFailure {
@@ -55,50 +65,19 @@ fn limit_or_malformed(error: CodecError) -> VerificationFailure {
 
 /// Rejects an action whose signed observation attachments exceed the count
 /// or per-attachment byte bound. Runs for every action, before authority.
-pub(crate) fn validate_observation_attachments(
-    action: &SignedAction,
-) -> Result<(), VerificationFailure> {
-    let mut count = 0usize;
-    for descriptor in action.envelope().attachments() {
-        if descriptor.media_type().as_str() != OBSERVATION_MEDIA_TYPE {
-            continue;
-        }
-        count += 1;
-        let oversized = usize::try_from(descriptor.byte_length())
-            .map_or(true, |length| length > MAX_OBSERVATION_BYTES);
-        if count > MAX_OBSERVATION_ATTACHMENTS || oversized {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ResourceLimitExceeded,
-            ));
-        }
-    }
+pub(crate) fn validate_observation_attachments(action: &SignedAction) -> Result<(), VerificationFailure> {
+    let _ = try_fold_items!(action.envelope().attachments(), 0usize, count, _position, descriptor =>
+        count_observation_descriptor(count, descriptor))?;
     Ok(())
 }
 
 /// Collects the distinct requirements carried by every grant in the chain,
 /// in first-appearance order.
-pub(crate) fn chain_requirements(
-    chain: &[&SignedGrant],
-) -> Result<Vec<ObservationRequirement>, VerificationFailure> {
-    let mut requirements: Vec<ObservationRequirement> = Vec::new();
-    for grant in chain {
-        for extension in grant.statement().extensions().as_slice() {
-            if extension.id().as_str() != OBSERVATION_REQUIREMENT_EXTENSION_V1 {
-                continue;
-            }
-            let decoded =
-                decode_observation_requirements(extension.bytes()).map_err(limit_or_malformed)?;
-            for requirement in decoded.as_slice() {
-                if !requirements.contains(requirement) {
-                    requirements.push(requirement.clone());
-                }
-            }
-        }
-    }
+pub(crate) fn chain_requirements(chain: &[&SignedGrant]) -> Result<Vec<ObservationRequirement>, VerificationFailure> {
+    let requirements = try_fold_items!(chain, Vec::new(), accumulated, _position, grant =>
+        collect_grant_requirements(accumulated, grant))?;
     if requirements.len() > MAX_OBSERVATION_REQUIREMENTS_PER_CHAIN {
-        return Err(VerificationFailure::Denied(
-            DenialReason::ResourceLimitExceeded,
-        ));
+        return Err(VerificationFailure::Denied(DenialReason::ResourceLimitExceeded));
     }
     Ok(requirements)
 }
@@ -108,108 +87,48 @@ pub(crate) fn chain_requirements(
 /// requirement that addresses it without keeping or narrowing it falls
 /// through to the authority kernel, whose extension law denies the edge as
 /// expanded.
-pub(crate) fn require_parent_requirements(
-    parent: &SignedGrant,
-    child: &SignedGrant,
-) -> Result<(), VerificationFailure> {
-    let parent_requirements = chain_requirements(&[parent])?;
-    if parent_requirements.is_empty() {
-        return Ok(());
-    }
-    let child_requirements = chain_requirements(&[child]).unwrap_or_default();
-    if parent_requirements.iter().all(|parent| {
-        child_requirements.iter().any(|child| {
-            observation_schema_equal(child.schema(), parent.schema())
-                && requirement_subject_equal(child.subject(), parent.subject())
-        })
-    }) {
-        Ok(())
-    } else {
-        Err(VerificationFailure::Denied(
-            DenialReason::ObservationRequirementDropped,
-        ))
-    }
+pub(crate) fn require_parent_requirements(parent: &SignedGrant, child: &SignedGrant) -> Result<(), VerificationFailure> {
+    let parents = chain_requirements(&[parent])?;
+    if parents.is_empty() { return Ok(()); }
+    // Preserve the established refusal order: malformed child requirements
+    // address no parent, while the enclosing extension/authority checks still
+    // reject their payload. A malformed parent is propagated above.
+    let children = chain_requirements(&[child]).unwrap_or_default();
+    if every_parent_addressed(&parents, &children) { Ok(()) }
+    else { Err(VerificationFailure::Denied(DenialReason::ObservationRequirementDropped)) }
 }
 
-impl Stage<'_, '_> {
+impl<R: RegistryAccess + ?Sized> Stage<'_, R> {
     /// Evaluates every requirement in the chain and returns the observation
     /// that satisfied each one.
-    pub(crate) fn evaluate(
-        &self,
-        meter: &mut WorkMeter,
-    ) -> Result<Vec<ObservationSatisfaction>, VerificationFailure> {
+    pub(crate) fn evaluate(&self, meter: &mut WorkMeter)
+    -> Result<(Vec<ObservationSatisfaction>, Timestamp), VerificationFailure> {
         let requirements = chain_requirements(self.chain)?;
-        if requirements.is_empty() {
-            return Ok(Vec::new());
-        }
-        let mut anchors = Vec::with_capacity(requirements.len());
-        for requirement in &requirements {
-            let anchor = self
-                .context
-                .observer_anchors()
-                .iter()
-                .find(|anchor| anchor.id() == requirement.observer_anchor());
-            if let Some(anchor) = anchor
-                && self.in_authority_chain(anchor.principal())
-            {
-                return Err(VerificationFailure::Denied(
-                    DenialReason::ObserverInAuthorityChain,
-                ));
-            }
-            anchors.push(anchor);
-        }
+        if requirements.is_empty() { return Ok((Vec::new(), Timestamp::new(u64::MAX))); }
+        // All observer/authority-separation checks precede attachment decoding.
+        let anchors = try_fold_items!(&requirements, Vec::with_capacity(requirements.len()), anchors, _position, requirement =>
+            self.append_anchor(anchors, requirement))?;
         let mut candidates = self.candidates()?;
-        let mut satisfactions = Vec::with_capacity(requirements.len());
-        let mut unavailable = None;
-        for (requirement, anchor) in requirements.iter().zip(anchors) {
-            match self.requirement(requirement, anchor, &mut candidates, meter)? {
-                Ok(satisfaction) => satisfactions.push(satisfaction),
-                Err(VerificationFailure::Denied(reason)) => {
-                    return Err(VerificationFailure::Denied(reason));
-                }
-                Err(indeterminate) => {
-                    unavailable.get_or_insert(indeterminate);
-                }
-            }
-        }
-        match unavailable {
+        let initial = ObservationTally { satisfactions: Vec::with_capacity(requirements.len()), unavailable: None,
+            valid_through: Timestamp::new(u64::MAX) };
+        let tally = try_fold_items!(&requirements, initial, tally, position, requirement =>
+            self.evaluate_requirement(tally, requirement, anchor_at(&anchors, position), &mut candidates, meter))?;
+        match tally.unavailable {
             Some(failure) => Err(failure),
-            None => Ok(satisfactions),
+            None => Ok((tally.satisfactions, tally.valid_through)),
         }
     }
 
     fn in_authority_chain(&self, principal: &PrincipalId) -> bool {
         principal_id_equal(principal, self.root)
             || principal_id_equal(principal, self.action.envelope().actor())
-            || self.chain.iter().any(|grant| {
-                principal_id_equal(principal, grant.statement().issuer())
-                    || principal_id_equal(principal, grant.statement().subject())
-            })
+            || chain_contains_principal(self.chain, principal)
     }
 
     fn candidates(&self) -> Result<Vec<Candidate>, VerificationFailure> {
-        let mut candidates = Vec::new();
-        for descriptor in self.action.envelope().attachments() {
-            if descriptor.media_type().as_str() != OBSERVATION_MEDIA_TYPE {
-                continue;
-            }
-            let Some(detached) = self
-                .canonical
-                .detached_attachments()
-                .iter()
-                .find(|attachment| attachment.digest() == descriptor.digest())
-            else {
-                continue;
-            };
-            let observation = decode_signed_observation(detached.bytes(), self.context.limits())
-                .map_err(limit_or_malformed)?;
-            candidates.push(Candidate {
-                digest: descriptor.digest(),
-                observation,
-                authentic: None,
-            });
-        }
-        candidates.sort_by_key(|candidate| candidate.digest);
+        let mut candidates = try_fold_items!(self.action.envelope().attachments(), Vec::new(), candidates, _position, descriptor =>
+            self.append_candidate(candidates, descriptor))?;
+        candidates.sort();
         Ok(candidates)
     }
 
@@ -221,7 +140,7 @@ impl Stage<'_, '_> {
         anchor: Option<&ObserverAnchor>,
         candidates: &mut [Candidate],
         meter: &mut WorkMeter,
-    ) -> Result<Result<ObservationSatisfaction, VerificationFailure>, VerificationFailure> {
+    ) -> Result<Result<Satisfied, VerificationFailure>, VerificationFailure> {
         let Some(anchor) = anchor else {
             return Ok(Err(VerificationFailure::Indeterminate(
                 Requirement::ObservationMissing,
@@ -244,28 +163,18 @@ impl Stage<'_, '_> {
         let conditions = u64::try_from(requirement.conditions().len()).unwrap_or(u64::MAX);
         let observations = u64::try_from(candidates.len()).unwrap_or(u64::MAX);
         meter.reserve(conditions.saturating_mul(observations).saturating_add(1))?;
-        let mut any_eligible = false;
-        let mut satisfying = None;
-        for candidate in candidates.iter_mut() {
-            if !self.eligible(requirement, anchor, &subject, candidate, meter)? {
-                continue;
-            }
-            any_eligible = true;
-            if observation_conditions_hold(
-                requirement.conditions(),
-                &action_values,
-                candidate.observation.statement().facts(),
-            ) {
-                satisfying = Some(candidate.digest);
-                break;
-            }
-        }
+        let scan = self.scan_candidates(requirement, anchor, &subject, &action_values, candidates, meter)?;
+        let any_eligible = scan.any_eligible;
+        let satisfying = scan.satisfying;
         let verdict = requirement_verdict(any_eligible, satisfying.is_some());
         Ok(match (verdict, satisfying) {
-            (RequirementVerdict::Satisfied, Some(digest)) => {
+            (RequirementVerdict::Satisfied, Some((digest, valid_through))) => {
                 let id = auths_codec::observation_requirement_id(requirement)
-                    .map_err(limit_or_malformed)?;
-                Ok(ObservationSatisfaction::new(id, digest))
+                    .map_err(|error| limit_or_malformed(error))?;
+                Ok(Satisfied {
+                    record: ObservationSatisfaction::new(id, digest),
+                    valid_through,
+                })
             }
             (RequirementVerdict::ConditionFalse, _) => Err(VerificationFailure::Denied(
                 DenialReason::ObservationConditionFalse,
@@ -282,39 +191,19 @@ impl Stage<'_, '_> {
         clippy::type_complexity,
         reason = "the pair is the resolved subject and one action value per condition"
     )]
-    fn action_facts(
-        &self,
-        requirement: &ObservationRequirement,
-        policy: &dyn ProfilePolicy,
-        meter: &mut WorkMeter,
-    ) -> Result<Option<(ResourceId, Vec<Option<FactValue>>)>, VerificationFailure> {
-        let mut resolve = |name| -> Result<Option<FactValue>, VerificationFailure> {
-            meter.reserve(policy.maximum_work_units(self.canonical))?;
-            policy
-                .action_fact(self.canonical, name)
-                .map_err(registry_operation_failure)
-        };
+    fn action_facts<P: ProfilePolicy + ?Sized>(&self, requirement: &ObservationRequirement, policy: &P, meter: &mut WorkMeter)
+    -> Result<Option<(ResourceId, Vec<Option<FactValue>>)>, VerificationFailure> {
         let subject = match requirement.subject() {
             ObservationSubject::Resource(resource) => resource.clone(),
-            ObservationSubject::ActionFact(name) => match resolve(name)? {
+            ObservationSubject::ActionFact(name) => match self.resolve_action_fact(policy, name, meter)? {
                 Some(FactValue::Text(text)) => match ResourceId::parse(text.as_str()) {
-                    Ok(resource) => resource,
-                    Err(_) => return Ok(None),
+                    Ok(resource) => resource, Err(_) => return Ok(None),
                 },
                 _ => return Ok(None),
             },
         };
-        let mut action_values = Vec::with_capacity(requirement.conditions().len());
-        for condition in requirement.conditions() {
-            match condition.action_fact() {
-                None => action_values.push(None),
-                Some(name) => match resolve(name)? {
-                    Some(value) => action_values.push(Some(value)),
-                    None => return Ok(None),
-                },
-            }
-        }
-        Ok(Some((subject, action_values)))
+        let values = self.gather_action_values(requirement.conditions(), policy, meter)?;
+        Ok(values.map(|values| (subject, values)))
     }
 
     fn eligible(
@@ -356,31 +245,17 @@ impl Stage<'_, '_> {
         Ok(authentic)
     }
 
-    fn subject_in_namespaces(
-        &self,
-        anchor: &ObserverAnchor,
-        subject: &ResourceId,
-        meter: &mut WorkMeter,
-    ) -> Result<bool, VerificationFailure> {
-        let matcher: &dyn ResourceMatcher = self
-            .registries
-            .resource_matcher(
-                self.context.accepted_registries(),
-                self.context.resource_matcher(),
-            )
-            .ok_or(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedResourceMatcher,
-            ))?;
-        for namespace in anchor.subject_namespaces() {
-            meter.reserve(matcher.maximum_work_units(namespace, subject))?;
-            if matcher
-                .matches(namespace, subject)
-                .map_err(registry_operation_failure)?
-            {
-                return Ok(true);
-            }
+    fn subject_in_namespaces(&self, anchor: &ObserverAnchor, subject: &ResourceId, meter: &mut WorkMeter)
+    -> Result<bool, VerificationFailure> {
+        let matcher = self.registries.resource_matcher(self.context.accepted_registries(), self.context.resource_matcher())
+            .ok_or(VerificationFailure::Indeterminate(Requirement::UnsupportedResourceMatcher))?;
+        let mut outcome = Ok(false);
+        let mut position = 0;
+        while position < anchor.subject_namespaces().len() && matches!(&outcome, Ok(false)) {
+            outcome = match_namespace(&anchor.subject_namespaces()[position], subject, matcher, meter);
+            position += 1;
         }
-        Ok(false)
+        outcome
     }
 
     /// Verifies the observer's signature with the same principal-method and
@@ -401,13 +276,7 @@ impl Stage<'_, '_> {
         ) else {
             return Ok(false);
         };
-        if observation
-            .evidence()
-            .iter()
-            .any(|object| !accepted.accepts_evidence_type(object.evidence_type()))
-        {
-            return Ok(false);
-        }
+        if !evidence_accepted(observation.evidence(), accepted) { return Ok(false); }
         let reservation = method.maximum_work_units();
         meter.reserve(reservation)?;
         meter.reserve(suite.work_units())?;
@@ -415,8 +284,8 @@ impl Stage<'_, '_> {
         let Ok(preimage) = auths_codec::observation_signing_preimage(statement, descriptor) else {
             return Ok(false);
         };
-        let evidence: Vec<_> = observation.evidence().iter().collect();
-        let Ok(control) = method
+        let evidence = borrowed_evidence(observation.evidence());
+        let evaluated = method
             .evaluate_control(
                 PrincipalControlInput {
                     principal: statement.observer(),
@@ -431,20 +300,14 @@ impl Stage<'_, '_> {
                 },
                 DiagnosticMode::Discard,
             )
-            .into_result()
-        else {
-            return Ok(false);
-        };
+            .into_result();
+        let Some(control) = control_result(evaluated)? else { return Ok(false); };
         if control.work_units() > reservation {
             return Err(VerificationFailure::Denied(
                 DenialReason::ResourceLimitExceeded,
             ));
         }
-        let supplied: Vec<_> = observation
-            .evidence()
-            .iter()
-            .map(auths_model::EvidenceObject::id)
-            .collect();
+        let supplied = evidence_identifiers(observation.evidence());
         if control.consumed_evidence() != supplied.as_slice() {
             return Ok(false);
         }
@@ -458,9 +321,245 @@ impl Stage<'_, '_> {
     }
 }
 
+// Candidate equality/order is its stable sort key only. No candidate is
+// deduplicated or authenticated by this comparison; signature checks use the
+// complete observation and evidence below.
+impl PartialEq for Candidate { fn eq(&self, other: &Self) -> bool { self.digest == other.digest } }
+impl Eq for Candidate {}
+impl PartialOrd for Candidate {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> { Some(self.cmp(other)) }
+}
+impl Ord for Candidate { fn cmp(&self, other: &Self) -> core::cmp::Ordering { self.digest.cmp(&other.digest) } }
+
+struct ObservationTally {
+    satisfactions: Vec<ObservationSatisfaction>,
+    unavailable: Option<VerificationFailure>,
+    valid_through: Timestamp,
+}
+struct CandidateScan {
+    any_eligible: bool,
+    satisfying: Option<(AttachmentDigest, Timestamp)>,
+}
+
+fn count_observation_descriptor(count: usize, descriptor: &AttachmentDescriptor) -> Result<usize, VerificationFailure> {
+    if descriptor.media_type().as_str() != OBSERVATION_MEDIA_TYPE { return Ok(count); }
+    let next = count.checked_add(1).ok_or(VerificationFailure::Denied(DenialReason::ResourceLimitExceeded))?;
+    let oversized = match usize::try_from(descriptor.byte_length()) {
+        Ok(length) => length > MAX_OBSERVATION_BYTES,
+        Err(_) => true,
+    };
+    if next > MAX_OBSERVATION_ATTACHMENTS || oversized {
+        Err(VerificationFailure::Denied(DenialReason::ResourceLimitExceeded))
+    } else { Ok(next) }
+}
+fn append_requirement(mut requirements: Vec<ObservationRequirement>, requirement: &ObservationRequirement) -> Vec<ObservationRequirement> {
+    if !requirements.contains(requirement) { requirements.push(requirement.clone()); }
+    requirements
+}
+fn collect_extension_requirements(requirements: Vec<ObservationRequirement>, extension: &CriticalExtension)
+-> Result<Vec<ObservationRequirement>, VerificationFailure> {
+    if extension.id().as_str() != OBSERVATION_REQUIREMENT_EXTENSION_V1 { return Ok(requirements); }
+    let decoded = decode_observation_requirements(extension.bytes()).map_err(|error| limit_or_malformed(error))?;
+    let mut output = requirements;
+    let mut position = 0;
+    while position < decoded.as_slice().len() {
+        output = append_requirement(output, &decoded.as_slice()[position]);
+        position += 1;
+    }
+    Ok(output)
+}
+fn collect_grant_requirements(requirements: Vec<ObservationRequirement>, grant: &SignedGrant)
+-> Result<Vec<ObservationRequirement>, VerificationFailure> {
+    try_fold_items!(grant.statement().extensions().as_slice(), requirements, accumulated, _position, extension =>
+        collect_extension_requirements(accumulated, extension))
+}
+fn addresses_parent(children: &[ObservationRequirement], parent: &ObservationRequirement) -> bool {
+    let mut position = 0;
+    let mut addressed = false;
+    while position < children.len() && !addressed {
+        let child = &children[position];
+        addressed = observation_schema_equal(child.schema(), parent.schema())
+            && requirement_subject_equal(child.subject(), parent.subject());
+        position += 1;
+    }
+    addressed
+}
+fn every_parent_addressed(parents: &[ObservationRequirement], children: &[ObservationRequirement]) -> bool {
+    let mut position = 0;
+    let mut kept = true;
+    while position < parents.len() && kept { kept = addresses_parent(children, &parents[position]); position += 1; }
+    kept
+}
+fn chain_contains_principal(chain: &[&SignedGrant], principal: &PrincipalId) -> bool {
+    let mut position = 0;
+    let mut found = false;
+    while position < chain.len() && !found {
+        let statement = chain[position].statement();
+        found = principal_id_equal(principal, statement.issuer()) || principal_id_equal(principal, statement.subject());
+        position += 1;
+    }
+    found
+}
+fn anchor_for<'a>(anchors: &'a [ObserverAnchor], identifier: &auths_model::ObserverAnchorId) -> Option<&'a ObserverAnchor> {
+    let mut position = 0;
+    while position < anchors.len() {
+        if anchors[position].id() == identifier { return Some(&anchors[position]); }
+        position += 1;
+    }
+    None
+}
+fn anchor_at<'a>(anchors: &[Option<&'a ObserverAnchor>], position: usize) -> Option<&'a ObserverAnchor> {
+    match anchors.get(position) { Some(anchor) => *anchor, None => None }
+}
+fn payload_for(payloads: &[DetachedAttachment], digest: AttachmentDigest) -> Option<&DetachedAttachment> {
+    let mut position = 0;
+    while position < payloads.len() {
+        if payloads[position].digest() == digest { return Some(&payloads[position]); }
+        position += 1;
+    }
+    None
+}
+fn evidence_accepted(evidence: &[EvidenceObject], accepted: &auths_model::AcceptedRegistries) -> bool {
+    let mut position = 0;
+    let mut valid = true;
+    while position < evidence.len() && valid {
+        valid = accepted.accepts_evidence_type(evidence[position].evidence_type());
+        position += 1;
+    }
+    valid
+}
+fn borrowed_evidence(evidence: &[EvidenceObject]) -> Vec<&EvidenceObject> {
+    let mut output = Vec::with_capacity(evidence.len());
+    let mut position = 0;
+    while position < evidence.len() { output.push(&evidence[position]); position += 1; }
+    output
+}
+fn evidence_identifiers(evidence: &[EvidenceObject]) -> Vec<EvidenceId> {
+    let mut output = Vec::with_capacity(evidence.len());
+    let mut position = 0;
+    while position < evidence.len() { output.push(evidence[position].id()); position += 1; }
+    output
+}
+
+// Unlike invalid optional evidence, resource exhaustion is a stage failure.
+// Keep the payload generic so the exact move/classification can be source-
+// refined without assuming anything about an adapter's successful output.
+fn control_result<T>(result: Result<T, PrincipalControlError>) -> Result<Option<T>, VerificationFailure> {
+    match result {
+        Ok(control) => Ok(Some(control)),
+        Err(PrincipalControlError::ResourceLimitExceeded) => Err(VerificationFailure::Denied(DenialReason::ResourceLimitExceeded)),
+        Err(_) => Ok(None),
+    }
+}
+fn match_namespace<M: ResourceMatcher + ?Sized>(namespace: &ResourceId, subject: &ResourceId, matcher: &M, meter: &mut WorkMeter)
+-> Result<bool, VerificationFailure> {
+    meter.reserve(matcher.maximum_work_units(namespace, subject))?;
+    matcher.matches(namespace, subject).map_err(|error| registry_operation_failure(error))
+}
+
+impl<R: RegistryAccess + ?Sized> Stage<'_, R> {
+    fn append_anchor<'s>(&'s self, mut anchors: Vec<Option<&'s ObserverAnchor>>, requirement: &ObservationRequirement)
+    -> Result<Vec<Option<&'s ObserverAnchor>>, VerificationFailure> {
+        let anchor = anchor_for(self.context.observer_anchors(), requirement.observer_anchor());
+        if let Some(anchor) = anchor && self.in_authority_chain(anchor.principal()) {
+            return Err(VerificationFailure::Denied(DenialReason::ObserverInAuthorityChain));
+        }
+        anchors.push(anchor);
+        Ok(anchors)
+    }
+    fn append_candidate(&self, mut candidates: Vec<Candidate>, descriptor: &AttachmentDescriptor)
+    -> Result<Vec<Candidate>, VerificationFailure> {
+        if descriptor.media_type().as_str() != OBSERVATION_MEDIA_TYPE { return Ok(candidates); }
+        let Some(detached) = payload_for(self.canonical.detached_attachments(), descriptor.digest()) else { return Ok(candidates); };
+        let observation = decode_signed_observation(detached.bytes(), self.context.limits()).map_err(|error| limit_or_malformed(error))?;
+        candidates.push(Candidate { digest: descriptor.digest(), observation: observation.into_value(), authentic: None });
+        Ok(candidates)
+    }
+    fn evaluate_requirement(&self, mut tally: ObservationTally, requirement: &ObservationRequirement,
+        anchor: Option<&ObserverAnchor>, candidates: &mut [Candidate], meter: &mut WorkMeter)
+    -> Result<ObservationTally, VerificationFailure> {
+        match self.requirement(requirement, anchor, candidates, meter)? {
+            Ok(satisfied) => {
+                tally.valid_through = tally.valid_through.min(satisfied.valid_through);
+                tally.satisfactions.push(satisfied.record);
+            }
+            Err(VerificationFailure::Denied(reason)) => return Err(VerificationFailure::Denied(reason)),
+            Err(unavailable) => if tally.unavailable.is_none() { tally.unavailable = Some(unavailable); },
+        }
+        Ok(tally)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn consider_candidate(&self, mut scan: CandidateScan, requirement: &ObservationRequirement, anchor: &ObserverAnchor,
+        subject: &ResourceId, action_values: &[Option<FactValue>], candidate: &mut Candidate, meter: &mut WorkMeter)
+    -> Result<CandidateScan, VerificationFailure> {
+        if !self.eligible(requirement, anchor, subject, candidate, meter)? { return Ok(scan); }
+        scan.any_eligible = true;
+        if observation_conditions_hold(requirement.conditions(), action_values, candidate.observation.statement().facts()) {
+            let statement = candidate.observation.statement();
+            let horizon = anchor.validity().expires_at().min(Timestamp::new(statement.observed_at().get()
+                .saturating_add(u64::from(requirement.max_age_seconds()))));
+            scan.satisfying = Some((candidate.digest, horizon));
+        }
+        Ok(scan)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn scan_candidates(&self, requirement: &ObservationRequirement, anchor: &ObserverAnchor, subject: &ResourceId,
+        action_values: &[Option<FactValue>], candidates: &mut [Candidate], meter: &mut WorkMeter)
+    -> Result<CandidateScan, VerificationFailure> {
+        let mut outcome = Ok(CandidateScan { any_eligible: false, satisfying: None });
+        let mut position = 0;
+        while position < candidates.len() && matches!(&outcome, Ok(scan) if scan.satisfying.is_none()) {
+            outcome = match outcome {
+                Ok(scan) => self.consider_candidate(scan, requirement, anchor, subject, action_values, &mut candidates[position], meter),
+                Err(failure) => Err(failure),
+            };
+            position += 1;
+        }
+        outcome
+    }
+    fn resolve_action_fact<P: ProfilePolicy + ?Sized>(&self, policy: &P, name: &FactName, meter: &mut WorkMeter)
+    -> Result<Option<FactValue>, VerificationFailure> {
+        meter.reserve(policy.maximum_work_units(self.canonical))?;
+        policy.action_fact(self.canonical, name).map_err(|error| registry_operation_failure(error))
+    }
+    fn append_action_value<P: ProfilePolicy + ?Sized>(&self, values: Option<Vec<Option<FactValue>>>, condition: &ObservationCondition,
+        policy: &P, meter: &mut WorkMeter) -> Result<Option<Vec<Option<FactValue>>>, VerificationFailure> {
+        let Some(mut values) = values else { return Ok(None); };
+        match condition.action_fact() {
+            None => values.push(None),
+            Some(name) => match self.resolve_action_fact(policy, name, meter)? {
+                Some(value) => values.push(Some(value)),
+                None => return Ok(None),
+            },
+        }
+        Ok(Some(values))
+    }
+    fn gather_action_values<P: ProfilePolicy + ?Sized>(&self, conditions: &[ObservationCondition], policy: &P, meter: &mut WorkMeter)
+    -> Result<Option<Vec<Option<FactValue>>>, VerificationFailure> {
+        let mut outcome = Ok(Some(Vec::with_capacity(conditions.len())));
+        let mut position = 0;
+        while position < conditions.len() && matches!(&outcome, Ok(Some(_))) {
+            outcome = match outcome {
+                Ok(values) => self.append_action_value(values, &conditions[position], policy, meter),
+                Err(failure) => Err(failure),
+            };
+            position += 1;
+        }
+        outcome
+    }
+}
+
+#[cfg(test)]
+#[path = "observation_reference.rs"]
+mod reference;
+#[cfg(test)]
+#[path = "observation_parity_tests.rs"]
+mod parity_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use auths_registries::ImmutableRegistries;
     use alloc::vec;
     use auths_model::{
         ConditionTest, CriticalExtension, CriticalExtensions, ExtensionId, FactName,

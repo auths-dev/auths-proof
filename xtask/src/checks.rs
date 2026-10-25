@@ -175,6 +175,19 @@ pub(crate) fn bindings_check() -> Result<(), String> {
 }
 
 pub(crate) fn bindings_conformance() -> Result<(), String> {
+    command_in(
+        "node",
+        &[
+            "--experimental-strip-types",
+            "--test",
+            "bindings/independent/typescript/ed25519-encoding.test.ts",
+            "bindings/independent/typescript/p256-corpus.test.ts",
+            "bindings/independent/typescript/snapshot-uniqueness.test.ts",
+        ],
+        &root(),
+        None,
+    )?;
+
     command_in("npm", &["test"], &root().join("bindings/typescript"), None)?;
     npm_package_smoke()?;
     let go_cache = root().join("target/go-build-cache");

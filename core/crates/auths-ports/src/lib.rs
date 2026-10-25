@@ -28,33 +28,9 @@ use auths_model::{
 };
 use core::fmt;
 use diagnostics::{ControlEvaluation, DiagnosticMode};
-use sha2::{Digest as _, Sha256};
 
-/// Computes an unambiguous domain-separated commitment to ordered immutable
-/// configuration components.
-#[must_use]
-pub fn configuration_id<'a>(
-    domain: &[u8],
-    components: impl IntoIterator<Item = &'a [u8]>,
-) -> AdapterConfigurationId {
-    let mut hasher = Sha256::new();
-    hasher.update(b"auths-proof-adapter-configuration-v1");
-    hasher.update(
-        u64::try_from(domain.len())
-            .unwrap_or(u64::MAX)
-            .to_be_bytes(),
-    );
-    hasher.update(domain);
-    for component in components {
-        hasher.update(
-            u64::try_from(component.len())
-                .unwrap_or(u64::MAX)
-                .to_be_bytes(),
-        );
-        hasher.update(component);
-    }
-    AdapterConfigurationId::new(hasher.finalize().into())
-}
+mod configuration;
+pub use configuration::{configuration_id, configuration_id_from_parts};
 
 /// Bounded facts a principal method established from immutable evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -447,6 +423,40 @@ pub enum StatusDecision {
     WrongMethod,
 }
 
+/// One exact status decision and the last inclusive time for which its
+/// selected snapshot and statements remain fresh. This is a property of the
+/// supplied immutable evidence, not a promise that no later revocation exists.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StatusEvaluation {
+    decision: StatusDecision,
+    valid_through: Timestamp,
+}
+
+impl StatusEvaluation {
+    /// Constructs a method's temporal witness. An authorizing decision must
+    /// cover the evaluation time and every time through `valid_through` under
+    /// the same evidence and policy. Expiry-only policy has no status bound.
+    #[must_use]
+    pub const fn new(decision: StatusDecision, valid_through: Timestamp) -> Self {
+        Self {
+            decision,
+            valid_through,
+        }
+    }
+
+    /// The evaluated status decision.
+    #[must_use]
+    pub const fn decision(self) -> StatusDecision {
+        self.decision
+    }
+
+    /// Inclusive freshness horizon of the evidence actually selected.
+    #[must_use]
+    pub const fn valid_through(self) -> Timestamp {
+        self.valid_through
+    }
+}
+
 /// Pure exact status-method implementation shared by principal and grant status.
 pub trait StatusMethod {
     /// Returns the exact status-method identifier.
@@ -472,7 +482,7 @@ pub trait StatusMethod {
         principal: &PrincipalId,
         view: StatusView<'_>,
         evaluation_time: Timestamp,
-    ) -> Result<StatusDecision, RegistryOperationError>;
+    ) -> Result<StatusEvaluation, RegistryOperationError>;
     /// Evaluates grant status for a branch under a trust anchor, with the same
     /// visibility and selection rules.
     ///
@@ -486,7 +496,7 @@ pub trait StatusMethod {
         grant: GrantId,
         view: StatusView<'_>,
         evaluation_time: Timestamp,
-    ) -> Result<StatusDecision, RegistryOperationError>;
+    ) -> Result<StatusEvaluation, RegistryOperationError>;
 }
 
 /// Pure exact assurance-claim validation rule.

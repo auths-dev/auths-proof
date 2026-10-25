@@ -1,0 +1,183 @@
+(library
+ (name native_region_shape)
+ (wrapped false)
+ (modules region_shape region_scope region_equations region_match impl_regions predicate_metadata quantified_dictionary diagnostic closed_type closed_arguments instance_view callable_instance method_instance signature_instance dynamic_method quantified_projection static_targets return_signature return_region_certificate function_frame writer_runtime writer_input_bound native_capture_candidate global_view type_view vtable_shape vtable_field vtable_cast vtable_receiver vtable_initializer vtable_injection vtable_dispatch vtable_specialization vtable_instance virtual_shim virtual_receiver prepared_injection capture_return capture_scope source_call capture_callsite source_path iteration_path box_carrier closure_capture closure_invocation closure_receiver closure_value_path closure_argument closure_return closure_return_call carrier_effect box_receiver_call value_origin value_flow source_roots source_closure vtable_graph)
+ (libraries charon yojson))
+(library
+ (name construction_json_stream)
+ (wrapped false)
+ (modules json_stream)
+ (libraries yojson unix))
+(library
+ (name native_borrow_projection)
+ (wrapped false)
+ (modules borrow_projection native_capture_value native_borrow_protocol native_borrow_wiring native_borrow_view native_borrow_transport current_borrow_carrier native_borrow_defaults native_borrow_execution native_borrow_full_abi native_payload_layout native_pure_payload native_pure_expressions native_current_wiring native_current_seeds native_capture_closures native_default_bindings native_projector_levels native_binding_closures native_compatible_programs native_borrow_levels native_type_syntax native_backward_types native_root_origins native_root_payload native_root_bindings native_root_expressions native_nested_reconstruction native_scoped_defaults native_foreign_defaults native_owned_bindings native_root_updates native_root_programs native_projector_kinds native_consumed_coverage native_consumed_reconstruction)
+ (libraries charon yojson native_region_shape aeneas))
+(executable
+ (name box_return_plan)
+ (modules box_return_plan)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name prepared_source_cases)
+ (modules prepared_source_cases)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name virtual_source_cases)
+ (modules virtual_source_cases)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name adapter_graph_plan)
+ (modules adapter_graph_plan)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name native_capture_plan)
+ (modules native_capture_plan)
+ (libraries charon yojson native_region_shape native_borrow_projection aeneas))
+(executable
+ (name loan_lookup_cases)
+ (modules loan_lookup_cases)
+ (libraries charon aeneas))
+(executable
+ (name borrow_projection_cases)
+ (modules borrow_projection_cases)
+ (libraries charon yojson native_region_shape native_borrow_projection aeneas))
+(executable
+ (name return_capture_plan)
+ (modules return_capture_plan)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name virtual_frame_plan)
+ (modules virtual_frame_plan)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name vtable_instances_plan)
+ (modules vtable_instances_plan)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name source_slice)
+ (modules source_slice)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name callback_origins)
+ (modules callback_origins)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name argument_shapes)
+ (modules argument_shapes)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name closure_plan)
+ (modules closure_plan)
+ (libraries charon yojson native_region_shape))
+(executable
+ (name frame_plan)
+ (modules frame_plan)
+ (libraries charon yojson construction_json_stream native_region_shape))
+(executable
+ (name prepared_plan)
+ (modules prepared_plan)
+ (libraries charon yojson construction_json_stream native_region_shape))
+(test
+ (name source_path_cases)
+ (modules source_path_cases)
+ (libraries charon native_region_shape))
+(test
+ (name iteration_path_cases)
+ (modules iteration_path_cases)
+ (libraries charon native_region_shape))
+(test
+ (name capture_scope_cases)
+ (modules capture_scope_cases)
+ (libraries charon native_region_shape))
+(test
+ (name source_roots_cases)
+ (modules source_roots_cases)
+ (libraries native_region_shape))
+(test
+ (name vtable_instance_cases)
+ (modules vtable_instance_cases)
+ (libraries charon native_region_shape))
+(test
+ (name closed_arguments_cases)
+ (modules closed_arguments_cases)
+ (libraries charon native_region_shape))
+(test
+ (name vtable_dispatch_cases)
+ (modules vtable_dispatch_cases)
+ (libraries charon native_region_shape))
+(test
+ (name vtable_specialization_cases)
+ (modules vtable_specialization_cases)
+ (libraries charon native_region_shape))
+(test
+ (name signature_instance_cases)
+ (modules signature_instance_cases)
+ (libraries charon native_region_shape))
+(test
+ (name vtable_cast_cases)
+ (modules vtable_cast_cases)
+ (libraries charon native_region_shape))
+(test
+ (name vtable_field_cases)
+ (modules vtable_field_cases)
+ (libraries charon native_region_shape))
+(test
+ (name method_instance_cases)
+ (modules method_instance_cases)
+ (libraries charon native_region_shape))
+(test
+ (name vtable_initializer_cases)
+ (modules vtable_initializer_cases)
+ (libraries charon native_region_shape))
+(test
+ (name vtable_shape_cases)
+ (modules vtable_shape_cases)
+ (libraries charon native_region_shape))
+(test
+ (name region_scope_cases)
+ (modules region_scope_cases)
+ (libraries charon native_region_shape))
+(test
+ (name closed_type_cases)
+ (modules closed_type_cases)
+ (libraries charon native_region_shape))
+(test
+ (name quantified_projection_cases)
+ (modules quantified_projection_cases)
+ (libraries charon native_region_shape))
+(test
+ (name callable_instance_cases)
+ (modules callable_instance_cases)
+ (libraries charon native_region_shape))
+(test
+ (name region_shape_cases)
+ (modules region_shape_cases)
+ (libraries charon native_region_shape))
+(test
+ (name static_targets_cases)
+ (modules static_targets_cases)
+ (libraries charon native_region_shape))
+(test
+ (name region_equations_cases)
+ (modules region_equations_cases)
+ (libraries charon native_region_shape))
+(test
+ (name impl_regions_cases)
+ (modules impl_regions_cases)
+ (libraries charon native_region_shape))
+(test
+ (name quantified_dictionary_cases)
+ (modules quantified_dictionary_cases)
+ (libraries charon native_region_shape))
+(test
+ (name json_stream_cases)
+ (modules json_stream_cases)
+ (libraries yojson unix construction_json_stream))
+(test
+ (name scoped_substitution_cases)
+ (modules scoped_substitution_cases)
+ (libraries charon native_region_shape))
+(test
+ (name diagnostic_cases)
+ (modules diagnostic_cases)
+ (libraries charon yojson native_region_shape))

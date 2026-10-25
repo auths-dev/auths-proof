@@ -1,0 +1,217 @@
+--- a/src/symbolic/SymbolicToPureValues.ml
++++ b/src/symbolic/SymbolicToPureValues.ml
+@@ -531,6 +531,141 @@
+             (ctx, Some (infos, mk_tuple fields))
+     end
+ 
++(** A source-derived reconstruction plan. Reference/Box wrappers are erased
++    only after checking their complete native types agree. Nominal fields and
++    enum rows come from the existing checked source-field expansion. *)
++type consumed_projection_plan = {
++  consumed_native_type : ty;
++  consumed_selection : consumed_projection_selection;
++}
++and consumed_projection_selection =
++  | ConsumedCurrent
++  | ConsumedIncoming
++  | ConsumedStructure of consumed_projection_plan list
++  | ConsumedEnumeration of (T.variant_id * consumed_projection_plan list) list
++
++type consumed_current_reconstruction = {
++  consumed_source_tree : SymbolicToPureBorrowLevels.tree;
++  consumed_plan : consumed_projection_plan;
++  consumed_native : texpr;
++}
++
++let compile_consumed_current_reconstruction (span : Meta.span)
++    (context : C.decls_ctx) (owned : T.RegionId.Set.t) (source : T.ty)
++    : consumed_current_reconstruction =
++  let module L = SymbolicToPureBorrowLevels in
++  let tree = L.describe (Some span) context source in
++  let is_owned = function T.RVar (Free region) -> T.RegionId.Set.mem region owned | _ -> false in
++  let is_current plan = match plan.consumed_selection with ConsumedCurrent -> true | _ -> false in
++  let rec plan (tree : L.tree) =
++    let native = translate_fwd_ty (Some span) context tree.source in
++    let erase child =
++      let child = plan child in
++      [%cassert] span (native = child.consumed_native_type)
++        "A consumed projection erased a wrapper with a different native type";
++      child.consumed_selection in
++    let selection = match tree.node with
++      | L.Atom | L.Shared _ -> ConsumedCurrent
++      | L.Mutable (region, _) when is_owned region -> ConsumedIncoming
++      | L.Mutable (_, child) | L.Box child -> erase child
++      | L.Tuple fields ->
++          let fields = List.map plan fields in
++          if List.for_all is_current fields then ConsumedCurrent else ConsumedStructure fields
++      | L.Nominal (_, _, rows) ->
++          let rows = List.map (fun (row : L.row) ->
++            row.variant, List.mapi (fun index (actual, _, child) ->
++              [%cassert] span (actual = index) "Consumed reconstruction reordered an original source field";
++              plan child) row.fields) rows in
++          if List.for_all (fun (_, fields) -> List.for_all is_current fields) rows then ConsumedCurrent
++          else match rows with
++            | [None, fields] -> ConsumedStructure fields
++            | _ ->
++                let rows = List.map (fun (variant, fields) -> match variant with
++                  | Some variant -> variant, fields
++                  | None -> [%craise] span "Consumed enum reconstruction lost a source variant identity") rows in
++                [%cassert] span (List.length rows = List.length (List.sort_uniq compare (List.map fst rows)))
++                  "Consumed enum reconstruction repeats an original source variant";
++                ConsumedEnumeration rows in
++    { consumed_native_type = native; consumed_selection = selection } in
++  let selected = plan tree in
++  let counter = ref 0 in
++  let fresh ty =
++    [%cassert] span (!counter < Int.max_int) "Consumed reconstruction exhausted its local binder identifiers";
++    let variable = { id = FVarId.of_int !counter; basename = None; ty } in
++    incr counter; variable in
++  let variable = mk_texpr_from_fvar in
++  let fail ty = mk_result_fail_texpr_with_error_id span error_failure_id ty in
++  let switch value branches = mk_switch __FILE__ __LINE__ span value (Match branches) in
++  (* Partial reconstruction is explicit Result data, without a host callback or
++     a monadic/effectful let. Any unmatched partial enum propagates to the root,
++     where the complete captured current frame is retained. *)
++  let bind_result target source_type (source : texpr) (next : texpr -> texpr) : texpr =
++    [%cassert] span (source.ty = mk_result_ty source_type)
++      "A consumed reconstruction child changed its complete Result type";
++    let output = fresh source_type in
++    let body : texpr = next (variable output) in
++    [%cassert] span (body.ty = mk_result_ty target)
++      "A consumed reconstruction continuation changed its complete output type";
++    switch source [
++      close_branch span (mk_result_ok_pat (mk_tpat_from_fvar None output)) body;
++      close_branch span (mk_result_fail_pat_ignore_error source_type) (fail target)
++    ] in
++  let rec compile selected (current : texpr) (incoming : texpr) =
++    let native = selected.consumed_native_type in
++    [%cassert] span (current.ty = native && incoming.ty = native)
++      "A consumed reconstruction operand changed its full native type";
++    let reconstruct_fields variant fields current_fields incoming_fields =
++      [%cassert] span (List.length fields = List.length current_fields &&
++        List.length fields = List.length incoming_fields)
++        "A consumed reconstruction omitted a complete native field";
++      let rec collect values fields currents incoming = match fields, currents, incoming with
++        | [], [], [] -> mk_result_ok_texpr span (mk_adt_texpr span native variant (List.rev values))
++        | field :: rest, first :: current_rest, second :: incoming_rest ->
++            let value = compile field (variable first) (variable second) in
++            bind_result native field.consumed_native_type value (fun value ->
++              collect (value :: values) rest current_rest incoming_rest)
++        | _ -> [%craise] span "Consumed reconstruction field spines disagree" in
++      collect [] fields current_fields incoming_fields in
++    match selected.consumed_selection with
++    | ConsumedCurrent -> mk_result_ok_texpr span current
++    | ConsumedIncoming -> mk_result_ok_texpr span incoming
++    | ConsumedStructure fields ->
++        let current_fields = List.map (fun field -> fresh field.consumed_native_type) fields in
++        let incoming_fields = List.map (fun field -> fresh field.consumed_native_type) fields in
++        let pattern fields = mk_adt_pat native None (List.map (mk_tpat_from_fvar None) fields) in
++        let body = reconstruct_fields None fields current_fields incoming_fields in
++        let body = mk_closed_let span false (pattern incoming_fields) incoming body in
++        mk_closed_let span false (pattern current_fields) current body
++    | ConsumedEnumeration rows ->
++        switch current (List.map (fun (current_variant, fields) ->
++          let current_fields = List.map (fun field -> fresh field.consumed_native_type) fields in
++          let pattern = mk_adt_pat native (Some current_variant) (List.map (mk_tpat_from_fvar None) current_fields) in
++          let body = switch incoming (List.map (fun (incoming_variant, incoming_fields) ->
++            if current_variant = incoming_variant then (
++              [%cassert] span (List.map (fun field -> field.consumed_native_type) fields =
++                List.map (fun field -> field.consumed_native_type) incoming_fields)
++                "Matching consumed enum rows disagree on complete field types";
++              let incoming_fields = List.map (fun field -> fresh field.consumed_native_type) incoming_fields in
++              let pattern = mk_adt_pat native (Some incoming_variant) (List.map (mk_tpat_from_fvar None) incoming_fields) in
++              close_branch span pattern (reconstruct_fields (Some current_variant) fields current_fields incoming_fields)
++            ) else
++              let pattern = mk_adt_pat native (Some incoming_variant)
++                (List.map (fun field -> mk_ignored_pat field.consumed_native_type) incoming_fields) in
++              close_branch span pattern (fail native)) rows) in
++          close_branch span pattern body) rows) in
++  let native = selected.consumed_native_type in
++  let current = fresh native and incoming = fresh native in
++  let partial = compile selected (variable current) (variable incoming) in
++  let output = fresh native in
++  let body = switch partial [
++    close_branch span (mk_result_ok_pat (mk_tpat_from_fvar None output)) (variable output);
++    close_branch span (mk_result_fail_pat_ignore_error native) (variable current)
++  ] in
++  let body = mk_closed_lambdas span (List.map (mk_tpat_from_fvar None) [current; incoming]) body in
++  [%cassert] span (body.ty = mk_arrows [native; native] native && FVarId.Set.is_empty (texpr_get_fvars body))
++    "Consumed reconstruction must be closed with its exact current/incoming interface";
++  { consumed_source_tree = tree; consumed_plan = selected; consumed_native = body }
++
+ (** Explore an abstraction value and convert it to a consumed value by
+     collecting all the meta-values from the ended *loans*. We assume the avalue
+     was generated by a loan projector.
+@@ -562,7 +697,7 @@
+           current_level bc
+     | ASymbolic (pm, aproj) ->
+         [%sanity_check] ctx.span (pm = PNone);
+-        aproj_to_consumed_aux ctx abs_regions abs_level current_level aproj
++        aproj_to_consumed_aux ctx ectx abs_regions abs_level current_level aproj
+           av.ty
+     | AIgnored mv -> (
+         if filter then None
+@@ -712,7 +847,7 @@
+   | V.AEndedSharedBorrow | V.AProjSharedBorrow _ ->
+       [%craise] ctx.span "Unimplemented"
+ 
+-and aproj_to_consumed_aux (ctx : bs_ctx) (_abs_regions : T.RegionId.Set.t)
++and aproj_to_consumed_aux (ctx : bs_ctx) (ectx : C.eval_ctx) (abs_regions : T.RegionId.Set.t)
+     (abs_level : abs_level) (current_level : abs_level) (aproj : V.aproj)
+     (ty : T.ty) : texpr option =
+   match aproj with
+@@ -726,26 +861,36 @@
+         Some (symbolic_value_to_texpr ctx msv)
+       else None
+   | V.AEndedProjLoans
+-      { proj = _; consumed = [ (mnv, child_aproj) ]; borrows = [] } ->
++      { proj = original; consumed = [ (mnv, child_aproj) ]; borrows = [] } ->
+       if abs_level = current_level then (
+         [%sanity_check] ctx.span (child_aproj = AEmpty);
+-        (* TODO: check that the updated symbolic values covers all the cases
+-           (part of the symbolic value might have been updated, and the rest
+-           left unchanged) - it might happen with nested borrows (see the documentation
+-           of [AProjLoans]). For now we check that there are no nested borrows
+-           to make sure we have to update this part of the code once we add support
+-           for nested borrows.
+-        *)
+-        [%sanity_check] ctx.span
+-          (not
+-             (TypesUtils.ty_has_nested_borrows (Some ctx.span)
+-                ctx.type_ctx.type_infos ty));
+-        (* The symbolic value was updated.
+-
+-         We're using the projection type as the type of the symbolic value -
+-         it doesn't really matter. *)
+-        let mnv : V.symbolic_value = { sv_id = mnv.sv_id; sv_ty = ty } in
+-        Some (symbolic_value_to_texpr ctx mnv))
++        if TypesUtils.ty_has_nested_borrows (Some ctx.span) ctx.type_ctx.type_infos ty then (
++          let origin = mnv.received in
++          [%cassert] ctx.span (origin.incoming_id = original)
++            "A consumed update changed its actual source receiver identity";
++          let erase = TypesUtils.ty_erase_regions in
++          [%cassert] ctx.span (erase ty = erase mnv.proj_ty &&
++            erase ty = erase origin.incoming_projection_type && erase ty = erase origin.actual_given_type)
++            "A consumed update changed more than lifetime annotations";
++          [%cassert] ctx.span (InterpBorrowsCore.projection_contains ctx.span ectx
++            (T.RegionId.Set.of_list origin.ended_regions) origin.incoming_projection_type abs_regions ty)
++            "Partial incoming loan coverage requires explicit combined-update reconstruction";
++          let helper = compile_consumed_current_reconstruction ctx.span ctx.decls_ctx abs_regions ty in
++          let native = helper.consumed_plan.consumed_native_type in
++          let read_current identity =
++            if ty_is_unit native then mk_unit_texpr else
++            match V.SymbolicValueId.Map.find_opt identity ctx.sv_to_var with
++            | Some value when value.ty = native &&
++                FVarId.Map.find_opt value.id ctx.fvars = Some value &&
++                FVarId.Map.find_opt value.id ctx.fvars_tys = Some native -> mk_texpr_from_fvar value
++            | _ -> [%craise] ctx.span ("Consumed reconstruction needs an actual same-typed current SSA binding: " ^
++                V.SymbolicValueId.to_string identity) in
++          let current = read_current original in
++          let incoming = read_current mnv.sv_id in
++          Some (mk_apps __FILE__ __LINE__ ctx.span helper.consumed_native [current; incoming])
++        ) else
++          let mnv : V.symbolic_value = { sv_id = mnv.sv_id; sv_ty = ty } in
++          Some (symbolic_value_to_texpr ctx mnv))
+       else [%craise] ctx.span "Unimplemented"
+   | V.AEndedProjLoans _ ->
+       (* The symbolic value was updated, and the given back values come from several

@@ -1,0 +1,24 @@
+--- a/src/symbolic/SymbolicToPureTypes.ml
++++ b/src/symbolic/SymbolicToPureTypes.ml
+@@ -1025,9 +1025,9 @@
+ 
+   let inst_sg : LlbcAst.inst_fun_sig =
+     let ({ T.inputs; output; _ } : T.fun_sig) = sg.item_binder_value in
+-    [%sanity_check_opt_span] span
+-      (sg.item_binder_params.trait_type_constraints = []);
+-
++    (* Retain every original associated-type equality in the instantiated
++       signature. Generic-parameter translation below carries the same list
++       into the real Pure predicates; none is erased or assumed proved here. *)
+     let _, fresh_abs_id = V.AbsId.fresh_stateful_generator () in
+     let region_gr_id_abs_id_list =
+       List.map
+@@ -1050,7 +1050,7 @@
+     {
+       regions_hierarchy;
+       abs_regions_hierarchy;
+-      trait_type_constraints = [];
++      trait_type_constraints = sg.item_binder_params.trait_type_constraints;
+       inputs;
+       output;
+     }

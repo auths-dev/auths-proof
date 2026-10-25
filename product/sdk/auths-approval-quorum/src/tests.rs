@@ -300,8 +300,8 @@ fn any_threshold_of_distinct_listed_approvers_assembles() {
         "every matching approval is carried"
     );
     assert_eq!(
-        encode_bundle(&forward).expect("bytes"),
-        encode_bundle(&reversed).expect("bytes"),
+        auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&forward)).and_then(|canonical| encode_bundle(&canonical)).expect("bytes"),
+        auths_codec::CanonicalProofBundle::new(auths_model::ProofBundle::clone(&reversed)).and_then(|canonical| encode_bundle(&canonical)).expect("bytes"),
         "assembly is independent of approval arrival order"
     );
 }

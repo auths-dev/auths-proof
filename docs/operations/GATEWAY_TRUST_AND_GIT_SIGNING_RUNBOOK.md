@@ -85,16 +85,26 @@ held which key, is operator evidence and is not produced by this code.
 
 - **Attempt store.** A production installation keeps logical-operation
   claims, provider-bound evidence, and outcome stages in the multi-host
-  PostgreSQL store (its qualification, AP-SPEC-038 Epic 2, is open), through
+  PostgreSQL store, through
   the reference deployment's secret slots
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
-  `auths.lifecycle.postgresql/6`; it installs only into an empty database.
-  A database created at schema 4 or earlier is disposable prelaunch state:
-  recreate it. Gateway claims are stored as attempt record
+  `auths.lifecycle.postgresql/7`; it installs only into an empty database.
+  Production qualification must bind this exact schema and gateway semantic
+  closure. A database created at any earlier schema is disposable prelaunch
+  state: recreate it. Gateway claims are stored as attempt record
   `auths.gateway-attempt/3`; a store holding `/2` records is refused as
   corrupt, so the file store's attempts directory is recreated too.
+  The file store additionally requires its intact `auths.gateway-file-store/1`
+  marker and lock; an unmarked nonempty directory or lost marker is refused.
+- **Collection and old clocks.** Both stores durably retain a monotone
+  `collected_through` cutoff. Every slot insert checks its actual expiry
+  against that cutoff atomically with the claim. Collection never deletes
+  claims, and a zero-deletion sweep still publishes the cutoff. An older
+  worker, restart, lost acknowledgement, or partially completed sweep cannot
+  reopen a collected window. Slot consumption remains conservative; there
+  are no refunds after later refusal or an uncertain provider response.
 - **Several gateway processes** may serve from the same database. Each
   logical operation is claimed once, by an insert-once row; stage changes are
   compare-and-swap on the exact stored record. A second process that loses a

@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             auths_proof_wasm::self_contained_v1_configuration()?,
         ),
     )?;
-    let context = auths_codec::encode_verifier_context(&context)?;
+    let context = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?;
     let result = auths_proof_wasm::verify_self_contained_v1(proof, action, &context)?;
     fs::write(output.join("authorized.context.cbor"), context)?;
     fs::write(output.join("authorized.result.cbor"), result)?;
@@ -140,7 +140,7 @@ fn write_scenario_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::e
             let context = fs::read(directory.join(format!("{name}.context.cbor")))?;
             let context = auths_codec::decode_verifier_context(&context)?
                 .with_configuration(configuration)?;
-            let context = auths_codec::encode_verifier_context(&context)?;
+            let context = auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?;
             let result = auths_proof_wasm::verify_self_contained_v1(&proof, &action, &context)?;
             let decoded = auths_codec::decode_verification_result(&result)?;
             if decoded.code() != expected.code() {
@@ -278,7 +278,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
     )?;
     fs::write(
         output.join("mcp.context.cbor"),
-        auths_codec::encode_verifier_context(&context)?,
+        auths_codec::CanonicalTrustedContext::new(auths_model::TrustedContext::clone(&context)).and_then(|canonical| auths_codec::encode_verifier_context(&canonical))?,
     )?;
     let statement = auths_model::GrantStatement::new(
         root.clone(),

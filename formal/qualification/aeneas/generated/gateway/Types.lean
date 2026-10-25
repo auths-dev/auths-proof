@@ -147,6 +147,51 @@ inductive construct.ConstructError where
 | HeaderValue : construct.ConstructError
 | BodySize : construct.ConstructError
 
+/-- [auths_gateway_kernel::counter_aggregation::CounterCapacity]
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 8:0-13:1
+    Visibility: public -/
+structure counter_aggregation.CounterCapacity where
+  key : Array Std.U8 32#usize
+  capacity : Std.U64
+
+/-- [auths_gateway_kernel::counter_aggregation::SumCapacity]
+    Source: 'product/runtime/auths-gateway-kernel/src/counter_aggregation.rs', lines 223:0-230:1
+    Visibility: public -/
+structure counter_aggregation.SumCapacity where
+  key : Array Std.U8 32#usize
+  capacity : Std.U64
+  slots : Std.U64
+
+/-- [auths_gateway_kernel::deadline::EntryBound]
+    Source: 'product/runtime/auths-gateway-kernel/src/deadline.rs', lines 6:0-11:1
+    Visibility: public -/
+structure deadline.EntryBound where
+  not_after : Std.U64
+  inclusive : Bool
+
+/-- [auths_gateway_kernel::entry_authorization::EntryState]
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 9:0-16:1
+    Visibility: public -/
+@[discriminant isize]
+inductive entry_authorization.EntryState where
+| Active : entry_authorization.EntryState
+| Disabled : entry_authorization.EntryState
+| Revoked : entry_authorization.EntryState
+
+/-- [auths_gateway_kernel::entry_authorization::EntryProfile]
+    Source: 'product/runtime/auths-gateway-kernel/src/entry_authorization.rs', lines 20:0-25:1
+    Visibility: public -/
+structure entry_authorization.EntryProfile where
+  id : alloc.vec.Vec Std.U8
+  version : Std.U16
+
+/-- [auths_gateway_kernel::frontier::FrontierSearch]
+    Source: 'product/runtime/auths-gateway-kernel/src/frontier.rs', lines 7:0-10:1
+    Visibility: public -/
+structure frontier.FrontierSearch where
+  lower : Std.U64
+  upper : Std.U64
+
 /-- [auths_gateway_kernel::order::Mode]
     Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 34:0-41:1
     Visibility: public -/
@@ -434,6 +479,38 @@ structure recovery.RecoveryCapability where
   lost_claim_reentry : recovery.LostClaimReentry
   pre_entry_reread : Bool
   write_is_conditional : Bool
+
+/-- [auths_gateway_kernel::reservation_batch::SlotEntry]
+    Source: 'product/runtime/auths-gateway-kernel/src/reservation_batch.rs', lines 11:0-23:1
+    Visibility: public -/
+@[discriminant isize]
+inductive reservation_batch.SlotEntry where
+| Claim : Array Std.U8 32#usize → reservation_batch.SlotEntry
+| Count : Array Std.U8 32#usize → Std.U64 → reservation_batch.SlotEntry
+| Sum :
+  Array Std.U8 32#usize →
+  Std.U64 →
+  Std.U64 →
+  Std.U64 →
+  reservation_batch.SlotEntry
+
+/-- [auths_gateway_kernel::reservation_retry::RetryTarget]
+    Source: 'product/runtime/auths-gateway-kernel/src/reservation_retry.rs', lines 5:0-18:1
+    Visibility: public -/
+@[discriminant isize]
+inductive reservation_retry.RetryTarget where
+| Replay : reservation_retry.RetryTarget
+| Count : Std.Usize → Std.U64 → reservation_retry.RetryTarget
+| Sum : Std.Usize → Std.U64 → Std.U64 → reservation_retry.RetryTarget
+| Corrupt : reservation_retry.RetryTarget
+
+/-- [auths_gateway_kernel::slot_record::SumValues]
+    Source: 'product/runtime/auths-gateway-kernel/src/slot_record.rs', lines 7:0-14:1
+    Visibility: public -/
+structure slot_record.SumValues where
+  slot : Std.U64
+  amount : Std.U64
+  cumulative : Std.U64
 
 /-- [auths_gateway_kernel::transition::Stage]
     Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 19:0-32:1

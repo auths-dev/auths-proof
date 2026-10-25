@@ -12,8 +12,8 @@ const OBSOLETE_RECORD_SCHEMA_VERSION: u8 = 1;
 const RECORD_FIELD_COUNT: u64 = 18;
 const MAX_RECORD_BYTES: usize = 262_144;
 const MAX_DESCRIPTOR_BYTES: usize = 65_536;
-const MAX_WORKLOADS: usize = 256;
-const MAX_PROFILES: usize = 32;
+pub(crate) const MAX_WORKLOADS: usize = 256;
+pub(crate) const MAX_PROFILES: usize = 32;
 
 /// Lowercase provider kind.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -77,12 +77,7 @@ impl SemanticId {
     /// Returns [`ConnectionRecordError::InvalidSemanticId`] for an invalid value.
     pub fn parse(value: impl Into<String>) -> Result<Self, ConnectionRecordError> {
         let value = value.into();
-        let valid = (1..=128).contains(&value.len())
-            && value.is_ascii()
-            && value.bytes().enumerate().all(|(index, byte)| {
-                byte.is_ascii_alphanumeric()
-                    || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'/' | b'-'))
-            });
+        let valid = kernel::semantic_id_valid(value.as_bytes(), 128);
         if !valid {
             return Err(ConnectionRecordError::InvalidSemanticId);
         }
@@ -526,33 +521,14 @@ impl ConnectionRecord {
     }
 
     fn validate(&self) -> Result<(), ConnectionRecordError> {
-        if !(1..=MAX_WORKLOADS).contains(&self.allowed_workloads.len())
-            || !strictly_sorted_unique(&self.allowed_workloads)
-            || self
-                .allowed_workloads
-                .iter()
-                .any(|value| !is_ascii_graphic(value, 128))
-        {
-            return Err(ConnectionRecordError::InvalidWorkloads);
-        }
-        if !(1..=MAX_PROFILES).contains(&self.allowed_profiles.len())
-            || !strictly_sorted_unique(&self.allowed_profiles)
-        {
-            return Err(ConnectionRecordError::InvalidProfiles);
-        }
-        if self.created_at_unix_seconds > self.updated_at_unix_seconds {
-            return Err(ConnectionRecordError::InvalidTimestamps);
-        }
-        match (self.state, self.revoked_at_unix_seconds) {
-            (ConnectionState::Revoked, Some(value))
-                if (self.created_at_unix_seconds..=self.updated_at_unix_seconds)
-                    .contains(&value) => {}
-            (ConnectionState::Revoked, _) | (_, Some(_)) => {
-                return Err(ConnectionRecordError::InvalidTimestamps);
-            }
-            _ => {}
-        }
-        Ok(())
+        kernel::validate_record_shape(
+            &self.allowed_workloads,
+            &self.allowed_profiles,
+            self.state,
+            self.created_at_unix_seconds,
+            self.updated_at_unix_seconds,
+            self.revoked_at_unix_seconds,
+        )
     }
 
     /// Returns the provider kind.
@@ -681,13 +657,7 @@ impl ConnectionRecord {
         &self,
         generation: NonZeroU64,
     ) -> Result<(), ConnectionRecordError> {
-        if self.state == ConnectionState::Revoked {
-            return Err(ConnectionRecordError::Revoked);
-        }
-        if generation > self.generation {
-            return Err(ConnectionRecordError::InvalidGeneration);
-        }
-        Ok(())
+        kernel::recovery_lease(self.state, self.generation.get(), generation.get())
     }
 
     /// Reconstructs the sealed binding of an unresolved operation at
@@ -715,14 +685,20 @@ impl ConnectionRecord {
         credential_reference_commitment: CredentialReferenceCommitment,
     ) -> Result<ConnectionBinding, ConnectionRecordError> {
         self.authorize_recovery_lease(generation)?;
-        if credential_generation > generation {
-            return Err(ConnectionRecordError::InvalidGeneration);
-        }
-        if generation >= self.credential_generation
-            && (credential_generation != self.credential_generation
-                || !credential_reference_commitment.matches(&self.credential_reference_commitment))
-        {
-            return Err(ConnectionRecordError::InvalidGeneration);
+        match kernel::recovery_binding_requirement(
+            self.credential_generation.get(),
+            generation.get(),
+            credential_generation.get(),
+        ) {
+            kernel::RecoveryBindingRequirement::Refuse => {
+                return Err(ConnectionRecordError::InvalidGeneration);
+            }
+            kernel::RecoveryBindingRequirement::CurrentCommitment => {
+                if !credential_reference_commitment.matches(&self.credential_reference_commitment) {
+                    return Err(ConnectionRecordError::InvalidGeneration);
+                }
+            }
+            kernel::RecoveryBindingRequirement::RecordedCommitment => {}
         }
         Ok(ConnectionBinding {
             provider_kind: self.provider_kind.clone(),
@@ -756,10 +732,12 @@ impl ConnectionRecord {
         state: ConnectionState,
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
-        if state == self.state
-            || self.state == ConnectionState::Revoked
-            || updated_at_unix_seconds < self.updated_at_unix_seconds
-        {
+        if !kernel::state_transition_allows(
+            self.state,
+            state,
+            self.updated_at_unix_seconds,
+            updated_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidState);
         }
         let generations = kernel::state_change(self.generations())
@@ -798,9 +776,11 @@ impl ConnectionRecord {
         credential_reference_commitment: [u8; 32],
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
-        if self.state == ConnectionState::Revoked
-            || updated_at_unix_seconds < self.updated_at_unix_seconds
-        {
+        if !kernel::record_change_allows(
+            self.state,
+            self.updated_at_unix_seconds,
+            updated_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidState);
         }
         let generations =
@@ -838,9 +818,11 @@ impl ConnectionRecord {
         allowed_profiles: Vec<ConnectionProfile>,
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
-        if self.state == ConnectionState::Revoked
-            || updated_at_unix_seconds < self.updated_at_unix_seconds
-        {
+        if !kernel::record_change_allows(
+            self.state,
+            self.updated_at_unix_seconds,
+            updated_at_unix_seconds,
+        ) {
             return Err(ConnectionRecordError::InvalidState);
         }
         let generations = kernel::state_change(self.generations())
@@ -1084,19 +1066,7 @@ pub enum ConnectionRecordError {
 }
 
 fn is_lower_token(value: &str, maximum: usize) -> bool {
-    (1..=maximum).contains(&value.len())
-        && value.is_ascii()
-        && value.bytes().enumerate().all(|(index, byte)| {
-            byte.is_ascii_lowercase() || (index > 0 && (byte.is_ascii_digit() || byte == b'-'))
-        })
-}
-
-fn is_ascii_graphic(value: &str, maximum: usize) -> bool {
-    (1..=maximum).contains(&value.len()) && value.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
-}
-
-fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
-    values.windows(2).all(|pair| pair[0] < pair[1])
+    kernel::lower_token_valid(value.as_bytes(), maximum)
 }
 
 fn encode_text(
@@ -1400,3 +1370,19 @@ pub(crate) mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "recovery_guard_tests.rs"]
+mod recovery_guard_tests;
+
+#[cfg(test)]
+#[path = "string_constructor_tests.rs"]
+mod string_constructor_tests;
+
+#[cfg(test)]
+#[path = "record_time_tests.rs"]
+mod record_time_tests;
+
+#[cfg(test)]
+#[path = "strict_order_tests.rs"]
+mod strict_order_tests;

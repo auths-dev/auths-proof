@@ -1133,7 +1133,7 @@ fn write_response(
     let (decision, body) = match &response.body {
         ResponseBody::Approve(approval) => (
             APPROVE,
-            encode_signed_approval(approval).map_err(|_| ApprovalCode::Malformed)?,
+            auths_codec::CanonicalSignedApproval::new(auths_model::SignedApproval::clone(approval)).and_then(|canonical| encode_signed_approval(&canonical)).map_err(|_| ApprovalCode::Malformed)?,
         ),
         ResponseBody::Decline(decline) => (DECLINE, encode_decline(decline)?),
     };
@@ -1340,7 +1340,7 @@ fn read_response(decoder: &mut Decoder<'_>) -> Read<ApprovalResponse> {
     let body = if approve {
         match decode_signed_approval(body_bytes, &limits) {
             Ok(approval) if !bad_approval_evidence(approval.evidence()) => {
-                ResponseBody::Approve(approval)
+                ResponseBody::Approve(approval.into_value())
             }
             Ok(_) | Err(_) => return Ok(Err(ApprovalCode::Malformed)),
         }
