@@ -6,10 +6,12 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import (
     CHILD_TITLE,
+    CreateRecoverySearch,
     CreatedChildMetadataPins,
     CreateObservationPins,
     created_child_docs_url,
@@ -61,6 +63,74 @@ def _write(path: Path, document: dict) -> str:
 
 
 class GoogleCreateHandoffTests(unittest.TestCase):
+    def test_recovery_search_exhausts_pages_without_granting_child_authority(self) -> None:
+        marker = "ap071_" + "d" * 32
+        search = CreateRecoverySearch(
+            parent_id="project-a-folder", drive_id="shared-drive-1",
+            marker_value=marker,
+        )
+        first = parse_qs(urlparse(search.next_url()).query)
+        self.assertEqual(first["corpora"], ["drive"])
+        self.assertEqual(first["driveId"], ["shared-drive-1"])
+        self.assertIn("'project-a-folder' in parents", first["q"][0])
+        self.assertIn("value='" + marker + "'", first["q"][0])
+        with self.assertRaises(ContractRejected):
+            search.single_candidate()
+        search.accept_page({"incompleteSearch": False, "files": [],
+                            "nextPageToken": "page-2"})
+        second = parse_qs(urlparse(search.next_url()).query)
+        self.assertEqual(second["pageToken"], ["page-2"])
+        child = {
+            "id": "child_ABC-123", "name": CHILD_TITLE,
+            "mimeType": "application/vnd.google-apps.document",
+            "parents": ["project-a-folder"], "driveId": "shared-drive-1",
+            "properties": {"auths_operation_marker": marker},
+            "trashed": False, "createdTime": "2026-10-25T10:03:00Z",
+        }
+        search.accept_page({"incompleteSearch": False, "files": [child]})
+        self.assertEqual(search.single_candidate(), child["id"])
+        with self.assertRaises(ContractRejected):
+            search.next_url()
+
+        for bad_page in (
+            {"incompleteSearch": True, "files": [child]},
+            {"files": [child]},
+            {"incompleteSearch": False, "files": [child | {"name": "other"}]},
+            {"incompleteSearch": False, "files": [child, child]},
+            {"incompleteSearch": False, "files": [child], "nextPageToken": ""},
+        ):
+            with self.subTest(page=bad_page), self.assertRaises(ContractRejected):
+                CreateRecoverySearch(
+                    parent_id="project-a-folder", drive_id="shared-drive-1",
+                    marker_value=marker,
+                ).accept_page(bad_page)
+        zero = CreateRecoverySearch(parent_id="project-a-folder",
+                                    drive_id="shared-drive-1", marker_value=marker)
+        zero.accept_page({"incompleteSearch": False, "files": []})
+        self.assertIsNone(zero.single_candidate())
+        multiple = CreateRecoverySearch(parent_id="project-a-folder",
+                                        drive_id="shared-drive-1", marker_value=marker)
+        multiple.accept_page({"incompleteSearch": False,
+                              "files": [child, child | {"id": "other-child"}]})
+        self.assertIsNone(multiple.single_candidate())
+        capped = CreateRecoverySearch(parent_id="project-a-folder",
+                                      drive_id="shared-drive-1", marker_value=marker)
+        for page in range(3):
+            capped.accept_page({"incompleteSearch": False, "files": [],
+                                "nextPageToken": f"page-{page}"})
+        with self.assertRaises(ContractRejected):
+            capped.accept_page({"incompleteSearch": False, "files": [child],
+                                "nextPageToken": "page-4"})
+        with self.assertRaises(ContractRejected):
+            capped.single_candidate()
+        repeated = CreateRecoverySearch(parent_id="project-a-folder",
+                                        drive_id="shared-drive-1", marker_value=marker)
+        repeated.accept_page({"incompleteSearch": False, "files": [],
+                              "nextPageToken": "page-1"})
+        with self.assertRaises(ContractRejected):
+            repeated.accept_page({"incompleteSearch": False, "files": [],
+                                  "nextPageToken": "page-1"})
+
     def test_jules_child_revision_and_capability_are_exact_and_bounded(self) -> None:
         pins = CreatedChildMetadataPins(
             candidate_id="child_ABC-123", parent_id="project-a-folder",

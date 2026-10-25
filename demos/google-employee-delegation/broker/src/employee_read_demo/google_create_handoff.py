@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Mapping
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from .demo_co_contract import ContractRejected, _load
 
@@ -24,6 +24,9 @@ DRIVE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 CHILD_TITLE = "Auths AP-071 Project A handoff"
 CHILD_MIME_TYPE = "application/vnd.google-apps.document"
 CHILD_FIELDS = "id,name,mimeType,parents,driveId,properties,trashed,createdTime"
+RECOVERY_FIELDS = "nextPageToken,incompleteSearch,files(" + CHILD_FIELDS + ")"
+MAX_RECOVERY_PAGES = 4
+MAX_RECOVERY_RESULTS = 100
 
 
 def prepare_create_inputs(parent_id: str, *, pinned_folder_id: str) -> dict[str, str]:
@@ -105,6 +108,89 @@ def validate_created_child_metadata(metadata: Mapping[str, object],
     if created.tzinfo is None or created.utcoffset() is None:
         raise ContractRejected("created-child creation time has no timezone")
     return created
+
+
+class CreateRecoverySearch:
+    """Read-only, bounded marker search; a result is never child authority.
+
+    The caller owns the Jules credential and must send each URL it receives
+    through that same subject-bound broker. Only a separately signed Auths
+    recovery action may promote a single candidate to a task binding.
+    """
+
+    def __init__(self, *, parent_id: str, drive_id: str, marker_value: str):
+        pins = CreatedChildMetadataPins(
+            candidate_id="placeholder", parent_id=parent_id, drive_id=drive_id,
+            title=CHILD_TITLE, marker_value=marker_value,
+        )
+        pins.validate()
+        self._pins = pins
+        self._pages = 0
+        self._results = 0
+        self._seen_tokens: set[str] = set()
+        self._next_token: str | None = None
+        self._candidates: set[str] = set()
+        self._complete = False
+
+    def next_url(self) -> str:
+        if self._complete or self._pages >= MAX_RECOVERY_PAGES:
+            raise ContractRejected("recovery search is complete or exceeded its page cap")
+        query = (f"'{self._pins.parent_id}' in parents and "
+                 "properties has { key='auths_operation_marker' and "
+                 f"value='{self._pins.marker_value}' }} and trashed = false")
+        params = {
+            "q": query, "corpora": "drive", "driveId": self._pins.drive_id,
+            "includeItemsFromAllDrives": "true", "supportsAllDrives": "true",
+            "pageSize": str(MAX_RECOVERY_RESULTS), "fields": RECOVERY_FIELDS,
+        }
+        if self._next_token is not None:
+            params["pageToken"] = self._next_token
+        return "https://www.googleapis.com/drive/v3/files?" + urlencode(params)
+
+    def accept_page(self, document: Mapping[str, object]) -> None:
+        if self._complete or self._pages >= MAX_RECOVERY_PAGES:
+            raise ContractRejected("recovery search cannot accept another page")
+        if (not isinstance(document, Mapping)
+                or document.get("incompleteSearch") is not False
+                or type(document.get("files")) is not list):
+            raise ContractRejected("recovery search page is incomplete or malformed")
+        files = document["files"]
+        if len(files) > MAX_RECOVERY_RESULTS or self._results + len(files) > MAX_RECOVERY_RESULTS:
+            raise ContractRejected("recovery search exceeded its result cap")
+        candidates = set(self._candidates)
+        for item in files:
+            if type(item) is not dict:
+                raise ContractRejected("recovery search item is malformed")
+            candidate_id = item.get("id")
+            pins = CreatedChildMetadataPins(
+                candidate_id=candidate_id, parent_id=self._pins.parent_id,
+                drive_id=self._pins.drive_id, title=CHILD_TITLE,
+                marker_value=self._pins.marker_value,
+            )
+            validate_created_child_metadata(item, pins)
+            if candidate_id in candidates:
+                raise ContractRejected("recovery search repeated a child ID")
+            candidates.add(candidate_id)
+        token = document.get("nextPageToken")
+        if token is not None and (type(token) is not str or not 1 <= len(token) <= 512
+                                  or not token.isascii() or any(ord(c) < 33 for c in token)
+                                  or token in self._seen_tokens):
+            raise ContractRejected("recovery search continuation is invalid")
+        if token is not None and self._pages + 1 >= MAX_RECOVERY_PAGES:
+            raise ContractRejected("recovery search did not finish within the page cap")
+        self._candidates = candidates
+        self._results += len(files)
+        self._pages += 1
+        if token is None:
+            self._complete = True
+        else:
+            self._seen_tokens.add(token)
+            self._next_token = token
+
+    def single_candidate(self) -> str | None:
+        if not self._complete:
+            raise ContractRejected("recovery search is incomplete")
+        return next(iter(self._candidates)) if len(self._candidates) == 1 else None
 
 
 @dataclass(frozen=True)

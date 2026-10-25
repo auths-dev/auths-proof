@@ -52,6 +52,14 @@ its stored plan does not retain the native-verified parent, title and marker;
 allowing a later name-only match would bypass the metadata checks. The
 candidate ID remains in the private attempt journal for a future verified
 reconciliation path.
+The broker now has a separate read-only `CreateRecoverySearch` helper for a
+lost response. It builds a Drive search for the caller to send with Jules's
+subject-bound credential in the pinned drive and parent for the exact public
+marker. It requires complete pagination within four pages and 100 results,
+rejects incomplete or malformed pages, and validates each candidate's full
+metadata. Zero or multiple candidates remain unknown. A single candidate is
+only a proposal for independent inspection and a fresh human-signed recovery
+binding; this helper cannot create, retry, populate or mint task authority.
 The broker's test-only Google metadata oracle now defines the exact `files.get`
 request and rejects mismatched child ID, name, MIME type, sole parent, shared
 drive, public marker, trash state or creation time. It does not call Google or
