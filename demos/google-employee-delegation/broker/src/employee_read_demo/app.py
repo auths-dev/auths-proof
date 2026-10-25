@@ -51,8 +51,11 @@ from .finance_denial_handoff import FinanceDenialPins, validate_finance_denial
 from .finance_write_grant_handoff import (
     FinanceWriteGrantPins, validate_finance_write_grant,
 )
+from .edit_rerun_handoff import (
+    EditRerunPins, EditRerunTarget, LOGICAL_ID, validate_edit_rerun,
+)
 from .google_write_credential import WriteCredentialPins
-from .google_write_preflight import preflight_jules_edit
+from .google_write_preflight import EditTarget, preflight_jules_edit
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 from .agent_transport import AgentTransport, AgentTransportDenied
 from .receipts import ReceiptStore
@@ -104,6 +107,7 @@ class Workbench:
     write_confirmation: TaskWriteConfirmationFlow | None = None
     write_target: CreatedChildContinuationTarget | None = None
     finance_read_target: str | None = None
+    edit_rerun_target: EditRerunTarget | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -524,6 +528,8 @@ class Handler(BaseHTTPRequestHandler):
                             evidence["folder_id"] if paired else
                             self.workbench.write_target.child.candidate_id
                             if self.workbench.write_target is not None else
+                            self.workbench.edit_rerun_target.document_id
+                            if self.workbench.edit_rerun_target is not None else
                             evidence["document_id"]),
                         resource_label=(
                             "No write destination (read-only task)"
@@ -531,6 +537,8 @@ class Handler(BaseHTTPRequestHandler):
                             "Project A destination folder" if paired else
                             self.workbench.write_target.child.title
                             if self.workbench.write_target is not None else
+                            self.workbench.edit_rerun_target.document_title
+                            if self.workbench.edit_rerun_target is not None else
                             evidence["document_title"]),
                         pending_child=pending_child,
                         read_resource_handle=((self.workbench.finance_read_target
@@ -1023,6 +1031,11 @@ def main() -> int:
                         help="private pin for an existing blank child in a new edit task")
     parser.add_argument("--task-upfront-choices", type=Path,
                         help="owner-private exact argument choices for one upfront write")
+    parser.add_argument("--task-edit-rerun-baseline", type=Path)
+    parser.add_argument("--task-edit-rerun-baseline-sha256")
+    parser.add_argument("--task-edit-rerun-choices", type=Path)
+    parser.add_argument("--task-edit-rerun-choices-sha256")
+    parser.add_argument("--task-edit-rerun-previous-observation-sha256")
     parser.add_argument("--task-finance-denial-evidence", type=Path,
                         help="private demo_co provider-denial observation for a read-only task")
     parser.add_argument("--task-finance-denial-sha256",
@@ -1158,6 +1171,17 @@ def main() -> int:
             or args.task_companion_write_recipe is not None
             or args.task_write_gateway_state_dir is None):
         parser.error("bounded upfront requires an installed single-write task")
+    rerun_options = (args.task_edit_rerun_baseline,
+                     args.task_edit_rerun_baseline_sha256,
+                     args.task_edit_rerun_choices,
+                     args.task_edit_rerun_choices_sha256,
+                     args.task_edit_rerun_previous_observation_sha256)
+    if any(option is not None for option in rerun_options) and (
+            not all(option is not None for option in rerun_options)
+            or args.task_upfront_choices is None
+            or args.task_write_current_baseline is not None
+            or args.task_write_created_child is not None):
+        parser.error("clean edit rerun requires a pinned upfront task")
     finance_options = (args.task_finance_denial_evidence,
                        args.task_finance_denial_sha256,
                        args.task_finance_document_id,
@@ -1178,6 +1202,7 @@ def main() -> int:
     write_target = None
     upfront_choices = None
     finance_read_target = None
+    edit_rerun_target = None
     if all(option is not None for option in write_options):
         if company is None:
             parser.error("task write requires an accepted company import")
@@ -1242,6 +1267,22 @@ def main() -> int:
                     or type(upfront_document["choices"]) is not list):
                 parser.error("bounded upfront choices are malformed")
             upfront_choices = upfront_document["choices"]
+        if args.task_edit_rerun_baseline is not None:
+            try:
+                edit_rerun_target = validate_edit_rerun(
+                    args.task_edit_rerun_baseline,
+                    args.task_edit_rerun_choices,
+                    EditRerunPins(
+                        write_pins,
+                        args.task_edit_rerun_previous_observation_sha256,
+                        args.task_edit_rerun_baseline_sha256,
+                        args.task_edit_rerun_choices_sha256,
+                    ), source_evidence=write_evidence, now=int(time.time()),
+                )
+            except (ContractRejected, OSError, PermissionError, ValueError) as error:
+                parser.error(f"clean edit rerun producer handoff refused: {error}")
+            if upfront_choices != edit_rerun_target.allowed_arguments():
+                parser.error("upfront choices disagree with producer commitments")
         if args.task_write_created_child is not None:
             if args.task_companion_write_recipe is not None:
                 parser.error("created-child continuation cannot issue another create")
@@ -1358,12 +1399,24 @@ def main() -> int:
                 connection_generation=card["connection_generation"],
                 current_observation_path=args.task_write_current_baseline,
                 current_observation_sha256=args.task_write_current_baseline_sha256,
+                target=(None if edit_rerun_target is None else EditTarget(
+                    edit_rerun_target.document_id,
+                    edit_rerun_target.document_title, LOGICAL_ID,
+                    edit_rerun_target.folder_id,
+                    edit_rerun_target.drive_id,
+                    edit_rerun_target.tab_id,
+                    edit_rerun_target.marker,
+                    edit_rerun_target.baseline_sha256,
+                    edit_rerun_target.baseline_byte_count,
+                )),
             )
             evidence = validate_write_handoff(args.task_write_evidence, write_pins)
             arguments = reviewed.arguments
             if (arguments.get("document_id") != observed.document_id
                     or arguments.get("tab_id") != observed.tab_id
-                    or arguments.get("marker") != evidence["marker"]
+                    or arguments.get("marker") != (
+                        evidence["marker"] if edit_rerun_target is None
+                        else edit_rerun_target.marker)
                     or arguments.get("required_revision_id") != observed.revision_id):
                 raise OperatorDenied("agent proposal disagrees with fresh Jules preflight")
 
@@ -1394,7 +1447,7 @@ def main() -> int:
                           vault, company, status, origin, trusted_template, expected_root,
                           agent_transport, service, write_browser,
                           args.task_write_evidence, write_pins, write_confirmation,
-                          write_target, finance_read_target)
+                          write_target, finance_read_target, edit_rerun_target)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

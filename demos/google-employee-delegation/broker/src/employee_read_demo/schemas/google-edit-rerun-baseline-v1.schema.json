@@ -1,0 +1,218 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "approved_option_a_byte_count": {
+      "exclusiveMinimum": 0,
+      "title": "Approved Option A Byte Count",
+      "type": "integer"
+    },
+    "approved_option_a_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Approved Option A Sha256",
+      "type": "string"
+    },
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "baseline_exactly_one_marker": {
+      "const": true,
+      "default": true,
+      "title": "Baseline Exactly One Marker",
+      "type": "boolean"
+    },
+    "baseline_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Baseline Raw Byte Count",
+      "type": "integer"
+    },
+    "baseline_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Baseline Raw Sha256",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 5,
+      "default": 5,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "document_title": {
+      "const": "Demo Co AP-071 Project A Clean Edit Rerun",
+      "default": "Demo Co AP-071 Project A Clean Edit Rerun",
+      "title": "Document Title",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "expected_after_raw_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Expected After Raw Byte Count",
+      "type": "integer"
+    },
+    "expected_after_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expected After Raw Sha256",
+      "type": "string"
+    },
+    "expected_after_rule": {
+      "const": "replace_single_marker_in_exact_raw_export/v1",
+      "default": "replace_single_marker_in_exact_raw_export/v1",
+      "title": "Expected After Rule",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_can_edit": {
+      "const": true,
+      "default": true,
+      "title": "Jules Can Edit",
+      "type": "boolean"
+    },
+    "jules_probe_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Jules Probe Unchanged",
+      "type": "boolean"
+    },
+    "jules_revision_id": {
+      "title": "Jules Revision Id",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "marker": {
+      "pattern": "^AP071-RERUN-[0-9a-f]{24}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "preserved_child_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Preserved Child Unchanged",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "demo-co/google-edit-rerun-baseline/v1",
+      "default": "demo-co/google-edit-rerun-baseline/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "second_child_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Second Child Unchanged",
+      "type": "boolean"
+    },
+    "source_v2_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V2 Baseline Sha256",
+      "type": "string"
+    },
+    "source_v2_final_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V2 Final Sha256",
+      "type": "string"
+    },
+    "source_working_observation_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Working Observation Sha256",
+      "type": "string"
+    },
+    "source_write_verification_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Write Verification Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    },
+    "working_document_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Working Document Unchanged",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "document_id",
+    "marker",
+    "tab_id",
+    "jules_revision_id",
+    "baseline_raw_sha256",
+    "baseline_raw_byte_count",
+    "approved_option_a_sha256",
+    "approved_option_a_byte_count",
+    "expected_after_raw_sha256",
+    "expected_after_raw_byte_count",
+    "source_working_observation_sha256",
+    "source_write_verification_sha256",
+    "source_v2_baseline_sha256",
+    "source_v2_final_sha256"
+  ],
+  "title": "GoogleEditRerunBaseline",
+  "type": "object"
+}

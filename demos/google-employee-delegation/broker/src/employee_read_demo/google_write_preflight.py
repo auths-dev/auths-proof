@@ -46,6 +46,21 @@ class WritePreflight:
     checked_at: int
 
 
+@dataclass(frozen=True)
+class EditTarget:
+    """A separately validated, operator-pinned edit destination and baseline."""
+
+    document_id: str
+    document_title: str
+    logical_id: str
+    folder_id: str
+    drive_id: str
+    tab_id: str
+    marker: str
+    baseline_sha256: str
+    baseline_byte_count: int
+
+
 def _bounded_get(session: requests.Session, url: str, *, params: dict[str, str],
                  maximum: int, media_type: str) -> bytes:
     try:
@@ -101,14 +116,41 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
                          connection_generation: int,
                          current_observation_path: Path | None = None,
                          current_observation_sha256: str | None = None,
+                         target: EditTarget | None = None,
                          now: int | None = None) -> WritePreflight:
     """Check exact run-owned IDs, Jules ACL, current revision and baseline."""
     now = int(time.time()) if now is None else now
     evidence = validate_write_handoff(evidence_path, pins.producer)
     if (current_observation_path is None) != (current_observation_sha256 is None):
         raise WritePreflightDenied("current working Doc observation is incomplete")
+    if target is not None and current_observation_path is not None:
+        raise WritePreflightDenied("edit target and working Doc snapshot cannot mix")
     baseline_sha256 = evidence["baseline_sha256"]
     baseline_byte_count = evidence["baseline_byte_count"]
+    document_id = evidence["document_id"]
+    document_title = evidence["document_title"]
+    document_logical_id = DOCUMENT_LOGICAL_ID
+    tab_id = evidence["tab_id"]
+    marker = evidence["marker"]
+    if target is not None:
+        if (target.folder_id != evidence["folder_id"]
+                or target.drive_id != evidence["drive_id"]
+                or target.document_id == evidence["document_id"]
+                or target.logical_id != "ap071-project-a-clean-edit-rerun"
+                or not target.document_id or len(target.document_id) > 64
+                or not target.document_title or len(target.document_title) > 256
+                or not target.tab_id or len(target.tab_id) > 16
+                or not target.marker or len(target.marker) > 48
+                or len(target.baseline_sha256) != 64
+                or not 1 <= target.baseline_byte_count <= MAX_EXPORT_BYTES):
+            raise WritePreflightDenied("separate edit target is outside pinned Project A")
+        document_id = target.document_id
+        document_title = target.document_title
+        document_logical_id = target.logical_id
+        tab_id = target.tab_id
+        marker = target.marker
+        baseline_sha256 = target.baseline_sha256
+        baseline_byte_count = target.baseline_byte_count
     if current_observation_path is not None:
         try:
             _, current = validate_current_write_observation(
@@ -137,7 +179,7 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
         "Accept-Encoding": "identity",
     })
     try:
-        folder_id, document_id = evidence["folder_id"], evidence["document_id"]
+        folder_id = evidence["folder_id"]
         folder = _json_object(_bounded_get(
             session, f"{DRIVE_FILES}/{quote(folder_id, safe='')}",
             params={"supportsAllDrives": "true", "fields": FIELDS},
@@ -162,10 +204,10 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
         ))
         document_capabilities = document.get("capabilities")
         if (not _owned(document, item_id=document_id,
-                       title=evidence["document_title"],
+                       title=document_title,
                        mime="application/vnd.google-apps.document",
                        drive_id=evidence["drive_id"], owner=owner,
-                       logical_id=DOCUMENT_LOGICAL_ID, parent_id=folder_id)
+                       logical_id=document_logical_id, parent_id=folder_id)
                 or type(document_capabilities) is not dict
                 or document_capabilities.get("canEdit") is not True):
             raise WritePreflightDenied("working Doc drifted or Jules cannot edit")
@@ -183,7 +225,7 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
         if (docs.get("documentId") != document_id or type(tabs) is not list
                 or len(tabs) != 1 or type(tabs[0]) is not dict
                 or type(tab_properties) is not dict
-                or tab_properties.get("tabId") != evidence["tab_id"]
+                or tab_properties.get("tabId") != tab_id
                 or type(revision) is not str or not 0 < len(revision) <= 128):
             raise WritePreflightDenied("working Doc tab or revision drifted")
         body = _bounded_get(
@@ -193,10 +235,10 @@ def preflight_jules_edit(evidence_path: Path, grant_path: Path,
         )
         if (len(body) != baseline_byte_count
                 or hashlib.sha256(body).hexdigest() != baseline_sha256
-                or body.count(evidence["marker"].encode("utf-8")) != 1):
+                or body.count(marker.encode("utf-8")) != 1):
             raise WritePreflightDenied("working Doc baseline or marker drifted")
         return WritePreflight(
-            document_id, evidence["tab_id"], revision,
+            document_id, tab_id, revision,
             baseline_sha256, len(body), 1, now,
         )
     finally:
