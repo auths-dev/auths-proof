@@ -11,7 +11,9 @@
 
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, replay_refused};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
-use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
+use crate::recipe::{
+    CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack, VerifiedCreatedChild,
+};
 use crate::store::BoundedClaim;
 use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
@@ -84,6 +86,17 @@ pub(crate) trait SubmitIo {
         _now: u64,
     ) -> Result<(), &'static str> {
         Ok(())
+    }
+
+    /// Persist an observed create's child binding in the same task journal as
+    /// its reserved write. The default path has no task authority.
+    fn bind_created_child(
+        &self,
+        _child: &VerifiedCreatedChild,
+        _response_digest: &[u8; 32],
+        _now: u64,
+    ) -> bool {
+        false
     }
 
     /// Loads the shared connection record, requires this process to hold
@@ -804,18 +817,18 @@ impl<I: SubmitIo> Run<'_, I> {
         let Ok(snapshot) = attempt.snapshot() else {
             return false;
         };
-        if let Some(child) = self
+        let child_request = self
             .verified
             .as_ref()
-            .and_then(|verified| verified.request.created_child())
-        {
-            let metadata_matches = snapshot
+            .and_then(|verified| verified.request.created_child());
+        let verified_child = child_request.and_then(|child| {
+            snapshot
                 .response_locator()
                 .and_then(|locator| locator.get(&child.response_id_pointer))
-                .is_some_and(|id| child.metadata_matches(id, &bytes));
-            if !metadata_matches {
-                reading = ReadBack::Value { matched: false };
-            }
+                .and_then(|id| child.verify_metadata(id, &bytes))
+        });
+        if child_request.is_some() && verified_child.is_none() {
+            reading = ReadBack::Value { matched: false };
         }
         let status = snapshot.response_status();
         let result = match reading {
@@ -837,11 +850,18 @@ impl<I: SubmitIo> Run<'_, I> {
                     })
             }
             ReadBack::Value { matched } => match status {
-                Some(status) => attempt
-                    .record_observation(matched)
-                    .await
-                    .ok()
-                    .map(|_| GatewaySubmitResult::Observed { status, matched }),
+                Some(status) => attempt.record_observation(matched).await.ok().map(|_| {
+                    if matched
+                        && let (Some(child), Some(response_digest), Some(now)) = (
+                            verified_child.as_ref(),
+                            snapshot.response_digest(),
+                            self.io.clock(),
+                        )
+                    {
+                        let _ = self.io.bind_created_child(child, response_digest, now);
+                    }
+                    GatewaySubmitResult::Observed { status, matched }
+                }),
                 None => None,
             },
             ReadBack::EchoMismatch => match status {

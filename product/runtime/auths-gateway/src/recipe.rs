@@ -1190,7 +1190,55 @@ pub(crate) struct CreatedChildRequest {
     metadata_checks: Vec<source::CreatedChildCheckSource>,
 }
 
+/// Produced only by comparing a bounded metadata GET with the recorded
+/// response candidate and the native-verified create fields. The caller is
+/// responsible for obtaining those bytes through the credential-bound
+/// observation transport before asking the task journal to bind the child.
+pub(crate) struct VerifiedCreatedChild {
+    id: String,
+    metadata_digest: String,
+}
+
+impl VerifiedCreatedChild {
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+    pub(crate) fn metadata_digest(&self) -> &str {
+        &self.metadata_digest
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test(id: &str) -> Self {
+        Self {
+            id: id.to_owned(),
+            metadata_digest: "a".repeat(64),
+        }
+    }
+}
+
 impl CreatedChildRequest {
+    pub(crate) fn verify_metadata(
+        &self,
+        candidate_id: &str,
+        body: &[u8],
+    ) -> Option<VerifiedCreatedChild> {
+        if !self.valid_id(candidate_id) || !self.metadata_matches(candidate_id, body) {
+            return None;
+        }
+        Some(VerifiedCreatedChild {
+            id: candidate_id.to_owned(),
+            metadata_digest: hex::encode(Sha256::digest(body)),
+        })
+    }
+
+    fn valid_id(&self, id: &str) -> bool {
+        !id.is_empty()
+            && id.len() <= self.maximum_id_bytes
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    }
+
     /// Compare the credential-bearing GET with the response-derived candidate
     /// and the native-verified create fields. This validates metadata only;
     /// it does not itself authorize a follow-up write or prove who created it.
@@ -1228,12 +1276,7 @@ impl CreatedChildRequest {
         }
         let document: Value = serde_json::from_slice(body).ok()?;
         let id = document.pointer(&self.response_id_pointer)?.as_str()?;
-        (id.len() <= self.maximum_id_bytes
-            && !id.is_empty()
-            && id
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')))
-        .then(|| id.to_owned())
+        self.valid_id(id).then(|| id.to_owned())
     }
 }
 

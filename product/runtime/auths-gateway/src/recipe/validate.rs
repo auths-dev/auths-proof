@@ -909,6 +909,7 @@ fn validate_created_child(
                 .iter()
                 .all(|kind| check_kinds.contains(kind));
         if binding.verb != TaskWriteVerb::Create
+            || source.echo.is_some()
             || binding.resource_field != child.parent_field
             || source.write.method != WriteMethod::Post
             || !valid_response_pointer(&child.response_id_pointer)

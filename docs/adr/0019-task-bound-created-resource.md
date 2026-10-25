@@ -15,8 +15,12 @@ candidate in the attempt journal across restart. The reviewed observation
 path can address that candidate and now compares ID, sole parent, title,
 marker and operator-pinned literals from a bounded metadata GET. Generic
 re-observation refuses created-child recipes after restart until native-verified
-create fields can be restored safely. There is still no child-resource binding or
-population authorization. This ADR authorizes no production claim by itself.
+create fields can be restored safely. A matched, credential-bearing metadata
+observation now commits an immutable child binding to the same task journal as
+the reserved create. A lost or mismatched observation leaves no binding. The
+binding is not yet usable by a populate action, and the crash gap between the
+attempt and task journals still needs a verified reconciliation path. This ADR
+authorizes no production claim by itself.
 
 **Date:** 25 October 2026
 

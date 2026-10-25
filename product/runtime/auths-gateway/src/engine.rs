@@ -1805,6 +1805,22 @@ impl SubmitIo for EngineIo<'_> {
         }
     }
 
+    fn bind_created_child(
+        &self,
+        child: &crate::recipe::VerifiedCreatedChild,
+        response_digest: &[u8; 32],
+        now: u64,
+    ) -> bool {
+        #[cfg(unix)]
+        if let Some(admission) = &self.task_write {
+            return admission
+                .ledger
+                .bind_created_child(admission.approved, child, response_digest, now)
+                .is_ok();
+        }
+        false
+    }
+
     async fn prepare(&self) -> Result<(), &'static str> {
         #[cfg(unix)]
         let prepared = match self.commissioning {

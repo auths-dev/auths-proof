@@ -474,7 +474,9 @@ mod tests {
     use crate::GatewayObserver;
     use crate::harness::{self, Signer};
     use crate::observed_tests::{submission, submission_for};
+    use crate::recipe::VerifiedCreatedChild;
     use crate::release_state::FileReleaseTaskLedger;
+    use crate::task_write::{ApprovedTaskWrite, ExactWriteIntent};
     use serde_json::{Map, json};
     use std::fs;
 
@@ -648,7 +650,7 @@ mod tests {
         let ledger = FileReleaseTaskLedger::open(&path).expect("journal");
         ledger.initialize(&approved).expect("durable activation");
         drop(ledger);
-        let reopened = FileReleaseTaskLedger::open(path).expect("reopen journal");
+        let reopened = FileReleaseTaskLedger::open(path.clone()).expect("reopen journal");
         let retained = reopened
             .load(&card.task_id)
             .expect("load")
@@ -656,6 +658,80 @@ mod tests {
             .activated_task(&installed, NOW + 1)
             .expect("revalidate signed card");
         assert_eq!(retained.descriptor().pending_child, card.pending_child);
+        let create = ApprovedTaskWrite::from_test_intent(ExactWriteIntent {
+            task_id: card.task_id.clone(),
+            task_commitment: hex::encode(approved.commitment()),
+            operation_id: "create-1".to_owned(),
+            action_commitment: "7".repeat(64),
+            request_commitment: "8".repeat(64),
+            recipe_digest: "e".repeat(64),
+            resource_handle: "project-a-folder".to_owned(),
+            verb: TaskWriteVerb::Create,
+            connection_id: card.connection_id.clone(),
+            connection_generation: card.connection_generation,
+            connection_subject: card.connection_subject.clone(),
+        });
+        assert!(
+            reopened
+                .bind_created_child(
+                    &create,
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "unreserved create cannot bind a child"
+        );
+        reopened
+            .reserve_write(&create, NOW + 1)
+            .expect("reserve create");
+        assert!(
+            reopened
+                .bind_created_child(
+                    &create,
+                    &VerifiedCreatedChild::from_test("child/other"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "unsafe child ID cannot bind"
+        );
+        let mut changed_intent = create.intent().clone();
+        changed_intent.request_commitment = "9".repeat(64);
+        assert!(
+            reopened
+                .bind_created_child(
+                    &ApprovedTaskWrite::from_test_intent(changed_intent),
+                    &VerifiedCreatedChild::from_test("child_ABC-123"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "changed request cannot bind"
+        );
+        reopened
+            .bind_created_child(
+                &create,
+                &VerifiedCreatedChild::from_test("child_ABC-123"),
+                &[9; 32],
+                NOW + 1,
+            )
+            .expect("bind observed child");
+        assert!(
+            reopened
+                .bind_created_child(
+                    &create,
+                    &VerifiedCreatedChild::from_test("other-child"),
+                    &[9; 32],
+                    NOW + 1
+                )
+                .is_err(),
+            "binding is immutable"
+        );
+        drop(reopened);
+        let reopened = FileReleaseTaskLedger::open(path).expect("reopen");
+        let state = reopened.load(&card.task_id).expect("load").expect("state");
+        assert_eq!(state.bound_child_id(), Some("child_ABC-123"));
         assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
         assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
         let mut changed = card.clone();

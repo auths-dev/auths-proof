@@ -40,8 +40,12 @@ candidate across a gateway restart. The reviewed metadata checks compare the
 GET response's ID, title, sole parent, public marker, MIME type, shared-drive
 ID and trash state to the response candidate, verified create fields and
 operator-pinned literals. A mismatch cannot become a matched observation.
-This is response evidence, not authority: the gateway still needs to bind the
-verified child to the signed task and connected subject before population.
+After a matched credential-bearing observation under the task-write path, the
+gateway now commits one immutable child binding in the task journal. It ties
+the candidate ID to the reserved create operation, request and response
+digests, metadata digest, signed pending-child proposal, and connected subject
+and generation. This still grants no populate authority; the second action
+must check that binding before provider entry.
 The generic `reobserve` path refuses this create recipe after restart because
 its stored plan does not retain the native-verified parent, title and marker;
 allowing a later name-only match would bypass the metadata checks. The
@@ -55,12 +59,12 @@ the credential broker, not inferred from file metadata.
 
 The [read-only producer observation consumer](../broker/src/employee_read_demo/google_create_handoff.py)
 checks demo_co's versioned create observation against exact private run pins.
-It reports only provider state; Auths has not yet bound a returned child ID to
-the signed task or authorized population. The producer's inspector
+It reports only provider state; it cannot authorize population or replace the
+gateway's own task binding. The producer's inspector
 requires a fresh pre-create working-Doc baseline and leaves cleanup explicit.
 
-This reference does not bind a returned file ID to the task, authorize a
-follow-up populate action or verify a provider effect. Those are required by
+This reference does not authorize a follow-up populate action or verify a
+live provider effect. Those are required by
 AP-SPEC-071's create/populate acceptance. The producer owns the folder and
 its ACL; Auths owns the task authority and gateway recipe. Rust tests prove
 the exact closed request and observation URLs, hostile declaration rejection,

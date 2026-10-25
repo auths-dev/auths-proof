@@ -5,6 +5,7 @@
 
 #[cfg(test)]
 use crate::ClosedReleaseRequest;
+use crate::recipe::VerifiedCreatedChild;
 use crate::release_verify::VerifiedReleaseRequest;
 use crate::task_activation::TaskWriteScope;
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
@@ -22,7 +23,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/6";
+const SCHEMA: &str = "auths.gateway-agent-task-state/7";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -75,6 +76,22 @@ struct WriteOperation {
     connection_subject: String,
     action_commitment: String,
     request_commitment: String,
+}
+
+/// Immutable child authority derived from one reserved task create and a
+/// credential-bearing metadata observation. Its ID is not agent input.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BoundChild {
+    create_operation_id: String,
+    create_recipe_digest: String,
+    populate_recipe_digest: String,
+    request_commitment: String,
+    response_digest: String,
+    metadata_digest: String,
+    id: String,
+    connection_generation: u64,
+    connection_subject: String,
 }
 
 /// An exact native-verified agent action, projected by the future admission
@@ -182,6 +199,7 @@ pub(crate) struct ReleaseTaskState {
     released_bytes: u64,
     operations: BTreeMap<String, ReleaseOperation>,
     writes: BTreeMap<String, WriteOperation>,
+    child_binding: Option<BoundChild>,
 }
 
 /// Owner-visible accounting only. No provider bytes, account subject,
@@ -379,6 +397,7 @@ impl ReleaseTaskState {
             released_bytes: 0,
             operations: BTreeMap::new(),
             writes: BTreeMap::new(),
+            child_binding: None,
         })
     }
 
@@ -542,6 +561,78 @@ impl ReleaseTaskState {
             },
         );
         Ok(())
+    }
+
+    fn bind_created_child(
+        &mut self,
+        approved: &ApprovedTaskWrite,
+        child: &VerifiedCreatedChild,
+        response_digest: &[u8; 32],
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        self.active(now)?;
+        if self.child_binding.is_some() {
+            return Err(ReleaseStateError::Replay);
+        }
+        let intent = approved.intent();
+        let pending = self
+            .activated_card
+            .as_ref()
+            .and_then(|card| card.pending_child.as_ref())
+            .ok_or(ReleaseStateError::Binding)?;
+        let binding = BoundChild {
+            create_operation_id: intent.operation_id.clone(),
+            create_recipe_digest: intent.recipe_digest.clone(),
+            populate_recipe_digest: pending.populate_recipe_digest.clone(),
+            request_commitment: intent.request_commitment.clone(),
+            response_digest: hex::encode(response_digest),
+            metadata_digest: child.metadata_digest().to_owned(),
+            id: child.id().to_owned(),
+            connection_generation: intent.connection_generation,
+            connection_subject: intent.connection_subject.clone(),
+        };
+        if intent.task_id != self.task_id
+            || !same_commitment(&self.task_commitment, &intent.task_commitment)
+            || !self.valid_child_binding(&binding)
+        {
+            return Err(ReleaseStateError::Binding);
+        }
+        self.child_binding = Some(binding);
+        Ok(())
+    }
+
+    fn valid_child_binding(&self, binding: &BoundChild) -> bool {
+        let Some(pending) = self
+            .activated_card
+            .as_ref()
+            .and_then(|card| card.pending_child.as_ref())
+        else {
+            return false;
+        };
+        let Some(write) = self.writes.get(&binding.create_operation_id) else {
+            return false;
+        };
+        pending.create_operation_id == binding.create_operation_id
+            && pending.create_recipe_digest == binding.create_recipe_digest
+            && pending.populate_recipe_digest == binding.populate_recipe_digest
+            && pending.parent_handle == write.resource_handle
+            && write.verb == crate::task_activation::TaskWriteVerb::Create
+            && write.recipe_digest == binding.create_recipe_digest
+            && write.request_commitment == binding.request_commitment
+            && valid_digest(&binding.response_digest)
+            && valid_digest(&binding.metadata_digest)
+            && !binding.id.is_empty()
+            && binding.id.len() <= 128
+            && binding
+                .id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            && !self
+                .write_scopes
+                .iter()
+                .any(|scope| scope.handle == binding.id)
+            && binding.connection_generation == self.connection_generation
+            && binding.connection_subject == self.connection_subject
     }
 
     /// Admit a compiled request only with a native-verified sole actor and
@@ -771,6 +862,13 @@ impl ReleaseTaskState {
         self.writes.len()
     }
 
+    #[cfg(test)]
+    pub(crate) fn bound_child_id(&self) -> Option<&str> {
+        self.child_binding
+            .as_ref()
+            .map(|binding| binding.id.as_str())
+    }
+
     /// A replay can inspect this state but may never send content again.
     pub(crate) fn delivery_unknown(&self, operation_id: &str) -> bool {
         self.stage(operation_id) == Some(ReleaseStage::ReleaseEntered)
@@ -825,6 +923,13 @@ impl ReleaseTaskState {
             {
                 return Err(ReleaseStateError::Corrupt);
             }
+        }
+        if self
+            .child_binding
+            .as_ref()
+            .is_some_and(|binding| !self.valid_child_binding(binding))
+        {
+            return Err(ReleaseStateError::Corrupt);
         }
         Ok(())
     }
@@ -1105,6 +1210,18 @@ impl FileReleaseTaskLedger {
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(&approved.intent().task_id, |state| {
             state.reserve_write(approved, now)
+        })
+    }
+
+    pub(crate) fn bind_created_child(
+        &self,
+        approved: &ApprovedTaskWrite,
+        child: &VerifiedCreatedChild,
+        response_digest: &[u8; 32],
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(&approved.intent().task_id, |state| {
+            state.bind_created_child(approved, child, response_digest, now)
         })
     }
 
