@@ -34,12 +34,19 @@ and generates a fresh 128-bit marker; the future task ceremony must sign and
 persist those values before any provider call.
 The gateway recipe now declares one bounded `created_child` mapping for the
 complete successful response's `/id`. Its reviewed observation GET uses that
-candidate ID and fixed `fields=name` and `supportsAllDrives=true` queries. A recorded response
-retains the candidate across a gateway restart. This is response evidence:
-the current observation compares the file name only, and neither it nor the
-candidate grants permission to populate the file. The task still needs a
-separate metadata check of subject, parent, type and marker followed by a
-durable child binding before a second write can be admitted.
+candidate ID and fixed `fields=id,name,mimeType,parents,driveId,properties,trashed,createdTime`
+and `supportsAllDrives=true` queries. A recorded response retains the
+candidate across a gateway restart. The reviewed metadata checks compare the
+GET response's ID, title, sole parent, public marker, MIME type, shared-drive
+ID and trash state to the response candidate, verified create fields and
+operator-pinned literals. A mismatch cannot become a matched observation.
+This is response evidence, not authority: the gateway still needs to bind the
+verified child to the signed task and connected subject before population.
+The generic `reobserve` path refuses this create recipe after restart because
+its stored plan does not retain the native-verified parent, title and marker;
+allowing a later name-only match would bypass the metadata checks. The
+candidate ID remains in the private attempt journal for a future verified
+reconciliation path.
 The broker's test-only Google metadata oracle now defines the exact `files.get`
 request and rejects mismatched child ID, name, MIME type, sole parent, shared
 drive, public marker, trash state or creation time. It does not call Google or

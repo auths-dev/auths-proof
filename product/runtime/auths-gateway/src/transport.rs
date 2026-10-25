@@ -831,14 +831,16 @@ mod tests {
         let recipe = CompiledRecipe::compile(source, lock).expect("create recipe");
         let transport = GatewayHttpTransport::for_loopback_test(&recipe, 18765);
         let path = "https://www.googleapis.com/drive/v3/files/child_ABC-123";
-        assert!(transport.owns_read_url(&format!("{path}?fields=name&supportsAllDrives=true")));
+        assert!(transport.owns_read_url(&format!("{path}?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true")));
         for candidate in [
             format!("{path}?supportsAllDrives=false"),
             format!("{path}?fields=id&supportsAllDrives=true"),
             format!(
-                "https://elsewhere.example/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=true"
+                "https://elsewhere.example/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true"
             ),
-            format!("{path}?fields=name&supportsAllDrives=true#fragment"),
+            format!(
+                "{path}?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true#fragment"
+            ),
         ] {
             assert!(!transport.owns_read_url(&candidate), "{candidate}");
         }
@@ -859,11 +861,11 @@ mod tests {
         let port = listener.local_addr().expect("address").port();
         let provider = tokio::spawn(async move { capture_heads(&listener, 1).await });
         let transport = GatewayHttpTransport::for_loopback_test(&recipe, port);
-        let url = "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=true";
+        let url = "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true";
         let rejected = transport
             .read(
                 reqwest::Method::GET,
-                "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=false",
+                "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=false",
                 &[],
                 1024,
                 b"synthetic-transport-fixture",
@@ -884,7 +886,7 @@ mod tests {
         assert_eq!(heads.len(), 1);
         assert!(
             heads[0].starts_with(
-                "get /drive/v3/files/child_abc-123?fields=name&supportsalldrives=true http/1.1"
+                "get /drive/v3/files/child_abc-123?fields=id%2cname%2cmimetype%2cparents%2cdriveid%2cproperties%2ctrashed%2ccreatedtime&supportsalldrives=true http/1.1"
             ),
             "{}",
             heads[0]

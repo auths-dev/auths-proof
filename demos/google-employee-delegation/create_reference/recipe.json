@@ -4,39 +4,103 @@
   "service": "google-drive-delegation-demo",
   "tool": "create_project_a_document_v1",
   "operator_namespace": "google-drive-create-demo",
-  "task_binding": {"resource_field": "parent_id", "verb": "create"},
+  "task_binding": {
+    "resource_field": "parent_id",
+    "verb": "create"
+  },
   "created_child": {
     "response_id_pointer": "/id",
     "maximum_id_bytes": 64,
     "parent_field": "parent_id",
     "title_field": "title",
-    "marker_field": "recovery_marker"
+    "marker_field": "recovery_marker",
+    "metadata_checks": [
+      {
+        "expected": "candidate-id",
+        "json_pointer": "/id"
+      },
+      {
+        "expected": "title",
+        "json_pointer": "/name"
+      },
+      {
+        "expected": "parent-only",
+        "json_pointer": "/parents"
+      },
+      {
+        "expected": "marker",
+        "json_pointer": "/properties/auths_operation_marker"
+      },
+      {
+        "expected": "literal",
+        "json_pointer": "/mimeType",
+        "value": "application/vnd.google-apps.document"
+      },
+      {
+        "expected": "literal",
+        "json_pointer": "/driveId",
+        "value": "0ACsJUU1uex2wUk9PVA"
+      },
+      {
+        "expected": "literal",
+        "json_pointer": "/trashed",
+        "value": false
+      }
+    ]
   },
-  "credential": {"kind": "bearer"},
+  "credential": {
+    "kind": "bearer"
+  },
   "origin": "https://www.googleapis.com",
   "write": {
     "method": "POST",
     "path": [
-      {"kind": "fixed", "value": "drive"},
-      {"kind": "fixed", "value": "v3"},
-      {"kind": "fixed", "value": "files"}
+      {
+        "kind": "fixed",
+        "value": "drive"
+      },
+      {
+        "kind": "fixed",
+        "value": "v3"
+      },
+      {
+        "kind": "fixed",
+        "value": "files"
+      }
     ],
-    "query": {"fields": "id", "supportsAllDrives": "true"},
+    "query": {
+      "fields": "id",
+      "supportsAllDrives": "true"
+    },
     "body": {
       "kind": "json",
       "value": {
         "kind": "object",
         "fields": {
-          "mimeType": {"kind": "string", "value": "application/vnd.google-apps.document"},
-          "name": {"kind": "field", "name": "title"},
+          "mimeType": {
+            "kind": "string",
+            "value": "application/vnd.google-apps.document"
+          },
+          "name": {
+            "kind": "field",
+            "name": "title"
+          },
           "parents": {
             "kind": "array",
-            "items": [{"kind": "field", "name": "parent_id"}]
+            "items": [
+              {
+                "kind": "field",
+                "name": "parent_id"
+              }
+            ]
           },
           "properties": {
             "kind": "object",
             "fields": {
-              "auths_operation_marker": {"kind": "field", "name": "recovery_marker"}
+              "auths_operation_marker": {
+                "kind": "field",
+                "name": "recovery_marker"
+              }
             }
           }
         }
@@ -45,12 +109,28 @@
   },
   "observation": {
     "path": [
-      {"kind": "fixed", "value": "drive"},
-      {"kind": "fixed", "value": "v3"},
-      {"kind": "fixed", "value": "files"},
-      {"kind": "response-field", "pointer": "/id", "max_bytes": 64}
+      {
+        "kind": "fixed",
+        "value": "drive"
+      },
+      {
+        "kind": "fixed",
+        "value": "v3"
+      },
+      {
+        "kind": "fixed",
+        "value": "files"
+      },
+      {
+        "kind": "response-field",
+        "pointer": "/id",
+        "max_bytes": 64
+      }
     ],
-    "query": {"fields": "name", "supportsAllDrives": "true"},
+    "query": {
+      "fields": "id,name,mimeType,parents,driveId,properties,trashed,createdTime",
+      "supportsAllDrives": "true"
+    },
     "json_pointer": "/name",
     "expected_field": "title",
     "maximum_response_bytes": 16384

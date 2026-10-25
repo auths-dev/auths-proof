@@ -276,6 +276,7 @@ fn created_child_document(source: &RecipeSource) -> Value {
             "parent_field": child.parent_field,
             "title_field": child.title_field,
             "marker_field": child.marker_field,
+            "metadata_checks": child.metadata_checks,
             "disclosure": "a complete 2xx response can nominate one child ID; metadata verification and a task-journal binding are required before another write may use it",
         })
     })

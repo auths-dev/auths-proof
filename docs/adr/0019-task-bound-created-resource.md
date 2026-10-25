@@ -12,8 +12,10 @@ installed, and create admission compares the signed values; the pending
 proposal is not an executable populate scope. A reviewed create declaration now extracts one
 bounded child ID from a complete successful response and retains it as a
 candidate in the attempt journal across restart. The reviewed observation
-path can address that candidate; its name comparison is not the metadata
-verification required below. There is still no child-resource binding or
+path can address that candidate and now compares ID, sole parent, title,
+marker and operator-pinned literals from a bounded metadata GET. Generic
+re-observation refuses created-child recipes after restart until native-verified
+create fields can be restored safely. There is still no child-resource binding or
 population authorization. This ADR authorizes no production claim by itself.
 
 **Date:** 25 October 2026

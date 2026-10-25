@@ -5,10 +5,10 @@
 //! order the checks run in.
 
 use super::source::{
-    AccountReadSource, AccountScopeSource, BodySource, BoundsSource, DeniedReadSource,
-    EchoPlacement, EchoSource, FormExpr, GuardSource, IdempotencyLocation, IdempotencySource,
-    ObservationSource, PathSegment, PreEntrySource, PreconditionSource, ProbeSource, RecipeSource,
-    RelativeCeilingSource, ValueExpr,
+    AccountReadSource, AccountScopeSource, BodySource, BoundsSource, CreatedChildCheckSource,
+    DeniedReadSource, EchoPlacement, EchoSource, FormExpr, GuardSource, IdempotencyLocation,
+    IdempotencySource, ObservationSource, PathSegment, PreEntrySource, PreconditionSource,
+    ProbeSource, RecipeSource, RelativeCeilingSource, ValueExpr,
 };
 use super::{
     FieldSchema, GatewayRecipeError, MAX_FORM_FIELDS, MAX_PATH_SEGMENTS, MAX_POINTER_BYTES,
@@ -885,12 +885,36 @@ fn validate_created_child(
             response_fields.as_slice()
                 == [(child.response_id_pointer.as_str(), child.maximum_id_bytes)]
         });
+        let mut check_kinds = BTreeSet::new();
+        let mut check_pointers = BTreeSet::new();
+        let valid_checks = (4..=10).contains(&child.metadata_checks.len())
+            && child.metadata_checks.iter().all(|check| {
+                let kind = match check {
+                    CreatedChildCheckSource::CandidateId { .. } => "candidate-id",
+                    CreatedChildCheckSource::ParentOnly { .. } => "parent-only",
+                    CreatedChildCheckSource::Title { .. } => "title",
+                    CreatedChildCheckSource::Marker { .. } => "marker",
+                    CreatedChildCheckSource::Literal { value, .. } => {
+                        if !probe_literal_valid(value) {
+                            return false;
+                        }
+                        "literal"
+                    }
+                };
+                valid_response_pointer(check.pointer())
+                    && check_pointers.insert(check.pointer())
+                    && (kind == "literal" || check_kinds.insert(kind))
+            })
+            && ["candidate-id", "parent-only", "title", "marker"]
+                .iter()
+                .all(|kind| check_kinds.contains(kind));
         if binding.verb != TaskWriteVerb::Create
             || binding.resource_field != child.parent_field
             || source.write.method != WriteMethod::Post
             || !valid_response_pointer(&child.response_id_pointer)
             || !(1..=128).contains(&child.maximum_id_bytes)
             || !locator_matches
+            || !valid_checks
             || names.iter().collect::<BTreeSet<_>>().len() != names.len()
             || names.iter().any(|name| {
                 !matches!(fields.get(*name), Some(FieldSchema::String { minimum, maximum })

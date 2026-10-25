@@ -269,8 +269,33 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         .expect("closed observation request");
     assert_eq!(
         observation.url(),
-        "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=true"
+        "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=id%2Cname%2CmimeType%2Cparents%2CdriveId%2Cproperties%2Ctrashed%2CcreatedTime&supportsAllDrives=true"
     );
+    let metadata = json!({
+        "id": "child_ABC-123",
+        "name": "Auths AP-071 Project A handoff",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": ["project-a-folder"],
+        "driveId": "0ACsJUU1uex2wUk9PVA",
+        "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))},
+        "trashed": false,
+        "createdTime": "2026-10-25T10:00:00Z"
+    });
+    assert!(child.metadata_matches("child_ABC-123", &serde_json::to_vec(&metadata).unwrap()));
+    for (pointer, replacement) in [
+        ("/id", json!("other-child")),
+        ("/name", json!("Other title")),
+        ("/mimeType", json!("text/plain")),
+        ("/parents", json!(["project-a-folder", "project-b-folder"])),
+        ("/driveId", json!("other-drive")),
+        ("/properties/auths_operation_marker", json!("wrong-marker")),
+        ("/trashed", json!(true)),
+    ] {
+        let mut wrong = metadata.clone();
+        *wrong.pointer_mut(pointer).expect("metadata pointer") = replacement;
+        assert!(!child.metadata_matches("child_ABC-123", &serde_json::to_vec(&wrong).unwrap()));
+    }
+    assert!(!child.metadata_matches("child_ABC-123", br#"{"id":"child_ABC-123"}"#));
     assert_eq!(
         recipe.review_document()["observation"]["query"]["supportsAllDrives"],
         "true"
@@ -309,6 +334,30 @@ fn created_child_declaration_requires_a_closed_task_create_and_consumed_fields()
     ] {
         let mut candidate = source.clone();
         candidate["created_child"] = changed["created_child"].clone();
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&candidate).expect("JSON"), lock).err(),
+            Some(GatewayRecipeError::InvalidCreatedChild)
+        );
+    }
+    for checks in [
+        json!([]),
+        json!([{"expected":"candidate-id","json_pointer":"/id"}]),
+        json!([
+            {"expected":"candidate-id","json_pointer":"/id"},
+            {"expected":"parent-only","json_pointer":"/parents"},
+            {"expected":"title","json_pointer":"/name"},
+            {"expected":"marker","json_pointer":"/name"}
+        ]),
+        json!([
+            {"expected":"candidate-id","json_pointer":"/id"},
+            {"expected":"parent-only","json_pointer":"/parents"},
+            {"expected":"title","json_pointer":"/name"},
+            {"expected":"marker","json_pointer":"/properties/auths_operation_marker"},
+            {"expected":"literal","json_pointer":"/mimeType","value":{}}
+        ]),
+    ] {
+        let mut candidate = source.clone();
+        candidate["created_child"]["metadata_checks"] = checks;
         assert_eq!(
             CompiledRecipe::compile(&serde_json::to_vec(&candidate).expect("JSON"), lock).err(),
             Some(GatewayRecipeError::InvalidCreatedChild)

@@ -334,6 +334,9 @@ pub(crate) async fn reobserve<I: SubmitIo>(
     io: &I,
     attempt: ObservableGatewayAttempt,
 ) -> Option<GatewaySubmitResult> {
+    if cx.recipe.created_child_fields().is_some() {
+        return None;
+    }
     let mut state = Run::new(cx, io);
     state.observable = Some(attempt);
     let resumed = SubmitState {
@@ -795,12 +798,25 @@ impl<I: SubmitIo> Run<'_, I> {
             return false;
         };
         let token = attempt.echo_token();
-        let Some(reading) = observation.read_back(token.as_deref(), &bytes) else {
+        let Some(mut reading) = observation.read_back(token.as_deref(), &bytes) else {
             return false;
         };
         let Ok(snapshot) = attempt.snapshot() else {
             return false;
         };
+        if let Some(child) = self
+            .verified
+            .as_ref()
+            .and_then(|verified| verified.request.created_child())
+        {
+            let metadata_matches = snapshot
+                .response_locator()
+                .and_then(|locator| locator.get(&child.response_id_pointer))
+                .is_some_and(|id| child.metadata_matches(id, &bytes));
+            if !metadata_matches {
+                reading = ReadBack::Value { matched: false };
+            }
+        }
         let status = snapshot.response_status();
         let result = match reading {
             ReadBack::EchoMatched => {

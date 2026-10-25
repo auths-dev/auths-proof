@@ -1105,6 +1105,12 @@ impl GatewayEngine {
     /// cannot be leased.
     pub async fn reobserve(&self, operation_id: &str) -> Result<GatewaySubmitResult, &'static str> {
         let not_observable = "gateway.reobserve.not-observable";
+        // The stored observation plan does not retain the native-verified
+        // create fields needed for child metadata comparisons. Re-observing
+        // it after restart must not turn a name-only match into child evidence.
+        if self.recipe.created_child_fields().is_some() {
+            return Err(not_observable);
+        }
         let operation =
             crate::LogicalOperationId::parse(operation_id).map_err(|_| not_observable)?;
         let namespace = self.recipe.namespace();

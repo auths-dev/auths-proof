@@ -820,7 +820,7 @@ impl CompiledRecipe {
             )?,
             None => None,
         };
-        let created_child = self.created_child_request()?;
+        let created_child = self.created_child_request(arguments)?;
         let pre_entry = action_read(self.plans.pre_entry.as_ref(), &values, || {
             self.source
                 .pre_entry
@@ -854,7 +854,10 @@ impl CompiledRecipe {
         })
     }
 
-    fn created_child_request(&self) -> Result<Option<CreatedChildRequest>, GatewayRecipeError> {
+    fn created_child_request(
+        &self,
+        arguments: &Map<String, Value>,
+    ) -> Result<Option<CreatedChildRequest>, GatewayRecipeError> {
         self.source
             .created_child
             .as_ref()
@@ -863,6 +866,22 @@ impl CompiledRecipe {
                     response_id_pointer: source.response_id_pointer.clone(),
                     maximum_id_bytes: usize::try_from(source.maximum_id_bytes)
                         .map_err(|_| GatewayRecipeError::InvalidCreatedChild)?,
+                    parent: arguments
+                        .get(&source.parent_field)
+                        .and_then(Value::as_str)
+                        .ok_or(GatewayRecipeError::InvalidCreatedChild)?
+                        .to_owned(),
+                    title: arguments
+                        .get(&source.title_field)
+                        .and_then(Value::as_str)
+                        .ok_or(GatewayRecipeError::InvalidCreatedChild)?
+                        .to_owned(),
+                    marker: arguments
+                        .get(&source.marker_field)
+                        .and_then(Value::as_str)
+                        .ok_or(GatewayRecipeError::InvalidCreatedChild)?
+                        .to_owned(),
+                    metadata_checks: source.metadata_checks.clone(),
                 })
             })
             .transpose()
@@ -1165,9 +1184,37 @@ impl ClosedProviderRequest {
 pub(crate) struct CreatedChildRequest {
     pub(crate) response_id_pointer: String,
     maximum_id_bytes: usize,
+    parent: String,
+    title: String,
+    marker: String,
+    metadata_checks: Vec<source::CreatedChildCheckSource>,
 }
 
 impl CreatedChildRequest {
+    /// Compare the credential-bearing GET with the response-derived candidate
+    /// and the native-verified create fields. This validates metadata only;
+    /// it does not itself authorize a follow-up write or prove who created it.
+    pub(crate) fn metadata_matches(&self, candidate_id: &str, body: &[u8]) -> bool {
+        use source::CreatedChildCheckSource as Check;
+        let Ok(document) = serde_json::from_slice::<Value>(body) else {
+            return false;
+        };
+        self.metadata_checks.iter().all(|check| {
+            let Some(observed) = document.pointer(check.pointer()) else {
+                return false;
+            };
+            match check {
+                Check::CandidateId { .. } => observed.as_str() == Some(candidate_id),
+                Check::ParentOnly { .. } => observed.as_array().is_some_and(|items| {
+                    items.len() == 1 && items[0].as_str() == Some(self.parent.as_str())
+                }),
+                Check::Title { .. } => observed.as_str() == Some(self.title.as_str()),
+                Check::Marker { .. } => observed.as_str() == Some(self.marker.as_str()),
+                Check::Literal { value, .. } => observed == value,
+            }
+        })
+    }
+
     /// Extract only one bounded path-safe ID from a complete successful
     /// response. The caller must not treat it as a task-bound resource.
     pub(crate) fn candidate_id(

@@ -63,6 +63,32 @@ pub(super) struct CreatedChildSource {
     pub(super) parent_field: String,
     pub(super) title_field: String,
     pub(super) marker_field: String,
+    /// Closed comparisons on the credential-bearing child metadata GET.
+    /// Provider paths and literals remain reviewed recipe data.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) metadata_checks: Vec<CreatedChildCheckSource>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "expected", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum CreatedChildCheckSource {
+    CandidateId { json_pointer: String },
+    ParentOnly { json_pointer: String },
+    Title { json_pointer: String },
+    Marker { json_pointer: String },
+    Literal { json_pointer: String, value: Value },
+}
+
+impl CreatedChildCheckSource {
+    pub(super) fn pointer(&self) -> &str {
+        match self {
+            Self::CandidateId { json_pointer }
+            | Self::ParentOnly { json_pointer }
+            | Self::Title { json_pointer }
+            | Self::Marker { json_pointer }
+            | Self::Literal { json_pointer, .. } => json_pointer,
+        }
+    }
 }
 
 /// The credential requirement plus the author's optional credential guard.
