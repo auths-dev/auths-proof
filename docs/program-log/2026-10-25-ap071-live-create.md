@@ -1,4 +1,4 @@
-# AP-071 live Project A create, awaiting population
+# AP-071 live Project A create and populate-only continuation
 
 On 25 October 2026, Jules signed a 30-minute task delegating one bounded
 Project A read and at most two writes to a separately registered agent. The
@@ -91,3 +91,40 @@ This is historical provider-state evidence, not an Auths write authorization.
 demo_co is implementing a separate v2 baseline and inspector that expect the
 preserved child alongside a future new child. The populate-only continuation
 may now proceed without erasing the original blank-state evidence.
+
+## Observed population under a fresh task
+
+At 18:26 UTC, Jules signed task `rMOM0Hn_1FAoOWQve3hcC3j5` for the same
+registered agent, with one exact-confirmed edit to the existing child, zero
+reads and zero creates. The earlier review challenge had expired; no grant was
+signed from that challenge. The new task activated with the same Jules Google
+subject and pinned destination. A fresh Jules-subject preflight checked the
+child's metadata, Project A parent and marker, `canEdit`, blank Docs tab and
+revision. The separate agent signed the original 145-byte draft (SHA-256
+`480f253eaa1267aa3d0ce802ff0703dd2057017774f08af53f1ae555ed725ecb`)
+for operation `AboQfNlXiYrqV0vXXn-wYkO7`. Jules signed the exact proposal;
+the gateway's durable attempt records one `documents.batchUpdate` with HTTP
+200 and `response-recorded` at 18:27 UTC. This continuation did not reuse or
+extend the expired two-effect plan and did not issue another create.
+
+demo_co then ran its frozen v1 read-only inspector against the **original**
+generation-0003 baseline. Its private generation-0005
+`google-create-observation.json` has SHA-256
+`33066dbac6ea78eed23b0082e4c952b49d2c60093daf3720ef03c8d1566110ec`
+and status `ready`. It verified the exact child ID, title, sole Project A
+parent, shared drive and unique marker; the exact three-child folder
+inventory; unchanged working and canonical Project A/B Docs; and Jules's
+Project B write denial. The current Google export is 148 bytes: a three-byte
+UTF-8 BOM followed by exactly the agent-signed 145 bytes. Its export SHA-256
+is `a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+Auths' pinned v1 consumer accepted that producer report as
+`provider_state_observed`. The separate signed task, agent proposal, human
+confirmation and gateway attempt provide the attribution path; the producer
+report alone is only provider-state evidence.
+
+This proves the minimum live example of a human delegating a bounded Google
+read to an agent, then having that agent create and populate a Project A Doc
+through separately approved tasks. It does **not** prove the required
+single-plan create/populate run: the first create plan expired before
+population, and a new task supplied the final edit. The preserved historical
+blank observation remains generation 0004 for a future v2 run.
