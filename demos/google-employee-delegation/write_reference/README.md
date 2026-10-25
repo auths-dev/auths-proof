@@ -115,8 +115,11 @@ can now sign a reviewed profile action under the human's completed child
 grant. `auths-google-read-agent sign-write` writes private proof and action
 files; its package contains public grant/evidence bytes, operator challenge,
 task commitment and recipe digest, with no human key or Google token. The
-broker still needs to complete the child-grant handoff and issue that package
-after Jules reviews and signs it.
+broker's [child-grant helper](../broker/src/employee_read_demo/task_write_delegation.py)
+now verifies Jules's signature against her enrolled public key and produces
+that public package. Serving it still requires an owner-scoped browser flow
+that rechecks active enrollment, registered agent, task card and operator
+pins at completion.
 The private authority package pins a fresh 32-byte operator challenge into
 the installed trust context. Human and agent actions for that installation
 must sign that same challenge; the gateway does not accept an agent-selected
