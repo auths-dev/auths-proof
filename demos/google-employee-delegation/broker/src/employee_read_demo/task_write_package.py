@@ -32,6 +32,8 @@ _FIELDS = {
     "human_evidence_b64", "read",
 }
 _FIELDS_V3 = _FIELDS | {"companion_write"}
+_FIELDS_V4 = _FIELDS | {"effect_plan_grant_b64"}
+_FIELDS_V4_COMPANION = _FIELDS_V3 | {"effect_plan_grant_b64"}
 _READ_FIELDS = {
     "service", "tool", "recipe_digest", "recipe_source_sha256",
     "profile_lock_sha256", "parent_grant_b64",
@@ -92,7 +94,9 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
     if (type(package) is not dict
             or (package.get("schema"), set(package)) not in (
                 ("auths.ap071-task-authority/2", _FIELDS),
-                ("auths.ap071-task-authority/3", _FIELDS_V3))
+                ("auths.ap071-task-authority/3", _FIELDS_V3),
+                ("auths.ap071-task-authority/4", _FIELDS_V4),
+                ("auths.ap071-task-authority/4", _FIELDS_V4_COMPANION))
             or type(package.get("company_id")) is not str
             or not 1 <= len(package["company_id"]) <= 128
             or type(package.get("binding_ref")) is not str
@@ -152,6 +156,9 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
             name: _decode(package[f"{name}_b64"], 262_144)
             for name in ("approval_grant", "confirmation_grant", "write_parent_grant")
         }
+        if package["schema"] == "auths.ap071-task-authority/4":
+            grants["effect_plan_grant"] = _decode(
+                package["effect_plan_grant_b64"], 262_144)
         if read is not None:
             grants["read_parent_grant"] = _decode(read["parent_grant_b64"], 262_144)
         if companion is not None:
@@ -187,6 +194,8 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
         None if companion is None else companion["service"],
         None if companion is None else companion["tool"],
         None if companion is None else employee_grant("companion_write_parent_grant"),
+        (employee_grant("effect_plan_grant")
+         if "effect_plan_grant" in grants else None),
     )
     read_profile = None if read is None else ReadProfile(
         read["service"], read["tool"], read["recipe_digest"],

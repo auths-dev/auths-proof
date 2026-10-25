@@ -24,6 +24,8 @@ use crate::task_activation::{
     verify_task_activation,
 };
 #[cfg(unix)]
+use crate::task_effect_plan::verify_effect_plan;
+#[cfg(unix)]
 use crate::task_write::{
     ApprovedTaskWrite, CONFIRMATION_TOOL, TaskWriteBinding, admit_bounded_upfront_write,
     derive_exact_write_intent, verify_exact_write_confirmation,
@@ -1318,6 +1320,22 @@ impl GatewayEngine {
         };
         let approved = match task.descriptor().write_approval_mode {
             WriteApprovalMode::Exact => {
+                if submission.use_effect_plan {
+                    if submission.confirmation.is_some() {
+                        return not_entered("gateway.task.unexpected-confirmation");
+                    }
+                    let Some(plan) = state.effect_plan() else {
+                        return not_entered("gateway.task.effect-plan-required");
+                    };
+                    return self
+                        .run_admitted_task_write(
+                            submission,
+                            &task,
+                            child_scope,
+                            ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
+                        )
+                        .await;
+                }
                 let Some((proof, action)) = submission.confirmation else {
                     return not_entered("gateway.task.exact-confirmation-required");
                 };
@@ -1341,6 +1359,22 @@ impl GatewayEngine {
             Ok(approved) => approved,
             Err(result) => return result,
         };
+        self.run_admitted_task_write(submission, &task, child_scope, Ok(approved))
+            .await
+    }
+
+    #[cfg(unix)]
+    async fn run_admitted_task_write(
+        &self,
+        submission: TaskWriteSubmission<'_>,
+        task: &ApprovedAgentTask,
+        child_scope: Option<crate::task_activation::TaskWriteScope>,
+        approved: Result<ApprovedTaskWrite, GatewaySubmitResult>,
+    ) -> GatewaySubmitResult {
+        let approved = match approved {
+            Ok(approved) => approved,
+            Err(result) => return result,
+        };
         let io = EngineIo {
             engine: self,
             proof: submission.agent_proof,
@@ -1348,7 +1382,7 @@ impl GatewayEngine {
             started: Instant::now(),
             prepared: OnceLock::new(),
             task_write: Some(TaskWriteAdmission {
-                task: &task,
+                task,
                 binding: submission.binding,
                 approved: &approved,
                 ledger: submission.ledger,
@@ -1665,8 +1699,83 @@ impl TaskWriteSession<'_> {
                 agent_proof: proofs.agent_proof,
                 agent_action: proofs.agent_action,
                 confirmation: proofs.confirmation,
+                use_effect_plan: false,
             })
             .await
+    }
+
+    /// Execute the exact recorded create under one previously verified human
+    /// effect plan. The plan must have been committed before write entry.
+    pub async fn submit_planned_create(&self, proofs: TaskWriteProofs<'_>) -> GatewaySubmitResult {
+        self.engine
+            .submit_task_write(TaskWriteSubmission {
+                pins: &self.pins,
+                binding: &self.binding,
+                ledger: &self.ledger,
+                task_id: proofs.task_id,
+                agent_proof: proofs.agent_proof,
+                agent_action: proofs.agent_action,
+                confirmation: proofs.confirmation,
+                use_effect_plan: true,
+            })
+            .await
+    }
+
+    /// Verify and durably record one human-signed create/populate plan before
+    /// either provider write. This records authority but does not execute it.
+    ///
+    /// # Errors
+    /// Refuses a changed task, non-create agent action, invalid human plan,
+    /// late or conflicting journal write, or unavailable private state.
+    pub fn record_effect_plan(
+        &self,
+        task_id: &str,
+        agent_proof: &[u8],
+        agent_action: &[u8],
+        plan_proof: &[u8],
+        plan_action: &[u8],
+    ) -> Result<(), &'static str> {
+        if self.engine.recipe.created_child_fields().is_none() {
+            return Err("gateway.task.effect-plan-not-create");
+        }
+        let now = wall_clock_seconds().ok_or("gateway.task.effect-plan-clock")?;
+        let task = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.effect-plan-state")?
+            .ok_or("gateway.task.effect-plan-state")?
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.effect-plan-inactive")?;
+        let verified = verify_detailed(
+            &self.engine.recipe,
+            &self.engine.trusted_context,
+            now,
+            agent_proof,
+            agent_action,
+        )
+        .map_err(|_| "gateway.task.effect-plan-agent-proof")?;
+        let create = derive_exact_write_intent(
+            &task,
+            &verified,
+            &self.engine.recipe,
+            &self.binding,
+            None,
+            now,
+        )
+        .map_err(|_| "gateway.task.effect-plan-create")?;
+        let plan = verify_effect_plan(
+            &self.engine.trusted_context,
+            &task,
+            &create,
+            now,
+            plan_proof,
+            plan_action,
+        )
+        .map_err(|_| "gateway.task.effect-plan-human-proof")?;
+        self.ledger
+            .record_effect_plan(task_id, &plan, now)
+            .map_err(|_| "gateway.task.effect-plan-journal")?;
+        Ok(())
     }
 
     /// Reconcile a recorded create response after a crash between the
@@ -1721,18 +1830,23 @@ impl TaskWriteSession<'_> {
         if intent.verb != crate::task_activation::TaskWriteVerb::Create {
             return Err("gateway.task.reconcile-not-create");
         }
-        let (proof, action) = proofs
-            .confirmation
-            .ok_or("gateway.task.reconcile-confirmation")?;
-        let approved = verify_exact_write_confirmation(
-            &self.engine.trusted_context,
-            &task,
-            intent.clone(),
-            now,
-            proof,
-            action,
-        )
-        .map_err(|_| "gateway.task.reconcile-confirmation")?;
+        let approved = if let Some((proof, action)) = proofs.confirmation {
+            verify_exact_write_confirmation(
+                &self.engine.trusted_context,
+                &task,
+                intent.clone(),
+                now,
+                proof,
+                action,
+            )
+            .map_err(|_| "gateway.task.reconcile-confirmation")?
+        } else {
+            let plan = state
+                .effect_plan()
+                .ok_or("gateway.task.reconcile-confirmation")?;
+            ApprovedTaskWrite::from_recorded_effect_plan_reconciliation(plan, intent.clone())
+                .map_err(|_| "gateway.task.reconcile-confirmation")?
+        };
         let request = &verified.request;
         let child = request
             .created_child()
@@ -1874,6 +1988,7 @@ pub(crate) struct TaskWriteSubmission<'a> {
     pub(crate) agent_proof: &'a [u8],
     pub(crate) agent_action: &'a [u8],
     pub(crate) confirmation: Option<(&'a [u8], &'a [u8])>,
+    pub(crate) use_effect_plan: bool,
 }
 
 #[cfg(unix)]
@@ -2462,6 +2577,7 @@ pub(crate) async fn observe_read_back(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use sha2::Digest as _;
 
     fn airtable_recipe() -> CompiledRecipe {
         CompiledRecipe::compile(
@@ -2479,7 +2595,6 @@ pub(crate) mod tests {
     )]
     async fn task_session_uses_canonical_operator_pins_for_the_installed_recipe() {
         use crate::{CompiledReleaseRecipe, QualificationGate};
-        use sha2::Digest as _;
 
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
@@ -3157,7 +3272,6 @@ pub(crate) mod tests {
         use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
         use auths_connections::SemanticId;
         use serde_json::{Map, json};
-        use sha2::Digest as _;
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
         let mut installation = administration::installation(8).await;
@@ -3347,83 +3461,138 @@ pub(crate) mod tests {
             now,
         )
         .expect("exact create intent");
-        let confirmation_grant = harness::grant_for(
+        let effect_plan_grant = harness::grant_for(
             &root,
             &human.principal,
             now,
             TASK_SERVICE,
-            CONFIRMATION_TOOL,
+            crate::task_effect_plan::EFFECT_PLAN_TOOL,
         )
-        .expect("human confirmation grant");
-        let mut confirmation_args = Map::new();
-        confirmation_args.insert(
-            "write".to_owned(),
-            serde_json::to_value(&intent).expect("intent"),
+        .expect("human effect-plan grant");
+        let mut plan_args = Map::new();
+        plan_args.insert(
+            "plan".to_owned(),
+            json!({
+                "schema": "auths.agent-effect-plan/1",
+                "task_id": "task-create-reconcile",
+                "task_commitment": hex::encode(commitment.as_bytes()),
+                "create": intent,
+                "populate_recipe_digest": populate.digest_hex(),
+                "populate_operation_id": "populate-reconcile-1",
+                "initial_text": "Project A handoff draft",
+                "expires_at": now + 300,
+            }),
         );
-        let confirmation = submission_for(
+        let effect_plan = submission_for(
             &root,
             &human,
-            &confirmation_grant,
-            &confirmation_args,
+            &effect_plan_grant,
+            &plan_args,
             &[],
             TASK_SERVICE,
-            CONFIRMATION_TOOL,
+            crate::task_effect_plan::EFFECT_PLAN_TOOL,
             now,
         );
-        let approved = verify_exact_write_confirmation(
-            &engine.trusted_context,
-            &task,
-            intent,
-            now,
-            &confirmation.proof,
-            &confirmation.action,
-        )
-        .expect("exact create approval");
-        session
-            .ledger
-            .reserve_write(&approved, now)
-            .expect("reserved create");
-        let response = br#"{"id":"child_ABC-123"}"#;
-        let locator = submit::response_locator(&verified.request, 200, true, response)
-            .expect("response-derived candidate");
-        engine
-            .attempts
-            .claim(&verified.request, *engine.recipe.digest(), now)
-            .await
-            .expect("claimed original create")
-            .record_response(200, sha2::Sha256::digest(response).into(), Some(locator))
-            .await
-            .expect("recorded complete create response");
-        drop(session);
-        engine.attempts = installation.attempts.reopen();
-        let session = engine
-            .task_write_session(&installation_bytes, &state_root)
-            .expect("reopened task session");
-
-        let mut altered = signed.action.clone();
-        *altered.last_mut().expect("action byte") ^= 1;
+        let mut altered_plan = effect_plan.action.clone();
+        *altered_plan.last_mut().expect("plan action byte") ^= 1;
         assert_eq!(
             session
-                .reconcile_created_child(TaskWriteProofs {
+                .submit_planned_create(TaskWriteProofs {
                     task_id: "task-create-reconcile",
                     agent_proof: &signed.proof,
-                    agent_action: &altered,
-                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                    agent_action: &signed.action,
+                    confirmation: None,
                 })
                 .await,
-            Err("gateway.task.reconcile-agent-proof")
+            GatewaySubmitResult::NotEntered {
+                code: "gateway.task.effect-plan-required".to_owned(),
+            },
+            "no provider entry is possible before the signed plan is durable"
+        );
+        assert!(
+            session
+                .record_effect_plan(
+                    "task-create-reconcile",
+                    &signed.proof,
+                    &signed.action,
+                    &effect_plan.proof,
+                    &altered_plan,
+                )
+                .is_err(),
+            "altered human plan cannot be recorded"
+        );
+        session
+            .record_effect_plan(
+                "task-create-reconcile",
+                &signed.proof,
+                &signed.action,
+                &effect_plan.proof,
+                &effect_plan.action,
+            )
+            .expect("record signed effect plan before create reservation");
+        let mut changed_plan_args = plan_args.clone();
+        changed_plan_args
+            .get_mut("plan")
+            .expect("plan")
+            .as_object_mut()
+            .expect("plan object")
+            .insert("initial_text".to_owned(), json!("Changed draft"));
+        let changed_plan = submission_for(
+            &root,
+            &human,
+            &effect_plan_grant,
+            &changed_plan_args,
+            &[],
+            TASK_SERVICE,
+            crate::task_effect_plan::EFFECT_PLAN_TOOL,
+            now,
+        );
+        assert_eq!(
+            session.record_effect_plan(
+                "task-create-reconcile",
+                &signed.proof,
+                &signed.action,
+                &changed_plan.proof,
+                &changed_plan.action,
+            ),
+            Err("gateway.task.effect-plan-journal"),
+            "a second signed plan cannot change approved content"
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
         let provider = tokio::spawn(async move {
-            for parent in ["wrong-parent", "project-a-folder"] {
-                let (mut stream, _) = listener.accept().await.expect("metadata GET");
+            for step in 0..4 {
+                let (mut stream, _) = listener.accept().await.expect("provider request");
                 let mut request = [0_u8; 4096];
-                let size = stream.read(&mut request).await.expect("provider request");
+                let size = stream
+                    .read(&mut request)
+                    .await
+                    .expect("provider request bytes");
                 let head = std::str::from_utf8(&request[..size]).expect("request head");
+                if step == 0 {
+                    assert!(head.starts_with("POST /drive/v3/files?"), "{head}");
+                    let body = br#"{"id":"child_ABC-123"}"#;
+                    let headers = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    stream.write_all(headers.as_bytes()).await.expect("headers");
+                    stream.write_all(body).await.expect("create response");
+                    continue;
+                }
                 assert!(
                     head.starts_with("GET /drive/v3/files/child_ABC-123?"),
                     "{head}"
                 );
+                if step == 1 {
+                    // The create response is recorded, but the observation
+                    // connection drops before any metadata can be recorded.
+                    continue;
+                }
+                let parent = if step == 2 {
+                    "wrong-parent"
+                } else {
+                    "project-a-folder"
+                };
                 let body = format!(
                     "{{\"id\":\"child_ABC-123\",\"name\":\"Auths AP-071 Project A handoff\",\"parents\":[\"{parent}\"],\"properties\":{{\"auths_operation_marker\":\"ap071_dddddddddddddddddddddddddddddddd\"}},\"mimeType\":\"application/vnd.google-apps.document\",\"driveId\":\"0ACsJUU1uex2wUk9PVA\",\"trashed\":false,\"createdTime\":\"2026-10-25T10:03:00Z\"}}"
                 );
@@ -3435,13 +3604,66 @@ pub(crate) mod tests {
                 stream.write_all(body.as_bytes()).await.expect("metadata");
             }
         });
+        let result = session
+            .submit_planned_create(TaskWriteProofs {
+                task_id: "task-create-reconcile",
+                agent_proof: &signed.proof,
+                agent_action: &signed.action,
+                confirmation: None,
+            })
+            .await;
+        assert!(
+            matches!(
+                result,
+                GatewaySubmitResult::ResponseRecorded { status: 200 }
+            ),
+            "the provider write entered once and its response was recorded: {result:?}"
+        );
+        assert_eq!(
+            session
+                .ledger
+                .load("task-create-reconcile")
+                .expect("task journal")
+                .expect("task state")
+                .write_count(),
+            1
+        );
+        drop(session);
+        engine.attempts = installation.attempts.reopen();
+        let session = engine
+            .task_write_session(&installation_bytes, &state_root)
+            .expect("reopened task session");
+        session
+            .record_effect_plan(
+                "task-create-reconcile",
+                &signed.proof,
+                &signed.action,
+                &effect_plan.proof,
+                &effect_plan.action,
+            )
+            .expect("same signed plan is idempotent after restart");
+
+        let mut altered = signed.action.clone();
+        *altered.last_mut().expect("action byte") ^= 1;
+        assert_eq!(
+            session
+                .reconcile_created_child(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &signed.proof,
+                    agent_action: &altered,
+                    confirmation: None,
+                })
+                .await,
+            Err("gateway.task.reconcile-agent-proof")
+        );
+        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 2);
         assert_eq!(
             session
                 .reconcile_created_child(TaskWriteProofs {
                     task_id: "task-create-reconcile",
                     agent_proof: &signed.proof,
                     agent_action: &signed.action,
-                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                    confirmation: None,
                 })
                 .await,
             Err("gateway.task.reconcile-metadata")
@@ -3462,7 +3684,7 @@ pub(crate) mod tests {
                     task_id: "task-create-reconcile",
                     agent_proof: &signed.proof,
                     agent_action: &signed.action,
-                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                    confirmation: None,
                 })
                 .await,
             Ok("child_ABC-123".to_owned())
@@ -3482,7 +3704,7 @@ pub(crate) mod tests {
             1,
             "reconciliation cannot reserve another write"
         );
-        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 2);
+        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 4);
     }
 
     // Connection administration over the shared record and each process's

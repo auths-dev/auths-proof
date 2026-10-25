@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from .contracts import canonical_json, commitment
 from .operator_authority import OperatorDenied
 from .task_write_authority import (
-    APPROVAL_TOOL, CONFIRMATION_TOOL, TASK_SERVICE, TaskWriteAuthority,
+    APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL, TASK_SERVICE,
+    TaskWriteAuthority,
 )
 
 
@@ -74,10 +75,16 @@ def _prepare(authority: TaskWriteAuthority, *, tool: str,
     from auths import _native
 
     now = int(time.time()) if now is None else now
-    if (tool not in (APPROVAL_TOOL, CONFIRMATION_TOOL)
+    if (tool not in (APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL)
             or not authority.not_before <= now < authority.expires_at - 1):
         raise OperatorDenied("human task authority expired")
-    grant = authority.approval_grant if tool == APPROVAL_TOOL else authority.confirmation_grant
+    grant = {
+        APPROVAL_TOOL: authority.approval_grant,
+        CONFIRMATION_TOOL: authority.confirmation_grant,
+        EFFECT_PLAN_TOOL: authority.effect_plan_grant,
+    }[tool]
+    if grant is None:
+        raise OperatorDenied("effect-plan authority is unavailable")
     terminal = _native.parse_signed("grant", grant.signed_grant)
     challenge = authority.challenge
     arguments = bytes(_native.canonicalize_mcp_arguments_json(canonical_json(payload)))
@@ -110,6 +117,18 @@ def prepare_exact_confirmation(authority: TaskWriteAuthority, intent: dict,
         raise OperatorDenied("closed write intent is unavailable")
     return _prepare(authority, tool=CONFIRMATION_TOOL,
                     payload={"write": intent}, now=now)
+
+
+def prepare_effect_plan_confirmation(authority: TaskWriteAuthority, plan: dict,
+                                     *, now: int | None = None) -> PreparedHumanAction:
+    if (type(plan) is not dict
+            or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("task_id") is None
+            or type(plan.get("initial_text")) is not str
+            or not 1 <= len(plan["initial_text"].encode("utf-8")) <= 192):
+        raise OperatorDenied("reviewed effect plan is invalid")
+    return _prepare(authority, tool=EFFECT_PLAN_TOOL,
+                    payload={"plan": plan}, now=now)
 
 
 def task_commitment(card: dict) -> str:

@@ -15,7 +15,8 @@ from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied, OperatorRoot
 from employee_read_demo.task_write_authority import issue_task_write_authority
 from employee_read_demo.task_write_proofs import (
-    prepare_exact_confirmation, prepare_task_approval, task_commitment,
+    prepare_effect_plan_confirmation, prepare_exact_confirmation,
+    prepare_task_approval, task_commitment,
 )
 
 
@@ -72,6 +73,28 @@ class TaskWriteProofTests(unittest.TestCase):
         confirmed = confirm.complete(human_key.sign(confirm.signing_preimage), now=1111)
         self.assertGreater(len(confirmed.proof), 0)
         self.assertGreater(len(confirmed.action), 0)
+        effect_plan = {
+            "schema": "auths.agent-effect-plan/1",
+            "task_id": "task-1",
+            "task_commitment": commitment,
+            "create": {**intent, "operation_id": "create-1", "verb": "create"},
+            "populate_recipe_digest": "f" * 64,
+            "populate_operation_id": "populate-1",
+            "initial_text": "Project A handoff draft",
+            "expires_at": 1200,
+        }
+        prepared_plan = prepare_effect_plan_confirmation(
+            authority, effect_plan, now=1110,
+        )
+        signed_plan = prepared_plan.complete(
+            human_key.sign(prepared_plan.signing_preimage), now=1111,
+        )
+        self.assertGreater(len(signed_plan.proof), 0)
+        self.assertGreater(len(signed_plan.action), 0)
+        with self.assertRaises(OperatorDenied):
+            prepare_effect_plan_confirmation(
+                authority, {**effect_plan, "initial_text": "x" * 193}, now=1110,
+            )
         with self.assertRaises(Exception):
             confirm.complete(bytes(64), now=1111)
         with self.assertRaises(OperatorDenied):

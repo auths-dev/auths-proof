@@ -21,8 +21,8 @@ agent grant packages and a task card with the pending child. The optional
 browser route takes the pinned Project A folder from demo_co's verified export,
 generates a fresh marker and operation ID, displays the pending-child proposal,
 and requests both grant signatures. It does not activate the task or offer a
-create/populate execution button: the exact content effect plan and provider
-entry are still required.
+create/populate execution button: the browser still needs to render and sign
+the exact content effect plan before provider entry.
 
 The marker is an opaque run identifier, not a secret or permission. It is
 visible to other applications through Drive's `properties` field and can
@@ -62,9 +62,11 @@ and exact human confirmation must still match it before provider entry.
 The generic `reobserve` path refuses this create recipe after restart because
 its stored plan does not retain the native-verified parent, title and marker;
 allowing a later name-only match would bypass the metadata checks. The
-dedicated `task-reconcile-child` command requires the original agent and human
-proof/action bytes and a complete recorded create response. It re-verifies the
-signed task and stored action commitment, then rechecks metadata with the same
+dedicated `task-reconcile-child` command requires the original agent
+proof/action bytes and either the original exact human confirmation or a
+previously recorded native effect plan, plus a complete recorded create
+response. It re-verifies the signed task and stored action commitment, then
+rechecks metadata with the same
 subject-bound connection before binding the child. A synthetic restart test
 shows one metadata GET and no second provider create. This does not reconcile
 a create whose response was lost before recording.

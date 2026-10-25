@@ -463,11 +463,14 @@ mod unix {
             confirmation_proof: Option<PathBuf>,
             #[arg(long, requires = "confirmation_proof")]
             confirmation_action: Option<PathBuf>,
+            /// Use the immutable, previously recorded human effect plan for
+            /// its exact create operation. Population is not yet supported.
+            #[arg(long, conflicts_with = "confirmation_proof")]
+            recorded_effect_plan: bool,
         },
-        /// Development operator only: reverify the original signed create
-        /// after a recorded response, read its child metadata once, and bind
-        /// that child in the task journal. Never repeats the create write.
-        TaskReconcileChild {
+        /// Development operator only: verify one native human effect plan
+        /// against the original agent create and persist it before any write.
+        TaskRecordEffectPlan {
             #[arg(long)]
             state_dir: PathBuf,
             #[arg(long)]
@@ -479,9 +482,29 @@ mod unix {
             #[arg(long)]
             agent_action: PathBuf,
             #[arg(long)]
-            confirmation_proof: PathBuf,
+            plan_proof: PathBuf,
             #[arg(long)]
-            confirmation_action: PathBuf,
+            plan_action: PathBuf,
+        },
+        /// Development operator only: reverify the original signed create
+        /// after a recorded response, read its child metadata once, and bind
+        /// that child in the task journal. Without exact confirmation files,
+        /// a previously recorded effect plan must match. Never repeats create.
+        TaskReconcileChild {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long, requires = "confirmation_action")]
+            confirmation_proof: Option<PathBuf>,
+            #[arg(long, requires = "confirmation_proof")]
+            confirmation_action: Option<PathBuf>,
         },
         /// Ask the private operator socket to disable new writes in every
         /// process sharing the store.
@@ -3658,7 +3681,7 @@ mod unix {
         }
     }
 
-    async fn task_submit(
+    struct TaskSubmitInputs {
         state_dir: PathBuf,
         task_id: String,
         recipe_digest: Option<String>,
@@ -3666,7 +3689,20 @@ mod unix {
         agent_action: PathBuf,
         confirmation_proof: Option<PathBuf>,
         confirmation_action: Option<PathBuf>,
-    ) -> Result<(), Failure> {
+        recorded_effect_plan: bool,
+    }
+
+    async fn task_submit(inputs: TaskSubmitInputs) -> Result<(), Failure> {
+        let TaskSubmitInputs {
+            state_dir,
+            task_id,
+            recipe_digest,
+            agent_proof,
+            agent_action,
+            confirmation_proof,
+            confirmation_action,
+            recorded_effect_plan,
+        } = inputs;
         let engine = task_engine_for(&state_dir, recipe_digest).await?;
         let installation = task_installation(&state_dir)?;
         let session =
@@ -3681,16 +3717,19 @@ mod unix {
             (None, None) => None,
             _ => return Err("gateway.task.incomplete-confirmation".into()),
         };
-        let result = session
-            .submit(TaskWriteProofs {
-                task_id: &task_id,
-                agent_proof: &agent_proof,
-                agent_action: &agent_action,
-                confirmation: confirmation
-                    .as_ref()
-                    .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
-            })
-            .await;
+        let proofs = TaskWriteProofs {
+            task_id: &task_id,
+            agent_proof: &agent_proof,
+            agent_action: &agent_action,
+            confirmation: confirmation
+                .as_ref()
+                .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
+        };
+        let result = if recorded_effect_plan {
+            session.submit_planned_create(proofs).await
+        } else {
+            session.submit(proofs).await
+        };
         println!(
             "{}",
             serde_json::to_string(&result).map_err(|_| "gateway.task.invalid-response")?
@@ -3704,8 +3743,8 @@ mod unix {
         recipe_digest: String,
         agent_proof: PathBuf,
         agent_action: PathBuf,
-        confirmation_proof: PathBuf,
-        confirmation_action: PathBuf,
+        confirmation_proof: Option<PathBuf>,
+        confirmation_action: Option<PathBuf>,
     ) -> Result<(), Failure> {
         let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
         let installation = task_installation(&state_dir)?;
@@ -3713,14 +3752,22 @@ mod unix {
             engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
         let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
         let agent_action = read_bounded(&agent_action, 64 * 1024)?;
-        let confirmation_proof = read_bounded(&confirmation_proof, 4 * 1024 * 1024)?;
-        let confirmation_action = read_bounded(&confirmation_action, 64 * 1024)?;
+        let confirmation = match (confirmation_proof, confirmation_action) {
+            (Some(proof), Some(action)) => Some((
+                read_bounded(&proof, 4 * 1024 * 1024)?,
+                read_bounded(&action, 64 * 1024)?,
+            )),
+            (None, None) => None,
+            _ => return Err("gateway.task.incomplete-confirmation".into()),
+        };
         let child_id = session
             .reconcile_created_child(TaskWriteProofs {
                 task_id: &task_id,
                 agent_proof: &agent_proof,
                 agent_action: &agent_action,
-                confirmation: Some((&confirmation_proof, &confirmation_action)),
+                confirmation: confirmation
+                    .as_ref()
+                    .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
             })
             .await?;
         println!(
@@ -3732,6 +3779,34 @@ mod unix {
             }))
             .map_err(|_| "gateway.task.invalid-response")?
         );
+        Ok(())
+    }
+
+    async fn task_record_effect_plan(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        plan_proof: PathBuf,
+        plan_action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let plan_proof = read_bounded(&plan_proof, 4 * 1024 * 1024)?;
+        let plan_action = read_bounded(&plan_action, 64 * 1024)?;
+        session.record_effect_plan(
+            &task_id,
+            &agent_proof,
+            &agent_action,
+            &plan_proof,
+            &plan_action,
+        )?;
+        println!("{{\"outcome\":\"effect-plan-recorded\"}}");
         Ok(())
     }
 
@@ -4659,8 +4734,9 @@ mod unix {
                 agent_action,
                 confirmation_proof,
                 confirmation_action,
+                recorded_effect_plan,
             } => {
-                task_submit(
+                task_submit(TaskSubmitInputs {
                     state_dir,
                     task_id,
                     recipe_digest,
@@ -4668,7 +4744,8 @@ mod unix {
                     agent_action,
                     confirmation_proof,
                     confirmation_action,
-                )
+                    recorded_effect_plan,
+                })
                 .await
             }
             Command::TaskReconcileChild {
@@ -4688,6 +4765,26 @@ mod unix {
                     agent_action,
                     confirmation_proof,
                     confirmation_action,
+                )
+                .await
+            }
+            Command::TaskRecordEffectPlan {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                plan_proof,
+                plan_action,
+            } => {
+                task_record_effect_plan(
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    plan_proof,
+                    plan_action,
                 )
                 .await
             }
@@ -5172,10 +5269,23 @@ mod unix {
                     ..
                 }
             ));
+            let mut planned = base.to_vec();
+            planned.push("--recorded-effect-plan");
+            assert!(matches!(
+                Cli::try_parse_from(planned)
+                    .expect("recorded plan create parses")
+                    .command,
+                Command::TaskSubmit {
+                    recorded_effect_plan: true,
+                    confirmation_proof: None,
+                    confirmation_action: None,
+                    ..
+                }
+            ));
         }
 
         #[test]
-        fn child_reconciliation_requires_original_create_recipe_and_both_proofs() {
+        fn child_reconciliation_requires_original_create_recipe_and_complete_approval() {
             let base = [
                 "auths-gateway",
                 "task-reconcile-child",
@@ -5204,6 +5314,54 @@ mod unix {
                     .expect("read-only reconciliation parses")
                     .command,
                 Command::TaskReconcileChild { .. }
+            ));
+            let recorded_plan = [
+                "auths-gateway",
+                "task-reconcile-child",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--recipe-digest",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+            ];
+            assert!(
+                Cli::try_parse_from(recorded_plan).is_ok(),
+                "a previously recorded effect plan supplies the human approval"
+            );
+            let mut partial = recorded_plan.to_vec();
+            partial.extend(["--confirmation-proof", "human.proof"]);
+            assert!(Cli::try_parse_from(partial).is_err());
+        }
+
+        #[test]
+        fn effect_plan_record_requires_original_create_and_human_plan_proofs() {
+            let base = [
+                "auths-gateway",
+                "task-record-effect-plan",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--recipe-digest",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+            ];
+            assert!(Cli::try_parse_from(base).is_err(), "human plan is required");
+            let mut complete = base.to_vec();
+            complete.extend(["--plan-proof", "plan.proof", "--plan-action", "plan.action"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("complete plan record parses")
+                    .command,
+                Command::TaskRecordEffectPlan { .. }
             ));
         }
 

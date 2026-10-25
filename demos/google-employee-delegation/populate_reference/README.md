@@ -49,7 +49,9 @@ credential-bearing metadata observation can become a one-time edit scope in
 the shared task journal. A different ID or digest and a second population
 operation are refused before provider entry. The exact human confirmation
 for this second action is still required by the current gateway path. The
-future one-ceremony create/populate product flow needs a signed commitment to
-the complete initial content and a reviewed way to carry that confirmation
-across both effects. No live provider effect or independent demo_co verdict
+private task journal can now record a native human effect plan with the
+exact initial text commitment and this populate recipe and operation before
+create reservation. The exact create can consume that recorded plan without a second signature.
+The current submission path does not yet consume the plan for population
+admission, so a second exact confirmation remains required. No live provider effect or independent demo_co verdict
 has yet been obtained for this reference.

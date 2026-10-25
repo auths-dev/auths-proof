@@ -65,6 +65,31 @@ impl ApprovedTaskWrite {
         &self.intent
     }
 
+    /// The journal contains a native-verified immutable effect plan. Only its
+    /// exact create request can use the plan without a second human signature.
+    pub(crate) fn from_recorded_effect_plan_create(
+        plan: &crate::task_effect_plan::VerifiedEffectPlan,
+        intent: ExactWriteIntent,
+        now: u64,
+    ) -> Result<Self, GatewaySubmitResult> {
+        if now >= plan.expires_at || intent.verb != TaskWriteVerb::Create || plan.create != intent {
+            return Err(not_entered("gateway.task.effect-plan-create-mismatch"));
+        }
+        Ok(Self { intent })
+    }
+
+    /// Recovery only: expiry stops new provider entry, but cannot erase the
+    /// evidence of a create already reserved and sent under this plan.
+    pub(crate) fn from_recorded_effect_plan_reconciliation(
+        plan: &crate::task_effect_plan::VerifiedEffectPlan,
+        intent: ExactWriteIntent,
+    ) -> Result<Self, GatewaySubmitResult> {
+        if intent.verb != TaskWriteVerb::Create || plan.create != intent {
+            return Err(not_entered("gateway.task.effect-plan-create-mismatch"));
+        }
+        Ok(Self { intent })
+    }
+
     #[cfg(test)]
     pub(crate) fn from_test_intent(intent: ExactWriteIntent) -> Self {
         Self { intent }

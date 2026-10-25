@@ -9,6 +9,7 @@ use crate::recipe::VerifiedCreatedChild;
 use crate::release_verify::VerifiedReleaseRequest;
 use crate::task_activation::TaskWriteScope;
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
+use crate::task_effect_plan::VerifiedEffectPlan;
 use crate::task_write::ApprovedTaskWrite;
 use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
@@ -201,6 +202,8 @@ pub(crate) struct ReleaseTaskState {
     operations: BTreeMap<String, ReleaseOperation>,
     writes: BTreeMap<String, WriteOperation>,
     child_binding: Option<BoundChild>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    effect_plan: Option<VerifiedEffectPlan>,
 }
 
 /// Owner-visible accounting only. No provider bytes, account subject,
@@ -399,7 +402,71 @@ impl ReleaseTaskState {
             operations: BTreeMap::new(),
             writes: BTreeMap::new(),
             child_binding: None,
+            effect_plan: None,
         })
+    }
+
+    /// Commit a native-verified two-effect plan before the first write
+    /// reservation. Re-presenting identical evidence is idempotent; a changed
+    /// plan or one first seen after entry is refused.
+    fn record_effect_plan(
+        &mut self,
+        plan: &VerifiedEffectPlan,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        self.active(now)?;
+        if !self.valid_effect_plan(plan) {
+            return Err(ReleaseStateError::Binding);
+        }
+        if let Some(existing) = &self.effect_plan {
+            return if existing == plan {
+                Ok(())
+            } else {
+                Err(ReleaseStateError::Replay)
+            };
+        }
+        if !self.writes.is_empty() || self.child_binding.is_some() {
+            return Err(ReleaseStateError::Replay);
+        }
+        self.effect_plan = Some(plan.clone());
+        Ok(())
+    }
+
+    fn valid_effect_plan(&self, plan: &VerifiedEffectPlan) -> bool {
+        let Some(card) = &self.activated_card else {
+            return false;
+        };
+        let Some(pending) = &card.pending_child else {
+            return false;
+        };
+        let create = &plan.create;
+        valid_digest(&plan.plan_commitment)
+            && valid_digest(&plan.content_commitment)
+            && (1..=192).contains(&plan.content_length)
+            && plan.expires_at > card.not_before
+            && plan.expires_at <= self.expires_at
+            && plan.populate_recipe_digest == pending.populate_recipe_digest
+            && bounded_text(&plan.populate_operation_id, 128)
+            && plan.populate_operation_id != create.operation_id
+            && create.task_id == self.task_id
+            && same_commitment(&self.task_commitment, &create.task_commitment)
+            && create.operation_id == pending.create_operation_id
+            && create.recipe_digest == pending.create_recipe_digest
+            && create.resource_handle == pending.parent_handle
+            && create.verb == crate::task_activation::TaskWriteVerb::Create
+            && create.connection_id == self.connection_id
+            && create.connection_generation == self.connection_generation
+            && create.connection_subject == self.connection_subject
+            && valid_digest(&create.action_commitment)
+            && valid_digest(&create.request_commitment)
+            && self.scope_matches(
+                &create.resource_handle,
+                &create.recipe_digest,
+                &create.verb,
+                &create.connection_id,
+                create.connection_generation,
+                &create.connection_subject,
+            )
     }
 
     #[cfg(test)]
@@ -540,6 +607,12 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Binding);
         }
+        if self.effect_plan.as_ref().is_some_and(|plan| {
+            intent.verb == crate::task_activation::TaskWriteVerb::Create
+                && (now >= plan.expires_at || &plan.create != intent)
+        }) {
+            return Err(ReleaseStateError::Binding);
+        }
         if self.operations.contains_key(&intent.operation_id)
             || self.writes.contains_key(&intent.operation_id)
         {
@@ -655,6 +728,10 @@ impl ReleaseTaskState {
             connection_generation: child.connection_generation,
             connection_subject: child.connection_subject.clone(),
         })
+    }
+
+    pub(crate) fn effect_plan(&self) -> Option<&VerifiedEffectPlan> {
+        self.effect_plan.as_ref()
     }
 
     fn scope_matches(
@@ -1022,6 +1099,13 @@ impl ReleaseTaskState {
         let mut releases = 0_u32;
         let mut released_bytes = 0_u64;
         state.validate_writes()?;
+        if state
+            .effect_plan
+            .as_ref()
+            .is_some_and(|plan| !state.valid_effect_plan(plan))
+        {
+            return Err(ReleaseStateError::Corrupt);
+        }
         for (operation_id, operation) in &state.operations {
             if !bounded_text(operation_id, 128)
                 || operation.recipient != state.agent_principal
@@ -1287,6 +1371,15 @@ impl FileReleaseTaskLedger {
         self.update(&approved.intent().task_id, |state| {
             state.reserve_write(approved, now)
         })
+    }
+
+    pub(crate) fn record_effect_plan(
+        &self,
+        task_id: &str,
+        plan: &VerifiedEffectPlan,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(task_id, |state| state.record_effect_plan(plan, now))
     }
 
     pub(crate) fn bind_created_child(

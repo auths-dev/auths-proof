@@ -80,7 +80,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(summary["human_principal"], human)
             self.assertEqual(output.stat().st_mode & 0o777, 0o600)
             package = json.loads(output.read_bytes())
-            self.assertEqual(package["schema"], "auths.ap071-task-authority/2")
+            self.assertEqual(package["schema"], "auths.ap071-task-authority/4")
             self.assertIsNone(package["read"])
             self.assertEqual(package["recipe_digest"], digest)
             self.assertEqual(len(package["recipe_source_sha256"]), 64)
@@ -88,6 +88,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(len(base64.urlsafe_b64decode(package["challenge_b64"])), 32)
             loaded = load_task_write_package(output, now=1000)
             self.assertEqual(loaded.authority.human_principal, human)
+            self.assertIsNotNone(loaded.authority.effect_plan_grant)
             self.assertEqual(loaded.recipe_digest, digest)
             create_reference = Path(__file__).resolve().parents[2] / "create_reference"
             populate_reference = Path(__file__).resolve().parents[2] / "populate_reference"
@@ -109,7 +110,7 @@ class TaskOperatorCliTests(unittest.TestCase):
                 output=paired_output, now=1000,
             )
             paired_raw = json.loads(paired_output.read_bytes())
-            self.assertEqual(paired_raw["schema"], "auths.ap071-task-authority/3")
+            self.assertEqual(paired_raw["schema"], "auths.ap071-task-authority/4")
             paired = load_task_write_package(paired_output, now=1000)
             self.assertEqual(paired.companion_write.recipe_digest, populate_digest)
             self.assertEqual(paired.authority.companion_write_service,
@@ -496,6 +497,7 @@ class TaskOperatorCliTests(unittest.TestCase):
                 package["trusted_template_b64"],
             ))
             for name in ("approval_grant_b64", "confirmation_grant_b64",
+                         "effect_plan_grant_b64",
                          "write_parent_grant_b64"):
                 _native.parse_signed("grant", base64.urlsafe_b64decode(package[name]))
             with self.assertRaises(FileExistsError):

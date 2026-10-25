@@ -217,8 +217,7 @@ def issue_task_package(
     )
     encode = lambda value: base64.urlsafe_b64encode(value).decode("ascii")
     package = {
-        "schema": ("auths.ap071-task-authority/3" if companion_profile is not None
-                   else "auths.ap071-task-authority/2"),
+        "schema": "auths.ap071-task-authority/4",
         "company_id": company,
         "binding_ref": binding_ref,
         "root_principal": authority.root_principal,
@@ -234,6 +233,7 @@ def issue_task_package(
         "challenge_b64": encode(authority.challenge),
         "approval_grant_b64": encode(authority.approval_grant.signed_grant),
         "confirmation_grant_b64": encode(authority.confirmation_grant.signed_grant),
+        "effect_plan_grant_b64": encode(authority.effect_plan_grant.signed_grant),
         "write_parent_grant_b64": encode(authority.write_parent_grant.signed_grant),
         "read": None if read_profile is None else {
             "service": read_profile[0], "tool": read_profile[1],

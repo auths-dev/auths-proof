@@ -14,7 +14,7 @@ from employee_read_demo.authority_identity import authority_for_identity_packet
 from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied, OperatorRoot
 from employee_read_demo.task_write_authority import (
-    APPROVAL_TOOL, CONFIRMATION_TOOL, TASK_SERVICE,
+    APPROVAL_TOOL, CONFIRMATION_TOOL, EFFECT_PLAN_TOOL, TASK_SERVICE,
     issue_task_write_authority, plan_agent_companion_write_grant,
     plan_agent_read_grant, plan_agent_write_grant,
 )
@@ -135,6 +135,7 @@ class TaskWriteAuthorityTests(unittest.TestCase):
                 for task_tool, grant in (
                     (APPROVAL_TOOL, authority.approval_grant),
                     (CONFIRMATION_TOOL, authority.confirmation_grant),
+                    (EFFECT_PLAN_TOOL, authority.effect_plan_grant),
                 ):
                     signed_grant = _native.parse_signed("grant", grant.signed_grant)
                     _verify_action(

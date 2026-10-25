@@ -127,6 +127,8 @@ as permission to populate an unbound ID. The current code instead requires
 a second exact human confirmation for population, which is a safe interim
 path but does not meet the one-ceremony acceptance condition.
 
+A native verifier and private journal transition now accept one effect-plan signature over the closed create intent, one populate recipe and operation, exact initial text and expiry. The journal records a private content digest and byte length before any write, refuses a changed plan, and accepts identical evidence after restart. The owner-side authority package can issue the separate human grant. The create admission path can now consume the exact recorded plan without a second human confirmation, and recorded-response reconciliation can use that immutable plan after a metadata-read failure. Population still needs fresh preflight binding and plan consumption; the following checks remain the execution contract.
+
 The plan format and commit points are part of that future implementation:
 
 1. A new native `confirm_agent_effect_plan_v1` action signs the task-card
@@ -162,8 +164,10 @@ The plan format and commit points are part of that future implementation:
    final concurrency check.
 4. A recorded create response is not enough if the task-journal child-binding
    commit failed. The implemented dedicated reconciliation command requires
-   the original agent and human proof/action bytes. After restart, it
-   re-verifies those native actions against the active task, checks the stored
+   the original agent proof/action and either the original exact human
+   confirmation or the previously recorded effect plan. After restart, it
+   re-verifies the agent action and the human authority already in the task
+   journal, checks the stored
    attempt and response locator, redoes the reviewed metadata GET under the
    subject-bound connection, and performs the same one-time journal
    transition. It performs **no create**. A lost response
