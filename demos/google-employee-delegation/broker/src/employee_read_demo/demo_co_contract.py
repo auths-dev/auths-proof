@@ -216,8 +216,12 @@ def validate_artifacts(connections: Path, access_expectations: Path, pins: Opera
             raise ContractRejected("duplicate Drive provider ID")
         if len({p["provider_subject"] for p in people}) != len(people):
             raise ContractRejected("duplicate Google subject binding")
-        outcomes = {case["expected"] for case in access["cases"] if case["status"] == "pass"
-                    and case.get("observed") == case["expected"] and case.get("evidence_ref")}
+        if not access["cases"] or any(
+            case["status"] != "pass" or case.get("observed") != case["expected"]
+            or not case.get("evidence_ref") for case in access["cases"]
+        ):
+            raise ContractRejected("ready Google export has incomplete access observations")
+        outcomes = {case["expected"] for case in access["cases"]}
         if outcomes != {"allow", "deny"}:
             raise ContractRejected("independent allowed and denied probes are missing")
     return CompanyImport(bundle, access, bundle_hash, ready)

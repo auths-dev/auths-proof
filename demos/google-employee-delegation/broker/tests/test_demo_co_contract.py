@@ -55,6 +55,50 @@ class DemoCoContractTests(unittest.TestCase):
         with self.assertRaises(ContractPending):
             import_company(self.connections, self.access, self.pins)
 
+    def test_ready_google_export_requires_every_declared_access_case(self) -> None:
+        bundle = json.loads(self.connections.read_bytes())
+        access = json.loads(self.access.read_bytes())
+        bundle["mode"] = "google"
+        bundle["google_tenant"] = {
+            "customer_id": self.pins.google_customer_id,
+            "primary_domain": self.pins.google_primary_domain,
+        }
+        bundle["capabilities"]["google_workspace"].update({
+            "status": "ready", "provenance": "live_google",
+            "observed_at": "2026-10-25T00:00:00Z",
+            "evidence_ref": "google-verification.json",
+            "reason": None,
+        })
+        for index, person in enumerate(bundle["people"]):
+            if person["provider"] == "google":
+                person.update({"status": "ready", "issuer": "https://accounts.google.com",
+                               "provider_subject": f"subject-{index}",
+                               "provider_directory_id": f"directory-{index}"})
+        for index, resource in enumerate(bundle["resources"]):
+            if resource["provider"] == "google_drive":
+                resource.update({"status": "ready", "provenance": "live_google",
+                                 "provider_resource_id": f"file-{index}"})
+        access["people"] = [person for person in bundle["people"] if person["provider"] == "google"]
+        access["resources"] = [resource for resource in bundle["resources"]
+                               if resource["provider"] == "google_drive"]
+        for case in access["cases"]:
+            case.update({"status": "pass", "observed": case["expected"],
+                         "evidence_ref": "google-verification.json"})
+
+        def write_and_pin() -> OperatorPins:
+            self.access.write_text(json.dumps(access))
+            bundle["access_expectations"]["sha256"] = hashlib.sha256(self.access.read_bytes()).hexdigest()
+            self.connections.write_text(json.dumps(bundle))
+            return OperatorPins(**{**self.pins.__dict__,
+                                   "bundle_sha256": hashlib.sha256(self.connections.read_bytes()).hexdigest()})
+
+        self.assertTrue(validate_artifacts(self.connections, self.access, write_and_pin()).google_ready)
+        access["cases"][0]["status"] = "skipped"
+        access["cases"][0]["observed"] = None
+        access["cases"][0]["evidence_ref"] = None
+        with self.assertRaisesRegex(ContractRejected, "incomplete access observations"):
+            validate_artifacts(self.connections, self.access, write_and_pin())
+
     def test_pin_candidate_uses_independent_operator_identity_inputs(self) -> None:
         values = dict(
             company_id=self.pins.company_id, instance_id=self.pins.instance_id,

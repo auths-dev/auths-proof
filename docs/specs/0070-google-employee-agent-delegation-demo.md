@@ -222,6 +222,21 @@ PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 > make the broker a generic provider executor: the task, OAuth, Drive request
 > mapping, and response semantics remain Google-specific.
 
+> **Producer handoff still missing (25 October 2026):** The latest versioned
+> `demo_co` generation 0017 is a local/OIDC export with Google
+> `not_configured`; the separate live Atlas instance has only the private,
+> partial Jules/Drew Google probe already used by the labelled diagnostic.
+> The producer reports that a complete live export still needs valid employee
+> read grants for Morgan, Samira, Avery, and Ren, their full independent
+> access-matrix probes, and a fresh `google-verification` plus scenario-result
+> generation tied to that live instance. First-sign-in Google security checks
+> currently prevent those four grants. Do not synthesize their subjects,
+> provider outcomes, or export files here; do not retry sign-in or consent
+> against the user's direction. Keep the normal importer closed and the
+> existing-consent adapter diagnostic-only until the producer owns this
+> handoff. The distinct-agent-process and authenticated-human acceptance work
+> in §14 also remains open after the export arrives.
+
 Spec 0001 names connection/evidence schemas but does not yet specify a byte-exact access-matrix export. Add a companion `demo-co/access-expectations/v1` artifact in `demo_co` before end-to-end implementation acceptance. It contains stable fixture person/resource IDs, provider identity/resource mappings, expected baseline outcomes, dataset version and independent probe evidence references.
 
 Pin both artifact schemas and example vectors in the Auths demo. Unknown/missing versions produce actionable errors, not guessed fields. Changes needed in `demo_co` belong in that repository; this spec records the cross-repository deliverable without introducing a mutable dependency.
