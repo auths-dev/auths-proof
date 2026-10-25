@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import unittest
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from auths import _native
@@ -124,6 +124,28 @@ class TaskAuthorityTests(unittest.TestCase):
                 return b"approved text"
         provider = Provider()
         receipts = ReceiptStore(Path(directory.name) / "broker.sqlite3", Ed25519PrivateKey.generate())
+        outside = replace(command, file_id="file-C")
+        outside_arguments = _native.canonicalize_mcp_arguments_json(canonical_json(asdict(outside)))
+        outside_call = _native.mcp_call(descriptor.service, "google_drive_document_read",
+                                        outside_arguments)
+        outside_prepared = _native.prepare_mcp_call_action(
+            outside_call, _native.Principal(agent_key.principal), child_grant,
+            challenge, now, 30,
+        )
+        outside_action = sign(agent_key, outside_prepared.unsigned)
+        outside_proof, outside_canonical_action, _ = _native.assemble_mcp_proof(
+            outside_prepared, outside_action, [root_grant, child_grant],
+            [[evidence(root_key)], [evidence(employee_key)]],
+            [evidence(agent_key)], context,
+        )
+        with self.assertRaises(PermissionError):
+            execute_read(
+                task=descriptor, challenge=challenge, proof=outside_proof,
+                action=outside_canonical_action,
+                trusted_template=_native.inspect_trusted_context(template),
+                store=store, provider=provider, receipts=receipts,
+            )
+        self.assertEqual(provider.calls, 0)
         outcome = execute_read(
             task=descriptor, challenge=challenge, proof=proof, action=canonical_action,
             trusted_template=_native.inspect_trusted_context(template), store=store,
