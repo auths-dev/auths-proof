@@ -130,6 +130,25 @@ This adapter does not activate the workbench importer or count as the normal
 broker-owned OAuth journey. No further Google sign-in or consent should be
 attempted for this smoke.
 
+The installed `auths-google-read-partial-smoke` command consumes the producer's
+owner-only partial report and an independently reviewed SHA-256 pin, its
+Desktop OAuth client configuration, and Jules's existing grant file. It writes
+one owner-only redacted result inside an operator-private directory:
+
+```sh
+auths-google-read-partial-smoke \
+  --producer-report /private/operator/google-partial-report.json \
+  --producer-report-sha256 REPORT_SHA256 \
+  --oauth-client /private/operator/demo-co-oauth-client.json \
+  --employee-grant /private/operator/google-person-jules.json \
+  --out /private/operator/auths-partial-consumer-result.json
+```
+
+It exercises the Auths fixed Drive reader on project A and refuses project B
+before credential resolution. The generated descriptor is diagnostic and has
+no native employee or agent signature; the result explicitly records this
+limit and cannot be used as full delegation acceptance evidence.
+
 The browser review flow uses a non-exportable Ed25519 employee key stored in
 that browser's IndexedDB, keyed by the signed-in Google subject. Clearing the
 browser profile removes access to that key. The workbench returns the native

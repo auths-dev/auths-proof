@@ -15,6 +15,7 @@ dependencies = [
 auths-google-read-doctor = "employee_read_demo.doctor:main"
 auths-google-read-workbench = "employee_read_demo.app:main"
 auths-google-read-operator = "employee_read_demo.operator_cli:main"
+auths-google-read-partial-smoke = "employee_read_demo.partial_smoke_cli:main"
 
 [build-system]
 requires = ["setuptools>=75"]
