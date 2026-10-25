@@ -714,6 +714,188 @@ mod tests {
     }
 
     #[test]
+    fn both_provider_references_refuse_changed_read_authority_before_a_call() {
+        for (google, namespace, resource_id) in [
+            (true, "google-read-demo", "resource-1"),
+            (false, "airtable-read-demo", "recTEST0000000001"),
+        ] {
+            let (source, lock) = fixture(google);
+            let recipe = CompiledReleaseRecipe::compile(source, lock).expect("release compiles");
+            let original = arguments(&recipe, namespace);
+            let request = recipe
+                .closed_request_from_arguments(&original, [7; 32])
+                .expect("closed request");
+            let mut state = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
+                task_id: "task-1".to_owned(),
+                task_commitment: [1; 32],
+                company_id: "test-company".to_owned(),
+                human_principal: "employee".to_owned(),
+                agent_principal: "agent-principal".to_owned(),
+                not_before: 100,
+                expires_at: 200,
+                max_provider_calls: 2,
+                max_releases: 1,
+                max_release_bytes: 512,
+                max_writes: 0,
+                write_scopes: vec![],
+                connection_id: "employee-account".to_owned(),
+                connection_generation: 3,
+                connection_subject: "employee-subject".to_owned(),
+                resources: vec![ReleaseResourceScope {
+                    handle: resource_id.to_owned(),
+                    recipe_digest: recipe.digest_hex(),
+                    connection_id: "employee-account".to_owned(),
+                    connection_generation: 3,
+                    connection_subject: "employee-subject".to_owned(),
+                }],
+            })
+            .expect("task policy");
+            let actors = ["agent-principal".to_owned()];
+            let reserve = |state: &mut ReleaseTaskState,
+                           request: &ClosedReleaseRequest,
+                           connection: &str,
+                           generation: u64,
+                           subject: &str| {
+                state.reserve_closed_request(request, &actors, connection, generation, subject, 101)
+            };
+
+            let mut changed = original.clone();
+            changed.insert(
+                "resource_id".to_owned(),
+                json!(if google {
+                    "resource-2"
+                } else {
+                    "recTEST0000000002"
+                }),
+            );
+            let excluded = recipe
+                .closed_request_from_arguments(&changed, [7; 32])
+                .expect("valid but excluded resource");
+            assert_eq!(
+                reserve(
+                    &mut state,
+                    &excluded,
+                    "employee-account",
+                    3,
+                    "employee-subject"
+                ),
+                Err(ReleaseStateError::Binding),
+                "{namespace}: task-excluded resource"
+            );
+            changed = original.clone();
+            changed.insert("agent_principal".to_owned(), json!("another-agent"));
+            let wrong_recipient = recipe
+                .closed_request_from_arguments(&changed, [7; 32])
+                .expect("valid but unauthorized recipient");
+            assert_eq!(
+                reserve(
+                    &mut state,
+                    &wrong_recipient,
+                    "employee-account",
+                    3,
+                    "employee-subject"
+                ),
+                Err(ReleaseStateError::Binding),
+                "{namespace}: wrong recipient"
+            );
+            changed = original.clone();
+            changed.insert("recipe_digest".to_owned(), json!("0".repeat(64)));
+            assert_eq!(
+                recipe
+                    .closed_request_from_arguments(&changed, [7; 32])
+                    .err(),
+                Some(GatewayRecipeError::ActionMismatch),
+                "{namespace}: unapproved recipe"
+            );
+            for (connection, generation, subject) in [
+                ("another-account", 3, "employee-subject"),
+                ("employee-account", 4, "employee-subject"),
+                ("employee-account", 3, "another-subject"),
+            ] {
+                assert_eq!(
+                    reserve(&mut state, &request, connection, generation, subject),
+                    Err(ReleaseStateError::Binding),
+                    "{namespace}: changed account binding"
+                );
+            }
+            assert_eq!(state.counts(), (0, 0, 0), "{namespace}: denied calls");
+            reserve(
+                &mut state,
+                &request,
+                "employee-account",
+                3,
+                "employee-subject",
+            )
+            .expect("one admitted call");
+            assert_eq!(
+                reserve(
+                    &mut state,
+                    &request,
+                    "employee-account",
+                    3,
+                    "employee-subject"
+                ),
+                Err(ReleaseStateError::Replay),
+                "{namespace}: operation replay"
+            );
+            assert_eq!(state.counts(), (1, 0, 0), "{namespace}: one call reserved");
+        }
+    }
+
+    #[test]
+    fn both_provider_references_refuse_unapproved_response_content() {
+        for (google, namespace, media_type, valid_body) in [
+            (
+                true,
+                "google-read-demo",
+                "text/plain",
+                b"Project A".as_slice(),
+            ),
+            (
+                false,
+                "airtable-read-demo",
+                "application/json",
+                br#"{"fields":{"DemoStatus":"Approved"}}"#.as_slice(),
+            ),
+        ] {
+            let (source, lock) = fixture(google);
+            let recipe = CompiledReleaseRecipe::compile(source, lock).expect("release compiles");
+            assert!(
+                recipe.project(200, media_type, valid_body).is_ok(),
+                "{namespace}"
+            );
+            assert_eq!(
+                recipe.project(403, media_type, valid_body),
+                Err(ReleaseProjectionError::Status),
+                "{namespace}: provider denial"
+            );
+            assert_eq!(
+                recipe.project(200, "application/octet-stream", valid_body),
+                Err(ReleaseProjectionError::MediaType),
+                "{namespace}: changed content type"
+            );
+            let oversized = vec![b'x'; recipe.maximum_provider_bytes() + 1];
+            assert_eq!(
+                recipe.project(200, media_type, &oversized),
+                Err(ReleaseProjectionError::Body),
+                "{namespace}: oversized provider body"
+            );
+            let unavailable = if google {
+                b"\xff".as_slice()
+            } else {
+                br#"{"fields":{"Other":"Approved"}}"#.as_slice()
+            };
+            assert!(
+                matches!(
+                    recipe.project(200, media_type, unavailable),
+                    Err(ReleaseProjectionError::Body | ReleaseProjectionError::Projection)
+                ),
+                "{namespace}: unavailable projection"
+            );
+        }
+    }
+
+    #[test]
     fn changed_action_and_unavailable_projection_never_produce_release_bytes() {
         let (source, lock) = fixture(false);
         let recipe = CompiledReleaseRecipe::compile(source, lock).expect("release compiles");

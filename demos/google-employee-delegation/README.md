@@ -477,8 +477,12 @@ the edit is refused before gateway entry.
 The installed task policy must set `allow_bounded_writes=true`; absent this
 file, the workbench defaults to exact confirmation. The agent still signs
 one complete action, and the gateway admits at most one listed choice. This
-development screen has synthetic ceremony coverage; the live bounded-upfront
-Google run and independent readback remain open.
+development screen has synthetic ceremony coverage. A clean Jules-signed run
+used a separate agent and one listed choice; demo_co independently verified the
+complete exact after-state. See the
+[clean rerun record](../../docs/program-log/2026-10-25-ap071-clean-upfront-rerun.md).
+The off-choice, second-write, and exact-confirmation-only policy refusals
+remain separate acceptance cases.
 
 See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
 for the remaining live acceptance path.
