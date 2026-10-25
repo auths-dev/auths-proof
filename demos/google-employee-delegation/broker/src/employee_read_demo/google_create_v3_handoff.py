@@ -22,6 +22,8 @@ SCHEMA_SHA256 = {
         "78298880d6b6bcfb0efcc06a6080e93ac5b16804f3286b8e2b6a50b481e946ee",
     "google-create-observation-v3.schema.json":
         "13f2b6f54740036e2fcf907078fc974dfba98b7fb0ca7b9513991b10c8b175d1",
+    "google-create-v3-candidate-blank-v1.schema.json":
+        "f8208d99951d959ff1bdad9600b1947823a542b40c2ebf0561e348cf917b5d2e",
 }
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 GENERATION = re.compile(r"generation-([0-9]{4,})\Z")
@@ -127,6 +129,33 @@ class CreateV3FinalPins:
                 or type(self.new_content_byte_count) is not int
                 or not 0 < self.new_content_byte_count <= 100_000):
             raise ContractRejected("v3 final operator pins are invalid")
+
+
+@dataclass(frozen=True)
+class CreateV3CandidateBlankPins:
+    baseline: CreateV3BaselinePins
+    observation_generation: int
+    observation_sha256: str
+    candidate_id: str
+    marker: str
+
+    def validate(self) -> None:
+        self.baseline.validate()
+        if (type(self.observation_generation) is not int
+                or self.observation_generation <= self.baseline.baseline_generation
+                or type(self.observation_sha256) is not str
+                or HEX64.fullmatch(self.observation_sha256) is None
+                or type(self.candidate_id) is not str
+                or not 1 <= len(self.candidate_id) <= 256
+                or any(character.isspace() for character in self.candidate_id)
+                or self.candidate_id in {
+                    item.document_id for item in self.baseline.neighbors
+                }
+                or type(self.marker) is not str
+                or MARKER.fullmatch(self.marker) is None
+                or self.marker in (self.baseline.preserved_marker,
+                                   self.baseline.second_marker)):
+            raise ContractRejected("v3 blank-candidate operator pins are invalid")
 
 
 def _checked(path: Path, schema_name: str, digest: str) -> dict:
@@ -278,3 +307,82 @@ def validate_create_v3_observation(
     if (not baseline_at < created_at <= final_at
             or created_at - baseline_at > timedelta(minutes=5)):
         raise ContractRejected("v3 create falls outside pinned five-minute window")
+
+
+def validate_create_v3_candidate_blank(
+    baseline_path: Path, candidate_path: Path, pins: CreateV3CandidateBlankPins,
+) -> dict:
+    """Accept producer evidence of one exact blank candidate, without authority."""
+    pins.validate()
+    baseline = _checked(
+        baseline_path, "google-create-v3-baseline-v1.schema.json",
+        pins.baseline.baseline_sha256,
+    )
+    candidate = _checked(
+        candidate_path, "google-create-v3-candidate-blank-v1.schema.json",
+        pins.observation_sha256,
+    )
+    if (baseline_path.name != "google-create-v3-baseline.json"
+            or (match := GENERATION.fullmatch(baseline_path.parent.name)) is None
+            or int(match.group(1)) != pins.baseline.baseline_generation
+            or candidate_path.name != "google-create-v3-candidate-blank.json"
+            or (candidate_match := GENERATION.fullmatch(candidate_path.parent.name)) is None
+            or int(candidate_match.group(1)) != pins.observation_generation):
+        raise ContractRejected("v3 blank-candidate artifact location differs from pins")
+    common = {
+        "company": pins.baseline.company,
+        "instance": pins.baseline.instance,
+        "definition_hash": pins.baseline.definition_hash,
+        "customer_id": pins.baseline.customer_id,
+        "jules_subject": pins.baseline.jules_subject,
+        "drive_id": pins.baseline.drive_id,
+        "folder_id": pins.baseline.folder_id,
+    }
+    if (any(any(document.get(name) != value for name, value in common.items())
+            for document in (baseline, candidate))
+            or baseline.get("schema_version")
+                != "demo-co/google-create-v3-baseline/v1"
+            or baseline.get("status") != "ready"
+            or baseline.get("attribution") != "provider_state_only"
+            or baseline.get("direct_child_count") != 5
+            or baseline.get("neighbors")
+                != [asdict(item) for item in pins.baseline.neighbors]
+            or baseline.get("preserved_marker") != pins.baseline.preserved_marker
+            or baseline.get("second_marker") != pins.baseline.second_marker
+            or any(baseline.get(name) is not True for name in (
+                "canonical_project_a_unchanged", "canonical_project_b_unchanged",
+            ))
+            or candidate.get("schema_version")
+                != "demo-co/google-create-v3-candidate-blank/v1"
+            or candidate.get("status") != "observed_blank"
+            or candidate.get("attribution") != "provider_state_only"
+            or candidate.get("baseline_generation")
+                != pins.baseline.baseline_generation
+            or candidate.get("baseline_sha256")
+                != pins.baseline.baseline_sha256
+            or candidate.get("baseline_observed_at")
+                != baseline.get("observed_at")
+            or candidate.get("direct_child_count") != 6
+            or candidate.get("candidate_id") != pins.candidate_id
+            or candidate.get("candidate_title") != CHILD_TITLE
+            or candidate.get("candidate_marker") != pins.marker
+            or candidate.get("candidate_marker_match_count") != 1
+            or candidate.get("blank_export_byte_count") != 3
+            or candidate.get("blank_export_sha256")
+                != hashlib.sha256(b"\xef\xbb\xbf").hexdigest()
+            or candidate.get("blank_layout")
+                != "section-break-then-newline-paragraph/v1"
+            or any(candidate.get(name) is not True for name in (
+                "neighbors_match_baseline", "canonical_project_a_unchanged",
+                "canonical_project_b_unchanged",
+            ))
+            or any(type(candidate.get(name)) is not str or not candidate[name]
+                   for name in ("candidate_tab_id", "candidate_admin_revision_id"))):
+        raise ContractRejected("v3 blank candidate differs from run pins")
+    baseline_at = _time(baseline, "observed_at")
+    created_at = _time(candidate, "candidate_created_at")
+    observed_at = _time(candidate, "observed_at")
+    if (not baseline_at < created_at <= observed_at
+            or created_at - baseline_at > timedelta(minutes=5)):
+        raise ContractRejected("v3 blank candidate falls outside pinned create window")
+    return candidate

@@ -13,7 +13,8 @@ from pathlib import Path
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import CHILD_TITLE
 from employee_read_demo.google_create_v3_handoff import (
-    CreateV3BaselinePins, CreateV3FinalPins, CreateV3NeighborPins,
+    CreateV3BaselinePins, CreateV3CandidateBlankPins, CreateV3FinalPins,
+    CreateV3NeighborPins, validate_create_v3_candidate_blank,
     validate_create_v3_observation, validate_create_v3_precreate_baseline,
 )
 
@@ -102,6 +103,39 @@ class CreateV3ConsumerTests(unittest.TestCase):
             new_child_id="doc-new", new_marker="ap071_" + "c" * 32,
             new_content_sha256="1" * 64, new_content_byte_count=42,
         )
+        self.candidate_path = self.final_path.with_name(
+            "google-create-v3-candidate-blank.json",
+        )
+        self.candidate = {
+            "schema_version": "demo-co/google-create-v3-candidate-blank/v1",
+            "status": "observed_blank", "attribution": "provider_state_only",
+            "company": "atlas-studio", "instance": "test-instance",
+            "definition_hash": "a" * 64,
+            "observed_at": (self.baseline_at + timedelta(minutes=2)).isoformat(),
+            "baseline_generation": 16, "baseline_sha256": baseline_sha,
+            "baseline_observed_at": self.baseline["observed_at"],
+            "customer_id": "customer-1", "jules_subject": "subject-1",
+            "drive_id": "drive-A", "folder_id": "folder-A",
+            "direct_child_count": 6, "candidate_id": "doc-new",
+            "candidate_title": CHILD_TITLE,
+            "candidate_created_at":
+                (self.baseline_at + timedelta(minutes=1)).isoformat(),
+            "candidate_marker": "ap071_" + "c" * 32,
+            "candidate_marker_match_count": 1,
+            "candidate_tab_id": "tab-1", "candidate_admin_revision_id": "rev-1",
+            "blank_export_sha256": hashlib.sha256(b"\xef\xbb\xbf").hexdigest(),
+            "blank_export_byte_count": 3,
+            "blank_layout": "section-break-then-newline-paragraph/v1",
+            "neighbors_match_baseline": True,
+            "canonical_project_a_unchanged": True,
+            "canonical_project_b_unchanged": True,
+        }
+        candidate_sha = self._write(self.candidate_path, self.candidate)
+        self.candidate_pins = CreateV3CandidateBlankPins(
+            baseline=self.pins, observation_generation=17,
+            observation_sha256=candidate_sha, candidate_id="doc-new",
+            marker="ap071_" + "c" * 32,
+        )
 
     @staticmethod
     def _write(path: Path, value: dict) -> str:
@@ -146,6 +180,31 @@ class CreateV3ConsumerTests(unittest.TestCase):
                 self.baseline_path, self.final_path,
                 replace(self.final_pins, observation_sha256=late_sha),
             )
+
+    def test_exact_blank_candidate_and_tampering_are_refused(self) -> None:
+        observed = validate_create_v3_candidate_blank(
+            self.baseline_path, self.candidate_path, self.candidate_pins,
+        )
+        self.assertEqual(observed["candidate_id"], "doc-new")
+        for change in (
+            {"candidate_marker": "ap071_" + "d" * 32},
+            {"neighbors_match_baseline": False},
+            {"blank_export_byte_count": 4},
+            {"blank_export_sha256": "0" * 64},
+            {"candidate_id": "another-child"},
+            {"baseline_sha256": "0" * 64},
+            {"candidate_created_at":
+                (self.baseline_at + timedelta(minutes=6)).isoformat()},
+        ):
+            with self.subTest(change=change):
+                altered = self.candidate | change
+                digest = self._write(self.candidate_path, altered)
+                with self.assertRaises(ContractRejected):
+                    validate_create_v3_candidate_blank(
+                        self.baseline_path, self.candidate_path,
+                        replace(self.candidate_pins, observation_sha256=digest),
+                    )
+        self._write(self.candidate_path, self.candidate)
 
 
 if __name__ == "__main__":
