@@ -80,6 +80,7 @@ pub struct ClosedReleaseRequest {
     namespace: OperatorNamespace,
     operation_id: LogicalOperationId,
     task_id: String,
+    task_commitment: [u8; 32],
     resource_handle: String,
     recipient: String,
     recipe_digest: [u8; 32],
@@ -98,6 +99,12 @@ impl ClosedReleaseRequest {
     #[must_use]
     pub fn task_id(&self) -> &str {
         &self.task_id
+    }
+
+    /// Commitment to the exact human-signed task card.
+    #[must_use]
+    pub const fn task_commitment(&self) -> &[u8; 32] {
+        &self.task_commitment
     }
 
     /// The exact signed resource handle committed to a release receipt.
@@ -284,6 +291,18 @@ impl CompiledReleaseRecipe {
             .and_then(Value::as_str)
             .filter(|value| super::valid_token(value, 128))
             .ok_or(GatewayRecipeError::ActionMismatch)?;
+        let task_commitment = arguments
+            .get("task_commitment")
+            .and_then(Value::as_str)
+            .filter(|value| {
+                value.len() == 64
+                    && value
+                        .bytes()
+                        .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            })
+            .and_then(|value| hex::decode(value).ok())
+            .and_then(|bytes| bytes.try_into().ok())
+            .ok_or(GatewayRecipeError::ActionMismatch)?;
         let recipient = arguments
             .get(&self.source.recipient_field)
             .and_then(Value::as_str)
@@ -305,6 +324,7 @@ impl CompiledReleaseRecipe {
             namespace: self.namespace.clone(),
             operation_id,
             task_id: task_id.to_owned(),
+            task_commitment,
             resource_handle: resource_handle.to_owned(),
             recipient: recipient.to_owned(),
             recipe_digest: self.digest,
@@ -366,10 +386,16 @@ fn validate_and_lower(
     if source.recipient_field != "agent_principal"
         || !matches!(fields.get("agent_principal"), Some(FieldSchema::String { minimum, maximum }) if *minimum >= 1 && *maximum <= 256)
         || !matches!(fields.get("task_id"), Some(FieldSchema::String { minimum, maximum }) if *minimum >= 1 && *maximum <= 128)
+        || !matches!(fields.get("task_commitment"), Some(FieldSchema::String { minimum, maximum }) if *minimum == 64 && *maximum == 64)
         || !matches!(fields.get(&source.resource_field), Some(FieldSchema::String { minimum, maximum }) if *minimum >= 1 && *maximum <= 256)
         || matches!(
             source.resource_field.as_str(),
-            "task_id" | "operation_id" | "recipe_digest" | "operator_namespace" | "agent_principal"
+            "task_id"
+                | "task_commitment"
+                | "operation_id"
+                | "recipe_digest"
+                | "operator_namespace"
+                | "agent_principal"
         )
         || source.path.is_empty()
         || source.path.len() > 16
@@ -381,6 +407,7 @@ fn validate_and_lower(
         "operation_id".to_owned(),
         "recipe_digest".to_owned(),
         "task_id".to_owned(),
+        "task_commitment".to_owned(),
         source.recipient_field.clone(),
     ]);
     let mut segments = Vec::with_capacity(source.path.len());
@@ -521,6 +548,7 @@ mod tests {
             "operation_id": "read-1",
             "recipe_digest": recipe.digest_hex(),
             "task_id": "task-1",
+            "task_commitment": "01".repeat(32),
             "agent_principal": "agent-principal",
             "resource_id": resource_id
         })
@@ -580,7 +608,7 @@ mod tests {
         let request = recipe
             .closed_request_from_arguments(&arguments(&recipe, "google-read-demo"), [7; 32])
             .expect("closed request");
-        let mut state = ReleaseTaskState::new(ReleaseTaskPolicy {
+        let mut state = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
             task_id: "task-1".to_owned(),
             task_commitment: [1; 32],
             company_id: "atlas".to_owned(),

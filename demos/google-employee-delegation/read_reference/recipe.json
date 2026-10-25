@@ -1,8 +1,8 @@
 {
   "schema": "auths.gateway-release-recipe-source/1",
-  "profile_schema_digest": "6fbb5492906ae6f45278b3aa1bf4dbdecd9c0793becbd4f2a66128d36870cc90",
+  "profile_schema_digest": "e932ca3725337d3e3f6f809c834b966fc975fb4f0796b1050d48e8f6f7560159",
   "service": "google-drive-delegation-demo",
-  "tool": "release_project_a_text_v1",
+  "tool": "release_project_a_text_v2",
   "operator_namespace": "google-read-demo",
   "credential": {"kind": "bearer"},
   "origin": "https://www.googleapis.com",

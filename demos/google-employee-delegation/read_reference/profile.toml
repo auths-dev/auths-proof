@@ -1,6 +1,6 @@
 [profile]
 name = "google-project-a-read-release"
-version = 1
+version = 2
 service = "google-drive-delegation-demo"
 tool = "release_project_a_text"
 command = "ReleaseProjectAText"
@@ -25,6 +25,11 @@ max_bytes = 64
 [arguments.fields.task_id]
 type = "string"
 min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.task_commitment]
+type = "string"
+min_bytes = 64
 max_bytes = 64
 
 [arguments.fields.agent_principal]

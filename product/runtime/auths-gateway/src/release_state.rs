@@ -6,6 +6,7 @@
 #[cfg(test)]
 use crate::ClosedReleaseRequest;
 use crate::release_verify::VerifiedReleaseRequest;
+use crate::task_activation::ApprovedAgentTask;
 use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
@@ -193,7 +194,7 @@ fn same_commitment(expected: &str, presented: &str) -> bool {
 }
 
 impl ReleaseTaskState {
-    pub(crate) fn new(policy: ReleaseTaskPolicy) -> Result<Self, ReleaseStateError> {
+    fn new(policy: ReleaseTaskPolicy) -> Result<Self, ReleaseStateError> {
         if !bounded_text(&policy.task_id, 128)
             || !bounded_text(&policy.company_id, 128)
             || !bounded_text(&policy.human_principal, 256)
@@ -241,6 +242,11 @@ impl ReleaseTaskState {
             released_bytes: 0,
             operations: BTreeMap::new(),
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_policy(policy: ReleaseTaskPolicy) -> Result<Self, ReleaseStateError> {
+        Self::new(policy)
     }
 
     fn active(&self, now: u64) -> Result<(), ReleaseStateError> {
@@ -311,6 +317,10 @@ impl ReleaseTaskState {
         let request = verified.request();
         if verified.actor().as_str() != request.recipient()
             || verified.human_issuer().as_str() != self.human_principal
+            || !same_commitment(
+                &self.task_commitment,
+                &hex::encode(request.task_commitment()),
+            )
         {
             return Err(ReleaseStateError::Binding);
         }
@@ -341,6 +351,12 @@ impl ReleaseTaskState {
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         if verified_actors.len() != 1 || verified_actors[0] != request.recipient() {
+            return Err(ReleaseStateError::Binding);
+        }
+        if !same_commitment(
+            &self.task_commitment,
+            &hex::encode(request.task_commitment()),
+        ) {
             return Err(ReleaseStateError::Binding);
         }
         self.reserve_provider_call(
@@ -722,6 +738,16 @@ impl FileReleaseTaskLedger {
 
     pub(crate) fn initialize(
         &self,
+        approved: &ApprovedAgentTask,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        let policy = approved
+            .release_policy()
+            .map_err(|_| ReleaseStateError::Binding)?;
+        self.initialize_policy(policy)
+    }
+
+    fn initialize_policy(
+        &self,
         policy: ReleaseTaskPolicy,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         let state = ReleaseTaskState::new(policy)?;
@@ -932,7 +958,7 @@ mod tests {
             .expect("canonical directory")
             .join("release");
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize(policy()).expect("task");
+        ledger.initialize_policy(policy()).expect("task");
         ledger
             .reserve_provider_call(call("read-1"), 101)
             .expect("claim");
@@ -1081,7 +1107,7 @@ mod tests {
             .expect("canonical directory")
             .join("release");
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize(policy()).expect("task");
+        ledger.initialize_policy(policy()).expect("task");
         ledger
             .reserve_provider_call(call("read-1"), 101)
             .expect("call claim");
@@ -1130,7 +1156,7 @@ mod tests {
             .join("release");
         FileReleaseTaskLedger::open(&path)
             .expect("open")
-            .initialize(policy())
+            .initialize_policy(policy())
             .expect("task");
         let barrier = Arc::new(Barrier::new(2));
         let outcomes = std::thread::scope(|scope| {
@@ -1188,7 +1214,7 @@ mod tests {
             .expect("canonical directory")
             .join("release");
         let ledger = FileReleaseTaskLedger::open(&path).expect("open");
-        ledger.initialize(policy()).expect("task");
+        ledger.initialize_policy(policy()).expect("task");
         ledger
             .reserve_provider_call(call("read-1"), 101)
             .expect("first call");

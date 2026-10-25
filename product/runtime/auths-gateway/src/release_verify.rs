@@ -124,7 +124,8 @@ mod tests {
             "operator_namespace": {"type": "enum", "variants": [harness::NAMESPACE]},
             "recipe_digest": {"kind": "string", "minimum": 64, "maximum": 64},
             "record_id": {"kind": "string", "minimum": 1, "maximum": 64},
-            "task_id": {"kind": "string", "minimum": 1, "maximum": 64}
+            "task_id": {"kind": "string", "minimum": 1, "maximum": 64},
+            "task_commitment": {"kind": "string", "minimum": 64, "maximum": 64}
         }});
         let schema_digest = hex::encode(Sha256::digest(
             serde_json_canonicalizer::to_vec(&schema).expect("schema"),
@@ -162,7 +163,8 @@ mod tests {
             "operator_namespace": harness::NAMESPACE,
             "recipe_digest": recipe.digest_hex(),
             "record_id": harness::RECORD,
-            "task_id": "task-1"
+            "task_id": "task-1",
+            "task_commitment": "11".repeat(32)
         })
         .as_object()
         .expect("arguments")
@@ -234,7 +236,7 @@ mod tests {
                 connection_generation: 3,
             }],
         };
-        let mut wrong_human = ReleaseTaskState::new(ReleaseTaskPolicy {
+        let mut wrong_human = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
             human_principal: Signer::new(0x44).principal.as_str().to_owned(),
             ..policy.clone()
         })
@@ -245,7 +247,18 @@ mod tests {
                 .is_err()
         );
         assert_eq!(wrong_human.counts(), (0, 0, 0));
-        let mut state = ReleaseTaskState::new(policy).expect("policy");
+        let mut wrong_task = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
+            task_commitment: [0x12; 32],
+            ..policy.clone()
+        })
+        .expect("policy");
+        assert!(
+            wrong_task
+                .reserve_verified_request(&verified, "jules-connection", 3, NOW)
+                .is_err()
+        );
+        assert_eq!(wrong_task.counts(), (0, 0, 0));
+        let mut state = ReleaseTaskState::from_test_policy(policy).expect("policy");
         assert!(
             state
                 .reserve_verified_request(&verified, "jules-connection", 4, NOW)

@@ -52,6 +52,9 @@ mod separation;
 mod store;
 mod submit;
 mod support;
+// Human task approval is not yet served by an installed activation channel.
+#[allow(dead_code)]
+mod task_activation;
 mod transport;
 
 #[cfg(test)]

@@ -9,7 +9,7 @@ be a complete `200` `text/plain` body of at most 64 KiB; at most 16 KiB may be
 projected for one release. The compiler test checks the exact path, encoded
 query, recipient binding and text projection against this checked-in source.
 
-The profile has bounded operation, task, agent and resource fields. Its
+The v2 profile has bounded operation, task, task-card commitment, agent and resource fields. Its
 `resource_id` limit is 64 bytes; demo_co has observed 44-byte IDs for existing
 canonical Docs, but must check the selected source ID in each export. Auths
 task admission must prove that this ID is among the human's exact approved

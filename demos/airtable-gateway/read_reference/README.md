@@ -1,6 +1,6 @@
 # Airtable field release reference for AP-SPEC-071
 
-The generated [profile lock](profile.lock.json) and [recipe](recipe.json) use
+The generated v2 [profile lock](profile.lock.json) and [recipe](recipe.json) use
 the same managed read-release compiler as the
 [Google reference](../../google-employee-delegation/read_reference/README.md).
 The recipe fixes the existing disposable Airtable demo base and table, accepts
