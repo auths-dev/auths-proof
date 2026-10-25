@@ -15,7 +15,9 @@ from unittest.mock import patch
 
 from employee_read_demo.google_create_handoff import CHILD_TITLE
 from employee_read_demo.operator_authority import OperatorDenied
-from employee_read_demo.task_create_operator import submit_planned_create
+from employee_read_demo.task_create_operator import (
+    reconcile_planned_child, submit_planned_create, submit_planned_population,
+)
 
 
 class PlannedCreateOperatorTests(unittest.TestCase):
@@ -148,6 +150,122 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             with self.assertRaisesRegex(OperatorDenied, "already handed off"):
                 self._submit()
             gateway.assert_called_once()
+
+    def test_reconciliation_uses_original_action_and_baseline_without_create(self) -> None:
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, b'{"outcome":"response-recorded","status":200}', b"",
+                    ))):
+            self._submit()
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, json.dumps({
+                            "schema": "auths.gateway-child-reconciliation/1",
+                            "outcome": "child-bound", "child_id": "child-1",
+                        }).encode(), b"",
+                    )) as gateway):
+            result = reconcile_planned_child(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id,
+            )
+            self.assertEqual(result["child_id"], "child-1")
+            self.assertEqual(result["baseline_generation"], 2)
+            command = gateway.call_args.args[0]
+            self.assertEqual(command[1], "task-reconcile-child")
+            self.assertNotIn("task-submit", command)
+            self.assertNotIn("--confirmation-proof", command)
+            self.assertEqual(command[command.index("--agent-action") + 1],
+                             str(self.task_dir / "agent.action"))
+            gateway.assert_called_once()
+
+    def test_population_enters_once_with_recorded_plan_and_jules_child(self) -> None:
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, b'{"outcome":"response-recorded","status":200}', b"",
+                    ))):
+            self._submit()
+        plan = {
+            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "task_commitment": "a" * 64,
+            "create": {"operation_id": "create-1"},
+            "populate_recipe_digest": "b" * 64,
+            "populate_operation_id": "populate-1", "expires_at": self.now + 100,
+        }
+        package = {
+            "schema": "auths.ap071-agent-write-package/1",
+            "task_id": self.task_id, "recipe_digest": "b" * 64,
+        }
+        inputs = {
+            "schema": "auths.gateway-task-populate-preflight-inputs/1",
+            "task_id": self.task_id, "task_commitment": "a" * 64,
+            "plan_commitment": "f" * 64, "create_operation_id": "create-1",
+            "child_id": "child-1", "populate_recipe_digest": "b" * 64,
+            "preflight_rule_digest": "c" * 64,
+            "connection_id": "jules-connection", "connection_generation": 1,
+            "connection_subject": "jules-subject",
+        }
+        report = {"statement": inputs | {
+            "schema": "auths.gateway-task-populate-preflight/1",
+            "valid_until": self.now + 60,
+        }, "signature_b64": "signed-jules-report"}
+        preflight_path = self.root / "preflight.json"
+        self._write(self.task_dir / "effect-plan.json", plan)
+        self._write(self.task_dir / "agent-companion-write-package.json", package)
+        self._write(self.task_dir / "populate.proof", b"agent-populate-proof")
+        self._write(self.task_dir / "populate.action", b"agent-populate-action")
+        self._write(preflight_path, report)
+
+        def run(command, **kwargs):
+            if command[1] == "task-populate-preflight-inputs":
+                return subprocess.CompletedProcess(command, 0,
+                                                   json.dumps(inputs).encode(), b"")
+            self.assertEqual(command[1], "task-submit")
+            self.assertIn("--recorded-effect-plan", command)
+            self.assertEqual(command[command.index("--recipe-digest") + 1], "b" * 64)
+            self.assertTrue((self.task_dir / "populate-entry.json").exists())
+            return subprocess.CompletedProcess(
+                command, 0, b'{"outcome":"response-recorded","status":200}', b"",
+            )
+
+        def populate():
+            return submit_planned_population(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id, preflight_path=preflight_path, now=self.now,
+            )
+
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    side_effect=run) as gateway):
+            altered = json.loads(json.dumps(report))
+            altered["statement"]["child_id"] = "other-child"
+            self._write(preflight_path, altered)
+            with self.assertRaisesRegex(OperatorDenied, "differs"):
+                populate()
+            self.assertFalse((self.task_dir / "populate-entry.json").exists())
+            self._write(preflight_path, report)
+            result = populate()
+            self.assertEqual(result["child_id"], "child-1")
+            self.assertEqual(result["gateway_outcome"], "response-recorded")
+            with self.assertRaisesRegex(OperatorDenied, "already handed off"):
+                populate()
+            self.assertEqual(gateway.call_count, 4)
 
 
 if __name__ == "__main__":

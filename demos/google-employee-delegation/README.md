@@ -397,5 +397,32 @@ auths-google-planned-create \
   --baseline-sha256 "$WRITE_OBSERVATION_SHA256"
 ```
 
+If the gateway recorded a create response, bind that same response-derived
+child without issuing another create:
+
+```sh
+auths-google-reconcile-child \
+  --gateway-bin "$GATEWAY_BIN" --gateway-sha256 "$GATEWAY_SHA256" \
+  --gateway-state-dir "$GATEWAY_STATE_DIR" \
+  --task-dir "$PRIVATE_TASK_DIR" --task-id "$TASK_ID"
+```
+
+Then run `auths-google-populate-preflight`, transfer its owner-private report
+and the plan to the isolated agent, and stage the agent's `populate.proof` and
+`populate.action` in the private task directory. The final operator handoff is:
+
+```sh
+auths-google-planned-populate \
+  --gateway-bin "$GATEWAY_BIN" --gateway-sha256 "$GATEWAY_SHA256" \
+  --gateway-state-dir "$GATEWAY_STATE_DIR" \
+  --task-dir "$PRIVATE_TASK_DIR" --task-id "$TASK_ID" \
+  --preflight "$PRIVATE_POPULATE_PREFLIGHT"
+```
+
+Both effect submissions are one-shot handoffs. An unknown result requires
+inspection of the durable gateway attempt and the independent producer state.
+These commands remain a development operator path; no live Jules create has
+run through them yet.
+
 See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
 for the remaining live acceptance path.
