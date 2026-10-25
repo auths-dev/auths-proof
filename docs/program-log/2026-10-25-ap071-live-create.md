@@ -66,6 +66,7 @@ Project A parent, edit capability, blank Docs body, tab and revision. The
 separate agent then signed the original 145-byte draft for a single
 revision-guarded `documents.batchUpdate`. The broker's gateway review and
 fresh preflight presented the complete request for Jules's separate exact
-confirmation. At this checkpoint, the task status shows zero writes and no
-provider call. The exact confirmation and submission still require the
-action-time approval; this log must be updated after the outcome is known.
+confirmation. No exact-content approval arrived before this task expired at
+17:56:11 UTC. The post-expiry status still shows zero writes and no provider
+call. The signed proposal must not be submitted under the expired task; a
+fresh, reviewed delegation and confirmation are needed for population.
