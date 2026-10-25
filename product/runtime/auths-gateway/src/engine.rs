@@ -2293,6 +2293,149 @@ pub(crate) mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "installed activation fixture includes connection, task and native human proof"
+    )]
+    async fn installed_task_session_activates_native_human_card_once() {
+        use crate::harness::{self, Signer};
+        use crate::observed_tests::submission_for;
+        use crate::task_activation::AgentTaskDescriptor;
+        use serde_json::{Map, json};
+
+        let mut installation = administration::installation(8).await;
+        let engine = &mut installation.first.engine;
+        engine.recipe = CompiledRecipe::compile(
+            include_bytes!("../../../../demos/airtable-gateway/write_reference/recipe.json"),
+            include_bytes!("../../../../demos/airtable-gateway/write_reference/profile.lock.json"),
+        )
+        .expect("task recipe");
+        let now = wall_clock_seconds().expect("clock");
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        engine.trusted_context =
+            harness::context_for_agent_and_task(&root, observer.principal(), now)
+                .expect("installed trust");
+        let loaded = engine
+            .connection
+            .load()
+            .await
+            .expect("connection read")
+            .expect("connection");
+        let old = loaded.record();
+        let subject = "acct_TESTPLATFORM1";
+        let bound = ConnectionRecord::new(
+            old.provider_kind().clone(),
+            old.alias().clone(),
+            old.connection_id().clone(),
+            old.contract().clone(),
+            old.descriptor_schema().clone(),
+            old.descriptor().to_vec(),
+            submit::account_commitment(subject),
+            *old.credential_reference_commitment(),
+            old.generation(),
+            old.state(),
+            old.allowed_workloads().to_vec(),
+            old.allowed_profiles().to_vec(),
+            old.created_at_unix_seconds(),
+            old.updated_at_unix_seconds(),
+            old.revoked_at_unix_seconds(),
+        )
+        .expect("subject-bound connection");
+        engine
+            .connection
+            .replace(&loaded, &bound)
+            .await
+            .expect("bind subject");
+        let pins = TaskActivationPins {
+            company_id: "atlas".to_owned(),
+            human_principal: human.principal.as_str().to_owned(),
+            agent_principal: agent.principal.as_str().to_owned(),
+            agent_key_fingerprint: "a".repeat(64),
+            connection_id: bound.connection_id().as_str().to_owned(),
+            connection_generation: bound.generation().get(),
+            connection_subject: subject.to_owned(),
+            delivery_channel: "agent-channel".to_owned(),
+            operator_policy_digest: "b".repeat(64),
+            allow_bounded_writes: false,
+        };
+        let card: AgentTaskDescriptor = serde_json::from_value(json!({
+            "schema": "auths.agent-task/1",
+            "task_id": "task-installed-1",
+            "company_id": pins.company_id,
+            "human_principal": pins.human_principal,
+            "agent_principal": pins.agent_principal,
+            "agent_key_fingerprint": pins.agent_key_fingerprint,
+            "connection_id": pins.connection_id,
+            "connection_generation": pins.connection_generation,
+            "connection_subject": pins.connection_subject,
+            "read_scopes": [],
+            "write_scopes": [{"handle": "recTEST0000000001",
+                              "recipe_digest": engine.recipe.digest_hex(), "verb": "edit"}],
+            "delivery_channel": pins.delivery_channel,
+            "not_before": now - 30,
+            "expires_at": now + 600,
+            "max_provider_calls": 0,
+            "max_releases": 0,
+            "max_release_bytes": 0,
+            "max_writes": 1,
+            "write_approval_mode": "exact",
+            "operator_policy_digest": pins.operator_policy_digest,
+            "purpose": "Edit one test record"
+        }))
+        .expect("card");
+        let config = TaskWriteInstallation {
+            schema: TASK_INSTALLATION_SCHEMA.to_owned(),
+            recipe_digest: engine.recipe.digest_hex(),
+            pins,
+        };
+        let bytes = serde_json_canonicalizer::to_vec(&config).expect("canonical config");
+        let directory = tempfile::tempdir().expect("private journal root");
+        let root_path = std::fs::canonicalize(directory.path())
+            .expect("canonical path")
+            .join("task-state");
+        let session = engine
+            .task_write_session(&bytes, &root_path)
+            .expect("operator session");
+        let grant = harness::grant_for(
+            &root,
+            &human.principal,
+            now,
+            "auths-agent-task",
+            "approve_agent_task_v1",
+        )
+        .expect("human grant");
+        let mut arguments = Map::new();
+        arguments.insert(
+            "task".to_owned(),
+            serde_json::to_value(&card).expect("card"),
+        );
+        let signed = submission_for(
+            &root,
+            &human,
+            &grant,
+            &arguments,
+            &[],
+            "auths-agent-task",
+            "approve_agent_task_v1",
+            now,
+        );
+        session
+            .activate(&signed.proof, &signed.action)
+            .await
+            .expect("activated signed task");
+        assert!(
+            session
+                .activate(&signed.proof, &signed.action)
+                .await
+                .is_err()
+        );
+    }
+
     // Connection administration over the shared record and each process's
     // own credential store. Entry is checked through `prepare_entry`, which
     // every submission and read-back passes before any claim, lease, or
