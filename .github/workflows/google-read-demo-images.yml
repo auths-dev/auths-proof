@@ -115,3 +115,50 @@ jobs:
           python -c 'import json; d=json.load(open("/tmp/ap070-session.json")); assert d["contract"] == "auths.employee-session/v1"'
           docker compose -p ap070-installed-ci --profile task run --rm --no-deps -T \
             --entrypoint python agent - < isolation/probe_agent.py
+      - name: Assemble source-free operator kit candidate
+        run: |
+          set -euo pipefail
+          kit=target/google-read-operator-kit
+          mkdir -p "$kit/isolation" "$kit/evidence"
+          cp demos/google-employee-delegation/compose.yaml "$kit/"
+          cp demos/google-employee-delegation/compose.live.yaml "$kit/"
+          cp demos/google-employee-delegation/versions.lock.json "$kit/"
+          cp demos/google-employee-delegation/README.md "$kit/"
+          cp demos/google-employee-delegation/isolation/*.conf "$kit/isolation/"
+          cp demos/google-employee-delegation/evidence/live-acceptance-template.md "$kit/evidence/"
+          printf '%s\n' "$GITHUB_SHA" > "$kit/REVISION"
+          (
+            cd "$kit"
+            sha256sum REVISION README.md compose.yaml compose.live.yaml \
+              versions.lock.json isolation/*.conf evidence/live-acceptance-template.md > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          test ! -e "$kit/broker" && test ! -e "$kit/agent"
+          tar -C target --sort=name --mtime='@0' --owner=0 --group=0 \
+            --numeric-owner -cf - google-read-operator-kit | gzip -n > target/google-read-operator-kit.tar.gz
+          (
+            cd target
+            sha256sum google-read-operator-kit.tar.gz > google-read-operator-kit.tar.gz.sha256
+            sha256sum -c google-read-operator-kit.tar.gz.sha256
+          )
+          (
+            cd target/google-read-artifacts
+            sha256sum auths-*.whl > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+      - name: Upload reviewed operator kit candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: google-read-operator-kit-${{ github.sha }}
+          path: |
+            target/google-read-operator-kit.tar.gz
+            target/google-read-operator-kit.tar.gz.sha256
+          if-no-files-found: error
+      - name: Upload exact branch-built Linux SDK wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: google-read-linux-wheel-${{ github.sha }}
+          path: |
+            target/google-read-artifacts/auths-*.whl
+            target/google-read-artifacts/SHA256SUMS
+          if-no-files-found: error

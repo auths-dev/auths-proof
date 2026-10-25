@@ -200,6 +200,16 @@ key file and an approved model ID. The Nginx relay image is pinned in
 installed branch wheel; publish and pin their registry manifests and the
 matching SDK artifact before this becomes an installation kit. Compose
 validation and relay syntax checks alone do not prove runtime isolation.
+The installed-image workflow now uploads a source-free **candidate** operator
+kit tarball and the exact Linux SDK wheel built for the same commit, each with
+SHA-256 checksums. The kit contains Compose files, relay configuration, the
+current lock file, acceptance template and a `REVISION` file. Verify the
+downloaded tarball checksum, extract it, then verify its internal `SHA256SUMS`
+from inside `google-read-operator-kit/`. This candidate is not install-ready:
+`versions.lock.json` still has empty SDK artifact and broker/agent registry
+digest fields. A fresh operator host must receive reviewed digest-pinned
+images and an updated lock file before running Compose; it must not build
+the source checkout to fill those fields.
 The [synthetic isolation probe](evidence/isolation-synthetic-2026-10-24.md)
 records actual Docker network, mount and route observations with a mock broker.
 The installed-image probe below supersedes that synthetic result for built
