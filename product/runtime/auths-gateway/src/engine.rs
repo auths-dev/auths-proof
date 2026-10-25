@@ -20,12 +20,13 @@ use crate::release_state::FileReleaseTaskLedger;
 use crate::submit::{self, SubmitContext, SubmitIo};
 #[cfg(unix)]
 use crate::task_activation::{
-    ApprovedAgentTask, TaskActivationPins, WriteApprovalMode, verify_task_activation,
+    APPROVAL_TOOL, ApprovedAgentTask, TASK_SERVICE, TaskActivationPins, WriteApprovalMode,
+    verify_task_activation,
 };
 #[cfg(unix)]
 use crate::task_write::{
-    ApprovedTaskWrite, TaskWriteBinding, admit_bounded_upfront_write, derive_exact_write_intent,
-    verify_exact_write_confirmation,
+    ApprovedTaskWrite, CONFIRMATION_TOOL, TaskWriteBinding, admit_bounded_upfront_write,
+    derive_exact_write_intent, verify_exact_write_confirmation,
 };
 use crate::transport::{
     GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderPort, ProviderResponse,
@@ -46,6 +47,8 @@ use auths_model::{
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
+#[cfg(unix)]
+use auths_profile_mcp::McpToolCall;
 use auths_profile_mcp::{McpProfile, with_mcp_arguments_registries};
 use auths_registries::ImmutableRegistries;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -1216,6 +1219,9 @@ impl GatewayEngine {
         {
             return Err("gateway.task.invalid-installation");
         }
+        if !task_trust_available(&self.trusted_context) {
+            return Err("gateway.task.trust-profile-unavailable");
+        }
         let (resource_field, verb) = self
             .recipe
             .task_binding()
@@ -1608,6 +1614,30 @@ fn task_connection_matches(record: &ConnectionRecord, binding: &TaskWriteBinding
     record.connection_id().as_str() == binding.connection_id
         && record.generation().get() == binding.connection_generation
         && record.account_commitment() == &submit::account_commitment(&binding.connection_subject)
+}
+
+#[cfg(unix)]
+fn task_trust_available(context: &TrustedContext) -> bool {
+    let (Ok(audience), Ok(namespace)) = (
+        Audience::parse(&format!("mcp://{TASK_SERVICE}")),
+        ResourceId::parse(&format!("mcp://{TASK_SERVICE}/")),
+    ) else {
+        return false;
+    };
+    [APPROVAL_TOOL, CONFIRMATION_TOOL].into_iter().all(|tool| {
+        let Ok(call) = McpToolCall::new(TASK_SERVICE, tool, Map::new()) else {
+            return false;
+        };
+        let (Ok(profile), Ok(permission)) = (call.profile_ref(), call.permission()) else {
+            return false;
+        };
+        context.trust_anchors().iter().any(|anchor| {
+            anchor.profiles().contains(&profile)
+                && anchor.permissions().contains(&permission)
+                && anchor.resource_namespaces().contains(&namespace)
+                && anchor.audiences().contains(&audience)
+        })
+    })
 }
 
 #[cfg(unix)]
@@ -2239,6 +2269,15 @@ pub(crate) mod tests {
         let task_root = std::fs::canonicalize(directory.path())
             .expect("canonical root")
             .join("task-state");
+        assert_eq!(
+            engine.task_write_session(&bytes, &task_root).err(),
+            Some("gateway.task.trust-profile-unavailable")
+        );
+        let root = crate::harness::Signer::new(0x11);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        engine.trusted_context =
+            crate::harness::context_for_agent_and_task(&root, observer.principal(), 1_790_000_000)
+                .expect("task-capable trust");
         let session = engine
             .task_write_session(&bytes, &task_root)
             .expect("operator session");

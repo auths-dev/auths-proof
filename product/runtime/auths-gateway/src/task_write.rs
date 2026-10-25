@@ -11,15 +11,14 @@ use crate::engine::{
     GatewaySubmitResult, VerifiedCommand, authorized_action, not_entered,
     verify_sealed_for_audience,
 };
-use crate::task_activation::{ApprovedAgentTask, TaskWriteVerb, WriteApprovalMode};
+use crate::task_activation::{ApprovedAgentTask, TASK_SERVICE, TaskWriteVerb, WriteApprovalMode};
 use auths_model::{Audience, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-const CONFIRMATION_SERVICE: &str = "auths-agent-task";
-const CONFIRMATION_TOOL: &str = "confirm_agent_write_v1";
+pub(crate) const CONFIRMATION_TOOL: &str = "confirm_agent_write_v1";
 
 /// Reviewed installation data, committed through the task's operator policy.
 /// `resource_field` is a profile field name, never a runtime JSON pointer.
@@ -184,7 +183,7 @@ pub(crate) fn verify_exact_write_confirmation(
         now,
         proof_cbor,
         action_cbor,
-        (CONFIRMATION_SERVICE, CONFIRMATION_TOOL),
+        (TASK_SERVICE, CONFIRMATION_TOOL),
     )
 }
 
@@ -431,14 +430,9 @@ mod tests {
         human: &Signer,
         intent: &ExactWriteIntent,
     ) -> (Vec<u8>, Vec<u8>) {
-        let grant = harness::grant_for(
-            root,
-            &human.principal,
-            NOW,
-            CONFIRMATION_SERVICE,
-            CONFIRMATION_TOOL,
-        )
-        .expect("human confirmation grant");
+        let grant =
+            harness::grant_for(root, &human.principal, NOW, TASK_SERVICE, CONFIRMATION_TOOL)
+                .expect("human confirmation grant");
         let mut arguments = Map::new();
         arguments.insert(
             "write".to_owned(),
@@ -450,7 +444,7 @@ mod tests {
             &grant,
             &arguments,
             &[],
-            CONFIRMATION_SERVICE,
+            TASK_SERVICE,
             CONFIRMATION_TOOL,
             NOW,
         );

@@ -15,8 +15,8 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 
 const TASK_SCHEMA: &str = "auths.agent-task/1";
-const APPROVAL_SERVICE: &str = "auths-agent-task";
-const APPROVAL_TOOL: &str = "approve_agent_task_v1";
+pub(crate) const TASK_SERVICE: &str = "auths-agent-task";
+pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
 const MAX_SCOPES: usize = 16;
 const MAX_TASK_SECONDS: u64 = 86_400;
 const MAX_WRITES: u32 = 32;
@@ -257,7 +257,7 @@ pub(crate) fn verify_task_activation(
         now,
         proof_cbor,
         action_cbor,
-        APPROVAL_SERVICE,
+        TASK_SERVICE,
         APPROVAL_TOOL,
     )
 }
@@ -404,9 +404,8 @@ mod tests {
         human: &Signer,
         card: &AgentTaskDescriptor,
     ) -> (Vec<u8>, Vec<u8>) {
-        let grant =
-            harness::grant_for(root, &human.principal, NOW, APPROVAL_SERVICE, APPROVAL_TOOL)
-                .expect("human approval grant");
+        let grant = harness::grant_for(root, &human.principal, NOW, TASK_SERVICE, APPROVAL_TOOL)
+            .expect("human approval grant");
         let mut arguments = Map::new();
         arguments.insert("task".to_owned(), serde_json::to_value(card).expect("card"));
         let signed = submission_for(
@@ -415,7 +414,7 @@ mod tests {
             &grant,
             &arguments,
             &[],
-            APPROVAL_SERVICE,
+            TASK_SERVICE,
             APPROVAL_TOOL,
             NOW,
         );

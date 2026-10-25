@@ -83,6 +83,10 @@ the agent cannot submit these pins. The Auths connection's account label must
 be the provider's stable Jules UserInfo `sub` so its stored account commitment
 matches the task subject. demo_co confirmed that `jules_subject`, rather than
 email, is the canonical subject in its write evidence.
+The installed native trust must admit the recipe's provider action plus both
+`auths-agent-task` tools, `approve_agent_task_v1` and
+`confirm_agent_write_v1`. The task session refuses missing task-profile trust
+before activation or provider entry.
 
 `task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
 verifies the human's native signed task and registers its budget once.
