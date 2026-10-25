@@ -38,6 +38,7 @@ mod pre_entry;
 mod qualification;
 mod readiness;
 pub mod recipe;
+mod release_commitment;
 mod semantic_closure;
 mod separation;
 mod store;
@@ -122,12 +123,17 @@ pub use readiness::{
 };
 pub use recipe::{
     ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,
-    ClosedProviderRequest, CompiledRecipe, CredentialReadMethod, CredentialRequirement,
-    GatewayRecipeError, IdempotencyKind, LogicalOperationId, LostClaimReentry, OperatorNamespace,
-    ProviderHeaderClass, ProviderResponseRule, RECIPE_REVIEW_SCHEMA, RECIPE_SOURCE_SCHEMA,
-    RECOVERY_CAPABILITY_SCHEMA, RecipeEchoReview, RecipePreconditionReview, RecipeReview,
-    RecoveryCapability, RecoveryClass, RecoveryDeclarations, RequestHeader, StateObservation,
+    ClosedProviderRequest, ClosedReleaseRequest, CompiledRecipe, CompiledReleaseRecipe,
+    CredentialReadMethod, CredentialRequirement, GatewayRecipeError, IdempotencyKind,
+    LogicalOperationId, LostClaimReentry, OperatorNamespace, ProviderHeaderClass,
+    ProviderResponseRule, RECIPE_REVIEW_SCHEMA, RECIPE_SOURCE_SCHEMA, RECOVERY_CAPABILITY_SCHEMA,
+    RELEASE_RECIPE_REVIEW_SCHEMA, RELEASE_RECIPE_SOURCE_SCHEMA, RecipeEchoReview,
+    RecipePreconditionReview, RecipeReview, RecoveryCapability, RecoveryClass,
+    RecoveryDeclarations, ReleaseProjectionError, RequestHeader, StateObservation,
     UnknownResolution, WriteMethod, echo_token, idempotency_key, recovery_capability,
+};
+pub use release_commitment::{
+    ReleaseCommitment, ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey,
 };
 pub use semantic_closure::GATEWAY_SEMANTIC_CLOSURE_SHA256;
 pub use separation::{

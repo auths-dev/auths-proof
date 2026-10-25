@@ -21,6 +21,7 @@ use url::{Host, Url};
 pub use auths_gateway_kernel::{construct, recovery};
 
 mod lower;
+mod release;
 mod review;
 mod runtime;
 mod source;
@@ -32,6 +33,10 @@ mod tests;
 pub use recovery::{
     IdempotencyKind, LostClaimReentry, RecoveryCapability, RecoveryClass, RecoveryDeclarations,
     StateObservation, UnknownResolution, recovery_capability,
+};
+pub use release::{
+    ClosedReleaseRequest, CompiledReleaseRecipe, RELEASE_RECIPE_REVIEW_SCHEMA,
+    RELEASE_RECIPE_SOURCE_SCHEMA, ReleaseProjectionError,
 };
 pub(crate) use review::recovery_document;
 pub use review::{

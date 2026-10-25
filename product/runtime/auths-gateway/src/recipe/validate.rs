@@ -101,7 +101,7 @@ fn pointers_overlap(first: &str, second: &str) -> bool {
             .is_some_and(|rest| rest.starts_with('/'))
 }
 
-fn valid_fixed_segment(value: &str) -> bool {
+pub(super) fn valid_fixed_segment(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && !matches!(value, "." | "..")
