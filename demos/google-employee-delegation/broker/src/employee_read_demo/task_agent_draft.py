@@ -6,6 +6,7 @@ import base64
 import binascii
 import json
 import re
+from dataclasses import dataclass
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -26,14 +27,23 @@ _STATEMENT = {
 }
 
 
+@dataclass(frozen=True)
+class VerifiedAgentDraft:
+    content: str
+    source_sha256: str
+    source_resource_handle: str
+    read_operation_id: str
+
+
 def _canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"),
                       ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def verify_agent_draft(raw: bytes, *, card: dict, agent_principal: str,
-                       public_key: bytes, acknowledged_reads: dict[str, int]) -> str:
-    """Return the exact signed text only for the task's acknowledged read."""
+                       public_key: bytes,
+                       acknowledged_reads: dict[str, int]) -> VerifiedAgentDraft:
+    """Return signed source facts only for the task's acknowledged read."""
     if (not 1 <= len(raw) <= 4096 or type(card) is not dict
             or type(public_key) is not bytes or len(public_key) != 32):
         raise OperatorDenied("agent draft is unavailable")
@@ -88,4 +98,7 @@ def verify_agent_draft(raw: bytes, *, card: dict, agent_principal: str,
         raise OperatorDenied("agent draft signature is invalid") from error
     if raw != _canonical(envelope):
         raise OperatorDenied("agent draft is not canonical")
-    return content
+    return VerifiedAgentDraft(
+        content, statement["source_sha256"],
+        statement["source_resource_handle"], operation_id,
+    )

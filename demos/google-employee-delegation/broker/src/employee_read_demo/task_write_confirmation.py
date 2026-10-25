@@ -291,12 +291,34 @@ class TaskWriteConfirmationFlow:
             public_key = raw_key_public_for_identity_packet(agent_identity_packet)
         except (OSError, PermissionError, ValueError) as error:
             raise OperatorDenied("private agent draft or identity is unavailable") from error
-        content = verify_agent_draft(
+        verified = verify_agent_draft(
             raw, card=card, agent_principal=agent.agent_principal,
             public_key=public_key,
             acknowledged_reads=self._acknowledged_reads(task_id, employee),
         )
-        return content, hashlib.sha256(raw).hexdigest()
+        source = self._task_dir(task_id) / "agent-source.bin"
+        try:
+            _private_read(source, 16_384)
+        except (OSError, PermissionError) as error:
+            raise OperatorDenied("private agent source is unavailable") from error
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("gateway release comparison is unavailable")
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-release-compare",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+                "--operation-id", verified.read_operation_id,
+                "--resource-handle", verified.source_resource_handle,
+                "--source-file", str(source),
+            ], input=verified.source_sha256.encode("ascii"),
+                capture_output=True, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied("gateway release comparison is unavailable") from error
+        if (result.returncode != 0 or len(result.stdout) > 4096
+                or result.stdout.strip() != b'{"outcome":"source-matched"}'):
+            raise OperatorDenied("agent source differs from acknowledged release")
+        return verified.content, hashlib.sha256(raw).hexdigest()
 
     def prepare_effect_plan(self, *, task_id: str, employee: EmployeeBinding,
                             agent: AgentBinding, agent_identity_packet: bytes,

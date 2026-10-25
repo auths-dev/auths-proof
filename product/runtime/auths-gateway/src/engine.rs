@@ -1720,6 +1720,29 @@ impl TaskWriteSession<'_> {
             .ok_or("gateway.task.status-unavailable")
     }
 
+    /// Privately compare a staged source with bytes the gateway released to
+    /// the registered agent and durably acknowledged. This exposes only a
+    /// boolean; it never returns a digest or the release content.
+    ///
+    /// # Errors
+    /// Refuses an unavailable or corrupt task journal.
+    pub fn acknowledged_release_matches(
+        &self,
+        task_id: &str,
+        operation_id: &str,
+        resource_handle: &str,
+        source: &[u8],
+        key: &crate::ReleaseCommitmentKey,
+    ) -> Result<bool, &'static str> {
+        self.ledger
+            .load(task_id)
+            .map_err(|_| "gateway.release.source-unavailable")?
+            .map(|state| {
+                state.acknowledged_content_matches(operation_id, resource_handle, source, key)
+            })
+            .ok_or("gateway.release.source-unavailable")
+    }
+
     /// Durably stop new reads and writes under one activated task. A provider
     /// call already entered or bytes already delivered cannot be recalled.
     ///

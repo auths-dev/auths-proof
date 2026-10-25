@@ -270,15 +270,20 @@ class TaskWriteExecutionTests(unittest.TestCase):
         packet = b"registered-agent-identity"
         agent = AgentBinding("atlas", "binding", "agent-1",
                              hashlib.sha256(packet).hexdigest())
+        source = self.task_dir / "agent-source.bin"
+        source.write_bytes(b"Project A is ready for review.")
+        source.chmod(0o600)
         card = {"task_id": self.task_id,
                 "read_scopes": [{"handle": "source-1"}]}
         statement = {
             "schema": "auths.agent-draft/1", "task_id": self.task_id,
             "task_commitment": "a" * 64, "agent_principal": "agent-1",
             "source_resource_handle": "source-1", "read_operation_id": "read-1",
-            "source_sha256": "b" * 64, "source_bytes": 30,
+            "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "source_bytes": 30,
             "content": "Project A is ready for review. [source-1]",
         }
+        original_content = statement["content"]
         canonical = lambda value: json.dumps(value, sort_keys=True,
                                              separators=(",", ":"),
                                              ensure_ascii=False).encode()
@@ -298,6 +303,9 @@ class TaskWriteExecutionTests(unittest.TestCase):
                   return_value="a" * 64),
             patch.object(self.flow, "_acknowledged_reads",
                          return_value={"read-1": 30}) as reads,
+            patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                  return_value=subprocess.CompletedProcess(
+                      [], 0, b'{"outcome":"source-matched"}\n', b"")) as compare,
         ):
             text, digest = self.flow._agent_draft(
                 self.task_id, None, agent, packet, card,
@@ -305,6 +313,9 @@ class TaskWriteExecutionTests(unittest.TestCase):
             self.assertEqual(text, statement["content"])
             self.assertEqual(digest, hashlib.sha256(draft.read_bytes()).hexdigest())
             reads.assert_called_once()
+            self.assertEqual(compare.call_args.args[0][1], "task-release-compare")
+            self.assertEqual(compare.call_args.kwargs["input"],
+                             statement["source_sha256"].encode())
             envelope["statement"]["content"] = "Changed [source-1]"
             draft.write_bytes(canonical(envelope))
             with self.assertRaisesRegex(OperatorDenied, "signature"):
@@ -313,6 +324,16 @@ class TaskWriteExecutionTests(unittest.TestCase):
                 self.flow._agent_draft(
                     self.task_id, None, agent, b"wrong-packet", card,
                 )
+            envelope["statement"]["content"] = original_content
+            draft.write_bytes(canonical(envelope))
+            compare.return_value = subprocess.CompletedProcess(
+                [], 2, b"", b"gateway.release.source-mismatch",
+            )
+            with self.assertRaisesRegex(OperatorDenied, "source differs"):
+                self.flow._agent_draft(self.task_id, None, agent, packet, card)
+            source.unlink()
+            with self.assertRaisesRegex(OperatorDenied, "private agent source is unavailable"):
+                self.flow._agent_draft(self.task_id, None, agent, packet, card)
 
 
 if __name__ == "__main__":

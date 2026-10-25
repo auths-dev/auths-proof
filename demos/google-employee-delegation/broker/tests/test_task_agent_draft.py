@@ -49,7 +49,7 @@ class AgentDraftVerificationTests(unittest.TestCase):
 
     def test_signed_draft_requires_registered_key_and_acknowledged_read(self) -> None:
         raw = self.envelope(self.statement)
-        self.assertEqual(self.verify(raw), self.statement["content"])
+        self.assertEqual(self.verify(raw).content, self.statement["content"])
         extra = dict(self.statement, content="Ready [source-1] [outside]")
         with self.assertRaisesRegex(OperatorDenied, "acknowledged task read"):
             self.verify(self.envelope(extra))

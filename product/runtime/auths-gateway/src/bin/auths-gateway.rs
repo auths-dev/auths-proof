@@ -76,6 +76,7 @@ mod unix {
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     };
+    use subtle::ConstantTimeEq as _;
     use tokio::{
         net::{UnixListener, UnixStream},
         sync::Semaphore,
@@ -416,6 +417,21 @@ mod unix {
             agent_proof: PathBuf,
             #[arg(long)]
             agent_action: PathBuf,
+        },
+        /// Development operator only: compare one owner-private source file
+        /// with a durably acknowledged release. The signed draft's SHA-256 is
+        /// supplied on stdin, never in argv or a redacted task status.
+        TaskReleaseCompare {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            operation_id: String,
+            #[arg(long)]
+            resource_handle: String,
+            #[arg(long)]
+            source_file: PathBuf,
         },
         /// Development operator only: durably stop new reads and writes
         /// under one activated task. It cannot retract delivered content or
@@ -3588,6 +3604,25 @@ mod unix {
         Ok(())
     }
 
+    fn task_read_commitment_key(
+        state_dir: &Path,
+        runtime: &TaskReadRuntime,
+    ) -> Result<ReleaseCommitmentKey, Failure> {
+        let mut key_bytes = Zeroizing::new(task_private_file(
+            state_dir,
+            TASK_READ_COMMITMENT_KEY_FILE,
+            32,
+        )?);
+        if key_bytes.len() != 32 {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        let mut key_material = Zeroizing::new([0_u8; 32]);
+        key_material.copy_from_slice(&key_bytes);
+        key_bytes.zeroize();
+        ReleaseCommitmentKey::new(runtime.commitment_key_version, key_material)
+            .map_err(|_| "gateway.release.invalid-commitment-key".into())
+    }
+
     async fn task_read_submit(
         state_dir: PathBuf,
         task_id: String,
@@ -3607,19 +3642,7 @@ mod unix {
         if digest(&packet) != runtime.agent_identity_sha256 {
             return Err("gateway.release.runtime-changed".into());
         }
-        let mut key_bytes = Zeroizing::new(task_private_file(
-            &state_dir,
-            TASK_READ_COMMITMENT_KEY_FILE,
-            32,
-        )?);
-        if key_bytes.len() != 32 {
-            return Err("gateway.release.invalid-commitment-key".into());
-        }
-        let mut key_material = Zeroizing::new([0_u8; 32]);
-        key_material.copy_from_slice(&key_bytes);
-        key_bytes.zeroize();
-        let key = ReleaseCommitmentKey::new(runtime.commitment_key_version, key_material)
-            .map_err(|_| "gateway.release.invalid-commitment-key")?;
+        let key = task_read_commitment_key(&state_dir, &runtime)?;
         let recipe = task_read_recipe(&state_dir, &installed)?;
         let engine = task_engine(&state_dir).await?;
         let task_bytes = task_installation(&state_dir)?;
@@ -3647,6 +3670,81 @@ mod unix {
             "{}",
             serde_json::to_string(&result).map_err(|_| "gateway.release.invalid-response")?
         );
+        Ok(())
+    }
+
+    async fn task_release_compare(
+        state_dir: PathBuf,
+        task_id: String,
+        operation_id: String,
+        resource_handle: String,
+        source_file: PathBuf,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let runtime = task_read_runtime(&state_dir)?;
+        let key = task_read_commitment_key(&state_dir, &runtime)?;
+        let parent = source_file
+            .parent()
+            .ok_or("gateway.release.source-unavailable")?;
+        check_private_directory(parent).map_err(|_| "gateway.release.source-unavailable")?;
+        let opened = OpenOptions::new()
+            .read(true)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .open(&source_file)
+            .map_err(|_| "gateway.release.source-unavailable")?;
+        let metadata = opened
+            .metadata()
+            .map_err(|_| "gateway.release.source-unavailable")?;
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("gateway.release.source-unavailable".into());
+        }
+        let mut source = Zeroizing::new(Vec::new());
+        opened
+            .take(16_385)
+            .read_to_end(&mut source)
+            .map_err(|_| "gateway.release.source-unavailable")?;
+        if source.is_empty() || source.len() > 16_384 {
+            return Err("gateway.release.source-unavailable".into());
+        }
+        let mut expected = Zeroizing::new(Vec::new());
+        std::io::stdin()
+            .take(65)
+            .read_to_end(&mut expected)
+            .map_err(|_| "gateway.release.invalid-source-digest")?;
+        if expected.len() != 64
+            || !expected
+                .iter()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+        {
+            return Err("gateway.release.invalid-source-digest".into());
+        }
+        let claimed =
+            hex::decode(&*expected).map_err(|_| "gateway.release.invalid-source-digest")?;
+        let claimed: [u8; 32] = claimed
+            .try_into()
+            .map_err(|_| "gateway.release.invalid-source-digest")?;
+        let actual: [u8; 32] = Sha256::digest(&*source).into();
+        if !bool::from(actual.ct_eq(&claimed)) {
+            return Err("gateway.release.source-mismatch".into());
+        }
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        if !session.acknowledged_release_matches(
+            &task_id,
+            &operation_id,
+            &resource_handle,
+            &source,
+            &key,
+        )? {
+            return Err("gateway.release.source-mismatch".into());
+        }
+        println!("{{\"outcome\":\"source-matched\"}}");
         Ok(())
     }
 
@@ -4768,6 +4866,22 @@ mod unix {
                 agent_proof,
                 agent_action,
             } => task_read_submit(state_dir, task_id, agent_proof, agent_action).await,
+            Command::TaskReleaseCompare {
+                state_dir,
+                task_id,
+                operation_id,
+                resource_handle,
+                source_file,
+            } => {
+                task_release_compare(
+                    state_dir,
+                    task_id,
+                    operation_id,
+                    resource_handle,
+                    source_file,
+                )
+                .await
+            }
             Command::TaskRevoke { state_dir, task_id } => task_revoke(state_dir, task_id).await,
             Command::TaskStatus { state_dir, task_id } => task_status(state_dir, task_id).await,
             Command::TaskActivate {
@@ -5633,6 +5747,25 @@ mod unix {
             assert!(matches!(
                 configure.command,
                 Command::TaskReadConfigure { .. }
+            ));
+            let compare = Cli::try_parse_from([
+                "auths-gateway",
+                "task-release-compare",
+                "--state-dir",
+                "/tmp/auths-state",
+                "--task-id",
+                "task-1",
+                "--operation-id",
+                "read-1",
+                "--resource-handle",
+                "source-1",
+                "--source-file",
+                "/tmp/private/source.bin",
+            ])
+            .expect("private source comparison command");
+            assert!(matches!(
+                compare.command,
+                Command::TaskReleaseCompare { .. }
             ));
         }
 

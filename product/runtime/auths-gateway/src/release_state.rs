@@ -1079,6 +1079,36 @@ impl ReleaseTaskState {
         ))
     }
 
+    /// Compare operator-presented bytes with an acknowledged release without
+    /// exporting the keyed commitment or a guessable content digest.
+    pub(crate) fn acknowledged_content_matches(
+        &self,
+        operation_id: &str,
+        resource_handle: &str,
+        content: &[u8],
+        key: &ReleaseCommitmentKey,
+    ) -> bool {
+        let Some(operation) = self.operations.get(operation_id) else {
+            return false;
+        };
+        if operation.stage != ReleaseStage::AgentAcknowledged
+            || operation.resource_handle != resource_handle
+            || operation.released_bytes != u64::try_from(content.len()).ok()
+        {
+            return false;
+        }
+        let Some((version, expected)) = self.commitment(operation_id) else {
+            return false;
+        };
+        let Ok(context) =
+            ReleaseCommitmentContext::new(&self.task_id, resource_handle, operation_id, "released")
+        else {
+            return false;
+        };
+        let presented = key.commit(&context, content);
+        version == presented.key_version() && same_commitment(expected, &presented.hex())
+    }
+
     /// Digest of canonical task state for an operator's private CAS journal.
     pub(crate) fn digest(&self) -> Result<[u8; 32], ReleaseStateError> {
         let bytes =
@@ -1706,6 +1736,7 @@ mod tests {
         let entered = ledger
             .enter_release("task-1", "read-1", b"Approved", &key, 102)
             .expect("charge");
+        assert!(!entered.acknowledged_content_matches("read-1", "source-1", b"Approved", &key,));
         let mut wrong = acknowledgement(&entered, "read-1");
         wrong.recipient = "other-agent".to_owned();
         assert_eq!(
@@ -1747,6 +1778,17 @@ mod tests {
             Some(ReleaseStage::AgentAcknowledged)
         );
         assert_eq!(loaded.counts(), (1, 1, 8));
+        assert!(loaded.acknowledged_content_matches("read-1", "source-1", b"Approved", &key));
+        assert!(!loaded.acknowledged_content_matches("read-1", "other", b"Approved", &key));
+        assert!(!loaded.acknowledged_content_matches("read-1", "source-1", b"Rejected", &key));
+        assert!(!loaded.acknowledged_content_matches("read-2", "source-1", b"Approved", &key));
+        let other_key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x94; 32])).expect("key");
+        assert!(!loaded.acknowledged_content_matches(
+            "read-1",
+            "source-1",
+            b"Approved",
+            &other_key,
+        ));
         assert_eq!(
             restarted.acknowledge(&ack).err(),
             Some(ReleaseStateError::Stage)

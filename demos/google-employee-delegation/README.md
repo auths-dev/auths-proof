@@ -358,12 +358,13 @@ The separate development task workbench can prepare a paired create/populate
 review. After an acknowledged managed read, the isolated agent uses
 `auths-google-read-agent author-draft` with its private release file, read
 package, operation ID, source handle and signing key. An operator transfers the
-resulting owner-private `agent-draft.json` into that task's private review
-directory. The workbench verifies the registered agent signature, task and
-acknowledged read before Jules signs the exact draft and two-effect plan. The
-draft's source digest still needs private comparison with the bytes actually
-released by the gateway; an acknowledged byte count alone does not establish
-that comparison. No live Google write or independent post-write inspection has
+resulting owner-private `agent-draft.json` and exact release file (as
+`agent-source.bin`) into that task's private review directory. Before Jules
+sees the plan, the workbench verifies the registered agent signature, task and
+acknowledged read, then asks the gateway to compare the staged source with its
+keyed commitment to the exact acknowledged release. The comparison emits no
+content or plain hash. An acknowledged byte count alone does not establish
+this match. No live Google write or independent post-write inspection has
 qualified this development path yet.
 See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
 for the remaining live acceptance path.
