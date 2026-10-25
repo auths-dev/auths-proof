@@ -105,3 +105,17 @@ its `Pending` baseline. The record `recnLCNtLRpsGy5Iu` was retired and its
 ownership journal has `retired=true`. This proves the single-host revoked-task
 boundary for both action types before provider entry; it does not prove
 multi-host revocation or a human-bound Airtable account.
+
+A seventh disposable run
+(`/private/tmp/ap071-airtable-write-replay-20261025-2218`) completed the
+permitted agent read and exact confirmed PATCH, then submitted the **same**
+agent and human write proofs a second time through the installed gateway.
+The second submission returned `not-entered` with
+`gateway.task.write-replay`. The durable task status stayed at one write,
+one read provider call, one release and seven released bytes; independent
+Airtable GETs before and after replay returned the same approved record and
+gateway echo. The owned record `recw9hQG2ZTp9lzIh` was retired and its
+ownership journal reports `retired=true`. The private redacted result in
+`operator/redacted-result.json` records both outcomes and cleanup. This
+proves installed write-operation replay refusal for Airtable; a separately
+signed second operation and cross-host replay remain distinct tests.

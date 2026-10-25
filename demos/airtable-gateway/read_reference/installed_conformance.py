@@ -681,6 +681,20 @@ def run(env_file: Path, root: Path, binary: Path,
         raise RuntimeError("independent Airtable effect readback disagrees")
     status = _gateway(binary, "task-status", "--state-dir", state,
                       "--task-id", signed.task_id)
+    replay = _gateway(
+        binary, "task-submit", "--state-dir", state,
+        "--task-id", signed.task_id,
+        "--agent-proof", signed.private_task_dir / "agent.proof",
+        "--agent-action", signed.private_task_dir / "agent.action",
+        "--confirmation-proof", signed.private_task_dir / "confirmation.proof",
+        "--confirmation-action", signed.private_task_dir / "confirmation.action",
+    )
+    after_replay = _gateway(binary, "task-status", "--state-dir", state,
+                            "--task-id", signed.task_id)
+    replay_readback = airtable.request("GET", row_path)
+    if (replay.get("outcome") != "not-entered"
+            or after_replay != status or replay_readback != after):
+        raise RuntimeError("Airtable write replay entered provider or changed effect")
     _write_json(operator / "redacted-result.json", {
         "schema": "auths.ap071-airtable-conformance/1",
         "task_id": signed.task_id, "record_id": record,
@@ -693,6 +707,8 @@ def run(env_file: Path, root: Path, binary: Path,
         "wrong_recipe_outcome": wrong_recipe_result.get("outcome"),
         "wrong_recipe_code": wrong_recipe_result.get("code"),
         "wrong_recipient_outcome": "agent-signing-refused",
+        "write_replay_outcome": replay.get("outcome"),
+        "write_replay_code": replay.get("code"),
         "gateway_status": status,
         "cleanup": "pending",
     })
