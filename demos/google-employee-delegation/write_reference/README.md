@@ -103,6 +103,10 @@ reviewed input and is checked again by the gateway at installation. The
 command prints only a redacted summary; the package contains signed native
 grants and a trust template, no Google credential or human signing key. The browser
 and isolated agent must still complete their own signatures.
+The [owner-side package loader](../broker/src/employee_read_demo/task_write_package.py)
+now checks the private file's exact schema, lifetime, gateway verifier
+configuration, provider audience and operator challenge before any browser
+preimage is prepared. A changed challenge in the package is refused.
 The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
 now prepares separate native preimages for a reviewed task card and an exact
 closed-write intent. It completes each proof only with a signature from the

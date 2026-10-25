@@ -1,0 +1,125 @@
+"""Load one operator-owned AP-071 task authority package for browser signing.
+
+The package contains public grants and trust, not a human key or provider
+credential. Its private file protects operator selection and prevents a
+browser or agent from replacing the profiles, account or challenge.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import re
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+from .contracts import valid_service
+from .demo_co_contract import _unique_pairs
+from .operator_authority import EmployeeAuthority, OperatorDenied
+from .operator_cli import _private_read
+from .task_write_authority import TaskWriteAuthority
+
+
+_DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+_TOOL = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
+_FIELDS = {
+    "schema", "company_id", "binding_ref", "root_principal", "human_principal",
+    "provider_service", "provider_tool", "recipe_digest",
+    "recipe_source_sha256", "profile_lock_sha256", "not_before", "expires_at",
+    "trusted_template_b64", "challenge_b64", "approval_grant_b64",
+    "confirmation_grant_b64", "write_parent_grant_b64", "root_evidence_b64",
+    "human_evidence_b64",
+}
+
+
+@dataclass(frozen=True)
+class LoadedTaskWritePackage:
+    company_id: str
+    binding_ref: str
+    recipe_digest: str
+    recipe_source_sha256: str
+    profile_lock_sha256: str
+    authority: TaskWriteAuthority
+
+
+def _decode(value: object, maximum: int) -> bytes:
+    if type(value) is not str or len(value) > maximum * 2:
+        raise OperatorDenied("task authority package field is outside bounds")
+    try:
+        raw = base64.b64decode(value, altchars=b"-_", validate=True)
+    except (ValueError, base64.binascii.Error) as error:
+        raise OperatorDenied("task authority package field is malformed") from error
+    if not 1 <= len(raw) <= maximum:
+        raise OperatorDenied("task authority package field is outside bounds")
+    return raw
+
+
+def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTaskWritePackage:
+    """Read a private issuance file and refuse drift from its installed trust."""
+    from auths import _native
+
+    try:
+        package = json.loads(_private_read(path, 262_144), object_pairs_hook=_unique_pairs)
+    except (UnicodeDecodeError, ValueError, PermissionError) as error:
+        raise OperatorDenied("task authority package is unavailable") from error
+    if (type(package) is not dict or set(package) != _FIELDS
+            or package.get("schema") != "auths.ap071-task-authority/1"
+            or type(package.get("company_id")) is not str
+            or not 1 <= len(package["company_id"]) <= 128
+            or type(package.get("binding_ref")) is not str
+            or not 1 <= len(package["binding_ref"]) <= 256
+            or type(package.get("root_principal")) is not str
+            or type(package.get("human_principal")) is not str
+            or not valid_service(package.get("provider_service"))
+            or package["provider_service"] == "auths-agent-task"
+            or type(package.get("provider_tool")) is not str
+            or _TOOL.fullmatch(package["provider_tool"]) is None
+            or any(type(package.get(field)) is not str
+                   or _DIGEST.fullmatch(package[field]) is None
+                   for field in ("recipe_digest", "recipe_source_sha256",
+                                 "profile_lock_sha256"))
+            or type(package.get("not_before")) is not int
+            or type(package.get("expires_at")) is not int):
+        raise OperatorDenied("task authority package is malformed")
+    now = int(time.time()) if now is None else now
+    if not package["not_before"] <= now < package["expires_at"]:
+        raise OperatorDenied("task authority package expired")
+    try:
+        trusted = _decode(package["trusted_template_b64"], 262_144)
+        challenge = _decode(package["challenge_b64"], 32)
+        root_evidence = _decode(package["root_evidence_b64"], 4096)
+        human_evidence = _decode(package["human_evidence_b64"], 4096)
+        grants = {
+            name: _decode(package[f"{name}_b64"], 262_144)
+            for name in ("approval_grant", "confirmation_grant", "write_parent_grant")
+        }
+        context = _native.parse_trusted_context(trusted)
+        for raw in grants.values():
+            _native.parse_signed("grant", raw)
+        _native.Principal(package["root_principal"])
+        _native.Principal(package["human_principal"])
+    except Exception as error:
+        raise OperatorDenied("task authority native material is invalid") from error
+    if (len(challenge) != 32
+            or bytes(context.configuration) != bytes(_native.mcp_gateway_configuration())
+            or bytes(context.expected_challenge) != challenge
+            or context.expected_audience != f"mcp://{package['provider_service']}"):
+        raise OperatorDenied("task authority trust does not match its profile")
+    def employee_grant(name: str) -> EmployeeAuthority:
+        return EmployeeAuthority(
+            package["binding_ref"], package["human_principal"],
+            package["root_principal"], grants[name], root_evidence,
+            human_evidence, package["not_before"], package["expires_at"],
+        )
+    authority = TaskWriteAuthority(
+        package["provider_service"], package["provider_tool"],
+        package["root_principal"], package["human_principal"], trusted,
+        employee_grant("approval_grant"), employee_grant("confirmation_grant"),
+        employee_grant("write_parent_grant"), challenge,
+        package["not_before"], package["expires_at"],
+    )
+    return LoadedTaskWritePackage(
+        package["company_id"], package["binding_ref"], package["recipe_digest"],
+        package["recipe_source_sha256"], package["profile_lock_sha256"], authority,
+    )

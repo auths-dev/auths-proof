@@ -18,6 +18,8 @@ from employee_read_demo.authority_identity import authority_for_identity_packet
 from employee_read_demo.enrollment import EnrollmentStore
 from employee_read_demo.operator_cli import init_root
 from employee_read_demo.task_write_operator_cli import issue_task_package
+from employee_read_demo.task_write_package import load_task_write_package
+from employee_read_demo.operator_authority import OperatorDenied
 
 
 REFERENCE = Path(__file__).resolve().parents[2] / "write_reference"
@@ -71,6 +73,16 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(len(package["recipe_source_sha256"]), 64)
             self.assertEqual(len(package["profile_lock_sha256"]), 64)
             self.assertEqual(len(base64.urlsafe_b64decode(package["challenge_b64"])), 32)
+            loaded = load_task_write_package(output, now=1000)
+            self.assertEqual(loaded.authority.human_principal, human)
+            self.assertEqual(loaded.recipe_digest, digest)
+            tampered = private / "tampered.json"
+            changed = dict(package)
+            changed["challenge_b64"] = base64.urlsafe_b64encode(bytes(32)).decode()
+            tampered.write_text(json.dumps(changed))
+            os.chmod(tampered, 0o600)
+            with self.assertRaises(OperatorDenied):
+                load_task_write_package(tampered, now=1000)
             self.assertEqual(package["expires_at"], 4600)
             self.assertNotIn("token", output.read_text().lower())
             _native.parse_trusted_context(base64.urlsafe_b64decode(

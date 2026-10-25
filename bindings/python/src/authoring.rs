@@ -1070,6 +1070,16 @@ impl PyTrustedContext {
         PyBytes::new(py, self.inner.configuration().as_bytes())
     }
 
+    #[getter]
+    fn expected_challenge<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.inner.expected_challenge().as_bytes())
+    }
+
+    #[getter]
+    fn expected_audience(&self) -> String {
+        self.inner.expected_audience().to_string()
+    }
+
     fn bind_request(
         &self,
         audience: &str,
