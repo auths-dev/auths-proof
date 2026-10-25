@@ -1294,6 +1294,7 @@ impl GatewayEngine {
             Ok(task) => task,
             Err(error) => return not_entered(error.write_code()),
         };
+        let child_scope = state.bound_child_scope();
         let verified = match verify_detailed(
             &self.recipe,
             &self.trusted_context,
@@ -1309,6 +1310,7 @@ impl GatewayEngine {
             &verified,
             &self.recipe,
             submission.binding,
+            child_scope.as_ref(),
             now,
         ) {
             Ok(intent) => intent,
@@ -1350,6 +1352,7 @@ impl GatewayEngine {
                 binding: submission.binding,
                 approved: &approved,
                 ledger: submission.ledger,
+                child_scope,
             }),
             commissioning: None,
             commissioned_action: OnceLock::new(),
@@ -1715,6 +1718,7 @@ struct TaskWriteAdmission<'a> {
     binding: &'a TaskWriteBinding,
     approved: &'a ApprovedTaskWrite,
     ledger: &'a FileReleaseTaskLedger,
+    child_scope: Option<crate::task_activation::TaskWriteScope>,
 }
 
 struct EngineIo<'a> {
@@ -1759,6 +1763,7 @@ impl SubmitIo for EngineIo<'_> {
                 &verified,
                 &self.engine.recipe,
                 admission.binding,
+                admission.child_scope.as_ref(),
                 now,
             )?;
             if &intent != admission.approved.intent() {
@@ -2724,9 +2729,15 @@ pub(crate) mod tests {
             &agent_signed.action,
         )
         .expect("native agent action");
-        let intent =
-            derive_exact_write_intent(&approved, &verified, &engine.recipe, &session.binding, now)
-                .expect("closed write intent");
+        let intent = derive_exact_write_intent(
+            &approved,
+            &verified,
+            &engine.recipe,
+            &session.binding,
+            None,
+            now,
+        )
+        .expect("closed write intent");
         let missing_confirmation = session
             .submit(TaskWriteProofs {
                 task_id: &card.task_id,

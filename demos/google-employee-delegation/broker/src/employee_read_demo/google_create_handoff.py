@@ -108,6 +108,69 @@ def validate_created_child_metadata(metadata: Mapping[str, object],
 
 
 @dataclass(frozen=True)
+class JulesChildDocsRevision:
+    """Opaque values from Jules's fresh Docs GET, never a producer-admin read."""
+
+    revision_id: str
+    tab_id: str
+
+
+def created_child_docs_url(pins: CreatedChildMetadataPins) -> str:
+    """Build the fixed Jules-subject Docs read before population."""
+    pins.validate()
+    return ("https://docs.googleapis.com/v1/documents/"
+            + quote(pins.candidate_id, safe="") + "?includeTabsContent=true")
+
+
+def created_child_edit_access_url(pins: CreatedChildMetadataPins) -> str:
+    """Build a fresh Jules-subject Drive capability read for that child."""
+    pins.validate()
+    return ("https://www.googleapis.com/drive/v3/files/"
+            + quote(pins.candidate_id, safe="")
+            + "?supportsAllDrives=true&fields=id,parents,capabilities(canEdit)")
+
+
+def validate_created_child_docs_read(document: Mapping[str, object],
+                                     pins: CreatedChildMetadataPins) -> JulesChildDocsRevision:
+    """Extract only one bounded revision and tab from Jules's fresh Docs GET.
+
+    The caller must verify the leased OAuth subject separately and obtain the
+    bytes through the credential-owning broker. This parser confers no write.
+    """
+    pins.validate()
+    if (not isinstance(document, Mapping)
+            or document.get("documentId") != pins.candidate_id
+            or type(document.get("revisionId")) is not str
+            or not 1 <= len(document["revisionId"].encode()) <= 128
+            or any(ord(character) < 33 for character in document["revisionId"])):
+        raise ContractRejected("created-child Docs revision differs from Jules read pins")
+    tabs = document.get("tabs")
+    if (type(tabs) is not list or len(tabs) != 1
+            or type(tabs[0]) is not dict
+            or tabs[0].get("childTabs", []) != []
+            or type(tabs[0].get("tabProperties")) is not dict
+            or type(tabs[0].get("documentTab")) is not dict):
+        raise ContractRejected("created-child Docs tab structure is unsupported")
+    tab_id = tabs[0]["tabProperties"].get("tabId")
+    if (type(tab_id) is not str or not 1 <= len(tab_id.encode()) <= 64
+            or any(ord(character) < 33 for character in tab_id)):
+        raise ContractRejected("created-child Docs tab ID is invalid")
+    return JulesChildDocsRevision(document["revisionId"], tab_id)
+
+
+def validate_created_child_edit_access(metadata: Mapping[str, object],
+                                       pins: CreatedChildMetadataPins) -> None:
+    """Require a fresh exact-child `canEdit` observation under Jules's lease."""
+    pins.validate()
+    if (not isinstance(metadata, Mapping)
+            or metadata.get("id") != pins.candidate_id
+            or metadata.get("parents") != [pins.parent_id]
+            or type(metadata.get("capabilities")) is not dict
+            or metadata["capabilities"].get("canEdit") is not True):
+        raise ContractRejected("Jules cannot edit the pinned created child")
+
+
+@dataclass(frozen=True)
 class CreateObservationPins:
     company: str
     instance: str
@@ -156,8 +219,9 @@ class CreateObservationStatus:
 def validate_create_observation(export: Path, pins: CreateObservationPins) -> None:
     """Check one exact producer observation against private Auths run pins.
 
-    This checks the observed content and isolation, but no signed Auths
-    response-ID binding exists yet. Callers must not infer agent attribution.
+    This checks observed content and isolation. The separate Auths task
+    journal may bind the response-derived child; this export does not verify
+    that binding or infer agent attribution.
     """
     pins.validate()
     observation, raw = _load(export, "google-create-observation-v1.schema.json")

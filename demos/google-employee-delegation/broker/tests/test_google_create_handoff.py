@@ -12,10 +12,14 @@ from employee_read_demo.google_create_handoff import (
     CHILD_TITLE,
     CreatedChildMetadataPins,
     CreateObservationPins,
+    created_child_docs_url,
+    created_child_edit_access_url,
     created_child_metadata_url,
     inspect_create_observation,
     prepare_create_inputs,
     validate_created_child_metadata,
+    validate_created_child_docs_read,
+    validate_created_child_edit_access,
     validate_create_observation,
 )
 
@@ -57,6 +61,41 @@ def _write(path: Path, document: dict) -> str:
 
 
 class GoogleCreateHandoffTests(unittest.TestCase):
+    def test_jules_child_revision_and_capability_are_exact_and_bounded(self) -> None:
+        pins = CreatedChildMetadataPins(
+            candidate_id="child_ABC-123", parent_id="project-a-folder",
+            drive_id="shared-drive-1", title=CHILD_TITLE,
+            marker_value="ap071_" + "d" * 32,
+        )
+        self.assertEqual(created_child_docs_url(pins),
+                         "https://docs.googleapis.com/v1/documents/child_ABC-123"
+                         "?includeTabsContent=true")
+        self.assertEqual(created_child_edit_access_url(pins),
+                         "https://www.googleapis.com/drive/v3/files/child_ABC-123"
+                         "?supportsAllDrives=true&fields=id,parents,capabilities(canEdit)")
+        document = {"documentId": pins.candidate_id, "revisionId": "rev-1",
+                    "tabs": [{"tabProperties": {"tabId": "t.0"},
+                              "documentTab": {"body": {"content": []}}, "childTabs": []}]}
+        revision = validate_created_child_docs_read(document, pins)
+        self.assertEqual((revision.revision_id, revision.tab_id), ("rev-1", "t.0"))
+        for changed in (
+            {"documentId": "other-child"}, {"revisionId": ""},
+            {"revisionId": "x" * 129}, {"revisionId": "rev\n1"},
+            {"tabs": []}, {"tabs": document["tabs"] * 2},
+            {"tabs": [{**document["tabs"][0], "childTabs": [{}]}]},
+            {"tabs": [{**document["tabs"][0], "tabProperties": {"tabId": ""}}]},
+            {"tabs": [{**document["tabs"][0], "documentTab": None}]},
+        ):
+            with self.subTest(changed=changed), self.assertRaises(ContractRejected):
+                validate_created_child_docs_read(document | changed, pins)
+        access = {"id": pins.candidate_id, "parents": [pins.parent_id],
+                  "capabilities": {"canEdit": True}}
+        validate_created_child_edit_access(access, pins)
+        for changed in ({"id": "other-child"}, {"parents": ["project-b"]},
+                        {"capabilities": {"canEdit": False}}, {"capabilities": {}}):
+            with self.subTest(changed=changed), self.assertRaises(ContractRejected):
+                validate_created_child_edit_access(access | changed, pins)
+
     def test_response_derived_child_metadata_requires_exact_google_state(self) -> None:
         pins = CreatedChildMetadataPins(
             candidate_id="child_ABC-123", parent_id="project-a-folder",

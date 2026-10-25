@@ -1,0 +1,53 @@
+[profile]
+name = "google-docs-project-a-populate"
+version = 1
+service = "google-docs-delegation-demo"
+tool = "populate_created_project_a_document"
+command = "PopulateCreatedProjectADocument"
+
+[arguments]
+type = "object"
+
+[arguments.fields.operator_namespace]
+type = "enum"
+variants = ["google-docs-populate-demo"]
+
+[arguments.fields.operation_id]
+type = "string"
+min_bytes = 1
+max_bytes = 32
+
+[arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.task_id]
+type = "string"
+min_bytes = 1
+max_bytes = 32
+
+[arguments.fields.task_commitment]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.document_id]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.tab_id]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.text]
+type = "string"
+min_bytes = 1
+max_bytes = 192
+
+[arguments.fields.required_revision_id]
+type = "string"
+min_bytes = 1
+max_bytes = 128

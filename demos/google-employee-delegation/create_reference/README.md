@@ -44,8 +44,9 @@ After a matched credential-bearing observation under the task-write path, the
 gateway now commits one immutable child binding in the task journal. It ties
 the candidate ID to the reserved create operation, request and response
 digests, metadata digest, signed pending-child proposal, and connected subject
-and generation. This still grants no populate authority; the second action
-must check that binding before provider entry.
+and generation. That binding yields one one-time edit scope for the reviewed
+[populate recipe](../populate_reference/README.md). A fresh signed agent action
+and exact human confirmation must still match it before provider entry.
 The generic `reobserve` path refuses this create recipe after restart because
 its stored plan does not retain the native-verified parent, title and marker;
 allowing a later name-only match would bypass the metadata checks. The
@@ -63,8 +64,8 @@ It reports only provider state; it cannot authorize population or replace the
 gateway's own task binding. The producer's inspector
 requires a fresh pre-create working-Doc baseline and leaves cleanup explicit.
 
-This reference does not authorize a follow-up populate action or verify a
-live provider effect. Those are required by
+This reference does not by itself authorize a follow-up populate action or
+verify a live provider effect. Those are required by
 AP-SPEC-071's create/populate acceptance. The producer owns the folder and
 its ACL; Auths owns the task authority and gateway recipe. Rust tests prove
 the exact closed request and observation URLs, hostile declaration rejection,

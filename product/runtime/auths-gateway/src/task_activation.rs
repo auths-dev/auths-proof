@@ -685,6 +685,17 @@ mod tests {
         reopened
             .reserve_write(&create, NOW + 1)
             .expect("reserve create");
+        let mut populate_intent = create.intent().clone();
+        populate_intent.operation_id = "populate-1".to_owned();
+        populate_intent.recipe_digest = "f".repeat(64);
+        populate_intent.resource_handle = "child_ABC-123".to_owned();
+        populate_intent.verb = TaskWriteVerb::Edit;
+        populate_intent.request_commitment = "b".repeat(64);
+        let populate = ApprovedTaskWrite::from_test_intent(populate_intent.clone());
+        assert!(
+            reopened.reserve_write(&populate, NOW + 1).is_err(),
+            "a pending child is not an executable scope"
+        );
         assert!(
             reopened
                 .bind_created_child(
@@ -732,6 +743,38 @@ mod tests {
         let reopened = FileReleaseTaskLedger::open(path).expect("reopen");
         let state = reopened.load(&card.task_id).expect("load").expect("state");
         assert_eq!(state.bound_child_id(), Some("child_ABC-123"));
+        let mut wrong_child = populate_intent.clone();
+        wrong_child.resource_handle = "arbitrary-child".to_owned();
+        assert!(
+            reopened
+                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_child), NOW + 1)
+                .is_err()
+        );
+        let mut wrong_recipe = populate_intent.clone();
+        wrong_recipe.recipe_digest = "a".repeat(64);
+        assert!(
+            reopened
+                .reserve_write(&ApprovedTaskWrite::from_test_intent(wrong_recipe), NOW + 1)
+                .is_err()
+        );
+        reopened
+            .reserve_write(&populate, NOW + 1)
+            .expect("bound child population reserves once");
+        assert!(
+            reopened.reserve_write(&populate, NOW + 1).is_err(),
+            "population replays are refused"
+        );
+        let mut second_populate = populate_intent;
+        second_populate.operation_id = "populate-2".to_owned();
+        assert!(
+            reopened
+                .reserve_write(
+                    &ApprovedTaskWrite::from_test_intent(second_populate),
+                    NOW + 1
+                )
+                .is_err(),
+            "a new operation ID cannot populate the same child again"
+        );
         assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
         assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
         let mut changed = card.clone();

@@ -1,0 +1,78 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "47c547caa8839ee9cb828332cd6f23ea48bf25bb5a431d670aa1a851486a82c2",
+  "service": "google-docs-delegation-demo",
+  "tool": "populate_created_project_a_document_v1",
+  "operator_namespace": "google-docs-populate-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://docs.googleapis.com",
+  "task_binding": {
+    "resource_field": "document_id",
+    "verb": "edit"
+  },
+  "write": {
+    "method": "POST",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v1"
+      },
+      {
+        "kind": "fixed",
+        "value": "documents"
+      },
+      {
+        "kind": "field-suffix",
+        "name": "document_id",
+        "suffix": ":batchUpdate"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "requests": {
+            "kind": "array",
+            "items": [
+              {
+                "kind": "object",
+                "fields": {
+                  "insertText": {
+                    "kind": "object",
+                    "fields": {
+                      "text": {
+                        "kind": "field",
+                        "name": "text"
+                      },
+                      "endOfSegmentLocation": {
+                        "kind": "object",
+                        "fields": {
+                          "tabId": {
+                            "kind": "field",
+                            "name": "tab_id"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "writeControl": {
+            "kind": "object",
+            "fields": {
+              "requiredRevisionId": {
+                "kind": "field",
+                "name": "required_revision_id"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

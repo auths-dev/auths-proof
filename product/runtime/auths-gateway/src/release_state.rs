@@ -528,20 +528,27 @@ impl ReleaseTaskState {
             || intent.connection_id != self.connection_id
             || intent.connection_generation != self.connection_generation
             || intent.connection_subject != self.connection_subject
-            || !self.write_scopes.iter().any(|scope| {
-                scope.handle == intent.resource_handle
-                    && scope.recipe_digest == intent.recipe_digest
-                    && scope.verb == intent.verb
-                    && scope.connection_id == intent.connection_id
-                    && scope.connection_generation == intent.connection_generation
-                    && scope.connection_subject == intent.connection_subject
-            })
+            || !self.scope_matches(
+                &intent.resource_handle,
+                &intent.recipe_digest,
+                &intent.verb,
+                &intent.connection_id,
+                intent.connection_generation,
+                &intent.connection_subject,
+            )
         {
             return Err(ReleaseStateError::Binding);
         }
         if self.operations.contains_key(&intent.operation_id)
             || self.writes.contains_key(&intent.operation_id)
         {
+            return Err(ReleaseStateError::Replay);
+        }
+        if self.is_second_child_populate(
+            &intent.resource_handle,
+            &intent.recipe_digest,
+            &intent.verb,
+        ) {
             return Err(ReleaseStateError::Replay);
         }
         if self.writes.len() >= self.max_writes as usize {
@@ -633,6 +640,58 @@ impl ReleaseTaskState {
                 .any(|scope| scope.handle == binding.id)
             && binding.connection_generation == self.connection_generation
             && binding.connection_subject == self.connection_subject
+    }
+
+    pub(crate) fn bound_child_scope(&self) -> Option<TaskWriteScope> {
+        let child = self.child_binding.as_ref()?;
+        Some(TaskWriteScope {
+            handle: child.id.clone(),
+            recipe_digest: child.populate_recipe_digest.clone(),
+            verb: crate::task_activation::TaskWriteVerb::Edit,
+            connection_id: self.connection_id.clone(),
+            connection_generation: child.connection_generation,
+            connection_subject: child.connection_subject.clone(),
+        })
+    }
+
+    fn scope_matches(
+        &self,
+        handle: &str,
+        recipe_digest: &str,
+        verb: &crate::task_activation::TaskWriteVerb,
+        connection_id: &str,
+        connection_generation: u64,
+        connection_subject: &str,
+    ) -> bool {
+        self.write_scopes
+            .iter()
+            .chain(self.bound_child_scope().iter())
+            .any(|scope| {
+                scope.handle == handle
+                    && scope.recipe_digest == recipe_digest
+                    && &scope.verb == verb
+                    && scope.connection_id == connection_id
+                    && scope.connection_generation == connection_generation
+                    && scope.connection_subject == connection_subject
+            })
+    }
+
+    fn is_second_child_populate(
+        &self,
+        handle: &str,
+        recipe_digest: &str,
+        verb: &crate::task_activation::TaskWriteVerb,
+    ) -> bool {
+        self.bound_child_scope().is_some_and(|scope| {
+            scope.handle == handle
+                && scope.recipe_digest == recipe_digest
+                && &scope.verb == verb
+                && self.writes.values().any(|write| {
+                    write.resource_handle == handle
+                        && write.recipe_digest == recipe_digest
+                        && &write.verb == verb
+                })
+        })
     }
 
     /// Admit a compiled request only with a native-verified sole actor and
@@ -912,14 +971,14 @@ impl ReleaseTaskState {
                 || write.connection_id != self.connection_id
                 || write.connection_generation != self.connection_generation
                 || write.connection_subject != self.connection_subject
-                || !self.write_scopes.iter().any(|scope| {
-                    scope.handle == write.resource_handle
-                        && scope.recipe_digest == write.recipe_digest
-                        && scope.verb == write.verb
-                        && scope.connection_id == write.connection_id
-                        && scope.connection_generation == write.connection_generation
-                        && scope.connection_subject == write.connection_subject
-                })
+                || !self.scope_matches(
+                    &write.resource_handle,
+                    &write.recipe_digest,
+                    &write.verb,
+                    &write.connection_id,
+                    write.connection_generation,
+                    &write.connection_subject,
+                )
             {
                 return Err(ReleaseStateError::Corrupt);
             }
@@ -928,6 +987,20 @@ impl ReleaseTaskState {
             .child_binding
             .as_ref()
             .is_some_and(|binding| !self.valid_child_binding(binding))
+        {
+            return Err(ReleaseStateError::Corrupt);
+        }
+        if let Some(scope) = self.bound_child_scope()
+            && self
+                .writes
+                .values()
+                .filter(|write| {
+                    write.resource_handle == scope.handle
+                        && write.recipe_digest == scope.recipe_digest
+                        && write.verb == scope.verb
+                })
+                .count()
+                > 1
         {
             return Err(ReleaseStateError::Corrupt);
         }

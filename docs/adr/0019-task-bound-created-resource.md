@@ -18,8 +18,10 @@ re-observation refuses created-child recipes after restart until native-verified
 create fields can be restored safely. A matched, credential-bearing metadata
 observation now commits an immutable child binding to the same task journal as
 the reserved create. A lost or mismatched observation leaves no binding. The
-binding is not yet usable by a populate action, and the crash gap between the
-attempt and task journals still needs a verified reconciliation path. This ADR
+binding now yields a one-time edit scope for the reviewed populate recipe:
+a fresh native agent action and exact human confirmation must still match that
+scope before entry. The crash gap between the attempt and task journals still
+needs a verified reconciliation path. This ADR
 authorizes no production claim by itself.
 
 **Date:** 25 October 2026

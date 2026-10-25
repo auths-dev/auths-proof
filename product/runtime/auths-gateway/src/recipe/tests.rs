@@ -34,6 +34,14 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
                 "../../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
             ),
         ),
+        "google-docs-populate" => (
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/populate_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
+            ),
+        ),
         "airtable-task-edit" => (
             include_bytes!("../../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!(
@@ -42,6 +50,47 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
         ),
         _ => panic!("unknown test-only fixture"),
     }
+}
+
+#[test]
+fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
+    let recipe = compiled("google-docs-populate");
+    assert!(recipe.requires_task_admission());
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "populate-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "document_id": "child_ABC-123",
+        "tab_id": "t.0",
+            "text": "Project A is on track. Next: confirm handoff.",
+            "required_revision_id": "revision-1"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed populate request");
+    assert_eq!(
+        request.url(),
+        "https://docs.googleapis.com/v1/documents/child_ABC-123:batchUpdate"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("body"),
+        json!({
+            "requests": [{"insertText": {
+            "endOfSegmentLocation": {"tabId": "t.0"},
+                "text": "Project A is on track. Next: confirm handoff."
+            }}],
+            "writeControl": {"requiredRevisionId": "revision-1"}
+        })
+    );
+    let mut wrong = args;
+    wrong.insert("document_id".to_owned(), json!("another-child"));
+    let changed = recipe
+        .closed_request_from_arguments(&wrong, [0x41; 32])
+        .expect("different native action required");
+    assert_ne!(request.url(), changed.url());
 }
 
 fn compiled(name: &str) -> CompiledRecipe {
