@@ -14,6 +14,11 @@ same development `task-read-connect` command used for Google, verifies that
 its read credential state is separate from the write installation, and
 rejects a second installation. It uses a synthetic credential and sends no
 Airtable request.
+The broker's `test_task_card_cross_provider.py` signs one mixed Airtable task
+with separate human and agent keys using the same AP-071 task-card and child
+grant code as the Google demo. It verifies exact-mode limits, the read and
+write recipe bindings, and refusal of a task-excluded record. This is a
+ceremony test, not a provider effect or an Airtable human-subject claim.
 
 This reference reuses the existing Airtable demo's operator PAT and run-owned
 record fixture. The PAT does **not** prove that a particular employee owns
