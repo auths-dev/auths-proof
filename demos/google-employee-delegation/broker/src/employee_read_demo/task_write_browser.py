@@ -35,6 +35,8 @@ class PreparedWriteTask:
     card: dict
     account_label: str
     resource_label: str
+    write_tool: str
+    companion_write_tool: str | None
     grant_preimage: bytes
     read_grant_preimage: bytes | None
     companion_grant_preimage: bytes | None
@@ -143,6 +145,9 @@ class TaskWriteBrowserFlow:
             )
         return PreparedWriteTask(
             nonce, card, account_label, resource_label,
+            f"{package.authority.provider_service}/{package.authority.provider_tool}",
+            (None if package.companion_write is None else
+             f"{package.companion_write.service}/{package.companion_write.tool}"),
             child.signing_preimage,
             None if read_child is None else read_child.signing_preimage,
             None if companion_child is None else companion_child.signing_preimage,

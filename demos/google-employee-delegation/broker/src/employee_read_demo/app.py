@@ -446,13 +446,13 @@ class Handler(BaseHTTPRequestHandler):
                 if path.endswith("/prepare"):
                     if set(body) != {"purpose"} or type(body["purpose"]) is not str:
                         raise ValueError("task purpose is invalid")
+                    package = load_task_write_package(
+                        self.workbench.write_browser.authority_path)
                     paired = self.workbench.write_browser.companion_recipe_path is not None
                     pending_child = None
                     if paired:
                         create_inputs = prepare_create_inputs(
                             evidence["folder_id"], pinned_folder_id=evidence["folder_id"])
-                        package = load_task_write_package(
-                            self.workbench.write_browser.authority_path)
                         pending_child = {
                             "create_operation_id": secrets.token_urlsafe(18),
                             "create_recipe_digest": package.recipe_digest,
@@ -486,6 +486,8 @@ class Handler(BaseHTTPRequestHandler):
                         "account_label": prepared.account_label,
                         "resource_label": prepared.resource_label,
                         "read_resource_label": prepared.read_resource_label,
+                        "write_tool": prepared.write_tool,
+                        "companion_write_tool": prepared.companion_write_tool,
                         "grant_preimage": base64.urlsafe_b64encode(
                             prepared.grant_preimage).decode("ascii"),
                         "read_grant_preimage": (

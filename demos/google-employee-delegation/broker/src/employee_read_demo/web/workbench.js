@@ -196,6 +196,8 @@ async function prepareWriteTask() {
     write_approval_mode: result.card.write_approval_mode,
     expires_at: result.card.expires_at,
     recipe_digest: result.card.write_scopes[0].recipe_digest,
+    write_tool: result.write_tool,
+    companion_write_tool: result.companion_write_tool,
     pending_child: result.card.pending_child || null,
   }, null, 2);
   byId("write-review").hidden = false;
