@@ -32,3 +32,16 @@ response, active signed recovery task, independent new-child verdict or
 human-signed recovered-child binding. Zero matches do not prove non-creation
 and cannot authorize a create retry. The full installed lost-response matrix
 and guided recovery remain open under [AP-SPEC-071](../specs/0071-human-agent-read-write-delegation-demo.md).
+
+At 22:30 UTC, the new `auths-google-recovery-search` development command ran
+against the **earlier known** Jules create task `4BmIdjnwKbs01aGqcqKEQb5a`.
+It first required the original private task card, signed plan files, pre-create
+baseline, pinned Jules connection, and gateway status showing exactly one
+claimed create operation. It then refreshed Jules's subject-checked grant,
+searched the original marker, and rechecked the sole child by exact ID. The
+private `recovery-search-smoke-20261025.json` report has owner-only `0600`
+mode, one page digest, one metadata digest, `status: single`, and
+`authority: none`. No Google write or Auths child binding occurred. This
+validates the installed operator command's read-only handoff on existing
+state. The task had a **known response**, so it remains outside the required
+lost-response acceptance case.
