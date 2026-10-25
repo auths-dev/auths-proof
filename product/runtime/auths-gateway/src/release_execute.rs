@@ -346,7 +346,6 @@ mod tests {
     use crate::release_verify::tests::{arguments, exact_grant, recipe};
     use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskReadScope};
     use auths_connections::ConnectionRecord;
-    use auths_identity::{IdentityPacket, SignedIdentityMessage};
     use auths_identity_raw_key::RawKeyIdentityMethod;
     use ed25519_dalek::Signer as _;
     use serde_json::json;
@@ -422,9 +421,8 @@ mod tests {
         )
         .expect("identity")
         .into_public_identity();
-        let packet = IdentityPacket::PublicIdentity(identity.clone())
-            .encode()
-            .expect("packet");
+        let identity = identity.to_descriptor().expect("descriptor");
+        let packet = identity.encode().expect("packet");
         let read_scope = json!({"handle": harness::RECORD,
             "recipe_digest": read_recipe.digest_hex(),
             "connection_id": bound.connection_id().as_str(),
@@ -507,7 +505,8 @@ mod tests {
             let length = stream.read_u32().await.expect("challenge length") as usize;
             let mut challenge = vec![0; length];
             stream.read_exact(&mut challenge).await.expect("challenge");
-            let preimage = SignedIdentityMessage::signing_preimage(&identity, &challenge)
+            let preimage = identity
+                .signing_preimage("default-signing", &challenge)
                 .expect("challenge preimage");
             let signature = agent.key.sign(&preimage).to_bytes();
             agent_ready.store(true, Ordering::SeqCst);
@@ -519,8 +518,9 @@ mod tests {
             let length = stream.read_u32().await.expect("ack length") as usize;
             let mut message = vec![0; length];
             stream.read_exact(&mut message).await.expect("ack message");
-            let preimage =
-                SignedIdentityMessage::signing_preimage(&identity, &message).expect("ack preimage");
+            let preimage = identity
+                .signing_preimage("default-signing", &message)
+                .expect("ack preimage");
             let signature = agent.key.sign(&preimage).to_bytes();
             stream.write_u32(64).await.expect("ack signature length");
             stream.write_all(&signature).await.expect("ack signature");

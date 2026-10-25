@@ -5,7 +5,7 @@
 use crate::release_commitment::{ReleaseCommitmentContext, ReleaseCommitmentKey};
 use crate::release_state::VerifiedAgentAcknowledgement;
 use crate::task_activation::ApprovedAgentTask;
-use auths_identity::{IdentityPacket, SignedIdentityMessage};
+use auths_identity::{IdentityDescriptor, SignatureVerifier as _};
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_raw_key::{RawKeyDescriptor, RawKeyType};
 use auths_signature_ed25519::Ed25519Verifier;
@@ -83,20 +83,42 @@ fn verify_registered_agent_signature(
     {
         return Err(ReleaseAckError::Binding);
     }
-    let IdentityPacket::PublicIdentity(identity) =
-        IdentityPacket::decode(agent_identity_packet).map_err(|_| ReleaseAckError::Binding)?
-    else {
+    let descriptor =
+        IdentityDescriptor::decode(agent_identity_packet).map_err(|_| ReleaseAckError::Binding)?;
+    let [relationship] = descriptor.relationships() else {
         return Err(ReleaseAckError::Binding);
     };
-    let principal = RawKeyDescriptor::new(RawKeyType::Ed25519, identity.public_key().to_vec())
+    let [material] = relationship.verification_material() else {
+        return Err(ReleaseAckError::Binding);
+    };
+    if relationship.relationship_id() != "default-signing"
+        || relationship.purpose() != "authentication"
+        || relationship.suite_id().as_str() != auths_signature_ed25519::ED25519_V1
+        || material.material_id().as_str() != "default-key"
+    {
+        return Err(ReleaseAckError::Binding);
+    }
+    let expected = RawKeyIdentityMethod::identity(
+        auths_signature_ed25519::ED25519_V1,
+        material.bytes().to_vec(),
+    )
+    .and_then(|identity| identity.into_public_identity().to_descriptor())
+    .map_err(|_| ReleaseAckError::Binding)?;
+    if descriptor != expected {
+        return Err(ReleaseAckError::Binding);
+    }
+    let principal = RawKeyDescriptor::new(RawKeyType::Ed25519, material.bytes().to_vec())
         .map_err(|_| ReleaseAckError::Binding)?
         .principal()
         .map_err(|_| ReleaseAckError::Binding)?;
     if principal.as_str() != task.descriptor().agent_principal {
         return Err(ReleaseAckError::Binding);
     }
-    SignedIdentityMessage::new(identity, message.to_vec(), signature.to_vec())
-        .and_then(|signed| signed.verify(&RawKeyIdentityMethod, &Ed25519Verifier))
+    let preimage = descriptor
+        .signing_preimage("default-signing", message)
+        .map_err(|_| ReleaseAckError::Binding)?;
+    Ed25519Verifier
+        .verify(material.bytes(), &preimage, signature)
         .map_err(|_| ReleaseAckError::Signature)?;
     Ok(())
 }
@@ -185,16 +207,15 @@ mod tests {
         human: &Signer,
         agent: &Signer,
         recipe: &crate::CompiledReleaseRecipe,
-    ) -> (ApprovedAgentTask, auths_identity::PublicIdentity, Vec<u8>) {
+    ) -> (ApprovedAgentTask, IdentityDescriptor, Vec<u8>) {
         let identity = RawKeyIdentityMethod::identity(
             auths_signature_ed25519::ED25519_V1,
             agent.key.verifying_key().to_bytes().to_vec(),
         )
         .expect("agent identity")
         .into_public_identity();
-        let packet = IdentityPacket::PublicIdentity(identity.clone())
-            .encode()
-            .expect("packet");
+        let descriptor = identity.to_descriptor().expect("descriptor");
+        let packet = descriptor.encode().expect("packet");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
             "schema": "auths.agent-task/2",
             "task_id": "task-1",
@@ -225,7 +246,7 @@ mod tests {
         .expect("card");
         (
             ApprovedAgentTask::from_test_card(card, [1; 32]),
-            identity,
+            descriptor,
             packet,
         )
     }
@@ -282,8 +303,9 @@ mod tests {
         let (task, identity, packet) = task_and_identity(&human, &agent, &recipe);
         let nonce = [0x44; 32];
         let message = channel_challenge_message(&task, "read-1", &nonce).expect("challenge");
-        let preimage =
-            SignedIdentityMessage::signing_preimage(&identity, &message).expect("preimage");
+        let preimage = identity
+            .signing_preimage("default-signing", &message)
+            .expect("preimage");
         let signature = agent.key.sign(&preimage).to_bytes();
         assert_eq!(
             verify_agent_channel_challenge(&task, "read-1", &nonce, &packet, &signature),
@@ -318,8 +340,9 @@ mod tests {
         let mut state = entered_state(&task, &agent, &recipe, content, &key);
         let message = acknowledgement_message(&task, "read-1", "resource-1", content, &key)
             .expect("ack message");
-        let preimage =
-            SignedIdentityMessage::signing_preimage(&identity, &message).expect("signing preimage");
+        let preimage = identity
+            .signing_preimage("default-signing", &message)
+            .expect("signing preimage");
         let signature = agent.key.sign(&preimage).to_bytes();
         assert_eq!(
             verify_agent_acknowledgement(
@@ -348,14 +371,14 @@ mod tests {
             Some(ReleaseAckError::Signature)
         );
         let other = Signer::new(0x33);
-        let other_packet = IdentityPacket::PublicIdentity(
-            RawKeyIdentityMethod::identity(
-                auths_signature_ed25519::ED25519_V1,
-                other.key.verifying_key().to_bytes().to_vec(),
-            )
-            .expect("other identity")
-            .into_public_identity(),
+        let other_packet = RawKeyIdentityMethod::identity(
+            auths_signature_ed25519::ED25519_V1,
+            other.key.verifying_key().to_bytes().to_vec(),
         )
+        .expect("other identity")
+        .into_public_identity()
+        .to_descriptor()
+        .expect("other descriptor")
         .encode()
         .expect("other packet");
         assert_eq!(

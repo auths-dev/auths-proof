@@ -203,7 +203,7 @@ mod tests {
     use super::*;
     use crate::harness::Signer;
     use crate::task_activation::AgentTaskDescriptor;
-    use auths_identity::{IdentityPacket, SignedIdentityMessage};
+    use auths_identity::IdentityDescriptor;
     use auths_identity_raw_key::RawKeyIdentityMethod;
     use ed25519_dalek::Signer as _;
     use serde_json::json;
@@ -212,12 +212,7 @@ mod tests {
     use tokio::net::UnixListener;
     use zeroize::Zeroizing;
 
-    fn task_and_identity() -> (
-        ApprovedAgentTask,
-        Signer,
-        auths_identity::PublicIdentity,
-        Vec<u8>,
-    ) {
+    fn task_and_identity() -> (ApprovedAgentTask, Signer, IdentityDescriptor, Vec<u8>) {
         let human = Signer::new(0x11);
         let agent = Signer::new(0x22);
         let identity = RawKeyIdentityMethod::identity(
@@ -226,9 +221,8 @@ mod tests {
         )
         .expect("identity")
         .into_public_identity();
-        let packet = IdentityPacket::PublicIdentity(identity.clone())
-            .encode()
-            .expect("packet");
+        let descriptor = identity.to_descriptor().expect("descriptor");
+        let packet = descriptor.encode().expect("packet");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
             "schema": "auths.agent-task/2", "task_id": "task-1",
             "company_id": "atlas", "human_principal": human.principal.as_str(),
@@ -249,7 +243,7 @@ mod tests {
         (
             ApprovedAgentTask::from_test_card(card, [1; 32]),
             agent,
-            identity,
+            descriptor,
             packet,
         )
     }
@@ -268,7 +262,8 @@ mod tests {
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.expect("accept");
             let challenge = read_frame(&mut stream, 4_096).await.expect("challenge");
-            let preimage = SignedIdentityMessage::signing_preimage(&identity, &challenge)
+            let preimage = identity
+                .signing_preimage("default-signing", &challenge)
                 .expect("challenge preimage");
             let signature = agent.key.sign(&preimage).to_bytes();
             write_frame(&mut stream, &signature, 256)
@@ -283,8 +278,9 @@ mod tests {
                 payload["content_sha256"],
                 hex::encode(Sha256::digest(&content))
             );
-            let preimage =
-                SignedIdentityMessage::signing_preimage(&identity, &message).expect("ack preimage");
+            let preimage = identity
+                .signing_preimage("default-signing", &message)
+                .expect("ack preimage");
             let signature = agent.key.sign(&preimage).to_bytes();
             write_frame(&mut stream, &signature, 256)
                 .await
@@ -330,8 +326,9 @@ mod tests {
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.expect("accept");
             let challenge = read_frame(&mut stream, 4_096).await.expect("challenge");
-            let preimage =
-                SignedIdentityMessage::signing_preimage(&identity, &challenge).expect("preimage");
+            let preimage = identity
+                .signing_preimage("default-signing", &challenge)
+                .expect("preimage");
             let signature = intruder.key.sign(&preimage).to_bytes();
             write_frame(&mut stream, &signature, 256)
                 .await
