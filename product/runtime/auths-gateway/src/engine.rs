@@ -2621,7 +2621,9 @@ pub(crate) fn verify_detailed(
     proof_cbor: &[u8],
     action_cbor: &[u8],
 ) -> Result<VerifiedCommand, GatewaySubmitResult> {
-    let sealed = verify_sealed(context, now, proof_cbor, action_cbor)?;
+    let audience = Audience::parse(&format!("mcp://{}", recipe.service()))
+        .map_err(|_| not_entered("gateway.recipe.audience"))?;
+    let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     let bound = admit_bounds(proof_cbor, action, recipe, now)?;
     let command = McpProfile
@@ -2664,24 +2666,6 @@ pub(crate) fn authorized_action(
         });
     };
     Ok(action)
-}
-
-/// The shared native verifier boundary for write and content-release paths.
-/// It returns a sealed capability only after the operator-pinned trust and
-/// registries have evaluated the exact proof and action at the gateway clock.
-pub(crate) fn verify_sealed(
-    context: &TrustedContext,
-    now: u64,
-    proof_cbor: &[u8],
-    action_cbor: &[u8],
-) -> Result<auths_verifier::SealedVerificationResult, GatewaySubmitResult> {
-    verify_sealed_for_audience(
-        context,
-        context.expected_audience().clone(),
-        now,
-        proof_cbor,
-        action_cbor,
-    )
 }
 
 /// Rebinds only the verifier's expected audience for a fixed, gateway-owned
@@ -3564,12 +3548,20 @@ pub(crate) mod tests {
         let human = Signer::new(0x22);
         let agent = Signer::new(0x44);
         let observer = GatewayObserver::from_test_seed(0x33);
-        engine.trusted_context = harness::context_for_agent_and_task_profile(
+        engine.trusted_context = harness::context_for_agent_and_task_profiles(
             &root,
             observer.principal(),
             now,
-            "google-drive-delegation-demo",
-            "create_project_a_document_v1",
+            &[
+                (
+                    "google-drive-delegation-demo",
+                    "create_project_a_document_v1",
+                ),
+                (
+                    "google-docs-delegation-demo",
+                    "populate_created_project_a_document_v1",
+                ),
+            ],
         )
         .expect("task trust");
         let loaded = engine
@@ -4006,14 +3998,6 @@ pub(crate) mod tests {
                 .port(),
         );
         engine.recipe = populate;
-        engine.trusted_context = harness::context_for_agent_and_task_profile(
-            &root,
-            observer.principal(),
-            now,
-            "google-docs-delegation-demo",
-            "populate_created_project_a_document_v1",
-        )
-        .expect("populate trust");
         let session = engine
             .task_write_session(&installation_bytes, &state_root)
             .expect("populate task session");

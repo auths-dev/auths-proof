@@ -433,6 +433,21 @@ pub(crate) fn context_for_agent_and_task_profile(
     service: &str,
     tool: &str,
 ) -> Result<TrustedContext, HarnessError> {
+    context_for_agent_and_task_profiles(root, observer, now, &[(service, tool)])
+}
+
+pub(crate) fn context_for_agent_and_task_profiles(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    profiles: &[(&str, &str)],
+) -> Result<TrustedContext, HarnessError> {
+    let mut allowed = profiles.to_vec();
+    allowed.extend([
+        ("auths-agent-task", "approve_agent_task_v1"),
+        ("auths-agent-task", "confirm_agent_write_v1"),
+        ("auths-agent-task", "confirm_agent_effect_plan_v1"),
+    ]);
     context_for_profiles(
         &[root],
         observer,
@@ -441,12 +456,7 @@ pub(crate) fn context_for_agent_and_task_profile(
         1,
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         &[RAW_KEY_V1],
-        &[
-            (service, tool),
-            ("auths-agent-task", "approve_agent_task_v1"),
-            ("auths-agent-task", "confirm_agent_write_v1"),
-            ("auths-agent-task", "confirm_agent_effect_plan_v1"),
-        ],
+        &allowed,
     )
 }
 

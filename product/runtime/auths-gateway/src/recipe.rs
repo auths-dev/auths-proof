@@ -523,6 +523,10 @@ pub struct CompiledRecipe {
 }
 
 impl CompiledRecipe {
+    pub(crate) fn service(&self) -> &str {
+        &self.source.service
+    }
+
     /// Compiles source against the exact generated profile lock. Only
     /// `auths.gateway-recipe-source/2` is accepted.
     ///

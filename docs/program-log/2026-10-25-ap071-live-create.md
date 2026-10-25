@@ -159,7 +159,7 @@ operation and retained those exact bytes locally. The agent then signed a
 source marker, and signed the create proposal for marker
 `ap071_7d5aa6321cf7297a5bf5e592de774a8d`. Auths' exact two-effect
 review verified the staged signed draft against the acknowledged release.
-No Google write has occurred in this fresh task yet.
+At this preparation point, no Google write had occurred in the fresh task.
 
 The configured external model route was rejected by automatic approval
 review because it would send the private source to `api.openai.com` without
@@ -167,3 +167,63 @@ specific destination and payload authorization. The local deterministic
 drafting shim kept the source on this host. This run therefore tests agent
 isolation, receipt binding and signatures, but does not establish that a
 remote model generated the prose.
+
+## Fresh single-plan create and populate result
+
+Jules subsequently signed one exact two-effect plan under task
+`Gdj7h8pjYv73RhNN7a9wFecV`, covering one `files.create` in Project A
+and one `documents.batchUpdate` to populate only the returned child. The
+plan fixed title `Auths AP-071 Project A handoff`, marker
+`ap071_7d5aa6321cf7297a5bf5e592de774a8d`, the complete 145-byte
+agent-signed text, and the source citation. The task's one read was already
+acknowledged by the separate agent; its two-write budget remained available.
+demo_co captured fresh v2 pre-create baseline generation 0006 at 19:17:01 UTC,
+SHA-256 `8cc5727683453a489f660cc7980b63a05b55c206945ee3d779cac3e83fbdd9af`.
+It pinned the earlier created child and the neighboring working Doc as
+preserved state. Auths accepted the baseline against private identity and
+generation pins before the create.
+
+The gateway entered one Jules-credentialed Drive create. It observed HTTP
+200, bound returned child `17A0l1FkogRupzFXrX3aYAIVivAnc0S_IKX98txCefCM`
+to the signed plan and charged the first write. The child's Google
+`createdTime` was 19:17:19.169 UTC, 18 seconds after the baseline. A fresh
+Jules-credentialed preflight checked the child's exact parent, title,
+marker, edit capability, blank Docs tab and revision before population.
+
+The first population submission was denied **before provider entry** with
+`audience-mismatch`; the installed verifier context defaulted to the Drive
+create audience while the companion recipe required Google Docs. The task
+journal still showed only the create write and no population attempt. Auths
+fixed gateway verification to derive the exact audience from the installed
+recipe, retaining the same multi-profile trust context. An offline review of
+the agent-signed population action then passed. After a new read-only child
+preflight and a fresh agent signature, a controlled direct gateway recovery
+submitted the *same human-approved content* once. The gateway recorded HTTP
+200 for the Docs response and charged the second write. The broker's
+one-shot wrapper remained closed after its original denied attempt; this
+recovery was manually reconciled against the no-entry journal rather than
+silently retrying an unknown provider outcome. The live patched binary was
+SHA-256 `8f7186def4b2585cdf93161956b6dfbbfbd35cbd5ab589d81ae2f2492eee5218`.
+
+demo_co independently ran its frozen v2 inspector against that original
+generation-0006 baseline. Generation 0007
+`google-create-observation-v2.json` has SHA-256
+`6ddec2c52642fba0c0a09fec83fbd0d0be0aaa43fec699adec63c749fea0b7cb`
+and status `ready`. It found one new Project A child and a unique marker,
+four direct children, the precise 148-byte Drive export (three-byte BOM
+followed by the approved 145-byte text), and SHA-256
+`a1fb0c3010e622cee1ac5f85bda4c9865194f2e84bba36196267e2886c2fd54d`.
+The preserved child, working Doc and canonical Project A/B Docs matched the
+pre-create state, and Jules was still denied Project B write. Auths' pinned
+v2 consumer accepted the three independent producer stages as
+`provider_state_observed`. The producer's report proves provider state; the
+task proof, agent proofs, exact human plan and gateway attempts supply the
+separate authorization and action chain.
+
+This passes the live **single-plan Google create/populate example**, with a
+documented pre-entry recovery. It remains a local development run. The
+manual gateway recovery must be integrated into a reviewed operator flow,
+and full AP-SPEC-071 acceptance still requires bounded-upfront execution,
+the mandatory negative matrix, cross-provider conformance and pinned
+installed artifacts. No cleanup has occurred; demo_co owns run fixture
+cleanup.
