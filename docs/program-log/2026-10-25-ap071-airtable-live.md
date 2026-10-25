@@ -53,3 +53,16 @@ employee's account delegation. The agent used a distinct key and process,
 but this development run did not isolate it under a different OS user. It
 does not complete the full negative matrix, production custody or the Google
 single-plan create/populate acceptance.
+
+An additional disposable run
+(`/private/tmp/ap071-airtable-lost-ack-20261025-1825`) used a separate agent
+process that saved the seven exact release bytes, then closed its Unix socket
+without signing the acknowledgement. The gateway returned
+`delivery-unknown`, charged one provider call, one release and seven bytes,
+and retained that stage after the agent process exited. A second authenticated
+channel attempted the identical signed operation; native task admission
+returned `not-entered` with `gateway.release.task-admission`, sent it no
+content and left all counters unchanged. The run-owned record was retired.
+Its redacted result is `operator/redacted-result.json` under that root. This
+proves the lost-ACK accounting and same-operation replay refusal in the
+installed Airtable path; it does not prove the agent used the bytes.

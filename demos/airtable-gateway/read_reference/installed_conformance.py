@@ -113,8 +113,16 @@ class Airtable:
 
 def _gateway(binary: Path, command: str, *args: str,
              secret: bytes | None = None) -> dict:
+    argv = list(map(str, args))
+    # A generated task ID may begin with '-'; pass it as one option value so
+    # clap cannot mistake it for a new flag.
+    if "--task-id" in argv:
+        index = argv.index("--task-id")
+        if index + 1 >= len(argv):
+            raise ValueError("task ID option has no value")
+        argv[index:index + 2] = ["--task-id=" + argv[index + 1]]
     completed = subprocess.run(
-        [str(binary), command, *map(str, args)], input=secret,
+        [str(binary), command, *argv], input=secret,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120,
         env={"PATH": os.environ.get("PATH", "")}, check=False,
     )
@@ -133,8 +141,10 @@ def _agent(command: str, *args: str, wait: bool = True) -> subprocess.CompletedP
                str(ROOT / "bindings/python/src"),
                str(ROOT / "demos/google-employee-delegation/agent/src"),
            ))}
-    invocation = [sys.executable, "-m", "employee_read_agent.cli", command,
-                  *map(str, args)]
+    invocation = ([sys.executable, str(HERE / "lost_ack_agent.py"),
+                   *map(str, args)] if command == "serve-release-lossy" else
+                  [sys.executable, "-m", "employee_read_agent.cli", command,
+                   *map(str, args)])
     if not wait:
         return subprocess.Popen(invocation, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, env=env)
@@ -161,7 +171,8 @@ def _wait_for(path: Path, process: subprocess.Popen) -> None:
     raise RuntimeError("agent channel did not become available")
 
 
-def run(env_file: Path, root: Path, binary: Path) -> None:
+def run(env_file: Path, root: Path, binary: Path,
+        *, drop_ack: bool = False) -> None:
     root = _private_dir(root, create=True)
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -373,7 +384,8 @@ def run(env_file: Path, root: Path, binary: Path) -> None:
            "--arguments-file", agent_dir / "read-arguments.json",
            "--out-dir", read_output)
     source = agent_dir / "released-status.txt"
-    server = _agent("serve-release", "--key-file", agent_dir / "agent.seed",
+    server = _agent("serve-release-lossy" if drop_ack else "serve-release",
+                    "--key-file", agent_dir / "agent.seed",
                     "--socket", channel, "--output", source,
                     "--task-id", signed.task_id,
                     "--task-commitment", common["task_commitment"],
@@ -397,6 +409,67 @@ def run(env_file: Path, root: Path, binary: Path) -> None:
             server.communicate(timeout=5)
     if source.read_bytes() != b"Pending":
         raise RuntimeError("agent received unexpected Airtable content")
+    if drop_ack:
+        status = _gateway(binary, "task-status", "--state-dir", state,
+                          "--task-id", signed.task_id)
+        if (release != {"outcome": "delivery-unknown"}
+                or status.get("provider_calls") != 1
+                or status.get("releases") != 1
+                or status.get("released_bytes") != 7
+                or status.get("reads") != [{
+                    "operation_id": read_operation, "released_bytes": 7,
+                    "stage": "delivery-unknown",
+                }]):
+            raise RuntimeError("lost agent acknowledgement was misaccounted")
+        replay_receiver = _agent(
+            "serve-release", "--key-file", agent_dir / "agent.seed",
+            "--socket", channel, "--output", agent_dir / "replay-source.bin",
+            "--task-id", signed.task_id,
+            "--task-commitment", common["task_commitment"],
+            "--operation-id", read_operation,
+            "--resource-handle", record,
+            "--channel-name", "airtable-agent-local", wait=False,
+        )
+        try:
+            _wait_for(channel, replay_receiver)
+            replay = _gateway(
+                binary, "task-read-submit", "--state-dir", state,
+                "--task-id", signed.task_id,
+                "--agent-proof", read_output / "read.proof",
+                "--agent-action", read_output / "read.action",
+            )
+        finally:
+            if replay_receiver.poll() is None:
+                replay_receiver.terminate()
+            replay_receiver.communicate(timeout=5)
+            if channel.is_socket():
+                channel.unlink()
+        after_replay = _gateway(binary, "task-status", "--state-dir", state,
+                                "--task-id", signed.task_id)
+        if (replay != {"outcome": "not-entered",
+                       "code": "gateway.release.task-admission"}
+                or after_replay != status
+                or (agent_dir / "replay-source.bin").exists()):
+            raise RuntimeError("lost-ACK read was delivered a second time")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-lost-ack/1",
+            "task_id": signed.task_id, "record_id": record,
+            "read_operation_id": read_operation,
+            "read_outcome": release["outcome"],
+            "agent_saved_exact_bytes": True,
+            "replay_outcome": replay["outcome"],
+            "replay_code": replay["code"],
+            "gateway_status": status,
+            "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-lost-ack-observed",
+            "task_id": signed.task_id, "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     _gateway(binary, "task-release-compare", "--state-dir", state,
              "--task-id", signed.task_id, "--operation-id", read_operation,
              "--resource-handle", record, "--source-file", source,
@@ -491,11 +564,14 @@ def main() -> None:
     parser.add_argument("--env-file", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--gateway-bin", type=Path)
+    parser.add_argument("--drop-ack", action="store_true",
+                        help="receive bytes but deliberately lose agent ACK")
     args = parser.parse_args()
     if args.command == "run":
         if args.gateway_bin is None:
             parser.error("run needs the reviewed gateway binary")
-        run(args.env_file, args.root, args.gateway_bin)
+        run(args.env_file, args.root, args.gateway_bin,
+            drop_ack=args.drop_ack)
     else:
         cleanup(args.env_file, args.root)
 

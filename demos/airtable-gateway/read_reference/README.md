@@ -63,3 +63,9 @@ If a run fails after fixture creation, preserve its private root and execute
 same root. The [25 October live run](../../../docs/program-log/2026-10-25-ap071-airtable-live.md)
 records the excluded-resource denial, one acknowledged seven-byte release,
 one observed write, a later replay denial and verified record retirement.
+
+For an installed lost-acknowledgement case, add `--drop-ack` to the `run`
+command. Its separate agent process receives and saves the exact field bytes,
+then deliberately closes the channel without signing the ACK. The operator
+verifies a charged `delivery-unknown` receipt and an authenticated
+same-operation replay denial before cleaning up the run-owned record.
