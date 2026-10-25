@@ -372,6 +372,9 @@ class Handler(BaseHTTPRequestHandler):
                 result = self.workbench.oauth.complete(
                     state=state[0], code=code[0], browser_cookie=session.cookie,
                 )
+                if (isinstance(self.workbench.company, JulesWriteContext)
+                        and result.kind == "connect"):
+                    raise OAuthRejected("Jules task uses the existing checked Drive grant")
                 if result.kind == "login":
                     if (isinstance(self.workbench.company, JulesWriteContext)
                             and result.subject != self.workbench.company.jules_subject):

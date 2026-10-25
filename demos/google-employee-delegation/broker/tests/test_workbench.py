@@ -194,6 +194,18 @@ class WorkbenchTests(unittest.TestCase):
         )
         self.assertEqual(status, 403)
         self.assertEqual(denied["error"], "Google login is not pinned Jules")
+        self.server.workbench = replace(
+            self.server.workbench,
+            oauth=SimpleNamespace(complete=lambda **kwargs: OAuthResult(
+                "connect", "https://accounts.google.com", "jules-subject",
+                None, frozenset(), "access-token", None, 3600,
+            )),
+        )
+        status, denied, _ = self.request(
+            "GET", "/?state=state-b&code=code-b", cookie=session_cookie,
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("existing checked Drive grant", denied["error"])
 
 
 if __name__ == "__main__":
