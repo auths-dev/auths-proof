@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import concurrent.futures
 import hashlib
 import json
 import os
@@ -19,6 +20,7 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -174,10 +176,11 @@ def _wait_for(path: Path, process: subprocess.Popen) -> None:
 def run(env_file: Path, root: Path, binary: Path,
         *, drop_ack: bool = False, fail_before_content: bool = False,
         revoke_before_actions: bool = False,
-        upfront_second_write: bool = False) -> None:
+        upfront_second_write: bool = False,
+        concurrent_upfront_writes: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, revoke_before_actions,
-            upfront_second_write)) > 1:
+            upfront_second_write, concurrent_upfront_writes)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -300,7 +303,7 @@ def run(env_file: Path, root: Path, binary: Path,
             "permitted_read_scopes": [read_scope],
             "delivery_channel": "airtable-agent-local",
             "operator_policy_digest": "d" * 64,
-            "allow_bounded_writes": upfront_second_write,
+            "allow_bounded_writes": upfront_second_write or concurrent_upfront_writes,
         },
     })
     _gateway(binary, "task-configure", "--state-dir", state,
@@ -319,7 +322,8 @@ def run(env_file: Path, root: Path, binary: Path,
         read_profile_lock_path=HERE / "profile.lock.json",
         upfront_allowed_arguments=([{"record_id": record, "replacement": value}
                                     for value in ("Approved", "Pending")]
-                                   if upfront_second_write else None),
+                                   if upfront_second_write or concurrent_upfront_writes
+                                   else None),
         private_output_dir=operator,
     )
     prepared = browser.prepare(
@@ -640,10 +644,11 @@ def run(env_file: Path, root: Path, binary: Path,
              "--task-id", signed.task_id, "--operation-id", read_operation,
              "--resource-handle", record, "--source-file", source,
              secret=hashlib.sha256(source.read_bytes()).hexdigest().encode("ascii"))
-    if upfront_second_write:
+    if upfront_second_write or concurrent_upfront_writes:
         outcomes = []
         first_status = None
         first_readback = None
+        signed_writes = []
         for number, replacement in enumerate(("Approved", "Pending"), start=1):
             operation = f"airtable-upfront-write-{number}"
             arguments = agent_dir / f"upfront-write-{number}-arguments.json"
@@ -657,6 +662,9 @@ def run(env_file: Path, root: Path, binary: Path,
             _agent("sign-write", "--key-file", agent_dir / "agent.seed",
                    "--package-file", agent_dir / "write-package.json",
                    "--arguments-file", arguments, "--out-dir", output)
+            signed_writes.append(output)
+            if concurrent_upfront_writes:
+                continue
             outcome = _gateway(
                 binary, "task-submit", "--state-dir", state,
                 "--task-id", signed.task_id,
@@ -668,9 +676,55 @@ def run(env_file: Path, root: Path, binary: Path,
                 first_status = _gateway(binary, "task-status", "--state-dir", state,
                                         "--task-id", signed.task_id)
                 first_readback = airtable.request("GET", row_path)
+        if concurrent_upfront_writes:
+            barrier = threading.Barrier(3)
+
+            def submit(output: Path) -> dict:
+                barrier.wait(timeout=10)
+                return _gateway(
+                    binary, "task-submit", "--state-dir", state,
+                    "--task-id", signed.task_id,
+                    "--agent-proof", output / "agent.proof",
+                    "--agent-action", output / "agent.action",
+                )
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(submit, output) for output in signed_writes]
+                barrier.wait(timeout=10)
+                outcomes = [future.result(timeout=90) for future in futures]
         final_status = _gateway(binary, "task-status", "--state-dir", state,
                                 "--task-id", signed.task_id)
         final_readback = airtable.request("GET", row_path)
+        if concurrent_upfront_writes:
+            entered = [outcome for outcome in outcomes
+                       if outcome.get("outcome") in {"observed-by-provider", "observed"}]
+            refused = [outcome for outcome in outcomes
+                       if outcome.get("outcome") == "not-entered"]
+            expected_value = ("Approved" if outcomes[0] in entered else "Pending")
+            if (len(entered) != 1 or len(refused) != 1
+                    or refused[0].get("code") != "gateway.task.write-budget"
+                    or final_status.get("writes") != 1
+                    or len(final_status.get("write_operations", [])) != 1
+                    or final_readback.get("fields", {}).get("DemoStatus")
+                    != expected_value):
+                raise RuntimeError("concurrent Airtable writes exceeded one-effect budget")
+            _write_json(operator / "redacted-result.json", {
+                "schema": "auths.ap071-airtable-concurrent-writes/1",
+                "task_id": signed.task_id, "record_id": record,
+                "write_outcomes": [item["outcome"] for item in outcomes],
+                "refusal_code": refused[0]["code"],
+                "gateway_status": final_status,
+                "independent_readback": "matches-sole-admitted-choice",
+                "cleanup": "pending",
+            })
+            print(json.dumps({
+                "status": "installed-airtable-concurrent-write-budget-enforced",
+                "task_id": signed.task_id, "record_id": record,
+                "result": str(operator / "redacted-result.json"),
+                "cleanup": "pending",
+            }, sort_keys=True))
+            airtable.close()
+            return
         if (outcomes[0].get("outcome") not in {"observed-by-provider", "observed"}
                 or outcomes[1].get("outcome") != "not-entered"
                 or first_status != final_status
@@ -839,6 +893,8 @@ def main() -> None:
                         help="revoke after both actions are signed but before provider entry")
     parser.add_argument("--upfront-second-write", action="store_true",
                         help="allow two bounded choices but only one write effect")
+    parser.add_argument("--concurrent-upfront-writes", action="store_true",
+                        help="race two signed bounded choices for one write effect")
     args = parser.parse_args()
     if args.command == "run":
         if args.gateway_bin is None:
@@ -847,7 +903,8 @@ def main() -> None:
             drop_ack=args.drop_ack,
             fail_before_content=args.fail_before_content,
             revoke_before_actions=args.revoke_before_actions,
-            upfront_second_write=args.upfront_second_write)
+            upfront_second_write=args.upfront_second_write,
+            concurrent_upfront_writes=args.concurrent_upfront_writes)
     else:
         cleanup(args.env_file, args.root)
 

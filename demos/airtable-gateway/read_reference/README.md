@@ -78,3 +78,10 @@ the first content-byte write. The operator verifies a charged `not-delivered`
 receipt, no agent content file, and same-operation replay refusal before
 retiring the disposable record. This fault flag is absent from the ordinary
 gateway build.
+
+For the concurrent final-write budget case, add `--concurrent-upfront-writes`
+to `run`. One synthetic human task lists two complete permitted choices but
+allows only one write. Two separately signed agent operations enter the
+installed gateway together. The tool requires exactly one observed PATCH,
+one pre-entry budget refusal, one durable write operation, and an independent
+Airtable readback matching the admitted choice. Run `cleanup` afterward.

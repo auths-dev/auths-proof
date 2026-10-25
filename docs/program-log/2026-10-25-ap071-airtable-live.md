@@ -148,3 +148,19 @@ owned record `recaBVHZk0sWxajOu` was retired, and the private result and
 ownership journal record verified cleanup. This demonstrates a second
 *permitted-choice* operation refused by the shared write budget; it is not
 a Jules-bound Airtable account or a Google upfront-policy refusal.
+
+A tenth disposable run
+(`/private/tmp/ap071-airtable-concurrent-20261025-2226`) gave the synthetic
+human's bounded-upfront task the same two complete `Approved` and `Pending`
+choices, with one write effect allowed. The separate agent signed distinct
+operations for both. Two installed gateway submissions were released from a
+three-party barrier concurrently. The `Approved` operation returned
+`observed-by-provider`; the `Pending` operation returned `not-entered` with
+`gateway.task.write-budget`. Durable status recorded exactly one write
+operation, one read provider call, one acknowledged release and seven released
+bytes. An independent Airtable GET matched the sole admitted `Approved`
+choice. The run-owned record `recDKvrdor9FU0oFl` was retired; its ownership
+journal has `retired=true`, and the redacted result records verified cleanup.
+This tests competing installed final-write claims against one shared task
+budget. It does not establish production multi-host serialization or a
+human-subject Airtable connection.
