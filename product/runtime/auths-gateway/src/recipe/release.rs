@@ -363,7 +363,7 @@ impl CompiledReleaseRecipe {
         })
     }
 
-    #[cfg(all(test, feature = "loopback-provider"))]
+    #[cfg(test)]
     pub(crate) fn test_closed_request(
         &self,
         arguments: &Map<String, Value>,

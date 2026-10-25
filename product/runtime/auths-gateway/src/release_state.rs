@@ -112,16 +112,17 @@ pub(crate) enum ReleaseStage {
     AgentAcknowledged,
 }
 
-/// Minted only by a future agent-channel verifier after it authenticates the
-/// recipient and checks the acknowledgement against the exact delivered bytes.
-/// No production constructor exists until that verifier is installed.
+/// Minted by the agent acknowledgement verifier after it authenticates the
+/// registered recipient key and exact delivered bytes. The installed channel
+/// must still send those bytes before it requests the signature.
 pub(crate) struct VerifiedAgentAcknowledgement {
-    task_id: String,
-    operation_id: String,
-    recipient: String,
-    released_bytes: u64,
-    commitment_key_version: u32,
-    content_commitment: String,
+    pub(crate) task_id: String,
+    pub(crate) task_commitment: String,
+    pub(crate) operation_id: String,
+    pub(crate) recipient: String,
+    pub(crate) released_bytes: u64,
+    pub(crate) commitment_key_version: u32,
+    pub(crate) content_commitment: String,
 }
 
 /// Minted only by a future channel executor with durable evidence that the
@@ -626,7 +627,9 @@ impl ReleaseTaskState {
         &mut self,
         evidence: &VerifiedAgentAcknowledgement,
     ) -> Result<(), ReleaseStateError> {
-        if evidence.task_id != self.task_id {
+        if evidence.task_id != self.task_id
+            || !same_commitment(&self.task_commitment, &evidence.task_commitment)
+        {
             return Err(ReleaseStateError::Binding);
         }
         let operation = self
@@ -1205,6 +1208,7 @@ mod tests {
         let (version, commitment) = state.commitment(operation_id).expect("commitment");
         VerifiedAgentAcknowledgement {
             task_id: "task-1".to_owned(),
+            task_commitment: "11".repeat(32),
             operation_id: operation_id.to_owned(),
             recipient: "agent-principal".to_owned(),
             released_bytes: 8,
@@ -1256,6 +1260,12 @@ mod tests {
             .expect("charge");
         let mut wrong = acknowledgement(&entered, "read-1");
         wrong.recipient = "other-agent".to_owned();
+        assert_eq!(
+            ledger.acknowledge(&wrong).err(),
+            Some(ReleaseStateError::Binding)
+        );
+        let mut wrong = acknowledgement(&entered, "read-1");
+        wrong.task_commitment = "22".repeat(32);
         assert_eq!(
             ledger.acknowledge(&wrong).err(),
             Some(ReleaseStateError::Binding)

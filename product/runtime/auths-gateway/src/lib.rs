@@ -40,6 +40,10 @@ mod qualification;
 mod readiness;
 pub mod recipe;
 mod release_commitment;
+// Only the installed agent channel may present this signature after sending
+// the exact release bytes; its verifier is not yet connected to that channel.
+#[allow(dead_code)]
+mod release_ack;
 // Native proof admission is not yet connected to the installed read-release
 // session that joins task activation, credential custody and delivery.
 #[allow(dead_code)]

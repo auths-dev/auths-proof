@@ -3539,6 +3539,30 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-identity-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-lifecycle",
       "target_layer": "product",
       "scope": "internal",
@@ -3697,6 +3721,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-signature-ed25519",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-stores",
       "target_layer": "product",
       "scope": "internal",
@@ -3777,6 +3813,18 @@
       "source": "auths-gateway",
       "source_layer": "product",
       "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "hmac",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",

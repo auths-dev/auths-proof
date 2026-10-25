@@ -252,6 +252,8 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-did-keri" [label="normal"];
   "auths-gateway" -> "auths-did-key" [label="normal"];
   "auths-gateway" -> "auths-gateway-kernel" [label="normal"];
+  "auths-gateway" -> "auths-identity" [label="normal"];
+  "auths-gateway" -> "auths-identity-raw-key" [label="normal"];
   "auths-gateway" -> "auths-lifecycle" [label="normal"];
   "auths-gateway" -> "auths-model" [label="normal"];
   "auths-gateway" -> "auths-multikey" [label="normal"];
@@ -265,6 +267,7 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-registries" [label="normal"];
   "auths-gateway" -> "auths-sdk" [label="dev"];
   "auths-gateway" -> "auths-signature" [label="normal"];
+  "auths-gateway" -> "auths-signature-ed25519" [label="normal"];
   "auths-gateway" -> "auths-stores" [label="normal"];
   "auths-gateway" -> "auths-verifier" [label="normal"];
   "auths-gateway-fuzz" -> "auths-codec" [label="normal"];
