@@ -41,3 +41,11 @@ independent generation-0017 observation also found zero original markers.
 There was no provider write in this task. The existing positive exact-edit
 run remains the AP-071 write evidence; neither Doc was reset or rewritten to
 force a repeated success.
+
+The operator then revoked this task. A fresh gateway status has `revoked=true`,
+the same one acknowledged 51-byte read, one provider call, zero writes and no
+write operation IDs. Its private status file is
+`/private/tmp/ap071-materializer-live-v2-20261025/task-status-after-revoke.json`,
+SHA-256 `22e789548146b95eb78f85b5c87af1c42691d14892b62773a6e4adcd7842dba9`.
+Revocation stops future task activity; it does not retract the 51 bytes the
+agent already received.
