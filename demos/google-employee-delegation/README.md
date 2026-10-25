@@ -366,5 +366,28 @@ keyed commitment to the exact acknowledged release. The comparison emits no
 content or plain hash. An acknowledged byte count alone does not establish
 this match. No live Google write or independent post-write inspection has
 qualified this development path yet.
+For a paired create, the operator obtains demo_co's fresh, private
+`google write-inspect` observation after Jules's effect plan is recorded, then
+uses `auths-google-planned-create` with its exact file SHA-256. The command
+checks the producer generation, Project A and Jules pins, and observation age;
+it durably records the baseline in the task's private directory before asking
+the gateway to enter one planned create. A second invocation refuses, including
+after an uncertain gateway result. Inspect the gateway attempt and retain this
+same baseline for child reconciliation and demo_co's `create-inspect`; take no
+automatic second create. The command does not populate the child. The separate
+Jules child preflight and agent-signed population still follow the gateway's
+recorded plan and response-derived child binding.
+
+```sh
+auths-google-planned-create \
+  --gateway-bin "$GATEWAY_BIN" --gateway-sha256 "$GATEWAY_SHA256" \
+  --gateway-state-dir "$GATEWAY_STATE_DIR" \
+  --task-dir "$PRIVATE_TASK_DIR" --task-id "$TASK_ID" \
+  --write-evidence "$PINNED_WRITE_EVIDENCE" \
+  --credential-pins "$PRIVATE_CREDENTIAL_PINS" \
+  --baseline "$PRIVATE_WRITE_OBSERVATION" \
+  --baseline-sha256 "$WRITE_OBSERVATION_SHA256"
+```
+
 See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
 for the remaining live acceptance path.
