@@ -40,12 +40,12 @@ mod qualification;
 mod readiness;
 pub mod recipe;
 mod release_commitment;
-// Native proof admission is not yet connected to a signed task activator or
-// the credential-owning release transport.
+// Native proof admission is not yet connected to the installed read-release
+// session that joins task activation, credential custody and delivery.
 #[allow(dead_code)]
 mod release_verify;
-// The closed task state is not yet wired to native admission or delivery.
-// Keep its durable transition tests active while those runtime gates are built.
+// The task state is used by installed writes; its release transitions await
+// the installed read session and agent delivery channel.
 #[allow(dead_code)]
 mod release_state;
 mod semantic_closure;

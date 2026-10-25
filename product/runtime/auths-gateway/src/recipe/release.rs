@@ -217,6 +217,36 @@ impl CompiledReleaseRecipe {
         hex::encode(self.digest)
     }
 
+    /// The exact operator namespace sealed into a read connection.
+    #[must_use]
+    pub const fn namespace(&self) -> &OperatorNamespace {
+        &self.namespace
+    }
+
+    /// Digest bytes sealed into a read connection.
+    #[must_use]
+    pub const fn digest(&self) -> &[u8; 32] {
+        &self.digest
+    }
+
+    /// The credential header shape; never the credential value.
+    #[must_use]
+    pub const fn credential_requirement(&self) -> &CredentialRequirement {
+        &self.source.credential
+    }
+
+    /// Approved HTTPS origin for the bounded GET transport.
+    #[must_use]
+    pub fn origin(&self) -> &str {
+        &self.source.origin
+    }
+
+    /// Provider response ceiling checked before projecting any content.
+    #[must_use]
+    pub fn maximum_provider_bytes(&self) -> usize {
+        usize::try_from(self.source.response.maximum_provider_bytes).unwrap_or(1_048_576)
+    }
+
     /// Show the complete, credential-free request and response policy an
     /// operator would pin. Compilation alone does not install this policy.
     #[must_use]
@@ -331,6 +361,14 @@ impl CompiledReleaseRecipe {
             action_commitment,
             url,
         })
+    }
+
+    #[cfg(all(test, feature = "loopback-provider"))]
+    pub(crate) fn test_closed_request(
+        &self,
+        arguments: &Map<String, Value>,
+    ) -> Result<ClosedReleaseRequest, GatewayRecipeError> {
+        self.closed_request_from_arguments(arguments, [7; 32])
     }
 
     /// Project exactly the operator-approved bytes from a complete response.

@@ -4,8 +4,8 @@
 #![allow(clippy::manual_let_else)]
 
 use crate::{
-    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
-    RequestHeader,
+    ClosedCredentialRead, ClosedProviderRequest, ClosedReleaseRequest, CompiledRecipe,
+    CompiledReleaseRecipe, CredentialRequirement, RequestHeader,
 };
 use auths_connections::StoredSecretLease;
 use reqwest::{
@@ -65,6 +65,16 @@ pub(crate) struct ProviderResponse {
     /// echo came back with its declared value.
     pub(crate) version_ok: bool,
     /// The response body.
+    pub(crate) body: Vec<u8>,
+}
+
+/// Complete provider response for a release recipe. No content is released
+/// until the recipe checks status, media type, size and projection.
+#[derive(Clone, Eq, PartialEq)]
+#[allow(dead_code)] // Read transport is not yet wired to the task session.
+pub(crate) struct ReleaseProviderResponse {
+    pub(crate) status: u16,
+    pub(crate) content_type: Option<String>,
     pub(crate) body: Vec<u8>,
 }
 
@@ -179,6 +189,10 @@ pub(crate) struct GatewayHttpTransport {
     requirement: CredentialRequirement,
     /// Version headers every response must echo with these values.
     required_versions: Vec<(String, String)>,
+    #[allow(dead_code)] // Used by the pending installed read-release session.
+    release_digest: Option<[u8; 32]>,
+    #[allow(dead_code)]
+    release_maximum_bytes: Option<usize>,
     witness: Option<std::sync::Arc<crate::execution_witness::ExecutionWitness>>,
 }
 
@@ -230,6 +244,54 @@ impl GatewayHttpTransport {
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
             required_versions: recipe.required_response_versions(),
+            release_digest: None,
+            release_maximum_bytes: None,
+            witness: None,
+        })
+    }
+
+    /// Prepare a DNS-pinned, no-proxy, no-redirect GET transport for one
+    /// reviewed release recipe. The caller must bind the loaded connection
+    /// descriptor before this call and reserve a provider call before `release_read`.
+    #[allow(dead_code)] // Called by the pending installed read-release session.
+    pub(crate) fn prepare_release(
+        recipe: &CompiledReleaseRecipe,
+        connection_requirement: &CredentialRequirement,
+    ) -> Result<Self, GatewayTransportError> {
+        if recipe.credential_requirement() != connection_requirement {
+            return Err(GatewayTransportError::NotEntered);
+        }
+        let origin = recipe.origin();
+        let parsed = Url::parse(origin).map_err(|_| GatewayTransportError::NotEntered)?;
+        if parsed.scheme() != "https" || parsed.port_or_known_default() != Some(443) {
+            return Err(GatewayTransportError::NotEntered);
+        }
+        let hostname = parsed.host_str().ok_or(GatewayTransportError::NotEntered)?;
+        let addresses: Vec<SocketAddr> = (hostname, 443)
+            .to_socket_addrs()
+            .map_err(|_| GatewayTransportError::NotEntered)?
+            .collect();
+        if addresses.is_empty()
+            || addresses.iter().any(|address| match address.ip() {
+                IpAddr::V4(ip) => !public_ipv4(ip),
+                IpAddr::V6(_) => false,
+            })
+        {
+            return Err(GatewayTransportError::NotEntered);
+        }
+        let pinned = addresses
+            .iter()
+            .find(|address| matches!(address.ip(), IpAddr::V4(_)))
+            .copied()
+            .ok_or(GatewayTransportError::NotEntered)?;
+        Ok(Self {
+            client: pinned_client(hostname, pinned)?,
+            origin: origin.to_owned(),
+            target_origin: origin.to_owned(),
+            requirement: connection_requirement.clone(),
+            required_versions: Vec::new(),
+            release_digest: Some(*recipe.digest()),
+            release_maximum_bytes: Some(recipe.maximum_provider_bytes()),
             witness: None,
         })
     }
@@ -262,6 +324,40 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
             required_versions: recipe.required_response_versions(),
+            release_digest: None,
+            release_maximum_bytes: None,
+            witness: None,
+        })
+    }
+
+    /// Development-only version of the release transport for a loopback
+    /// provider double. The approved URL remains the signed HTTPS URL.
+    #[cfg(feature = "loopback-provider")]
+    #[allow(dead_code)]
+    pub(crate) fn prepare_release_loopback(
+        recipe: &CompiledReleaseRecipe,
+        connection_requirement: &CredentialRequirement,
+        port: u16,
+    ) -> Result<Self, GatewayTransportError> {
+        if recipe.credential_requirement() != connection_requirement || port == 0 {
+            return Err(GatewayTransportError::NotEntered);
+        }
+        let client = Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(MAX_TRANSPORT_DURATION)
+            .pool_max_idle_per_host(0)
+            .build()
+            .map_err(|_| GatewayTransportError::NotEntered)?;
+        Ok(Self {
+            client,
+            origin: recipe.origin().to_owned(),
+            target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
+            requirement: connection_requirement.clone(),
+            required_versions: Vec::new(),
+            release_digest: Some(*recipe.digest()),
+            release_maximum_bytes: Some(recipe.maximum_provider_bytes()),
             witness: None,
         })
     }
@@ -386,6 +482,50 @@ impl GatewayHttpTransport {
         })
     }
 
+    /// Send exactly one signed, compiled GET under the leased connection.
+    /// A malformed or mismatched request is refused before exposing the
+    /// credential. No redirect is followed and no response is released here.
+    #[allow(dead_code)]
+    pub(crate) async fn release_read(
+        &self,
+        request: &ClosedReleaseRequest,
+        lease: &StoredSecretLease,
+    ) -> Option<ReleaseProviderResponse> {
+        if self.release_digest != Some(*request.recipe_digest())
+            || !self.owns_release_url(request.url())
+        {
+            return None;
+        }
+        let maximum = self.release_maximum_bytes?;
+        let secret = lease.expose(Instant::now()).ok()?;
+        let credential = credential_headers(&self.requirement, secret).ok()?;
+        let outbound = self
+            .client
+            .request(reqwest::Method::GET, self.target(request.url()))
+            .headers(credential)
+            .header(ACCEPT, "application/json")
+            .build()
+            .ok()?;
+        if let Some(witness) = &self.witness {
+            witness.read();
+        }
+        let mut response = self.client.execute(outbound).await.ok()?;
+        let status = response.status().as_u16();
+        let mut types = response.headers().get_all(CONTENT_TYPE).iter();
+        let content_type = match (types.next(), types.next()) {
+            (Some(value), None) if value.as_bytes().len() <= 128 => {
+                Some(value.to_str().ok()?.to_owned())
+            }
+            _ => None,
+        };
+        let body = read_bounded(&mut response, maximum).await?;
+        Some(ReleaseProviderResponse {
+            status,
+            content_type,
+            body,
+        })
+    }
+
     /// Whether every required version header came back with its value.
     fn versions_echoed(&self, headers: &HeaderMap) -> bool {
         self.required_versions.iter().all(|(name, value)| {
@@ -413,6 +553,8 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: review.credential().clone(),
             required_versions: recipe.required_response_versions(),
+            release_digest: None,
+            release_maximum_bytes: None,
             witness: None,
         }
     }
@@ -423,11 +565,20 @@ impl GatewayHttpTransport {
     }
 
     fn owns_url(&self, candidate: &str) -> bool {
+        self.owns_url_with_query(candidate, false)
+    }
+
+    #[allow(dead_code)]
+    fn owns_release_url(&self, candidate: &str) -> bool {
+        self.owns_url_with_query(candidate, true)
+    }
+
+    fn owns_url_with_query(&self, candidate: &str, allow_query: bool) -> bool {
         candidate.starts_with(&self.origin)
             && candidate.as_bytes().get(self.origin.len()) == Some(&b'/')
             && Url::parse(candidate).is_ok_and(|url| {
                 url.origin().ascii_serialization() == self.origin
-                    && url.query().is_none()
+                    && (allow_query || url.query().is_none())
                     && url.fragment().is_none()
                     && url.username().is_empty()
                     && url.password().is_none()
@@ -642,19 +793,7 @@ mod tests {
                 .expect("bind");
             let port = listener.local_addr().expect("address").port();
             let provider = tokio::spawn(async move { capture_heads(&listener, 2).await });
-            let transport = GatewayHttpTransport {
-                client: Client::builder()
-                    .no_proxy()
-                    .redirect(reqwest::redirect::Policy::none())
-                    .pool_max_idle_per_host(0)
-                    .build()
-                    .expect("client"),
-                origin: recipe.review().origin().to_owned(),
-                target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
-                requirement: recipe.review().credential().clone(),
-                required_versions: Vec::new(),
-                witness: None,
-            };
+            let transport = GatewayHttpTransport::for_loopback_test(&recipe, port);
             let witness = std::sync::Arc::new(
                 crate::execution_witness::ExecutionWitness::new().expect("scope"),
             );
@@ -824,5 +963,88 @@ mod tests {
             assert!(!public_ipv4(Ipv4Addr::from(address)));
         }
         assert!(public_ipv4(Ipv4Addr::new(8, 8, 8, 8)));
+    }
+
+    #[cfg(feature = "loopback-provider")]
+    #[tokio::test]
+    async fn release_transport_sends_only_the_closed_get_with_fixed_query() {
+        let recipe = CompiledReleaseRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/read_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+            ),
+        )
+        .expect("release recipe");
+        let arguments = json!({
+            "operator_namespace": "google-read-demo",
+            "operation_id": "read-1",
+            "recipe_digest": recipe.digest_hex(),
+            "task_id": "task-1",
+            "task_commitment": "01".repeat(32),
+            "agent_principal": "agent-principal",
+            "resource_id": "resource-1"
+        });
+        let request = recipe
+            .test_closed_request(arguments.as_object().expect("arguments"))
+            .expect("closed request");
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("listener");
+        let port = listener.local_addr().expect("address").port();
+        let provider = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("provider call");
+            let mut bytes = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 1024];
+                let count = stream.read(&mut chunk).await.expect("request read");
+                assert!(count > 0);
+                bytes.extend_from_slice(&chunk[..count]);
+                if bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let head = String::from_utf8(bytes).expect("request head");
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: text/plain; charset=UTF-8\r\ncontent-length: 16\r\nconnection: close\r\n\r\nProject A update",
+                )
+                .await
+                .expect("response");
+            head
+        });
+        let transport = GatewayHttpTransport::prepare_release_loopback(
+            &recipe,
+            recipe.credential_requirement(),
+            port,
+        )
+        .expect("transport");
+        let lease = test_lease().await;
+        let response = transport
+            .release_read(&request, &lease)
+            .await
+            .expect("complete provider response");
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.content_type.as_deref(),
+            Some("text/plain; charset=UTF-8")
+        );
+        assert_eq!(
+            recipe.project(
+                response.status,
+                response.content_type.as_deref().expect("media type"),
+                &response.body,
+            ),
+            Ok(b"Project A update".to_vec())
+        );
+        let head = provider.await.expect("provider");
+        assert!(
+            head.starts_with(
+                "GET /drive/v3/files/resource-1/export?mimeType=text%2Fplain HTTP/1.1"
+            )
+        );
+        assert!(head.to_ascii_lowercase().contains("authorization: bearer "));
+        assert!(!head.contains("Project A update"));
     }
 }

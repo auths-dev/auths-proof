@@ -1,6 +1,6 @@
 //! Typed, immutable connection descriptor for an operator-approved recipe.
 
-use crate::{CompiledRecipe, CredentialRequirement, OperatorNamespace};
+use crate::{CompiledRecipe, CompiledReleaseRecipe, CredentialRequirement, OperatorNamespace};
 use auths_connections::{ConnectionBinding, ConnectionRecord};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -59,11 +59,39 @@ impl GatewayConnectionDescriptor {
         Ok(expected)
     }
 
+    /// Seal the same connection contract around a reviewed read-release
+    /// recipe. The credential header is operator selected and exact.
+    ///
+    /// # Errors
+    /// Refuses a mismatch before any credential installation.
+    pub fn approve_release(
+        recipe: &CompiledReleaseRecipe,
+        injection_header: &str,
+    ) -> Result<Self, GatewayConnectionError> {
+        let expected = Self::expected_release(recipe);
+        let name = match &expected.credential {
+            CredentialRequirement::Bearer => "Authorization",
+            CredentialRequirement::HeaderApiKey { header } => header.as_str(),
+        };
+        if injection_header != name {
+            return Err(GatewayConnectionError::Mismatch);
+        }
+        Ok(expected)
+    }
+
     fn expected(recipe: &CompiledRecipe) -> Self {
         Self {
             namespace: recipe.namespace().clone(),
             recipe_digest: *recipe.digest(),
             credential: recipe.review().credential().clone(),
+        }
+    }
+
+    fn expected_release(recipe: &CompiledReleaseRecipe) -> Self {
+        Self {
+            namespace: recipe.namespace().clone(),
+            recipe_digest: *recipe.digest(),
+            credential: recipe.credential_requirement().clone(),
         }
     }
 
@@ -99,7 +127,7 @@ impl GatewayConnectionDescriptor {
             binding.descriptor_schema().as_str(),
             binding.contract().as_str(),
             binding.descriptor(),
-            recipe,
+            Self::expected(recipe),
         )
     }
 
@@ -116,7 +144,24 @@ impl GatewayConnectionDescriptor {
             record.descriptor_schema().as_str(),
             record.contract().as_str(),
             record.descriptor(),
-            recipe,
+            Self::expected(recipe),
+        )
+    }
+
+    /// Parse an installed connection and bind it to the exact reviewed
+    /// read-release recipe before credential access.
+    ///
+    /// # Errors
+    /// Refuses changed schema, digest, namespace or credential header.
+    pub fn from_release_record(
+        record: &ConnectionRecord,
+        recipe: &CompiledReleaseRecipe,
+    ) -> Result<Self, GatewayConnectionError> {
+        Self::from_parts(
+            record.descriptor_schema().as_str(),
+            record.contract().as_str(),
+            record.descriptor(),
+            Self::expected_release(recipe),
         )
     }
 
@@ -124,7 +169,7 @@ impl GatewayConnectionDescriptor {
         schema: &str,
         contract: &str,
         bytes: &[u8],
-        recipe: &CompiledRecipe,
+        expected: Self,
     ) -> Result<Self, GatewayConnectionError> {
         if schema != SCHEMA || contract != CONTRACT {
             return Err(GatewayConnectionError::Mismatch);
@@ -139,7 +184,6 @@ impl GatewayConnectionDescriptor {
         if canonical != bytes || wire.schema != SCHEMA {
             return Err(GatewayConnectionError::InvalidDescriptor);
         }
-        let expected = Self::expected(recipe);
         if wire.operator_namespace != expected.namespace.as_str()
             || wire.recipe_digest != hex::encode(expected.recipe_digest)
             || wire.credential != expected.credential
@@ -159,6 +203,10 @@ impl GatewayConnectionDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use auths_connections::{
+        ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionState, ProviderKind, SemanticId,
+    };
+    use std::num::NonZeroU64;
 
     #[test]
     fn descriptor_is_canonical_and_bound_to_compiled_recipe() {
@@ -206,5 +254,62 @@ mod tests {
         ));
         GatewayConnectionDescriptor::approve(&recipe, "X-Api-Key")
             .expect("operator selected the declared header");
+    }
+
+    #[test]
+    fn read_release_recipe_uses_the_same_connection_descriptor_contract() {
+        let recipe = CompiledReleaseRecipe::compile(
+            include_bytes!("../../../../demos/airtable-gateway/read_reference/recipe.json"),
+            include_bytes!("../../../../demos/airtable-gateway/read_reference/profile.lock.json"),
+        )
+        .expect("read recipe");
+        let descriptor = GatewayConnectionDescriptor::approve_release(&recipe, "Authorization")
+            .expect("read descriptor");
+        let encoded = descriptor.to_bytes().expect("canonical descriptor");
+        let document: serde_json::Value = serde_json::from_slice(&encoded).expect("descriptor");
+        assert_eq!(document["recipe_digest"], recipe.digest_hex());
+        assert_eq!(document["operator_namespace"], recipe.namespace().as_str());
+        assert!(matches!(
+            GatewayConnectionDescriptor::approve_release(&recipe, "X-Api-Key"),
+            Err(GatewayConnectionError::Mismatch)
+        ));
+        let record = ConnectionRecord::new(
+            ProviderKind::parse("airtable").expect("provider"),
+            ConnectionAlias::parse("jules-read").expect("alias"),
+            ConnectionId::generate().expect("connection"),
+            SemanticId::parse(CONTRACT).expect("contract"),
+            SemanticId::parse(SCHEMA).expect("schema"),
+            encoded,
+            [1; 32],
+            [2; 32],
+            NonZeroU64::MIN,
+            ConnectionState::Active,
+            vec!["gateway".to_owned()],
+            vec![
+                ConnectionProfile::new(SemanticId::parse("auths.mcp").expect("id"), 2)
+                    .expect("profile"),
+            ],
+            10,
+            10,
+            None,
+        )
+        .expect("read record");
+        assert_eq!(
+            GatewayConnectionDescriptor::from_release_record(&record, &recipe),
+            Ok(descriptor)
+        );
+        let google = CompiledReleaseRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/read_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+            ),
+        )
+        .expect("other read recipe");
+        assert!(matches!(
+            GatewayConnectionDescriptor::from_release_record(&record, &google),
+            Err(GatewayConnectionError::Mismatch)
+        ));
     }
 }
