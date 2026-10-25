@@ -1,6 +1,6 @@
 # AP-SPEC-071: Human-to-agent task delegation across providers
 
-- **Status:** Design draft. The managed read-release capability, Google write path and live write acceptance are not implemented or claimed.
+- **Status:** Implementation in progress. Provider-neutral task admission and a synthetic installed write path exist; managed read release, the live Google edit/create journeys and full cross-provider acceptance are not yet complete.
 - **Date:** 25 October 2026.
 - **Scope:** A human delegates a short task with separately bounded read and write authority to an identified agent. Auths gives the person one understandable approval and activity experience across connected services. Reusable task, approval and receipt mechanics are provider-neutral; operator-reviewed recipes describe provider requests. The installed Atlas/Google scenario is the first live acceptance case.
 - **Depends on:** [AP-SPEC-070](0070-google-employee-agent-delegation-demo.md), [AP-SPEC-051](0051-self-hosted-developer-profiles.md), [AP-SPEC-063](0063-generalized-gateway.md), [ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md), [ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md), and the [domain boundary plan](../target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md).
