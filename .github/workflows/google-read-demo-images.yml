@@ -35,6 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup-rust-cache
         with:
@@ -126,7 +127,7 @@ jobs:
           cp demos/google-employee-delegation/README.md "$kit/"
           cp demos/google-employee-delegation/isolation/*.conf "$kit/isolation/"
           cp demos/google-employee-delegation/evidence/live-acceptance-template.md "$kit/evidence/"
-          printf '%s\n' "$GITHUB_SHA" > "$kit/REVISION"
+          git rev-parse HEAD > "$kit/REVISION"
           (
             cd "$kit"
             sha256sum REVISION README.md compose.yaml compose.live.yaml \
@@ -149,7 +150,7 @@ jobs:
       - name: Upload reviewed operator kit candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: google-read-operator-kit-${{ github.sha }}
+          name: google-read-operator-kit-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             target/google-read-operator-kit.tar.gz
             target/google-read-operator-kit.tar.gz.sha256
@@ -157,8 +158,42 @@ jobs:
       - name: Upload exact branch-built Linux SDK wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: google-read-linux-wheel-${{ github.sha }}
+          name: google-read-linux-wheel-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             target/google-read-artifacts/auths-*.whl
             target/google-read-artifacts/SHA256SUMS
           if-no-files-found: error
+
+  operator-package-check:
+    name: source-free operator kit extraction
+    needs: installed-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: google-read-operator-kit-${{ github.event.pull_request.head.sha || github.sha }}
+          path: package
+      - name: Check downloaded kit provenance and contents without checkout
+        env:
+          EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          cd package
+          sha256sum -c google-read-operator-kit.tar.gz.sha256
+          tar xzf google-read-operator-kit.tar.gz
+          cd google-read-operator-kit
+          sha256sum -c SHA256SUMS
+          test "$(cat REVISION)" = "$EXPECTED_REVISION"
+          test -f compose.yaml && test -f compose.live.yaml
+          test -f evidence/live-acceptance-template.md
+          test ! -e broker && test ! -e agent && test ! -e artifacts
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          lock = json.loads(Path('versions.lock.json').read_text())
+          assert lock['schema_version'] == 'auths.google-read-demo-lock/v1'
+          assert lock['installed_sdk_artifact'] is None
+          assert lock['broker_image_digest'] is None
+          assert lock['agent_image_digest'] is None
+          PY
