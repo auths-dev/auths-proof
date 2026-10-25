@@ -69,3 +69,10 @@ refreshed and matched Google's live UserInfo. No task action, Drive request,
 document release or write was attempted by this command. demo_co separately
 confirmed that the pinned Project A source remained a 51-byte unchanged
 export; this is a source baseline, not evidence of the later agent read.
+
+The earlier failed source-backed task `5Ll2BBfr_ZlCEvfbASOUq3iS` still held
+one unused write slot after its read allowance was spent. The operator
+revoked it; the redacted task status now reports `revoked=true`, the original
+`release-refused` read, one charged call allowance, zero releases, zero bytes
+and zero writes. No Google provider request was made during that read or this
+revocation.
