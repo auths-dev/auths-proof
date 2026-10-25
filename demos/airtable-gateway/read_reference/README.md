@@ -9,6 +9,11 @@ one verified record ID, and projects only the JSON string at
 provider body ceiling is 16 KiB and its released field ceiling is 64 bytes.
 The focused compiler test checks the exact URL and projection from this
 checked-in source.
+The `task_read_cli` integration test also installs this recipe through the
+same development `task-read-connect` command used for Google, verifies that
+its read credential state is separate from the write installation, and
+rejects a second installation. It uses a synthetic credential and sends no
+Airtable request.
 
 This reference reuses the existing Airtable demo's operator PAT and run-owned
 record fixture. The PAT does **not** prove that a particular employee owns

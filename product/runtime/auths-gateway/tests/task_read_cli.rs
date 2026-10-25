@@ -13,9 +13,36 @@ use std::{
 #[test]
 #[allow(
     clippy::too_many_lines,
-    reason = "one CLI install and retry are a single scenario"
+    reason = "each CLI install and retry are a single scenario"
 )]
-fn installed_read_connection_has_independent_private_state_and_refuses_replacement() {
+fn installed_google_and_airtable_read_connections_keep_independent_private_state() {
+    for (recipe, lock, provider, alias) in [
+        (
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/read_reference/recipe.json"
+            )
+            .as_slice(),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+            )
+            .as_slice(),
+            "google",
+            "jules-read",
+        ),
+        (
+            include_bytes!("../../../../demos/airtable-gateway/read_reference/recipe.json")
+                .as_slice(),
+            include_bytes!("../../../../demos/airtable-gateway/read_reference/profile.lock.json")
+                .as_slice(),
+            "airtable",
+            "operator-read",
+        ),
+    ] {
+        check_read_installation(recipe, lock, provider, alias);
+    }
+}
+
+fn check_read_installation(recipe_source: &[u8], lock_source: &[u8], provider: &str, alias: &str) {
     let directory = tempfile::tempdir().expect("test directory");
     let root = fs::canonicalize(directory.path()).expect("canonical directory");
     fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private directory");
@@ -25,8 +52,8 @@ fn installed_read_connection_has_independent_private_state_and_refuses_replaceme
         "profile_lock_sha256": "write-lock-is-not-loaded-by-read-connect",
         "task_companion": null,
         "trusted_context_sha256": "write-trust-is-not-loaded-by-read-connect",
-        "provider": "google",
-        "alias": "jules-write",
+        "provider": provider,
+        "alias": "operator-write",
         "deployment": "development",
         "operator_attestation_sha256": null,
         "attempt_store": root.display().to_string(),
@@ -43,18 +70,8 @@ fn installed_read_connection_has_independent_private_state_and_refuses_replaceme
     write_journal.initialize(&write_id).expect("write journal");
     let recipe = root.join("read-recipe.input.json");
     let lock = root.join("read-lock.input.json");
-    fs::write(
-        &recipe,
-        include_bytes!("../../../../demos/google-employee-delegation/read_reference/recipe.json"),
-    )
-    .expect("recipe");
-    fs::write(
-        &lock,
-        include_bytes!(
-            "../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
-        ),
-    )
-    .expect("lock");
+    fs::write(&recipe, recipe_source).expect("recipe");
+    fs::write(&lock, lock_source).expect("lock");
     let compiled = CompiledReleaseRecipe::compile(
         &fs::read(&recipe).expect("recipe bytes"),
         &fs::read(&lock).expect("lock bytes"),
@@ -73,11 +90,11 @@ fn installed_read_connection_has_independent_private_state_and_refuses_replaceme
             "--approve-digest",
             &compiled.digest_hex(),
             "--provider",
-            "google",
+            provider,
             "--alias",
-            "jules-read",
+            alias,
             "--account-subject",
-            "synthetic-jules-subject",
+            "synthetic-account-subject",
             "--credential-stdin",
         ]);
         process
@@ -118,7 +135,7 @@ fn installed_read_connection_has_independent_private_state_and_refuses_replaceme
     )
     .expect("read installation JSON");
     assert_eq!(manifest["connection_id"], response["connection_id"]);
-    assert_eq!(manifest["connection_subject"], "synthetic-jules-subject");
+    assert_eq!(manifest["connection_subject"], "synthetic-account-subject");
     assert_eq!(
         write_journal.generations(&write_id).expect("write journal"),
         vec![]
