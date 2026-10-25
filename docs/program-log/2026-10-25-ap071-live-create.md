@@ -88,9 +88,13 @@ The producer reported the exact child ID, parent, marker and three-child
 inventory; a structurally blank Google Docs tab; a three-byte BOM-only Drive
 export; unchanged working and canonical documents; and Jules's subject.
 This is historical provider-state evidence, not an Auths write authorization.
-demo_co is implementing a separate v2 baseline and inspector that expect the
-preserved child alongside a future new child. The populate-only continuation
-may now proceed without erasing the original blank-state evidence.
+demo_co later committed a frozen v2 baseline and inspector at
+`66de1e69a727cf45c5ca9e0a7ee84b899b08bdcc`. They expect the preserved
+child alongside a future new child. The v2 baseline must be captured only
+after a new signed task and exact plan are ready, because the new Google
+`createdTime` must be within five minutes of that baseline. The
+populate-only continuation could proceed without erasing the original
+blank-state evidence.
 
 ## Observed population under a fresh task
 
@@ -128,3 +132,17 @@ through separately approved tasks. It does **not** prove the required
 single-plan create/populate run: the first create plan expired before
 population, and a new task supplied the final edit. The preserved historical
 blank observation remains generation 0004 for a future v2 run.
+
+## Fresh single-plan preparation
+
+At 18:50 UTC, Auths issued a new one-hour private operator authority and
+installed a fresh Jules-subject Google write connection, companion populate
+recipe and distinct managed read connection in
+`/private/tmp/ap071-jules-local/paired-v2-20261025`. The installation pins a
+new preflight signer, the original Project A source and folder, one read of
+up to 16 KiB, and two exact-confirmed write effects. The short-lived bearer
+was verified against Jules's held grant and Google UserInfo; no task was
+signed and no Google file was created by this preparation. The Chrome
+Incognito workbench now shows the new task card for Jules's review. A new
+human task signature and later exact two-effect plan are still required
+before asking demo_co for the fresh v2 baseline or entering either write.
