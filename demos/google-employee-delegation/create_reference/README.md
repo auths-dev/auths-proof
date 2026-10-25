@@ -16,8 +16,10 @@ The private operator issuer can now package separate, reviewed create and
 populate parent grants in one trust context. The enrolled human signs each
 child grant for the same registered agent, and the agent can form a native
 populate proof without receiving Jules's key or Google credential. This is an
-offline authority path. The browser task card and write review still need to
-carry and display the paired grant and exact two-effect plan before a live run.
+offline authority path. The owner-side browser flow can now sign and save both
+agent grant packages and a task card with the pending child; its HTTP route and
+screen are still wired only to the single edit reference. The exact two-effect
+plan and provider entry are not implemented by this authority package.
 
 The marker is an opaque run identifier, not a secret or permission. It is
 visible to other applications through Drive's `properties` field and can

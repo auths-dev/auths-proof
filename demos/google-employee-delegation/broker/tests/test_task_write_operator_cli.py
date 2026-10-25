@@ -217,6 +217,45 @@ class TaskOperatorCliTests(unittest.TestCase):
                 }, AgentKey(companion_seed), now=1012,
             )
             self.assertTrue(companion_proof and companion_action)
+            paired_installed = private / "paired-task-installation.json"
+            paired_pins = json.loads(installed.read_text())
+            paired_pins["recipe_digests"] = sorted([create_digest, populate_digest])
+            paired_installed.write_text(json.dumps(
+                paired_pins, sort_keys=True, separators=(",", ":")))
+            os.chmod(paired_installed, 0o600)
+            paired_flow = TaskWriteBrowserFlow(
+                authority_path=paired_output, installation_path=paired_installed,
+                recipe_path=create_reference / "recipe.json",
+                profile_lock_path=create_reference / "profile.lock.json",
+                companion_recipe_path=populate_reference / "recipe.json",
+                companion_profile_lock_path=populate_reference / "profile.lock.json",
+                private_output_dir=private,
+            )
+            paired_prepared = paired_flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="project-a-folder",
+                resource_label="Project A destination folder",
+                account_label="Jules Google account",
+                pending_child=paired_card["pending_child"],
+                purpose="Create and populate one Project A handoff", now=1010,
+            )
+            self.assertEqual(paired_prepared.card["max_writes"], 2)
+            self.assertEqual(paired_prepared.card["pending_child"],
+                             paired_card["pending_child"])
+            paired_completed = paired_flow.complete(
+                nonce=paired_prepared.nonce, employee=employee, agent=agent,
+                grant_signature=human_key.sign(paired_prepared.grant_preimage),
+                companion_grant_signature=human_key.sign(
+                    paired_prepared.companion_grant_preimage),
+                task_signature=human_key.sign(paired_prepared.task_preimage),
+                now=1011,
+            )
+            self.assertEqual(paired_completed.companion_agent_package[
+                "task_commitment"], paired_completed.agent_package["task_commitment"])
+            self.assertTrue((paired_completed.private_task_dir /
+                             "agent-companion-write-package.json").is_file())
             mixed_installed = private / "mixed-task-installation.json"
             mixed_pins = json.loads(installed.read_text())
             mixed_pins["pins"]["permitted_read_scopes"] = [{

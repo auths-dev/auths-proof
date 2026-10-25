@@ -23,7 +23,7 @@ from .operator_cli import _private_write
 from .task_write_card import build_exact_write_card
 from .task_write_delegation import (
     PreparedAgentDelegation, prepare_agent_delegation,
-    prepare_agent_read_delegation,
+    prepare_agent_read_delegation, prepare_agent_companion_write_delegation,
 )
 from .task_write_package import load_task_write_package
 from .task_write_proofs import PreparedHumanAction, prepare_task_approval
@@ -37,6 +37,7 @@ class PreparedWriteTask:
     resource_label: str
     grant_preimage: bytes
     read_grant_preimage: bytes | None
+    companion_grant_preimage: bytes | None
     task_preimage: bytes
     read_resource_label: str | None
     expires_at: int
@@ -49,6 +50,7 @@ class CompletedWriteTask:
     expires_at: int
     agent_package: dict
     read_agent_package: dict | None
+    companion_agent_package: dict | None
     private_task_dir: Path
 
 
@@ -60,6 +62,7 @@ class _Pending:
     task_action: PreparedHumanAction
     child: PreparedAgentDelegation
     read_child: PreparedAgentDelegation | None
+    companion_child: PreparedAgentDelegation | None
     expires_at: int
 
 
@@ -68,6 +71,8 @@ class TaskWriteBrowserFlow:
                  recipe_path: Path, profile_lock_path: Path,
                  read_recipe_path: Path | None = None,
                  read_profile_lock_path: Path | None = None,
+                 companion_recipe_path: Path | None = None,
+                 companion_profile_lock_path: Path | None = None,
                  private_output_dir: Path) -> None:
         if (private_output_dir.is_symlink() or not private_output_dir.is_dir()
                 or private_output_dir.stat().st_mode & 0o077):
@@ -78,6 +83,8 @@ class TaskWriteBrowserFlow:
         self.profile_lock_path = profile_lock_path
         self.read_recipe_path = read_recipe_path
         self.read_profile_lock_path = read_profile_lock_path
+        self.companion_recipe_path = companion_recipe_path
+        self.companion_profile_lock_path = companion_profile_lock_path
         self.private_output_dir = private_output_dir
         self._pending: dict[str, _Pending] = {}
         self._lock = threading.Lock()
@@ -87,6 +94,7 @@ class TaskWriteBrowserFlow:
                 resource_handle: str, resource_label: str, account_label: str,
                 read_resource_handle: str | None = None,
                 read_resource_label: str | None = None,
+                pending_child: dict | None = None,
                 purpose: str, now: int | None = None) -> PreparedWriteTask:
         now = int(time.time()) if now is None else now
         if (not resource_label or len(resource_label) > 256
@@ -100,6 +108,9 @@ class TaskWriteBrowserFlow:
             read_recipe_path=self.read_recipe_path,
             read_profile_lock_path=self.read_profile_lock_path,
             read_resource_handle=read_resource_handle,
+            companion_recipe_path=self.companion_recipe_path,
+            companion_profile_lock_path=self.companion_profile_lock_path,
+            pending_child=pending_child,
         )
         task_action = prepare_task_approval(package.authority, card, now=now)
         child = prepare_agent_delegation(
@@ -116,22 +127,32 @@ class TaskWriteBrowserFlow:
             )
         elif read_resource_label is not None:
             raise OperatorDenied("task read label has no reviewed source")
+        companion_child = None
+        if package.companion_write is not None:
+            companion_child = prepare_agent_companion_write_delegation(
+                package.authority, employee_identity_packet,
+                agent_identity_packet, card,
+                package.companion_write.recipe_digest,
+            )
         nonce = secrets.token_urlsafe(24)
         expires_at = min(task_action.expires_at, card["expires_at"])
         with self._lock:
             self._pending[nonce] = _Pending(
-                employee, agent, card, task_action, child, read_child, expires_at,
+                employee, agent, card, task_action, child, read_child,
+                companion_child, expires_at,
             )
         return PreparedWriteTask(
             nonce, card, account_label, resource_label,
             child.signing_preimage,
             None if read_child is None else read_child.signing_preimage,
+            None if companion_child is None else companion_child.signing_preimage,
             task_action.signing_preimage, read_resource_label, expires_at,
         )
 
     def complete(self, *, nonce: str, employee: EmployeeBinding,
                  agent: AgentBinding, grant_signature: bytes,
                  task_signature: bytes, read_grant_signature: bytes | None = None,
+                 companion_grant_signature: bytes | None = None,
                  now: int | None = None) -> CompletedWriteTask:
         now = int(time.time()) if now is None else now
         with self._lock:
@@ -144,7 +165,12 @@ class TaskWriteBrowserFlow:
                 or current.recipe_digest != pending.child.recipe_digest
                 or (current.read is None) != (pending.read_child is None)
                 or (current.read is not None and
-                    current.read.recipe_digest != pending.read_child.recipe_digest)):
+                    current.read.recipe_digest != pending.read_child.recipe_digest)
+                or (current.companion_write is None) !=
+                (pending.companion_child is None)
+                or (current.companion_write is not None and
+                    current.companion_write.recipe_digest !=
+                    pending.companion_child.recipe_digest)):
             raise OperatorDenied("task authority changed during browser review")
         refreshed = build_exact_write_card(
             current, employee, agent, installation_path=self.installation_path,
@@ -155,6 +181,9 @@ class TaskWriteBrowserFlow:
             read_profile_lock_path=self.read_profile_lock_path,
             read_resource_handle=(pending.card["read_scopes"][0]["handle"]
                                   if pending.read_child is not None else None),
+            companion_recipe_path=self.companion_recipe_path,
+            companion_profile_lock_path=self.companion_profile_lock_path,
+            pending_child=pending.card.get("pending_child"),
         )
         for key, reviewed in pending.card.items():
             if key not in {"task_id", "not_before", "expires_at"} and refreshed[key] != reviewed:
@@ -169,6 +198,16 @@ class TaskWriteBrowserFlow:
                 raise OperatorDenied("task read grant signature is missing")
             read_agent_package = pending.read_child.complete(
                 read_grant_signature, now=now,
+            )
+        if pending.companion_child is None:
+            if companion_grant_signature is not None:
+                raise OperatorDenied("task has no companion write grant to sign")
+            companion_agent_package = None
+        else:
+            if companion_grant_signature is None:
+                raise OperatorDenied("task companion write grant signature is missing")
+            companion_agent_package = pending.companion_child.complete(
+                companion_grant_signature, now=now,
             )
         signed_task = pending.task_action.complete(task_signature, now=now)
         task_dir = self.private_output_dir / pending.card["task_id"]
@@ -187,15 +226,20 @@ class TaskWriteBrowserFlow:
                 _private_write(task_dir / "agent-read-package.json", json.dumps(
                     read_agent_package, sort_keys=True, separators=(",", ":"),
                 ).encode("utf-8"))
+            if companion_agent_package is not None:
+                _private_write(task_dir / "agent-companion-write-package.json", json.dumps(
+                    companion_agent_package, sort_keys=True, separators=(",", ":"),
+                ).encode("utf-8"))
         except BaseException:
             for name in ("task.proof", "task.action", "task-card.json",
                          "trusted-context.cbor", "agent-package.json",
-                         "agent-read-package.json"):
+                         "agent-read-package.json",
+                         "agent-companion-write-package.json"):
                 (task_dir / name).unlink(missing_ok=True)
             task_dir.rmdir()
             raise
         return CompletedWriteTask(
             pending.card["task_id"], pending.agent.agent_principal,
             pending.card["expires_at"], agent_package,
-            read_agent_package, task_dir,
+            read_agent_package, companion_agent_package, task_dir,
         )

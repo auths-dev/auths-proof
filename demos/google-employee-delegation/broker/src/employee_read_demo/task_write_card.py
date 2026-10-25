@@ -63,6 +63,9 @@ def build_exact_write_card(
     read_recipe_path: Path | None = None,
     read_profile_lock_path: Path | None = None,
     read_resource_handle: str | None = None,
+    companion_recipe_path: Path | None = None,
+    companion_profile_lock_path: Path | None = None,
+    pending_child: dict | None = None,
     now: int | None = None,
 ) -> dict:
     """Create one short task tied to the installed gateway and reviewed recipe."""
@@ -158,7 +161,42 @@ def build_exact_write_card(
         read_scopes = [scope]
         release_bytes = min(16_384,
                             read_recipe["response"]["maximum_release_bytes"])
-    return {
+    if package.companion_write is None:
+        if any(value is not None for value in (
+                companion_recipe_path, companion_profile_lock_path, pending_child)):
+            raise OperatorDenied("task has no reviewed companion write")
+    else:
+        companion = package.companion_write
+        if (verb != "create" or companion_recipe_path is None
+                or companion_profile_lock_path is None
+                or type(pending_child) is not dict
+                or set(pending_child) != {
+                    "create_operation_id", "create_recipe_digest",
+                    "populate_recipe_digest", "parent_handle", "title", "marker"}
+                or pending_child["create_recipe_digest"] != package.recipe_digest
+                or pending_child["populate_recipe_digest"] != companion.recipe_digest
+                or pending_child["parent_handle"] != resource_handle
+                or companion.recipe_digest not in installation["recipe_digests"]
+                or not all(type(pending_child[key]) is str
+                           and 1 <= len(pending_child[key].encode()) <= maximum
+                           and not any(unicodedata.category(char) == "Cc"
+                                       for char in pending_child[key])
+                           for key, maximum in (("create_operation_id", 32),
+                                                ("title", 256), ("marker", 256)))):
+            raise OperatorDenied("pending child differs from installed task write")
+        try:
+            second_service, second_tool, second_sha, second_lock_sha = _reviewed_profile(
+                companion_recipe_path, companion_profile_lock_path)
+            second_recipe = json.loads(companion_recipe_path.read_bytes(),
+                                       object_pairs_hook=_unique_pairs)
+        except (OSError, ValueError) as error:
+            raise OperatorDenied("reviewed companion write is unavailable") from error
+        if (second_service != companion.service or second_tool != companion.tool
+                or second_sha != companion.recipe_source_sha256
+                or second_lock_sha != companion.profile_lock_sha256
+                or second_recipe["task_binding"]["verb"] != "edit"):
+            raise OperatorDenied("reviewed companion write changed")
+    card = {
         "schema": "auths.agent-task/2",
         "task_id": secrets.token_urlsafe(18),
         "company_id": employee.company_id,
@@ -180,8 +218,11 @@ def build_exact_write_card(
         "max_provider_calls": len(read_scopes),
         "max_releases": len(read_scopes),
         "max_release_bytes": release_bytes,
-        "max_writes": 1,
+        "max_writes": 2 if package.companion_write is not None else 1,
         "write_approval_mode": "exact",
         "operator_policy_digest": pins["operator_policy_digest"],
         "purpose": purpose,
     }
+    if pending_child is not None:
+        card["pending_child"] = pending_child.copy()
+    return card

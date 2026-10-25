@@ -164,7 +164,7 @@ The Google vertical now includes a read-only bounded search parser that follows 
 
 If creation is known to have succeeded but population is unknown or fails, show an incomplete artifact and reconcile the known ID before any new action. Do not create another file to hide an ambiguous first result. The producer checks the actual parent, title, content, owner/permissions, count of run-owned children and unchanged excluded state. Cleanup is explicit and occurs only after evidence capture.
 
-The private operator issuer can now package separate reviewed create and populate parent grants under one native trust context. A synthetic native test has the enrolled human sign both child grants for the same registered agent, then the agent signs a populate action using its own key and public package. The installed browser ceremony, one-ceremony effect plan and live provider entry still need integration.
+The private operator issuer can now package separate reviewed create and populate parent grants under one native trust context. A synthetic native test has the enrolled human sign both child grants for the same registered agent, then the agent signs a populate action using its own key and public package. The owner-side browser flow also signs and persists both agent packages with a pending-child task card in a synthetic test. Its installed HTTP route and screen remain on the single-edit path; the one-ceremony effect plan and live provider entry still need integration.
 
 ### 5.4 Bounded upfront mode
 
