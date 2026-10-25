@@ -69,3 +69,12 @@ command. Its separate agent process receives and saves the exact field bytes,
 then deliberately closes the channel without signing the ACK. The operator
 verifies a charged `delivery-unknown` receipt and an authenticated
 same-operation replay denial before cleaning up the run-owned record.
+
+For a development-only installed no-content case, build the gateway with
+`--features loopback-provider` and add `--fail-before-content` to `run`.
+The gateway authenticates the separate agent, makes the permitted provider
+GET, durably charges the projected bytes, then closes its write half before
+the first content-byte write. The operator verifies a charged `not-delivered`
+receipt, no agent content file, and same-operation replay refusal before
+retiring the disposable record. This fault flag is absent from the ordinary
+gateway build.

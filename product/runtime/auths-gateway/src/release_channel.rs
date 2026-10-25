@@ -51,7 +51,7 @@ pub(crate) struct UnixAgentReleaseChannel {
     socket: PathBuf,
     channel_name: String,
     agent_identity_packet: Vec<u8>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "loopback-provider"))]
     fail_before_content: bool,
 }
 
@@ -60,7 +60,7 @@ pub(crate) struct UnixAgentReleaseChannel {
 pub(crate) struct AuthenticatedReleaseChannel {
     stream: UnixStream,
     agent_identity_packet: Vec<u8>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "loopback-provider"))]
     fail_before_content: bool,
 }
 
@@ -84,12 +84,12 @@ impl UnixAgentReleaseChannel {
             socket,
             channel_name,
             agent_identity_packet,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "loopback-provider"))]
             fail_before_content: false,
         })
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "loopback-provider"))]
     pub(crate) fn fail_before_content_for_test(&mut self) {
         self.fail_before_content = true;
     }
@@ -125,7 +125,7 @@ impl UnixAgentReleaseChannel {
         Ok(AuthenticatedReleaseChannel {
             stream,
             agent_identity_packet: self.agent_identity_packet.clone(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "loopback-provider"))]
             fail_before_content: self.fail_before_content,
         })
     }
@@ -155,7 +155,7 @@ impl AuthenticatedReleaseChannel {
             return Err(no_content());
         }
         let length = u32::try_from(content.len()).map_err(|_| no_content())?;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "loopback-provider"))]
         if self.fail_before_content {
             self.stream.shutdown().await.map_err(|_| no_content())?;
         }

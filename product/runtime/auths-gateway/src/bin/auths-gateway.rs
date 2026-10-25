@@ -417,6 +417,11 @@ mod unix {
             agent_proof: PathBuf,
             #[arg(long)]
             agent_action: PathBuf,
+            /// Development fault: charge the release, then stop before any
+            /// content byte enters the authenticated agent channel.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            fail_before_content: bool,
         },
         /// Development operator only: compare one owner-private source file
         /// with a durably acknowledged release. The signed draft's SHA-256 is
@@ -3628,6 +3633,7 @@ mod unix {
         task_id: String,
         agent_proof: PathBuf,
         agent_action: PathBuf,
+        #[cfg(feature = "loopback-provider")] fail_before_content: bool,
     ) -> Result<(), Failure> {
         private_root(&state_dir)?;
         let installed = task_read_installation(&state_dir)?;
@@ -3663,6 +3669,12 @@ mod unix {
             channel_name: runtime.channel_name,
             agent_identity_packet: packet,
         })?;
+        #[cfg(feature = "loopback-provider")]
+        let read = if fail_before_content {
+            read.with_fail_before_content_for_development()
+        } else {
+            read
+        };
         let proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&agent_action, 64 * 1024)?;
         let result = read.read(&task_id, &proof, &action).await;
@@ -4865,7 +4877,19 @@ mod unix {
                 task_id,
                 agent_proof,
                 agent_action,
-            } => task_read_submit(state_dir, task_id, agent_proof, agent_action).await,
+                #[cfg(feature = "loopback-provider")]
+                fail_before_content,
+            } => {
+                task_read_submit(
+                    state_dir,
+                    task_id,
+                    agent_proof,
+                    agent_action,
+                    #[cfg(feature = "loopback-provider")]
+                    fail_before_content,
+                )
+                .await
+            }
             Command::TaskReleaseCompare {
                 state_dir,
                 task_id,

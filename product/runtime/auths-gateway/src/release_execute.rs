@@ -121,6 +121,17 @@ impl<'e> TaskWriteSession<'e> {
 }
 
 impl TaskReadSession<'_, '_> {
+    /// Development-fault build only: stop after the durable release charge
+    /// and before the first content byte. The peer still authenticates under
+    /// its registered agent key, so the installed path exercises the real
+    /// task, provider request, projection and delivery accounting.
+    #[cfg(feature = "loopback-provider")]
+    #[must_use]
+    pub fn with_fail_before_content_for_development(mut self) -> Self {
+        self.channel.fail_before_content_for_test();
+        self
+    }
+
     /// Execute one native-verified read against the already activated task.
     /// The returned status contains no provider body or credential.
     pub async fn read(

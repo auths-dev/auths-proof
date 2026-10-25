@@ -172,13 +172,22 @@ def _wait_for(path: Path, process: subprocess.Popen) -> None:
 
 
 def run(env_file: Path, root: Path, binary: Path,
-        *, drop_ack: bool = False) -> None:
+        *, drop_ack: bool = False, fail_before_content: bool = False) -> None:
     root = _private_dir(root, create=True)
+    if drop_ack and fail_before_content:
+        raise ValueError("choose only one release fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
     state = _private_dir(root / "gateway", create=True)
     if not binary.is_absolute() or binary.is_symlink() or not binary.is_file():
         raise ValueError("gateway binary is unavailable")
+    if fail_before_content:
+        help_result = subprocess.run(
+            [str(binary), "task-read-submit", "--help"],
+            capture_output=True, timeout=15, check=True,
+        )
+        if b"--fail-before-content" not in help_result.stdout:
+            raise ValueError("development no-content fault is unavailable")
     write_review = _gateway(
         binary, "review", "--recipe", WRITE / "recipe.json",
         "--profile-lock", WRITE / "profile.lock.json",
@@ -424,28 +433,34 @@ def run(env_file: Path, root: Path, binary: Path,
             "--task-id", signed.task_id,
             "--agent-proof", read_output / "read.proof",
             "--agent-action", read_output / "read.action",
+            *(("--fail-before-content",) if fail_before_content else ()),
         )
         server.communicate(timeout=15)
-        if server.returncode != 0:
+        if not fail_before_content and server.returncode != 0:
             raise RuntimeError("agent did not acknowledge the Airtable release")
+        if fail_before_content and server.returncode == 0:
+            raise RuntimeError("agent completed despite the no-send fault")
     finally:
         if server.poll() is None:
             server.terminate()
             server.communicate(timeout=5)
-    if source.read_bytes() != b"Pending":
+    if fail_before_content and source.exists():
+        raise RuntimeError("agent received content after the no-send fault")
+    if not fail_before_content and source.read_bytes() != b"Pending":
         raise RuntimeError("agent received unexpected Airtable content")
-    if drop_ack:
+    if drop_ack or fail_before_content:
         status = _gateway(binary, "task-status", "--state-dir", state,
                           "--task-id", signed.task_id)
-        if (release != {"outcome": "delivery-unknown"}
+        expected_stage = "not-delivered" if fail_before_content else "delivery-unknown"
+        if (release != {"outcome": expected_stage}
                 or status.get("provider_calls") != 1
                 or status.get("releases") != 1
                 or status.get("released_bytes") != 7
                 or status.get("reads") != [{
                     "operation_id": read_operation, "released_bytes": 7,
-                    "stage": "delivery-unknown",
+                    "stage": expected_stage,
                 }]):
-            raise RuntimeError("lost agent acknowledgement was misaccounted")
+            raise RuntimeError("release fault was misaccounted")
         replay_receiver = _agent(
             "serve-release", "--key-file", agent_dir / "agent.seed",
             "--socket", channel, "--output", agent_dir / "replay-source.bin",
@@ -475,20 +490,22 @@ def run(env_file: Path, root: Path, binary: Path,
                        "code": "gateway.release.task-admission"}
                 or after_replay != status
                 or (agent_dir / "replay-source.bin").exists()):
-            raise RuntimeError("lost-ACK read was delivered a second time")
+            raise RuntimeError("faulted read was delivered a second time")
         _write_json(operator / "redacted-result.json", {
-            "schema": "auths.ap071-airtable-lost-ack/1",
+            "schema": ("auths.ap071-airtable-no-send/1" if fail_before_content
+                       else "auths.ap071-airtable-lost-ack/1"),
             "task_id": signed.task_id, "record_id": record,
             "read_operation_id": read_operation,
             "read_outcome": release["outcome"],
-            "agent_saved_exact_bytes": True,
+            "agent_saved_exact_bytes": drop_ack,
             "replay_outcome": replay["outcome"],
             "replay_code": replay["code"],
             "gateway_status": status,
             "cleanup": "pending",
         })
         print(json.dumps({
-            "status": "installed-airtable-lost-ack-observed",
+            "status": ("installed-airtable-no-send-observed" if fail_before_content
+                       else "installed-airtable-lost-ack-observed"),
             "task_id": signed.task_id, "record_id": record,
             "result": str(operator / "redacted-result.json"),
             "cleanup": "pending",
@@ -592,12 +609,15 @@ def main() -> None:
     parser.add_argument("--gateway-bin", type=Path)
     parser.add_argument("--drop-ack", action="store_true",
                         help="receive bytes but deliberately lose agent ACK")
+    parser.add_argument("--fail-before-content", action="store_true",
+                        help="development gateway fault after release charge, before content")
     args = parser.parse_args()
     if args.command == "run":
         if args.gateway_bin is None:
             parser.error("run needs the reviewed gateway binary")
         run(args.env_file, args.root, args.gateway_bin,
-            drop_ack=args.drop_ack)
+            drop_ack=args.drop_ack,
+            fail_before_content=args.fail_before_content)
     else:
         cleanup(args.env_file, args.root)
 
