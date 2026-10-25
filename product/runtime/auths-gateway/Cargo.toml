@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 description = "Closed developer-authored request recipes for the Auths gateway"
 publish = false
+autobins = false
 
 [features]
 # Development and CI only: lets `serve --loopback-provider <port>` send

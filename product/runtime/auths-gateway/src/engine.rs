@@ -2240,10 +2240,30 @@ impl TaskWriteSession<'_> {
         if proofs.confirmation.is_some() {
             return Err("gateway.task.recovery-extra-confirmation");
         }
+        // The create proof was valid when the durable attempt was evaluated.
+        // A response-less recovery may occur after that short proof expires;
+        // reverify it at the gateway-recorded attempt time, while requiring
+        // the task, plan, attestation and human recovery action to be live now.
+        let operation = crate::LogicalOperationId::parse(&plan.create.operation_id)
+            .map_err(|_| "gateway.task.recovery-operation")?;
+        let attempt = self
+            .engine
+            .attempts
+            .read(self.engine.recipe.namespace(), &operation)
+            .await
+            .map_err(|_| "gateway.task.recovery-attempt")?
+            .ok_or("gateway.task.recovery-attempt")?;
+        let original_time = attempt.evaluated_at();
+        if original_time > now
+            || original_time < task.descriptor().not_before
+            || original_time >= plan.expires_at
+        {
+            return Err("gateway.task.recovery-attempt-time");
+        }
         let verified = verify_detailed(
             &self.engine.recipe,
             &self.engine.trusted_context,
-            now,
+            original_time,
             proofs.agent_proof,
             proofs.agent_action,
         )
@@ -2254,7 +2274,7 @@ impl TaskWriteSession<'_> {
             &self.engine.recipe,
             &self.binding,
             None,
-            now,
+            original_time,
         )
         .map_err(|_| "gateway.task.recovery-intent")?;
         let approved = ApprovedTaskWrite::from_recorded_effect_plan_reconciliation(plan, intent)
@@ -2561,6 +2581,66 @@ struct TaskWriteAdmission<'a> {
     preflight_valid_until: Option<u64>,
 }
 
+/// A local qualification arm, never part of task authority. Its exact
+/// operation and closed-request commitment prevent a broad fault setting from
+/// changing an unrelated write. The arm is moved to `.consumed` only after a
+/// complete successful provider response has reached the transport.
+#[cfg(all(unix, feature = "loopback-provider"))]
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DevelopmentCreateResponseLossArm {
+    schema: String,
+    task_id: String,
+    operation_id: String,
+    request_commitment: String,
+}
+
+#[cfg(all(unix, feature = "loopback-provider"))]
+fn consume_development_create_response_loss_arm(
+    intent: &crate::task_write::ExactWriteIntent,
+) -> bool {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::path::Path;
+
+    let Some(path) = std::env::var_os("AUTHS_GATEWAY_DEV_CREATE_RESPONSE_LOSS_ARM") else {
+        return false;
+    };
+    let path = Path::new(&path);
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    if !path.is_absolute() || crate::store::check_private_directory(parent).is_err() {
+        return false;
+    }
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file()
+        || metadata.uid() != rustix::process::geteuid().as_raw()
+        || metadata.nlink() != 1
+        || metadata.permissions().mode() & 0o077 != 0
+        || metadata.len() > 4096
+    {
+        return false;
+    }
+    let Ok(bytes) = std::fs::read(path) else {
+        return false;
+    };
+    let Ok(arm) = serde_json::from_slice::<DevelopmentCreateResponseLossArm>(&bytes) else {
+        return false;
+    };
+    if arm.schema != "auths.development-create-response-loss-arm/1"
+        || arm.task_id != intent.task_id
+        || arm.operation_id != intent.operation_id
+        || arm.request_commitment != intent.request_commitment
+        || serde_json_canonicalizer::to_vec(&arm).ok().as_deref() != Some(bytes.as_slice())
+    {
+        return false;
+    }
+    let consumed = path.with_extension("json.consumed");
+    !consumed.exists() && std::fs::rename(path, consumed).is_ok()
+}
+
 struct EngineIo<'a> {
     engine: &'a GatewayEngine,
     proof: &'a [u8],
@@ -2859,12 +2939,32 @@ impl SubmitIo for EngineIo<'_> {
         }
         match self.prepared.get() {
             Some(prepared) => {
-                LeasedTransport {
+                let outcome = LeasedTransport {
                     transport: &prepared.transport,
                     lease,
                 }
                 .write(request)
-                .await
+                .await?;
+                // Development qualification fault: lose exactly one complete
+                // successful create response before the gateway records its
+                // locator. The request already entered the real provider.
+                // Production builds do not contain this branch.
+                #[cfg(all(unix, feature = "loopback-provider"))]
+                if let Some(admission) = &self.task_write
+                    && admission.approved.intent().verb
+                        == crate::task_activation::TaskWriteVerb::Create
+                    && matches!(
+                        outcome,
+                        WriteTransportOutcome::ResponseRecorded {
+                            status: 200..=299,
+                            ..
+                        }
+                    )
+                    && consume_development_create_response_loss_arm(admission.approved.intent())
+                {
+                    return Ok(WriteTransportOutcome::Unknown);
+                }
+                Ok(outcome)
             }
             None => Err(GatewayTransportError::NotEntered),
         }
@@ -4825,6 +4925,26 @@ pub(crate) mod tests {
         assert!(
             matches!(unknown_result, GatewaySubmitResult::Unknown),
             "lost response remains unknown: {unknown_result:?}"
+        );
+        let unknown_operation =
+            crate::LogicalOperationId::parse("create-unknown-1").expect("original operation ID");
+        let original_attempt = engine
+            .attempts
+            .read(engine.recipe.namespace(), &unknown_operation)
+            .await
+            .expect("attempt store")
+            .expect("unknown create attempt");
+        assert!(original_attempt.evaluated_at() <= now + 2);
+        assert!(
+            verify_detailed(
+                &engine.recipe,
+                &engine.trusted_context,
+                original_attempt.evaluated_at(),
+                &unknown_signed.proof,
+                &unknown_signed.action,
+            )
+            .is_ok(),
+            "the durable create evaluation time can verify the original proof"
         );
         let recovery = serde_json::to_value(
             unknown_session
