@@ -23,6 +23,10 @@ from .google_create_handoff import CHILD_TITLE
 from .google_create_v2_handoff import (
     CreateV2BaselinePins, validate_create_v2_precreate_baseline,
 )
+from .google_create_v3_handoff import (
+    CreateV3BaselinePins, CreateV3NeighborPins,
+    validate_create_v3_precreate_baseline,
+)
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
 from .task_populate_operator import _credential_pins, _gateway
@@ -43,7 +47,9 @@ _BASELINE_RECORD_FIELDS = {
 def _recorded_baseline_is_valid(record: object, task_id: str) -> bool:
     if type(record) is not dict or record.get("task_id") != task_id:
         return False
-    if record.get("schema") == "auths.ap071-pre-create-baseline/1":
+    if record.get("schema") in (
+            "auths.ap071-pre-create-baseline/1",
+            "auths.ap071-pre-create-baseline/3"):
         expected = _BASELINE_RECORD_FIELDS
     elif record.get("schema") == "auths.ap071-pre-create-baseline/2":
         expected = _BASELINE_RECORD_FIELDS | {"preserved_blank_sha256"}
@@ -62,9 +68,35 @@ def _recorded_baseline_is_valid(record: object, task_id: str) -> bool:
 def _baseline(path: Path, expected_sha256: str, *, evidence: dict,
               now: int, preserved_blank_path: Path | None = None,
               v2_pins: CreateV2BaselinePins | None = None,
+              v3_pins: CreateV3BaselinePins | None = None,
               ) -> tuple[int, dict, str]:
+    if path.name == "google-create-v3-baseline.json":
+        if (v3_pins is None or v2_pins is not None
+                or preserved_blank_path is not None
+                or type(expected_sha256) is not str
+                or expected_sha256 != v3_pins.baseline_sha256
+                or (match := _GENERATION.fullmatch(path.parent.name)) is None
+                or int(match.group(1)) != v3_pins.baseline_generation
+                or not path.parent.is_dir() or path.parent.is_symlink()
+                or path.parent.stat().st_mode & 0o077
+                or not path.is_file() or path.is_symlink()
+                or path.stat().st_mode & 0o077
+                or any(getattr(v3_pins, field) != evidence[field]
+                       for field in ("company", "instance", "definition_hash",
+                                     "customer_id", "jules_subject", "drive_id",
+                                     "folder_id"))
+                or v3_pins.neighbors[0].document_id != evidence["document_id"]):
+            raise OperatorDenied("v3 pre-create producer baseline disagrees with pins")
+        try:
+            observation = validate_create_v3_precreate_baseline(
+                path, v3_pins, now=now,
+            )
+        except (ContractRejected, OSError, ValueError) as error:
+            raise OperatorDenied("v3 pre-create producer baseline is unavailable") from error
+        return int(match.group(1)), observation, "v3"
     if path.name == "google-create-v2-baseline.json":
-        if (v2_pins is None or preserved_blank_path is None
+        if (v2_pins is None or v3_pins is not None
+                or preserved_blank_path is None
                 or type(expected_sha256) is not str
                 or expected_sha256 != v2_pins.baseline_sha256
                 or (match := _GENERATION.fullmatch(path.parent.name)) is None
@@ -96,8 +128,9 @@ def _baseline(path: Path, expected_sha256: str, *, evidence: dict,
         except (ContractRejected, OSError, ValueError) as error:
             raise OperatorDenied("v2 pre-create producer baseline is unavailable") from error
         return int(match.group(1)), observation, "v2"
-    if preserved_blank_path is not None or v2_pins is not None:
-        raise OperatorDenied("v2 pins cannot be used with a v1 baseline")
+    if any(value is not None for value in (preserved_blank_path, v2_pins,
+                                           v3_pins)):
+        raise OperatorDenied("versioned pins cannot be used with a v1 baseline")
     try:
         generation, observation = validate_current_write_observation(
             path, expected_sha256, evidence=evidence, now=now,
@@ -114,6 +147,7 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
                           baseline_path: Path, baseline_sha256: str,
                           preserved_blank_path: Path | None = None,
                           v2_pins_path: Path | None = None,
+                          v3_pins_path: Path | None = None,
                           now: int | None = None) -> dict:
     """Record the sole baseline, then submit the immutable human effect plan once."""
     if (type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None
@@ -128,6 +162,9 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
     except (ContractRejected, OSError, ValueError) as error:
         raise OperatorDenied("pinned Project A write evidence is unavailable") from error
     v2_pins = None
+    v3_pins = None
+    if v2_pins_path is not None and v3_pins_path is not None:
+        raise OperatorDenied("only one producer baseline version may be pinned")
     if v2_pins_path is not None:
         try:
             v2_pins = CreateV2BaselinePins(**json.loads(
@@ -138,10 +175,24 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             raise OperatorDenied("private v2 baseline pins are unavailable") from error
         if v2_pins.source_verification_sha256 != pins.producer.evidence_sha256:
             raise OperatorDenied("v2 source verification differs from installed producer")
+    if v3_pins_path is not None:
+        try:
+            document = json.loads(_private_read(v3_pins_path, 8192),
+                                  object_pairs_hook=_unique_pairs)
+            neighbors = tuple(CreateV3NeighborPins(**item)
+                              for item in document.pop("neighbors"))
+            v3_pins = CreateV3BaselinePins(neighbors=neighbors, **document)
+            v3_pins.validate()
+        except (OSError, PermissionError, ValueError, TypeError,
+                AttributeError, KeyError) as error:
+            raise OperatorDenied("private v3 baseline pins are unavailable") from error
+        if v3_pins.source_verification_sha256 != pins.producer.evidence_sha256:
+            raise OperatorDenied("v3 source verification differs from installed producer")
     now = int(time.time()) if now is None else now
     generation, observation, baseline_version = _baseline(
         baseline_path, baseline_sha256, evidence=evidence, now=now,
         preserved_blank_path=preserved_blank_path, v2_pins=v2_pins,
+        v3_pins=v3_pins,
     )
     try:
         card = json.loads(_private_read(task_dir / "task-card.json", 16_384),
@@ -171,7 +222,9 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             or card.get("connection_generation") != pins.connection_generation):
         raise OperatorDenied("signed create task disagrees with Project A pins")
     record = {
-        "schema": f"auths.ap071-pre-create-baseline/{2 if baseline_version == 'v2' else 1}",
+        "schema": ("auths.ap071-pre-create-baseline/3" if baseline_version == "v3"
+                   else "auths.ap071-pre-create-baseline/2" if baseline_version == "v2"
+                   else "auths.ap071-pre-create-baseline/1"),
         "task_id": task_id,
         "create_operation_id": pending["create_operation_id"],
         "marker": pending["marker"],
@@ -462,6 +515,7 @@ def main() -> int:
     parser.add_argument("--baseline-sha256", required=True)
     parser.add_argument("--preserved-blank", type=Path)
     parser.add_argument("--v2-pins", type=Path)
+    parser.add_argument("--v3-pins", type=Path)
     args = parser.parse_args()
     print(json.dumps(submit_planned_create(
         gateway_binary=args.gateway_bin, gateway_sha256=args.gateway_sha256,
@@ -470,6 +524,7 @@ def main() -> int:
         credential_pins_path=args.credential_pins, baseline_path=args.baseline,
         baseline_sha256=args.baseline_sha256,
         preserved_blank_path=args.preserved_blank, v2_pins_path=args.v2_pins,
+        v3_pins_path=args.v3_pins,
     ), sort_keys=True))
     return 0
 

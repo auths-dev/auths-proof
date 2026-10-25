@@ -407,8 +407,8 @@ acknowledged read, then asks the gateway to compare the staged source with its
 keyed commitment to the exact acknowledged release. The comparison emits no
 content or plain hash. An acknowledged byte count alone does not establish
 this match. The first live Jules edit and independent post-write inspection
-qualified the edit path. The paired create/populate path still needs its own
-live run.
+qualified the edit path. A later single-plan create/populate run also passed
+independent inspection; the full installed recovery matrix remains open.
 For a paired create, the operator obtains demo_co's fresh, private
 `google write-inspect` observation after Jules's effect plan is recorded, then
 uses `auths-google-planned-create` with its exact file SHA-256. The command
@@ -420,8 +420,8 @@ same baseline for child reconciliation and demo_co's `create-inspect`; take no
 automatic second create. The command does not populate the child. The separate
 Jules child preflight and agent-signed population still follow the gateway's
 recorded plan and response-derived child binding.
-For the next single-plan run, the earlier Auths child is a preserved third
-Project A child. Use demo_co's separate `google-create-v2-baseline.json` taken
+For the earlier single-plan run, the earlier Auths child was a preserved third
+Project A child. That run used demo_co's separate `google-create-v2-baseline.json` taken
 within five minutes of entry, plus its historical
 `google-preserved-blank-observation.json`. Pass `--preserved-blank` and
 `--v2-pins` to `auths-google-planned-create`; the latter is an owner-private
@@ -433,7 +433,18 @@ state, preserved current state, working Doc commitment and time ordering before
 durably recording a v2 baseline. It refuses a v2 export without those pins and
 never retries a create after an uncertain outcome. The frozen v1 observation
 continues to describe the completed first-child run; it cannot authorize a
-second create in the now three-child folder.
+second create in that three-child folder.
+The current fixture has five direct Project A children. For any later create,
+use demo_co's `google-create-v3-baseline.json` in a private generation folder
+and pass `--v3-pins` to `auths-google-planned-create`. The owner-private pins
+use the exact `CreateV3BaselinePins` fields, including the five ordered
+neighbors and the baseline SHA-256. The command checks the frozen v3 schema,
+source and fixture identity, all five child commitments, marker uniqueness,
+and a baseline captured no more than five minutes before create entry. It
+records that generation and digest before the sole gateway call. The strict
+v3 final consumer separately compares demo_co's six-child observation with
+the pinned baseline; neither the consumer tests nor an old v2 observation
+authorize another live create. No fresh v3 baseline has been captured yet.
 The browser retains the canonical `effect-plan.json` beside its native proof.
 After the gateway binds the returned child and the Jules preflight is recorded,
 the isolated agent runs `auths-google-read-agent sign-planned-populate` with its

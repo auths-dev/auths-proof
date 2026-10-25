@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "NeighborPin": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "raw_content_byte_count": {
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Raw Content Byte Count",
+          "type": "integer"
+        },
+        "raw_content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Raw Content Sha256",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "working",
+            "jules_probe",
+            "preserved_first",
+            "second_auths",
+            "clean_edit"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "document_id",
+        "raw_content_sha256",
+        "raw_content_byte_count"
+      ],
+      "title": "NeighborPin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 5,
+      "default": 5,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "neighbors": {
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/NeighborPin"
+        },
+        {
+          "$ref": "#/$defs/NeighborPin"
+        },
+        {
+          "$ref": "#/$defs/NeighborPin"
+        },
+        {
+          "$ref": "#/$defs/NeighborPin"
+        },
+        {
+          "$ref": "#/$defs/NeighborPin"
+        }
+      ],
+      "title": "Neighbors",
+      "type": "array"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "preserved_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Preserved Marker",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-create-v3-baseline/v1",
+      "default": "demo-co/google-create-v3-baseline/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "second_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Second Marker",
+      "type": "string"
+    },
+    "source_edit_final_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Edit Final Sha256",
+      "type": "string"
+    },
+    "source_v2_final_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source V2 Final Sha256",
+      "type": "string"
+    },
+    "source_verification_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Verification Sha256",
+      "type": "string"
+    },
+    "source_working_observation_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Working Observation Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "neighbors",
+    "preserved_marker",
+    "second_marker",
+    "source_verification_sha256",
+    "source_v2_final_sha256",
+    "source_edit_final_sha256",
+    "source_working_observation_sha256"
+  ],
+  "title": "GoogleCreateV3Baseline",
+  "type": "object"
+}
