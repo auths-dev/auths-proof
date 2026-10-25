@@ -14,6 +14,7 @@ use std::{
     io::{Read as _, Write as _},
     path::{Component, Path, PathBuf},
 };
+use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
@@ -77,8 +78,33 @@ pub(crate) enum ReleaseStage {
     /// No complete projectable provider result was available.
     ProviderUnavailable,
     /// Bytes and one release were durably charged before channel entry. On
-    /// restart, this is reported as delivery-unknown unless acknowledged.
+    /// restart, this is delivery-unknown without verified terminal evidence.
     ReleaseEntered,
+    /// The channel supplied durable proof that no byte was sent after the
+    /// charge. The conservative charge is never refunded.
+    NotDelivered,
+    /// An authenticated acknowledgement of the exact delivery was verified
+    /// by the channel before this transition was persisted.
+    AgentAcknowledged,
+}
+
+/// Minted only by a future agent-channel verifier after it authenticates the
+/// recipient and checks the acknowledgement against the exact delivered bytes.
+/// No production constructor exists until that verifier is installed.
+pub(crate) struct VerifiedAgentAcknowledgement {
+    task_id: String,
+    operation_id: String,
+    recipient: String,
+    released_bytes: u64,
+    commitment_key_version: u32,
+    content_commitment: String,
+}
+
+/// Minted only by a future channel executor with durable evidence that the
+/// transport did not begin. A missing acknowledgement is not this evidence.
+pub(crate) struct ProvenNoSend {
+    task_id: String,
+    operation_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -153,6 +179,16 @@ fn valid_digest(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn same_commitment(expected: &str, presented: &str) -> bool {
+    if !valid_digest(expected) || !valid_digest(presented) {
+        return false;
+    }
+    let (Ok(expected), Ok(presented)) = (hex::decode(expected), hex::decode(presented)) else {
+        return false;
+    };
+    bool::from(expected.ct_eq(&presented))
 }
 
 impl ReleaseTaskState {
@@ -356,6 +392,57 @@ impl ReleaseTaskState {
         Ok(())
     }
 
+    /// Finalize a charged release only after the channel has authenticated an
+    /// acknowledgement bound to the operation, recipient and exact content.
+    /// A lost acknowledgement deliberately leaves `ReleaseEntered` unknown.
+    pub(crate) fn acknowledge(
+        &mut self,
+        evidence: &VerifiedAgentAcknowledgement,
+    ) -> Result<(), ReleaseStateError> {
+        if evidence.task_id != self.task_id {
+            return Err(ReleaseStateError::Binding);
+        }
+        let operation = self
+            .operations
+            .get_mut(&evidence.operation_id)
+            .ok_or(ReleaseStateError::Binding)?;
+        if operation.stage != ReleaseStage::ReleaseEntered {
+            return Err(ReleaseStateError::Stage);
+        }
+        if operation.recipient != evidence.recipient
+            || operation.released_bytes != Some(evidence.released_bytes)
+            || operation.commitment_key_version != Some(evidence.commitment_key_version)
+            || !operation
+                .content_commitment
+                .as_deref()
+                .is_some_and(|commitment| same_commitment(commitment, &evidence.content_commitment))
+        {
+            return Err(ReleaseStateError::Binding);
+        }
+        operation.stage = ReleaseStage::AgentAcknowledged;
+        Ok(())
+    }
+
+    /// Finalize a charged release only with durable proof that channel send
+    /// never began. A crash or timeout is insufficient and remains unknown.
+    pub(crate) fn not_delivered(
+        &mut self,
+        evidence: &ProvenNoSend,
+    ) -> Result<(), ReleaseStateError> {
+        if evidence.task_id != self.task_id {
+            return Err(ReleaseStateError::Binding);
+        }
+        let operation = self
+            .operations
+            .get_mut(&evidence.operation_id)
+            .ok_or(ReleaseStateError::Binding)?;
+        if operation.stage != ReleaseStage::ReleaseEntered {
+            return Err(ReleaseStateError::Stage);
+        }
+        operation.stage = ReleaseStage::NotDelivered;
+        Ok(())
+    }
+
     /// Revocation excludes later call reservations and release commitments;
     /// it cannot undo a prior entered release.
     pub(crate) fn revoke(&mut self) {
@@ -444,7 +531,12 @@ impl ReleaseTaskState {
             {
                 return Err(ReleaseStateError::Corrupt);
             }
-            let charged = operation.stage == ReleaseStage::ReleaseEntered;
+            let charged = matches!(
+                operation.stage,
+                ReleaseStage::ReleaseEntered
+                    | ReleaseStage::NotDelivered
+                    | ReleaseStage::AgentAcknowledged
+            );
             if charged {
                 let bytes = operation.released_bytes.ok_or(ReleaseStateError::Corrupt)?;
                 if bytes == 0
@@ -684,6 +776,20 @@ impl FileReleaseTaskLedger {
         })
     }
 
+    pub(crate) fn acknowledge(
+        &self,
+        evidence: &VerifiedAgentAcknowledgement,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(&evidence.task_id, |state| state.acknowledge(evidence))
+    }
+
+    pub(crate) fn not_delivered(
+        &self,
+        evidence: &ProvenNoSend,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(&evidence.task_id, |state| state.not_delivered(evidence))
+    }
+
     pub(crate) fn revoke(&self, task_id: &str) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(task_id, |state| {
             state.revoke();
@@ -732,6 +838,21 @@ mod tests {
         }
     }
 
+    fn acknowledgement(
+        state: &ReleaseTaskState,
+        operation_id: &str,
+    ) -> VerifiedAgentAcknowledgement {
+        let (version, commitment) = state.commitment(operation_id).expect("commitment");
+        VerifiedAgentAcknowledgement {
+            task_id: "task-1".to_owned(),
+            operation_id: operation_id.to_owned(),
+            recipient: "agent-principal".to_owned(),
+            released_bytes: 8,
+            commitment_key_version: version,
+            content_commitment: commitment.to_owned(),
+        }
+    }
+
     #[test]
     fn lost_ack_consumes_budget_and_cannot_redeliver() {
         let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).expect("key");
@@ -756,6 +877,97 @@ mod tests {
         let (version, mac) = state.commitment("read-1").expect("keyed receipt");
         assert_eq!(version, 2);
         assert_ne!(mac, hex::encode(Sha256::digest(b"Approved")));
+    }
+
+    #[test]
+    fn authenticated_acknowledgement_is_exact_and_durable() {
+        let root = tempfile::tempdir().expect("private directory");
+        let path = fs::canonicalize(root.path())
+            .expect("canonical directory")
+            .join("release");
+        let ledger = FileReleaseTaskLedger::open(&path).expect("open");
+        ledger.initialize(policy()).expect("task");
+        ledger
+            .reserve_provider_call(call("read-1"), 101)
+            .expect("claim");
+        let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).expect("key");
+        let entered = ledger
+            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+            .expect("charge");
+        let mut wrong = acknowledgement(&entered, "read-1");
+        wrong.recipient = "other-agent".to_owned();
+        assert_eq!(
+            ledger.acknowledge(&wrong).err(),
+            Some(ReleaseStateError::Binding)
+        );
+        let mut wrong = acknowledgement(&entered, "read-1");
+        wrong.content_commitment = "0".repeat(64);
+        assert_eq!(
+            ledger.acknowledge(&wrong).err(),
+            Some(ReleaseStateError::Binding)
+        );
+        let mut wrong = acknowledgement(&entered, "read-1");
+        wrong.released_bytes = 7;
+        assert_eq!(
+            ledger.acknowledge(&wrong).err(),
+            Some(ReleaseStateError::Binding)
+        );
+        let ack = acknowledgement(&entered, "read-1");
+        let acknowledged = ledger.acknowledge(&ack).expect("verified acknowledgement");
+        assert_eq!(
+            acknowledged.stage("read-1"),
+            Some(ReleaseStage::AgentAcknowledged)
+        );
+        assert!(!acknowledged.delivery_unknown("read-1"));
+        assert_eq!(acknowledged.counts(), (1, 1, 8));
+        drop(ledger);
+
+        let restarted = FileReleaseTaskLedger::open(&path).expect("restart");
+        let loaded = restarted.load("task-1").expect("load").expect("task");
+        assert_eq!(
+            loaded.stage("read-1"),
+            Some(ReleaseStage::AgentAcknowledged)
+        );
+        assert_eq!(loaded.counts(), (1, 1, 8));
+        assert_eq!(
+            restarted.acknowledge(&ack).err(),
+            Some(ReleaseStateError::Stage)
+        );
+        assert_eq!(
+            restarted.reserve_provider_call(call("read-1"), 103).err(),
+            Some(ReleaseStateError::Replay)
+        );
+    }
+
+    #[test]
+    fn proven_no_send_keeps_charge_but_timeout_stays_unknown() {
+        let key = ReleaseCommitmentKey::new(2, Zeroizing::new([0x93; 32])).expect("key");
+        let mut state = ReleaseTaskState::new(policy()).expect("policy");
+        state
+            .reserve_provider_call(call("read-1"), 101)
+            .expect("claim");
+        state
+            .enter_release("read-1", b"Approved", &key, 102)
+            .expect("charge");
+        assert!(state.delivery_unknown("read-1"));
+        let evidence = ProvenNoSend {
+            task_id: "task-1".to_owned(),
+            operation_id: "read-1".to_owned(),
+        };
+        state
+            .not_delivered(&evidence)
+            .expect("durable no-send proof");
+        assert_eq!(state.stage("read-1"), Some(ReleaseStage::NotDelivered));
+        assert!(!state.delivery_unknown("read-1"));
+        assert_eq!(state.counts(), (1, 1, 8));
+        assert_eq!(
+            state.not_delivered(&evidence),
+            Err(ReleaseStateError::Stage)
+        );
+        assert_eq!(
+            state.acknowledge(&acknowledgement(&state, "read-1")),
+            Err(ReleaseStateError::Stage)
+        );
     }
 
     #[test]
