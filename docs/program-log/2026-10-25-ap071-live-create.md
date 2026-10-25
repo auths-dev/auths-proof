@@ -146,3 +146,24 @@ signed and no Google file was created by this preparation. The Chrome
 Incognito workbench now shows the new task card for Jules's review. A new
 human task signature and later exact two-effect plan are still required
 before asking demo_co for the fresh v2 baseline or entering either write.
+
+At 19:00 UTC, Jules signed fresh task `Gdj7h8pjYv73RhNN7a9wFecV` in
+Chrome Incognito after reviewing the pinned agent, Project A source and
+folder, one release capped at 16 KiB, two writes, exact approval mode and
+30-minute expiry. The task activated in the local gateway. The separate
+registered agent signed read operation `ap071-v2-read-b9eeb4f46471cfd6`;
+the managed gateway reported `agent-acknowledged`, 51 released bytes and a
+keyed content commitment. The private agent listener acknowledged the same
+operation and retained those exact bytes locally. The agent then signed a
+145-byte citation-bearing draft derived deterministically from the synthetic
+source marker, and signed the create proposal for marker
+`ap071_7d5aa6321cf7297a5bf5e592de774a8d`. Auths' exact two-effect
+review verified the staged signed draft against the acknowledged release.
+No Google write has occurred in this fresh task yet.
+
+The configured external model route was rejected by automatic approval
+review because it would send the private source to `api.openai.com` without
+specific destination and payload authorization. The local deterministic
+drafting shim kept the source on this host. This run therefore tests agent
+isolation, receipt binding and signatures, but does not establish that a
+remote model generated the prose.
