@@ -26,6 +26,14 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
                 "../../../../../demos/google-employee-delegation/write_reference/profile.lock.json"
             ),
         ),
+        "google-drive-create" => (
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/create_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+            ),
+        ),
         "airtable-task-edit" => (
             include_bytes!("../../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!(
@@ -191,6 +199,51 @@ fn fixed_write_query_is_reviewed_and_cannot_be_supplied_by_the_agent() {
             Some(GatewayRecipeError::UnsafeTemplate)
         );
     }
+}
+
+#[test]
+fn google_drive_create_is_a_task_bound_metadata_request() {
+    let recipe = compiled("google-drive-create");
+    assert!(recipe.requires_task_admission());
+    assert_eq!(recipe.review_document()["task_binding"]["verb"], "create");
+    assert_eq!(
+        recipe.review_document()["task_binding"]["resource_field"],
+        "parent_id"
+    );
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "create-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "parent_id": "project-a-folder",
+            "title": "Project A handoff",
+            "recovery_marker": "auths-run-01-create-01"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed create request");
+    assert_eq!(request.method(), WriteMethod::Post);
+    assert_eq!(
+        request.url(),
+        "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).expect("JSON body"),
+        json!({
+            "mimeType": "application/vnd.google-apps.document",
+            "name": "Project A handoff",
+            "parents": ["project-a-folder"],
+            "properties": {"auths_operation_marker": "auths-run-01-create-01"}
+        })
+    );
+    let mut changed = args;
+    changed.insert("parent_id".into(), json!("project-b-folder"));
+    let other = recipe
+        .closed_request_from_arguments(&changed, [0x41; 32])
+        .expect("changed request requires a different native action");
+    assert_ne!(request.body(), other.body());
 }
 
 #[test]

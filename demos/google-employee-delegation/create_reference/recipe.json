@@ -1,0 +1,39 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "26927de02c57df50293ed5b052bc124f631e938118e8c17a4e1fa9a1e55be9a2",
+  "service": "google-drive-delegation-demo",
+  "tool": "create_project_a_document_v1",
+  "operator_namespace": "google-drive-create-demo",
+  "task_binding": {"resource_field": "parent_id", "verb": "create"},
+  "credential": {"kind": "bearer"},
+  "origin": "https://www.googleapis.com",
+  "write": {
+    "method": "POST",
+    "path": [
+      {"kind": "fixed", "value": "drive"},
+      {"kind": "fixed", "value": "v3"},
+      {"kind": "fixed", "value": "files"}
+    ],
+    "query": {"supportsAllDrives": "true"},
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "mimeType": {"kind": "string", "value": "application/vnd.google-apps.document"},
+          "name": {"kind": "field", "name": "title"},
+          "parents": {
+            "kind": "array",
+            "items": [{"kind": "field", "name": "parent_id"}]
+          },
+          "properties": {
+            "kind": "object",
+            "fields": {
+              "auths_operation_marker": {"kind": "field", "name": "recovery_marker"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
