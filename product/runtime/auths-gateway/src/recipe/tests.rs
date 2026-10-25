@@ -529,6 +529,59 @@ async fn created_child_candidate_survives_restart_without_granting_child_authori
         Some(&"child_ABC-123".to_owned())
     );
     assert_eq!(snapshot.observation_match(), None);
+    let plan = request.observation_template().expect("signed create plan");
+    assert!(
+        reopened
+            .resume_observable_operation(
+                request.namespace(),
+                request.operation_id(),
+                *recipe.digest()
+            )
+            .await
+            .expect("generic resume")
+            .is_none(),
+        "the generic path cannot promote a created child"
+    );
+    assert!(
+        reopened
+            .resume_created_child_observation(
+                request.namespace(),
+                request.operation_id(),
+                [0; 32],
+                plan,
+            )
+            .await
+            .expect("wrong recipe is a refusal")
+            .is_none()
+    );
+    let resumed = reopened
+        .resume_created_child_observation(
+            request.namespace(),
+            request.operation_id(),
+            *recipe.digest(),
+            plan,
+        )
+        .await
+        .expect("reopen recorded create")
+        .expect("metadata read can resume");
+    let observed = resumed
+        .record_observation(true)
+        .await
+        .expect("observed metadata");
+    assert_eq!(observed.stage(), GatewayAttemptStage::Observed);
+    assert!(
+        reopened
+            .resume_created_child_observation(
+                request.namespace(),
+                request.operation_id(),
+                *recipe.digest(),
+                plan,
+            )
+            .await
+            .expect("reopen after observation")
+            .is_some(),
+        "a crash between observation and task binding must remain reconcilable"
+    );
 }
 
 #[test]

@@ -1668,6 +1668,170 @@ impl TaskWriteSession<'_> {
             })
             .await
     }
+
+    /// Reconcile a recorded create response after a crash between the
+    /// attempt's metadata observation and the task-journal child binding.
+    /// This path re-verifies the original agent and human actions, leases the
+    /// same subject-bound connection for one metadata GET, and never repeats
+    /// the provider create. A lost response has no ID and is ineligible.
+    ///
+    /// # Errors
+    /// Refuses absent or changed task/attempt evidence, invalid native
+    /// proofs, a changed connection, failed metadata, or a journal conflict.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "each proof, attempt and provider-read boundary remains explicit"
+    )]
+    pub async fn reconcile_created_child(
+        &self,
+        proofs: TaskWriteProofs<'_>,
+    ) -> Result<String, &'static str> {
+        if self.engine.recipe.created_child_fields().is_none() {
+            return Err("gateway.task.reconcile-not-create");
+        }
+        let now = wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?;
+        let state = self
+            .ledger
+            .load(proofs.task_id)
+            .map_err(|_| "gateway.task.reconcile-state")?
+            .ok_or("gateway.task.reconcile-state")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.reconcile-inactive")?;
+        if task.descriptor().write_approval_mode != WriteApprovalMode::Exact {
+            return Err("gateway.task.reconcile-approval-mode");
+        }
+        let verified = verify_detailed(
+            &self.engine.recipe,
+            &self.engine.trusted_context,
+            now,
+            proofs.agent_proof,
+            proofs.agent_action,
+        )
+        .map_err(|_| "gateway.task.reconcile-agent-proof")?;
+        let intent = derive_exact_write_intent(
+            &task,
+            &verified,
+            &self.engine.recipe,
+            &self.binding,
+            None,
+            now,
+        )
+        .map_err(|_| "gateway.task.reconcile-intent")?;
+        if intent.verb != crate::task_activation::TaskWriteVerb::Create {
+            return Err("gateway.task.reconcile-not-create");
+        }
+        let (proof, action) = proofs
+            .confirmation
+            .ok_or("gateway.task.reconcile-confirmation")?;
+        let approved = verify_exact_write_confirmation(
+            &self.engine.trusted_context,
+            &task,
+            intent.clone(),
+            now,
+            proof,
+            action,
+        )
+        .map_err(|_| "gateway.task.reconcile-confirmation")?;
+        let request = &verified.request;
+        let child = request
+            .created_child()
+            .ok_or("gateway.task.reconcile-not-create")?;
+        let plan = request
+            .observation_template()
+            .ok_or("gateway.task.reconcile-plan")?;
+        let attempt = self
+            .engine
+            .attempts
+            .resume_created_child_observation(
+                self.engine.recipe.namespace(),
+                request.operation_id(),
+                *self.engine.recipe.digest(),
+                plan,
+            )
+            .await
+            .map_err(|_| "gateway.task.reconcile-attempt")?
+            .ok_or("gateway.task.reconcile-attempt")?;
+        let snapshot = attempt
+            .snapshot()
+            .map_err(|_| "gateway.task.reconcile-attempt")?;
+        if hex::encode(snapshot.action_commitment()) != intent.action_commitment {
+            return Err("gateway.task.reconcile-action-mismatch");
+        }
+        let candidate_id = snapshot
+            .response_locator()
+            .and_then(|locator| locator.get(&child.response_id_pointer))
+            .ok_or("gateway.task.reconcile-candidate")?;
+        let response_digest = snapshot
+            .response_digest()
+            .ok_or("gateway.task.reconcile-response")?;
+        let observation = attempt
+            .observation_request()
+            .ok_or("gateway.task.reconcile-plan")?;
+        let io = EngineIo {
+            engine: self.engine,
+            proof: proofs.agent_proof,
+            action: proofs.agent_action,
+            started: Instant::now(),
+            prepared: OnceLock::new(),
+            task_write: Some(TaskWriteAdmission {
+                task: &task,
+                binding: &self.binding,
+                approved: &approved,
+                ledger: &self.ledger,
+                child_scope: None,
+            }),
+            commissioning: None,
+            commissioned_action: OnceLock::new(),
+            commissioning_refusal: OnceLock::new(),
+        };
+        io.prepare().await?;
+        if !io.reload().await {
+            return Err("gateway.task.reconcile-connection-changed");
+        }
+        let lease = io
+            .lease()
+            .await
+            .ok_or("gateway.task.reconcile-credential")?;
+        let response = io
+            .action_read(
+                &lease,
+                observation.url(),
+                observation.headers(),
+                observation.maximum_response_bytes(),
+            )
+            .await;
+        let body = response
+            .as_ref()
+            .and_then(ProviderResponse::usable_body)
+            .ok_or("gateway.task.reconcile-metadata")?;
+        if observation.read_back(None, body)
+            != Some(crate::recipe::ReadBack::Value { matched: true })
+        {
+            return Err("gateway.task.reconcile-metadata");
+        }
+        let verified_child = child
+            .verify_metadata(candidate_id, body)
+            .ok_or("gateway.task.reconcile-metadata")?;
+        if !io.reload().await {
+            return Err("gateway.task.reconcile-connection-changed");
+        }
+        if snapshot.stage() == crate::GatewayAttemptStage::ResponseRecorded {
+            attempt
+                .record_observation(true)
+                .await
+                .map_err(|_| "gateway.task.reconcile-observation")?;
+        }
+        self.ledger
+            .bind_created_child(
+                &approved,
+                &verified_child,
+                response_digest,
+                wall_clock_seconds().ok_or("gateway.task.reconcile-clock")?,
+            )
+            .map_err(|_| "gateway.task.reconcile-binding")?;
+        Ok(candidate_id.clone())
+    }
 }
 
 #[cfg(unix)]
@@ -2981,6 +3145,346 @@ pub(crate) mod tests {
         }
     }
 
+    #[cfg(all(unix, feature = "loopback-provider"))]
+    #[tokio::test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the crash recovery fixture spans native proofs, two journals and one metadata-only provider read"
+    )]
+    async fn recorded_create_reconciles_child_without_reentering_provider_write() {
+        use crate::harness::{self, Signer};
+        use crate::observed_tests::submission_for;
+        use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
+        use auths_connections::SemanticId;
+        use serde_json::{Map, json};
+        use sha2::Digest as _;
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let mut installation = administration::installation(8).await;
+        let engine = &mut installation.first.engine;
+        engine.recipe = CompiledRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+            ),
+        )
+        .expect("create recipe");
+        let populate = CompiledRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/populate_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
+            ),
+        )
+        .expect("populate recipe");
+        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("read-only provider listener");
+        engine.loopback_port = Some(listener.local_addr().expect("loopback address").port());
+        let now = wall_clock_seconds().expect("clock");
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        engine.trusted_context = harness::context_for_agent_and_task_profile(
+            &root,
+            observer.principal(),
+            now,
+            "google-drive-delegation-demo",
+            "create_project_a_document_v1",
+        )
+        .expect("task trust");
+        let loaded = engine
+            .connection
+            .load()
+            .await
+            .expect("connection")
+            .expect("record");
+        let old = loaded.record();
+        let subject = "jules-subject";
+        let descriptor = crate::GatewayTaskConnectionDescriptor::approve(
+            &[&engine.recipe, &populate],
+            "Authorization",
+        )
+        .expect("paired descriptor")
+        .to_bytes()
+        .expect("descriptor bytes");
+        let bound = ConnectionRecord::new(
+            old.provider_kind().clone(),
+            old.alias().clone(),
+            old.connection_id().clone(),
+            old.contract().clone(),
+            SemanticId::parse(crate::binding::TASK_CONNECTION_DESCRIPTOR_SCHEMA)
+                .expect("descriptor schema"),
+            descriptor,
+            submit::account_commitment(subject),
+            *old.credential_reference_commitment(),
+            old.generation(),
+            old.state(),
+            old.allowed_workloads().to_vec(),
+            old.allowed_profiles().to_vec(),
+            old.created_at_unix_seconds(),
+            old.updated_at_unix_seconds(),
+            old.revoked_at_unix_seconds(),
+        )
+        .expect("subject-bound task connection");
+        engine
+            .connection
+            .replace(&loaded, &bound)
+            .await
+            .expect("replace descriptor");
+        let pins = TaskActivationPins {
+            company_id: "atlas".to_owned(),
+            human_principal: human.principal.as_str().to_owned(),
+            agent_principal: agent.principal.as_str().to_owned(),
+            agent_key_fingerprint: "a".repeat(64),
+            connection_id: bound.connection_id().as_str().to_owned(),
+            connection_generation: bound.generation().get(),
+            connection_subject: subject.to_owned(),
+            permitted_read_scopes: vec![],
+            delivery_channel: "agent-channel".to_owned(),
+            operator_policy_digest: "b".repeat(64),
+            allow_bounded_writes: false,
+        };
+        let marker = format!("ap071_{}", "d".repeat(32));
+        let card: AgentTaskDescriptor = serde_json::from_value(json!({
+            "schema": "auths.agent-task/2", "task_id": "task-create-reconcile",
+            "company_id": pins.company_id,
+            "human_principal": pins.human_principal,
+            "agent_principal": pins.agent_principal,
+            "agent_key_fingerprint": pins.agent_key_fingerprint,
+            "connection_id": pins.connection_id,
+            "connection_generation": pins.connection_generation,
+            "connection_subject": pins.connection_subject,
+            "read_scopes": [],
+            "write_scopes": [{"handle": "project-a-folder",
+                "recipe_digest": engine.recipe.digest_hex(), "verb": "create",
+                "connection_id": pins.connection_id,
+                "connection_generation": pins.connection_generation,
+                "connection_subject": pins.connection_subject}],
+            "pending_child": {"create_operation_id": "create-reconcile-1",
+                "create_recipe_digest": engine.recipe.digest_hex(),
+                "populate_recipe_digest": populate.digest_hex(),
+                "parent_handle": "project-a-folder",
+                "title": "Auths AP-071 Project A handoff", "marker": marker},
+            "delivery_channel": pins.delivery_channel,
+            "not_before": now - 30, "expires_at": now + 600,
+            "max_provider_calls": 0, "max_releases": 0,
+            "max_release_bytes": 0, "max_writes": 2,
+            "write_approval_mode": "exact",
+            "operator_policy_digest": pins.operator_policy_digest,
+            "purpose": "Create one child for a handoff"
+        }))
+        .expect("task card");
+        let canonical = serde_json_canonicalizer::to_vec(&card).expect("canonical card");
+        let commitment = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
+            .expect("card commitment");
+        let task = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
+        let mut digests = vec![engine.recipe.digest_hex(), populate.digest_hex()];
+        digests.sort();
+        let installation_bytes = serde_json_canonicalizer::to_vec(&TaskWriteInstallation {
+            schema: TASK_INSTALLATION_SCHEMA.to_owned(),
+            recipe_digests: digests,
+            pins,
+        })
+        .expect("task installation");
+        let directory = tempfile::tempdir().expect("private root");
+        let state_root = std::fs::canonicalize(directory.path())
+            .expect("canonical root")
+            .join("task-state");
+        let session = engine
+            .task_write_session(&installation_bytes, &state_root)
+            .expect("paired task session");
+        session
+            .ledger
+            .initialize(&task)
+            .expect("activate fixture task");
+        let grant = harness::grant_for(
+            &root,
+            &agent.principal,
+            now,
+            "google-drive-delegation-demo",
+            "create_project_a_document_v1",
+        )
+        .expect("agent create grant");
+        let args = json!({
+            "operator_namespace": "google-drive-create-demo",
+            "operation_id": "create-reconcile-1",
+            "recipe_digest": engine.recipe.digest_hex(),
+            "task_id": "task-create-reconcile",
+            "task_commitment": hex::encode(commitment.as_bytes()),
+            "parent_id": "project-a-folder",
+            "title": "Auths AP-071 Project A handoff",
+            "recovery_marker": marker,
+        });
+        let signed = submission_for(
+            &root,
+            &agent,
+            &grant,
+            args.as_object().expect("arguments"),
+            &[],
+            "google-drive-delegation-demo",
+            "create_project_a_document_v1",
+            now,
+        );
+        let verified = verify_detailed(
+            &engine.recipe,
+            &engine.trusted_context,
+            now,
+            &signed.proof,
+            &signed.action,
+        )
+        .expect("verified agent create");
+        let intent = derive_exact_write_intent(
+            &task,
+            &verified,
+            &engine.recipe,
+            &session.binding,
+            None,
+            now,
+        )
+        .expect("exact create intent");
+        let confirmation_grant = harness::grant_for(
+            &root,
+            &human.principal,
+            now,
+            TASK_SERVICE,
+            CONFIRMATION_TOOL,
+        )
+        .expect("human confirmation grant");
+        let mut confirmation_args = Map::new();
+        confirmation_args.insert(
+            "write".to_owned(),
+            serde_json::to_value(&intent).expect("intent"),
+        );
+        let confirmation = submission_for(
+            &root,
+            &human,
+            &confirmation_grant,
+            &confirmation_args,
+            &[],
+            TASK_SERVICE,
+            CONFIRMATION_TOOL,
+            now,
+        );
+        let approved = verify_exact_write_confirmation(
+            &engine.trusted_context,
+            &task,
+            intent,
+            now,
+            &confirmation.proof,
+            &confirmation.action,
+        )
+        .expect("exact create approval");
+        session
+            .ledger
+            .reserve_write(&approved, now)
+            .expect("reserved create");
+        let response = br#"{"id":"child_ABC-123"}"#;
+        let locator = submit::response_locator(&verified.request, 200, true, response)
+            .expect("response-derived candidate");
+        engine
+            .attempts
+            .claim(&verified.request, *engine.recipe.digest(), now)
+            .await
+            .expect("claimed original create")
+            .record_response(200, sha2::Sha256::digest(response).into(), Some(locator))
+            .await
+            .expect("recorded complete create response");
+        drop(session);
+        engine.attempts = installation.attempts.reopen();
+        let session = engine
+            .task_write_session(&installation_bytes, &state_root)
+            .expect("reopened task session");
+
+        let mut altered = signed.action.clone();
+        *altered.last_mut().expect("action byte") ^= 1;
+        assert_eq!(
+            session
+                .reconcile_created_child(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &signed.proof,
+                    agent_action: &altered,
+                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                })
+                .await,
+            Err("gateway.task.reconcile-agent-proof")
+        );
+        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
+        let provider = tokio::spawn(async move {
+            for parent in ["wrong-parent", "project-a-folder"] {
+                let (mut stream, _) = listener.accept().await.expect("metadata GET");
+                let mut request = [0_u8; 4096];
+                let size = stream.read(&mut request).await.expect("provider request");
+                let head = std::str::from_utf8(&request[..size]).expect("request head");
+                assert!(
+                    head.starts_with("GET /drive/v3/files/child_ABC-123?"),
+                    "{head}"
+                );
+                let body = format!(
+                    "{{\"id\":\"child_ABC-123\",\"name\":\"Auths AP-071 Project A handoff\",\"parents\":[\"{parent}\"],\"properties\":{{\"auths_operation_marker\":\"ap071_dddddddddddddddddddddddddddddddd\"}},\"mimeType\":\"application/vnd.google-apps.document\",\"driveId\":\"0ACsJUU1uex2wUk9PVA\",\"trashed\":false,\"createdTime\":\"2026-10-25T10:03:00Z\"}}"
+                );
+                let headers = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    body.len()
+                );
+                stream.write_all(headers.as_bytes()).await.expect("headers");
+                stream.write_all(body.as_bytes()).await.expect("metadata");
+            }
+        });
+        assert_eq!(
+            session
+                .reconcile_created_child(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &signed.proof,
+                    agent_action: &signed.action,
+                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                })
+                .await,
+            Err("gateway.task.reconcile-metadata")
+        );
+        assert!(
+            session
+                .ledger
+                .load("task-create-reconcile")
+                .expect("task journal")
+                .expect("task state")
+                .bound_child_scope()
+                .is_none(),
+            "a wrong provider parent cannot bind the child"
+        );
+        assert_eq!(
+            session
+                .reconcile_created_child(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &signed.proof,
+                    agent_action: &signed.action,
+                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                })
+                .await,
+            Ok("child_ABC-123".to_owned())
+        );
+        provider.await.expect("provider reads completed");
+        let state = session
+            .ledger
+            .load("task-create-reconcile")
+            .expect("task journal")
+            .expect("task state");
+        assert_eq!(
+            state.bound_child_scope().expect("bound child").handle,
+            "child_ABC-123"
+        );
+        assert_eq!(
+            state.write_count(),
+            1,
+            "reconciliation cannot reserve another write"
+        );
+        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 2);
+    }
+
     // Connection administration over the shared record and each process's
     // own credential store. Entry is checked through `prepare_entry`, which
     // every submission and read-back passes before any claim, lease, or
@@ -3080,7 +3584,7 @@ pub(crate) mod tests {
 
         /// A connection installed through a first host on a shared store.
         pub(crate) struct Installation {
-            attempts: crate::store_testkit::TestAttempts,
+            pub(crate) attempts: crate::store_testkit::TestAttempts,
             pub(crate) connection_id: auths_connections::ConnectionId,
             pub(crate) first: Host,
         }

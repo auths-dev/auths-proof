@@ -464,6 +464,25 @@ mod unix {
             #[arg(long, requires = "confirmation_proof")]
             confirmation_action: Option<PathBuf>,
         },
+        /// Development operator only: reverify the original signed create
+        /// after a recorded response, read its child metadata once, and bind
+        /// that child in the task journal. Never repeats the create write.
+        TaskReconcileChild {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            recipe_digest: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long)]
+            confirmation_proof: PathBuf,
+            #[arg(long)]
+            confirmation_action: PathBuf,
+        },
         /// Ask the private operator socket to disable new writes in every
         /// process sharing the store.
         Disable {
@@ -3679,6 +3698,43 @@ mod unix {
         Ok(())
     }
 
+    async fn task_reconcile_child(
+        state_dir: PathBuf,
+        task_id: String,
+        recipe_digest: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        confirmation_proof: PathBuf,
+        confirmation_action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine_for(&state_dir, Some(recipe_digest)).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let confirmation_proof = read_bounded(&confirmation_proof, 4 * 1024 * 1024)?;
+        let confirmation_action = read_bounded(&confirmation_action, 64 * 1024)?;
+        let child_id = session
+            .reconcile_created_child(TaskWriteProofs {
+                task_id: &task_id,
+                agent_proof: &agent_proof,
+                agent_action: &agent_action,
+                confirmation: Some((&confirmation_proof, &confirmation_action)),
+            })
+            .await?;
+        println!(
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "schema": "auths.gateway-child-reconciliation/1",
+                "outcome": "child-bound",
+                "child_id": child_id,
+            }))
+            .map_err(|_| "gateway.task.invalid-response")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
         read_back: Option<String>,
@@ -4615,6 +4671,26 @@ mod unix {
                 )
                 .await
             }
+            Command::TaskReconcileChild {
+                state_dir,
+                task_id,
+                recipe_digest,
+                agent_proof,
+                agent_action,
+                confirmation_proof,
+                confirmation_action,
+            } => {
+                task_reconcile_child(
+                    state_dir,
+                    task_id,
+                    recipe_digest,
+                    agent_proof,
+                    agent_action,
+                    confirmation_proof,
+                    confirmation_action,
+                )
+                .await
+            }
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -5095,6 +5171,39 @@ mod unix {
                     confirmation_action: Some(_),
                     ..
                 }
+            ));
+        }
+
+        #[test]
+        fn child_reconciliation_requires_original_create_recipe_and_both_proofs() {
+            let base = [
+                "auths-gateway",
+                "task-reconcile-child",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+                "--confirmation-proof",
+                "human.proof",
+                "--confirmation-action",
+                "human.action",
+            ];
+            assert!(
+                Cli::try_parse_from(base).is_err(),
+                "the reviewed recipe is required"
+            );
+            let mut complete = base.to_vec();
+            let digest = "a".repeat(64);
+            complete.extend(["--recipe-digest", digest.as_str()]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("read-only reconciliation parses")
+                    .command,
+                Command::TaskReconcileChild { .. }
             ));
         }
 

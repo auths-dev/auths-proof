@@ -14,14 +14,18 @@ bounded child ID from a complete successful response and retains it as a
 candidate in the attempt journal across restart. The reviewed observation
 path can address that candidate and now compares ID, sole parent, title,
 marker and operator-pinned literals from a bounded metadata GET. Generic
-re-observation refuses created-child recipes after restart until native-verified
-create fields can be restored safely. A matched, credential-bearing metadata
+re-observation refuses created-child recipes after restart. A dedicated
+reconciliation path now re-verifies the original native agent action and exact
+human confirmation, compares the recorded attempt commitment and recipe, and
+repeats only the credential-bearing metadata GET for a complete recorded
+response. A matched, credential-bearing metadata
 observation now commits an immutable child binding to the same task journal as
 the reserved create. A lost or mismatched observation leaves no binding. The
 binding now yields a one-time edit scope for the reviewed populate recipe:
 a fresh native agent action and exact human confirmation must still match that
-scope before entry. The crash gap between the attempt and task journals still
-needs a verified reconciliation path. This ADR
+scope before entry. This closes the recorded-response crash gap between the
+attempt and task journals in synthetic tests. A response lost before recording
+still needs the separate recovered-child flow below. This ADR
 authorizes no production claim by itself.
 
 A test-only Todoist create recipe now exercises the same compiler and metadata
@@ -89,8 +93,11 @@ check passes, it commits an immutable child binding in the task journal:
 task-card commitment, create operation ID, create recipe digest, request
 commitment, response digest, child ID, provider subject/generation and
 verification evidence digest. If the process crashes between these journals,
-reconciliation may only read the already recorded attempt and rerun the
-metadata check; it never re-enters the create. No binding is inferred from an
+reconciliation re-verifies the original native actions, reads the already
+recorded attempt and reruns the metadata check; it never re-enters the create.
+This dedicated path is implemented for complete recorded responses, including
+a crash after the matching observation but before the task-journal bind. No
+binding is inferred from an
 unrecorded response or an arbitrary operator-supplied ID.
 
 For population, the fresh agent action may name only the child ID in that
@@ -154,10 +161,12 @@ The plan format and commit points are part of that future implementation:
    transport entry; the provider's own revision precondition remains the
    final concurrency check.
 4. A recorded create response is not enough if the task-journal child-binding
-   commit failed. After restart, reconciliation reloads the original
-   native-verified create fields or their sealed projection and the recorded
-   response locator, redoes the reviewed metadata GET, and performs the same
-   one-time journal transition. It performs **no create**. A lost response
+   commit failed. The implemented dedicated reconciliation command requires
+   the original agent and human proof/action bytes. After restart, it
+   re-verifies those native actions against the active task, checks the stored
+   attempt and response locator, redoes the reviewed metadata GET under the
+   subject-bound connection, and performs the same one-time journal
+   transition. It performs **no create**. A lost response
    follows the separate signed recovered-child path below. Neither path can
    use an arbitrary operator-supplied child ID as its proof source.
 

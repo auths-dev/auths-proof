@@ -62,8 +62,12 @@ and exact human confirmation must still match it before provider entry.
 The generic `reobserve` path refuses this create recipe after restart because
 its stored plan does not retain the native-verified parent, title and marker;
 allowing a later name-only match would bypass the metadata checks. The
-candidate ID remains in the private attempt journal for a future verified
-reconciliation path.
+dedicated `task-reconcile-child` command requires the original agent and human
+proof/action bytes and a complete recorded create response. It re-verifies the
+signed task and stored action commitment, then rechecks metadata with the same
+subject-bound connection before binding the child. A synthetic restart test
+shows one metadata GET and no second provider create. This does not reconcile
+a create whose response was lost before recording.
 The broker now has a separate read-only `CreateRecoverySearch` helper for a
 lost response. It builds a Drive search for the caller to send with Jules's
 subject-bound credential in the pinned drive and parent for the exact public
