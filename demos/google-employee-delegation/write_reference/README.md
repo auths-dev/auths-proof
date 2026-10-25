@@ -51,9 +51,12 @@ write budget, and binds the loaded connection ID, generation and account
 subject before a credential lease. A development-only, operator-owned CLI
 can configure private pins, activate a signed task, and submit its agent and
 confirmation proofs; the human task UI and isolated agent path are still
-required for live use. The broker can privately refresh and
-verify Jules's separate `drive.file` grant, but that lease is not yet installed
-as a subject-bound Auths gateway write connection. Her saved read-only grant
+required for live use. The broker can privately refresh and verify Jules's
+separate `drive.file` grant. A development-only
+[credential shim](../broker/src/employee_read_demo/google_gateway_credential_shim.py)
+now pipes a checked, short-lived bearer into a new gateway installation with
+the Google UserInfo `sub` as account label. It has synthetic secret-custody
+tests; no live gateway installation or edit has run. Her saved read-only grant
 is insufficient.
 demo_co owns the folder, working Doc, ACL, consent probes and versioned export;
 Auths owns authority, connection custody, recipe admission and receipts.
@@ -89,5 +92,5 @@ exact mode. It prints a redacted gateway result. Bounded-upfront mode must
 have been enabled in the operator pins and is the only mode without a separate
 confirmation. These commands refuse production installations while the task
 journal is single-host. They are a development integration route, not a
-substitute for the human review UI, separate agent process, Google credential
-installation or independent effect verification.
+substitute for the human review UI, separate agent process or independent
+effect verification.
