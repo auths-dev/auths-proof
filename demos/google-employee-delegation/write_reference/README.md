@@ -96,8 +96,12 @@ Jules browser signatures and separate agent signing flow still need wiring.
 The private `auths-google-task-authority` operator command can now issue an
 owner-only package from the current company root seed, its trust manifest,
 Jules's enrolled identity and the operator-reviewed recipe profile/digest.
-It prints only a redacted summary; the package contains signed native grants
-and a trust template, no Google credential or human signing key. The browser
+It requires the recipe source and generated profile lock, checks their exact
+service, tool, schema digest and task resource field against each other, and
+records both file hashes. The compiled recipe digest remains the operator's
+reviewed input and is checked again by the gateway at installation. The
+command prints only a redacted summary; the package contains signed native
+grants and a trust template, no Google credential or human signing key. The browser
 and isolated agent must still complete their own signatures.
 The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
 now prepares separate native preimages for a reviewed task card and an exact

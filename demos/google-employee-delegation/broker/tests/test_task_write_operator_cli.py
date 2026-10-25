@@ -20,6 +20,9 @@ from employee_read_demo.operator_cli import init_root
 from employee_read_demo.task_write_operator_cli import issue_task_package
 
 
+REFERENCE = Path(__file__).resolve().parents[2] / "write_reference"
+
+
 class TaskOperatorCliTests(unittest.TestCase):
     def test_issues_private_bound_authority_from_current_company_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -53,6 +56,8 @@ class TaskOperatorCliTests(unittest.TestCase):
             summary = issue_task_package(
                 root_seed=seed, root_trust=trust, state_db=state,
                 binding_ref="binding-jules", company="atlas-studio",
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
                 provider_service="google-docs-delegation-demo",
                 provider_tool="replace_project_a_marker_v2",
                 recipe_digest=digest, output=output, now=1000,
@@ -63,6 +68,8 @@ class TaskOperatorCliTests(unittest.TestCase):
             package = json.loads(output.read_bytes())
             self.assertEqual(package["schema"], "auths.ap071-task-authority/1")
             self.assertEqual(package["recipe_digest"], digest)
+            self.assertEqual(len(package["recipe_source_sha256"]), 64)
+            self.assertEqual(len(package["profile_lock_sha256"]), 64)
             self.assertEqual(package["expires_at"], 4600)
             self.assertNotIn("token", output.read_text().lower())
             _native.parse_trusted_context(base64.urlsafe_b64decode(
@@ -75,6 +82,8 @@ class TaskOperatorCliTests(unittest.TestCase):
                 issue_task_package(
                     root_seed=seed, root_trust=trust, state_db=state,
                     binding_ref="binding-jules", company="atlas-studio",
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
                     provider_service="google-docs-delegation-demo",
                     provider_tool="replace_project_a_marker_v2",
                     recipe_digest=digest, output=output, now=1000,
@@ -83,9 +92,22 @@ class TaskOperatorCliTests(unittest.TestCase):
                 issue_task_package(
                     root_seed=seed, root_trust=trust, state_db=state,
                     binding_ref="binding-jules", company="other-company",
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
                     provider_service="google-docs-delegation-demo",
                     provider_tool="replace_project_a_marker_v2",
                     recipe_digest=digest, output=private / "wrong.json", now=1000,
+                )
+            with self.assertRaises(ValueError):
+                issue_task_package(
+                    root_seed=seed, root_trust=trust, state_db=state,
+                    binding_ref="binding-jules", company="atlas-studio",
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
+                    provider_service="airtable-gateway-demo",
+                    provider_tool="set_demo_status_v2",
+                    recipe_digest=digest, output=private / "wrong-profile.json",
+                    now=1000,
                 )
 
 

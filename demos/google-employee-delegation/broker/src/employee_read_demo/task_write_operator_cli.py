@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import re
 import sqlite3
@@ -17,12 +18,45 @@ import time
 from pathlib import Path
 
 from .enrollment import EmployeeBinding
+from .demo_co_contract import _unique_pairs
 from .operator_authority import OperatorRoot
 from .operator_cli import _private_read, _private_write
 from .task_write_authority import issue_task_write_authority
 
 
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def _reviewed_profile(recipe_path: Path, lock_path: Path) -> tuple[str, str, str, str]:
+    """Bind issuance to checked-in, matching source and generated profile data."""
+    values = []
+    for path in (recipe_path, lock_path):
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65_536:
+            raise ValueError("reviewed recipe or profile lock is unavailable")
+        raw = path.read_bytes()
+        try:
+            document = json.loads(raw, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError("reviewed recipe or profile lock is malformed") from error
+        if type(document) is not dict:
+            raise ValueError("reviewed recipe or profile lock is malformed")
+        values.append((document, hashlib.sha256(raw).hexdigest()))
+    (recipe, recipe_sha), (lock, lock_sha) = values
+    command_schema = lock.get("command_schema")
+    fields = command_schema.get("fields") if type(command_schema) is dict else None
+    if (recipe.get("schema") != "auths.gateway-recipe-source/2"
+            or lock.get("schema") != "auths.self-hosted-profile-lock/1"
+            or recipe.get("service") != lock.get("service")
+            or recipe.get("tool") != lock.get("tool")
+            or recipe.get("profile_schema_digest") != lock.get("schema_digest")
+            or not isinstance(recipe.get("task_binding"), dict)
+            or recipe["task_binding"].get("verb") not in ("edit", "create")
+            or not isinstance(recipe["task_binding"].get("resource_field"), str)
+            or type(fields) is not dict
+            or recipe["task_binding"]["resource_field"] not in
+            fields):
+        raise ValueError("reviewed recipe and profile lock do not match a task write")
+    return recipe["service"], recipe["tool"], recipe_sha, lock_sha
 
 
 def issue_task_package(
@@ -32,6 +66,8 @@ def issue_task_package(
     state_db: Path,
     binding_ref: str,
     company: str,
+    recipe_path: Path,
+    profile_lock_path: Path,
     provider_service: str,
     provider_tool: str,
     recipe_digest: str,
@@ -44,7 +80,11 @@ def issue_task_package(
     gateway recipe. The gateway later checks the installed digest itself.
     This package contains no provider credential, human key or agent key.
     """
-    if (not isinstance(binding_ref, str) or not 1 <= len(binding_ref) <= 256
+    reviewed_service, reviewed_tool, recipe_sha, lock_sha = _reviewed_profile(
+        recipe_path, profile_lock_path,
+    )
+    if (provider_service != reviewed_service or provider_tool != reviewed_tool
+            or not isinstance(binding_ref, str) or not 1 <= len(binding_ref) <= 256
             or not isinstance(company, str) or not 1 <= len(company) <= 128
             or not isinstance(recipe_digest, str)
             or _DIGEST.fullmatch(recipe_digest) is None
@@ -91,6 +131,8 @@ def issue_task_package(
         "provider_service": authority.provider_service,
         "provider_tool": authority.provider_tool,
         "recipe_digest": recipe_digest,
+        "recipe_source_sha256": recipe_sha,
+        "profile_lock_sha256": lock_sha,
         "not_before": authority.not_before,
         "expires_at": authority.expires_at,
         "trusted_template_b64": encode(authority.trusted_template),
@@ -122,6 +164,8 @@ def main() -> int:
     parser.add_argument("--state-db", type=Path, required=True)
     parser.add_argument("--binding-ref", required=True)
     parser.add_argument("--company", required=True)
+    parser.add_argument("--recipe", type=Path, required=True)
+    parser.add_argument("--profile-lock", type=Path, required=True)
     parser.add_argument("--provider-service", required=True)
     parser.add_argument("--provider-tool", required=True)
     parser.add_argument("--recipe-digest", required=True)
@@ -130,6 +174,7 @@ def main() -> int:
     result = issue_task_package(
         root_seed=args.root_seed, root_trust=args.root_trust, state_db=args.state_db,
         binding_ref=args.binding_ref, company=args.company,
+        recipe_path=args.recipe, profile_lock_path=args.profile_lock,
         provider_service=args.provider_service, provider_tool=args.provider_tool,
         recipe_digest=args.recipe_digest, output=args.out,
     )
