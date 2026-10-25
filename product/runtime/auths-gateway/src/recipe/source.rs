@@ -35,6 +35,8 @@ pub(super) struct RecipeSource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) created_child: Option<CreatedChildSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) task_populate: Option<TaskPopulateSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) observation: Option<ObservationSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) echo: Option<EchoSource>,
@@ -67,6 +69,20 @@ pub(super) struct CreatedChildSource {
     /// Provider paths and literals remain reviewed recipe data.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) metadata_checks: Vec<CreatedChildCheckSource>,
+}
+
+/// The only agent-controlled provider fields permitted in a planned child
+/// population. Their values are checked against the human plan or a fresh
+/// credential-bearing preflight before the request may enter the provider.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct TaskPopulateSource {
+    #[serde(rename = "text_field")]
+    pub(super) text: String,
+    #[serde(rename = "tab_field")]
+    pub(super) tab: String,
+    #[serde(rename = "revision_field")]
+    pub(super) revision: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -129,6 +129,8 @@ path but does not meet the one-ceremony acceptance condition.
 
 A native verifier and private journal transition now accept one effect-plan signature over the closed create intent, one populate recipe and operation, exact initial text and expiry. The journal records a private content digest and byte length before any write, refuses a changed plan, and accepts identical evidence after restart. The owner-side authority package can issue the separate human grant. The create admission path can now consume the exact recorded plan without a second human confirmation, and recorded-response reconciliation can use that immutable plan after a metadata-read failure. Population still needs fresh preflight binding and plan consumption; the following checks remain the execution contract.
 
+The reviewed populate recipe now declares its text, tab and revision fields, and the compiler excludes other provider-affecting profile fields from this planned request. A native comparison helper rejects changed content, child, tab, operation or expiry against the plan and proposed preflight facts. The gateway does not yet authenticate, journal or consume those preflight facts, so this helper confers no population authority today.
+
 The plan format and commit points are part of that future implementation:
 
 1. A new native `confirm_agent_effect_plan_v1` action signs the task-card

@@ -633,6 +633,16 @@ impl CompiledRecipe {
         })
     }
 
+    pub(crate) fn task_populate_fields(&self) -> Option<(&str, &str, &str)> {
+        self.source.task_populate.as_ref().map(|populate| {
+            (
+                populate.text.as_str(),
+                populate.tab.as_str(),
+                populate.revision.as_str(),
+            )
+        })
+    }
+
     /// What this recipe can prove after an ambiguous write.
     #[must_use]
     pub fn recovery(&self) -> RecoveryCapability {

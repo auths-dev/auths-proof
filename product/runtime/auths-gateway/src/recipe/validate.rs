@@ -837,6 +837,7 @@ pub(super) fn validate_source(
         return Err(GatewayRecipeError::InvalidSource);
     }
     validate_created_child(source, fields, &rules)?;
+    validate_task_populate(source, fields, &rules)?;
     if let Some(headers) = &source.provider_headers {
         validate_provider_headers(headers)?;
     }
@@ -853,6 +854,47 @@ pub(super) fn validate_source(
         if !is_binding_field(field) && !rules.consumed.all.contains(field) {
             return Err(GatewayRecipeError::UnsafeTemplate);
         }
+    }
+    Ok(())
+}
+
+fn validate_task_populate(
+    source: &RecipeSource,
+    fields: &BTreeMap<String, FieldSchema>,
+    rules: &Rules<'_>,
+) -> Result<(), GatewayRecipeError> {
+    let Some(populate) = &source.task_populate else {
+        return Ok(());
+    };
+    let Some(binding) = &source.task_binding else {
+        return Err(GatewayRecipeError::InvalidSource);
+    };
+    let provider_fields = [
+        binding.resource_field.as_str(),
+        populate.text.as_str(),
+        populate.tab.as_str(),
+        populate.revision.as_str(),
+    ];
+    let mut allowed: BTreeSet<&str> = [
+        "operator_namespace",
+        "operation_id",
+        "recipe_digest",
+        "task_id",
+        "task_commitment",
+    ]
+    .into_iter()
+    .collect();
+    if binding.verb != TaskWriteVerb::Edit
+        || source.created_child.is_some()
+        || provider_fields.iter().any(|name| {
+            !matches!(fields.get(*name), Some(FieldSchema::String { minimum, maximum })
+                if *minimum >= 1 && *maximum <= 256)
+                || !rules.consumed.all.contains(*name)
+                || !allowed.insert(*name)
+        })
+        || fields.keys().any(|name| !allowed.contains(name.as_str()))
+    {
+        return Err(GatewayRecipeError::InvalidSource);
     }
     Ok(())
 }

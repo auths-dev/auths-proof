@@ -62,6 +62,10 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
 fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
     let recipe = compiled("google-docs-populate");
     assert!(recipe.requires_task_admission());
+    assert_eq!(
+        recipe.task_populate_fields(),
+        Some(("text", "tab_id", "required_revision_id"))
+    );
     let args = arguments(
         &recipe,
         &json!({
@@ -97,6 +101,17 @@ fn google_docs_populate_has_one_closed_insert_and_revision_guard() {
         .closed_request_from_arguments(&wrong, [0x41; 32])
         .expect("different native action required");
     assert_ne!(request.url(), changed.url());
+}
+
+#[test]
+fn planned_population_recipe_refuses_unreviewed_provider_fields() {
+    let (source, lock) = fixture("google-docs-populate");
+    let mut recipe: Value = serde_json::from_slice(source).expect("source");
+    recipe["task_populate"]["text_field"] = json!("required_revision_id");
+    assert!(CompiledRecipe::compile(&serde_json::to_vec(&recipe).expect("source"), lock).is_err());
+    let mut recipe: Value = serde_json::from_slice(source).expect("source");
+    recipe["task_populate"]["revision_field"] = json!("operation_id");
+    assert!(CompiledRecipe::compile(&serde_json::to_vec(&recipe).expect("source"), lock).is_err());
 }
 
 fn compiled(name: &str) -> CompiledRecipe {

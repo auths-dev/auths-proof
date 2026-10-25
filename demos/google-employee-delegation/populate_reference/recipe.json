@@ -12,6 +12,11 @@
     "resource_field": "document_id",
     "verb": "edit"
   },
+  "task_populate": {
+    "text_field": "text",
+    "tab_field": "tab_id",
+    "revision_field": "required_revision_id"
+  },
   "write": {
     "method": "POST",
     "path": [

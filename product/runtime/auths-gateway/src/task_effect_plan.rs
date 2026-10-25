@@ -2,6 +2,7 @@
 //! This module only verifies and projects the plan. Provider admission must
 //! separately compare both closed requests and fresh late-bound read values.
 
+use crate::CompiledRecipe;
 use crate::bounds::authorized_chains;
 use crate::engine::{
     GatewaySubmitResult, authorized_action, not_entered, verify_sealed_for_audience,
@@ -12,7 +13,7 @@ use auths_model::{Audience, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 
 pub(crate) const EFFECT_PLAN_TOOL: &str = "confirm_agent_effect_plan_v1";
@@ -47,10 +48,68 @@ pub(crate) struct VerifiedEffectPlan {
     pub(crate) expires_at: u64,
 }
 
+/// Comparison inputs only. A caller may use these facts for admission only
+/// after a separate credential-bearing preflight has authenticated and
+/// durably bound them to the task and response-derived child.
+#[allow(
+    dead_code,
+    reason = "submission binding follows authenticated preflight custody"
+)]
+pub(crate) struct PopulatePreflightFacts<'a> {
+    pub(crate) child_id: &'a str,
+    pub(crate) tab_id: &'a str,
+    pub(crate) revision_id: &'a str,
+    pub(crate) connection_subject: &'a str,
+    pub(crate) connection_generation: u64,
+    pub(crate) checked_at: u64,
+    pub(crate) valid_until: u64,
+}
+
 impl VerifiedEffectPlan {
     pub(crate) fn matches_content(&self, bytes: &[u8]) -> bool {
         bytes.len() == usize::from(self.content_length)
             && content_commitment(bytes) == self.content_commitment
+    }
+
+    /// The reviewed population recipe names every provider-affecting field.
+    /// The child, tab and revision must come from the task binding and a
+    /// separately authenticated credential-bearing preflight.
+    #[allow(
+        dead_code,
+        reason = "submission binding follows authenticated preflight custody"
+    )]
+    pub(crate) fn matches_populate_action(
+        &self,
+        recipe: &CompiledRecipe,
+        intent: &ExactWriteIntent,
+        arguments: &Map<String, Value>,
+        preflight: &PopulatePreflightFacts<'_>,
+        now: u64,
+    ) -> bool {
+        let Some((text_field, tab_field, revision_field)) = recipe.task_populate_fields() else {
+            return false;
+        };
+        let Some(text) = arguments.get(text_field).and_then(Value::as_str) else {
+            return false;
+        };
+        self.expires_at > now
+            && preflight.checked_at <= now
+            && now < preflight.valid_until
+            && preflight.valid_until <= self.expires_at
+            && intent.task_id == self.create.task_id
+            && intent.task_commitment == self.create.task_commitment
+            && intent.operation_id == self.populate_operation_id
+            && intent.recipe_digest == self.populate_recipe_digest
+            && intent.resource_handle == preflight.child_id
+            && intent.verb == TaskWriteVerb::Edit
+            && intent.connection_id == self.create.connection_id
+            && intent.connection_generation == self.create.connection_generation
+            && intent.connection_subject == self.create.connection_subject
+            && preflight.connection_subject == self.create.connection_subject
+            && preflight.connection_generation == self.create.connection_generation
+            && self.matches_content(text.as_bytes())
+            && arguments.get(tab_field).and_then(Value::as_str) == Some(preflight.tab_id)
+            && arguments.get(revision_field).and_then(Value::as_str) == Some(preflight.revision_id)
     }
 }
 
@@ -185,4 +244,80 @@ pub(crate) fn verify_effect_plan(
             .map_err(|_| not_entered("gateway.task.effect-plan-mismatch"))?,
         expires_at: plan.expires_at,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn planned_population_matches_only_approved_content_and_fresh_fields() {
+        let recipe = CompiledRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/populate_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/populate_reference/profile.lock.json"
+            ),
+        )
+        .expect("reviewed populate recipe");
+        let create = ExactWriteIntent {
+            task_id: "task-1".into(),
+            task_commitment: "a".repeat(64),
+            operation_id: "create-1".into(),
+            action_commitment: "b".repeat(64),
+            request_commitment: "c".repeat(64),
+            recipe_digest: "d".repeat(64),
+            resource_handle: "project-a".into(),
+            verb: TaskWriteVerb::Create,
+            connection_id: "connection-1".into(),
+            connection_generation: 7,
+            connection_subject: "jules".into(),
+        };
+        let plan = VerifiedEffectPlan {
+            plan_commitment: "e".repeat(64),
+            create: create.clone(),
+            populate_recipe_digest: recipe.digest_hex(),
+            populate_operation_id: "populate-1".into(),
+            content_commitment: content_commitment(b"Approved text"),
+            content_length: 13,
+            expires_at: 200,
+        };
+        let mut populate = create;
+        populate.operation_id = "populate-1".into();
+        populate.recipe_digest = recipe.digest_hex();
+        populate.resource_handle = "child-1".into();
+        populate.verb = TaskWriteVerb::Edit;
+        let mut arguments = json!({
+            "text": "Approved text", "tab_id": "t.0",
+            "required_revision_id": "revision-1"
+        })
+        .as_object()
+        .expect("arguments")
+        .clone();
+        let preflight = PopulatePreflightFacts {
+            child_id: "child-1",
+            tab_id: "t.0",
+            revision_id: "revision-1",
+            connection_subject: "jules",
+            connection_generation: 7,
+            checked_at: 99,
+            valid_until: 110,
+        };
+        let matches = |arguments: &Map<String, Value>, intent: &ExactWriteIntent| {
+            plan.matches_populate_action(&recipe, intent, arguments, &preflight, 100)
+        };
+        assert!(matches(&arguments, &populate));
+        arguments.insert("text".into(), json!("Changed text"));
+        assert!(!matches(&arguments, &populate));
+        arguments.insert("text".into(), json!("Approved text"));
+        arguments.insert("tab_id".into(), json!("other-tab"));
+        assert!(!matches(&arguments, &populate));
+        arguments.insert("tab_id".into(), json!("t.0"));
+        let mut wrong_child = populate.clone();
+        wrong_child.resource_handle = "other-child".into();
+        assert!(!matches(&arguments, &wrong_child));
+        assert!(!plan.matches_populate_action(&recipe, &populate, &arguments, &preflight, 110,));
+    }
 }
