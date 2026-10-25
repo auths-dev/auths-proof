@@ -107,11 +107,8 @@ impl ApprovedAgentTask {
             commitment,
         }
     }
-    pub(crate) fn release_policy(&self) -> Result<ReleaseTaskPolicy, GatewaySubmitResult> {
-        if self.descriptor.read_scopes.is_empty() {
-            return Err(not_entered("gateway.task.no-read-scope"));
-        }
-        Ok(ReleaseTaskPolicy {
+    pub(crate) fn task_policy(&self) -> ReleaseTaskPolicy {
+        ReleaseTaskPolicy {
             task_id: self.descriptor.task_id.clone(),
             task_commitment: self.commitment,
             company_id: self.descriptor.company_id.clone(),
@@ -122,6 +119,11 @@ impl ApprovedAgentTask {
             max_provider_calls: self.descriptor.max_provider_calls,
             max_releases: self.descriptor.max_releases,
             max_release_bytes: self.descriptor.max_release_bytes,
+            max_writes: self.descriptor.max_writes,
+            write_scopes: self.descriptor.write_scopes.clone(),
+            connection_id: self.descriptor.connection_id.clone(),
+            connection_generation: self.descriptor.connection_generation,
+            connection_subject: self.descriptor.connection_subject.clone(),
             resources: self
                 .descriptor
                 .read_scopes
@@ -133,7 +135,7 @@ impl ApprovedAgentTask {
                     connection_generation: self.descriptor.connection_generation,
                 })
                 .collect(),
-        })
+        }
     }
 
     pub(crate) const fn commitment(&self) -> &[u8; 32] {
@@ -412,7 +414,7 @@ mod tests {
         .expect("human approval");
         assert_eq!(approved.descriptor(), &card);
         assert_ne!(approved.commitment(), &[0; 32]);
-        let policy = approved.release_policy().expect("read policy");
+        let policy = approved.task_policy();
         assert_eq!(policy.task_id, card.task_id);
         assert_eq!(policy.human_principal, human.principal.as_str());
         assert_eq!(policy.resources.len(), 1);

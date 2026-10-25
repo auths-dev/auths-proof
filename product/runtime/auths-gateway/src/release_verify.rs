@@ -229,6 +229,11 @@ mod tests {
             max_provider_calls: 1,
             max_releases: 1,
             max_release_bytes: 64,
+            max_writes: 0,
+            write_scopes: vec![],
+            connection_id: "jules-connection".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
             resources: vec![ReleaseResourceScope {
                 handle: harness::RECORD.to_owned(),
                 recipe_digest: recipe.digest_hex(),

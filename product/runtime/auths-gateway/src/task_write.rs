@@ -35,17 +35,17 @@ pub(crate) struct TaskWriteBinding {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ExactWriteIntent {
-    task_id: String,
-    task_commitment: String,
-    operation_id: String,
-    action_commitment: String,
-    request_commitment: String,
-    recipe_digest: String,
-    resource_handle: String,
-    verb: TaskWriteVerb,
-    connection_id: String,
-    connection_generation: u64,
-    connection_subject: String,
+    pub(crate) task_id: String,
+    pub(crate) task_commitment: String,
+    pub(crate) operation_id: String,
+    pub(crate) action_commitment: String,
+    pub(crate) request_commitment: String,
+    pub(crate) recipe_digest: String,
+    pub(crate) resource_handle: String,
+    pub(crate) verb: TaskWriteVerb,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
 }
 
 /// Minted only after the agent proof and the human's exact confirmation (or
@@ -57,6 +57,11 @@ pub(crate) struct ApprovedTaskWrite {
 impl ApprovedTaskWrite {
     pub(crate) fn intent(&self) -> &ExactWriteIntent {
         &self.intent
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_intent(intent: ExactWriteIntent) -> Self {
+        Self { intent }
     }
 }
 

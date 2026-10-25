@@ -7,6 +7,8 @@
 use crate::ClosedReleaseRequest;
 use crate::release_verify::VerifiedReleaseRequest;
 use crate::task_activation::ApprovedAgentTask;
+use crate::task_activation::TaskWriteScope;
+use crate::task_write::ApprovedTaskWrite;
 use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
@@ -20,7 +22,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-release-task-state/1";
+const SCHEMA: &str = "auths.gateway-agent-task-state/2";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -54,6 +56,24 @@ pub(crate) struct ReleaseTaskPolicy {
     pub(crate) max_releases: u32,
     pub(crate) max_release_bytes: u64,
     pub(crate) resources: Vec<ReleaseResourceScope>,
+    pub(crate) max_writes: u32,
+    pub(crate) write_scopes: Vec<TaskWriteScope>,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WriteOperation {
+    resource_handle: String,
+    recipe_digest: String,
+    verb: crate::task_activation::TaskWriteVerb,
+    connection_id: String,
+    connection_generation: u64,
+    connection_subject: String,
+    action_commitment: String,
+    request_commitment: String,
 }
 
 /// An exact native-verified agent action, projected by the future admission
@@ -141,11 +161,17 @@ pub(crate) struct ReleaseTaskState {
     max_releases: u32,
     max_release_bytes: u64,
     resources: Vec<ReleaseResourceScope>,
+    max_writes: u32,
+    write_scopes: Vec<TaskWriteScope>,
+    connection_id: String,
+    connection_generation: u64,
+    connection_subject: String,
     revoked: bool,
     provider_calls: u32,
     releases: u32,
     released_bytes: u64,
     operations: BTreeMap<String, ReleaseOperation>,
+    writes: BTreeMap<String, WriteOperation>,
 }
 
 /// A refusal before any content delivery. No variant authorizes a retry of
@@ -199,16 +225,25 @@ impl ReleaseTaskState {
             || !bounded_text(&policy.company_id, 128)
             || !bounded_text(&policy.human_principal, 256)
             || !bounded_text(&policy.agent_principal, 256)
+            || !bounded_text(&policy.connection_id, 128)
+            || policy.connection_generation == 0
+            || !bounded_text(&policy.connection_subject, 256)
             || policy.task_commitment == [0; 32]
             || policy.not_before >= policy.expires_at
-            || policy.max_provider_calls == 0
             || policy.max_provider_calls as usize > MAX_OPERATIONS
-            || policy.max_releases == 0
             || policy.max_releases > policy.max_provider_calls
-            || policy.max_release_bytes == 0
             || policy.max_release_bytes > MAX_TASK_RELEASE_BYTES
-            || policy.resources.is_empty()
             || policy.resources.len() > MAX_RESOURCES
+            || (policy.resources.is_empty()
+                != (policy.max_provider_calls == 0
+                    && policy.max_releases == 0
+                    && policy.max_release_bytes == 0))
+            || (!policy.resources.is_empty()
+                && (policy.max_releases == 0 || policy.max_release_bytes == 0))
+            || policy.max_writes > 32
+            || policy.write_scopes.len() > MAX_RESOURCES
+            || (policy.write_scopes.is_empty() != (policy.max_writes == 0))
+            || (policy.resources.is_empty() && policy.write_scopes.is_empty())
         {
             return Err(ReleaseStateError::Binding);
         }
@@ -216,9 +251,18 @@ impl ReleaseTaskState {
         for resource in &policy.resources {
             if !bounded_text(&resource.handle, 256)
                 || !valid_digest(&resource.recipe_digest)
-                || !bounded_text(&resource.connection_id, 128)
-                || resource.connection_generation == 0
+                || resource.connection_id != policy.connection_id
+                || resource.connection_generation != policy.connection_generation
                 || !distinct.insert(&resource.handle)
+            {
+                return Err(ReleaseStateError::Binding);
+            }
+        }
+        let mut distinct_writes = BTreeSet::new();
+        for scope in &policy.write_scopes {
+            if !bounded_text(&scope.handle, 256)
+                || !valid_digest(&scope.recipe_digest)
+                || !distinct_writes.insert((&scope.handle, &scope.verb))
             {
                 return Err(ReleaseStateError::Binding);
             }
@@ -236,11 +280,17 @@ impl ReleaseTaskState {
             max_releases: policy.max_releases,
             max_release_bytes: policy.max_release_bytes,
             resources: policy.resources,
+            max_writes: policy.max_writes,
+            write_scopes: policy.write_scopes,
+            connection_id: policy.connection_id,
+            connection_generation: policy.connection_generation,
+            connection_subject: policy.connection_subject,
             revoked: false,
             provider_calls: 0,
             releases: 0,
             released_bytes: 0,
             operations: BTreeMap::new(),
+            writes: BTreeMap::new(),
         })
     }
 
@@ -278,7 +328,9 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Binding);
         }
-        if self.operations.contains_key(call.operation_id) {
+        if self.operations.contains_key(call.operation_id)
+            || self.writes.contains_key(call.operation_id)
+        {
             return Err(ReleaseStateError::Replay);
         }
         if self.provider_calls >= self.max_provider_calls || self.operations.len() >= MAX_OPERATIONS
@@ -299,6 +351,58 @@ impl ReleaseTaskState {
                 released_bytes: None,
                 commitment_key_version: None,
                 content_commitment: None,
+            },
+        );
+        Ok(())
+    }
+
+    /// Durably charge a task write before gateway claim or credential lease.
+    /// An unknown transport result never refunds this count or reopens its ID.
+    fn reserve_write(
+        &mut self,
+        approved: &ApprovedTaskWrite,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        self.active(now)?;
+        let intent = approved.intent();
+        if intent.task_id != self.task_id
+            || !same_commitment(&self.task_commitment, &intent.task_commitment)
+            || !bounded_text(&intent.operation_id, 128)
+            || !valid_digest(&intent.action_commitment)
+            || intent.action_commitment == "0".repeat(64)
+            || !valid_digest(&intent.request_commitment)
+            || intent.request_commitment == "0".repeat(64)
+            || !valid_digest(&intent.recipe_digest)
+            || intent.connection_id != self.connection_id
+            || intent.connection_generation != self.connection_generation
+            || intent.connection_subject != self.connection_subject
+            || !self.write_scopes.iter().any(|scope| {
+                scope.handle == intent.resource_handle
+                    && scope.recipe_digest == intent.recipe_digest
+                    && scope.verb == intent.verb
+            })
+        {
+            return Err(ReleaseStateError::Binding);
+        }
+        if self.operations.contains_key(&intent.operation_id)
+            || self.writes.contains_key(&intent.operation_id)
+        {
+            return Err(ReleaseStateError::Replay);
+        }
+        if self.writes.len() >= self.max_writes as usize {
+            return Err(ReleaseStateError::Exhausted);
+        }
+        self.writes.insert(
+            intent.operation_id.clone(),
+            WriteOperation {
+                resource_handle: intent.resource_handle.clone(),
+                recipe_digest: intent.recipe_digest.clone(),
+                verb: intent.verb.clone(),
+                connection_id: intent.connection_id.clone(),
+                connection_generation: intent.connection_generation,
+                connection_subject: intent.connection_subject.clone(),
+                action_commitment: intent.action_commitment.clone(),
+                request_commitment: intent.request_commitment.clone(),
             },
         );
         Ok(())
@@ -507,6 +611,10 @@ impl ReleaseTaskState {
         (self.provider_calls, self.releases, self.released_bytes)
     }
 
+    pub(crate) fn write_count(&self) -> usize {
+        self.writes.len()
+    }
+
     /// A replay can inspect this state but may never send content again.
     pub(crate) fn delivery_unknown(&self, operation_id: &str) -> bool {
         self.stage(operation_id) == Some(ReleaseStage::ReleaseEntered)
@@ -536,6 +644,32 @@ impl ReleaseTaskState {
         Ok(bytes)
     }
 
+    fn validate_writes(&self) -> Result<(), ReleaseStateError> {
+        if self.writes.len() > self.max_writes as usize {
+            return Err(ReleaseStateError::Corrupt);
+        }
+        for (operation_id, write) in &self.writes {
+            if !bounded_text(operation_id, 128)
+                || self.operations.contains_key(operation_id)
+                || !valid_digest(&write.action_commitment)
+                || write.action_commitment == "0".repeat(64)
+                || !valid_digest(&write.request_commitment)
+                || write.request_commitment == "0".repeat(64)
+                || write.connection_id != self.connection_id
+                || write.connection_generation != self.connection_generation
+                || write.connection_subject != self.connection_subject
+                || !self.write_scopes.iter().any(|scope| {
+                    scope.handle == write.resource_handle
+                        && scope.recipe_digest == write.recipe_digest
+                        && scope.verb == write.verb
+                })
+            {
+                return Err(ReleaseStateError::Corrupt);
+            }
+        }
+        Ok(())
+    }
+
     fn decode(bytes: &[u8]) -> Result<Self, ReleaseStateError> {
         if bytes.is_empty() || bytes.len() > MAX_STATE_BYTES {
             return Err(ReleaseStateError::Corrupt);
@@ -561,10 +695,16 @@ impl ReleaseTaskState {
             max_releases: state.max_releases,
             max_release_bytes: state.max_release_bytes,
             resources: state.resources.clone(),
+            max_writes: state.max_writes,
+            write_scopes: state.write_scopes.clone(),
+            connection_id: state.connection_id.clone(),
+            connection_generation: state.connection_generation,
+            connection_subject: state.connection_subject.clone(),
         })
         .map_err(|_| ReleaseStateError::Corrupt)?;
         let mut releases = 0_u32;
         let mut released_bytes = 0_u64;
+        state.validate_writes()?;
         for (operation_id, operation) in &state.operations {
             if !bounded_text(operation_id, 128)
                 || operation.recipient != state.agent_principal
@@ -740,9 +880,7 @@ impl FileReleaseTaskLedger {
         &self,
         approved: &ApprovedAgentTask,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        let policy = approved
-            .release_policy()
-            .map_err(|_| ReleaseStateError::Binding)?;
+        let policy = approved.task_policy();
         self.initialize_policy(policy)
     }
 
@@ -804,6 +942,16 @@ impl FileReleaseTaskLedger {
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(verified.request().task_id(), |state| {
             state.reserve_verified_request(verified, connection_id, connection_generation, now)
+        })
+    }
+
+    pub(crate) fn reserve_write(
+        &self,
+        approved: &ApprovedTaskWrite,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(&approved.intent().task_id, |state| {
+            state.reserve_write(approved, now)
         })
     }
 
@@ -873,6 +1021,8 @@ impl FileReleaseTaskLedger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::task_activation::TaskWriteVerb;
+    use crate::task_write::ExactWriteIntent;
     use std::sync::{Arc, Barrier};
     use zeroize::Zeroizing;
 
@@ -888,6 +1038,11 @@ mod tests {
             max_provider_calls: 2,
             max_releases: 1,
             max_release_bytes: 8,
+            max_writes: 0,
+            write_scopes: vec![],
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
             resources: vec![ReleaseResourceScope {
                 handle: "source-1".to_owned(),
                 recipe_digest: "a".repeat(64),
@@ -908,6 +1063,37 @@ mod tests {
             recipient: "agent-principal",
             action_commitment: [0x22; 32],
         }
+    }
+
+    fn write_policy() -> ReleaseTaskPolicy {
+        let mut task = policy();
+        task.resources.clear();
+        task.max_provider_calls = 0;
+        task.max_releases = 0;
+        task.max_release_bytes = 0;
+        task.max_writes = 1;
+        task.write_scopes = vec![TaskWriteScope {
+            handle: "working-doc".to_owned(),
+            recipe_digest: "b".repeat(64),
+            verb: TaskWriteVerb::Edit,
+        }];
+        task
+    }
+
+    fn write_intent(operation_id: &str) -> ApprovedTaskWrite {
+        ApprovedTaskWrite::from_test_intent(ExactWriteIntent {
+            task_id: "task-1".to_owned(),
+            task_commitment: "11".repeat(32),
+            operation_id: operation_id.to_owned(),
+            action_commitment: "c".repeat(64),
+            request_commitment: "d".repeat(64),
+            recipe_digest: "b".repeat(64),
+            resource_handle: "working-doc".to_owned(),
+            verb: TaskWriteVerb::Edit,
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
+        })
     }
 
     fn acknowledgement(
@@ -1251,6 +1437,104 @@ mod tests {
         assert_eq!(
             ledger.load("task-1").expect("load").expect("task").counts(),
             (2, 1, 8)
+        );
+    }
+
+    #[test]
+    fn exact_write_claim_spends_once_and_rejects_changed_task_or_connection() {
+        let mut state = ReleaseTaskState::from_test_policy(write_policy()).expect("write task");
+        let first = write_intent("edit-1");
+        state.reserve_write(&first, 101).expect("first write claim");
+        assert_eq!(state.write_count(), 1);
+        assert_eq!(
+            state.reserve_write(&first, 101),
+            Err(ReleaseStateError::Replay)
+        );
+        assert_eq!(
+            state.reserve_write(&write_intent("edit-2"), 101),
+            Err(ReleaseStateError::Exhausted)
+        );
+        let mut wrong = write_intent("edit-2").intent().clone();
+        wrong.connection_generation = 4;
+        assert_eq!(
+            state.reserve_write(&ApprovedTaskWrite::from_test_intent(wrong), 101),
+            Err(ReleaseStateError::Binding)
+        );
+        let mut wrong = write_intent("edit-2").intent().clone();
+        wrong.task_commitment = "12".repeat(32);
+        assert_eq!(
+            state.reserve_write(&ApprovedTaskWrite::from_test_intent(wrong), 101),
+            Err(ReleaseStateError::Binding)
+        );
+        state.revoke();
+        assert_eq!(
+            state.reserve_write(&write_intent("edit-3"), 101),
+            Err(ReleaseStateError::Inactive)
+        );
+    }
+
+    #[test]
+    fn read_and_write_share_task_replay_and_revocation() {
+        let mut policy = policy();
+        policy.max_writes = 1;
+        policy.write_scopes = write_policy().write_scopes;
+        let mut state = ReleaseTaskState::from_test_policy(policy).expect("combined task");
+        state
+            .reserve_write(&write_intent("same-operation"), 101)
+            .expect("write claim");
+        assert_eq!(
+            state.reserve_provider_call(call("same-operation"), 101),
+            Err(ReleaseStateError::Replay)
+        );
+        state.revoke();
+        assert_eq!(
+            state.reserve_provider_call(call("new-read"), 101),
+            Err(ReleaseStateError::Inactive)
+        );
+    }
+
+    #[test]
+    fn competing_last_write_claims_remain_spent_after_restart() {
+        let root = tempfile::tempdir().expect("private directory");
+        let path = fs::canonicalize(root.path())
+            .expect("canonical directory")
+            .join("task");
+        let ledger = FileReleaseTaskLedger::open(&path).expect("open");
+        ledger.initialize_policy(write_policy()).expect("task");
+        let barrier = Arc::new(Barrier::new(2));
+        let outcomes = std::thread::scope(|scope| {
+            let mut jobs = Vec::new();
+            for operation in ["edit-1", "edit-2"] {
+                let path = path.clone();
+                let barrier = Arc::clone(&barrier);
+                jobs.push(scope.spawn(move || {
+                    let ledger = FileReleaseTaskLedger::open(path).expect("open");
+                    barrier.wait();
+                    ledger
+                        .reserve_write(&write_intent(operation), 101)
+                        .map(|_| ())
+                }));
+            }
+            jobs.into_iter()
+                .map(|job| job.join().expect("worker"))
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|result| **result == Err(ReleaseStateError::Exhausted))
+                .count(),
+            1
+        );
+        let reopened = FileReleaseTaskLedger::open(path).expect("reopen");
+        assert_eq!(
+            reopened
+                .load("task-1")
+                .expect("load")
+                .expect("task")
+                .write_count(),
+            1
         );
     }
 }

@@ -619,6 +619,11 @@ mod tests {
             max_provider_calls: 1,
             max_releases: 1,
             max_release_bytes: 512,
+            max_writes: 0,
+            write_scopes: vec![],
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
             resources: vec![ReleaseResourceScope {
                 handle: "resource-1".to_owned(),
                 recipe_digest: recipe.digest_hex(),
