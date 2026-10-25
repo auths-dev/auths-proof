@@ -124,7 +124,7 @@ jobs:
           cp demos/google-employee-delegation/compose.yaml "$kit/"
           cp demos/google-employee-delegation/compose.live.yaml "$kit/"
           cp demos/google-employee-delegation/versions.lock.json "$kit/"
-          cp demos/google-employee-delegation/README.md "$kit/"
+          cp demos/google-employee-delegation/operator-kit.md "$kit/README.md"
           cp demos/google-employee-delegation/isolation/*.conf "$kit/isolation/"
           cp demos/google-employee-delegation/evidence/live-acceptance-template.md "$kit/evidence/"
           git rev-parse HEAD > "$kit/REVISION"

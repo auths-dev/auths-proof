@@ -205,7 +205,8 @@ kit tarball and the exact Linux SDK wheel built for the same commit, each with
 SHA-256 checksums. The kit contains Compose files, relay configuration, the
 current lock file, acceptance template and a `REVISION` file. Verify the
 downloaded tarball checksum, extract it, then verify its internal `SHA256SUMS`
-from inside `google-read-operator-kit/`. This candidate is not install-ready:
+from inside `google-read-operator-kit/`. Its self-contained
+[operator guide](operator-kit.md) is packaged as `README.md`. This candidate is not install-ready:
 `versions.lock.json` still has empty SDK artifact and broker/agent registry
 digest fields. A fresh operator host must receive reviewed digest-pinned
 images and an updated lock file before running Compose; it must not build
