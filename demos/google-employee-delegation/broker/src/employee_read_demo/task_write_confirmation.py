@@ -1,4 +1,4 @@
-"""Owner-side review of a separately signed agent write before human confirmation.
+"""Owner-side review and submission of a separately signed agent write.
 
 The agent proof/action are staged as owner-private files under an approved task.
 The installed gateway binary verifies them and compiles the closed request; no
@@ -546,7 +546,7 @@ class TaskWriteConfirmationFlow:
 
     def submit(self, *, task_id: str, employee: EmployeeBinding,
                agent: AgentBinding, now: int | None = None) -> dict:
-        """Recheck Jules's edit precondition, then submit one exact agent write.
+        """Recheck Jules's edit precondition, then submit one admitted agent write.
 
         The signed Docs action itself carries requiredRevisionId, so a change
         between this read-only check and Google entry is refused by Google.

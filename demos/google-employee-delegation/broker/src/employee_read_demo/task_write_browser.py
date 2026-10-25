@@ -1,4 +1,4 @@
-"""Short owner-side browser ceremony for an exact human write task.
+"""Short owner-side browser ceremony for a human write task.
 
 The caller checks Google login, active employee enrollment, active registered
 agent and pinned producer resource before preparation and again at completion.

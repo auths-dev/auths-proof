@@ -181,6 +181,16 @@ async function prepareWriteTask() {
   byId("write-source").textContent = result.read_resource_label
     ? `Source: ${result.read_resource_label}` : "No source read in this task";
   byId("write-resource").textContent = `Destination: ${result.resource_label}`;
+  const choices = result.card.upfront_allowed_arguments || [];
+  byId("write-upfront-review").hidden = choices.length === 0;
+  const choiceList = byId("write-upfront-list");
+  choiceList.replaceChildren();
+  for (const [index, choice] of choices.entries()) {
+    const item = document.createElement("li");
+    item.textContent = `Option ${index + 1}: ` + Object.entries(choice)
+      .map(([name, selected]) => `${name}: ${JSON.stringify(selected)}`).join(" · ");
+    choiceList.append(item);
+  }
   byId("write-card").textContent = JSON.stringify({
     agent_principal: result.card.agent_principal,
     source_handles: result.card.read_scopes.map(scope => scope.handle),

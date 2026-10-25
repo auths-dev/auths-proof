@@ -125,6 +125,9 @@ async function main() {
   assert.equal(byId("page-title").textContent, "Jules delegates one bounded Project A edit");
   assert.equal(byId("write-confirm-prepare").hidden, true);
   await vm.runInContext("prepareWriteTask()", upfrontContext);
+  assert.equal(byId("write-upfront-review").hidden, false);
+  assert.equal(byId("write-upfront-list").options.length, 2);
+  assert.match(byId("write-upfront-list").options[0].textContent, /Approved/);
   assert.match(byId("write-card").textContent, /"replacement": "Approved"/);
   assert.match(byId("write-card").textContent, /"replacement": "Pending"/);
   console.log("browser activation and bounded choice review passed");
