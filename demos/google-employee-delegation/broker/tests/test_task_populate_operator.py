@@ -13,7 +13,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from employee_read_demo.google_create_handoff import CHILD_TITLE
-from employee_read_demo.google_create_preflight import JulesCreatedChildPreflight
+from employee_read_demo.google_create_preflight import (
+    JulesCreatedChildPreflight, current_populate_preflight_rule_digest,
+)
 from employee_read_demo.google_write_credential import WriteCredentialPins
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_populate_operator import record_jules_populate_preflight
@@ -46,7 +48,7 @@ class TaskPopulateOperatorTests(unittest.TestCase):
                 "public_key_hex": self.signer.public_key().public_bytes(
                     Encoding.Raw, PublicFormat.Raw,
                 ).hex(),
-                "rule_digest": "d" * 64,
+                "rule_digest": current_populate_preflight_rule_digest(),
             },
         }
         self.inputs = {
@@ -55,7 +57,7 @@ class TaskPopulateOperatorTests(unittest.TestCase):
             "plan_commitment": "b" * 64,
             "create_operation_id": "create-1", "child_id": "child_ABC-123",
             "populate_recipe_digest": "c" * 64,
-            "preflight_rule_digest": "d" * 64,
+            "preflight_rule_digest": current_populate_preflight_rule_digest(),
             "connection_id": "jules-google", "connection_generation": 1,
             "connection_subject": "jules-subject",
             "parent_id": "project-a-folder", "title": CHILD_TITLE,
@@ -142,6 +144,21 @@ class TaskPopulateOperatorTests(unittest.TestCase):
                 gateway.assert_called_once()
                 evidence.assert_not_called()
                 google_reads.assert_not_called()
+
+    def test_changed_installed_signer_code_pin_is_refused_before_gateway(self) -> None:
+        changed = {"populate_preflight": self.installation["populate_preflight"] |
+                   {"rule_digest": "f" * 64}}
+        with (
+            patch("employee_read_demo.task_populate_operator._installation",
+                  return_value=changed),
+            patch("employee_read_demo.task_populate_operator._run_gateway") as gateway,
+            patch("employee_read_demo.task_populate_operator.attest_jules_created_child")
+            as google_reads,
+        ):
+            with self.assertRaisesRegex(OperatorDenied, "code changed"):
+                record_jules_populate_preflight(**self.arguments)
+        gateway.assert_not_called()
+        google_reads.assert_not_called()
 
 
 if __name__ == "__main__":

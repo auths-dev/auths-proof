@@ -41,5 +41,11 @@ The broker now refuses to prepare a paired create/populate card without the
 preflight pin, accepts the observed blank Docs structure, and gives a newly
 signed effect plan a 15-minute execution window bounded by the task expiry.
 The signing challenge itself still expires after five minutes. These changes
-were exercised by 18 focused broker tests. They do not retroactively change
+were exercised by focused broker tests. They do not retroactively change
 the signed plan or the live installed gateway state.
+
+A follow-up private setup command now generates the signer seed and canonical
+two-recipe installation before a fresh paired task is offered. Its rule digest
+pins the installed Google preflight source revision, and the signer refuses a
+later source change. This prepares a future single-plan rerun; it does not
+alter the blank child or create another one.

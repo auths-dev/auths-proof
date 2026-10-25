@@ -38,6 +38,29 @@ MAX_RECOVERY_PAGE_BYTES = 131_072
 POPULATE_PREFLIGHT_SCHEMA = "auths.gateway-task-populate-preflight/1"
 POPULATE_PREFLIGHT_DOMAIN = b"auths.gateway-task-populate-preflight/1\0"
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+_RULE_MODULES = (
+    "google_create_preflight.py", "google_create_handoff.py",
+    "google_write_credential.py", "google_write_preflight.py",
+    "write_handoff.py", "demo_co_contract.py",
+    "task_populate_operator.py",
+)
+
+
+def current_populate_preflight_rule_digest() -> str:
+    """Pin the reviewed Google preflight implementation before task admission.
+
+    This source revision commitment detects a different installed signer
+    implementation. It is not a claim that source hashes prove semantics;
+    the Google vertical tests and live provider checks remain separate.
+    """
+    digest = hashlib.sha256(b"auths.ap071-google-populate-preflight-rule/1\0")
+    for name in _RULE_MODULES:
+        source = Path(__file__).with_name(name).read_bytes()
+        if len(source) > 1_048_576:
+            raise ContractRejected("Google preflight implementation exceeds review bounds")
+        digest.update(name.encode("ascii") + b"\0")
+        digest.update(hashlib.sha256(source).digest())
+    return digest.hexdigest()
 
 
 def _canonical_json(value: object) -> bytes:

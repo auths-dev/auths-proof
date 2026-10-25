@@ -20,9 +20,11 @@ from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from .demo_co_contract import _unique_pairs
+from .demo_co_contract import ContractRejected, _unique_pairs
 from .google_create_handoff import CHILD_TITLE, CreatedChildMetadataPins
-from .google_create_preflight import attest_jules_created_child
+from .google_create_preflight import (
+    attest_jules_created_child, current_populate_preflight_rule_digest,
+)
 from .google_write_credential import WriteCredentialPins
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
@@ -116,6 +118,12 @@ def record_jules_populate_preflight(
     pin = installation.get("populate_preflight")
     if type(pin) is not dict:
         raise OperatorDenied("populate preflight signer is not installed")
+    try:
+        current_rule = current_populate_preflight_rule_digest()
+    except (OSError, ContractRejected) as error:
+        raise OperatorDenied("installed populate preflight code is unavailable") from error
+    if pin["rule_digest"] != current_rule:
+        raise OperatorDenied("installed populate preflight code changed")
     seed = _private_read(signing_seed_path, 32)
     if len(seed) != 32:
         raise OperatorDenied("populate preflight signing seed is invalid")

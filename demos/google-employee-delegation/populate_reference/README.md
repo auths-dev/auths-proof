@@ -61,6 +61,17 @@ remains blank. A fresh authorization for only the remaining effect is
 required. No live populate effect or independent populated-child verdict has
 yet been obtained for this reference.
 
+Before a **new** paired run, the operator uses
+`python -m employee_read_demo.task_populate_setup --base-installation BASE --seed-out PRIVATE_SEED --installation-out PRIVATE_PINS`
+on the reviewed two-recipe installation input. The command creates one mode
+0600 Ed25519 seed and a canonical installation with its public key and a
+digest of the installed Google preflight implementation. Pass `PRIVATE_PINS`
+to `auths-gateway task-configure` **before** offering the task card. Keep the
+seed in operator custody and pass it only to the private preflight command.
+The signer checks that its current code digest matches the installed pin;
+code changes require a fresh disposable paired run. The first live task's
+missing pin cannot be added retroactively to its already recorded plan.
+
 For the interrupted first run, the development workbench can accept a
 private `--task-write-created-child` pin. It prepares a **new** task with one
 static edit scope on the already bound child, no create and no read release.
