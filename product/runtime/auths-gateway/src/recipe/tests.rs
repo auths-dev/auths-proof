@@ -26,6 +26,12 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
                 "../../../../../demos/google-employee-delegation/write_reference/profile.lock.json"
             ),
         ),
+        "airtable-task-edit" => (
+            include_bytes!("../../../../../demos/airtable-gateway/write_reference/recipe.json"),
+            include_bytes!(
+                "../../../../../demos/airtable-gateway/write_reference/profile.lock.json"
+            ),
+        ),
         _ => panic!("unknown test-only fixture"),
     }
 }
@@ -135,6 +141,36 @@ fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
         CompiledRecipe::compile(&serde_json::to_vec(&without_binding).expect("bytes"), lock).err(),
         Some(GatewayRecipeError::InvalidSource),
     );
+}
+
+#[test]
+fn airtable_task_edit_uses_the_same_write_admission_contract() {
+    let recipe = compiled("airtable-task-edit");
+    assert!(recipe.requires_task_admission());
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "edit-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed Airtable request");
+    assert_eq!(request.method(), WriteMethod::Patch);
+    assert_eq!(
+        request.url(),
+        "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001"
+    );
+    let body: Value = serde_json::from_slice(request.body()).expect("bounded JSON body");
+    assert_eq!(body["fields"]["DemoStatus"], "Approved");
+    let review = recipe.review_document();
+    assert_eq!(review["task_binding"]["resource_field"], "record_id");
+    assert_eq!(review["task_binding"]["verb"], "edit");
+    assert_eq!(review["task_binding"]["ordinary_submit"], "refused");
 }
 
 #[test]

@@ -1,0 +1,80 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "6565cccbdec5100238bc5630e150065fe1fd7440f90f6a549a747779e836b226",
+  "service": "airtable-gateway-demo",
+  "tool": "set_demo_status_v2",
+  "operator_namespace": "airtable-demo",
+  "task_binding": { "resource_field": "record_id", "verb": "edit" },
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.airtable.com",
+  "write": {
+    "method": "PATCH",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v0"
+      },
+      {
+        "kind": "fixed",
+        "value": "appQD3Qf0YFBCW9bV"
+      },
+      {
+        "kind": "fixed",
+        "value": "tblBx2jwe0IsPYRKT"
+      },
+      {
+        "kind": "field",
+        "name": "record_id"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "fields": {
+            "kind": "object",
+            "fields": {
+              "DemoStatus": {
+                "kind": "field",
+                "name": "replacement"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "observation": {
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v0"
+      },
+      {
+        "kind": "fixed",
+        "value": "appQD3Qf0YFBCW9bV"
+      },
+      {
+        "kind": "fixed",
+        "value": "tblBx2jwe0IsPYRKT"
+      },
+      {
+        "kind": "field",
+        "name": "record_id"
+      }
+    ],
+    "json_pointer": "/fields/DemoStatus",
+    "expected_field": "replacement",
+    "maximum_response_bytes": 16384
+  },
+  "echo": {
+    "write": {
+      "kind": "json-pointer",
+      "pointer": "/fields/auths_echo"
+    },
+    "observe": "/fields/auths_echo"
+  }
+}
