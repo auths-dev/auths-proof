@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -66,6 +69,29 @@ class DemoCoContractTests(unittest.TestCase):
         with self.assertRaises(ContractRejected):
             prepare_operator_pins(self.connections, self.access,
                                   **{**values, "company_id": "wrong-company"})
+
+    def test_installed_operator_command_writes_private_review_candidate_once(self) -> None:
+        output = self.root / "pins.json"
+        command = [
+            sys.executable, "-m", "employee_read_demo.operator_cli", "propose-pins",
+            "--connections", str(self.connections),
+            "--access-expectations", str(self.access),
+            "--company", self.pins.company_id,
+            "--instance", self.pins.instance_id,
+            "--definition-hash", self.pins.definition_hash,
+            "--dataset-version", self.pins.dataset_version,
+            "--google-customer-id", self.pins.google_customer_id,
+            "--google-primary-domain", self.pins.google_primary_domain,
+            "--out", str(output),
+        ]
+        first = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(json.loads(first.stdout)["status"], "review_required")
+        self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+        self.assertEqual(json.loads(output.read_text())["bundle_sha256"], self.pins.bundle_sha256)
+        second = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertNotEqual(second.returncode, 0)
+        self.assertEqual(json.loads(output.read_text())["bundle_sha256"], self.pins.bundle_sha256)
 
     def test_optional_oidc_client_metadata_does_not_activate_google(self) -> None:
         bundle = json.loads(self.connections.read_bytes())
