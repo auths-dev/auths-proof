@@ -120,6 +120,13 @@ now verifies Jules's signature against her enrolled public key and produces
 that public package. Serving it still requires an owner-scoped browser flow
 that rechecks active enrollment, registered agent, task card and operator
 pins at completion.
+After the agent signs, `auths-gateway review-submission` can verify its native
+proof offline and render the exact credential-free method, URL, headers and
+body. The [exact intent projection](../broker/src/employee_read_demo/task_write_intent.py)
+binds that review to the signed task card and reviewed recipe, then computes
+the same domain-separated closed-request commitment that the gateway checks
+on submission. It does not claim or send the request. The Jules screen still
+needs to render this projection and obtain her separate exact confirmation.
 The private authority package pins a fresh 32-byte operator challenge into
 the installed trust context. It pins the gateway's MCP policy verifier
 configuration, exposed by the native Python binding; the older self-contained
