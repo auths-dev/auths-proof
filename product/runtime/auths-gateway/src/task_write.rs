@@ -1,8 +1,9 @@
 //! Task-bound write admission. The operator chooses the typed resource field
 //! from a reviewed profile; the agent cannot choose how an action maps to a
 //! task scope. This module verifies intent and exact human confirmation. The
-//! task-aware engine path calls it before a write claim or lease; the installed
-//! socket and operator pin loader still need to expose that path.
+//! task-aware engine path calls it before a write claim or lease. A
+//! development-only operator CLI now supplies the private pins; the human UI
+//! and isolated agent channel are still separate work.
 
 use crate::CompiledRecipe;
 use crate::bounds::authorized_chains;

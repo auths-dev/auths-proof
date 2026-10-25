@@ -18,7 +18,8 @@ pub mod commissioning_floor;
 #[cfg(unix)]
 pub use engine::{
     CommissioningSession, CommissioningSessionInputs, GatewayRequestReview,
-    GatewaySubmissionReview, commissioning_principal_sha256, review_submission,
+    GatewaySubmissionReview, TaskWriteProofs, TaskWriteSession, commissioning_principal_sha256,
+    review_submission,
 };
 mod connection;
 mod credential_journal;
@@ -52,10 +53,10 @@ mod separation;
 mod store;
 mod submit;
 mod support;
-// Human task approval is not yet served by an installed activation channel.
+// Human task approval is served only by the owner-side task session so far.
 #[allow(dead_code)]
 mod task_activation;
-// Exact task-write confirmation is not yet called by the installed submit path.
+// Exact task-write confirmation is called only by the owner-side task session.
 #[allow(dead_code)]
 mod task_write;
 mod transport;

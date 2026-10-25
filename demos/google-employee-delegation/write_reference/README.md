@@ -45,11 +45,13 @@ excluded Docs did not change. A 2xx response alone is not an observed edit.
 
 The v2 recipe declares a provider-neutral `task_binding` for its document field
 and edit verb. The gateway refuses ordinary proof/action submission for this
-recipe before any claim or lease. Its crate-internal task-aware path verifies
+recipe before any claim or lease. Its task-aware engine path verifies
 the signed card, agent action and exact confirmation, charges the durable task
 write budget, and binds the loaded connection ID, generation and account
-subject before a credential lease. An installed task channel and operator
-pins are still required for live use. The broker can privately refresh and
+subject before a credential lease. A development-only, operator-owned CLI
+can configure private pins, activate a signed task, and submit its agent and
+confirmation proofs; the human task UI and isolated agent path are still
+required for live use. The broker can privately refresh and
 verify Jules's separate `drive.file` grant, but that lease is not yet installed
 as a subject-bound Auths gateway write connection. Her saved read-only grant
 is insufficient.
@@ -63,3 +65,29 @@ The broker's read-only [Google preflight](../broker/src/employee_read_demo/googl
 checks the current Jules subject, working Doc ACL, one tab, revision and exact
 baseline before an edit proposal; it has passed against the private Atlas
 generation and does not perform a write.
+
+## Operator-side development route
+
+`auths-gateway task-configure --state-dir STATE --from PINS.json` accepts one
+canonical JSON object with schema `auths.gateway-task-installation/1`, the
+compiled `recipe_digest`, and operator-controlled `pins`: `company_id`,
+`human_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
+`connection_generation`, `connection_subject`, `delivery_channel`,
+`operator_policy_digest`, and `allow_bounded_writes`. The object is installed
+once as a mode-0600 file in the owner-private gateway state directory. The
+gateway derives the resource field and verb from its already installed recipe;
+the agent cannot submit these pins. The Auths connection's account label must
+be the provider's stable Jules UserInfo `sub` so its stored account commitment
+matches the task subject. demo_co confirmed that `jules_subject`, rather than
+email, is the canonical subject in its write evidence.
+
+`task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
+verifies the human's native signed task and registers its budget once.
+`task-submit` then accepts the same task proof/action, one native agent
+proof/action, and `--confirmation-proof` plus `--confirmation-action` for
+exact mode. It prints a redacted gateway result. Bounded-upfront mode must
+have been enabled in the operator pins and is the only mode without a separate
+confirmation. These commands refuse production installations while the task
+journal is single-host. They are a development integration route, not a
+substitute for the human review UI, separate agent process, Google credential
+installation or independent effect verification.

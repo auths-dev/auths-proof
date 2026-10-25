@@ -79,6 +79,8 @@ pub(crate) struct AgentTaskDescriptor {
 /// Operator-installed values re-read at activation. These are independent of
 /// the human's submitted action and must come from active company, agent and
 /// connection records, including the provider's stable account subject.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct TaskActivationPins {
     pub(crate) company_id: String,
     pub(crate) human_principal: String,

@@ -51,6 +51,8 @@ use auths_registries::ImmutableRegistries;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+#[cfg(unix)]
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -67,6 +69,8 @@ pub use commissioning::{
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
+#[cfg(unix)]
+const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/1";
 /// How often `serve` sweeps expired count and sum slots.
 pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
 /// The most expired slots one sweep deletes.
@@ -1189,10 +1193,53 @@ impl GatewayEngine {
         .await
     }
 
+    /// Opens a task-write session from canonical, operator-owned installation
+    /// bytes and a private single-host task journal. The application socket
+    /// never accepts these pins. This early integration is not multi-host.
+    ///
+    /// # Errors
+    /// Refuses malformed, stale or noncanonical operator pins and an unsafe
+    /// or unavailable journal directory.
+    #[cfg(unix)]
+    pub fn task_write_session(
+        &self,
+        installation_bytes: &[u8],
+        ledger_root: impl Into<PathBuf>,
+    ) -> Result<TaskWriteSession<'_>, &'static str> {
+        let installation: TaskWriteInstallation = serde_json::from_slice(installation_bytes)
+            .map_err(|_| "gateway.task.invalid-installation")?;
+        let canonical = serde_json_canonicalizer::to_vec(&installation)
+            .map_err(|_| "gateway.task.invalid-installation")?;
+        if installation_bytes != canonical
+            || installation.schema != TASK_INSTALLATION_SCHEMA
+            || installation.recipe_digest != self.recipe.digest_hex()
+        {
+            return Err("gateway.task.invalid-installation");
+        }
+        let (resource_field, verb) = self
+            .recipe
+            .task_binding()
+            .ok_or("gateway.task.recipe-not-bound")?;
+        let binding = TaskWriteBinding {
+            resource_field: resource_field.to_owned(),
+            verb,
+            connection_id: installation.pins.connection_id.clone(),
+            connection_generation: installation.pins.connection_generation,
+            connection_subject: installation.pins.connection_subject.clone(),
+        };
+        let ledger = FileReleaseTaskLedger::open(ledger_root)
+            .map_err(|_| "gateway.task.store-unavailable")?;
+        Ok(TaskWriteSession {
+            engine: self,
+            pins: installation.pins,
+            binding,
+            ledger,
+        })
+    }
+
     /// Task-aware entry for a recipe that declares `task_binding`. The
     /// caller supplies operator-installed pins and a private journal; these
     /// are never accepted from the agent or ordinary application frame.
-    #[allow(dead_code)] // The installed task socket and operator pin loader are pending.
     #[cfg(unix)]
     pub(crate) async fn submit_task_write(
         &self,
@@ -1459,7 +1506,110 @@ fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResul
 }
 
 /// The installed engine's I/O for one submission.
-#[allow(dead_code)] // Constructed by the task socket once installed.
+#[cfg(unix)]
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct TaskWriteInstallation {
+    schema: String,
+    recipe_digest: String,
+    pins: TaskActivationPins,
+}
+
+/// Operator-owned activation and write path for one installed task-bound
+/// recipe. The ledger is durable across CLI invocations on this host.
+#[cfg(unix)]
+pub struct TaskWriteSession<'a> {
+    engine: &'a GatewayEngine,
+    pins: TaskActivationPins,
+    binding: TaskWriteBinding,
+    ledger: FileReleaseTaskLedger,
+}
+
+/// Native proofs and actions presented to the operator-owned task session.
+/// The confirmation pair is required in exact mode and forbidden in the
+/// separately enabled bounded-upfront mode.
+#[cfg(unix)]
+pub struct TaskWriteProofs<'a> {
+    pub task_proof: &'a [u8],
+    pub task_action: &'a [u8],
+    pub agent_proof: &'a [u8],
+    pub agent_action: &'a [u8],
+    pub confirmation: Option<(&'a [u8], &'a [u8])>,
+}
+
+#[cfg(unix)]
+impl TaskWriteSession<'_> {
+    /// Registers a human-signed task once. A later submission must present
+    /// the same signed card, and the ledger refuses a different commitment.
+    ///
+    /// # Errors
+    /// Refuses invalid native authority, changed connection pins, duplicate
+    /// activation or unavailable durable state before any provider entry.
+    pub async fn activate(
+        &self,
+        proof_cbor: &[u8],
+        action_cbor: &[u8],
+    ) -> Result<(), GatewaySubmitResult> {
+        let now = wall_clock_seconds().ok_or_else(|| GatewaySubmitResult::Indeterminate {
+            code: "gateway.verify.clock-unavailable".to_owned(),
+        })?;
+        let task = verify_task_activation(
+            &self.engine.trusted_context,
+            &self.pins,
+            now,
+            proof_cbor,
+            action_cbor,
+        )?;
+        let loaded = self
+            .engine
+            .connection
+            .load()
+            .await
+            .map_err(|_| not_entered("gateway.task.connection-unavailable"))?
+            .ok_or_else(|| not_entered("gateway.task.connection-unavailable"))?;
+        if !authorizes_entry(
+            loaded.record(),
+            &self.engine.workload_id,
+            &self.engine.profile,
+        ) || !task_connection_matches(loaded.record(), &self.binding)
+        {
+            return Err(not_entered("gateway.task.connection-changed"));
+        }
+        self.ledger.initialize(&task).map_err(|error| {
+            if error == crate::release_state::ReleaseStateError::Exists {
+                not_entered("gateway.task.already-activated")
+            } else {
+                not_entered(error.write_code())
+            }
+        })?;
+        Ok(())
+    }
+
+    /// Verifies a previously activated task and one agent write, then runs
+    /// the gateway's ordinary provider attempt machine under its task gate.
+    pub async fn submit(&self, proofs: TaskWriteProofs<'_>) -> GatewaySubmitResult {
+        self.engine
+            .submit_task_write(TaskWriteSubmission {
+                pins: &self.pins,
+                binding: &self.binding,
+                ledger: &self.ledger,
+                task_proof: proofs.task_proof,
+                task_action: proofs.task_action,
+                agent_proof: proofs.agent_proof,
+                agent_action: proofs.agent_action,
+                confirmation: proofs.confirmation,
+            })
+            .await
+    }
+}
+
+#[cfg(unix)]
+fn task_connection_matches(record: &ConnectionRecord, binding: &TaskWriteBinding) -> bool {
+    record.connection_id().as_str() == binding.connection_id
+        && record.generation().get() == binding.connection_generation
+        && record.account_commitment() == &submit::account_commitment(&binding.connection_subject)
+}
+
 #[cfg(unix)]
 pub(crate) struct TaskWriteSubmission<'a> {
     pub(crate) pins: &'a TaskActivationPins,
@@ -1585,15 +1735,10 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(not(unix))]
         let prepared = self.engine.prepare_entry().await?;
         #[cfg(unix)]
-        if let Some(admission) = &self.task_write {
-            let record = prepared.loaded.record();
-            if record.connection_id().as_str() != admission.binding.connection_id
-                || record.generation().get() != admission.binding.connection_generation
-                || record.account_commitment()
-                    != &submit::account_commitment(&admission.binding.connection_subject)
-            {
-                return Err("gateway.task.connection-changed");
-            }
+        if let Some(admission) = &self.task_write
+            && !task_connection_matches(prepared.loaded.record(), admission.binding)
+        {
+            return Err("gateway.task.connection-changed");
         }
         self.prepared
             .set(prepared)
@@ -2037,6 +2182,100 @@ pub(crate) mod tests {
             include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
         )
         .expect("fixture compiles")
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn task_session_uses_canonical_operator_pins_for_the_installed_recipe() {
+        let mut installation = administration::installation(8).await;
+        let engine = &mut installation.first.engine;
+        engine.recipe = CompiledRecipe::compile(
+            include_bytes!("../../../../demos/airtable-gateway/write_reference/recipe.json"),
+            include_bytes!("../../../../demos/airtable-gateway/write_reference/profile.lock.json"),
+        )
+        .expect("task recipe");
+        let record = engine
+            .connection
+            .load()
+            .await
+            .expect("connection read")
+            .expect("connection");
+        let human = crate::harness::Signer::new(0x22);
+        let agent = crate::harness::Signer::new(0x44);
+        let pins = TaskActivationPins {
+            company_id: "atlas".to_owned(),
+            human_principal: human.principal.as_str().to_owned(),
+            agent_principal: agent.principal.as_str().to_owned(),
+            agent_key_fingerprint: "a".repeat(64),
+            connection_id: record.record().connection_id().as_str().to_owned(),
+            connection_generation: record.record().generation().get(),
+            connection_subject: "acct_TESTPLATFORM1".to_owned(),
+            delivery_channel: "agent-channel".to_owned(),
+            operator_policy_digest: "b".repeat(64),
+            allow_bounded_writes: false,
+        };
+        let config = TaskWriteInstallation {
+            schema: TASK_INSTALLATION_SCHEMA.to_owned(),
+            recipe_digest: engine.recipe.digest_hex(),
+            pins,
+        };
+        let bytes = serde_json_canonicalizer::to_vec(&config).expect("canonical config");
+        let directory = tempfile::tempdir().expect("private journal root");
+        let task_root = std::fs::canonicalize(directory.path())
+            .expect("canonical root")
+            .join("task-state");
+        let session = engine
+            .task_write_session(&bytes, &task_root)
+            .expect("operator session");
+        // The shared administration fixture deliberately uses a synthetic
+        // account commitment, so it cannot assert this provider subject.
+        assert!(!task_connection_matches(record.record(), &session.binding));
+        let bound = record.record();
+        let subject_bound = ConnectionRecord::new(
+            bound.provider_kind().clone(),
+            bound.alias().clone(),
+            bound.connection_id().clone(),
+            bound.contract().clone(),
+            bound.descriptor_schema().clone(),
+            bound.descriptor().to_vec(),
+            submit::account_commitment("acct_TESTPLATFORM1"),
+            *bound.credential_reference_commitment(),
+            bound.generation(),
+            bound.state(),
+            bound.allowed_workloads().to_vec(),
+            bound.allowed_profiles().to_vec(),
+            bound.created_at_unix_seconds(),
+            bound.updated_at_unix_seconds(),
+            bound.revoked_at_unix_seconds(),
+        )
+        .expect("subject-bound connection");
+        assert!(task_connection_matches(&subject_bound, &session.binding));
+        let changed_generation = TaskWriteBinding {
+            connection_generation: session.binding.connection_generation + 1,
+            ..session.binding.clone()
+        };
+        assert!(!task_connection_matches(
+            &subject_bound,
+            &changed_generation
+        ));
+        assert!(session.activate(&[], &[]).await.is_err());
+        let mut noncanonical = serde_json::to_vec_pretty(&config).expect("JSON");
+        noncanonical.push(b'\n');
+        assert_eq!(
+            engine.task_write_session(&noncanonical, &task_root).err(),
+            Some("gateway.task.invalid-installation")
+        );
+        let mut changed: Value = serde_json::from_slice(&bytes).expect("JSON");
+        changed["recipe_digest"] = serde_json::json!("0".repeat(64));
+        assert_eq!(
+            engine
+                .task_write_session(
+                    &serde_json_canonicalizer::to_vec(&changed).expect("JSON"),
+                    &task_root,
+                )
+                .err(),
+            Some("gateway.task.invalid-installation")
+        );
     }
 
     // Connection administration over the shared record and each process's

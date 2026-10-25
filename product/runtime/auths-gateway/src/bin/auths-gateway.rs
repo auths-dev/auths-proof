@@ -31,8 +31,9 @@ mod unix {
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
         GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
         OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, check_candidate_credential, check_principal_separation,
-        check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
+        PrincipalSeparationError, TaskWriteProofs, check_candidate_credential,
+        check_principal_separation, check_private_directory, check_private_directory_owned_by,
+        gateway_verifier_configuration,
     };
     use auths_gateway::{
         DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
@@ -87,6 +88,8 @@ mod unix {
     const QUALIFICATION_ROOT_FILE: &str = "qualification-trust-root.json";
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
+    const TASK_WRITE_INSTALLATION_FILE: &str = "task-write-installation.json";
+    const TASK_WRITE_STATE_DIRECTORY: &str = "agent-task-state";
     use auths_gateway::admin::{
         ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
     };
@@ -323,6 +326,42 @@ mod unix {
             proof: PathBuf,
             #[arg(long)]
             action: PathBuf,
+        },
+        /// Development operator only: install one canonical task-write pin
+        /// record in private gateway state. The agent cannot supply pins.
+        TaskConfigure {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            from: PathBuf,
+        },
+        /// Development operator only: activate one human-signed task in the
+        /// durable task journal before any agent write can be submitted.
+        TaskActivate {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            proof: PathBuf,
+            #[arg(long)]
+            action: PathBuf,
+        },
+        /// Development operator only: submit an agent write under the
+        /// installed task pins, with exact human confirmation by default.
+        TaskSubmit {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_proof: PathBuf,
+            #[arg(long)]
+            task_action: PathBuf,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
+            #[arg(long, requires = "confirmation_action")]
+            confirmation_proof: Option<PathBuf>,
+            #[arg(long, requires = "confirmation_proof")]
+            confirmation_action: Option<PathBuf>,
         },
         /// Ask the private operator socket to disable new writes in every
         /// process sharing the store.
@@ -2883,6 +2922,113 @@ mod unix {
         Ok(())
     }
 
+    async fn task_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.task.single-host-only".into());
+        }
+        let directory = state_dir.to_path_buf();
+        tokio::task::spawn_blocking(move || load_engine(&directory))
+            .await
+            .map_err(|_| "gateway.task.engine-unavailable")?
+    }
+
+    fn task_installation(state_dir: &Path) -> Result<Vec<u8>, Failure> {
+        let path = state_dir.join(TASK_WRITE_INSTALLATION_FILE);
+        let metadata =
+            fs::symlink_metadata(&path).map_err(|_| "gateway.task.installation-unavailable")?;
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("gateway.task.unsafe-installation".into());
+        }
+        read_bounded(&path, 16 * 1024).map_err(Into::into)
+    }
+
+    async fn task_configure(state_dir: PathBuf, from: PathBuf) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let bytes = read_bounded(&from, 16 * 1024)?;
+        engine.task_write_session(&bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        private_file(&state_dir.join(TASK_WRITE_INSTALLATION_FILE), &bytes)?;
+        println!("{{\"outcome\":\"task-installation-configured\"}}");
+        Ok(())
+    }
+
+    async fn task_activate(
+        state_dir: PathBuf,
+        proof: PathBuf,
+        action: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&action, 64 * 1024)?;
+        match session.activate(&proof, &action).await {
+            Ok(()) => {
+                println!("{{\"outcome\":\"task-activated\"}}");
+                Ok(())
+            }
+            Err(result) => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&result).map_err(|_| "gateway.task.invalid-response")?
+                );
+                Err("gateway.task.activation-refused".into())
+            }
+        }
+    }
+
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "CLI paths name six distinct signed artifacts"
+    )]
+    async fn task_submit(
+        state_dir: PathBuf,
+        task_proof: PathBuf,
+        task_action: PathBuf,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+        confirmation_proof: Option<PathBuf>,
+        confirmation_action: Option<PathBuf>,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let task_proof = read_bounded(&task_proof, 4 * 1024 * 1024)?;
+        let task_action = read_bounded(&task_action, 64 * 1024)?;
+        let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let agent_action = read_bounded(&agent_action, 64 * 1024)?;
+        let confirmation = match (confirmation_proof, confirmation_action) {
+            (Some(proof), Some(action)) => Some((
+                read_bounded(&proof, 4 * 1024 * 1024)?,
+                read_bounded(&action, 64 * 1024)?,
+            )),
+            (None, None) => None,
+            _ => return Err("gateway.task.incomplete-confirmation".into()),
+        };
+        let result = session
+            .submit(TaskWriteProofs {
+                task_proof: &task_proof,
+                task_action: &task_action,
+                agent_proof: &agent_proof,
+                agent_action: &agent_action,
+                confirmation: confirmation
+                    .as_ref()
+                    .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
+            })
+            .await;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.task.invalid-response")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
         read_back: Option<String>,
@@ -3736,6 +3882,32 @@ mod unix {
                 proof,
                 action,
             } => submit(app_socket, proof, action).await,
+            Command::TaskConfigure { state_dir, from } => task_configure(state_dir, from).await,
+            Command::TaskActivate {
+                state_dir,
+                proof,
+                action,
+            } => task_activate(state_dir, proof, action).await,
+            Command::TaskSubmit {
+                state_dir,
+                task_proof,
+                task_action,
+                agent_proof,
+                agent_action,
+                confirmation_proof,
+                confirmation_action,
+            } => {
+                task_submit(
+                    state_dir,
+                    task_proof,
+                    task_action,
+                    agent_proof,
+                    agent_action,
+                    confirmation_proof,
+                    confirmation_action,
+                )
+                .await
+            }
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -4168,6 +4340,69 @@ mod unix {
                     "{refused}"
                 );
             }
+        }
+
+        #[test]
+        fn task_submit_requires_both_exact_confirmation_artifacts() {
+            let base = [
+                "auths-gateway",
+                "task-submit",
+                "--state-dir",
+                "/state",
+                "--task-proof",
+                "task.proof",
+                "--task-action",
+                "task.action",
+                "--agent-proof",
+                "agent.proof",
+                "--agent-action",
+                "agent.action",
+            ];
+            assert!(matches!(
+                Cli::try_parse_from(base)
+                    .expect("upfront option parses")
+                    .command,
+                Command::TaskSubmit {
+                    confirmation_proof: None,
+                    confirmation_action: None,
+                    ..
+                }
+            ));
+            let mut partial = base.to_vec();
+            partial.extend(["--confirmation-proof", "human.proof"]);
+            assert!(Cli::try_parse_from(partial).is_err());
+            let mut exact = base.to_vec();
+            exact.extend([
+                "--confirmation-proof",
+                "human.proof",
+                "--confirmation-action",
+                "human.action",
+            ]);
+            assert!(matches!(
+                Cli::try_parse_from(exact)
+                    .expect("exact confirmation parses")
+                    .command,
+                Command::TaskSubmit {
+                    confirmation_proof: Some(_),
+                    confirmation_action: Some(_),
+                    ..
+                }
+            ));
+        }
+
+        #[test]
+        fn task_pins_must_be_an_owner_private_regular_file() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            let path = root.join(TASK_WRITE_INSTALLATION_FILE);
+            fs::write(&path, b"pins").expect("pins");
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("shared pins");
+            assert!(task_installation(&root).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private pins");
+            assert_eq!(task_installation(&root).expect("private pins"), b"pins");
+            fs::remove_file(&path).expect("remove pins");
+            std::os::unix::fs::symlink(root.join("other"), &path).expect("linked pins");
+            assert!(task_installation(&root).is_err());
         }
 
         #[test]
