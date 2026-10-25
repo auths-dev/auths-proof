@@ -73,9 +73,13 @@ class GoogleCreateHandoffTests(unittest.TestCase):
         self.assertEqual(created_child_edit_access_url(pins),
                          "https://www.googleapis.com/drive/v3/files/child_ABC-123"
                          "?supportsAllDrives=true&fields=id,parents,capabilities(canEdit)")
+        blank_body = {"content": [{"startIndex": 1, "endIndex": 2,
+                                    "paragraph": {"elements": [
+                                        {"startIndex": 1, "endIndex": 2,
+                                         "textRun": {"content": "\n"}}]}}]}
         document = {"documentId": pins.candidate_id, "revisionId": "rev-1",
                     "tabs": [{"tabProperties": {"tabId": "t.0"},
-                              "documentTab": {"body": {"content": []}}, "childTabs": []}]}
+                              "documentTab": {"body": blank_body}, "childTabs": []}]}
         revision = validate_created_child_docs_read(document, pins)
         self.assertEqual((revision.revision_id, revision.tab_id), ("rev-1", "t.0"))
         for changed in (
@@ -85,6 +89,15 @@ class GoogleCreateHandoffTests(unittest.TestCase):
             {"tabs": [{**document["tabs"][0], "childTabs": [{}]}]},
             {"tabs": [{**document["tabs"][0], "tabProperties": {"tabId": ""}}]},
             {"tabs": [{**document["tabs"][0], "documentTab": None}]},
+            {"tabs": [{**document["tabs"][0], "documentTab": {"body": {"content": []}}}]},
+            {"tabs": [{**document["tabs"][0], "documentTab": {"body": {
+                "content": blank_body["content"] * 2}}}]},
+            {"tabs": [{**document["tabs"][0], "documentTab": {"body": {
+                "content": [{**blank_body["content"][0], "endIndex": 3}]}}}]},
+            {"tabs": [{**document["tabs"][0], "documentTab": {"body": {
+                "content": [{**blank_body["content"][0], "paragraph": {
+                    "elements": [{"startIndex": 1, "endIndex": 6,
+                                  "textRun": {"content": "text\n"}}]}}]}}}]},
         ):
             with self.subTest(changed=changed), self.assertRaises(ContractRejected):
                 validate_created_child_docs_read(document | changed, pins)

@@ -25,6 +25,14 @@ bounded revision and tab ID, and confirm Drive `capabilities.canEdit=true`
 for that exact child. A stale revision or unknown populate response requires
 reconciliation; no silent retry or rebase is allowed.
 
+The preflight also accepts only a single blank paragraph with one terminal
+newline and consistent provider-returned indexes. demo_co did not retain the
+probe's pre-insert body structure, so this narrow parser is a fail-closed
+assumption for the first live child. If a fresh Jules read returns another
+shape, capture only its redacted structural summary and review the parser
+before entry. The recipe uses `endOfSegmentLocation` and never assumes a
+numeric insertion index.
+
 The human-signed task card names the populate recipe digest but contains no
 arbitrary child ID. Only a child ID durably bound after the reserved create and
 credential-bearing metadata observation can become a one-time edit scope in

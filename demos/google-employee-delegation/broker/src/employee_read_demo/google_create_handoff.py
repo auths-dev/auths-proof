@@ -155,7 +155,45 @@ def validate_created_child_docs_read(document: Mapping[str, object],
     if (type(tab_id) is not str or not 1 <= len(tab_id.encode()) <= 64
             or any(ord(character) < 33 for character in tab_id)):
         raise ContractRejected("created-child Docs tab ID is invalid")
+    _require_blank_single_tab(tabs[0]["documentTab"])
     return JulesChildDocsRevision(document["revisionId"], tab_id)
+
+
+def _require_blank_single_tab(document_tab: Mapping[str, object]) -> None:
+    """Fail closed unless the fresh body is one newline-only paragraph.
+
+    demo_co did not retain the probe's pre-insert body structure. We therefore
+    compare the response's own indexes and reject any unobserved layout; no
+    numeric insertion offset is assumed or sent by the recipe.
+    """
+    body = document_tab.get("body")
+    if type(body) is not dict or type(body.get("content")) is not list:
+        raise ContractRejected("created-child Docs body is unavailable")
+    content = body["content"]
+    if len(content) != 1 or type(content[0]) is not dict:
+        raise ContractRejected("created-child Doc is not a blank single paragraph")
+    paragraph_element = content[0]
+    paragraph = paragraph_element.get("paragraph")
+    if (type(paragraph) is not dict
+            or any(key not in {"startIndex", "endIndex", "paragraph"}
+                   for key in paragraph_element)
+            or any(key not in {"elements", "paragraphStyle"} for key in paragraph)
+            or type(paragraph.get("elements")) is not list
+            or len(paragraph["elements"]) != 1):
+        raise ContractRejected("created-child Doc has unsupported body elements")
+    run = paragraph["elements"][0]
+    if (type(run) is not dict
+            or any(key not in {"startIndex", "endIndex", "textRun"} for key in run)
+            or type(run.get("textRun")) is not dict
+            or run["textRun"].get("content") != "\n"):
+        raise ContractRejected("created-child Doc already has content")
+    start, end = paragraph_element.get("startIndex"), paragraph_element.get("endIndex")
+    run_start, run_end = run.get("startIndex"), run.get("endIndex")
+    if (type(start) is not int or type(end) is not int
+            or type(run_start) is not int or type(run_end) is not int
+            or start < 0 or end != start + 1
+            or run_start != start or run_end != end):
+        raise ContractRejected("created-child Docs indexes are inconsistent")
 
 
 def validate_created_child_edit_access(metadata: Mapping[str, object],
