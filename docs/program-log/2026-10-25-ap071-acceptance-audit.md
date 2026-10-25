@@ -22,8 +22,10 @@ response-less child in the task journal.
 The gateway also has a read-only private command that refuses to emit
 recovery inputs until the original create is the sole reserved write and its
 attempt is `unknown` with no recorded response. The existing recorded-response
-loopback test confirms that this command rejects that other path. A positive
-unknown-attempt run and the signed recovery sequence remain open.
+loopback test confirms that this command rejects that other path. The same
+synthetic fixture now enters one create, drops the response, and accepts only
+the original unknown-attempt facts without binding a child. A live unknown
+attempt and the signed recovery sequence remain open.
 
 The full spec is **open**. The already verified single-plan Google positive
 case must not be reported as missing; conversely, its manual pre-entry recovery

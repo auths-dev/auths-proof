@@ -235,7 +235,11 @@ signed parent/title/marker only when the attempt projects to `unknown` and
 has no recorded status, response digest or response locator. It labels the
 output `authority: none` and makes no provider request. A recorded response
 must use the response-derived reconciliation path. This is a prerequisite for
-the recovery signer, not a recovery bind.
+the recovery signer, not a recovery bind. A loopback fixture now sends one
+create request, drops its response, and confirms that the durable attempt
+projects to `unknown`, the command exposes only the original task facts, and
+no child scope appears. It does not establish that any provider effect
+occurred, nor does it test live recovered-child population.
 
 ### Cleanup and receipts
 

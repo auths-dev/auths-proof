@@ -4510,6 +4510,160 @@ pub(crate) mod tests {
             not_entered("gateway.task.write-replay"),
             "a successful population cannot enter the provider again"
         );
+
+        // Exercise the other journal branch with the same pinned installation:
+        // transport entry occurs, but no complete create response is recorded.
+        drop(session);
+        let mut unknown_card_json =
+            serde_json::to_value(task.descriptor()).expect("second card source");
+        unknown_card_json["task_id"] = json!("task-create-unknown");
+        unknown_card_json["pending_child"]["create_operation_id"] = json!("create-unknown-1");
+        unknown_card_json["pending_child"]["marker"] = json!(format!("ap071_{}", "e".repeat(32)));
+        let unknown_card: AgentTaskDescriptor =
+            serde_json::from_value(unknown_card_json).expect("second task card");
+        let unknown_card_bytes =
+            serde_json_canonicalizer::to_vec(&unknown_card).expect("second card bytes");
+        let unknown_commitment =
+            auths_codec::domain_commitment("auths.agent-task.v2", &unknown_card_bytes)
+                .expect("second card commitment");
+        let unknown_task =
+            ApprovedAgentTask::from_test_card(unknown_card, *unknown_commitment.as_bytes());
+        let unknown_listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("response-less provider listener");
+        engine.loopback_port = Some(unknown_listener.local_addr().expect("address").port());
+        engine.recipe = CompiledRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+            ),
+        )
+        .expect("create recipe again");
+        let unknown_session = engine
+            .task_write_session(&installation_bytes, &state_root)
+            .expect("unknown create task session");
+        unknown_session
+            .ledger
+            .initialize(&unknown_task)
+            .expect("activate second task");
+        let mut unknown_args = args.clone();
+        unknown_args["task_id"] = json!("task-create-unknown");
+        unknown_args["task_commitment"] = json!(hex::encode(unknown_commitment.as_bytes()));
+        unknown_args["operation_id"] = json!("create-unknown-1");
+        unknown_args["recovery_marker"] = json!(format!("ap071_{}", "e".repeat(32)));
+        let unknown_signed = submission_for(
+            &root,
+            &agent,
+            &grant,
+            unknown_args.as_object().expect("second create arguments"),
+            &[],
+            "google-drive-delegation-demo",
+            "create_project_a_document_v1",
+            now,
+        );
+        let unknown_verified = verify_detailed(
+            &engine.recipe,
+            &engine.trusted_context,
+            now,
+            &unknown_signed.proof,
+            &unknown_signed.action,
+        )
+        .expect("verified second create");
+        let unknown_intent = derive_exact_write_intent(
+            &unknown_task,
+            &unknown_verified,
+            &engine.recipe,
+            &unknown_session.binding,
+            None,
+            now,
+        )
+        .expect("second create intent");
+        let mut unknown_plan_args = plan_args.clone();
+        let unknown_plan = unknown_plan_args
+            .get_mut("plan")
+            .expect("plan")
+            .as_object_mut()
+            .expect("plan object");
+        unknown_plan.insert("task_id".into(), json!("task-create-unknown"));
+        unknown_plan.insert(
+            "task_commitment".into(),
+            json!(hex::encode(unknown_commitment.as_bytes())),
+        );
+        unknown_plan.insert("create".into(), json!(unknown_intent));
+        unknown_plan.insert("populate_operation_id".into(), json!("populate-unknown-1"));
+        let unknown_effect_plan = submission_for(
+            &root,
+            &human,
+            &effect_plan_grant,
+            &unknown_plan_args,
+            &[],
+            TASK_SERVICE,
+            crate::task_effect_plan::EFFECT_PLAN_TOOL,
+            now,
+        );
+        unknown_session
+            .record_effect_plan(
+                "task-create-unknown",
+                &unknown_signed.proof,
+                &unknown_signed.action,
+                &unknown_effect_plan.proof,
+                &unknown_effect_plan.action,
+            )
+            .expect("second plan recorded before entry");
+        let response_less_provider = tokio::spawn(async move {
+            let (mut stream, _) = unknown_listener.accept().await.expect("create entered");
+            let mut request = [0_u8; 4096];
+            let size = stream.read(&mut request).await.expect("create request");
+            assert!(
+                std::str::from_utf8(&request[..size])
+                    .expect("request text")
+                    .starts_with("POST /drive/v3/files?"),
+                "only one create entered"
+            );
+            // Closing here simulates loss of the response after request entry.
+        });
+        let unknown_result = unknown_session
+            .submit_planned_effect(TaskWriteProofs {
+                task_id: "task-create-unknown",
+                agent_proof: &unknown_signed.proof,
+                agent_action: &unknown_signed.action,
+                confirmation: None,
+            })
+            .await;
+        response_less_provider
+            .await
+            .expect("response-less provider task");
+        assert!(
+            matches!(unknown_result, GatewaySubmitResult::Unknown),
+            "lost response remains unknown: {unknown_result:?}"
+        );
+        let recovery = serde_json::to_value(
+            unknown_session
+                .create_recovery_inputs("task-create-unknown")
+                .await
+                .expect("one unknown create is inspectable"),
+        )
+        .expect("recovery input JSON");
+        assert_eq!(recovery["attempt_stage"], "unknown");
+        assert_eq!(recovery["authority"], "none");
+        assert_eq!(recovery["create_operation_id"], "create-unknown-1");
+        assert_eq!(recovery["parent_id"], "project-a-folder");
+        assert_eq!(
+            recovery["task_commitment"],
+            hex::encode(unknown_commitment.as_bytes())
+        );
+        assert!(
+            unknown_session
+                .ledger
+                .load("task-create-unknown")
+                .expect("second task journal")
+                .expect("second task state")
+                .bound_child_scope()
+                .is_none(),
+            "recovery inputs cannot bind a child"
+        );
     }
 
     // Connection administration over the shared record and each process's
