@@ -247,14 +247,17 @@ also exercised the Compose route, network and mount boundaries with those
 images. CI did not publish registry images or run a live Google scenario, so
 the registry digest fields remain empty.
 
-The tag-only [publication workflow](../../.github/workflows/google-read-demo-publish.yml)
-is prepared for a reviewed `ap070-v*` tag. It rebuilds the matching SDK wheel
-and both installed images from that tagged commit, pushes the images to GHCR,
+The manual [publication workflow](../../.github/workflows/google-read-demo-publish.yml)
+is prepared for a reviewed exact commit on `main`. It first requires the
+repository `cargo xtask release-check` gate, then rebuilds the matching SDK wheel
+and both installed images from that commit, pushes the images to GHCR,
 reads back their registry manifest digests, and packages a source-free release
 kit with those digest references and the exact wheel hash. A separate job
-unpacks the release artifact without a source checkout. No release tag has
-been created and this publishing path has not yet run; the current kit is
-still a candidate. The release packager is dry-run checked with synthetic
+unpacks the release artifact without a source checkout. This publishing path
+has not yet run; the current kit is still a candidate. The release gate is
+currently blocked because formal mutation evidence predates the changed
+formal sources; the separately paused AP-SPEC-069 work must not be silently
+resumed to force this demo release. The release packager is dry-run checked with synthetic
 digest references in the installed-image workflow, but those references are
 never uploaded as an installable artifact.
 
