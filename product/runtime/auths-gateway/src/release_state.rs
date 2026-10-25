@@ -833,7 +833,7 @@ impl ReleaseTaskState {
     }
 
     /// Admit a compiled request only with a native-verified sole actor and
-    /// exact human-issued grant. The connection reference must come from the
+    /// human-issued grant. The connection reference must come from the
     /// loaded, subject-bound credential record for this read recipe.
     pub(crate) fn reserve_verified_request(
         &mut self,

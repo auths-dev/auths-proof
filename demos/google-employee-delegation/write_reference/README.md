@@ -129,8 +129,9 @@ operator can obtain the read digest and bounded GET policy offline with
 a mixed task package; omitting them issues a legitimate write-only task. The
 command prints only a redacted summary; the package contains signed native
 grants and a trust template, no Google credential or human signing key. The
-browser and isolated agent sign through their separate paths. A live Jules
-task and agent proposal have not yet been completed.
+browser and isolated agent sign through their separate paths. The live Jules
+task, acknowledged read and exact agent proposal were exercised on
+25 October 2026; see the [live edit record](../../../docs/program-log/2026-10-25-ap071-live-edit.md).
 The [owner-side package loader](../broker/src/employee_read_demo/task_write_package.py)
 now checks the private file's exact schema, lifetime, gateway verifier
 configuration, provider audience and operator challenge before any browser
@@ -185,8 +186,10 @@ stores a separate 256-bit commitment key in private state. Activate the
 human-signed task, start the isolated agent's `serve-release`, then run
 `task-read-submit` with the agent's native proof/action and task ID. Its JSON
 result contains only redacted status, byte count and keyed commitment. This
-is a single-host development route; live Jules read delivery and credential
-refresh after task admission remain to be exercised and implemented.
+is a single-host development route. A live Jules task delivered and
+acknowledged a 51-byte Project A source read on 25 October 2026 with one
+provider call and one release charged. Credential renewal after task admission
+remains to be exercised and implemented.
 With the optional `--task-write-gateway-state-dir`, the workbench activates
 that signed task immediately in the owner-private gateway journal. Without
 that option, the operator activates it through `task-activate`. A separate
@@ -217,8 +220,8 @@ now prepares separate native preimages for a reviewed task card and an exact
 closed-write intent. It completes each proof only with a signature from the
 enrolled human key, which the browser currently holds. Its card commitment
 uses the gateway's domain-separated canonicalization. This is native proof
-construction; the served approval screens still need a live Jules run and
-installed gateway activation.
+construction. The served Jules approval screen and installed gateway activation
+were exercised in the live edit record.
 The isolated [agent write signer](../agent/src/employee_read_agent/write.py)
 can now sign a reviewed profile action under the human's completed child
 grant. `auths-google-read-agent sign-write` writes private proof and action
@@ -235,8 +238,8 @@ binds that review to the signed task card and reviewed recipe, then computes
 the same domain-separated closed-request commitment that the gateway checks
 on submission. It does not claim or send the request. The optional Jules screen
 renders this projection and obtains her separate exact confirmation after the
-agent proof is staged. Its live use still needs the preflight repeated at
-gateway entry and independent effect evidence.
+agent proof is staged. The live edit repeated Jules's preflight before gateway
+entry and obtained independent demo_co readback after the HTTP 200 response.
 The private authority package pins a fresh 32-byte operator challenge into
 the installed trust context. It pins the gateway's MCP policy verifier
 configuration, exposed by the native Python binding; the older self-contained

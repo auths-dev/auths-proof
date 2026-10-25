@@ -162,6 +162,12 @@ pub enum ReleaseProjectionError {
 }
 
 impl CompiledReleaseRecipe {
+    /// Exact MCP service fixed by the reviewed release recipe.
+    #[must_use]
+    pub fn service(&self) -> &str {
+        &self.source.service
+    }
+
     /// Compile closed source against one exact generated profile lock.
     ///
     /// # Errors

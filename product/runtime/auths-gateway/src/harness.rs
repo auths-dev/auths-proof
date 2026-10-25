@@ -450,6 +450,26 @@ pub(crate) fn context_for_agent_and_task_profile(
     )
 }
 
+/// Mixed task trust whose default audience is the write service while the
+/// release proof targets a separately approved read service.
+#[cfg(test)]
+pub(crate) fn context_for_read_with_write_default(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+) -> Result<TrustedContext, HarnessError> {
+    context_for_profiles(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        &[("provider-write", "edit"), (SERVICE, TOOL)],
+    )
+}
+
 #[allow(
     clippy::too_many_arguments,
     reason = "test trust includes named MCP profile"

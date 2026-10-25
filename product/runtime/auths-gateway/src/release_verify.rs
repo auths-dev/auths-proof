@@ -2,9 +2,11 @@
 //! activation, credential custody and delivery remain separate boundaries.
 
 use crate::bounds::authorized_chains;
-use crate::engine::{GatewaySubmitResult, authorized_action, not_entered, verify_sealed};
+use crate::engine::{
+    GatewaySubmitResult, authorized_action, not_entered, verify_sealed_for_audience,
+};
 use crate::{ClosedReleaseRequest, CompiledReleaseRecipe};
-use auths_model::{ActionConstraint, PrincipalId, TrustedContext, VerifierLimits};
+use auths_model::{Audience, PrincipalId, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 
@@ -31,9 +33,10 @@ impl VerifiedReleaseRequest {
     }
 }
 
-/// Verify a single agent action and its exact human-issued grant before a
-/// release task can reserve a provider call. Unsupported critical policy is
-/// refused rather than silently ignored by this new capability.
+/// Verify a single agent action and its human-issued grant before a release
+/// task can reserve a provider call. Resource, connection and budget limits
+/// are enforced against the activated human-signed task after this check.
+/// Unsupported critical policy is refused rather than silently ignored.
 pub(crate) fn verify_release_request(
     recipe: &CompiledReleaseRecipe,
     context: &TrustedContext,
@@ -41,7 +44,9 @@ pub(crate) fn verify_release_request(
     proof_cbor: &[u8],
     action_cbor: &[u8],
 ) -> Result<VerifiedReleaseRequest, GatewaySubmitResult> {
-    let sealed = verify_sealed(context, now, proof_cbor, action_cbor)?;
+    let audience = Audience::parse(&format!("mcp://{}", recipe.service()))
+        .map_err(|_| not_entered("gateway.release.profile"))?;
+    let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     if action.action_ids().len() != 1 {
         return Err(not_entered("gateway.release.composition-unsupported"));
@@ -78,13 +83,8 @@ pub(crate) fn verify_release_request(
     let Some(terminal) = branch.chain.last() else {
         return Err(not_entered("gateway.release.human-grant-required"));
     };
-    if terminal.statement().subject() != &branch.actor
-        || matches!(
-            terminal.statement().action_constraint(),
-            ActionConstraint::AnyBody
-        )
-    {
-        return Err(not_entered("gateway.release.exact-human-grant-required"));
+    if terminal.statement().subject() != &branch.actor {
+        return Err(not_entered("gateway.release.human-grant-recipient"));
     }
     if branch.chain.iter().any(|grant| {
         !grant.statement().extensions().as_slice().is_empty()
@@ -108,14 +108,31 @@ pub(crate) mod tests {
     use crate::release_state::{ReleaseResourceScope, ReleaseTaskPolicy, ReleaseTaskState};
     use auths_codec::{body_digest, grant_signing_preimage};
     use auths_model::{
-        AssurancePolicyId, AudienceSet, CriticalExtensions, GrantStatement, PermissionSet,
-        SignatureEnvelope, SignedGrant, StatusPolicy,
+        ActionConstraint, AssurancePolicyId, AudienceSet, CriticalExtensions, GrantStatement,
+        PermissionSet, SignatureEnvelope, SignedGrant, StatusPolicy,
     };
     use auths_profile_mcp::McpProfile;
     use serde_json::{Map, Value, json};
     use sha2::{Digest as _, Sha256};
 
     const NOW: u64 = 1_790_000_000;
+
+    #[test]
+    fn native_release_uses_recipe_audience_in_mixed_read_write_task() {
+        let root = Signer::new(0x11);
+        let agent = Signer::new(0x22);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context =
+            harness::context_for_read_with_write_default(&root, observer.principal(), NOW)
+                .expect("mixed task context");
+        let recipe = recipe();
+        let arguments = arguments(&recipe, agent.principal.as_str());
+        let grant = exact_grant(&root, &agent, &arguments, NOW);
+        let signed = submission(&root, &agent, &grant, &arguments, &[]);
+        assert!(
+            verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action,).is_ok()
+        );
+    }
 
     pub(crate) fn recipe() -> CompiledReleaseRecipe {
         let schema = json!({"kind": "object", "fields": {
@@ -203,14 +220,14 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn native_proof_binds_agent_human_and_exact_read_before_task_charge() {
+    fn native_proof_and_task_bind_agent_human_resource_before_charge() {
         let root = Signer::new(0x11);
         let agent = Signer::new(0x22);
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
         let recipe = recipe();
         let arguments = arguments(&recipe, agent.principal.as_str());
-        let grant = exact_grant(&root, &agent, &arguments, NOW);
+        let grant = harness::grant(&root, &agent.principal, None, NOW).expect("tool grant");
         let signed = submission(&root, &agent, &grant, &arguments, &[]);
         let verified =
             verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
@@ -293,7 +310,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn native_release_refuses_a_mismatched_recipient_and_broad_grant() {
+    fn native_release_refuses_mismatched_recipient_and_accepts_task_scoped_grant() {
         let root = Signer::new(0x11);
         let agent = Signer::new(0x22);
         let observer = GatewayObserver::from_test_seed(0x33);
@@ -318,9 +335,9 @@ pub(crate) mod tests {
         );
         let broad = harness::grant(&root, &agent.principal, None, NOW).expect("broad grant");
         let signed = submission(&root, &agent, &broad, &arguments, &[]);
-        assert!(matches!(
-            verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action),
-            Err(GatewaySubmitResult::NotEntered { code }) if code == "gateway.release.exact-human-grant-required"
-        ));
+        assert!(
+            verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action).is_ok(),
+            "the activated task independently bounds resource and budget"
+        );
     }
 }
