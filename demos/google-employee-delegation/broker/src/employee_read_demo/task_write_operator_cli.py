@@ -59,6 +59,41 @@ def _reviewed_profile(recipe_path: Path, lock_path: Path) -> tuple[str, str, str
     return recipe["service"], recipe["tool"], recipe_sha, lock_sha
 
 
+def _reviewed_release_profile(recipe_path: Path, lock_path: Path) -> tuple[str, str, str, str]:
+    """Bind a GET release profile to checked-in source and generated lock."""
+    values = []
+    for path in (recipe_path, lock_path):
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65_536:
+            raise ValueError("reviewed release recipe or profile lock is unavailable")
+        raw = path.read_bytes()
+        try:
+            document = json.loads(raw, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise ValueError("reviewed release recipe or profile lock is malformed") from error
+        if type(document) is not dict:
+            raise ValueError("reviewed release recipe or profile lock is malformed")
+        values.append((document, hashlib.sha256(raw).hexdigest()))
+    (recipe, recipe_sha), (lock, lock_sha) = values
+    command_schema = lock.get("command_schema")
+    fields = command_schema.get("fields") if type(command_schema) is dict else None
+    response = recipe.get("response")
+    resource_field = recipe.get("resource_field")
+    recipient_field = recipe.get("recipient_field")
+    if (recipe.get("schema") != "auths.gateway-release-recipe-source/1"
+            or lock.get("schema") != "auths.self-hosted-profile-lock/1"
+            or recipe.get("service") != lock.get("service")
+            or recipe.get("tool") != lock.get("tool")
+            or recipe.get("profile_schema_digest") != lock.get("schema_digest")
+            or type(fields) is not dict
+            or type(resource_field) is not str or resource_field not in fields
+            or type(recipient_field) is not str or recipient_field not in fields
+            or type(response) is not dict
+            or type(response.get("maximum_release_bytes")) is not int
+            or not 1 <= response["maximum_release_bytes"] <= 262_144):
+        raise ValueError("reviewed release recipe and profile lock do not match")
+    return recipe["service"], recipe["tool"], recipe_sha, lock_sha
+
+
 def issue_task_package(
     *,
     root_seed: Path,
@@ -71,6 +106,11 @@ def issue_task_package(
     provider_service: str,
     provider_tool: str,
     recipe_digest: str,
+    read_recipe_path: Path | None = None,
+    read_profile_lock_path: Path | None = None,
+    read_service: str | None = None,
+    read_tool: str | None = None,
+    read_recipe_digest: str | None = None,
     output: Path,
     now: int | None = None,
 ) -> dict:
@@ -83,6 +123,21 @@ def issue_task_package(
     reviewed_service, reviewed_tool, recipe_sha, lock_sha = _reviewed_profile(
         recipe_path, profile_lock_path,
     )
+    read_inputs = (read_recipe_path, read_profile_lock_path, read_service,
+                   read_tool, read_recipe_digest)
+    if any(value is not None for value in read_inputs) and any(
+            value is None for value in read_inputs):
+        raise ValueError("reviewed read profile inputs must be supplied together")
+    read_profile = None
+    if read_recipe_path is not None and read_profile_lock_path is not None:
+        checked_service, checked_tool, read_recipe_sha, read_lock_sha = (
+            _reviewed_release_profile(read_recipe_path, read_profile_lock_path)
+        )
+        if (read_service != checked_service or read_tool != checked_tool
+                or type(read_recipe_digest) is not str
+                or _DIGEST.fullmatch(read_recipe_digest) is None):
+            raise ValueError("reviewed read profile inputs are invalid")
+        read_profile = (checked_service, checked_tool, read_recipe_sha, read_lock_sha)
     if (provider_service != reviewed_service or provider_tool != reviewed_tool
             or not isinstance(binding_ref, str) or not 1 <= len(binding_ref) <= 256
             or not isinstance(company, str) or not 1 <= len(company) <= 128
@@ -118,12 +173,13 @@ def issue_task_package(
     binding = EmployeeBinding(row[0], row[1], row[2], row[3], row[4], binding_ref)
     authority = issue_task_write_authority(
         root, binding, row[5], provider_service=provider_service,
-        provider_tool=provider_tool, now=now,
+        provider_tool=provider_tool,
+        read_service=read_service, read_tool=read_tool, now=now,
         lifetime=min(3600, manifest["expires_at"] - now),
     )
     encode = lambda value: base64.urlsafe_b64encode(value).decode("ascii")
     package = {
-        "schema": "auths.ap071-task-authority/1",
+        "schema": "auths.ap071-task-authority/2",
         "company_id": company,
         "binding_ref": binding_ref,
         "root_principal": authority.root_principal,
@@ -140,6 +196,13 @@ def issue_task_package(
         "approval_grant_b64": encode(authority.approval_grant.signed_grant),
         "confirmation_grant_b64": encode(authority.confirmation_grant.signed_grant),
         "write_parent_grant_b64": encode(authority.write_parent_grant.signed_grant),
+        "read": None if read_profile is None else {
+            "service": read_profile[0], "tool": read_profile[1],
+            "recipe_digest": read_recipe_digest,
+            "recipe_source_sha256": read_profile[2],
+            "profile_lock_sha256": read_profile[3],
+            "parent_grant_b64": encode(authority.read_parent_grant.signed_grant),
+        },
         "root_evidence_b64": encode(authority.approval_grant.root_evidence),
         "human_evidence_b64": encode(authority.approval_grant.employee_evidence),
     }
@@ -170,6 +233,11 @@ def main() -> int:
     parser.add_argument("--provider-service", required=True)
     parser.add_argument("--provider-tool", required=True)
     parser.add_argument("--recipe-digest", required=True)
+    parser.add_argument("--read-recipe", type=Path)
+    parser.add_argument("--read-profile-lock", type=Path)
+    parser.add_argument("--read-service")
+    parser.add_argument("--read-tool")
+    parser.add_argument("--read-recipe-digest")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     result = issue_task_package(
@@ -177,7 +245,12 @@ def main() -> int:
         binding_ref=args.binding_ref, company=args.company,
         recipe_path=args.recipe, profile_lock_path=args.profile_lock,
         provider_service=args.provider_service, provider_tool=args.provider_tool,
-        recipe_digest=args.recipe_digest, output=args.out,
+        recipe_digest=args.recipe_digest,
+        read_recipe_path=args.read_recipe,
+        read_profile_lock_path=args.read_profile_lock,
+        read_service=args.read_service, read_tool=args.read_tool,
+        read_recipe_digest=args.read_recipe_digest,
+        output=args.out,
     )
     print(json.dumps(result, sort_keys=True))
     return 0

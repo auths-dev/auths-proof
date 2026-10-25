@@ -1,4 +1,4 @@
-"""Author one provider-neutral write proof inside the isolated agent process.
+"""Author provider-neutral task read or write proofs inside the agent process.
 
 The package contains public native grants and operator pins only. The agent
 keeps its own seed and never receives the human key or provider credential.
@@ -25,21 +25,34 @@ _TOOL = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 
 def _decode(value: object, maximum: int) -> bytes:
     if type(value) is not str or len(value) > maximum * 2:
-        raise ValueError("agent write package field exceeds bounds")
+        raise ValueError("agent task package field exceeds bounds")
     try:
         raw = base64.b64decode(value, altchars=b"-_", validate=True)
     except (ValueError, base64.binascii.Error) as error:
-        raise ValueError("agent write package field is malformed") from error
+        raise ValueError("agent task package field is malformed") from error
     if not 1 <= len(raw) <= maximum:
-        raise ValueError("agent write package field exceeds bounds")
+        raise ValueError("agent task package field exceeds bounds")
     return raw
 
 
 def sign_write(package: dict, arguments: dict, key: AgentKey,
                *, now: int | None = None) -> tuple[bytes, bytes]:
     """Sign the agent's selected action; never submit or claim provider effect."""
+    return _sign_task_action(package, arguments, key, "write", now=now)
+
+
+def sign_read(package: dict, arguments: dict, key: AgentKey,
+              *, now: int | None = None) -> tuple[bytes, bytes]:
+    """Sign one bounded read; provider content remains behind the gateway."""
+    if type(arguments) is not dict or arguments.get("agent_principal") != key.principal:
+        raise ValueError("agent read recipient differs from its registered principal")
+    return _sign_task_action(package, arguments, key, "read", now=now)
+
+
+def _sign_task_action(package: dict, arguments: dict, key: AgentKey,
+                      kind: str, *, now: int | None = None) -> tuple[bytes, bytes]:
     if (type(package) is not dict
-            or package.get("schema") != "auths.ap071-agent-write-package/1"
+            or package.get("schema") != f"auths.ap071-agent-{kind}-package/1"
             or type(arguments) is not dict
             or package.get("agent_principal") != key.principal
             or not isinstance(package.get("service"), str)
@@ -55,15 +68,15 @@ def sign_write(package: dict, arguments: dict, key: AgentKey,
             or arguments.get("task_id") != package["task_id"]
             or arguments.get("task_commitment") != package["task_commitment"]
             or arguments.get("recipe_digest") != package["recipe_digest"]):
-        raise ValueError("agent write is outside its task package")
+        raise ValueError("agent action is outside its task package")
     now = int(time.time()) if now is None else now
     if now >= package["expires_at"]:
-        raise ValueError("agent write task has expired")
+        raise ValueError("agent task has expired")
     challenge = _decode(package.get("challenge_b64"), 32)
     if len(challenge) != 32:
         raise ValueError("installed challenge is invalid")
     parent = _native.parse_signed(
-        "grant", _decode(package.get("write_parent_grant_b64"), 262_144),
+        "grant", _decode(package.get(f"{kind}_parent_grant_b64"), 262_144),
     )
     child = _native.parse_signed(
         "grant", _decode(package.get("signed_child_grant_b64"), 262_144),
@@ -97,5 +110,5 @@ def sign_write(package: dict, arguments: dict, key: AgentKey,
         package["service"], package["tool"],
     )
     if verdict.kind != "authorized" or command is None:
-        raise ValueError("native agent write proof was refused")
+        raise ValueError("native agent task proof was refused")
     return bytes(proof), bytes(action)

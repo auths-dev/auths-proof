@@ -98,10 +98,11 @@ The installed native trust must admit the recipe's provider action plus both
 `confirm_agent_write_v1`. The task session refuses missing task-profile trust
 before activation or provider entry.
 The broker's [task authority builder](../broker/src/employee_read_demo/task_write_authority.py)
-now prepares that multi-profile trust and three distinct root-to-employee
-grants. It also prepares an employee-signed child grant for the selected
-agent's provider write tool. Native synthetic tests cover both this Google
-Docs profile and the Airtable write profile. The operator issuance command,
+now prepares that multi-profile trust and distinct root-to-employee grants
+for task approval, exact confirmation and the reviewed write. When the
+operator supplies a reviewed release recipe, it adds a separate human-to-agent
+read grant under the same trust context. Native synthetic tests cover Google
+and Airtable read/write tool pairs. The operator issuance command,
 Jules browser signing screens and isolated agent signer are implemented;
 their live use still needs the operator to install the matching trust and
 credential, then Jules to sign the exact task and edit.
@@ -112,6 +113,11 @@ It requires the recipe source and generated profile lock, checks their exact
 service, tool, schema digest and task resource field against each other, and
 records both file hashes. The compiled recipe digest remains the operator's
 reviewed input and is checked again by the gateway at installation. The
+operator can obtain the read digest and bounded GET policy offline with
+`auths-gateway review-release --recipe ... --profile-lock ...` before supplying
+`--read-recipe`, `--read-profile-lock`, `--read-service`, `--read-tool` and
+`--read-recipe-digest` together to the authority command. These options issue
+a mixed task package; omitting them issues a legitimate write-only task. The
 command prints only a redacted summary; the package contains signed native
 grants and a trust template, no Google credential or human signing key. The
 browser and isolated agent sign through their separate paths. A live Jules
@@ -128,10 +134,17 @@ operator paths are supplied: `--task-write-authority`,
 private snapshots inside the owner-only output directory, so a live browser
 run does not read demo_co's mutable checkout. The pins file is a private JSON
 encoding of `WriteHandoffPins`; the evidence remains the producer's exact
-versioned export. The screen prepares a card from the active Jules enrollment,
+versioned export. A mixed task also supplies `--task-read-recipe` and
+`--task-read-profile-lock`; its operator installation must pin the separate
+Jules-owned `probe_document_id` as the source and the working `document_id` as
+the destination. The screen prepares a card from the active Jules enrollment,
 registered agent, installed gateway pins and reviewed recipe. It signs the
-task and child grant in Jules's browser, writes `task.proof` and `task.action`
-under a new private task directory, and downloads a public agent package.
+task and separate read/write child grants in Jules's browser, writes
+`task.proof` and `task.action` under a new private task directory, and exports
+public agent packages. The isolated agent can use `sign-read` to sign a bounded
+read action and `serve-release` to acknowledge delivered content. Managed read
+execution still requires an installed read connection, qualification and
+operator command; the signed package alone does not release content.
 With the optional `--task-write-gateway-state-dir`, the workbench activates
 that signed task immediately in the owner-private gateway journal. Without
 that option, the operator activates it through `task-activate`. A separate

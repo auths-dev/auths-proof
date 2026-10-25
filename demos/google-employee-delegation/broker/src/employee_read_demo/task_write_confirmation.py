@@ -60,6 +60,8 @@ class _Pending:
 class TaskWriteConfirmationFlow:
     def __init__(self, *, authority_path: Path, installation_path: Path,
                  recipe_path: Path, profile_lock_path: Path,
+                 read_recipe_path: Path | None = None,
+                 read_profile_lock_path: Path | None = None,
                  private_output_dir: Path, gateway_binary: Path,
                  gateway_sha256: str,
                  preflight: Callable[[dict, ReviewedWrite], None] | None = None,
@@ -73,6 +75,8 @@ class TaskWriteConfirmationFlow:
         self.installation_path = installation_path
         self.recipe_path = recipe_path
         self.profile_lock_path = profile_lock_path
+        self.read_recipe_path = read_recipe_path
+        self.read_profile_lock_path = read_profile_lock_path
         self.private_output_dir = private_output_dir
         self.gateway_binary = gateway_binary
         self.gateway_sha256 = gateway_sha256
@@ -143,6 +147,10 @@ class TaskWriteConfirmationFlow:
             recipe_path=self.recipe_path, profile_lock_path=self.profile_lock_path,
             resource_handle=card["write_scopes"][0]["handle"],
             purpose=card["purpose"], now=now,
+            read_recipe_path=self.read_recipe_path,
+            read_profile_lock_path=self.read_profile_lock_path,
+            read_resource_handle=(card["read_scopes"][0]["handle"]
+                                  if card.get("read_scopes") else None),
         )
         if set(card) != set(refreshed):
             raise OperatorDenied("installed task scope changed")

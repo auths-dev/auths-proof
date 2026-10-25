@@ -15,7 +15,7 @@ from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied, OperatorRoot
 from employee_read_demo.task_write_authority import (
     APPROVAL_TOOL, CONFIRMATION_TOOL, TASK_SERVICE,
-    issue_task_write_authority, plan_agent_write_grant,
+    issue_task_write_authority, plan_agent_read_grant, plan_agent_write_grant,
 )
 
 
@@ -62,9 +62,11 @@ def _verify_action(authority, *, service: str, tool: str, key, actor: str,
 
 class TaskWriteAuthorityTests(unittest.TestCase):
     def test_human_and_agent_proofs_share_one_provider_neutral_trust(self) -> None:
-        for service, tool in (
-            ("google-docs-delegation-demo", "replace_project_a_marker_v2"),
-            ("airtable-gateway-demo", "set_demo_status_v2"),
+        for service, tool, read_service, read_tool in (
+            ("google-docs-delegation-demo", "replace_project_a_marker_v2",
+             "google-drive-delegation-demo", "release_project_a_text_v2"),
+            ("airtable-gateway-demo", "set_demo_status_v2",
+             "airtable-read-demo", "release_demo_status_v2"),
         ):
             with self.subTest(service=service):
                 human_key, human_identity, human, human_evidence = _identity()
@@ -77,6 +79,7 @@ class TaskWriteAuthorityTests(unittest.TestCase):
                 authority = issue_task_write_authority(
                     root, binding, human_identity.to_bytes(),
                     provider_service=service, provider_tool=tool,
+                    read_service=read_service, read_tool=read_tool,
                     now=1000, lifetime=600,
                 )
                 self.assertEqual(authority.human_principal, human)
@@ -111,6 +114,25 @@ class TaskWriteAuthorityTests(unittest.TestCase):
                     grant_evidence=[[_evidence(root.evidence)],
                                     [_evidence(human_evidence)]],
                 )
+                read_plan = plan_agent_read_grant(
+                    authority, agent, not_before=1010, expires_at=1300,
+                )
+                read_signing = _native.prepare_signing(
+                    read_plan.unsigned, "raw-key-v1", human, "ed25519-v1",
+                )
+                read_child = read_signing.complete(
+                    human_key.sign(bytes(read_signing.signing_preimage)),
+                )
+                read_parent = _native.parse_signed(
+                    "grant", authority.read_parent_grant.signed_grant,
+                )
+                _verify_action(
+                    authority, service=read_service, tool=read_tool,
+                    key=agent_key, actor=agent, actor_evidence=agent_evidence,
+                    terminal=read_child, grants=[read_parent, read_child],
+                    grant_evidence=[[_evidence(root.evidence)],
+                                    [_evidence(human_evidence)]],
+                )
 
     def test_invalid_profile_or_child_window_is_refused(self) -> None:
         _, human_identity, human, _ = _identity()
@@ -126,6 +148,19 @@ class TaskWriteAuthorityTests(unittest.TestCase):
                 issue_task_write_authority(
                     root, binding, human_identity.to_bytes(),
                     provider_service=service, provider_tool=tool,
+                    now=1000, lifetime=600,
+                )
+        for read_service, read_tool in (
+            ("airtable-read-demo", None),
+            (TASK_SERVICE, "release_demo_status_v2"),
+            ("airtable-gateway-demo", "set_demo_status_v2"),
+        ):
+            with self.assertRaises(OperatorDenied):
+                issue_task_write_authority(
+                    root, binding, human_identity.to_bytes(),
+                    provider_service="airtable-gateway-demo",
+                    provider_tool="set_demo_status_v2",
+                    read_service=read_service, read_tool=read_tool,
                     now=1000, lifetime=600,
                 )
         authority = issue_task_write_authority(

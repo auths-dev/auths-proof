@@ -19,7 +19,7 @@ from .demo_co_contract import _unique_pairs
 from .enrollment import EmployeeBinding
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read
-from .task_write_operator_cli import _reviewed_profile
+from .task_write_operator_cli import _reviewed_profile, _reviewed_release_profile
 from .task_write_package import LoadedTaskWritePackage
 
 
@@ -57,6 +57,9 @@ def build_exact_write_card(
     profile_lock_path: Path,
     resource_handle: str,
     purpose: str,
+    read_recipe_path: Path | None = None,
+    read_profile_lock_path: Path | None = None,
+    read_resource_handle: str | None = None,
     now: int | None = None,
 ) -> dict:
     """Create one short task tied to the installed gateway and reviewed recipe."""
@@ -96,7 +99,7 @@ def build_exact_write_card(
             or pins["connection_generation"] < 1
             or type(pins["connection_subject"]) is not str
             or not 1 <= len(pins["connection_subject"]) <= 256
-            or pins["permitted_read_scopes"] != []
+            or type(pins["permitted_read_scopes"]) is not list
             or type(pins["delivery_channel"]) is not str
             or not 1 <= len(pins["delivery_channel"]) <= 256
             or type(pins["operator_policy_digest"]) is not str
@@ -108,6 +111,50 @@ def build_exact_write_card(
             or any(unicodedata.category(character) == "Cc" for character in purpose)
             or not authority.not_before <= now < authority.expires_at - 60):
         raise OperatorDenied("task card disagrees with installed authority")
+    read_scopes = []
+    release_bytes = 0
+    if package.read is None:
+        if any(value is not None for value in (
+                read_recipe_path, read_profile_lock_path, read_resource_handle)):
+            raise OperatorDenied("read source is not installed for this task")
+    else:
+        if (read_recipe_path is None or read_profile_lock_path is None
+                or type(read_resource_handle) is not str
+                or not 1 <= len(read_resource_handle) <= 256
+                or any(unicodedata.category(character) == "Cc"
+                       for character in read_resource_handle)):
+            raise OperatorDenied("reviewed task source is unavailable")
+        try:
+            read_service, read_tool, read_sha, read_lock_sha = _reviewed_release_profile(
+                read_recipe_path, read_profile_lock_path,
+            )
+            read_recipe = json.loads(read_recipe_path.read_bytes(),
+                                     object_pairs_hook=_unique_pairs)
+        except (OSError, ValueError) as error:
+            raise OperatorDenied("reviewed read recipe is unavailable") from error
+        if (read_service != package.read.service or read_tool != package.read.tool
+                or read_sha != package.read.recipe_source_sha256
+                or read_lock_sha != package.read.profile_lock_sha256):
+            raise OperatorDenied("reviewed read recipe changed")
+        matches = [scope for scope in pins["permitted_read_scopes"]
+                   if type(scope) is dict
+                   and scope.get("handle") == read_resource_handle
+                   and scope.get("recipe_digest") == package.read.recipe_digest]
+        if len(matches) != 1 or set(matches[0]) != {
+                "handle", "recipe_digest", "connection_id",
+                "connection_generation", "connection_subject"}:
+            raise OperatorDenied("task source is outside operator read pins")
+        scope = matches[0]
+        if (type(scope["connection_id"]) is not str
+                or not 1 <= len(scope["connection_id"]) <= 128
+                or type(scope["connection_generation"]) is not int
+                or scope["connection_generation"] < 1
+                or type(scope["connection_subject"]) is not str
+                or not 1 <= len(scope["connection_subject"]) <= 256):
+            raise OperatorDenied("task read connection pin is invalid")
+        read_scopes = [scope]
+        release_bytes = min(16_384,
+                            read_recipe["response"]["maximum_release_bytes"])
     return {
         "schema": "auths.agent-task/2",
         "task_id": secrets.token_urlsafe(18),
@@ -118,7 +165,7 @@ def build_exact_write_card(
         "connection_id": pins["connection_id"],
         "connection_generation": pins["connection_generation"],
         "connection_subject": pins["connection_subject"],
-        "read_scopes": [],
+        "read_scopes": read_scopes,
         "write_scopes": [{"handle": resource_handle,
                           "recipe_digest": package.recipe_digest, "verb": verb,
                           "connection_id": pins["connection_id"],
@@ -127,9 +174,9 @@ def build_exact_write_card(
         "delivery_channel": pins["delivery_channel"],
         "not_before": now,
         "expires_at": min(now + 1800, authority.expires_at),
-        "max_provider_calls": 0,
-        "max_releases": 0,
-        "max_release_bytes": 0,
+        "max_provider_calls": len(read_scopes),
+        "max_releases": len(read_scopes),
+        "max_release_bytes": release_bytes,
         "max_writes": 1,
         "write_approval_mode": "exact",
         "operator_policy_digest": pins["operator_policy_digest"],

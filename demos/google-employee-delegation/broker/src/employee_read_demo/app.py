@@ -450,6 +450,12 @@ class Handler(BaseHTTPRequestHandler):
                         agent_identity_packet=agent_packet,
                         resource_handle=evidence["document_id"],
                         resource_label=evidence["document_title"],
+                        read_resource_handle=(evidence["probe_document_id"]
+                                              if self.workbench.write_browser.read_recipe_path
+                                              is not None else None),
+                        read_resource_label=("Project A source document"
+                                             if self.workbench.write_browser.read_recipe_path
+                                             is not None else None),
                         account_label=evidence["jules_email"],
                         purpose=body["purpose"],
                     )
@@ -458,14 +464,22 @@ class Handler(BaseHTTPRequestHandler):
                         "nonce": prepared.nonce, "card": prepared.card,
                         "account_label": prepared.account_label,
                         "resource_label": prepared.resource_label,
+                        "read_resource_label": prepared.read_resource_label,
                         "grant_preimage": base64.urlsafe_b64encode(
                             prepared.grant_preimage).decode("ascii"),
+                        "read_grant_preimage": (
+                            None if prepared.read_grant_preimage is None else
+                            base64.urlsafe_b64encode(
+                                prepared.read_grant_preimage).decode("ascii")),
                         "task_preimage": base64.urlsafe_b64encode(
                             prepared.task_preimage).decode("ascii"),
                         "expires_at": prepared.expires_at,
                     })
                     return
-                if set(body) != {"nonce", "grant_signature", "task_signature"}:
+                expected = {"nonce", "grant_signature", "task_signature"}
+                if self.workbench.write_browser.read_recipe_path is not None:
+                    expected.add("read_grant_signature")
+                if set(body) != expected:
                     raise ValueError("task signatures are incomplete")
                 nonce = body["nonce"]
                 if type(nonce) is not str or not 1 <= len(nonce) <= 128:
@@ -473,6 +487,9 @@ class Handler(BaseHTTPRequestHandler):
                 completed = self.workbench.write_browser.complete(
                     nonce=nonce, employee=employee, agent=agent,
                     grant_signature=_b64(body["grant_signature"], max_bytes=64),
+                    read_grant_signature=(
+                        _b64(body["read_grant_signature"], max_bytes=64)
+                        if "read_grant_signature" in body else None),
                     task_signature=_b64(body["task_signature"], max_bytes=64),
                 )
                 activated = False
@@ -487,6 +504,7 @@ class Handler(BaseHTTPRequestHandler):
                     "agent_principal": completed.agent_principal,
                     "expires_at": completed.expires_at,
                     "agent_package": completed.agent_package,
+                    "read_agent_package": completed.read_agent_package,
                 })
                 return
             if path in {"/api/v1/write/confirmations/prepare",
@@ -798,6 +816,8 @@ def main() -> int:
     parser.add_argument("--task-write-installation", type=Path)
     parser.add_argument("--task-write-recipe", type=Path)
     parser.add_argument("--task-write-profile-lock", type=Path)
+    parser.add_argument("--task-read-recipe", type=Path)
+    parser.add_argument("--task-read-profile-lock", type=Path)
     parser.add_argument("--task-write-output-dir", type=Path)
     parser.add_argument("--task-write-evidence", type=Path)
     parser.add_argument("--task-write-pins", type=Path)
@@ -903,12 +923,18 @@ def main() -> int:
         loaded = load_task_write_package(args.task_write_authority)
         if loaded.company_id != write_pins.company:
             parser.error("task authority company disagrees with producer")
+        read_paths = (args.task_read_recipe, args.task_read_profile_lock)
+        if (loaded.read is None and any(path is not None for path in read_paths)) or (
+                loaded.read is not None and not all(path is not None for path in read_paths)):
+            parser.error("task read recipe inputs must match issued authority")
         _installation(args.task_write_installation)
         write_browser = TaskWriteBrowserFlow(
             authority_path=args.task_write_authority,
             installation_path=args.task_write_installation,
             recipe_path=args.task_write_recipe,
             profile_lock_path=args.task_write_profile_lock,
+            read_recipe_path=args.task_read_recipe,
+            read_profile_lock_path=args.task_read_profile_lock,
             private_output_dir=args.task_write_output_dir,
         )
     confirmation_options = (
@@ -970,6 +996,8 @@ def main() -> int:
             installation_path=args.task_write_installation,
             recipe_path=args.task_write_recipe,
             profile_lock_path=args.task_write_profile_lock,
+            read_recipe_path=args.task_read_recipe,
+            read_profile_lock_path=args.task_read_profile_lock,
             private_output_dir=args.task_write_output_dir,
             gateway_binary=args.task_write_gateway_bin,
             gateway_sha256=args.task_write_gateway_sha256,

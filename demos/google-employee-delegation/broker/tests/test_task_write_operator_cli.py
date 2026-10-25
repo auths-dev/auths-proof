@@ -24,8 +24,12 @@ from employee_read_demo.task_write_operator_cli import issue_task_package
 from employee_read_demo.task_write_package import load_task_write_package
 from employee_read_demo.task_write_card import build_exact_write_card
 from employee_read_demo.task_write_browser import TaskWriteBrowserFlow
+from employee_read_demo.task_write_delegation import prepare_agent_read_delegation
+from employee_read_demo.task_write_proofs import task_commitment
 from employee_read_demo.task_write_confirmation import TaskWriteConfirmationFlow
 from employee_read_demo.operator_authority import OperatorDenied
+from employee_read_agent.run import AgentKey
+from employee_read_agent.write import sign_read
 
 
 REFERENCE = Path(__file__).resolve().parents[2] / "write_reference"
@@ -74,7 +78,8 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(summary["human_principal"], human)
             self.assertEqual(output.stat().st_mode & 0o777, 0o600)
             package = json.loads(output.read_bytes())
-            self.assertEqual(package["schema"], "auths.ap071-task-authority/1")
+            self.assertEqual(package["schema"], "auths.ap071-task-authority/2")
+            self.assertIsNone(package["read"])
             self.assertEqual(package["recipe_digest"], digest)
             self.assertEqual(len(package["recipe_source_sha256"]), 64)
             self.assertEqual(len(package["profile_lock_sha256"]), 64)
@@ -82,6 +87,36 @@ class TaskOperatorCliTests(unittest.TestCase):
             loaded = load_task_write_package(output, now=1000)
             self.assertEqual(loaded.authority.human_principal, human)
             self.assertEqual(loaded.recipe_digest, digest)
+            read_reference = Path(__file__).resolve().parents[2] / "read_reference"
+            mixed_output = private / "mixed-task-authority.json"
+            read_digest = "57673e6adc5b7b000fe65a6441279fc03e019b887d66c488a2978fccb4d6e97c"
+            issue_task_package(
+                root_seed=seed, root_trust=trust, state_db=state,
+                binding_ref="binding-jules", company="atlas-studio",
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                provider_service="google-docs-delegation-demo",
+                provider_tool="replace_project_a_marker_v2",
+                recipe_digest=digest,
+                read_recipe_path=read_reference / "recipe.json",
+                read_profile_lock_path=read_reference / "profile.lock.json",
+                read_service="google-drive-delegation-demo",
+                read_tool="release_project_a_text_v2",
+                read_recipe_digest=read_digest,
+                output=mixed_output, now=1000,
+            )
+            mixed = load_task_write_package(mixed_output, now=1000)
+            self.assertEqual(mixed.read.recipe_digest, read_digest)
+            self.assertEqual(mixed.authority.read_service,
+                             "google-drive-delegation-demo")
+            self.assertIsNotNone(mixed.authority.read_parent_grant)
+            changed_read = json.loads(mixed_output.read_text())
+            changed_read["read"]["parent_grant_b64"] = "invalid"
+            tampered_read = private / "tampered-read.json"
+            tampered_read.write_text(json.dumps(changed_read))
+            os.chmod(tampered_read, 0o600)
+            with self.assertRaises(OperatorDenied):
+                load_task_write_package(tampered_read, now=1000)
             agent_key = Ed25519PrivateKey.generate()
             agent_public = agent_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
             agent_packet = create_raw_key_ed25519_identity(agent_public).to_bytes()
@@ -111,6 +146,105 @@ class TaskOperatorCliTests(unittest.TestCase):
             )
             agent = AgentBinding("atlas-studio", "binding-jules",
                                  agent_principal, agent_digest)
+            mixed_installed = private / "mixed-task-installation.json"
+            mixed_pins = json.loads(installed.read_text())
+            mixed_pins["pins"]["permitted_read_scopes"] = [{
+                "handle": "source-doc", "recipe_digest": read_digest,
+                "connection_id": "jules-google-read", "connection_generation": 1,
+                "connection_subject": "synthetic-subject",
+            }]
+            mixed_installed.write_text(json.dumps(
+                mixed_pins, sort_keys=True, separators=(",", ":")))
+            os.chmod(mixed_installed, 0o600)
+            mixed_card = build_exact_write_card(
+                mixed, employee, agent, installation_path=mixed_installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                resource_handle="working-doc", purpose="Read then update Project A",
+                read_recipe_path=read_reference / "recipe.json",
+                read_profile_lock_path=read_reference / "profile.lock.json",
+                read_resource_handle="source-doc", now=1010,
+            )
+            self.assertEqual(mixed_card["read_scopes"],
+                             mixed_pins["pins"]["permitted_read_scopes"])
+            self.assertEqual(mixed_card["max_provider_calls"], 1)
+            self.assertEqual(mixed_card["max_releases"], 1)
+            self.assertEqual(mixed_card["max_release_bytes"], 16384)
+            read_delegation = prepare_agent_read_delegation(
+                mixed.authority, identity.to_bytes(), agent_packet,
+                mixed_card, read_digest,
+            )
+            read_agent_package = read_delegation.complete(
+                human_key.sign(read_delegation.signing_preimage), now=1011,
+            )
+            self.assertEqual(read_agent_package["schema"],
+                             "auths.ap071-agent-read-package/1")
+            self.assertEqual(read_agent_package["task_commitment"],
+                             task_commitment(mixed_card))
+            self.assertEqual(read_agent_package["recipe_digest"], read_digest)
+            mixed_flow = TaskWriteBrowserFlow(
+                authority_path=mixed_output, installation_path=mixed_installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                read_recipe_path=read_reference / "recipe.json",
+                read_profile_lock_path=read_reference / "profile.lock.json",
+                private_output_dir=private,
+            )
+            mixed_prepared = mixed_flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="working-doc",
+                resource_label="Project A working Doc",
+                read_resource_handle="source-doc",
+                read_resource_label="Project A source Doc",
+                account_label="Jules Google account",
+                purpose="Read then update Project A", now=1010,
+            )
+            mixed_completed = mixed_flow.complete(
+                nonce=mixed_prepared.nonce, employee=employee, agent=agent,
+                grant_signature=human_key.sign(mixed_prepared.grant_preimage),
+                read_grant_signature=human_key.sign(
+                    mixed_prepared.read_grant_preimage),
+                task_signature=human_key.sign(mixed_prepared.task_preimage),
+                now=1011,
+            )
+            self.assertEqual(mixed_completed.read_agent_package["task_commitment"],
+                             mixed_completed.agent_package["task_commitment"])
+            self.assertTrue((mixed_completed.private_task_dir /
+                             "agent-read-package.json").is_file())
+            self.assertEqual(mixed_prepared.card["read_scopes"][0]["handle"],
+                             "source-doc")
+            agent_seed = agent_key.private_bytes(
+                Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+            read_arguments = {
+                "operator_namespace": "google-read-demo",
+                "operation_id": "read-1", "recipe_digest": read_digest,
+                "task_id": mixed_completed.task_id,
+                "task_commitment": mixed_completed.read_agent_package[
+                    "task_commitment"],
+                "resource_id": "source-doc",
+                "agent_principal": agent_principal,
+            }
+            read_proof, read_action = sign_read(
+                mixed_completed.read_agent_package, read_arguments,
+                AgentKey(agent_seed), now=1012,
+            )
+            self.assertTrue(read_proof and read_action)
+            with self.assertRaises(ValueError):
+                sign_read(mixed_completed.read_agent_package,
+                          {**read_arguments, "agent_principal": human},
+                          AgentKey(agent_seed), now=1012)
+            with self.assertRaises(OperatorDenied):
+                build_exact_write_card(
+                    mixed, employee, agent, installation_path=mixed_installed,
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
+                    resource_handle="working-doc", purpose="Read then update Project A",
+                    read_recipe_path=read_reference / "recipe.json",
+                    read_profile_lock_path=read_reference / "profile.lock.json",
+                    read_resource_handle="other-doc", now=1010,
+                )
             card = build_exact_write_card(
                 loaded, employee, agent, installation_path=installed,
                 recipe_path=REFERENCE / "recipe.json",
@@ -150,7 +284,6 @@ class TaskOperatorCliTests(unittest.TestCase):
             if gateway_binary:
                 import sys
                 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "agent" / "src"))
-                from employee_read_agent.run import AgentKey
                 from employee_read_agent.write import sign_write
 
                 agent_seed = agent_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())

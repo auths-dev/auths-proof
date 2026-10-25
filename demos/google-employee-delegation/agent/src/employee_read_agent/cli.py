@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption,
 
 from .run import AgentKey, HttpBroker, OpenAIModel, run_task
 from .release_channel import serve_one_release
-from .write import sign_write
+from .write import sign_read, sign_write
 
 
 def _bounded_json(path: Path, maximum: int) -> dict:
@@ -58,6 +58,11 @@ def main() -> None:
     write.add_argument("--package-file", type=Path, required=True)
     write.add_argument("--arguments-file", type=Path, required=True)
     write.add_argument("--out-dir", type=Path, required=True)
+    read = commands.add_parser("sign-read")
+    read.add_argument("--key-file", type=Path, required=True)
+    read.add_argument("--package-file", type=Path, required=True)
+    read.add_argument("--arguments-file", type=Path, required=True)
+    read.add_argument("--out-dir", type=Path, required=True)
     release = commands.add_parser("serve-release")
     release.add_argument("--key-file", type=Path, required=True)
     release.add_argument("--socket", type=Path, required=True)
@@ -101,15 +106,20 @@ def main() -> None:
         import base64
         print(base64.urlsafe_b64encode(key.private.sign(raw)).decode("ascii"))
         return
-    if args.command == "sign-write":
+    if args.command in ("sign-write", "sign-read"):
         if (args.out_dir.is_symlink() or not args.out_dir.is_dir()
                 or stat.S_IMODE(args.out_dir.stat().st_mode) & 0o077):
             parser.error("agent output directory must be private")
         package = _bounded_json(args.package_file, 1_000_000)
         arguments = _bounded_json(args.arguments_file, 65_536)
-        proof, action = sign_write(package, arguments, key)
-        proof_path = args.out_dir / "agent.proof"
-        action_path = args.out_dir / "agent.action"
+        if args.command == "sign-read":
+            proof, action = sign_read(package, arguments, key)
+            prefix = "read"
+        else:
+            proof, action = sign_write(package, arguments, key)
+            prefix = "agent"
+        proof_path = args.out_dir / f"{prefix}.proof"
+        action_path = args.out_dir / f"{prefix}.action"
         if proof_path.exists() or action_path.exists():
             parser.error("agent proof or action already exists")
         _private_output(proof_path, proof)
