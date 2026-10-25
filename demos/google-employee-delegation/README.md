@@ -338,3 +338,13 @@ permitted only inside Docker behind the relays. The agent key and package
 remain in its own read-only mount, and its model key is mounted only into the
 agent. Model selection and summarization send selected synthetic document
 content through the model relay to OpenAI; that data leaves the Mac.
+
+## AP-SPEC-071 write handoff
+
+This package's AP-SPEC-070 read export does not authorize a Google write. The
+installed broker includes `auths-google-write-handoff`, which currently
+reports `write_not_configured` and exits 2, even if passed an unreviewed local
+`--export` file. The [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
+requires a separately versioned demo_co folder/Doc, Jules write consent and
+independent probe export before this seam can activate a write. The command
+does not read the proposed export or handle provider tokens.
