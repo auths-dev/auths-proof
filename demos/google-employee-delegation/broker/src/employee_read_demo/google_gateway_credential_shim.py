@@ -64,6 +64,9 @@ def install_jules_write_lease(
     trusted_context_path: Path,
     recipe_digest: str,
     alias: str,
+    companion_recipe_path: Path | None = None,
+    companion_profile_lock_path: Path | None = None,
+    companion_recipe_digest: str | None = None,
     now: int | None = None,
 ) -> InstalledWriteLease:
     """Install one checked Jules bearer in a new development gateway state.
@@ -77,8 +80,17 @@ def install_jules_write_lease(
     now = int(time.time()) if now is None else now
     paths = (gateway_binary, state_dir, recipe_path, profile_lock_path,
              trusted_context_path)
+    companion = (companion_recipe_path, companion_profile_lock_path,
+                 companion_recipe_digest)
     if (not all(path.is_absolute() for path in paths)
             or not _DIGEST.fullmatch(recipe_digest)
+            or (any(value is not None for value in companion)
+                and not all(value is not None for value in companion))
+            or (companion_recipe_path is not None
+                and (not companion_recipe_path.is_absolute()
+                     or not companion_profile_lock_path.is_absolute()
+                     or _DIGEST.fullmatch(companion_recipe_digest) is None
+                     or companion_recipe_digest == recipe_digest))
             or not alias or len(alias) > 128
             or not all(char.isalnum() or char in "-_" for char in alias)):
         raise GatewayWriteCredentialDenied("operator gateway inputs are incomplete")
@@ -104,6 +116,12 @@ def install_jules_write_lease(
         "--connection-json",
         "--deployment", "development",
     ]
+    if companion_recipe_path is not None:
+        command.extend([
+            "--task-companion-recipe", str(companion_recipe_path),
+            "--task-companion-profile-lock", str(companion_profile_lock_path),
+            "--task-companion-approve-digest", companion_recipe_digest,
+        ])
     try:
         result = subprocess.run(
             command,
@@ -134,7 +152,7 @@ def install_jules_write_lease(
                 or type(installed["credential_generation"]) is not int
                 or installed["credential_generation"] != pins.connection_generation
                 or installed["recipe_digest"] != recipe_digest
-                or installed["task_companion_digest"] is not None
+                or installed["task_companion_digest"] != companion_recipe_digest
                 or installed["joined"] is not False):
             raise ValueError("gateway result disagrees with installation")
     except (UnicodeDecodeError, ValueError) as error:

@@ -27,7 +27,7 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             connection_id="jules-write-1", connection_generation=1,
         )
 
-    def install(self, *, now: int = 1000):
+    def install(self, *, now: int = 1000, companion: bool = False):
         return install_jules_write_lease(
             evidence_path=Path("/private/evidence.json"),
             grant_path=Path("/private/grant.json"),
@@ -39,6 +39,11 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             trusted_context_path=Path("/private/trust.cbor"),
             recipe_digest="c" * 64,
             alias="jules-write",
+            companion_recipe_path=(Path("/opt/auths/populate-recipe.json")
+                                   if companion else None),
+            companion_profile_lock_path=(Path("/opt/auths/populate-profile.lock.json")
+                                         if companion else None),
+            companion_recipe_digest=("d" * 64 if companion else None),
             now=now,
         )
 
@@ -114,6 +119,67 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
                                         "inspect state before retry") as caught:
                 self.install()
             self.assertNotIn("private-access", str(caught.exception))
+
+    def test_companion_recipe_is_pinned_in_install_command_and_result(self) -> None:
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+            return_value=TokenLease("private-access", 2000),
+        ), patch(
+            "employee_read_demo.google_gateway_credential_shim.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, json.dumps({
+                "schema": "auths.gateway-install-result/1",
+                "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+                "credential_generation": 1,
+                "recipe_digest": "c" * 64,
+                "task_companion_digest": "d" * 64,
+                "joined": False,
+            }).encode(), b""),
+        ) as run:
+            installed = self.install(companion=True)
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index("--task-companion-approve-digest") + 1],
+                         "d" * 64)
+        self.assertEqual(command[command.index("--task-companion-recipe") + 1],
+                         "/opt/auths/populate-recipe.json")
+        self.assertEqual(installed.connection_subject, "subject-1")
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+            return_value=TokenLease("private-access", 2000),
+        ), patch(
+            "employee_read_demo.google_gateway_credential_shim.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, json.dumps({
+                "schema": "auths.gateway-install-result/1",
+                "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+                "credential_generation": 1,
+                "recipe_digest": "c" * 64,
+                "task_companion_digest": None,
+                "joined": False,
+            }).encode(), b""),
+        ):
+            with self.assertRaisesRegex(GatewayWriteCredentialDenied,
+                                        "inspect state before retry"):
+                self.install(companion=True)
+
+    def test_incomplete_companion_is_refused_before_credential_lease(self) -> None:
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+        ) as lease:
+            with self.assertRaises(GatewayWriteCredentialDenied):
+                install_jules_write_lease(
+                    evidence_path=Path("/private/evidence.json"),
+                    grant_path=Path("/private/grant.json"),
+                    pins=self.pins(),
+                    gateway_binary=Path("/opt/auths/bin/auths-gateway"),
+                    state_dir=Path("/private/gateway"),
+                    recipe_path=Path("/opt/auths/recipe.json"),
+                    profile_lock_path=Path("/opt/auths/profile.lock.json"),
+                    trusted_context_path=Path("/private/trust.cbor"),
+                    recipe_digest="c" * 64,
+                    alias="jules-write",
+                    companion_recipe_path=Path("/opt/auths/populate-recipe.json"),
+                    now=1000,
+                )
+            lease.assert_not_called()
 
     def test_checked_read_bearer_uses_a_distinct_connection_and_stdin(self) -> None:
         with patch(

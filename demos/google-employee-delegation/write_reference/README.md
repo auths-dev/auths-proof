@@ -1,7 +1,7 @@
 # Google Docs edit reference for AP-SPEC-071
 
-This is a **synthetic request-shape reference**, not an installed Google
-write or a producer fixture. The generated [profile lock](profile.lock.json)
+This is a **request-shape reference**, not a producer fixture or production
+qualification. The generated [profile lock](profile.lock.json)
 and [recipe](recipe.json) compile through the existing, provider-neutral
 `auths-gateway` write recipe compiler. The focused Rust test constructs the
 exact `POST /v1/documents/{document_id}:batchUpdate` request and checks its
@@ -36,12 +36,10 @@ defines tab-scoped `replaceAllText`. A stale required revision refuses the
 write at Google. The present gateway records a complete response status and
 digest, but does **not** inspect `replies[0].replaceAllText.occurrencesChanged`.
 It also cannot prove the provider honored the write-control semantics from
-the JSON shape alone. Before the live edit milestone, a reviewed generic
-response assertion must record the count of exactly one without exposing the
-private response body, or the installed test must obtain equivalent
-provider-signed response evidence. demo_co must independently compare the
-working Doc's revision and content after entry and verify that canonical and
-excluded Docs did not change. A 2xx response alone is not an observed edit.
+the JSON shape alone. The live edit used independent demo_co readback to
+compare the target Doc's content with the signed replacement and pinned
+baseline after gateway entry. A 2xx response alone is not an observed edit;
+the current run did not inspect Google's `occurrencesChanged` reply field.
 
 The v2 recipe declares a provider-neutral `task_binding` for its document field
 and edit verb. The gateway refuses ordinary proof/action submission for this
@@ -50,13 +48,13 @@ the signed card, agent action and exact confirmation, charges the durable task
 write budget, and binds the loaded connection ID, generation and account
 subject before a credential lease. A development-only, operator-owned CLI
 can configure private pins, activate a signed task, and submit its agent and
-confirmation proofs; the human task UI and isolated agent path are still
-required for live use. The broker can privately refresh and verify Jules's
+confirmation proofs; the human task UI and isolated agent path were exercised
+in the live edit milestone. The broker can privately refresh and verify Jules's
 separate `drive.file` grant. A development-only
 [credential shim](../broker/src/employee_read_demo/google_gateway_credential_shim.py)
 now pipes a checked, short-lived bearer into a new gateway installation with
 the Google UserInfo `sub` as account label. It has synthetic secret-custody
-tests; no live gateway installation or edit has run. Her saved read-only grant
+tests; a live gateway installation and edit ran on 25 October 2026. Her saved read-only grant
 is separate from the checked write-capable `drive.file` grant used here.
 The shim requests the gateway's opt-in, secret-free `--connection-json` install
 result and returns its generated connection ID and credential generation. The
@@ -113,8 +111,8 @@ operator supplies a reviewed release recipe, it adds a separate human-to-agent
 read grant under the same trust context. Native synthetic tests cover Google
 and Airtable read/write tool pairs. The operator issuance command,
 Jules browser signing screens and isolated agent signer are implemented;
-their live use still needs the operator to install the matching trust and
-credential, then Jules to sign the exact task and edit.
+their live read and edit path was exercised with installed trust and Jules's
+checked credential. The create/populate pair remains a separate live test.
 The private `auths-google-task-authority` operator command can now issue an
 owner-only package from the current company root seed, its trust manifest,
 Jules's enrolled identity and the operator-reviewed recipe profile/digest.
