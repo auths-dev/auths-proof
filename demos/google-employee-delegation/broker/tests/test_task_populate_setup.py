@@ -16,6 +16,7 @@ from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_populate_setup import (
     prepare_populate_preflight_installation,
 )
+from employee_read_demo.task_write_card import _installation
 
 
 class TaskPopulateSetupTests(unittest.TestCase):
@@ -56,6 +57,17 @@ class TaskPopulateSetupTests(unittest.TestCase):
             })
             self.assertEqual(result["public_key_hex"], public)
             self.assertNotIn(seed.read_bytes().hex(), output.read_text())
+            recovered = installed | {"recovery_attestation": {
+                "public_key_hex": public, "rule_digest": "f" * 64,
+            }}
+            recovery_path = root / "recovery-installation.json"
+            recovery_path.write_text(json.dumps(recovered))
+            os.chmod(recovery_path, 0o600)
+            self.assertEqual(_installation(recovery_path), recovered)
+            recovered["recovery_attestation"]["rule_digest"] = "invalid"
+            recovery_path.write_text(json.dumps(recovered))
+            with self.assertRaises(OperatorDenied):
+                _installation(recovery_path)
             with self.assertRaises(OperatorDenied):
                 prepare_populate_preflight_installation(
                     base, seed_out=seed, installation_out=output,

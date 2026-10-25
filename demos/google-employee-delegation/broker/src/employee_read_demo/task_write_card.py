@@ -37,10 +37,10 @@ def _installation(path: Path) -> dict:
         document = json.loads(_private_read(path, 16_384), object_pairs_hook=_unique_pairs)
     except (PermissionError, UnicodeDecodeError, ValueError) as error:
         raise OperatorDenied("installed gateway task pins are unavailable") from error
+    optional = {"populate_preflight", "recovery_attestation"}
     if (type(document) is not dict
-            or set(document) not in ({"schema", "recipe_digests", "pins"},
-                                     {"schema", "recipe_digests", "pins",
-                                      "populate_preflight"})
+            or not {"schema", "recipe_digests", "pins"} <= set(document)
+            or not set(document) <= {"schema", "recipe_digests", "pins"} | optional
             or document["schema"] != "auths.gateway-task-installation/3"
             or type(document["recipe_digests"]) is not list
             or not 1 <= len(document["recipe_digests"]) <= 4
@@ -57,6 +57,13 @@ def _installation(path: Path) -> dict:
                  or any(type(value) is not str or _DIGEST.fullmatch(value) is None
                         for value in preflight.values()))):
         raise OperatorDenied("installed gateway preflight pin is malformed")
+    recovery = document.get("recovery_attestation")
+    if ("recovery_attestation" in document
+            and (type(recovery) is not dict
+                 or set(recovery) != {"public_key_hex", "rule_digest"}
+                 or any(type(value) is not str or _DIGEST.fullmatch(value) is None
+                        for value in recovery.values()))):
+        raise OperatorDenied("installed gateway recovery pin is malformed")
     return document
 
 

@@ -899,6 +899,7 @@ mod tests {
             pins,
             recipe_digests: vec![engine.recipe.digest_hex()],
             populate_preflight: None,
+            recovery_attestation: None,
             binding: TaskWriteBinding {
                 resource_field: "record_id".to_owned(),
                 verb: TaskWriteVerb::Edit,

@@ -1277,6 +1277,10 @@ impl GatewayEngine {
                 .populate_preflight
                 .as_ref()
                 .is_some_and(|pin| !pin.valid())
+            || installation
+                .recovery_attestation
+                .as_ref()
+                .is_some_and(|pin| !pin.valid())
         {
             return Err("gateway.task.invalid-installation");
         }
@@ -1301,6 +1305,7 @@ impl GatewayEngine {
             pins: installation.pins,
             recipe_digests: installation.recipe_digests,
             populate_preflight: installation.populate_preflight,
+            recovery_attestation: installation.recovery_attestation,
             binding,
             ledger,
         })
@@ -1665,6 +1670,8 @@ struct TaskWriteInstallation {
     pins: TaskActivationPins,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     populate_preflight: Option<PopulatePreflightPin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovery_attestation: Option<PopulatePreflightPin>,
 }
 
 #[cfg(unix)]
@@ -1716,6 +1723,8 @@ pub struct TaskCreateRecoveryInputs {
     connection_id: String,
     connection_generation: u64,
     connection_subject: String,
+    recovery_rule_digest: String,
+    recovery_key_sha256: String,
     parent_id: String,
     title: String,
     marker: String,
@@ -1759,6 +1768,7 @@ pub struct TaskWriteSession<'a> {
     pins: TaskActivationPins,
     recipe_digests: Vec<String>,
     populate_preflight: Option<PopulatePreflightPin>,
+    recovery_attestation: Option<PopulatePreflightPin>,
     binding: TaskWriteBinding,
     ledger: FileReleaseTaskLedger,
 }
@@ -2086,6 +2096,10 @@ impl TaskWriteSession<'_> {
         if self.engine.recipe.created_child_fields().is_none() {
             return Err("gateway.task.recovery-not-create");
         }
+        let pin = self
+            .recovery_attestation
+            .as_ref()
+            .ok_or("gateway.task.recovery-not-installed")?;
         let now = wall_clock_seconds().ok_or("gateway.task.recovery-clock")?;
         let state = self
             .ledger
@@ -2146,6 +2160,8 @@ impl TaskWriteSession<'_> {
             connection_id: plan.create.connection_id.clone(),
             connection_generation: plan.create.connection_generation,
             connection_subject: plan.create.connection_subject.clone(),
+            recovery_rule_digest: pin.rule_digest.clone(),
+            recovery_key_sha256: pin.key_sha256(),
             parent_id: pending.parent_handle.clone(),
             title: pending.title.clone(),
             marker: pending.marker.clone(),
@@ -3135,6 +3151,7 @@ pub(crate) mod tests {
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
             populate_preflight: None,
+            recovery_attestation: None,
             recipe_digests: vec![engine.recipe.digest_hex()],
             pins,
         };
@@ -3430,6 +3447,7 @@ pub(crate) mod tests {
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
             populate_preflight: None,
+            recovery_attestation: None,
             recipe_digests: vec![engine.recipe.digest_hex()],
             pins,
         };
@@ -3990,11 +4008,17 @@ pub(crate) mod tests {
         digests.sort();
         let preflight_key = SigningKey::from_bytes(&[0x55; 32]);
         let preflight_rule_digest = "2".repeat(64);
+        let recovery_key = SigningKey::from_bytes(&[0x56; 32]);
+        let recovery_rule_digest = "6".repeat(64);
         let installation_bytes = serde_json_canonicalizer::to_vec(&TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
             populate_preflight: Some(PopulatePreflightPin {
                 public_key_hex: hex::encode(preflight_key.verifying_key().to_bytes()),
                 rule_digest: preflight_rule_digest.clone(),
+            }),
+            recovery_attestation: Some(PopulatePreflightPin {
+                public_key_hex: hex::encode(recovery_key.verifying_key().to_bytes()),
+                rule_digest: recovery_rule_digest.clone(),
             }),
             recipe_digests: digests,
             pins,

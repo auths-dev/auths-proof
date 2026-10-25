@@ -26,6 +26,9 @@ loopback test confirms that this command rejects that other path. The same
 synthetic fixture now enters one create, drops the response, and accepts only
 the original unknown-attempt facts without binding a child. A live unknown
 attempt and the signed recovery sequence remain open.
+The gateway installation now accepts an optional, separately pinned recovery
+signer key and rule digest; the response-less input command requires that pin.
+The operator signer and human recovery confirmation are not implemented.
 
 The full spec is **open**. The already verified single-plan Google positive
 case must not be reported as missing; conversely, its manual pre-entry recovery

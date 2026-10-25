@@ -241,6 +241,12 @@ projects to `unknown`, the command exposes only the original task facts, and
 no child scope appears. It does not establish that any provider effect
 occurred, nor does it test live recovered-child population.
 
+The installation can now pin a separate recovery-attestation public key and
+reviewed rule digest. The private unknown-create input record includes their
+commitments. Existing installations without that pin cannot enter this
+recovery handoff. This pin is distinct from the populate-preflight signer;
+the operator-side evidence signer still needs implementation.
+
 ### Cleanup and receipts
 
 Activity reports separate create entry, response recording, child binding,

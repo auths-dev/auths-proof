@@ -35,6 +35,7 @@ struct RecoveryStatement {
     connection_id: String,
     connection_generation: u64,
     connection_subject: String,
+    recovery_rule_digest: String,
     search_report_sha256: String,
     producer_observation_sha256: String,
     baseline_sha256: String,
@@ -56,6 +57,7 @@ pub(crate) struct ExpectedRecoveryAttestation<'a> {
     pub(crate) pending: &'a TaskPendingChild,
     pub(crate) plan: &'a VerifiedEffectPlan,
     pub(crate) public_key_sha256: &'a str,
+    pub(crate) rule_digest: &'a str,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,6 +127,7 @@ fn matches_expected(
         && statement.connection_id == create.connection_id
         && statement.connection_generation == create.connection_generation
         && statement.connection_subject == create.connection_subject
+        && statement.recovery_rule_digest == expected.rule_digest
         && expected.pending.create_operation_id == create.operation_id
         && expected.pending.create_recipe_digest == create.recipe_digest
         && expected.pending.populate_recipe_digest == expected.plan.populate_recipe_digest
@@ -136,6 +139,7 @@ fn matches_expected(
             &statement.create_recipe_digest,
             &statement.action_commitment,
             &statement.request_commitment,
+            &statement.recovery_rule_digest,
             &statement.search_report_sha256,
             &statement.producer_observation_sha256,
             &statement.baseline_sha256,
@@ -196,6 +200,7 @@ mod tests {
         let key = SigningKey::from_bytes(&[9; 32]);
         let public = hex::encode(key.verifying_key().to_bytes());
         let public_sha256 = hex::encode(sha2::Sha256::digest(key.verifying_key().to_bytes()));
+        let rule_digest = "6".repeat(64);
         let pending = TaskPendingChild {
             create_operation_id: "create-1".into(),
             create_recipe_digest: "d".repeat(64),
@@ -233,6 +238,7 @@ mod tests {
             pending: &pending,
             plan: &plan,
             public_key_sha256: &public_sha256,
+            rule_digest: &rule_digest,
         };
         let statement = RecoveryStatement {
             schema: SCHEMA.into(),
@@ -251,6 +257,7 @@ mod tests {
             connection_id: "connection-1".into(),
             connection_generation: 3,
             connection_subject: "jules".into(),
+            recovery_rule_digest: "6".repeat(64),
             search_report_sha256: "2".repeat(64),
             producer_observation_sha256: "3".repeat(64),
             baseline_sha256: "4".repeat(64),
