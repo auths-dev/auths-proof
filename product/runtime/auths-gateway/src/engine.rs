@@ -1645,42 +1645,8 @@ pub(crate) fn verify_detailed(
     proof_cbor: &[u8],
     action_cbor: &[u8],
 ) -> Result<VerifiedCommand, GatewaySubmitResult> {
-    if proof_cbor.is_empty()
-        || proof_cbor.len() > MAX_PROOF_BYTES
-        || action_cbor.is_empty()
-        || action_cbor.len() > MAX_ACTION_BYTES
-    {
-        return Err(GatewaySubmitResult::Indeterminate {
-            code: "gateway.submit.invalid-size".to_owned(),
-        });
-    }
-    let request_context = context
-        .for_request(
-            context.expected_audience().clone(),
-            context.expected_challenge(),
-            Timestamp::new(now),
-        )
-        .ok()
-        .and_then(|value| auths_codec::encode_verifier_context(&value).ok())
-        .ok_or_else(|| GatewaySubmitResult::Indeterminate {
-            code: "gateway.verify.invalid-trust".to_owned(),
-        })?;
-    let sealed = with_gateway_registries(|registries| {
-        auths_verifier::verify_v1_sealed(proof_cbor, action_cbor, &request_context, registries)
-    })
-    .ok_or_else(indeterminate_registry)?
-    .map_err(|_| GatewaySubmitResult::Indeterminate {
-        code: "gateway.verify.invalid-input".to_owned(),
-    })?;
-    let Some(action) = sealed.action() else {
-        let code = sealed.portable().code().code().to_owned();
-        return Err(match sealed.portable().decision() {
-            VerificationDecision::Denied => GatewaySubmitResult::Denied { code },
-            VerificationDecision::Authorized | VerificationDecision::Indeterminate => {
-                GatewaySubmitResult::Indeterminate { code }
-            }
-        });
-    };
+    let sealed = verify_sealed(context, now, proof_cbor, action_cbor)?;
+    let action = authorized_action(&sealed)?;
     let bound = admit_bounds(proof_cbor, action, recipe, now)?;
     let command = McpProfile
         .decode_verified(action)
@@ -1706,6 +1672,59 @@ pub(crate) fn verify_detailed(
         canonical_action: action.canonical_action().clone(),
         validity_seconds: branches.validity_seconds,
         observer_refusal,
+    })
+}
+
+pub(crate) fn authorized_action(
+    sealed: &auths_verifier::SealedVerificationResult,
+) -> Result<&auths_verifier::VerifiedAction, GatewaySubmitResult> {
+    let Some(action) = sealed.action() else {
+        let code = sealed.portable().code().code().to_owned();
+        return Err(match sealed.portable().decision() {
+            VerificationDecision::Denied => GatewaySubmitResult::Denied { code },
+            VerificationDecision::Authorized | VerificationDecision::Indeterminate => {
+                GatewaySubmitResult::Indeterminate { code }
+            }
+        });
+    };
+    Ok(action)
+}
+
+/// The shared native verifier boundary for write and content-release paths.
+/// It returns a sealed capability only after the operator-pinned trust and
+/// registries have evaluated the exact proof and action at the gateway clock.
+pub(crate) fn verify_sealed(
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<auths_verifier::SealedVerificationResult, GatewaySubmitResult> {
+    if proof_cbor.is_empty()
+        || proof_cbor.len() > MAX_PROOF_BYTES
+        || action_cbor.is_empty()
+        || action_cbor.len() > MAX_ACTION_BYTES
+    {
+        return Err(GatewaySubmitResult::Indeterminate {
+            code: "gateway.submit.invalid-size".to_owned(),
+        });
+    }
+    let request_context = context
+        .for_request(
+            context.expected_audience().clone(),
+            context.expected_challenge(),
+            Timestamp::new(now),
+        )
+        .ok()
+        .and_then(|value| auths_codec::encode_verifier_context(&value).ok())
+        .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+            code: "gateway.verify.invalid-trust".to_owned(),
+        })?;
+    with_gateway_registries(|registries| {
+        auths_verifier::verify_v1_sealed(proof_cbor, action_cbor, &request_context, registries)
+    })
+    .ok_or_else(indeterminate_registry)?
+    .map_err(|_| GatewaySubmitResult::Indeterminate {
+        code: "gateway.verify.invalid-input".to_owned(),
     })
 }
 

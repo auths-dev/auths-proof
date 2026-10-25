@@ -3,9 +3,10 @@
 //! performs the corresponding provider or agent-channel I/O. This model alone
 //! neither verifies a grant nor sends content.
 
-use crate::{
-    ClosedReleaseRequest, ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey,
-};
+#[cfg(test)]
+use crate::ClosedReleaseRequest;
+use crate::release_verify::VerifiedReleaseRequest;
+use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
@@ -57,15 +58,15 @@ pub(crate) struct ReleaseTaskPolicy {
 /// An exact native-verified agent action, projected by the future admission
 /// engine. The receipt never accepts a runtime URL or response selector.
 #[derive(Clone, Copy)]
-pub(crate) struct ReleaseCall<'a> {
-    pub(crate) task_id: &'a str,
-    pub(crate) operation_id: &'a str,
-    pub(crate) resource_handle: &'a str,
-    pub(crate) recipe_digest: &'a str,
-    pub(crate) connection_id: &'a str,
-    pub(crate) connection_generation: u64,
-    pub(crate) recipient: &'a str,
-    pub(crate) action_commitment: [u8; 32],
+struct ReleaseCall<'a> {
+    task_id: &'a str,
+    operation_id: &'a str,
+    resource_handle: &'a str,
+    recipe_digest: &'a str,
+    connection_id: &'a str,
+    connection_generation: u64,
+    recipient: &'a str,
+    action_commitment: [u8; 32],
 }
 
 /// Stages are claims about this gateway's order of work, not about provider
@@ -252,7 +253,7 @@ impl ReleaseTaskState {
 
     /// Spend one provider call and consume the logical operation ID before
     /// request entry. Persist the returned state before leasing or sending.
-    pub(crate) fn reserve_provider_call(
+    fn reserve_provider_call(
         &mut self,
         call: ReleaseCall<'_>,
         now: u64,
@@ -297,9 +298,40 @@ impl ReleaseTaskState {
         Ok(())
     }
 
-    /// Admit the compiled request only for the sole actor the native sealed
-    /// proof authorized. The connection ID and generation must come from the
-    /// loaded, subject-bound credential record, not the agent's arguments.
+    /// Admit a compiled request only with a native-verified sole actor and
+    /// exact human-issued grant. The connection ID and generation must come
+    /// from the loaded, subject-bound credential record.
+    pub(crate) fn reserve_verified_request(
+        &mut self,
+        verified: &VerifiedReleaseRequest,
+        connection_id: &str,
+        connection_generation: u64,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        let request = verified.request();
+        if verified.actor().as_str() != request.recipient()
+            || verified.human_issuer().as_str() != self.human_principal
+        {
+            return Err(ReleaseStateError::Binding);
+        }
+        self.reserve_provider_call(
+            ReleaseCall {
+                task_id: request.task_id(),
+                operation_id: request.operation_id().as_str(),
+                resource_handle: request.resource_handle(),
+                recipe_digest: &hex::encode(request.recipe_digest()),
+                connection_id,
+                connection_generation,
+                recipient: request.recipient(),
+                action_commitment: *request.action_commitment(),
+            },
+            now,
+        )
+    }
+
+    /// Test-only construction check for a closed request. Production callers
+    /// must use `reserve_verified_request` so actor and issuer are sealed.
+    #[cfg(test)]
     pub(crate) fn reserve_closed_request(
         &mut self,
         request: &ClosedReleaseRequest,
@@ -728,7 +760,8 @@ impl FileReleaseTaskLedger {
         Ok(state)
     }
 
-    pub(crate) fn reserve_provider_call(
+    #[cfg(test)]
+    fn reserve_provider_call(
         &self,
         call: ReleaseCall<'_>,
         now: u64,
@@ -736,6 +769,19 @@ impl FileReleaseTaskLedger {
         self.update(call.task_id, |state| state.reserve_provider_call(call, now))
     }
 
+    pub(crate) fn reserve_verified_request(
+        &self,
+        verified: &VerifiedReleaseRequest,
+        connection_id: &str,
+        connection_generation: u64,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(verified.request().task_id(), |state| {
+            state.reserve_verified_request(verified, connection_id, connection_generation, now)
+        })
+    }
+
+    #[cfg(test)]
     pub(crate) fn reserve_closed_request(
         &self,
         request: &ClosedReleaseRequest,
