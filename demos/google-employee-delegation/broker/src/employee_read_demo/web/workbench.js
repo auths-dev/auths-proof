@@ -352,7 +352,36 @@ async function loadWriteTaskStatus() {
   if (status.task_id !== taskId || status.schema !== "auths.gateway-agent-task-status/1") {
     throw new Error("Gateway status did not match the selected task");
   }
-  byId("write-activity").textContent = JSON.stringify(status, null, 2);
+  const summary = byId("write-activity-summary");
+  summary.textContent = `Provider calls ${status.provider_calls}/${status.max_provider_calls}; ` +
+    `releases ${status.releases}/${status.max_releases}; ` +
+    `released bytes ${status.released_bytes}/${status.max_release_bytes}; ` +
+    `writes ${status.writes}/${status.max_writes}. ` +
+    `Expires ${new Date(status.expires_at * 1000).toISOString()}.`;
+  const timeline = byId("write-activity-timeline");
+  timeline.replaceChildren();
+  const addEvent = description => {
+    const item = document.createElement("li");
+    item.textContent = description;
+    timeline.append(item);
+  };
+  addEvent("Human-signed task activated in the gateway.");
+  const readStage = {
+    "provider-call-reserved": "provider call reserved; no content delivery recorded",
+    "provider-unavailable": "provider unavailable; no content delivered",
+    "release-refused": "release refused; no content delivered",
+    "delivery-unknown": "delivery may have started; agent acknowledgement is missing",
+    "not-delivered": "transport did not begin after the release budget was charged",
+    "agent-acknowledged": "agent acknowledged the delivered bytes",
+  };
+  for (const read of status.reads) {
+    const bytes = read.released_bytes === null ? "" : ` (${read.released_bytes} bytes charged)`;
+    addEvent(`Read ${read.operation_id}: ${readStage[read.stage]}${bytes}.`);
+  }
+  for (const operationId of status.write_operations) {
+    addEvent(`Write ${operationId}: task write allowance claimed; provider entry and effect require separate evidence.`);
+  }
+  if (status.revoked) addEvent("Task revoked; new actions are closed.");
   message(status.revoked ? "This agent task is revoked." : "Gateway task activity is current.");
 }
 

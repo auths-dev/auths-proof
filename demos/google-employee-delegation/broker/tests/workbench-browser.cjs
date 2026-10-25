@@ -27,6 +27,7 @@ const posts = [];
 let receiptResourceRef = nodeCrypto.createHash("sha256").update("file-A").digest("hex");
 let sessionOverride = null;
 let writePrepareResponse = null;
+let writeStatusResponse = null;
 async function fetch(url, options = {}) {
   let result;
   if (url === "/api/v1/session") {
@@ -34,6 +35,8 @@ async function fetch(url, options = {}) {
       google_status: "not_configured", company_id: null, drive_connected: false };
   } else if (url === "/api/v1/write/tasks/prepare" && writePrepareResponse) {
     result = writePrepareResponse;
+  } else if (url === "/api/v1/write/tasks/status" && writeStatusResponse) {
+    result = writeStatusResponse;
   } else if (url === "/api/v1/tasks/task-1") {
     result = { task: { task_id: "task-1", company_id: "atlas-studio",
       employee_principal: "employee-A", agent_principal: "agent-A",
@@ -130,6 +133,20 @@ async function main() {
   assert.match(byId("write-upfront-list").options[0].textContent, /Approved/);
   assert.match(byId("write-card").textContent, /"replacement": "Approved"/);
   assert.match(byId("write-card").textContent, /"replacement": "Pending"/);
+  writeStatusResponse = { schema: "auths.gateway-agent-task-status/1",
+    task_id: "task-upfront", expires_at: 1792960000, revoked: false,
+    provider_calls: 1, max_provider_calls: 1, releases: 1, max_releases: 1,
+    released_bytes: 5, max_release_bytes: 64, writes: 1, max_writes: 1,
+    reads: [{ operation_id: "read-1", stage: "delivery-unknown", released_bytes: 5 }],
+    write_operations: ["write-1"] };
+  byId("write-confirm-task-id").value = "task-upfront";
+  await vm.runInContext("loadWriteTaskStatus()", upfrontContext);
+  assert.match(byId("write-activity-summary").textContent, /writes 1\/1/);
+  assert.equal(byId("write-activity-timeline").options.length, 3);
+  assert.match(byId("write-activity-timeline").options[1].textContent,
+    /acknowledgement is missing/);
+  assert.match(byId("write-activity-timeline").options[2].textContent,
+    /effect require separate evidence/);
   console.log("browser activation and bounded choice review passed");
 }
 

@@ -84,7 +84,11 @@
     <button id="write-submit" type="button" hidden>Submit this confirmed edit through the gateway</button>
     <button id="write-status-refresh" type="button" hidden>Show task activity and limits</button>
     <button id="write-revoke" type="button" class="danger" hidden>Revoke this agent task</button>
-    <pre id="write-activity">No gateway task activity loaded.</pre>
+    <div id="write-activity">
+      <p id="write-activity-summary">No gateway task activity loaded.</p>
+      <ol id="write-activity-timeline"></ol>
+      <p class="hint">The task ledger records permissions and claimed operations. A provider effect needs separate gateway attempt and independent readback evidence.</p>
+    </div>
   </section>
 
   <section id="general-run" aria-labelledby="run-heading">
