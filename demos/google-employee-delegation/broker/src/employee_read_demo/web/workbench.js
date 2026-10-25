@@ -260,16 +260,22 @@ async function authorizeWriteTask() {
   }, null, 2);
   byId("write-review").hidden = true;
   byId("write-confirm-task-id").value = result.task_id;
-  byId("write-submit").hidden = !session.task_write_upfront_available ||
-    !session.task_write_execution_available;
+  byId("write-submit").hidden = result.status !== "activated_awaiting_agent_proposal" ||
+    !session.task_write_upfront_available || !session.task_write_execution_available;
   preparedWriteTask = null;
-  message(result.companion_agent_package
-    ? "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry."
-    : session.task_write_upfront_available
-      ? "Jules approved the displayed bounded choices. The separate agent must sign one complete choice before the gateway can submit it; no later exact confirmation will be requested."
-    : result.status === "activated_awaiting_agent_proposal"
-      ? "Jules's task is activated. The separate agent can act within its approved scopes; the edit still needs exact confirmation."
-      : "Jules's task is signed. Gateway activation and a separate exact edit confirmation are still required.");
+  if (result.status === "signed_activation_unconfirmed") {
+    message(`Jules signed task ${result.task_id}, but gateway activation is unconfirmed. Check its task activity before the agent acts; do not sign the task again.`);
+  } else if (result.companion_agent_package) {
+    message(result.status === "activated_awaiting_agent_proposal"
+      ? "Jules's create/populate task is active. The exact two-effect content plan is still required before provider entry."
+      : "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry.");
+  } else if (session.task_write_upfront_available) {
+    message("Jules approved the displayed bounded choices. The separate agent must sign one complete choice before the gateway can submit it; no later exact confirmation will be requested.");
+  } else if (result.status === "activated_awaiting_agent_proposal") {
+    message("Jules's task is activated. The separate agent can act within its approved scopes; the edit still needs exact confirmation.");
+  } else {
+    message("Jules's task is signed. Gateway activation and a separate exact edit confirmation are still required.");
+  }
 }
 
 async function prepareWriteConfirmation() {

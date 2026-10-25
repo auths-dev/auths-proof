@@ -269,3 +269,8 @@ The workbench also reads `task-status` for owner-visible budgets, read delivery
 stages, revocation and claimed write operation IDs. It omits provider bytes,
 account subjects and private commitments; a write claim alone does not prove
 the external edit.
+If gateway activation fails after Jules signs, the workbench preserves the
+signed task ID and reports `signed_activation_unconfirmed`. The UI withholds
+an upfront submission control and directs the operator to inspect durable
+gateway task status. It does not ask Jules to sign the same task again or
+claim that the task is active from a lost activation response.

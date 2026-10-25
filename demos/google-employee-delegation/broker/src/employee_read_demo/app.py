@@ -555,14 +555,11 @@ class Handler(BaseHTTPRequestHandler):
                         if "companion_grant_signature" in body else None),
                     task_signature=_b64(body["task_signature"], max_bytes=64),
                 )
-                activated = False
-                if (self.workbench.write_confirmation is not None
-                        and self.workbench.write_confirmation.gateway_state_dir is not None):
-                    self.workbench.write_confirmation.activate(completed.task_id)
-                    activated = True
+                activation_status = _activate_signed_write_task(
+                    completed.task_id, self.workbench.write_confirmation,
+                )
                 self._json(HTTPStatus.OK, {
-                    "status": ("activated_awaiting_agent_proposal" if activated
-                               else "approved_pending_gateway_activation"),
+                    "status": activation_status,
                     "task_id": completed.task_id,
                     "agent_principal": completed.agent_principal,
                     "expires_at": completed.expires_at,
@@ -925,6 +922,18 @@ def _private_file(path: Path, max_bytes: int) -> bytes:
             or stat.S_IMODE(path.stat().st_mode) & 0o077):
         raise ValueError("operator secret file must be private and bounded")
     return path.read_bytes()
+
+
+def _activate_signed_write_task(task_id: str,
+                                flow: TaskWriteConfirmationFlow | None) -> str:
+    """Preserve a signed task's ID when gateway activation is uncertain."""
+    if flow is None or flow.gateway_state_dir is None:
+        return "approved_pending_gateway_activation"
+    try:
+        flow.activate(task_id)
+    except OperatorDenied:
+        return "signed_activation_unconfirmed"
+    return "activated_awaiting_agent_proposal"
 
 
 def main() -> int:

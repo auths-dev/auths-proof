@@ -28,6 +28,7 @@ let receiptResourceRef = nodeCrypto.createHash("sha256").update("file-A").digest
 let sessionOverride = null;
 let writePrepareResponse = null;
 let writeStatusResponse = null;
+let writeAuthorizeResponse = null;
 async function fetch(url, options = {}) {
   let result;
   if (url === "/api/v1/session") {
@@ -35,6 +36,8 @@ async function fetch(url, options = {}) {
       google_status: "not_configured", company_id: null, drive_connected: false };
   } else if (url === "/api/v1/write/tasks/prepare" && writePrepareResponse) {
     result = writePrepareResponse;
+  } else if (url === "/api/v1/write/tasks/authorize" && writeAuthorizeResponse) {
+    result = writeAuthorizeResponse;
   } else if (url === "/api/v1/write/tasks/status" && writeStatusResponse) {
     result = writeStatusResponse;
   } else if (url === "/api/v1/tasks/task-1") {
@@ -147,6 +150,25 @@ async function main() {
     /acknowledgement is missing/);
   assert.match(byId("write-activity-timeline").options[2].textContent,
     /effect require separate evidence/);
+  writeAuthorizeResponse = {
+    status: "signed_activation_unconfirmed", task_id: "task-upfront",
+    agent_principal: "agent-A", expires_at: 9999999999,
+    agent_package: {}, read_agent_package: null,
+    companion_agent_package: null,
+  };
+  vm.runInContext(`
+    preparedWriteTask = {
+      nonce: "nonce", grant_preimage: "AA==", task_preimage: "AA==",
+      expires_at: 9999999999,
+      card: { task_id: "task-upfront", agent_principal: "agent-A" },
+    };
+    signEmployee = async () => "signature";
+    download = () => {};
+  `, upfrontContext);
+  await vm.runInContext("authorizeWriteTask()", upfrontContext);
+  assert.equal(byId("write-confirm-task-id").value, "task-upfront");
+  assert.equal(byId("write-submit").hidden, true);
+  assert.match(byId("message").textContent, /do not sign the task again/);
   console.log("browser activation and bounded choice review passed");
 }
 
