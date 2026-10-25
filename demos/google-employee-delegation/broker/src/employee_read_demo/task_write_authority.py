@@ -156,10 +156,11 @@ def issue_task_write_authority(
         permissions.append(_permission(companion_write_service, companion_write_tool))
         if companion_write_audience not in audiences:
             audiences.append(companion_write_audience)
+    namespaces = [f"{audience}/" for audience in audiences]
     anchor = _native.TrustAnchor(
         root.principal, _native.Principal(root.principal),
         ["raw-key-v1"], [("auths.mcp", 2)],
-        permissions, audiences, audiences,
+        permissions, namespaces, audiences,
         now, now + lifetime, None, 2, "raw-key-baseline", None,
     )
     compiled = _native.compile_trusted_context(
