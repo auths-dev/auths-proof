@@ -55,6 +55,9 @@ mod support;
 // Human task approval is not yet served by an installed activation channel.
 #[allow(dead_code)]
 mod task_activation;
+// Exact task-write confirmation is not yet called by the installed submit path.
+#[allow(dead_code)]
+mod task_write;
 mod transport;
 
 #[cfg(test)]

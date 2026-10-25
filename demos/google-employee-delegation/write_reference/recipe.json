@@ -1,11 +1,12 @@
 {
   "schema": "auths.gateway-recipe-source/2",
-  "profile_schema_digest": "effc057687c0e62e7c316117e4cea50e70903e3cf16560e6e490e9ad33beeb91",
+  "profile_schema_digest": "cc91b111846b1435d3265f1b85e0ae3873c8d6da72036b95bfcc6ab3cdb2bb0a",
   "service": "google-docs-delegation-demo",
-  "tool": "replace_project_a_marker_v1",
+  "tool": "replace_project_a_marker_v2",
   "operator_namespace": "google-docs-demo",
   "credential": { "kind": "bearer" },
   "origin": "https://docs.googleapis.com",
+  "preconditions": {"verified": ["task_id", "task_commitment"]},
   "write": {
     "method": "POST",
     "path": [

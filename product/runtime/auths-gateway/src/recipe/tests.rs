@@ -62,6 +62,8 @@ fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
         &recipe,
         &json!({
             "operation_id": "edit-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
             "document_id": "doc-Project-A-working",
             "tab_id": "tab-1",
             "marker": "[[AUTHs:PROJECT_A:RUN_1]]",

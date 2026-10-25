@@ -1,0 +1,481 @@
+//! Task-bound write admission. The operator chooses the typed resource field
+//! from a reviewed profile; the agent cannot choose how an action maps to a
+//! task scope. This module verifies intent and exact human confirmation. The
+//! installed gateway still needs to call it before a write claim or lease.
+
+use crate::CompiledRecipe;
+use crate::bounds::authorized_chains;
+use crate::engine::{
+    GatewaySubmitResult, VerifiedCommand, authorized_action, not_entered, verify_sealed,
+};
+use crate::task_activation::{ApprovedAgentTask, TaskWriteVerb, WriteApprovalMode};
+use auths_model::{TrustedContext, VerifierLimits};
+use auths_profile_api::ActionProfile as _;
+use auths_profile_mcp::McpProfile;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+const CONFIRMATION_SERVICE: &str = "auths-agent-task";
+const CONFIRMATION_TOOL: &str = "confirm_agent_write_v1";
+
+/// Reviewed installation data, committed through the task's operator policy.
+/// `resource_field` is a profile field name, never a runtime JSON pointer.
+#[derive(Clone)]
+pub(crate) struct TaskWriteBinding {
+    pub(crate) resource_field: String,
+    pub(crate) verb: TaskWriteVerb,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
+}
+
+/// Secret-free exact action projection for the human confirmation. The
+/// request commitment binds the closed provider method, URL, headers and
+/// bytes shown by the UI. Neither digest is a public content receipt.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ExactWriteIntent {
+    task_id: String,
+    task_commitment: String,
+    operation_id: String,
+    action_commitment: String,
+    request_commitment: String,
+    recipe_digest: String,
+    resource_handle: String,
+    verb: TaskWriteVerb,
+    connection_id: String,
+    connection_generation: u64,
+    connection_subject: String,
+}
+
+/// Minted only after the agent proof and the human's exact confirmation (or
+/// the separately enabled bounded-upfront task) match the closed request.
+pub(crate) struct ApprovedTaskWrite {
+    intent: ExactWriteIntent,
+}
+
+impl ApprovedTaskWrite {
+    pub(crate) fn intent(&self) -> &ExactWriteIntent {
+        &self.intent
+    }
+}
+
+fn request_commitment(verified: &VerifiedCommand) -> Result<String, GatewaySubmitResult> {
+    let request = &verified.request;
+    let header_pairs: Vec<_> = request
+        .headers()
+        .iter()
+        .map(|header| (header.name(), header.value()))
+        .collect();
+    let value = serde_json::json!({
+        "method": request.method().as_str(),
+        "url": request.url(),
+        "content_type": request.content_type(),
+        "headers": header_pairs,
+        "body_hex": hex::encode(request.body()),
+    });
+    let canonical = serde_json_canonicalizer::to_vec(&value)
+        .map_err(|_| not_entered("gateway.task.write-request"))?;
+    auths_codec::domain_commitment("auths.agent-write-request.v1", &canonical)
+        .map(|digest| hex::encode(digest.as_bytes()))
+        .map_err(|_| not_entered("gateway.task.write-request"))
+}
+
+/// Project a native-verified agent write through the reviewed recipe and
+/// installed resource-field binding. A caller must use the same verified
+/// command and recipe for the eventual gateway submission.
+#[cfg(unix)]
+pub(crate) fn derive_exact_write_intent(
+    task: &ApprovedAgentTask,
+    verified: &VerifiedCommand,
+    recipe: &CompiledRecipe,
+    binding: &TaskWriteBinding,
+    now: u64,
+) -> Result<ExactWriteIntent, GatewaySubmitResult> {
+    let card = task.descriptor();
+    if now < card.not_before || now >= card.expires_at {
+        return Err(not_entered("gateway.task.inactive"));
+    }
+    if verified.actors.len() != 1 || verified.actors[0].as_str() != card.agent_principal {
+        return Err(not_entered("gateway.task.agent-binding"));
+    }
+    if binding.resource_field.is_empty()
+        || !binding
+            .resource_field
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        || binding.connection_id != card.connection_id
+        || binding.connection_generation != card.connection_generation
+        || binding.connection_subject != card.connection_subject
+    {
+        return Err(not_entered("gateway.task.connection-binding"));
+    }
+    let arguments = &verified.arguments;
+    let expected_task_commitment = hex::encode(task.commitment());
+    if arguments.get("task_id").and_then(Value::as_str) != Some(card.task_id.as_str())
+        || arguments.get("task_commitment").and_then(Value::as_str)
+            != Some(expected_task_commitment.as_str())
+    {
+        return Err(not_entered("gateway.task.card-binding"));
+    }
+    let resource = arguments
+        .get(&binding.resource_field)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 256)
+        .ok_or_else(|| not_entered("gateway.task.write-resource"))?;
+    let recipe_digest = recipe.digest_hex();
+    if !card.write_scopes.iter().any(|scope| {
+        scope.handle == resource
+            && scope.recipe_digest == recipe_digest
+            && scope.verb == binding.verb
+    }) {
+        return Err(not_entered("gateway.task.write-scope"));
+    }
+    Ok(ExactWriteIntent {
+        task_id: card.task_id.clone(),
+        task_commitment: expected_task_commitment,
+        operation_id: verified.request.operation_id().as_str().to_owned(),
+        action_commitment: hex::encode(verified.request.action_commitment()),
+        request_commitment: request_commitment(verified)?,
+        recipe_digest,
+        resource_handle: resource.to_owned(),
+        verb: binding.verb.clone(),
+        connection_id: binding.connection_id.clone(),
+        connection_generation: binding.connection_generation,
+        connection_subject: binding.connection_subject.clone(),
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConfirmationArguments {
+    write: ExactWriteIntent,
+}
+
+/// Verifies the human's fresh signature over the entire exact intent. The
+/// caller must independently make the rendered proposal correspond to the
+/// closed request before asking the human to sign it.
+pub(crate) fn verify_exact_write_confirmation(
+    context: &TrustedContext,
+    task: &ApprovedAgentTask,
+    intent: ExactWriteIntent,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<ApprovedTaskWrite, GatewaySubmitResult> {
+    verify_exact_write_confirmation_for_profile(
+        context,
+        task,
+        intent,
+        now,
+        proof_cbor,
+        action_cbor,
+        (CONFIRMATION_SERVICE, CONFIRMATION_TOOL),
+    )
+}
+
+fn verify_exact_write_confirmation_for_profile(
+    context: &TrustedContext,
+    task: &ApprovedAgentTask,
+    intent: ExactWriteIntent,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+    profile: (&str, &str),
+) -> Result<ApprovedTaskWrite, GatewaySubmitResult> {
+    let card = task.descriptor();
+    if card.write_approval_mode != WriteApprovalMode::Exact
+        || now < card.not_before
+        || now >= card.expires_at
+        || intent.task_id != card.task_id
+        || intent.task_commitment != hex::encode(task.commitment())
+    {
+        return Err(not_entered("gateway.task.exact-write-binding"));
+    }
+    let sealed = verify_sealed(context, now, proof_cbor, action_cbor)?;
+    let action = authorized_action(&sealed)?;
+    if action.action_ids().len() != 1 {
+        return Err(not_entered("gateway.task.single-human-action-required"));
+    }
+    let command = McpProfile
+        .decode_verified(action)
+        .map_err(|_| not_entered("gateway.task.confirmation-projection"))?;
+    if command.call().service() != profile.0 || command.name() != profile.1 {
+        return Err(not_entered("gateway.task.confirmation-profile"));
+    }
+    let arguments: ConfirmationArguments =
+        serde_json::from_value(Value::Object(command.arguments().clone()))
+            .map_err(|_| not_entered("gateway.task.invalid-confirmation"))?;
+    if arguments.write != intent {
+        return Err(not_entered("gateway.task.exact-write-mismatch"));
+    }
+    let branches = authorized_chains(proof_cbor, action)
+        .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
+    let [branch] = branches.as_slice() else {
+        return Err(not_entered("gateway.task.single-human-action-required"));
+    };
+    if branch.actor.as_str() != card.human_principal
+        || branch.chain.is_empty()
+        || branch
+            .chain
+            .last()
+            .is_none_or(|grant| grant.statement().subject() != &branch.actor)
+    {
+        return Err(not_entered("gateway.task.human-authority"));
+    }
+    let bundle = auths_codec::decode_bundle(proof_cbor, &VerifierLimits::default())
+        .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
+    if bundle.actions().len() != 1
+        || !bundle.actions()[0]
+            .envelope()
+            .extensions()
+            .as_slice()
+            .is_empty()
+        || branch.chain.iter().any(|grant| {
+            !grant.statement().extensions().as_slice().is_empty()
+                || grant.statement().budget_ceiling().is_some()
+        })
+    {
+        return Err(not_entered("gateway.task.unsupported-policy"));
+    }
+    Ok(ApprovedTaskWrite { intent })
+}
+
+/// Bounded upfront approval is a separate mode that never accepts an exact
+/// confirmation as a substitute. Its one-step entry still needs the task's
+/// scope, write budget and operator policy rechecked at the claim.
+pub(crate) fn admit_bounded_upfront_write(
+    task: &ApprovedAgentTask,
+    intent: ExactWriteIntent,
+    now: u64,
+) -> Result<ApprovedTaskWrite, GatewaySubmitResult> {
+    let card = task.descriptor();
+    if card.write_approval_mode != WriteApprovalMode::BoundedUpfront
+        || now < card.not_before
+        || now >= card.expires_at
+        || intent.task_id != card.task_id
+        || intent.task_commitment != hex::encode(task.commitment())
+    {
+        return Err(not_entered("gateway.task.upfront-write-binding"));
+    }
+    Ok(ApprovedTaskWrite { intent })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::GatewayObserver;
+    use crate::engine::verify_detailed;
+    use crate::harness::{self, Signer};
+    use crate::observed_tests::submission;
+    use crate::task_activation::AgentTaskDescriptor;
+    use serde_json::{Map, json};
+
+    const NOW: u64 = 1_790_000_000;
+
+    fn setup() -> (
+        ApprovedAgentTask,
+        ExactWriteIntent,
+        TrustedContext,
+        Signer,
+        Signer,
+    ) {
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
+        let recipe = harness::recipe(
+            &json!({
+                "task_id": {"kind": "string", "minimum": 1, "maximum": 128},
+                "task_commitment": {"kind": "string", "minimum": 64, "maximum": 64}
+            }),
+            &json!({"verified": ["task_id", "task_commitment"]}),
+        )
+        .expect("recipe");
+        let card: AgentTaskDescriptor = serde_json::from_value(json!({
+            "schema": "auths.agent-task/1",
+            "task_id": "task-1",
+            "company_id": "atlas",
+            "human_principal": human.principal.as_str(),
+            "agent_principal": agent.principal.as_str(),
+            "agent_key_fingerprint": "a".repeat(64),
+            "connection_id": "jules-google",
+            "connection_generation": 3,
+            "connection_subject": "jules-subject",
+            "read_scopes": [],
+            "write_scopes": [{
+                "handle": harness::RECORD,
+                "recipe_digest": recipe.digest_hex(),
+                "verb": "edit"
+            }],
+            "delivery_channel": "agent-channel",
+            "not_before": NOW - 30,
+            "expires_at": NOW + 900,
+            "max_provider_calls": 0,
+            "max_releases": 0,
+            "max_release_bytes": 0,
+            "max_writes": 1,
+            "write_approval_mode": "exact",
+            "operator_policy_digest": "d".repeat(64),
+            "purpose": "Update a status"
+        }))
+        .expect("card");
+        let task = ApprovedAgentTask::from_test_card(card, [0x45; 32]);
+        let grant = harness::grant(&root, &agent.principal, None, NOW).expect("agent grant");
+        let mut args = Map::new();
+        for (key, value) in json!({
+            "operator_namespace": harness::NAMESPACE,
+            "operation_id": "write-1",
+            "recipe_digest": recipe.digest_hex(),
+            "record_id": harness::RECORD,
+            "replacement": "Approved",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32)
+        })
+        .as_object()
+        .expect("object")
+        {
+            args.insert(key.clone(), value.clone());
+        }
+        let signed = submission(&root, &agent, &grant, &args, &[]);
+        let verified = verify_detailed(&recipe, &context, NOW, &signed.proof, &signed.action)
+            .expect("native agent verification");
+        let binding = TaskWriteBinding {
+            resource_field: "record_id".to_owned(),
+            verb: TaskWriteVerb::Edit,
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
+        };
+        let intent = derive_exact_write_intent(&task, &verified, &recipe, &binding, NOW)
+            .expect("task-bound intent");
+        assert_eq!(intent.resource_handle, harness::RECORD);
+        assert_eq!(intent.action_commitment, hex::encode(signed.commitment));
+        let wrong_connection = TaskWriteBinding {
+            connection_generation: 4,
+            ..binding.clone()
+        };
+        assert!(
+            derive_exact_write_intent(&task, &verified, &recipe, &wrong_connection, NOW).is_err()
+        );
+        let wrong_resource = TaskWriteBinding {
+            resource_field: "task_id".to_owned(),
+            ..binding.clone()
+        };
+        assert!(
+            derive_exact_write_intent(&task, &verified, &recipe, &wrong_resource, NOW).is_err()
+        );
+        let mut different_card = task.descriptor().clone();
+        different_card.write_scopes[0].handle = "other-record".to_owned();
+        let different_task = ApprovedAgentTask::from_test_card(different_card, *task.commitment());
+        assert!(
+            derive_exact_write_intent(&different_task, &verified, &recipe, &binding, NOW).is_err()
+        );
+        let mut different_card = task.descriptor().clone();
+        different_card.agent_principal = human.principal.as_str().to_owned();
+        let different_task = ApprovedAgentTask::from_test_card(different_card, *task.commitment());
+        assert!(
+            derive_exact_write_intent(&different_task, &verified, &recipe, &binding, NOW).is_err()
+        );
+        (task, intent, context, root, human)
+    }
+
+    fn confirmation(
+        root: &Signer,
+        human: &Signer,
+        intent: &ExactWriteIntent,
+    ) -> (Vec<u8>, Vec<u8>) {
+        let grant = harness::grant(root, &human.principal, None, NOW).expect("human grant");
+        let mut arguments = Map::new();
+        arguments.insert(
+            "write".to_owned(),
+            serde_json::to_value(intent).expect("intent"),
+        );
+        let signed = submission(root, human, &grant, &arguments, &[]);
+        (signed.proof, signed.action)
+    }
+
+    #[test]
+    fn exact_human_signature_binds_the_native_agent_action_and_closed_request() {
+        let (task, intent, context, root, human) = setup();
+        let (proof, action) = confirmation(&root, &human, &intent);
+        let approved = verify_exact_write_confirmation_for_profile(
+            &context,
+            &task,
+            intent.clone(),
+            NOW,
+            &proof,
+            &action,
+            (harness::SERVICE, harness::TOOL),
+        )
+        .expect("exact confirmation");
+        assert_eq!(approved.intent(), &intent);
+
+        let mut changed = intent.clone();
+        changed.request_commitment = "0".repeat(64);
+        assert!(
+            verify_exact_write_confirmation_for_profile(
+                &context,
+                &task,
+                changed,
+                NOW,
+                &proof,
+                &action,
+                (harness::SERVICE, harness::TOOL),
+            )
+            .is_err()
+        );
+        let mut changed = intent.clone();
+        changed.operation_id = "write-2".to_owned();
+        assert!(
+            verify_exact_write_confirmation_for_profile(
+                &context,
+                &task,
+                changed,
+                NOW,
+                &proof,
+                &action,
+                (harness::SERVICE, harness::TOOL),
+            )
+            .is_err()
+        );
+        let wrong_human = Signer::new(0x66);
+        let (proof, action) = confirmation(&root, &wrong_human, &intent);
+        assert!(
+            verify_exact_write_confirmation_for_profile(
+                &context,
+                &task,
+                intent,
+                NOW,
+                &proof,
+                &action,
+                (harness::SERVICE, harness::TOOL),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn exact_and_bounded_upfront_modes_are_distinct() {
+        let (task, intent, context, root, human) = setup();
+        assert!(admit_bounded_upfront_write(&task, intent.clone(), NOW).is_err());
+        let mut card = task.descriptor().clone();
+        card.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        let upfront = ApprovedAgentTask::from_test_card(card, *task.commitment());
+        assert!(admit_bounded_upfront_write(&upfront, intent.clone(), NOW).is_ok());
+        let (proof, action) = confirmation(&root, &human, &intent);
+        assert!(
+            verify_exact_write_confirmation_for_profile(
+                &context,
+                &upfront,
+                intent,
+                NOW,
+                &proof,
+                &action,
+                (harness::SERVICE, harness::TOOL),
+            )
+            .is_err()
+        );
+    }
+}

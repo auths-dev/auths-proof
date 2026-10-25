@@ -36,9 +36,9 @@ pub(crate) enum TaskWriteVerb {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct TaskWriteScope {
-    handle: String,
-    recipe_digest: String,
-    verb: TaskWriteVerb,
+    pub(crate) handle: String,
+    pub(crate) recipe_digest: String,
+    pub(crate) verb: TaskWriteVerb,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -54,24 +54,24 @@ pub(crate) enum WriteApprovalMode {
 #[serde(deny_unknown_fields)]
 pub(crate) struct AgentTaskDescriptor {
     schema: String,
-    task_id: String,
+    pub(crate) task_id: String,
     company_id: String,
-    human_principal: String,
-    agent_principal: String,
+    pub(crate) human_principal: String,
+    pub(crate) agent_principal: String,
     agent_key_fingerprint: String,
-    connection_id: String,
-    connection_generation: u64,
-    connection_subject: String,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
     read_scopes: Vec<TaskReadScope>,
-    write_scopes: Vec<TaskWriteScope>,
+    pub(crate) write_scopes: Vec<TaskWriteScope>,
     delivery_channel: String,
-    not_before: u64,
-    expires_at: u64,
+    pub(crate) not_before: u64,
+    pub(crate) expires_at: u64,
     max_provider_calls: u32,
     max_releases: u32,
     max_release_bytes: u64,
-    max_writes: u32,
-    write_approval_mode: WriteApprovalMode,
+    pub(crate) max_writes: u32,
+    pub(crate) write_approval_mode: WriteApprovalMode,
     operator_policy_digest: String,
     purpose: String,
 }
@@ -100,6 +100,13 @@ pub(crate) struct ApprovedAgentTask {
 }
 
 impl ApprovedAgentTask {
+    #[cfg(test)]
+    pub(crate) fn from_test_card(descriptor: AgentTaskDescriptor, commitment: [u8; 32]) -> Self {
+        Self {
+            descriptor,
+            commitment,
+        }
+    }
     pub(crate) fn release_policy(&self) -> Result<ReleaseTaskPolicy, GatewaySubmitResult> {
         if self.descriptor.read_scopes.is_empty() {
             return Err(not_entered("gateway.task.no-read-scope"));

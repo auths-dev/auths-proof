@@ -10,8 +10,9 @@ Its `field-suffix` path segment is a closed, operator-visible mechanism under
 [ADR 0018](../../../docs/adr/0018-typed-path-field-suffix.md); a compiled
 reference is not production qualification.
 
-The action names one document, one tab, one unique literal marker, replacement
-text and the revision Jules observed near confirmation. The recipe fixes a
+The v2 action includes the signed task ID and task-card commitment, then names
+one document, one tab, one unique literal marker, replacement text and the
+revision Jules observed near confirmation. The recipe fixes a
 single, case-sensitive `replaceAllText` request with `searchByRegex: false`
 and `writeControl.requiredRevisionId`. Its body admits no second request,
 runtime URL, arbitrary JSON object or alternative write control. The signed
@@ -20,8 +21,9 @@ connected Jules subject/generation and the recipe digest before the gateway
 may use a credential. A valid recipe by itself grants no access.
 
 The generated action profile's conservative 4 KiB canonical-argument bound
-limits document and tab IDs to 64 bytes, the marker to 64 bytes, replacement
-text to 192 bytes and revision ID to 128 bytes. demo_co must export the
+limits document IDs to 64 bytes, tab IDs to 16 bytes, the marker to 48 bytes,
+replacement text to 192 bytes and revision ID to 128 bytes. The task and
+operation IDs are each limited to 32 bytes. demo_co must export the
 **observed** lengths from a new run-owned, single-tab working Doc and refuse
 unsupported lengths rather than truncating or substituting an ID. Existing
 Atlas Docs have 44-byte file IDs, but that does not establish the future
@@ -41,7 +43,9 @@ provider-signed response evidence. demo_co must independently compare the
 working Doc's revision and content after entry and verify that canonical and
 excluded Docs did not change. A 2xx response alone is not an observed edit.
 
-The current gateway also lacks a subject-bound Google OAuth write connection
+The v2 profile fields make an exact task binding possible; the installed
+gateway submit path does not yet enforce that binding or the human's exact
+confirmation. The current gateway also lacks a subject-bound Google OAuth write connection
 and refresh lease for Jules. Her saved read-only grant is insufficient.
 demo_co owns the folder, working Doc, ACL, consent probes and versioned export;
 Auths owns authority, connection custody, recipe admission and receipts.

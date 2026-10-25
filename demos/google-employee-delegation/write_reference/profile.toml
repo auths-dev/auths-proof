@@ -1,6 +1,6 @@
 [profile]
 name = "google-docs-project-a-edit"
-version = 1
+version = 2
 service = "google-docs-delegation-demo"
 tool = "replace_project_a_marker"
 command = "ReplaceProjectAMarker"
@@ -15,9 +15,19 @@ variants = ["google-docs-demo"]
 [arguments.fields.operation_id]
 type = "string"
 min_bytes = 1
-max_bytes = 64
+max_bytes = 32
 
 [arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.task_id]
+type = "string"
+min_bytes = 1
+max_bytes = 32
+
+[arguments.fields.task_commitment]
 type = "string"
 min_bytes = 64
 max_bytes = 64
@@ -30,12 +40,12 @@ max_bytes = 64
 [arguments.fields.tab_id]
 type = "string"
 min_bytes = 1
-max_bytes = 64
+max_bytes = 16
 
 [arguments.fields.marker]
 type = "string"
 min_bytes = 1
-max_bytes = 64
+max_bytes = 48
 
 [arguments.fields.replacement]
 type = "string"
