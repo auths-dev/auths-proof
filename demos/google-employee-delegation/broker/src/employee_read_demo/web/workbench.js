@@ -202,6 +202,7 @@ async function prepareWriteTask() {
     choiceList.append(item);
   }
   byId("write-card").textContent = JSON.stringify({
+    task_id: result.card.task_id,
     agent_principal: result.card.agent_principal,
     source_handles: result.card.read_scopes.map(scope => scope.handle),
     destination_handle: writeScope?.handle || null,
@@ -221,6 +222,10 @@ async function prepareWriteTask() {
     companion_write_tool: result.companion_write_tool,
     pending_child: result.card.pending_child || null,
   }, null, 2);
+  byId("write-status-label").textContent = "Previously signed task (not this review)";
+  byId("write-confirm-task-id").value = "";
+  byId("write-activity-summary").textContent = "No gateway task activity loaded for this review.";
+  byId("write-activity-timeline").replaceChildren();
   byId("write-review").hidden = false;
   message(!writeScope
     ? "Review Jules's account, finance source, agent and one-read budget. This task grants no write; Google may still deny the read."
@@ -273,6 +278,7 @@ async function authorizeWriteTask() {
     task_id: result.task_id, status: result.status,
     agent_principal: result.agent_principal, expires_at: result.expires_at,
   }, null, 2);
+  byId("write-status-label").textContent = "Newly signed task";
   byId("write-review").hidden = true;
   byId("write-confirm-task-id").value = result.task_id;
   byId("write-submit").hidden = result.status !== "activated_awaiting_agent_proposal" ||
