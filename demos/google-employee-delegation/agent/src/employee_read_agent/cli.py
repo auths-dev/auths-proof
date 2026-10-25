@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
 from .run import AgentKey, HttpBroker, OpenAIModel, run_task
+from .release_channel import serve_one_release
 from .write import sign_write
 
 
@@ -57,6 +58,15 @@ def main() -> None:
     write.add_argument("--package-file", type=Path, required=True)
     write.add_argument("--arguments-file", type=Path, required=True)
     write.add_argument("--out-dir", type=Path, required=True)
+    release = commands.add_parser("serve-release")
+    release.add_argument("--key-file", type=Path, required=True)
+    release.add_argument("--socket", type=Path, required=True)
+    release.add_argument("--output", type=Path, required=True)
+    release.add_argument("--task-id", required=True)
+    release.add_argument("--task-commitment", required=True)
+    release.add_argument("--operation-id", required=True)
+    release.add_argument("--resource-handle", required=True)
+    release.add_argument("--channel-name", required=True)
     args = parser.parse_args()
     if args.command == "init-key":
         seed = Ed25519PrivateKey.generate().private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -75,6 +85,15 @@ def main() -> None:
                          sort_keys=True))
         return
     key = AgentKey.load(args.key_file)
+    if args.command == "serve-release":
+        result = serve_one_release(
+            socket_path=args.socket, output_path=args.output, key=key,
+            task_id=args.task_id, task_commitment=args.task_commitment,
+            operation_id=args.operation_id, resource_handle=args.resource_handle,
+            channel_name=args.channel_name,
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
     if args.command == "sign-preimage":
         raw = args.preimage_file.read_bytes()
         if not 1 <= len(raw) <= 65_536:
