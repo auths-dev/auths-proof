@@ -1589,6 +1589,8 @@ impl SubmitIo for EngineIo<'_> {
             let record = prepared.loaded.record();
             if record.connection_id().as_str() != admission.binding.connection_id
                 || record.generation().get() != admission.binding.connection_generation
+                || record.account_commitment()
+                    != &submit::account_commitment(&admission.binding.connection_subject)
             {
                 return Err("gateway.task.connection-changed");
             }
