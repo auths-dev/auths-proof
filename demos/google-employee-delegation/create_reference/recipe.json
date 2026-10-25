@@ -21,7 +21,7 @@
       {"kind": "fixed", "value": "v3"},
       {"kind": "fixed", "value": "files"}
     ],
-    "query": {"supportsAllDrives": "true"},
+    "query": {"fields": "id", "supportsAllDrives": "true"},
     "body": {
       "kind": "json",
       "value": {
@@ -50,7 +50,7 @@
       {"kind": "fixed", "value": "files"},
       {"kind": "response-field", "pointer": "/id", "max_bytes": 64}
     ],
-    "query": {"supportsAllDrives": "true"},
+    "query": {"fields": "name", "supportsAllDrives": "true"},
     "json_pointer": "/name",
     "expected_field": "title",
     "maximum_response_bytes": 16384

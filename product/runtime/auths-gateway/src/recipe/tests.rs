@@ -231,7 +231,7 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
     assert_eq!(request.method(), WriteMethod::Post);
     assert_eq!(
         request.url(),
-        "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true"
+        "https://www.googleapis.com/drive/v3/files?fields=id&supportsAllDrives=true"
     );
     assert_eq!(
         serde_json::from_slice::<Value>(request.body()).expect("JSON body"),
@@ -269,7 +269,7 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         .expect("closed observation request");
     assert_eq!(
         observation.url(),
-        "https://www.googleapis.com/drive/v3/files/child_ABC-123?supportsAllDrives=true"
+        "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=true"
     );
     assert_eq!(
         recipe.review_document()["observation"]["query"]["supportsAllDrives"],

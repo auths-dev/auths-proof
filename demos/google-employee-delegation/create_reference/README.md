@@ -6,7 +6,7 @@ qualified installation. The generated [profile lock](profile.lock.json) and
 the Google Docs edit and Airtable references. The action signs one Project A
 parent ID, title and opaque recovery marker under a task ID and task-card
 commitment. The recipe fixes `POST /drive/v3/files`, the
-`supportsAllDrives=true` query, Google Docs MIME type, one parent and one
+`fields=id` and `supportsAllDrives=true` queries, Google Docs MIME type, one parent and one
 public file property carrying the marker. The agent supplies no URL, query,
 JSON shape or credential. The task gate must independently confirm that the
 signed parent is the human-approved folder and that the connected Google
@@ -34,7 +34,7 @@ and generates a fresh 128-bit marker; the future task ceremony must sign and
 persist those values before any provider call.
 The gateway recipe now declares one bounded `created_child` mapping for the
 complete successful response's `/id`. Its reviewed observation GET uses that
-candidate ID and a fixed `supportsAllDrives=true` query. A recorded response
+candidate ID and fixed `fields=name` and `supportsAllDrives=true` queries. A recorded response
 retains the candidate across a gateway restart. This is response evidence:
 the current observation compares the file name only, and neither it nor the
 candidate grants permission to populate the file. The task still needs a

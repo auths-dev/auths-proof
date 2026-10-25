@@ -831,14 +831,14 @@ mod tests {
         let recipe = CompiledRecipe::compile(source, lock).expect("create recipe");
         let transport = GatewayHttpTransport::for_loopback_test(&recipe, 18765);
         let path = "https://www.googleapis.com/drive/v3/files/child_ABC-123";
-        assert!(transport.owns_read_url(&format!("{path}?supportsAllDrives=true")));
+        assert!(transport.owns_read_url(&format!("{path}?fields=name&supportsAllDrives=true")));
         for candidate in [
             format!("{path}?supportsAllDrives=false"),
-            format!("{path}?supportsAllDrives=true&fields=id"),
+            format!("{path}?fields=id&supportsAllDrives=true"),
             format!(
-                "https://elsewhere.example/drive/v3/files/child_ABC-123?supportsAllDrives=true"
+                "https://elsewhere.example/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=true"
             ),
-            format!("{path}?supportsAllDrives=true#fragment"),
+            format!("{path}?fields=name&supportsAllDrives=true#fragment"),
         ] {
             assert!(!transport.owns_read_url(&candidate), "{candidate}");
         }
@@ -859,11 +859,11 @@ mod tests {
         let port = listener.local_addr().expect("address").port();
         let provider = tokio::spawn(async move { capture_heads(&listener, 1).await });
         let transport = GatewayHttpTransport::for_loopback_test(&recipe, port);
-        let url = "https://www.googleapis.com/drive/v3/files/child_ABC-123?supportsAllDrives=true";
+        let url = "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=true";
         let rejected = transport
             .read(
                 reqwest::Method::GET,
-                "https://www.googleapis.com/drive/v3/files/child_ABC-123?supportsAllDrives=false",
+                "https://www.googleapis.com/drive/v3/files/child_ABC-123?fields=name&supportsAllDrives=false",
                 &[],
                 1024,
                 b"synthetic-transport-fixture",
@@ -883,8 +883,9 @@ mod tests {
         let heads = provider.await.expect("provider");
         assert_eq!(heads.len(), 1);
         assert!(
-            heads[0]
-                .starts_with("get /drive/v3/files/child_abc-123?supportsalldrives=true http/1.1"),
+            heads[0].starts_with(
+                "get /drive/v3/files/child_abc-123?fields=name&supportsalldrives=true http/1.1"
+            ),
             "{}",
             heads[0]
         );
