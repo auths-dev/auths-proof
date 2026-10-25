@@ -366,6 +366,34 @@ def run(env_file: Path, root: Path, binary: Path,
             or before_read.get("provider_calls") != 0
             or before_read.get("releases") != 0):
         raise RuntimeError("wrong Airtable recipient entered provider or released content")
+    wrong_recipe = "f" * 64
+    wrong_recipe_package = dict(signed.read_agent_package)
+    wrong_recipe_package["recipe_digest"] = wrong_recipe
+    _write_json(agent_dir / "wrong-recipe-read-package.json", wrong_recipe_package)
+    _write_json(agent_dir / "wrong-recipe-read-arguments.json", {
+        **common, "operator_namespace": "airtable-read-demo",
+        "operation_id": "airtable-read-wrong-recipe",
+        "recipe_digest": wrong_recipe, "resource_id": record,
+        "agent_principal": agent_principal,
+    })
+    wrong_recipe_output = _private_dir(
+        agent_dir / "wrong-recipe-read-output", create=True)
+    _agent("sign-read", "--key-file", agent_dir / "agent.seed",
+           "--package-file", agent_dir / "wrong-recipe-read-package.json",
+           "--arguments-file", agent_dir / "wrong-recipe-read-arguments.json",
+           "--out-dir", wrong_recipe_output)
+    wrong_recipe_result = _gateway(
+        binary, "task-read-submit", "--state-dir", state,
+        "--task-id", signed.task_id,
+        "--agent-proof", wrong_recipe_output / "read.proof",
+        "--agent-action", wrong_recipe_output / "read.action",
+    )
+    after_wrong_recipe = _gateway(binary, "task-status", "--state-dir", state,
+                                  "--task-id", signed.task_id)
+    if (wrong_recipe_result != {"outcome": "not-entered",
+                                "code": "gateway.release.native-proof"}
+            or after_wrong_recipe != before_read):
+        raise RuntimeError("wrong Airtable recipe entered provider or spent task budget")
     excluded_record = record[:-1] + ("Z" if record[-1] != "Z" else "Y")
     _write_json(agent_dir / "excluded-read-arguments.json", {
         **common, "operator_namespace": "airtable-read-demo",
@@ -571,6 +599,8 @@ def run(env_file: Path, root: Path, binary: Path,
         "independent_readback": "approved-with-echo",
         "excluded_read_outcome": excluded.get("outcome"),
         "excluded_read_code": excluded.get("code"),
+        "wrong_recipe_outcome": wrong_recipe_result.get("outcome"),
+        "wrong_recipe_code": wrong_recipe_result.get("code"),
         "wrong_recipient_outcome": "agent-signing-refused",
         "gateway_status": status,
         "cleanup": "pending",
