@@ -15,7 +15,18 @@ use crate::observer::{
     outcome_facts, read_back_facts,
 };
 use crate::recipe::{ENTRY_DEADLINE_SECONDS, GuardChecks};
+#[cfg(unix)]
+use crate::release_state::FileReleaseTaskLedger;
 use crate::submit::{self, SubmitContext, SubmitIo};
+#[cfg(unix)]
+use crate::task_activation::{
+    ApprovedAgentTask, TaskActivationPins, WriteApprovalMode, verify_task_activation,
+};
+#[cfg(unix)]
+use crate::task_write::{
+    ApprovedTaskWrite, TaskWriteBinding, admit_bounded_upfront_write, derive_exact_write_intent,
+    verify_exact_write_confirmation,
+};
 use crate::transport::{
     GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderPort, ProviderResponse,
     WriteTransportOutcome,
@@ -1100,6 +1111,8 @@ impl GatewayEngine {
             started: Instant::now(),
             prepared: OnceLock::new(),
             #[cfg(unix)]
+            task_write: None,
+            #[cfg(unix)]
             commissioning: None,
             #[cfg(unix)]
             commissioned_action: OnceLock::new(),
@@ -1156,10 +1169,112 @@ impl GatewayEngine {
             started: Instant::now(),
             prepared: OnceLock::new(),
             #[cfg(unix)]
+            task_write: None,
+            #[cfg(unix)]
             commissioning: None,
             #[cfg(unix)]
             commissioned_action: OnceLock::new(),
             #[cfg(unix)]
+            commissioning_refusal: OnceLock::new(),
+        };
+        submit::run(
+            &SubmitContext {
+                recipe: &self.recipe,
+                attempts: &self.attempts,
+                context: &self.trusted_context,
+                observer: self.observer.as_ref(),
+            },
+            &io,
+        )
+        .await
+    }
+
+    /// Task-aware entry for a recipe that declares `task_binding`. The
+    /// caller supplies operator-installed pins and a private journal; these
+    /// are never accepted from the agent or ordinary application frame.
+    #[allow(dead_code)] // The installed task socket and operator pin loader are pending.
+    #[cfg(unix)]
+    pub(crate) async fn submit_task_write(
+        &self,
+        submission: TaskWriteSubmission<'_>,
+    ) -> GatewaySubmitResult {
+        if !self.recipe.requires_task_admission() {
+            return not_entered("gateway.task.recipe-not-bound");
+        }
+        let Some(now) = wall_clock_seconds() else {
+            return GatewaySubmitResult::Indeterminate {
+                code: "gateway.verify.clock-unavailable".to_owned(),
+            };
+        };
+        let task = match verify_task_activation(
+            &self.trusted_context,
+            submission.pins,
+            now,
+            submission.task_proof,
+            submission.task_action,
+        ) {
+            Ok(task) => task,
+            Err(result) => return result,
+        };
+        let verified = match verify_detailed(
+            &self.recipe,
+            &self.trusted_context,
+            now,
+            submission.agent_proof,
+            submission.agent_action,
+        ) {
+            Ok(verified) => verified,
+            Err(result) => return result,
+        };
+        let intent = match derive_exact_write_intent(
+            &task,
+            &verified,
+            &self.recipe,
+            submission.binding,
+            now,
+        ) {
+            Ok(intent) => intent,
+            Err(result) => return result,
+        };
+        let approved = match task.descriptor().write_approval_mode {
+            WriteApprovalMode::Exact => {
+                let Some((proof, action)) = submission.confirmation else {
+                    return not_entered("gateway.task.exact-confirmation-required");
+                };
+                verify_exact_write_confirmation(
+                    &self.trusted_context,
+                    &task,
+                    intent,
+                    now,
+                    proof,
+                    action,
+                )
+            }
+            WriteApprovalMode::BoundedUpfront => {
+                if submission.confirmation.is_some() {
+                    return not_entered("gateway.task.unexpected-confirmation");
+                }
+                admit_bounded_upfront_write(&task, intent, now)
+            }
+        };
+        let approved = match approved {
+            Ok(approved) => approved,
+            Err(result) => return result,
+        };
+        let io = EngineIo {
+            engine: self,
+            proof: submission.agent_proof,
+            action: submission.agent_action,
+            started: Instant::now(),
+            prepared: OnceLock::new(),
+            task_write: Some(TaskWriteAdmission {
+                task: &task,
+                binding: submission.binding,
+                approved: &approved,
+                ledger: submission.ledger,
+            }),
+            commissioning: None,
+            commissioned_action: OnceLock::new(),
             commissioning_refusal: OnceLock::new(),
         };
         submit::run(
@@ -1344,12 +1459,35 @@ fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResul
 }
 
 /// The installed engine's I/O for one submission.
+#[allow(dead_code)] // Constructed by the task socket once installed.
+#[cfg(unix)]
+pub(crate) struct TaskWriteSubmission<'a> {
+    pub(crate) pins: &'a TaskActivationPins,
+    pub(crate) binding: &'a TaskWriteBinding,
+    pub(crate) ledger: &'a FileReleaseTaskLedger,
+    pub(crate) task_proof: &'a [u8],
+    pub(crate) task_action: &'a [u8],
+    pub(crate) agent_proof: &'a [u8],
+    pub(crate) agent_action: &'a [u8],
+    pub(crate) confirmation: Option<(&'a [u8], &'a [u8])>,
+}
+
+#[cfg(unix)]
+struct TaskWriteAdmission<'a> {
+    task: &'a ApprovedAgentTask,
+    binding: &'a TaskWriteBinding,
+    approved: &'a ApprovedTaskWrite,
+    ledger: &'a FileReleaseTaskLedger,
+}
+
 struct EngineIo<'a> {
     engine: &'a GatewayEngine,
     proof: &'a [u8],
     action: &'a [u8],
     started: Instant,
     prepared: OnceLock<PreparedEntry>,
+    #[cfg(unix)]
+    task_write: Option<TaskWriteAdmission<'a>>,
     #[cfg(unix)]
     commissioning: Option<&'a CommissioningSession<'a>>,
     #[cfg(unix)]
@@ -1378,6 +1516,19 @@ impl SubmitIo for EngineIo<'_> {
             self.action,
         )?;
         #[cfg(unix)]
+        if let Some(admission) = &self.task_write {
+            let intent = derive_exact_write_intent(
+                admission.task,
+                &verified,
+                &self.engine.recipe,
+                admission.binding,
+                now,
+            )?;
+            if &intent != admission.approved.intent() {
+                return Err(not_entered("gateway.task.write-action-changed"));
+            }
+        }
+        #[cfg(unix)]
         if let Some(session) = self.commissioning {
             let action = session.bind_verified(&verified).map_err(not_entered)?;
             self.commissioned_action
@@ -1393,6 +1544,28 @@ impl SubmitIo for EngineIo<'_> {
             verified.bound.as_ref(),
             &verified.arguments,
         )
+    }
+
+    fn reserve_task_write(
+        &self,
+        _verified: &VerifiedCommand,
+        now: u64,
+    ) -> Result<(), &'static str> {
+        #[cfg(unix)]
+        {
+            if let Some(admission) = &self.task_write {
+                return admission
+                    .ledger
+                    .reserve_write(admission.approved, now)
+                    .map(|_| ())
+                    .map_err(crate::release_state::ReleaseStateError::write_code);
+            }
+        }
+        if self.engine.recipe.requires_task_admission() {
+            Err("gateway.task.task-submit-required")
+        } else {
+            Ok(())
+        }
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {
@@ -1411,6 +1584,15 @@ impl SubmitIo for EngineIo<'_> {
         };
         #[cfg(not(unix))]
         let prepared = self.engine.prepare_entry().await?;
+        #[cfg(unix)]
+        if let Some(admission) = &self.task_write {
+            let record = prepared.loaded.record();
+            if record.connection_id().as_str() != admission.binding.connection_id
+                || record.generation().get() != admission.binding.connection_generation
+            {
+                return Err("gateway.task.connection-changed");
+            }
+        }
         self.prepared
             .set(prepared)
             .map_err(|_| "gateway.transport.preparation")

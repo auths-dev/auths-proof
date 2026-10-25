@@ -560,7 +560,7 @@ mod tests {
     #[test]
     fn google_and_airtable_compile_to_the_same_closed_release_mechanism() {
         let (google_source, google_lock) = fixture(true);
-        let google = CompiledReleaseRecipe::compile(&google_source, &google_lock)
+        let google = CompiledReleaseRecipe::compile(google_source, google_lock)
             .expect("Google release compiles");
         let request = google
             .closed_request_from_arguments(&arguments(&google, "google-read-demo"), [7; 32])
@@ -582,7 +582,7 @@ mod tests {
         );
 
         let (airtable_source, airtable_lock) = fixture(false);
-        let airtable = CompiledReleaseRecipe::compile(&airtable_source, &airtable_lock)
+        let airtable = CompiledReleaseRecipe::compile(airtable_source, airtable_lock)
             .expect("Airtable release compiles");
         let request = airtable
             .closed_request_from_arguments(&arguments(&airtable, "airtable-read-demo"), [9; 32])
@@ -668,7 +668,7 @@ mod tests {
     #[test]
     fn changed_action_and_unavailable_projection_never_produce_release_bytes() {
         let (source, lock) = fixture(false);
-        let recipe = CompiledReleaseRecipe::compile(&source, &lock).expect("release compiles");
+        let recipe = CompiledReleaseRecipe::compile(source, lock).expect("release compiles");
         let mut changed = arguments(&recipe, "airtable-read-demo");
         changed.insert("recipe_digest".into(), json!("0".repeat(64)));
         assert_eq!(
@@ -698,7 +698,7 @@ mod tests {
             Err(ReleaseProjectionError::MediaType)
         );
         assert_eq!(
-            recipe.project(200, "application/json", &[b'x'; 16_385]),
+            recipe.project(200, "application/json", &vec![b'x'; 16_385]),
             Err(ReleaseProjectionError::Body)
         );
     }
@@ -706,22 +706,22 @@ mod tests {
     #[test]
     fn hostile_source_changes_fail_before_request_construction() {
         let (source, lock) = fixture(true);
-        let mut value: Value = serde_json::from_slice(&source).expect("source JSON");
+        let mut value: Value = serde_json::from_slice(source).expect("source JSON");
         value["origin"] = json!("http://localhost");
         assert_eq!(
-            CompiledReleaseRecipe::compile(&serde_json::to_vec(&value).expect("JSON"), &lock).err(),
+            CompiledReleaseRecipe::compile(&serde_json::to_vec(&value).expect("JSON"), lock).err(),
             Some(GatewayRecipeError::UnsafeOrigin)
         );
         value["origin"] = json!("https://www.googleapis.com");
         value["path"][3] = json!({"kind":"response-field","pointer":"/id","max_bytes":128});
         assert_eq!(
-            CompiledReleaseRecipe::compile(&serde_json::to_vec(&value).expect("JSON"), &lock).err(),
+            CompiledReleaseRecipe::compile(&serde_json::to_vec(&value).expect("JSON"), lock).err(),
             Some(GatewayRecipeError::UnsafePath)
         );
         value["path"][3] = json!({"kind":"field","name":"resource_id"});
         value["response"]["maximum_release_bytes"] = json!(1_048_577);
         assert_eq!(
-            CompiledReleaseRecipe::compile(&serde_json::to_vec(&value).expect("JSON"), &lock).err(),
+            CompiledReleaseRecipe::compile(&serde_json::to_vec(&value).expect("JSON"), lock).err(),
             Some(GatewayRecipeError::UnsafeTemplate)
         );
     }

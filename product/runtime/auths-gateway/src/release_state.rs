@@ -198,6 +198,18 @@ pub(crate) enum ReleaseStateError {
     Unavailable,
 }
 
+impl ReleaseStateError {
+    pub(crate) const fn write_code(self) -> &'static str {
+        match self {
+            Self::Binding | Self::Stage | Self::Commitment => "gateway.task.write-binding",
+            Self::Inactive => "gateway.task.inactive",
+            Self::Replay => "gateway.task.write-replay",
+            Self::Exhausted => "gateway.task.write-budget",
+            Self::Exists | Self::Corrupt | Self::Unavailable => "gateway.task.store-unavailable",
+        }
+    }
+}
+
 fn bounded_text(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.chars().any(char::is_control)
 }
@@ -1052,7 +1064,7 @@ mod tests {
         }
     }
 
-    fn call<'a>(operation_id: &'a str) -> ReleaseCall<'a> {
+    fn call(operation_id: &str) -> ReleaseCall<'_> {
         ReleaseCall {
             task_id: "task-1",
             operation_id,

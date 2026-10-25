@@ -1,7 +1,8 @@
 //! Task-bound write admission. The operator chooses the typed resource field
 //! from a reviewed profile; the agent cannot choose how an action maps to a
 //! task scope. This module verifies intent and exact human confirmation. The
-//! installed gateway still needs to call it before a write claim or lease.
+//! task-aware engine path calls it before a write claim or lease; the installed
+//! socket and operator pin loader still need to expose that path.
 
 use crate::CompiledRecipe;
 use crate::bounds::authorized_chains;
@@ -284,6 +285,10 @@ mod tests {
 
     const NOW: u64 = 1_790_000_000;
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "fixture ties native action, recipe and task card together"
+    )]
     fn setup() -> (
         ApprovedAgentTask,
         ExactWriteIntent,

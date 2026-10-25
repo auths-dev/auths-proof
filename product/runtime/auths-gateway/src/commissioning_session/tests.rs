@@ -239,6 +239,7 @@ fn io<'a>(setup: &'a Setup, session: Option<&'a CommissioningSession<'a>>) -> En
         action: &setup.action,
         started: Instant::now(),
         prepared: OnceLock::new(),
+        task_write: None,
         commissioning: session,
         commissioned_action: OnceLock::new(),
         commissioning_refusal: OnceLock::new(),

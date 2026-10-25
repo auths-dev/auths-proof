@@ -193,6 +193,7 @@ impl CommissioningSession<'_> {
             action,
             started: Instant::now(),
             prepared: OnceLock::new(),
+            task_write: None,
             commissioning: Some(self),
             commissioned_action: OnceLock::new(),
             commissioning_refusal: OnceLock::new(),

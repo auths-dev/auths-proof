@@ -52,6 +52,16 @@ pub(crate) trait SubmitIo {
     /// value.
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str>;
 
+    /// Task-bound recipes must durably spend their write allowance before
+    /// the provider attempt claim. Ordinary recipes have no task allowance.
+    fn reserve_task_write(
+        &self,
+        _verified: &VerifiedCommand,
+        _now: u64,
+    ) -> Result<(), &'static str> {
+        Ok(())
+    }
+
     /// Loads the shared connection record, requires this process to hold
     /// its current credential, and prepares the pinned transport.
     async fn prepare(&self) -> Result<(), &'static str>;
@@ -503,6 +513,10 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(verified) = &self.verified else {
             return ClaimResult::Unavailable;
         };
+        if let Err(code) = self.io.reserve_task_write(verified, self.evaluated_at) {
+            self.refuse_before_claim(not_entered(code));
+            return ClaimResult::Refused;
+        }
         match self
             .cx
             .attempts
