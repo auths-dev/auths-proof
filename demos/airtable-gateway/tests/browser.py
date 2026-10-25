@@ -32,6 +32,8 @@ def test_packaged_workbench_and_unsigned_evidence():
         page.set_viewport_size({'width': 390, 'height': 844})
         page.screenshot(path='/evidence/workbench-mobile.png', full_page=True)
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        page.set_viewport_size({'width': 320, 'height': 844})
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         assert page.evaluate('document.querySelectorAll("button").length') == 1
         browser.close()
 
