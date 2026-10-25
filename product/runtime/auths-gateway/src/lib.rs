@@ -99,7 +99,10 @@ pub use audit::{
     MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, ProviderResult, UnverifiedEntries,
     audit_bundle,
 };
-pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
+pub use binding::{
+    GatewayConnectionDescriptor, GatewayConnectionError, GatewayTaskConnectionDescriptor,
+    TASK_CONNECTION_DESCRIPTOR_SCHEMA,
+};
 pub use bounds::{
     ARGUMENT_CEILING_CANONICALIZATION, ARGUMENT_CEILING_EVALUATOR, ARGUMENT_CEILING_POLICY_TYPE,
     ARGUMENT_CEILING_POLICY_VERSION, ArgumentCeilingPolicy, BoundedPolicyError, ListedValues,

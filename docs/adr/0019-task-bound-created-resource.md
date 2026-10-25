@@ -1,8 +1,10 @@
 # ADR 0019: Bind a created resource to one human-agent task
 
-**Status:** Proposed for AP-SPEC-071. The current gateway has no child-resource
-binding or multi-recipe task installation. This ADR authorizes no production
-claim by itself.
+**Status:** Proposed for AP-SPEC-071. The gateway can now validate a bounded,
+operator-approved connection descriptor containing two to four task-bound
+recipe digests for one credential. The installed runtime still has no shared
+multi-recipe task journal or child-resource binding. This ADR authorizes no
+production claim by itself.
 
 **Date:** 25 October 2026
 
