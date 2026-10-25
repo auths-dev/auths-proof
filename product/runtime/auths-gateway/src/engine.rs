@@ -1610,12 +1610,7 @@ impl TaskWriteSession<'_> {
             proof_cbor,
             action_cbor,
         )?;
-        if task
-            .descriptor()
-            .write_scopes
-            .iter()
-            .any(|scope| !self.recipe_digests.contains(&scope.recipe_digest))
-        {
+        if !task.descriptor().recipes_installed(&self.recipe_digests) {
             return Err(not_entered("gateway.task.recipe-not-installed"));
         }
         let loaded = self

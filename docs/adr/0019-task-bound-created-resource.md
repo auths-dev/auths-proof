@@ -5,7 +5,11 @@ operator-approved connection descriptor containing two to four task-bound
 recipe digests and their reviewed HTTPS origins for one credential. Task
 activation checks a closed installed recipe set against that connection. A
 development installation can load the Google edit and create recipes with one
-connection and task journal. A reviewed create declaration now extracts one
+connection and task journal. The human-signed card can now name a pending
+child proposal with the exact create operation, parent, title, marker and
+reviewed create/populate digests. Activation requires both digests to be
+installed, and create admission compares the signed values; the pending
+proposal is not an executable populate scope. A reviewed create declaration now extracts one
 bounded child ID from a complete successful response and retains it as a
 candidate in the attempt journal across restart. The reviewed observation
 path can address that candidate; its name comparison is not the metadata

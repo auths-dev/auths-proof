@@ -623,6 +623,16 @@ impl CompiledRecipe {
         &self.fixed_observation_query
     }
 
+    pub(crate) fn created_child_fields(&self) -> Option<(&str, &str, &str)> {
+        self.source.created_child.as_ref().map(|child| {
+            (
+                child.parent_field.as_str(),
+                child.title_field.as_str(),
+                child.marker_field.as_str(),
+            )
+        })
+    }
+
     /// What this recipe can prove after an ambiguous write.
     #[must_use]
     pub fn recovery(&self) -> RecoveryCapability {

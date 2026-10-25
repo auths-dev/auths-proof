@@ -49,6 +49,45 @@ pub(crate) struct TaskWriteScope {
     pub(crate) connection_subject: String,
 }
 
+/// A human-approved child that does not exist at task activation. This is a
+/// proposal, not an executable write scope: only a later verified binding
+/// may make `populate_recipe_digest` usable for the returned child ID.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct TaskPendingChild {
+    pub(crate) create_operation_id: String,
+    pub(crate) create_recipe_digest: String,
+    pub(crate) populate_recipe_digest: String,
+    pub(crate) parent_handle: String,
+    pub(crate) title: String,
+    pub(crate) marker: String,
+}
+
+impl TaskPendingChild {
+    fn valid_for(&self, card: &AgentTaskDescriptor) -> bool {
+        card.write_approval_mode == WriteApprovalMode::Exact
+            && card.max_writes >= 2
+            && bounded_text(&self.create_operation_id, 128)
+            && digest(&self.create_recipe_digest)
+            && digest(&self.populate_recipe_digest)
+            && self.create_recipe_digest != self.populate_recipe_digest
+            && bounded_text(&self.parent_handle, 256)
+            && bounded_text(&self.title, 256)
+            && bounded_text(&self.marker, 256)
+            && card
+                .write_scopes
+                .iter()
+                .filter(|scope| scope.verb == TaskWriteVerb::Create)
+                .count()
+                == 1
+            && card.write_scopes.iter().any(|scope| {
+                scope.verb == TaskWriteVerb::Create
+                    && scope.handle == self.parent_handle
+                    && scope.recipe_digest == self.create_recipe_digest
+            })
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum WriteApprovalMode {
@@ -72,6 +111,8 @@ pub(crate) struct AgentTaskDescriptor {
     pub(crate) connection_subject: String,
     read_scopes: Vec<TaskReadScope>,
     pub(crate) write_scopes: Vec<TaskWriteScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) pending_child: Option<TaskPendingChild>,
     pub(crate) delivery_channel: String,
     pub(crate) not_before: u64,
     pub(crate) expires_at: u64,
@@ -230,6 +271,16 @@ fn valid_upfront_choices(choices: &[BTreeMap<String, Value>]) -> bool {
 }
 
 impl AgentTaskDescriptor {
+    pub(crate) fn recipes_installed(&self, digests: &[String]) -> bool {
+        self.write_scopes
+            .iter()
+            .all(|scope| digests.contains(&scope.recipe_digest))
+            && self.pending_child.as_ref().is_none_or(|pending| {
+                digests.contains(&pending.create_recipe_digest)
+                    && digests.contains(&pending.populate_recipe_digest)
+            })
+    }
+
     fn validate(&self, pins: &TaskActivationPins, now: u64) -> Result<(), GatewaySubmitResult> {
         if self.schema != TASK_SCHEMA
             || !bounded_text(&self.task_id, 128)
@@ -301,6 +352,13 @@ impl AgentTaskDescriptor {
             {
                 return Err(not_entered("gateway.task.invalid-write-scope"));
             }
+        }
+        if self
+            .pending_child
+            .as_ref()
+            .is_some_and(|pending| !pending.valid_for(self))
+        {
+            return Err(not_entered("gateway.task.invalid-pending-child"));
         }
         if self.company_id != pins.company_id
             || self.human_principal != pins.human_principal
@@ -448,6 +506,7 @@ mod tests {
                 connection_generation: 3,
                 connection_subject: "jules-subject".to_owned(),
             }],
+            pending_child: None,
             delivery_channel: "registered-agent-channel".to_owned(),
             not_before: NOW - 30,
             expires_at: NOW + 900,
@@ -547,6 +606,92 @@ mod tests {
                 .expect("task")
                 .digest()
                 .expect("digest")
+        );
+    }
+
+    #[test]
+    fn signed_pending_child_names_one_create_and_one_future_populate_recipe() {
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut card = card(&human, &agent);
+        card.write_scopes.push(TaskWriteScope {
+            handle: "project-a-folder".to_owned(),
+            recipe_digest: "e".repeat(64),
+            verb: TaskWriteVerb::Create,
+            connection_id: card.connection_id.clone(),
+            connection_generation: card.connection_generation,
+            connection_subject: card.connection_subject.clone(),
+        });
+        card.max_writes = 3;
+        card.pending_child = Some(TaskPendingChild {
+            create_operation_id: "create-1".to_owned(),
+            create_recipe_digest: "e".repeat(64),
+            populate_recipe_digest: "f".repeat(64),
+            parent_handle: "project-a-folder".to_owned(),
+            title: "Auths AP-071 Project A handoff".to_owned(),
+            marker: format!("ap071_{}", "d".repeat(32)),
+        });
+        let installed = pins(&card);
+        card.validate(&installed, NOW).expect("pending task card");
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_for_agent_and_task(&root, observer.principal(), NOW)
+            .expect("installed context");
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let approved = verify_task_activation(&context, &installed, NOW, &proof, &action)
+            .expect("human signed pending child");
+        assert_eq!(approved.descriptor().pending_child, card.pending_child);
+        let root = tempfile::tempdir().expect("private task journal");
+        let path = fs::canonicalize(root.path())
+            .expect("canonical directory")
+            .join("task");
+        let ledger = FileReleaseTaskLedger::open(&path).expect("journal");
+        ledger.initialize(&approved).expect("durable activation");
+        drop(ledger);
+        let reopened = FileReleaseTaskLedger::open(path).expect("reopen journal");
+        let retained = reopened
+            .load(&card.task_id)
+            .expect("load")
+            .expect("stored task")
+            .activated_task(&installed, NOW + 1)
+            .expect("revalidate signed card");
+        assert_eq!(retained.descriptor().pending_child, card.pending_child);
+        assert!(!card.recipes_installed(&["c".repeat(64), "e".repeat(64)]));
+        assert!(card.recipes_installed(&["c".repeat(64), "e".repeat(64), "f".repeat(64),]));
+        let mut changed = card.clone();
+        changed.pending_child.as_mut().expect("pending").title = "Different title".to_owned();
+        assert!(
+            ApprovedAgentTask::from_activated_card(
+                changed,
+                *approved.commitment(),
+                &installed,
+                NOW
+            )
+            .is_err(),
+            "stored signed card cannot change title after activation"
+        );
+        let mut invalid = card.clone();
+        invalid
+            .pending_child
+            .as_mut()
+            .expect("pending")
+            .parent_handle = "project-b-folder".to_owned();
+        assert_eq!(
+            invalid.validate(&installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-pending-child"))
+        );
+        let mut invalid = card.clone();
+        invalid.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        assert!(invalid.validate(&installed, NOW).is_err());
+        let mut invalid = card;
+        invalid
+            .pending_child
+            .as_mut()
+            .expect("pending")
+            .populate_recipe_digest = "e".repeat(64);
+        assert_eq!(
+            invalid.validate(&installed, NOW).err(),
+            Some(not_entered("gateway.task.invalid-pending-child"))
         );
     }
 

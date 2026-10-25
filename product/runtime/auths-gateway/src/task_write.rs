@@ -11,7 +11,9 @@ use crate::engine::{
     GatewaySubmitResult, VerifiedCommand, authorized_action, not_entered,
     verify_sealed_for_audience,
 };
-use crate::task_activation::{ApprovedAgentTask, TASK_SERVICE, TaskWriteVerb, WriteApprovalMode};
+use crate::task_activation::{
+    AgentTaskDescriptor, ApprovedAgentTask, TASK_SERVICE, TaskWriteVerb, WriteApprovalMode,
+};
 use auths_model::{Audience, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
@@ -148,7 +150,7 @@ pub(crate) fn derive_exact_write_intent(
     }) {
         return Err(not_entered("gateway.task.write-scope"));
     }
-    Ok(ExactWriteIntent {
+    let intent = ExactWriteIntent {
         task_id: card.task_id.clone(),
         task_commitment: expected_task_commitment,
         operation_id: verified.request.operation_id().as_str().to_owned(),
@@ -160,7 +162,36 @@ pub(crate) fn derive_exact_write_intent(
         connection_id: binding.connection_id.clone(),
         connection_generation: binding.connection_generation,
         connection_subject: binding.connection_subject.clone(),
-    })
+    };
+    check_pending_create(card, recipe, arguments, &intent)?;
+    Ok(intent)
+}
+
+fn check_pending_create(
+    card: &AgentTaskDescriptor,
+    recipe: &CompiledRecipe,
+    arguments: &Map<String, Value>,
+    intent: &ExactWriteIntent,
+) -> Result<(), GatewaySubmitResult> {
+    let Some(pending) = card.pending_child.as_ref() else {
+        return Ok(());
+    };
+    if intent.verb != TaskWriteVerb::Create {
+        return Ok(());
+    }
+    let fields = recipe
+        .created_child_fields()
+        .ok_or_else(|| not_entered("gateway.task.pending-create-mismatch"))?;
+    if pending.create_operation_id != intent.operation_id
+        || pending.create_recipe_digest != intent.recipe_digest
+        || pending.parent_handle != intent.resource_handle
+        || arguments.get(fields.0).and_then(Value::as_str) != Some(pending.parent_handle.as_str())
+        || arguments.get(fields.1).and_then(Value::as_str) != Some(pending.title.as_str())
+        || arguments.get(fields.2).and_then(Value::as_str) != Some(pending.marker.as_str())
+    {
+        return Err(not_entered("gateway.task.pending-create-mismatch"));
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -305,7 +336,7 @@ mod tests {
     use crate::engine::verify_detailed;
     use crate::harness::{self, Signer};
     use crate::observed_tests::{submission, submission_for};
-    use crate::task_activation::AgentTaskDescriptor;
+    use crate::task_activation::{AgentTaskDescriptor, TaskPendingChild};
     use serde_json::{Map, json};
 
     const NOW: u64 = 1_790_000_000;
@@ -433,6 +464,75 @@ mod tests {
             derive_exact_write_intent(&different_task, &verified, &recipe, &binding, NOW).is_err()
         );
         (task, intent, context, root, human)
+    }
+
+    #[test]
+    fn pending_create_requires_the_signed_operation_parent_title_and_marker() {
+        let (task, mut intent, _, _, _) = setup();
+        let recipe = CompiledRecipe::compile(
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+            ),
+        )
+        .expect("reviewed create recipe");
+        let mut card = task.descriptor().clone();
+        let pending = TaskPendingChild {
+            create_operation_id: "create-1".to_owned(),
+            create_recipe_digest: recipe.digest_hex(),
+            populate_recipe_digest: "f".repeat(64),
+            parent_handle: "project-a-folder".to_owned(),
+            title: "Auths AP-071 Project A handoff".to_owned(),
+            marker: format!("ap071_{}", "d".repeat(32)),
+        };
+        card.pending_child = Some(pending.clone());
+        intent.verb = TaskWriteVerb::Create;
+        intent.operation_id = pending.create_operation_id.clone();
+        intent.recipe_digest = pending.create_recipe_digest.clone();
+        intent.resource_handle = pending.parent_handle.clone();
+        let arguments = Map::from_iter([
+            ("parent_id".to_owned(), json!(pending.parent_handle)),
+            ("title".to_owned(), json!(pending.title)),
+            ("recovery_marker".to_owned(), json!(pending.marker)),
+        ]);
+        check_pending_create(&card, &recipe, &arguments, &intent).expect("exact create proposal");
+        let mut wrong = intent.clone();
+        wrong.operation_id = "other-create".to_owned();
+        assert!(check_pending_create(&card, &recipe, &arguments, &wrong).is_err());
+        wrong = intent.clone();
+        wrong.resource_handle = "project-b-folder".to_owned();
+        assert!(check_pending_create(&card, &recipe, &arguments, &wrong).is_err());
+        wrong = intent.clone();
+        wrong.recipe_digest = "0".repeat(64);
+        assert!(check_pending_create(&card, &recipe, &arguments, &wrong).is_err());
+        let mut changed = arguments;
+        changed.insert(
+            "recovery_marker".to_owned(),
+            json!(format!("ap071_{}", "a".repeat(32))),
+        );
+        assert!(check_pending_create(&card, &recipe, &changed, &intent).is_err());
+        changed.insert("recovery_marker".to_owned(), json!(pending.marker));
+        changed.insert("title".to_owned(), json!("Different title"));
+        assert!(check_pending_create(&card, &recipe, &changed, &intent).is_err());
+        changed.insert("title".to_owned(), json!(pending.title));
+        let mut source: Value = serde_json::from_slice(include_bytes!(
+            "../../../../demos/google-employee-delegation/create_reference/recipe.json"
+        ))
+        .expect("create source");
+        source
+            .as_object_mut()
+            .expect("recipe object")
+            .remove("created_child");
+        let without_mapping = CompiledRecipe::compile(
+            &serde_json::to_vec(&source).expect("source bytes"),
+            include_bytes!(
+                "../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+            ),
+        )
+        .expect("ordinary create recipe");
+        assert!(check_pending_create(&card, &without_mapping, &changed, &intent).is_err());
     }
 
     fn confirmation(
