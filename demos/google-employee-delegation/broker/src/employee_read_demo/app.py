@@ -957,6 +957,12 @@ def main() -> int:
     if any(option is not None for option in write_options) and not all(
             option is not None for option in write_options):
         parser.error("all task-write inputs must be supplied together")
+    if (args.task_companion_write_recipe is None) != (
+            args.task_companion_write_profile_lock is None):
+        parser.error("companion write recipe and profile lock must be supplied together")
+    if args.task_companion_write_recipe is not None and not all(
+            option is not None for option in write_options):
+        parser.error("companion write requires the task-write installation")
     write_browser = None
     write_pins = None
     write_confirmation = None
