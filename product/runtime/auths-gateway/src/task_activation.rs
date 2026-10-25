@@ -12,7 +12,7 @@ use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 const TASK_SCHEMA: &str = "auths.agent-task/2";
 pub(crate) const TASK_SERVICE: &str = "auths-agent-task";
@@ -80,6 +80,10 @@ pub(crate) struct AgentTaskDescriptor {
     max_release_bytes: u64,
     pub(crate) max_writes: u32,
     pub(crate) write_approval_mode: WriteApprovalMode,
+    /// Complete profile arguments the human allows in upfront mode, except
+    /// operation and task binding fields inserted by the gateway.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) upfront_allowed_arguments: Vec<BTreeMap<String, Value>>,
     operator_policy_digest: String,
     purpose: String,
 }
@@ -202,6 +206,29 @@ fn digest(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+fn valid_upfront_choices(choices: &[BTreeMap<String, Value>]) -> bool {
+    let shapes_are_bounded = choices.iter().all(|allowed| {
+        !allowed.is_empty()
+            && allowed.len() <= 32
+            && allowed.keys().all(|name| {
+                !matches!(
+                    name.as_str(),
+                    "operator_namespace"
+                        | "operation_id"
+                        | "recipe_digest"
+                        | "task_id"
+                        | "task_commitment"
+                )
+            })
+            && serde_json_canonicalizer::to_vec(allowed).is_ok_and(|bytes| bytes.len() <= 4_096)
+    });
+    shapes_are_bounded
+        && !choices
+            .iter()
+            .enumerate()
+            .any(|(index, allowed)| choices[index + 1..].contains(allowed))
+}
+
 impl AgentTaskDescriptor {
     fn validate(&self, pins: &TaskActivationPins, now: u64) -> Result<(), GatewaySubmitResult> {
         if self.schema != TASK_SCHEMA
@@ -236,10 +263,19 @@ impl AgentTaskDescriptor {
             || (self.write_scopes.is_empty() != (self.max_writes == 0))
             || (self.write_approval_mode == WriteApprovalMode::BoundedUpfront
                 && !pins.allow_bounded_writes)
+            || (self.write_approval_mode == WriteApprovalMode::Exact
+                && !self.upfront_allowed_arguments.is_empty())
+            || (self.write_approval_mode == WriteApprovalMode::BoundedUpfront
+                && (self.max_writes != 1
+                    || self.upfront_allowed_arguments.is_empty()
+                    || self.upfront_allowed_arguments.len() > 4))
             || (self.write_scopes.is_empty()
                 && self.write_approval_mode != WriteApprovalMode::Exact)
         {
             return Err(not_entered("gateway.task.invalid-card"));
+        }
+        if !valid_upfront_choices(&self.upfront_allowed_arguments) {
+            return Err(not_entered("gateway.task.invalid-upfront-allowance"));
         }
         let mut reads = BTreeSet::new();
         for scope in &self.read_scopes {
@@ -420,6 +456,7 @@ mod tests {
             max_release_bytes: 16_384,
             max_writes: 1,
             write_approval_mode: WriteApprovalMode::Exact,
+            upfront_allowed_arguments: Vec::new(),
             operator_policy_digest: "d".repeat(64),
             purpose: "Draft a Project A update".to_owned(),
         }
@@ -660,6 +697,10 @@ mod tests {
         let agent = Signer::new(0x44);
         let mut card = card(&human, &agent);
         card.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        card.upfront_allowed_arguments = vec![BTreeMap::from([
+            ("record_id".to_owned(), json!("working-doc")),
+            ("replacement".to_owned(), json!("Approved")),
+        ])];
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
         let (proof, action) = signed_card(&root, &human, &card);
@@ -692,5 +733,36 @@ mod tests {
             WriteApprovalMode::BoundedUpfront
         );
         assert_eq!(json!(approved.descriptor().max_writes), json!(1));
+    }
+
+    #[test]
+    fn upfront_card_requires_a_small_unique_complete_choice_set() {
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let mut original = card(&human, &agent);
+        let mut installed = pins(&original);
+        installed.allow_bounded_writes = true;
+        original.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        assert!(original.validate(&installed, NOW).is_err());
+
+        let choice = BTreeMap::from([
+            ("document_id".to_owned(), json!("working-doc")),
+            ("replacement".to_owned(), json!("Approved")),
+        ]);
+        original.upfront_allowed_arguments = vec![choice.clone()];
+        assert!(original.validate(&installed, NOW).is_ok());
+
+        let mut changed = original.clone();
+        changed.max_writes = 2;
+        assert!(changed.validate(&installed, NOW).is_err());
+        changed = original.clone();
+        changed.upfront_allowed_arguments.push(choice);
+        assert!(changed.validate(&installed, NOW).is_err());
+        changed = original.clone();
+        changed.upfront_allowed_arguments[0].insert("operation_id".to_owned(), json!("run-1"));
+        assert!(changed.validate(&installed, NOW).is_err());
+        changed = original;
+        changed.write_approval_mode = WriteApprovalMode::Exact;
+        assert!(changed.validate(&installed, NOW).is_err());
     }
 }

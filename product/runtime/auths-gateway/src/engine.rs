@@ -1311,7 +1311,7 @@ impl GatewayEngine {
                 if submission.confirmation.is_some() {
                     return not_entered("gateway.task.unexpected-confirmation");
                 }
-                admit_bounded_upfront_write(&task, intent, now)
+                admit_bounded_upfront_write(&task, intent, &verified.arguments, now)
             }
         };
         let approved = match approved {

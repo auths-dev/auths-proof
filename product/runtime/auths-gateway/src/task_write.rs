@@ -16,7 +16,8 @@ use auths_model::{Audience, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 
 pub(crate) const CONFIRMATION_TOOL: &str = "confirm_agent_write_v1";
 
@@ -265,6 +266,7 @@ fn verify_exact_write_confirmation_for_profile(
 pub(crate) fn admit_bounded_upfront_write(
     task: &ApprovedAgentTask,
     intent: ExactWriteIntent,
+    arguments: &Map<String, Value>,
     now: u64,
 ) -> Result<ApprovedTaskWrite, GatewaySubmitResult> {
     let card = task.descriptor();
@@ -275,6 +277,23 @@ pub(crate) fn admit_bounded_upfront_write(
         || intent.task_commitment != hex::encode(task.commitment())
     {
         return Err(not_entered("gateway.task.upfront-write-binding"));
+    }
+    let proposed: BTreeMap<String, Value> = arguments
+        .iter()
+        .filter(|(name, _)| {
+            !matches!(
+                name.as_str(),
+                "operator_namespace"
+                    | "operation_id"
+                    | "recipe_digest"
+                    | "task_id"
+                    | "task_commitment"
+            )
+        })
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    if !card.upfront_allowed_arguments.contains(&proposed) {
+        return Err(not_entered("gateway.task.upfront-arguments-not-approved"));
     }
     Ok(ApprovedTaskWrite { intent })
 }
@@ -489,11 +508,32 @@ mod tests {
     #[test]
     fn exact_and_bounded_upfront_modes_are_distinct() {
         let (task, intent, context, root, human) = setup();
-        assert!(admit_bounded_upfront_write(&task, intent.clone(), NOW).is_err());
+        let approved_arguments = Map::from_iter([
+            ("record_id".to_owned(), json!(harness::RECORD)),
+            ("replacement".to_owned(), json!("Approved")),
+        ]);
+        assert!(
+            admit_bounded_upfront_write(&task, intent.clone(), &approved_arguments, NOW).is_err()
+        );
         let mut card = task.descriptor().clone();
         card.write_approval_mode = WriteApprovalMode::BoundedUpfront;
+        card.upfront_allowed_arguments = vec![approved_arguments.clone().into_iter().collect()];
         let upfront = ApprovedAgentTask::from_test_card(card, *task.commitment());
-        assert!(admit_bounded_upfront_write(&upfront, intent.clone(), NOW).is_ok());
+        assert!(
+            admit_bounded_upfront_write(&upfront, intent.clone(), &approved_arguments, NOW).is_ok()
+        );
+        let mut changed = approved_arguments.clone();
+        changed.insert("replacement".to_owned(), json!("Unapproved"));
+        assert_eq!(
+            admit_bounded_upfront_write(&upfront, intent.clone(), &changed, NOW).err(),
+            Some(not_entered("gateway.task.upfront-arguments-not-approved")),
+        );
+        changed = approved_arguments.clone();
+        changed.insert("extra".to_owned(), json!("unexpected"));
+        assert!(admit_bounded_upfront_write(&upfront, intent.clone(), &changed, NOW).is_err());
+        let mut bound = approved_arguments.clone();
+        bound.insert("operation_id".to_owned(), json!("any-valid-operation"));
+        assert!(admit_bounded_upfront_write(&upfront, intent.clone(), &bound, NOW).is_ok());
         let (proof, action) = confirmation(&root, &human, &intent);
         assert!(
             verify_exact_write_confirmation_for_profile(
