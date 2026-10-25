@@ -8,10 +8,11 @@
 use crate::CompiledRecipe;
 use crate::bounds::authorized_chains;
 use crate::engine::{
-    GatewaySubmitResult, VerifiedCommand, authorized_action, not_entered, verify_sealed,
+    GatewaySubmitResult, VerifiedCommand, authorized_action, not_entered,
+    verify_sealed_for_audience,
 };
 use crate::task_activation::{ApprovedAgentTask, TaskWriteVerb, WriteApprovalMode};
-use auths_model::{TrustedContext, VerifierLimits};
+use auths_model::{Audience, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 use serde::{Deserialize, Serialize};
@@ -205,7 +206,9 @@ fn verify_exact_write_confirmation_for_profile(
     {
         return Err(not_entered("gateway.task.exact-write-binding"));
     }
-    let sealed = verify_sealed(context, now, proof_cbor, action_cbor)?;
+    let audience = Audience::parse(&format!("mcp://{}", profile.0))
+        .map_err(|_| not_entered("gateway.task.confirmation-profile"))?;
+    let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     if action.action_ids().len() != 1 {
         return Err(not_entered("gateway.task.single-human-action-required"));
@@ -301,7 +304,8 @@ mod tests {
         let human = Signer::new(0x22);
         let agent = Signer::new(0x44);
         let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
+        let context = harness::context_for_agent_and_task(&root, observer.principal(), NOW)
+            .expect("installed context");
         let (source, lock) = harness::recipe_sources(
             &json!({
                 "task_id": {"kind": "string", "minimum": 1, "maximum": 128},
@@ -455,16 +459,7 @@ mod tests {
 
     #[test]
     fn exact_human_signature_binds_the_native_agent_action_and_closed_request() {
-        let (task, intent, _agent_context, root, human) = setup();
-        let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context_for_task_profile(
-            &root,
-            observer.principal(),
-            NOW,
-            CONFIRMATION_SERVICE,
-            CONFIRMATION_TOOL,
-        )
-        .expect("confirmation context");
+        let (task, intent, context, root, human) = setup();
         let (proof, action) = confirmation_for_exact_profile(&root, &human, &intent);
         let approved =
             verify_exact_write_confirmation(&context, &task, intent.clone(), NOW, &proof, &action)

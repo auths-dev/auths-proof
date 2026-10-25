@@ -208,7 +208,10 @@ fn envelope(
     )
 }
 
-#[allow(clippy::too_many_arguments, reason = "test action includes named MCP audience and time")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test action includes named MCP audience and time"
+)]
 fn envelope_for(
     agent: &Signer,
     canonical: &CanonicalAction,

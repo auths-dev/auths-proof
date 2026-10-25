@@ -42,6 +42,7 @@ use auths_registries::OBSERVATION_REQUIREMENT_EXTENSION_V1;
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Map, Value, json};
 use sha2::{Digest as _, Sha256};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -401,7 +402,7 @@ fn context_for(
     composition: CompositionRequirement,
     methods: &[&str],
 ) -> Result<TrustedContext, HarnessError> {
-    context_for_profile(
+    context_for_profiles(
         roots,
         observer,
         configuration,
@@ -409,22 +410,19 @@ fn context_for(
         depth,
         composition,
         methods,
-        SERVICE,
-        TOOL,
+        &[(SERVICE, TOOL)],
     )
 }
 
-/// A test trust context pinned to the real task approval or confirmation MCP
-/// profile, including its trust-anchor permission and audience.
+/// One installed context admits the provider action and both fixed human
+/// task actions while keeping the provider audience as its default.
 #[cfg(test)]
-pub(crate) fn context_for_task_profile(
+pub(crate) fn context_for_agent_and_task(
     root: &Signer,
     observer: &PrincipalId,
     now: u64,
-    service: &str,
-    tool: &str,
 ) -> Result<TrustedContext, HarnessError> {
-    context_for_profile(
+    context_for_profiles(
         &[root],
         observer,
         None,
@@ -432,8 +430,11 @@ pub(crate) fn context_for_task_profile(
         1,
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         &[RAW_KEY_V1],
-        service,
-        tool,
+        &[
+            (SERVICE, TOOL),
+            ("auths-agent-task", "approve_agent_task_v1"),
+            ("auths-agent-task", "confirm_agent_write_v1"),
+        ],
     )
 }
 
@@ -441,7 +442,7 @@ pub(crate) fn context_for_task_profile(
     clippy::too_many_arguments,
     reason = "test trust includes named MCP profile"
 )]
-fn context_for_profile(
+fn context_for_profiles(
     roots: &[&Signer],
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,
@@ -449,16 +450,38 @@ fn context_for_profile(
     depth: u16,
     composition: CompositionRequirement,
     methods: &[&str],
-    service: &str,
-    tool: &str,
+    profiles: &[(&str, &str)],
 ) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
     };
     let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
-    let unbound = fixture(McpToolCall::new(service, tool, Map::new()), "call")?;
-    let audience = fixture(Audience::parse(&format!("mcp://{service}")), "audience")?;
+    let calls = profiles
+        .iter()
+        .map(|(service, tool)| fixture(McpToolCall::new(*service, *tool, Map::new()), "call"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let first = calls.first().ok_or(HarnessError::Fixture("call"))?;
+    let services = profiles
+        .iter()
+        .map(|(service, _)| *service)
+        .collect::<BTreeSet<_>>();
+    let audiences = services
+        .iter()
+        .map(|service| fixture(Audience::parse(&format!("mcp://{service}")), "audience"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let audience = fixture(
+        Audience::parse(&format!("mcp://{}", profiles[0].0)),
+        "audience",
+    )?;
+    let namespaces = services
+        .iter()
+        .map(|service| fixture(ResourceId::parse(&format!("mcp://{service}/")), "namespace"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let permissions = calls
+        .iter()
+        .map(|call| fixture(call.permission(), "permission"))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut anchors = Vec::with_capacity(roots.len());
     for (index, root) in roots.iter().enumerate() {
         let id = if roots.len() == 1 {
@@ -471,16 +494,10 @@ fn context_for_profile(
                 fixture(TrustAnchorId::parse(&id), "anchor ID")?,
                 root.principal.clone(),
                 vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
-                vec![fixture(unbound.profile_ref(), "profile")?],
-                fixture(
-                    PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
-                    "permissions",
-                )?,
-                vec![fixture(
-                    ResourceId::parse(&format!("mcp://{service}/")),
-                    "namespace",
-                )?],
-                fixture(AudienceSet::new(vec![audience.clone()]), "audiences")?,
+                vec![fixture(first.profile_ref(), "profile")?],
+                fixture(PermissionSet::new(permissions.clone()), "permissions")?,
+                namespaces.clone(),
+                fixture(AudienceSet::new(audiences.clone()), "audiences")?,
                 window(now - 86_400, now + 86_400)?,
                 None,
                 depth,

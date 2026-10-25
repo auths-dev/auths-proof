@@ -41,7 +41,7 @@ use auths_connections::{
     ConnectionState, ProviderKind, SecretBytes, StoredSecretLease,
 };
 use auths_model::{
-    CanonicalAction, ObservationRequirement, ResourceId, Timestamp, TrustedContext,
+    Audience, CanonicalAction, ObservationRequirement, ResourceId, Timestamp, TrustedContext,
     VerificationDecision, VerifierConfigurationId,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
@@ -2031,6 +2031,25 @@ pub(crate) fn verify_sealed(
     proof_cbor: &[u8],
     action_cbor: &[u8],
 ) -> Result<auths_verifier::SealedVerificationResult, GatewaySubmitResult> {
+    verify_sealed_for_audience(
+        context,
+        context.expected_audience().clone(),
+        now,
+        proof_cbor,
+        action_cbor,
+    )
+}
+
+/// Rebinds only the verifier's expected audience for a fixed, gateway-owned
+/// approval profile. The caller must supply a code-defined audience; agent
+/// input must never choose the audience being verified.
+pub(crate) fn verify_sealed_for_audience(
+    context: &TrustedContext,
+    audience: Audience,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<auths_verifier::SealedVerificationResult, GatewaySubmitResult> {
     if proof_cbor.is_empty()
         || proof_cbor.len() > MAX_PROOF_BYTES
         || action_cbor.is_empty()
@@ -2041,11 +2060,7 @@ pub(crate) fn verify_sealed(
         });
     }
     let request_context = context
-        .for_request(
-            context.expected_audience().clone(),
-            context.expected_challenge(),
-            Timestamp::new(now),
-        )
+        .for_request(audience, context.expected_challenge(), Timestamp::new(now))
         .ok()
         .and_then(|value| auths_codec::encode_verifier_context(&value).ok())
         .ok_or_else(|| GatewaySubmitResult::Indeterminate {

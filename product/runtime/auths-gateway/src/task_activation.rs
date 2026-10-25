@@ -3,9 +3,11 @@
 //! agent and connection are installed. Provider access remains a later check.
 
 use crate::bounds::authorized_chains;
-use crate::engine::{GatewaySubmitResult, authorized_action, not_entered, verify_sealed};
+use crate::engine::{
+    GatewaySubmitResult, authorized_action, not_entered, verify_sealed_for_audience,
+};
 use crate::release_state::{ReleaseResourceScope, ReleaseTaskPolicy};
-use auths_model::{PrincipalId, TrustedContext, VerifierLimits};
+use auths_model::{Audience, PrincipalId, TrustedContext, VerifierLimits};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::McpProfile;
 use serde::{Deserialize, Serialize};
@@ -269,7 +271,9 @@ fn verify_task_activation_for_profile(
     service: &str,
     tool: &str,
 ) -> Result<ApprovedAgentTask, GatewaySubmitResult> {
-    let sealed = verify_sealed(context, now, proof_cbor, action_cbor)?;
+    let audience = Audience::parse(&format!("mcp://{service}"))
+        .map_err(|_| not_entered("gateway.task.approval-profile"))?;
+    let sealed = verify_sealed_for_audience(context, audience, now, proof_cbor, action_cbor)?;
     let action = authorized_action(&sealed)?;
     if action.action_ids().len() != 1 {
         return Err(not_entered("gateway.task.single-human-action-required"));
@@ -425,14 +429,8 @@ mod tests {
         let agent = Signer::new(0x44);
         let card = card(&human, &agent);
         let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context_for_task_profile(
-            &root,
-            observer.principal(),
-            NOW,
-            APPROVAL_SERVICE,
-            APPROVAL_TOOL,
-        )
-        .expect("approval context");
+        let context = harness::context_for_agent_and_task(&root, observer.principal(), NOW)
+            .expect("installed context");
         let (proof, action) = signed_card_for_approval(&root, &human, &card);
         let approved = verify_task_activation(&context, &pins(&card), NOW, &proof, &action)
             .expect("human approval");
