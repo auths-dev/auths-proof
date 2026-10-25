@@ -1,0 +1,39 @@
+# AP-071 installed Airtable read and exact-write conformance
+
+On 25 October 2026, the development operator ran the checked-in Airtable
+GET-release and PATCH recipes against the dedicated disposable base
+`appQD3Qf0YFBCW9bV`, table `tblBx2jwe0IsPYRKT`. The run-owned record was
+`recY02Wyc4QHZ6x2Y`; its ownership journal was written before creation in
+`/private/tmp/ap071-airtable-live-20261025-1747`.
+
+The operator issued one task with a synthetic human key and separate agent
+key, bound to the operator PAT account label, the exact record, one read,
+64 release bytes, one write and exact confirmation. The agent signed the read
+and served a separate authenticated local release channel. The gateway
+reported `agent-acknowledged` for operation `airtable-read-one` and charged
+one provider call, one release and seven bytes. The agent received the
+private `DemoStatus` value, and `task-release-compare` matched its private
+source file to the gateway's keyed release commitment. Neither the value nor
+an unkeyed hash appears in the redacted result.
+
+After an operator-side fresh GET, the agent signed an exact PATCH proposal to
+set that same record to `Approved`. The synthetic human key signed the exact
+confirmation. The gateway charged one write for `airtable-write-one` and
+returned `observed-by-provider`. A separate operator GET saw the run-owned
+record with `DemoStatus=Approved` and a nonempty gateway echo. The private
+redacted result is `operator/redacted-result.json` under the run root; it
+records the task ID `pifwUZ1LkUdUgXSEQq_Xs4Ii`, operation IDs, budgets,
+outcomes and an independent-readback verdict without PAT or field bytes.
+
+The cleanup command reread the owned record, deleted only that record, and
+verified that the run-owned name no longer appeared. The journal's `retired`
+flag and the result's cleanup field are both true. The base and table were
+retained.
+
+This proves one installed second-provider task/read/exact-write mechanism
+using the same native gateway path. The Airtable PAT is an operator credential
+with no demonstrated human subject, so this run does **not** prove a second
+employee's account delegation. The agent used a distinct key and process,
+but this development run did not isolate it under a different OS user. It
+does not complete the full negative matrix, production custody or the Google
+single-plan create/populate acceptance.

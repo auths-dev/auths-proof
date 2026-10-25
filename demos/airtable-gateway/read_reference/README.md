@@ -28,5 +28,36 @@ release budgets before delivery, require authenticated acknowledgement and
 record a keyed content commitment. In particular, the small `DemoStatus`
 value must not appear in a public receipt or as an unkeyed hash. A separate
 Airtable read must compare the private field in the installed conformance
-run. This checked-in recipe is construction evidence, **not** an installed
-read or a cross-provider human-identity claim.
+run. An [operator-only installed run](installed_conformance.py) now exercises
+that path against one record in the reviewed disposable base. It creates a
+durable ownership journal before the record POST, installs the checked-in GET
+and PATCH recipes, signs a mixed task with separate development human and
+agent keys, runs the agent in a separate process, requires its acknowledged
+release and private source comparison, signs an exact write confirmation,
+submits once through the gateway, and independently GETs the result. The
+record is retired in a separate cleanup command, which checks the ownership
+journal and verifies its absence. A successful run is installed mechanism
+evidence; the PAT still supplies no employee-subject claim or production
+credential custody.
+
+Run from the repository root with the local Python dependencies and native
+gateway binary available. The private `.env` must contain only the supported
+`PERSONAL_ACCESS_TOKEN` field; the tool reads it as an owner-only file and
+passes the PAT only on gateway stdin and in operator HTTPS requests. Choose a
+fresh owner-private output directory under `/private/tmp` for each run:
+
+```sh
+python demos/airtable-gateway/read_reference/installed_conformance.py run \
+  --env-file /absolute/private/airtable.env \
+  --root /private/tmp/ap071-airtable-run-1 \
+  --gateway-bin /absolute/path/to/auths-gateway
+python demos/airtable-gateway/read_reference/installed_conformance.py cleanup \
+  --env-file /absolute/private/airtable.env \
+  --root /private/tmp/ap071-airtable-run-1
+```
+
+If a run fails after fixture creation, preserve its private root and execute
+`cleanup` once the effect has been inspected. Do not start another run on the
+same root. The [25 October live run](../../../docs/program-log/2026-10-25-ap071-airtable-live.md)
+records one acknowledged seven-byte release, one observed write and verified
+record retirement.
