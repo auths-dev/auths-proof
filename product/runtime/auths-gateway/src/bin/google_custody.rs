@@ -388,7 +388,9 @@ impl CredentialMaterializer for GoogleCustodyMaterializer {
         if grant.token_uri != TOKEN_URL
             || grant.universe_domain != "googleapis.com"
             || grant.client_id != self.pins.client_id
-            || grant.account != self.pins.email
+            // Google's authorized-user file may leave `account` empty. The
+            // live UserInfo check below supplies the subject/email binding.
+            || (!grant.account.is_empty() && grant.account != self.pins.email)
             || grant.client_secret.is_empty()
             || grant.refresh_token.is_empty()
             || client_file.installed.token_uri != TOKEN_URL
@@ -521,7 +523,7 @@ mod tests {
             "token": "synthetic-stale", "refresh_token": "synthetic-refresh",
             "client_secret": "synthetic-client-secret", "client_id": "client-1",
             "token_uri": TOKEN_URL, "universe_domain": "googleapis.com",
-            "account": "jules@example.test", "scopes": SCOPES,
+            "account": "", "scopes": SCOPES,
         });
         fs::write(&grant_path, serde_json::to_vec(&grant).expect("grant")).expect("grant file");
         fs::set_permissions(&grant_path, fs::Permissions::from_mode(0o600)).expect("mode");
@@ -707,6 +709,19 @@ mod tests {
                 .is_err()
         );
         grant["scopes"] = json!(SCOPES);
+        grant["account"] = json!("other@example.test");
+        fs::write(&pins.grant_file, serde_json::to_vec(&grant).unwrap()).unwrap();
+        assert!(
+            adapter
+                .materialize(
+                    &request(&pins),
+                    &source(&pins),
+                    Instant::now() + Duration::from_secs(30)
+                )
+                .await
+                .is_err()
+        );
+        grant["account"] = json!("");
         fs::write(&pins.grant_file, serde_json::to_vec(&grant).unwrap()).unwrap();
         let mut client: serde_json::Value =
             serde_json::from_slice(&fs::read(&pins.oauth_client_file).unwrap()).unwrap();

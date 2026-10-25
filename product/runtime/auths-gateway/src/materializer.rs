@@ -20,9 +20,11 @@ use thiserror::Error;
 pub const MATERIALIZER_SOURCE_PREFIX: &[u8] = b"auths.materializer-source/1:";
 
 pub(crate) fn is_materializer_source(lease: &StoredSecretLease) -> bool {
+    // An unavailable lease is unsafe to use as a static bearer too. Treat it
+    // as a source here so every fallback path refuses it before transport.
     lease
         .expose(Instant::now())
-        .is_ok_and(|bytes| bytes.starts_with(MATERIALIZER_SOURCE_PREFIX))
+        .map_or(true, |bytes| bytes.starts_with(MATERIALIZER_SOURCE_PREFIX))
 }
 
 /// The kind of already admitted task operation requesting a credential.
@@ -115,10 +117,10 @@ impl MaterializerInstallation {
                     .ct_eq(&self.authority_digest),
             )
             || result.lease.deadline() > deadline
-            || !result
-                .lease
-                .expose(Instant::now())
-                .is_ok_and(|bytes| (1..=65_536).contains(&bytes.len()))
+            || !result.lease.expose(Instant::now()).is_ok_and(|bytes| {
+                (1..=65_536).contains(&bytes.len())
+                    && !bytes.starts_with(MATERIALIZER_SOURCE_PREFIX)
+            })
         {
             return Err(CredentialMaterializationError);
         }
@@ -150,6 +152,7 @@ mod tests {
         authority: [u8; 32],
         extend_deadline: bool,
         empty_bearer: bool,
+        source_as_bearer: bool,
     }
 
     #[async_trait]
@@ -169,6 +172,8 @@ mod tests {
                 lease: StoredSecretLease::from_store(
                     Zeroizing::new(if self.empty_bearer {
                         Vec::new()
+                    } else if self.source_as_bearer {
+                        b"auths.materializer-source/1:returned-as-bearer".to_vec()
                     } else {
                         b"fresh-bearer".to_vec()
                     }),
@@ -211,6 +216,7 @@ mod tests {
             authority: [7; 32],
             extend_deadline: false,
             empty_bearer: false,
+            source_as_bearer: false,
         });
         let installation = MaterializerInstallation::new(adapter.clone(), [7; 32]);
         for operation in ["operation-1", "operation-2"] {
@@ -230,11 +236,12 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["operation-1", "operation-2"]
         );
-        for (subject, authority, extend_deadline, empty_bearer) in [
-            ("other-subject", [7; 32], false, false),
-            ("human-subject", [8; 32], false, false),
-            ("human-subject", [7; 32], true, false),
-            ("human-subject", [7; 32], false, true),
+        for (subject, authority, extend_deadline, empty_bearer, source_as_bearer) in [
+            ("other-subject", [7; 32], false, false, false),
+            ("human-subject", [8; 32], false, false, false),
+            ("human-subject", [7; 32], true, false, false),
+            ("human-subject", [7; 32], false, true, false),
+            ("human-subject", [7; 32], false, false, true),
         ] {
             let rejected = MaterializerInstallation::new(
                 Arc::new(CheckedAdapter {
@@ -243,6 +250,7 @@ mod tests {
                     authority,
                     extend_deadline,
                     empty_bearer,
+                    source_as_bearer,
                 }),
                 [7; 32],
             );
@@ -267,5 +275,10 @@ mod tests {
             Instant::now() + Duration::from_secs(30),
         );
         assert!(!is_materializer_source(&bearer));
+        let expired = StoredSecretLease::from_store(
+            Zeroizing::new(b"synthetic-static-bearer".to_vec()),
+            Instant::now() - Duration::from_secs(1),
+        );
+        assert!(is_materializer_source(&expired));
     }
 }

@@ -34,3 +34,15 @@ recorded earlier used a short-lived bearer installed before activation. A new
 human-signed task, actual post-reservation refresh, provider effect and
 independent demo_co readback are still needed for live renewal evidence.
 Production multi-host custody and qualification are separate acceptance work.
+
+The first source-backed installed read attempt used a fresh Jules-signed task
+and a separate agent-signed action. Native admission charged one provider-call
+allowance, but materialization refused before a Google GET or content release;
+the task ledger recorded `release-refused`, zero releases and zero bytes. The
+saved demo_co authorized-user file leaves its optional `account` field empty,
+while the first adapter revision required an email there. The adapter now
+accepts an empty saved field only if the pinned grant/client/scope checks pass
+and Google's fresh UserInfo supplies the exact Jules subject, verified email
+and hosted domain. Synthetic tests cover that actual file shape and reject a
+conflicting nonempty account. The spent read cannot be retried under that task;
+an installed live refresh remains to be rerun with a fresh signed task.
