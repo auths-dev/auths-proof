@@ -99,8 +99,9 @@ jobs:
           AP070_MODEL_ID: ci-probe-no-model-call
         run: |
           set -euo pipefail
-          export AP070_RUNTIME_UID="$(id -u)"
-          export AP070_RUNTIME_GID="$(id -g)"
+          AP070_RUNTIME_UID="$(id -u)"
+          AP070_RUNTIME_GID="$(id -g)"
+          export AP070_RUNTIME_UID AP070_RUNTIME_GID
           mkdir -m 700 "$AP070_BROKER_STATE_DIR" "$AP070_AGENT_DIR"
           printf 'synthetic-only-ci-probe\n' > "$AP070_MODEL_API_KEY_FILE"
           chmod 600 "$AP070_MODEL_API_KEY_FILE"
@@ -110,6 +111,10 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8765/api/v1/session > /tmp/ap070-session.json; then
               break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "installed broker session route did not become ready" >&2
+              exit 1
             fi
             sleep 1
           done
@@ -147,6 +152,24 @@ jobs:
             sha256sum auths-*.whl > SHA256SUMS
             sha256sum -c SHA256SUMS
           )
+      - name: Dry-run release kit assembly with synthetic digest references
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'demos/google-employee-delegation/tools')
+          from release_kit import assemble
+
+          wheel, = Path('target/google-read-artifacts').glob('auths-*.whl')
+          prefix = 'ghcr.io/auths-dev/auths-proof-google-read'
+          assemble(Path('demos/google-employee-delegation'), wheel,
+                   Path('target/google-read-release-dryrun'),
+                   revision='${{ github.event.pull_request.head.sha || github.sha }}',
+                   image_prefix=prefix,
+                   broker_image=prefix + '-broker@sha256:' + 'a' * 64,
+                   agent_image=prefix + '-agent@sha256:' + 'b' * 64)
+          PY
+          (cd target/google-read-release-dryrun && sha256sum -c SHA256SUMS)
       - name: Upload reviewed operator kit candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

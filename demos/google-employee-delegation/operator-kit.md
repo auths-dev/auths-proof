@@ -1,19 +1,20 @@
-# AP-SPEC-070 operator kit candidate
+# AP-SPEC-070 operator kit
 
-This archive is a source-free candidate for the employee-to-agent Google read
-demo. It contains Compose configuration, relay rules, a version lock, and a
-blank live acceptance record. `REVISION` identifies the exact Auths commit
-used to build the kit. The matching broker and agent images have been built
-and probed in CI, but have **not** been published for an operator install.
+This source-free archive contains Compose configuration, relay rules, a version
+lock, and a blank live acceptance record. `REVISION` identifies the exact Auths
+commit used to build the kit. The values in `versions.lock.json` determine
+whether this is a CI candidate or a published kit with pinned images.
 
 ## Verify the download
 
-Download both files from the `google-read-operator-kit-<REVISION>` artifact of
-the Google read demo installed images workflow. On a Mac, run:
+Download the archive and adjacent `.sha256` file from the reviewed workflow
+run. CI candidates use the `google-read-operator-kit-<REVISION>` artifact;
+published kits use the `google-read-operator-release-<REVISION>` artifact.
+On a Mac, run:
 
 ```sh
-shasum -a 256 -c google-read-operator-kit.tar.gz.sha256
-tar -xzf google-read-operator-kit.tar.gz
+shasum -a 256 -c *.tar.gz.sha256
+tar -xzf *.tar.gz
 cd google-read-operator-kit
 shasum -a 256 -c SHA256SUMS
 cat REVISION
@@ -23,20 +24,25 @@ Compare `REVISION` with the reviewed commit in the workflow run. The lock
 file's `auths_base_revision` identifies an earlier SDK baseline, not this
 kit's build revision. A passing checksum proves the downloaded
 bytes match the workflow artifact; review the workflow run and commit before
-trusting it. The separate `google-read-linux-wheel-<REVISION>` artifact is the
-SDK wheel used to build the Linux images. It is not a Mac wheel and must not
-be installed on the Mac host.
+trusting it. A published kit contains the exact Linux SDK wheel used to build
+the images under `artifacts/`; a CI candidate has it in the separate
+`google-read-linux-wheel-<REVISION>` artifact. That wheel is not a Mac wheel
+and must not be installed on the Mac host.
 
 ## Installation gate
 
-The checked-in lock file has `null` values for `installed_sdk_artifact`,
-`broker_image_digest`, and `agent_image_digest`. **Stop here while any of these
-are null.** The kit cannot run the live demo without a reviewed published SDK
-artifact and digest-pinned broker and agent registry images built from this
-exact revision. The Compose variables `AP070_BROKER_IMAGE` and
+The CI candidate lock file has `null` values for `installed_sdk_artifact`,
+`broker_image_digest`, and `agent_image_digest`. **Stop while any of these are
+null.** A published kit fills them from a reviewed SDK wheel and the registry
+manifests of broker and agent images built from this exact revision. Compare
+its recorded SDK artifact SHA-256 with `artifacts/` and verify both image
+digest references in the registry. The Compose variables `AP070_BROKER_IMAGE` and
 `AP070_AGENT_IMAGE` must be full image digest references, not mutable tags.
-The candidate also lacks a complete live `demo_co` Google export; a local or
+A complete live `demo_co` Google export is supplied separately; a local or
 partial export cannot activate the Google read path.
+If the GHCR packages are private, authenticate Docker with an account allowed
+to pull them before running Compose. Keep that registry credential outside
+the kit and the agent directory.
 
 The operator's Mac needs Docker Desktop with Compose, a dedicated Google
 Workspace tenant, a Desktop OAuth client configured for the exact loopback
