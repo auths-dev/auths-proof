@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-const TASK_SCHEMA: &str = "auths.agent-task/1";
+const TASK_SCHEMA: &str = "auths.agent-task/2";
 pub(crate) const TASK_SERVICE: &str = "auths-agent-task";
 pub(crate) const APPROVAL_TOOL: &str = "approve_agent_task_v1";
 const MAX_SCOPES: usize = 16;
@@ -26,6 +26,9 @@ const MAX_WRITES: u32 = 32;
 pub(crate) struct TaskReadScope {
     handle: String,
     recipe_digest: String,
+    connection_id: String,
+    connection_generation: u64,
+    connection_subject: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -41,6 +44,9 @@ pub(crate) struct TaskWriteScope {
     pub(crate) handle: String,
     pub(crate) recipe_digest: String,
     pub(crate) verb: TaskWriteVerb,
+    pub(crate) connection_id: String,
+    pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -91,6 +97,9 @@ pub(crate) struct TaskActivationPins {
     pub(crate) connection_id: String,
     pub(crate) connection_generation: u64,
     pub(crate) connection_subject: String,
+    /// Operator-reviewed read recipe connections. The signed card may select
+    /// a subset, but cannot invent a connection or substitute its subject.
+    pub(crate) permitted_read_scopes: Vec<TaskReadScope>,
     pub(crate) delivery_channel: String,
     pub(crate) operator_policy_digest: String,
     pub(crate) allow_bounded_writes: bool,
@@ -115,7 +124,7 @@ impl ApprovedAgentTask {
         descriptor.validate(pins, now)?;
         let canonical = serde_json_canonicalizer::to_vec(&descriptor)
             .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-        let actual = auths_codec::domain_commitment("auths.agent-task.v1", &canonical)
+        let actual = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
             .map_err(|_| not_entered("gateway.task.invalid-card"))?;
         if actual.as_bytes() != &commitment {
             return Err(not_entered("gateway.task.activation-changed"));
@@ -157,9 +166,9 @@ impl ApprovedAgentTask {
                 .map(|scope| ReleaseResourceScope {
                     handle: scope.handle.clone(),
                     recipe_digest: scope.recipe_digest.clone(),
-                    connection_id: self.descriptor.connection_id.clone(),
-                    connection_generation: self.descriptor.connection_generation,
-                    connection_subject: self.descriptor.connection_subject.clone(),
+                    connection_id: scope.connection_id.clone(),
+                    connection_generation: scope.connection_generation,
+                    connection_subject: scope.connection_subject.clone(),
                 })
                 .collect(),
         }
@@ -228,6 +237,10 @@ impl AgentTaskDescriptor {
         for scope in &self.read_scopes {
             if !bounded_text(&scope.handle, 256)
                 || !digest(&scope.recipe_digest)
+                || !bounded_text(&scope.connection_id, 128)
+                || scope.connection_generation == 0
+                || !bounded_text(&scope.connection_subject, 256)
+                || !pins.permitted_read_scopes.contains(scope)
                 || !reads.insert(&scope.handle)
             {
                 return Err(not_entered("gateway.task.invalid-read-scope"));
@@ -237,6 +250,9 @@ impl AgentTaskDescriptor {
         for scope in &self.write_scopes {
             if !bounded_text(&scope.handle, 256)
                 || !digest(&scope.recipe_digest)
+                || scope.connection_id != self.connection_id
+                || scope.connection_generation != self.connection_generation
+                || scope.connection_subject != self.connection_subject
                 || !writes.insert((&scope.handle, &scope.verb))
             {
                 return Err(not_entered("gateway.task.invalid-write-scope"));
@@ -342,7 +358,7 @@ fn verify_task_activation_for_profile(
     }
     let canonical = serde_json_canonicalizer::to_vec(&arguments.task)
         .map_err(|_| not_entered("gateway.task.invalid-card"))?;
-    let commitment = auths_codec::domain_commitment("auths.agent-task.v1", &canonical)
+    let commitment = auths_codec::domain_commitment("auths.agent-task.v2", &canonical)
         .map_err(|_| not_entered("gateway.task.invalid-card"))?;
     Ok(ApprovedAgentTask {
         descriptor: arguments.task,
@@ -376,11 +392,17 @@ mod tests {
             read_scopes: vec![TaskReadScope {
                 handle: "source-1".to_owned(),
                 recipe_digest: "b".repeat(64),
+                connection_id: "jules-read".to_owned(),
+                connection_generation: 5,
+                connection_subject: "jules-subject".to_owned(),
             }],
             write_scopes: vec![TaskWriteScope {
                 handle: "working-doc".to_owned(),
                 recipe_digest: "c".repeat(64),
                 verb: TaskWriteVerb::Edit,
+                connection_id: "jules-google".to_owned(),
+                connection_generation: 3,
+                connection_subject: "jules-subject".to_owned(),
             }],
             delivery_channel: "registered-agent-channel".to_owned(),
             not_before: NOW - 30,
@@ -404,6 +426,7 @@ mod tests {
             connection_id: card.connection_id.clone(),
             connection_generation: card.connection_generation,
             connection_subject: card.connection_subject.clone(),
+            permitted_read_scopes: card.read_scopes.clone(),
             delivery_channel: card.delivery_channel.clone(),
             operator_policy_digest: card.operator_policy_digest.clone(),
             allow_bounded_writes: false,
@@ -463,6 +486,8 @@ mod tests {
         assert_eq!(policy.human_principal, human.principal.as_str());
         assert_eq!(policy.resources.len(), 1);
         assert_eq!(policy.resources[0].handle, "source-1");
+        assert_eq!(policy.resources[0].connection_id, "jules-read");
+        assert_eq!(policy.resources[0].connection_generation, 5);
 
         let root = tempfile::tempdir().expect("tempdir");
         let path = fs::canonicalize(root.path()).expect("path").join("release");
@@ -536,6 +561,9 @@ mod tests {
         changed.read_scopes.push(TaskReadScope {
             handle: "source-1".to_owned(),
             recipe_digest: "e".repeat(64),
+            connection_id: "jules-read".to_owned(),
+            connection_generation: 5,
+            connection_subject: "jules-subject".to_owned(),
         });
         let (proof, action) = signed_card(&root, &human, &changed);
         assert!(
@@ -559,6 +587,57 @@ mod tests {
                 NOW,
                 &proof,
                 &action,
+                harness::SERVICE,
+                harness::TOOL,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn per_scope_connection_pins_refuse_subject_generation_and_write_substitution() {
+        let root = Signer::new(0x11);
+        let human = Signer::new(0x22);
+        let agent = Signer::new(0x44);
+        let card = card(&human, &agent);
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
+        let (proof, action) = signed_card(&root, &human, &card);
+        for drift in [
+            TaskReadScope {
+                connection_subject: "different-subject".to_owned(),
+                ..card.read_scopes[0].clone()
+            },
+            TaskReadScope {
+                connection_generation: 6,
+                ..card.read_scopes[0].clone()
+            },
+        ] {
+            let mut wrong = pins(&card);
+            wrong.permitted_read_scopes[0] = drift;
+            assert!(
+                verify_task_activation_for_profile(
+                    &context,
+                    &wrong,
+                    NOW,
+                    &proof,
+                    &action,
+                    harness::SERVICE,
+                    harness::TOOL,
+                )
+                .is_err()
+            );
+        }
+        let mut changed = card.clone();
+        changed.write_scopes[0].connection_id = "other-write".to_owned();
+        let (changed_proof, changed_action) = signed_card(&root, &human, &changed);
+        assert!(
+            verify_task_activation_for_profile(
+                &context,
+                &pins(&card),
+                NOW,
+                &changed_proof,
+                &changed_action,
                 harness::SERVICE,
                 harness::TOOL,
             )

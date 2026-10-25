@@ -89,7 +89,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             agent_digest = hashlib.sha256(agent_packet).hexdigest()
             installed = private / "task-write-installation.json"
             installed.write_text(json.dumps({
-                "schema": "auths.gateway-task-installation/1",
+                "schema": "auths.gateway-task-installation/2",
                 "recipe_digest": digest,
                 "pins": {
                     "company_id": "atlas-studio", "human_principal": human,
@@ -98,6 +98,7 @@ class TaskOperatorCliTests(unittest.TestCase):
                     "connection_id": "jules-google",
                     "connection_generation": 1,
                     "connection_subject": "synthetic-subject",
+                    "permitted_read_scopes": [],
                     "delivery_channel": "agent-channel",
                     "operator_policy_digest": "c" * 64,
                     "allow_bounded_writes": False,

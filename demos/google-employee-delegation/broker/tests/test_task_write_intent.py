@@ -19,11 +19,13 @@ class TaskWriteIntentTests(unittest.TestCase):
         recipe = json.loads((REFERENCE / "recipe.json").read_text())
         digest = "a" * 64
         card = {
-            "schema": "auths.agent-task/1", "task_id": "task-1",
+            "schema": "auths.agent-task/2", "task_id": "task-1",
             "agent_principal": "agent-1", "connection_id": "jules-google",
             "connection_generation": 2, "connection_subject": "jules-subject",
             "write_scopes": [{"handle": "working-doc", "recipe_digest": digest,
-                              "verb": "edit"}],
+                              "verb": "edit", "connection_id": "jules-google",
+                              "connection_generation": 2,
+                              "connection_subject": "jules-subject"}],
         }
         arguments = {
             "task_id": "task-1", "task_commitment": task_commitment(card),

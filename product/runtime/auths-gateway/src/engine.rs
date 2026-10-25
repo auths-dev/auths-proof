@@ -73,7 +73,7 @@ const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
 #[cfg(unix)]
-const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/1";
+const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/2";
 /// How often `serve` sweeps expired count and sum slots.
 pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
 /// The most expired slots one sweep deletes.
@@ -2253,6 +2253,7 @@ pub(crate) mod tests {
             connection_id: record.record().connection_id().as_str().to_owned(),
             connection_generation: record.record().generation().get(),
             connection_subject: "acct_TESTPLATFORM1".to_owned(),
+            permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
@@ -2413,12 +2414,13 @@ pub(crate) mod tests {
             connection_id: bound.connection_id().as_str().to_owned(),
             connection_generation: bound.generation().get(),
             connection_subject: subject.to_owned(),
+            permitted_read_scopes: vec![],
             delivery_channel: "agent-channel".to_owned(),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
         };
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/1",
+            "schema": "auths.agent-task/2",
             "task_id": "task-installed-1",
             "company_id": pins.company_id,
             "human_principal": pins.human_principal,
@@ -2429,7 +2431,10 @@ pub(crate) mod tests {
             "connection_subject": pins.connection_subject,
             "read_scopes": [],
             "write_scopes": [{"handle": "recTEST0000000001",
-                              "recipe_digest": engine.recipe.digest_hex(), "verb": "edit"}],
+                              "recipe_digest": engine.recipe.digest_hex(), "verb": "edit",
+                              "connection_id": pins.connection_id,
+                              "connection_generation": pins.connection_generation,
+                              "connection_subject": pins.connection_subject}],
             "delivery_channel": pins.delivery_channel,
             "not_before": now - 30,
             "expires_at": now + 600,

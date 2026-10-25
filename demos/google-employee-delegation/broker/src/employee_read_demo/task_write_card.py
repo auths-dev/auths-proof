@@ -28,7 +28,7 @@ _PINS = {
     "company_id", "human_principal", "agent_principal",
     "agent_key_fingerprint", "connection_id", "connection_generation",
     "connection_subject", "delivery_channel", "operator_policy_digest",
-    "allow_bounded_writes",
+    "allow_bounded_writes", "permitted_read_scopes",
 }
 
 
@@ -38,7 +38,7 @@ def _installation(path: Path) -> dict:
     except (PermissionError, UnicodeDecodeError, ValueError) as error:
         raise OperatorDenied("installed gateway task pins are unavailable") from error
     if (type(document) is not dict or set(document) != {"schema", "recipe_digest", "pins"}
-            or document["schema"] != "auths.gateway-task-installation/1"
+            or document["schema"] != "auths.gateway-task-installation/2"
             or type(document["recipe_digest"]) is not str
             or _DIGEST.fullmatch(document["recipe_digest"]) is None
             or type(document["pins"]) is not dict
@@ -96,6 +96,7 @@ def build_exact_write_card(
             or pins["connection_generation"] < 1
             or type(pins["connection_subject"]) is not str
             or not 1 <= len(pins["connection_subject"]) <= 256
+            or pins["permitted_read_scopes"] != []
             or type(pins["delivery_channel"]) is not str
             or not 1 <= len(pins["delivery_channel"]) <= 256
             or type(pins["operator_policy_digest"]) is not str
@@ -108,7 +109,7 @@ def build_exact_write_card(
             or not authority.not_before <= now < authority.expires_at - 60):
         raise OperatorDenied("task card disagrees with installed authority")
     return {
-        "schema": "auths.agent-task/1",
+        "schema": "auths.agent-task/2",
         "task_id": secrets.token_urlsafe(18),
         "company_id": employee.company_id,
         "human_principal": employee.principal,
@@ -119,7 +120,10 @@ def build_exact_write_card(
         "connection_subject": pins["connection_subject"],
         "read_scopes": [],
         "write_scopes": [{"handle": resource_handle,
-                          "recipe_digest": package.recipe_digest, "verb": verb}],
+                          "recipe_digest": package.recipe_digest, "verb": verb,
+                          "connection_id": pins["connection_id"],
+                          "connection_generation": pins["connection_generation"],
+                          "connection_subject": pins["connection_subject"]}],
         "delivery_channel": pins["delivery_channel"],
         "not_before": now,
         "expires_at": min(now + 1800, authority.expires_at),

@@ -22,7 +22,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/4";
+const SCHEMA: &str = "auths.gateway-agent-task-state/5";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -281,6 +281,9 @@ impl ReleaseTaskState {
         for scope in &policy.write_scopes {
             if !bounded_text(&scope.handle, 256)
                 || !valid_digest(&scope.recipe_digest)
+                || scope.connection_id != policy.connection_id
+                || scope.connection_generation != policy.connection_generation
+                || scope.connection_subject != policy.connection_subject
                 || !distinct_writes.insert((&scope.handle, &scope.verb))
             {
                 return Err(ReleaseStateError::Binding);
@@ -445,6 +448,9 @@ impl ReleaseTaskState {
                 scope.handle == intent.resource_handle
                     && scope.recipe_digest == intent.recipe_digest
                     && scope.verb == intent.verb
+                    && scope.connection_id == intent.connection_id
+                    && scope.connection_generation == intent.connection_generation
+                    && scope.connection_subject == intent.connection_subject
             })
         {
             return Err(ReleaseStateError::Binding);
@@ -731,6 +737,9 @@ impl ReleaseTaskState {
                     scope.handle == write.resource_handle
                         && scope.recipe_digest == write.recipe_digest
                         && scope.verb == write.verb
+                        && scope.connection_id == write.connection_id
+                        && scope.connection_generation == write.connection_generation
+                        && scope.connection_subject == write.connection_subject
                 })
             {
                 return Err(ReleaseStateError::Corrupt);
@@ -1123,7 +1132,7 @@ mod tests {
         let state = ReleaseTaskState::new(policy()).expect("state");
         let mut value: serde_json::Value =
             serde_json::from_slice(&state.encode().expect("canonical state")).expect("state JSON");
-        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/3");
+        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/4");
         let obsolete = serde_json_canonicalizer::to_vec(&value).expect("canonical obsolete");
         assert!(matches!(
             ReleaseTaskState::decode(&obsolete),
@@ -1166,6 +1175,9 @@ mod tests {
             handle: "working-doc".to_owned(),
             recipe_digest: "b".repeat(64),
             verb: TaskWriteVerb::Edit,
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
         }];
         task
     }

@@ -53,9 +53,6 @@ def project_exact_write(card: dict, review: dict, recipe: dict,
             or type(arguments.get(resource_field)) is not str
             or not arguments[resource_field]
             or type(card.get("write_scopes")) is not list
-            or {"handle": arguments.get(resource_field),
-                "recipe_digest": recipe_digest, "verb": verb}
-            not in card["write_scopes"]
             or arguments.get("task_id") != card.get("task_id")
             or arguments.get("task_commitment") != task_commitment(card)
             or arguments.get("recipe_digest") != recipe_digest
@@ -64,6 +61,16 @@ def project_exact_write(card: dict, review: dict, recipe: dict,
             or not 1 <= len(arguments["operation_id"]) <= 128
             or type(review.get("action_commitment")) is not str
             or _DIGEST.fullmatch(review["action_commitment"]) is None):
+        raise OperatorDenied("agent action is outside reviewed task scope")
+    matching = [scope for scope in card["write_scopes"]
+                if type(scope) is dict
+                and scope.get("handle") == arguments[resource_field]
+                and scope.get("recipe_digest") == recipe_digest
+                and scope.get("verb") == verb
+                and scope.get("connection_id") == card.get("connection_id")
+                and scope.get("connection_generation") == card.get("connection_generation")
+                and scope.get("connection_subject") == card.get("connection_subject")]
+    if len(matching) != 1:
         raise OperatorDenied("agent action is outside reviewed task scope")
     method, url = request.get("method"), request.get("url")
     content_type, body = request.get("content_type"), request.get("body")
@@ -92,8 +99,8 @@ def project_exact_write(card: dict, review: dict, recipe: dict,
         "recipe_digest": recipe_digest,
         "resource_handle": arguments[resource_field],
         "verb": verb,
-        "connection_id": card["connection_id"],
-        "connection_generation": card["connection_generation"],
-        "connection_subject": card["connection_subject"],
+        "connection_id": matching[0]["connection_id"],
+        "connection_generation": matching[0]["connection_generation"],
+        "connection_subject": matching[0]["connection_subject"],
     }
     return ReviewedWrite(intent, arguments, method, url, content_type, body)

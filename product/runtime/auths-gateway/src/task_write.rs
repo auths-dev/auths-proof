@@ -141,6 +141,9 @@ pub(crate) fn derive_exact_write_intent(
         scope.handle == resource
             && scope.recipe_digest == recipe_digest
             && scope.verb == binding.verb
+            && scope.connection_id == binding.connection_id
+            && scope.connection_generation == binding.connection_generation
+            && scope.connection_subject == binding.connection_subject
     }) {
         return Err(not_entered("gateway.task.write-scope"));
     }
@@ -323,7 +326,7 @@ mod tests {
             CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
                 .expect("task-bound recipe");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
-            "schema": "auths.agent-task/1",
+            "schema": "auths.agent-task/2",
             "task_id": "task-1",
             "company_id": "atlas",
             "human_principal": human.principal.as_str(),
@@ -336,7 +339,10 @@ mod tests {
             "write_scopes": [{
                 "handle": harness::RECORD,
                 "recipe_digest": recipe.digest_hex(),
-                "verb": "edit"
+                "verb": "edit",
+                "connection_id": "jules-google",
+                "connection_generation": 3,
+                "connection_subject": "jules-subject"
             }],
             "delivery_channel": "agent-channel",
             "not_before": NOW - 30,

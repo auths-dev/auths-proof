@@ -78,11 +78,15 @@ generation and does not perform a write.
 ## Operator-side development route
 
 `auths-gateway task-configure --state-dir STATE --from PINS.json` accepts one
-canonical JSON object with schema `auths.gateway-task-installation/1`, the
+canonical JSON object with schema `auths.gateway-task-installation/2`, the
 compiled `recipe_digest`, and operator-controlled `pins`: `company_id`,
 `human_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
 `connection_generation`, `connection_subject`, `delivery_channel`,
-`operator_policy_digest`, and `allow_bounded_writes`. The object is installed
+`operator_policy_digest`, `allow_bounded_writes`, and
+`permitted_read_scopes`. The current write-only route sets
+`permitted_read_scopes` to `[]`. Each signed task scope carries its own
+connection ID, generation, subject, and recipe digest; the write scope must
+match the installed write connection. The object is installed
 once as a mode-0600 file in the owner-private gateway state directory. The
 gateway derives the resource field and verb from its already installed recipe;
 the agent cannot submit these pins. The Auths connection's account label must
