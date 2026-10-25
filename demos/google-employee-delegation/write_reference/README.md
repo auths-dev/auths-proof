@@ -245,3 +245,7 @@ installations while the task journal is single-host. The Jules workbench
 exposes task revocation for her signed agent task and verifies ownership before
 invoking the gateway. These are development integration routes and still need
 independent effect verification.
+The workbench also reads `task-status` for owner-visible budgets, read delivery
+stages, revocation and claimed write operation IDs. It omits provider bytes,
+account subjects and private commitments; a write claim alone does not prove
+the external edit.

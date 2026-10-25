@@ -58,6 +58,7 @@ mod release_verify;
 // The task state serves installed writes and internal managed read delivery.
 #[allow(dead_code)]
 mod release_state;
+pub use release_state::TaskStatus;
 mod semantic_closure;
 mod separation;
 mod store;

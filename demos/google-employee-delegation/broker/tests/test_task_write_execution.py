@@ -135,6 +135,38 @@ class TaskWriteExecutionTests(unittest.TestCase):
             with self.assertRaisesRegex(OperatorDenied, "outcome is unknown"):
                 self.flow.revoke(task_id=self.task_id, employee=employee)
 
+    def test_status_reports_only_the_gateway_redacted_contract(self) -> None:
+        card = self.task_dir / "task-card.json"
+        card.write_text(json.dumps({
+            "task_id": self.task_id,
+            "company_id": "atlas",
+            "human_principal": "human-1",
+        }), encoding="utf-8")
+        os.chmod(card, 0o600)
+        employee = EmployeeBinding("atlas", "jules", "issuer", "subject",
+                                   "human-1", "binding")
+        status = {
+            "schema": "auths.gateway-agent-task-status/1", "task_id": self.task_id,
+            "expires_at": 2000, "revoked": False,
+            "provider_calls": 1, "max_provider_calls": 2,
+            "releases": 1, "max_releases": 1,
+            "released_bytes": 5, "max_release_bytes": 64,
+            "writes": 0, "max_writes": 1,
+            "reads": [{"operation_id": "read-1", "stage": "agent-acknowledged",
+                       "released_bytes": 5}],
+            "write_operations": [],
+        }
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   return_value=subprocess.CompletedProcess(
+                       [], 0, json.dumps(status).encode(), b"")) as run:
+            self.assertEqual(self.flow.status(task_id=self.task_id, employee=employee), status)
+        self.assertEqual(run.call_args.args[0][1], "task-status")
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   return_value=subprocess.CompletedProcess(
+                       [], 0, json.dumps({**status, "private": "leak"}).encode(), b"")):
+            with self.assertRaisesRegex(OperatorDenied, "status is unavailable"):
+                self.flow.status(task_id=self.task_id, employee=employee)
+
 
 if __name__ == "__main__":
     unittest.main()

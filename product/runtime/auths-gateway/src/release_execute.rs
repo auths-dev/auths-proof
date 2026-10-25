@@ -781,7 +781,20 @@ mod tests {
             .expect("task");
         assert_eq!(state.counts(), (1, 1, 5));
         assert_eq!(state.stage("read-1"), Some(ReleaseStage::AgentAcknowledged));
+        let status = serde_json::to_value(task_session.status("task-1").expect("task status"))
+            .expect("redacted status");
+        assert_eq!(status["reads"][0]["stage"], "agent-acknowledged");
+        assert_eq!(status["released_bytes"], 5);
+        let public = status.to_string();
+        assert!(!public.contains(subject));
+        assert!(!public.contains("content_commitment"));
+        assert!(!public.contains("pat-initial"));
         task_session.revoke("task-1").expect("durable revocation");
+        assert_eq!(
+            serde_json::to_value(task_session.status("task-1").expect("revoked status"))
+                .expect("redacted status")["revoked"],
+            true
+        );
         assert_eq!(
             read_session
                 .read("task-1", &signed.proof, &signed.action)

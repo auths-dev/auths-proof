@@ -184,6 +184,33 @@ pub(crate) struct ReleaseTaskState {
     writes: BTreeMap<String, WriteOperation>,
 }
 
+/// Owner-visible accounting only. No provider bytes, account subject,
+/// connection reference, content digest or keyed commitment is exported.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct TaskStatus {
+    schema: &'static str,
+    task_id: String,
+    expires_at: u64,
+    revoked: bool,
+    provider_calls: u32,
+    max_provider_calls: u32,
+    releases: u32,
+    max_releases: u32,
+    released_bytes: u64,
+    max_release_bytes: u64,
+    writes: usize,
+    max_writes: u32,
+    reads: Vec<ReadOperationStatus>,
+    write_operations: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct ReadOperationStatus {
+    operation_id: String,
+    stage: &'static str,
+    released_bytes: Option<u64>,
+}
+
 /// A refusal before any content delivery. No variant authorizes a retry of
 /// an operation whose provider call has already been reserved.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
@@ -242,6 +269,40 @@ fn same_commitment(expected: &str, presented: &str) -> bool {
 }
 
 impl ReleaseTaskState {
+    pub(crate) fn status(&self) -> TaskStatus {
+        let reads = self
+            .operations
+            .iter()
+            .map(|(operation_id, operation)| ReadOperationStatus {
+                operation_id: operation_id.clone(),
+                stage: match operation.stage {
+                    ReleaseStage::ProviderCallReserved => "provider-call-reserved",
+                    ReleaseStage::ProviderUnavailable => "provider-unavailable",
+                    ReleaseStage::ReleaseRefused => "release-refused",
+                    ReleaseStage::ReleaseEntered => "delivery-unknown",
+                    ReleaseStage::NotDelivered => "not-delivered",
+                    ReleaseStage::AgentAcknowledged => "agent-acknowledged",
+                },
+                released_bytes: operation.released_bytes,
+            })
+            .collect();
+        TaskStatus {
+            schema: "auths.gateway-agent-task-status/1",
+            task_id: self.task_id.clone(),
+            expires_at: self.expires_at,
+            revoked: self.revoked,
+            provider_calls: self.provider_calls,
+            max_provider_calls: self.max_provider_calls,
+            releases: self.releases,
+            max_releases: self.max_releases,
+            released_bytes: self.released_bytes,
+            max_release_bytes: self.max_release_bytes,
+            writes: self.writes.len(),
+            max_writes: self.max_writes,
+            reads,
+            write_operations: self.writes.keys().cloned().collect(),
+        }
+    }
     fn new(policy: ReleaseTaskPolicy) -> Result<Self, ReleaseStateError> {
         if !bounded_text(&policy.task_id, 128)
             || !bounded_text(&policy.company_id, 128)

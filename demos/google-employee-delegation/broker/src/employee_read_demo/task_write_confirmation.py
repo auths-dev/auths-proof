@@ -251,10 +251,7 @@ class TaskWriteConfirmationFlow:
                 "gateway task activation outcome is unknown; inspect state",
             )
 
-    def revoke(self, *, task_id: str, employee: EmployeeBinding) -> None:
-        """Stop future reads and writes for one task owned by this employee."""
-        if self.gateway_state_dir is None:
-            raise OperatorDenied("gateway task execution is not configured")
+    def _owned_task_card(self, task_id: str, employee: EmployeeBinding) -> dict:
         directory = self._task_dir(task_id)
         try:
             card = json.loads(_private_read(directory / "task-card.json", 16_384),
@@ -265,6 +262,13 @@ class TaskWriteConfirmationFlow:
                 or card.get("company_id") != employee.company_id
                 or card.get("human_principal") != employee.principal):
             raise OperatorDenied("task is not owned by this employee")
+        return card
+
+    def revoke(self, *, task_id: str, employee: EmployeeBinding) -> None:
+        """Stop future reads and writes for one task owned by this employee."""
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("gateway task execution is not configured")
+        self._owned_task_card(task_id, employee)
         try:
             result = subprocess.run([
                 str(self._binary()), "task-revoke",
@@ -280,6 +284,59 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied(
                 "gateway task revocation outcome is unknown; inspect state",
             )
+
+    def status(self, *, task_id: str, employee: EmployeeBinding) -> dict:
+        """Return the gateway's redacted durable counts and operation stages."""
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("gateway task status is not configured")
+        self._owned_task_card(task_id, employee)
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-status",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+            ], capture_output=True, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied("gateway task status is unavailable") from error
+        if result.returncode != 0 or len(result.stdout) > 16_384:
+            raise OperatorDenied("gateway task status is unavailable")
+        try:
+            status = json.loads(result.stdout, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise OperatorDenied("gateway task status is unavailable") from error
+        expected = {"schema", "task_id", "expires_at", "revoked", "provider_calls",
+                    "max_provider_calls", "releases", "max_releases", "released_bytes",
+                    "max_release_bytes", "writes", "max_writes", "reads", "write_operations"}
+        if (type(status) is not dict or set(status) != expected
+                or status["schema"] != "auths.gateway-agent-task-status/1"
+                or status["task_id"] != task_id
+                or type(status["revoked"]) is not bool
+                or any(type(status[field]) is not int or status[field] < 0 for field in (
+                    "expires_at", "provider_calls", "max_provider_calls", "releases",
+                    "max_releases", "released_bytes", "max_release_bytes", "writes",
+                    "max_writes"))
+                or type(status["reads"]) is not list
+                or len(status["reads"]) > 64
+                or type(status["write_operations"]) is not list
+                or len(status["write_operations"]) > 64
+                or any(type(item) is not str or len(item) > 128
+                       for item in status["write_operations"])):
+            raise OperatorDenied("gateway task status is unavailable")
+        allowed_stages = {"provider-call-reserved", "provider-unavailable",
+                          "release-refused", "delivery-unknown", "not-delivered",
+                          "agent-acknowledged"}
+        if any(type(item) is not dict
+               or set(item) != {"operation_id", "stage", "released_bytes"}
+               or type(item["operation_id"]) is not str
+               or not 1 <= len(item["operation_id"]) <= 128
+               or type(item["stage"]) is not str
+               or item["stage"] not in allowed_stages
+               or (item["released_bytes"] is not None
+                   and (type(item["released_bytes"]) is not int
+                        or item["released_bytes"] < 0))
+               for item in status["reads"]):
+            raise OperatorDenied("gateway task status is unavailable")
+        return status
 
     def submit(self, *, task_id: str, employee: EmployeeBinding,
                agent: AgentBinding, now: int | None = None) -> dict:

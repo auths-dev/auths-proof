@@ -1548,6 +1548,19 @@ pub struct TaskWriteProofs<'a> {
 
 #[cfg(unix)]
 impl TaskWriteSession<'_> {
+    /// Read the activated task's redacted accounting and operation stages.
+    /// This view makes no assertion that a provider effect was observed.
+    ///
+    /// # Errors
+    /// Refuses an absent or unavailable private task journal.
+    pub fn status(&self, task_id: &str) -> Result<crate::TaskStatus, &'static str> {
+        self.ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.status-unavailable")?
+            .map(|state| state.status())
+            .ok_or("gateway.task.status-unavailable")
+    }
+
     /// Durably stop new reads and writes under one activated task. A provider
     /// call already entered or bytes already delivered cannot be recalled.
     ///

@@ -302,6 +302,17 @@ async function revokeWriteTask() {
   message("This agent task is revoked. New reads and writes are closed; prior deliveries and entered writes remain.");
 }
 
+async function loadWriteTaskStatus() {
+  const taskId = value("write-confirm-task-id");
+  if (!taskId) throw new Error("Enter the signed agent task ID first");
+  const status = await api("/api/v1/write/tasks/status", {task_id: taskId});
+  if (status.task_id !== taskId || status.schema !== "auths.gateway-agent-task-status/1") {
+    throw new Error("Gateway status did not match the selected task");
+  }
+  byId("write-activity").textContent = JSON.stringify(status, null, 2);
+  message(status.revoked ? "This agent task is revoked." : "Gateway task activity is current.");
+}
+
 async function prepareActivation() {
   const taskId = value("task-id");
   if (!taskId) throw new Error("Enter a task ID first");
@@ -469,6 +480,8 @@ async function start() {
     bind("write-confirm-authorize", authorizeWriteConfirmation);
     if (session.task_write_execution_available) {
       bind("write-submit", submitApprovedWrite);
+      byId("write-status-refresh").hidden = false;
+      bind("write-status-refresh", loadWriteTaskStatus);
       byId("write-revoke").hidden = false;
       bind("write-revoke", revokeWriteTask);
     }
