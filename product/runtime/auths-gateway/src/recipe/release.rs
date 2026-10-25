@@ -478,101 +478,39 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn fixture(google: bool) -> (Vec<u8>, Vec<u8>) {
-        let mut lock: Value = serde_json::from_slice(include_bytes!(
-            "../../../../../bindings/fixtures/gateway/airtable/profile.lock.json"
-        ))
-        .expect("existing profile lock");
-        let namespace = if google {
-            "google-demo"
+    fn fixture(google: bool) -> (&'static [u8], &'static [u8]) {
+        if google {
+            (
+                include_bytes!(
+                    "../../../../../demos/google-employee-delegation/read_reference/recipe.json"
+                ),
+                include_bytes!(
+                    "../../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+                ),
+            )
         } else {
-            "airtable-demo"
-        };
-        lock["service"] = json!(if google {
-            "google-delegation"
-        } else {
-            "airtable-delegation"
-        });
-        lock["tool"] = json!(if google {
-            "read_document"
-        } else {
-            "read_record"
-        });
-        lock["command_schema"]["fields"] = json!({
-            "operator_namespace": {"type": "enum", "variants": [namespace]},
-            "operation_id": {"kind": "string", "minimum": 1, "maximum": 128},
-            "recipe_digest": {"kind": "string", "minimum": 64, "maximum": 64},
-            "task_id": {"kind": "string", "minimum": 1, "maximum": 128},
-            "agent_principal": {"kind": "string", "minimum": 1, "maximum": 256},
-            "resource_id": {"kind": "string", "minimum": 1, "maximum": 128}
-        });
-        let schema = &lock["command_schema"];
-        lock["schema_digest"] = json!(hex::encode(Sha256::digest(
-            serde_json_canonicalizer::to_vec(schema).expect("canonical schema")
-        )));
-        let source = if google {
-            json!({
-                "schema": RELEASE_RECIPE_SOURCE_SCHEMA,
-                "profile_schema_digest": lock["schema_digest"],
-                "service": lock["service"], "tool": lock["tool"],
-                "operator_namespace": namespace,
-                "credential": {"kind": "bearer"},
-                "origin": "https://www.googleapis.com",
-                "path": [
-                    {"kind":"fixed","value":"drive"},
-                    {"kind":"fixed","value":"v3"},
-                    {"kind":"fixed","value":"files"},
-                    {"kind":"field","name":"resource_id"},
-                    {"kind":"fixed","value":"export"}
-                ],
-                "query": {"mimeType":"text/plain"},
-                "resource_field": "resource_id",
-                "recipient_field": "agent_principal",
-                "response": {
-                    "status": 200, "media_type": "text/plain",
-                    "maximum_provider_bytes": 1024,
-                    "maximum_release_bytes": 512,
-                    "projection": {"kind":"whole-text"}
-                }
-            })
-        } else {
-            json!({
-                "schema": RELEASE_RECIPE_SOURCE_SCHEMA,
-                "profile_schema_digest": lock["schema_digest"],
-                "service": lock["service"], "tool": lock["tool"],
-                "operator_namespace": namespace,
-                "credential": {"kind": "bearer"},
-                "origin": "https://api.airtable.com",
-                "path": [
-                    {"kind":"fixed","value":"v0"},
-                    {"kind":"fixed","value":"appTEST0000000001"},
-                    {"kind":"fixed","value":"tblTEST0000000001"},
-                    {"kind":"field","name":"resource_id"}
-                ],
-                "resource_field": "resource_id",
-                "recipient_field": "agent_principal",
-                "response": {
-                    "status": 200, "media_type": "application/json",
-                    "maximum_provider_bytes": 1024,
-                    "maximum_release_bytes": 32,
-                    "projection": {"kind":"json-string", "pointer":"/fields/DemoStatus"}
-                }
-            })
-        };
-        (
-            serde_json::to_vec(&source).expect("source fixture"),
-            serde_json::to_vec(&lock).expect("lock fixture"),
-        )
+            (
+                include_bytes!("../../../../../demos/airtable-gateway/read_reference/recipe.json"),
+                include_bytes!(
+                    "../../../../../demos/airtable-gateway/read_reference/profile.lock.json"
+                ),
+            )
+        }
     }
 
     fn arguments(recipe: &CompiledReleaseRecipe, namespace: &str) -> Map<String, Value> {
+        let resource_id = if namespace == "airtable-read-demo" {
+            "recTEST0000000001"
+        } else {
+            "resource-1"
+        };
         json!({
             "operator_namespace": namespace,
             "operation_id": "read-1",
             "recipe_digest": recipe.digest_hex(),
             "task_id": "task-1",
             "agent_principal": "agent-principal",
-            "resource_id": "resource-1"
+            "resource_id": resource_id
         })
         .as_object()
         .expect("argument object")
@@ -585,7 +523,7 @@ mod tests {
         let google = CompiledReleaseRecipe::compile(&google_source, &google_lock)
             .expect("Google release compiles");
         let request = google
-            .closed_request_from_arguments(&arguments(&google, "google-demo"), [7; 32])
+            .closed_request_from_arguments(&arguments(&google, "google-read-demo"), [7; 32])
             .expect("verified arguments construct a request");
         assert_eq!(
             request.url(),
@@ -607,11 +545,11 @@ mod tests {
         let airtable = CompiledReleaseRecipe::compile(&airtable_source, &airtable_lock)
             .expect("Airtable release compiles");
         let request = airtable
-            .closed_request_from_arguments(&arguments(&airtable, "airtable-demo"), [9; 32])
+            .closed_request_from_arguments(&arguments(&airtable, "airtable-read-demo"), [9; 32])
             .expect("verified arguments construct a request");
         assert_eq!(
             request.url(),
-            "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/resource-1"
+            "https://api.airtable.com/v0/appQD3Qf0YFBCW9bV/tblBx2jwe0IsPYRKT/recTEST0000000001"
         );
         assert_eq!(
             airtable.project(
@@ -627,7 +565,7 @@ mod tests {
     fn changed_action_and_unavailable_projection_never_produce_release_bytes() {
         let (source, lock) = fixture(false);
         let recipe = CompiledReleaseRecipe::compile(&source, &lock).expect("release compiles");
-        let mut changed = arguments(&recipe, "airtable-demo");
+        let mut changed = arguments(&recipe, "airtable-read-demo");
         changed.insert("recipe_digest".into(), json!("0".repeat(64)));
         assert_eq!(
             recipe
@@ -656,7 +594,7 @@ mod tests {
             Err(ReleaseProjectionError::MediaType)
         );
         assert_eq!(
-            recipe.project(200, "application/json", &[b'x'; 1025]),
+            recipe.project(200, "application/json", &[b'x'; 16_385]),
             Err(ReleaseProjectionError::Body)
         );
     }
