@@ -192,6 +192,32 @@ create operation, title, parent and content commitment. Only then may the
 task journal record an immutable `recovered` child binding, distinct from a
 `response-derived` binding. Neither path retries create automatically.
 
+The development recovery handoff has two separately pinned observations:
+Jules's bounded, complete marker search with a fresh exact-ID metadata GET,
+and demo_co's independent blank-candidate observation tied to the original
+pre-create baseline. The operator-side join compares the one candidate's ID,
+marker, parent, drive, Jules subject/generation, baseline and original task
+operation. This join remains evidence, never child permission. Before a
+gateway binding is possible, a domain-separated operator attestation must
+commit the exact search-report and producer-observation digests, candidate ID,
+task/plan/create-operation commitments, connection subject/generation and a
+short validity window. The human's **new native recovery action** must commit
+that attestation digest, candidate ID, original title/parent and the already
+approved initial-content commitment. It cannot reuse the original effect-plan
+signature as the recovery signature.
+
+The gateway must verify the operator attestation and native human action,
+reload the original task and one claimed create, establish that no response ID
+was recorded and no child is already bound, then make a fresh credential-
+bearing metadata GET with the same subject/generation and reviewed observation
+template. It must compare the returned child against the signed create fields
+and the recovered candidate before one atomic task-journal bind with
+`source: recovered` and the evidence commitments. It must never synthesize a
+response digest from the marker or call create again. If the original task or
+effect plan has expired, this same-task binding fails; any later populate
+requires a newly signed, exact child-specific task as a separate continuation,
+which cannot retroactively make the original two-effect plan successful.
+
 ### Cleanup and receipts
 
 Activity reports separate create entry, response recording, child binding,
