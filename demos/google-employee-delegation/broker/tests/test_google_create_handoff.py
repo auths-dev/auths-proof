@@ -10,9 +10,12 @@ from pathlib import Path
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import (
     CHILD_TITLE,
+    CreatedChildMetadataPins,
     CreateObservationPins,
+    created_child_metadata_url,
     inspect_create_observation,
     prepare_create_inputs,
+    validate_created_child_metadata,
     validate_create_observation,
 )
 
@@ -54,6 +57,44 @@ def _write(path: Path, document: dict) -> str:
 
 
 class GoogleCreateHandoffTests(unittest.TestCase):
+    def test_response_derived_child_metadata_requires_exact_google_state(self) -> None:
+        pins = CreatedChildMetadataPins(
+            candidate_id="child_ABC-123", parent_id="project-a-folder",
+            drive_id="shared-drive-1", title=CHILD_TITLE,
+            marker_value="ap071_" + "d" * 32,
+        )
+        self.assertEqual(
+            created_child_metadata_url(pins),
+            "https://www.googleapis.com/drive/v3/files/child_ABC-123"
+            "?supportsAllDrives=true&fields="
+            "id,name,mimeType,parents,driveId,properties,trashed,createdTime",
+        )
+        metadata = {
+            "id": pins.candidate_id, "name": pins.title,
+            "mimeType": "application/vnd.google-apps.document",
+            "parents": [pins.parent_id], "driveId": pins.drive_id,
+            "properties": {"auths_operation_marker": pins.marker_value},
+            "trashed": False, "createdTime": "2026-10-25T10:03:00+00:00",
+        }
+        self.assertEqual(
+            validate_created_child_metadata(metadata, pins).isoformat(),
+            "2026-10-25T10:03:00+00:00",
+        )
+        for altered in (
+            {"id": "other-child"},
+            {"name": "Different title"},
+            {"mimeType": "text/plain"},
+            {"parents": [pins.parent_id, "project-b-folder"]},
+            {"driveId": "other-drive"},
+            {"properties": {}},
+            {"trashed": True},
+            {"createdTime": "2026-10-25T10:03:00"},
+        ):
+            with self.subTest(altered=altered), self.assertRaises(ContractRejected):
+                validate_created_child_metadata(metadata | altered, pins)
+        with self.assertRaises(ContractRejected):
+            created_child_metadata_url(replace(pins, candidate_id="../other"))
+
     def test_create_inputs_use_pinned_parent_and_fresh_opaque_markers(self) -> None:
         first = prepare_create_inputs("project-a-folder", pinned_folder_id="project-a-folder")
         second = prepare_create_inputs("project-a-folder", pinned_folder_id="project-a-folder")

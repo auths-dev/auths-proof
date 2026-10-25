@@ -13,12 +13,17 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Mapping
+from urllib.parse import quote
 
 from .demo_co_contract import ContractRejected, _load
 
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 MARKER = re.compile(r"ap071_[0-9a-f]{32}\Z")
+DRIVE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 CHILD_TITLE = "Auths AP-071 Project A handoff"
+CHILD_MIME_TYPE = "application/vnd.google-apps.document"
+CHILD_FIELDS = "id,name,mimeType,parents,driveId,properties,trashed,createdTime"
 
 
 def prepare_create_inputs(parent_id: str, *, pinned_folder_id: str) -> dict[str, str]:
@@ -36,6 +41,65 @@ def prepare_create_inputs(parent_id: str, *, pinned_folder_id: str) -> dict[str,
         "title": CHILD_TITLE,
         "recovery_marker": "ap071_" + secrets.token_hex(16),
     }
+
+
+@dataclass(frozen=True)
+class CreatedChildMetadataPins:
+    """Exact signed create fields and operator-pinned shared Drive context.
+
+    The candidate ID must come from the durable Auths attempt journal. These
+    pins alone cannot attribute creation to an agent or authorize population.
+    """
+
+    candidate_id: str
+    parent_id: str
+    drive_id: str
+    title: str
+    marker_value: str
+
+    def validate(self) -> None:
+        if (not all(type(value) is str and DRIVE_ID.fullmatch(value)
+                    for value in (self.candidate_id, self.parent_id, self.drive_id))
+                or type(self.title) is not str or self.title != CHILD_TITLE
+                or type(self.marker_value) is not str
+                or MARKER.fullmatch(self.marker_value) is None):
+            raise ContractRejected("created-child metadata pins are invalid")
+
+
+def created_child_metadata_url(pins: CreatedChildMetadataPins) -> str:
+    """Build the fixed Google metadata GET for the response-derived child."""
+    pins.validate()
+    return ("https://www.googleapis.com/drive/v3/files/"
+            + quote(pins.candidate_id, safe="")
+            + "?supportsAllDrives=true&fields=" + quote(CHILD_FIELDS, safe=","))
+
+
+def validate_created_child_metadata(metadata: Mapping[str, object],
+                                    pins: CreatedChildMetadataPins) -> datetime:
+    """Check a bounded files.get result as a test-only Google vertical oracle.
+
+    The caller must separately pin the OAuth UserInfo subject, task action,
+    response journal, and connection generation. A matching public marker is
+    never child permission. The returned aware timestamp is correlation only.
+    """
+    pins.validate()
+    if (not isinstance(metadata, Mapping)
+            or metadata.get("id") != pins.candidate_id
+            or metadata.get("name") != pins.title
+            or metadata.get("mimeType") != CHILD_MIME_TYPE
+            or metadata.get("parents") != [pins.parent_id]
+            or metadata.get("driveId") != pins.drive_id
+            or metadata.get("trashed") is not False
+            or not isinstance(metadata.get("properties"), dict)
+            or metadata["properties"].get("auths_operation_marker") != pins.marker_value):
+        raise ContractRejected("created-child metadata differs from signed and operator pins")
+    try:
+        created = datetime.fromisoformat(metadata["createdTime"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ContractRejected("created-child creation time is invalid") from error
+    if created.tzinfo is None or created.utcoffset() is None:
+        raise ContractRejected("created-child creation time has no timezone")
+    return created
 
 
 @dataclass(frozen=True)

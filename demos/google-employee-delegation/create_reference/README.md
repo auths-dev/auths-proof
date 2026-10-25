@@ -40,6 +40,11 @@ the current observation compares the file name only, and neither it nor the
 candidate grants permission to populate the file. The task still needs a
 separate metadata check of subject, parent, type and marker followed by a
 durable child binding before a second write can be admitted.
+The broker's test-only Google metadata oracle now defines the exact `files.get`
+request and rejects mismatched child ID, name, MIME type, sole parent, shared
+drive, public marker, trash state or creation time. It does not call Google or
+issue Auths authority. The connection's Jules subject must be checked from
+the credential broker, not inferred from file metadata.
 
 The [read-only producer observation consumer](../broker/src/employee_read_demo/google_create_handoff.py)
 checks demo_co's versioned create observation against exact private run pins.
