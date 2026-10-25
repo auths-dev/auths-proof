@@ -17,7 +17,7 @@ from .browser_sessions import BrowserSessionStore
 from .contracts import TaskDescriptor
 from .enrollment import EnrollmentStore
 from .enrollment import EmployeeBinding
-from .google_oauth import CONNECT_SCOPES, OAuthResult, TOKEN_URL
+from .google_oauth import CONNECT_SCOPES, OAuthResult, TOKEN_URL, _bounded_json_response
 
 
 @dataclass(frozen=True)
@@ -30,21 +30,15 @@ def _exchange_refresh(client_id: str, client_secret: str, refresh_token: str) ->
     session = requests.Session()
     session.trust_env = False
     try:
-        response = session.post(TOKEN_URL, data={
+        with session.post(TOKEN_URL, data={
             "client_id": client_id,
             "client_secret": client_secret,
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
-        }, timeout=15, allow_redirects=False, stream=True)
-        if response.status_code != 200:
-            raise AdmissionDenied("Google refresh was refused")
-        raw = response.raw.read(32_769)
-        if len(raw) > 32_768:
-            raise AdmissionDenied("Google refresh response exceeded limit")
-        result = json.loads(raw)
-        if type(result) is not dict:
-            raise AdmissionDenied("Google refresh response is invalid")
-        return result
+        }, timeout=15, allow_redirects=False, stream=True) as response:
+            if response.status_code != 200:
+                raise AdmissionDenied("Google refresh was refused")
+            return _bounded_json_response(response, 32_768)
     except (requests.RequestException, ValueError, UnicodeDecodeError) as error:
         raise AdmissionDenied("Google refresh was unavailable") from error
     finally:

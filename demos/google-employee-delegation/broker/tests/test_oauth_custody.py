@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import gzip
+import io
 import tempfile
 import time
 import unittest
@@ -8,6 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
+import requests
+import urllib3
 from cryptography.fernet import Fernet
 
 from employee_read_demo.admission import AdmissionDenied, AdmissionStore
@@ -16,6 +20,7 @@ from employee_read_demo.browser_sessions import BrowserSessionStore, SessionDeni
 from employee_read_demo.google_oauth import (
     CONNECT_SCOPES, GoogleOAuth, GoogleOAuthConfig, OAuthRejected,
     OAuthResult, OAuthStateStore,
+    _bounded_json_response,
 )
 from employee_read_demo.operator_cli import offboard_employee
 from employee_read_demo.token_store import TokenVault
@@ -32,6 +37,21 @@ class OAuthCustodyTests(unittest.TestCase):
     def test_desktop_loopback_origin_is_valid_redirect(self) -> None:
         GoogleOAuthConfig("client-id", "synthetic-secret", "http://127.0.0.1:8765",
                           "example.invalid").validate()
+
+    def test_compressed_token_json_is_decoded_with_post_decompression_limit(self) -> None:
+        payload = b'{"access_token":"synthetic-access"}'
+        def response():
+            result = requests.Response()
+            result.status_code = 200
+            result.raw = urllib3.response.HTTPResponse(
+                body=io.BytesIO(gzip.compress(payload)),
+                headers={"Content-Encoding": "gzip"}, preload_content=False,
+            )
+            return result
+        self.assertEqual(_bounded_json_response(response(), len(payload)),
+                         {"access_token": "synthetic-access"})
+        with self.assertRaises(ValueError):
+            _bounded_json_response(response(), len(payload) - 1)
 
     def test_state_is_one_use_and_connect_requires_bound_subject(self) -> None:
         states = OAuthStateStore(self.path)

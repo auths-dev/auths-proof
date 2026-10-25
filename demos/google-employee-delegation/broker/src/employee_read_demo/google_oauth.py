@@ -26,6 +26,19 @@ AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 
+def _bounded_json_response(response: requests.Response, limit: int) -> dict:
+    """Decode a streamed JSON response with a cap after content decompression."""
+    body = bytearray()
+    for part in response.iter_content(chunk_size=4096):
+        if len(body) + len(part) > limit:
+            raise ValueError("Google JSON response exceeds limit")
+        body.extend(part)
+    result = json.loads(body)
+    if type(result) is not dict:
+        raise ValueError("Google JSON response is not an object")
+    return result
+
+
 class OAuthRejected(PermissionError):
     pass
 
@@ -154,43 +167,43 @@ class GoogleOAuth:
             raise OAuthRejected("authorization code is invalid")
         session = requests.Session()
         session.trust_env = False
-        response = session.post(TOKEN_URL, data={
-            "code": code,
-            "client_id": self.config.client_id,
-            "client_secret": self.config.client_secret,
-            "redirect_uri": self.config.redirect_uri,
-            "grant_type": "authorization_code",
-            "code_verifier": verifier,
-        }, timeout=15, allow_redirects=False, stream=True)
-        if response.status_code != 200:
-            raise OAuthRejected("Google token exchange failed")
-        raw = response.raw.read(32_769)
-        if len(raw) > 32_768:
-            raise OAuthRejected("Google token response exceeded limit")
         try:
-            tokens = json.loads(raw)
-        except (ValueError, UnicodeDecodeError) as error:
-            raise OAuthRejected("Google token response is invalid") from error
-        token = tokens.get("id_token")
-        if not isinstance(token, str) or len(token) > 16_384:
-            raise OAuthRejected("Google ID token is missing")
-        claims = id_token.verify_oauth2_token(token, Request(session=session), self.config.client_id)
-        if (claims.get("iss") not in ISSUERS or claims.get("hd") != self.config.hosted_domain
-                or claims.get("nonce") != nonce or claims.get("azp", self.config.client_id) != self.config.client_id):
-            raise OAuthRejected("Google identity binding failed")
-        subject = claims.get("sub")
-        if not isinstance(subject, str) or not subject or (expected_subject is not None and subject != expected_subject):
-            raise OAuthRejected("Google subject does not match enrollment")
-        scopes = frozenset(tokens.get("scope", "").split())
-        required = LOGIN_SCOPES if kind == "login" else CONNECT_SCOPES
-        if not required.issubset(scopes):
-            raise OAuthRejected("Google consent is incomplete")
-        access_token = tokens.get("access_token")
-        refresh_token = tokens.get("refresh_token")
-        expires_in = tokens.get("expires_in")
-        if (not isinstance(access_token, str) or not access_token
-                or (refresh_token is not None and not isinstance(refresh_token, str))
-                or type(expires_in) is not int or not 1 <= expires_in <= 86_400):
-            raise OAuthRejected("Google access token response is invalid")
-        return OAuthResult(kind, claims["iss"], subject, claims.get("email"), scopes,
-                           access_token, refresh_token, expires_in)
+            with session.post(TOKEN_URL, data={
+                "code": code,
+                "client_id": self.config.client_id,
+                "client_secret": self.config.client_secret,
+                "redirect_uri": self.config.redirect_uri,
+                "grant_type": "authorization_code",
+                "code_verifier": verifier,
+            }, timeout=15, allow_redirects=False, stream=True) as response:
+                if response.status_code != 200:
+                    raise OAuthRejected("Google token exchange failed")
+                try:
+                    tokens = _bounded_json_response(response, 32_768)
+                except (ValueError, UnicodeDecodeError) as error:
+                    raise OAuthRejected("Google token response is invalid") from error
+            token = tokens.get("id_token")
+            if not isinstance(token, str) or len(token) > 16_384:
+                raise OAuthRejected("Google ID token is missing")
+            claims = id_token.verify_oauth2_token(token, Request(session=session), self.config.client_id)
+            if (claims.get("iss") not in ISSUERS or claims.get("hd") != self.config.hosted_domain
+                    or claims.get("nonce") != nonce or claims.get("azp", self.config.client_id) != self.config.client_id):
+                raise OAuthRejected("Google identity binding failed")
+            subject = claims.get("sub")
+            if not isinstance(subject, str) or not subject or (expected_subject is not None and subject != expected_subject):
+                raise OAuthRejected("Google subject does not match enrollment")
+            scopes = frozenset(tokens.get("scope", "").split())
+            required = LOGIN_SCOPES if kind == "login" else CONNECT_SCOPES
+            if not required.issubset(scopes):
+                raise OAuthRejected("Google consent is incomplete")
+            access_token = tokens.get("access_token")
+            refresh_token = tokens.get("refresh_token")
+            expires_in = tokens.get("expires_in")
+            if (not isinstance(access_token, str) or not access_token
+                    or (refresh_token is not None and not isinstance(refresh_token, str))
+                    or type(expires_in) is not int or not 1 <= expires_in <= 86_400):
+                raise OAuthRejected("Google access token response is invalid")
+            return OAuthResult(kind, claims["iss"], subject, claims.get("email"), scopes,
+                               access_token, refresh_token, expires_in)
+        finally:
+            session.close()
