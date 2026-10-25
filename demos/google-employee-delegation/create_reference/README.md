@@ -17,9 +17,12 @@ populate parent grants in one trust context. The enrolled human signs each
 child grant for the same registered agent, and the agent can form a native
 populate proof without receiving Jules's key or Google credential. This is an
 offline authority path. The owner-side browser flow can now sign and save both
-agent grant packages and a task card with the pending child; its HTTP route and
-screen are still wired only to the single edit reference. The exact two-effect
-plan and provider entry are not implemented by this authority package.
+agent grant packages and a task card with the pending child. The optional
+browser route takes the pinned Project A folder from demo_co's verified export,
+generates a fresh marker and operation ID, displays the pending-child proposal,
+and requests both grant signatures. It does not activate the task or offer a
+create/populate execution button: the exact content effect plan and provider
+entry are still required.
 
 The marker is an opaque run identifier, not a secret or permission. It is
 visible to other applications through Drive's `properties` field and can

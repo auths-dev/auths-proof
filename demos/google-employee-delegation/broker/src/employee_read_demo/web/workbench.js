@@ -196,9 +196,12 @@ async function prepareWriteTask() {
     write_approval_mode: result.card.write_approval_mode,
     expires_at: result.card.expires_at,
     recipe_digest: result.card.write_scopes[0].recipe_digest,
+    pending_child: result.card.pending_child || null,
   }, null, 2);
   byId("write-review").hidden = false;
-  message("Review the account, destination, agent and limits before signing the task and child grant.");
+  message(result.card.pending_child
+    ? "Review the Project A folder, exact child proposal, agent and limits before signing both child grants and the task. The two-effect content plan is still required before provider entry."
+    : "Review the account, destination, agent and limits before signing the task and child grant.");
 }
 
 async function authorizeWriteTask() {
@@ -209,6 +212,8 @@ async function authorizeWriteTask() {
   const grantSignature = await signEmployee(preparedWriteTask.grant_preimage);
   const readGrantSignature = preparedWriteTask.read_grant_preimage
     ? await signEmployee(preparedWriteTask.read_grant_preimage) : null;
+  const companionGrantSignature = preparedWriteTask.companion_grant_preimage
+    ? await signEmployee(preparedWriteTask.companion_grant_preimage) : null;
   const taskSignature = await signEmployee(preparedWriteTask.task_preimage);
   const authorization = {
     nonce: preparedWriteTask.nonce,
@@ -216,6 +221,7 @@ async function authorizeWriteTask() {
     task_signature: taskSignature,
   };
   if (readGrantSignature) authorization.read_grant_signature = readGrantSignature;
+  if (companionGrantSignature) authorization.companion_grant_signature = companionGrantSignature;
   const result = await api("/api/v1/write/tasks/authorize", authorization);
   if (result.task_id !== preparedWriteTask.card.task_id ||
       result.agent_principal !== preparedWriteTask.card.agent_principal) {
@@ -227,6 +233,10 @@ async function authorizeWriteTask() {
     download(`auths-read-agent-${result.task_id}.json`,
       JSON.stringify(result.read_agent_package, null, 2), "application/json");
   }
+  if (result.companion_agent_package) {
+    download(`auths-companion-write-agent-${result.task_id}.json`,
+      JSON.stringify(result.companion_agent_package, null, 2), "application/json");
+  }
   byId("write-status").textContent = JSON.stringify({
     task_id: result.task_id, status: result.status,
     agent_principal: result.agent_principal, expires_at: result.expires_at,
@@ -234,9 +244,11 @@ async function authorizeWriteTask() {
   byId("write-review").hidden = true;
   byId("write-confirm-task-id").value = result.task_id;
   preparedWriteTask = null;
-  message(result.status === "activated_awaiting_agent_proposal"
-    ? "Jules's task is activated. The separate agent can act within its approved scopes; the edit still needs exact confirmation."
-    : "Jules's task is signed. Gateway activation and a separate exact edit confirmation are still required.");
+  message(result.companion_agent_package
+    ? "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry."
+    : result.status === "activated_awaiting_agent_proposal"
+      ? "Jules's task is activated. The separate agent can act within its approved scopes; the edit still needs exact confirmation."
+      : "Jules's task is signed. Gateway activation and a separate exact edit confirmation are still required.");
 }
 
 async function prepareWriteConfirmation() {

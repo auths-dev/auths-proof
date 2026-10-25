@@ -7,6 +7,7 @@ import asyncio
 import base64
 import binascii
 import json
+import secrets
 import sqlite3
 import stat
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ from .task_write_browser import TaskWriteBrowserFlow
 from .task_write_confirmation import TaskWriteConfirmationFlow
 from .task_write_card import _installation
 from .task_write_package import load_task_write_package
+from .google_create_handoff import prepare_create_inputs
 from .write_handoff import WriteHandoffPins, validate_write_handoff
 from .google_write_credential import WriteCredentialPins
 from .google_write_preflight import preflight_jules_edit
@@ -444,12 +446,31 @@ class Handler(BaseHTTPRequestHandler):
                 if path.endswith("/prepare"):
                     if set(body) != {"purpose"} or type(body["purpose"]) is not str:
                         raise ValueError("task purpose is invalid")
+                    paired = self.workbench.write_browser.companion_recipe_path is not None
+                    pending_child = None
+                    if paired:
+                        create_inputs = prepare_create_inputs(
+                            evidence["folder_id"], pinned_folder_id=evidence["folder_id"])
+                        package = load_task_write_package(
+                            self.workbench.write_browser.authority_path)
+                        pending_child = {
+                            "create_operation_id": secrets.token_urlsafe(18),
+                            "create_recipe_digest": package.recipe_digest,
+                            "populate_recipe_digest":
+                                package.companion_write.recipe_digest,
+                            "parent_handle": create_inputs["parent_id"],
+                            "title": create_inputs["title"],
+                            "marker": create_inputs["recovery_marker"],
+                        }
                     prepared = self.workbench.write_browser.prepare(
                         employee=employee, agent=agent,
                         employee_identity_packet=human_packet,
                         agent_identity_packet=agent_packet,
-                        resource_handle=evidence["document_id"],
-                        resource_label=evidence["document_title"],
+                        resource_handle=(evidence["folder_id"] if paired else
+                                         evidence["document_id"]),
+                        resource_label=("Project A destination folder" if paired else
+                                        evidence["document_title"]),
+                        pending_child=pending_child,
                         read_resource_handle=(evidence["probe_document_id"]
                                               if self.workbench.write_browser.read_recipe_path
                                               is not None else None),
@@ -471,6 +492,10 @@ class Handler(BaseHTTPRequestHandler):
                             None if prepared.read_grant_preimage is None else
                             base64.urlsafe_b64encode(
                                 prepared.read_grant_preimage).decode("ascii")),
+                        "companion_grant_preimage": (
+                            None if prepared.companion_grant_preimage is None else
+                            base64.urlsafe_b64encode(
+                                prepared.companion_grant_preimage).decode("ascii")),
                         "task_preimage": base64.urlsafe_b64encode(
                             prepared.task_preimage).decode("ascii"),
                         "expires_at": prepared.expires_at,
@@ -479,6 +504,8 @@ class Handler(BaseHTTPRequestHandler):
                 expected = {"nonce", "grant_signature", "task_signature"}
                 if self.workbench.write_browser.read_recipe_path is not None:
                     expected.add("read_grant_signature")
+                if self.workbench.write_browser.companion_recipe_path is not None:
+                    expected.add("companion_grant_signature")
                 if set(body) != expected:
                     raise ValueError("task signatures are incomplete")
                 nonce = body["nonce"]
@@ -490,6 +517,9 @@ class Handler(BaseHTTPRequestHandler):
                     read_grant_signature=(
                         _b64(body["read_grant_signature"], max_bytes=64)
                         if "read_grant_signature" in body else None),
+                    companion_grant_signature=(
+                        _b64(body["companion_grant_signature"], max_bytes=64)
+                        if "companion_grant_signature" in body else None),
                     task_signature=_b64(body["task_signature"], max_bytes=64),
                 )
                 activated = False
@@ -505,6 +535,7 @@ class Handler(BaseHTTPRequestHandler):
                     "expires_at": completed.expires_at,
                     "agent_package": completed.agent_package,
                     "read_agent_package": completed.read_agent_package,
+                    "companion_agent_package": completed.companion_agent_package,
                 })
                 return
             if path in {"/api/v1/write/confirmations/prepare",
@@ -838,6 +869,8 @@ def main() -> int:
     parser.add_argument("--task-write-profile-lock", type=Path)
     parser.add_argument("--task-read-recipe", type=Path)
     parser.add_argument("--task-read-profile-lock", type=Path)
+    parser.add_argument("--task-companion-write-recipe", type=Path)
+    parser.add_argument("--task-companion-write-profile-lock", type=Path)
     parser.add_argument("--task-write-output-dir", type=Path)
     parser.add_argument("--task-write-evidence", type=Path)
     parser.add_argument("--task-write-pins", type=Path)
@@ -947,6 +980,13 @@ def main() -> int:
         if (loaded.read is None and any(path is not None for path in read_paths)) or (
                 loaded.read is not None and not all(path is not None for path in read_paths)):
             parser.error("task read recipe inputs must match issued authority")
+        companion_paths = (args.task_companion_write_recipe,
+                           args.task_companion_write_profile_lock)
+        if (loaded.companion_write is None and
+                any(path is not None for path in companion_paths)) or (
+                loaded.companion_write is not None and
+                not all(path is not None for path in companion_paths)):
+            parser.error("companion write recipe inputs must match issued authority")
         _installation(args.task_write_installation)
         write_browser = TaskWriteBrowserFlow(
             authority_path=args.task_write_authority,
@@ -955,6 +995,8 @@ def main() -> int:
             profile_lock_path=args.task_write_profile_lock,
             read_recipe_path=args.task_read_recipe,
             read_profile_lock_path=args.task_read_profile_lock,
+            companion_recipe_path=args.task_companion_write_recipe,
+            companion_profile_lock_path=args.task_companion_write_profile_lock,
             private_output_dir=args.task_write_output_dir,
         )
     confirmation_options = (
@@ -970,6 +1012,8 @@ def main() -> int:
     if args.task_write_gateway_bin is not None:
         if write_browser is None:
             parser.error("gateway review requires the task write installation")
+        if write_browser.companion_recipe_path is not None:
+            parser.error("paired create/populate effect-plan review is not installed")
         raw_pins = json.loads(_private_file(args.task_write_credential_pins, 4096),
                               object_pairs_hook=_unique_pairs)
         if (type(raw_pins) is not dict
