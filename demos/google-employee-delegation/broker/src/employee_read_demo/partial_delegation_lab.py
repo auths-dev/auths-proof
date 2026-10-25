@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import secrets
+import stat
 import tempfile
 import time
 from dataclasses import asdict, dataclass
@@ -347,7 +348,7 @@ _PAGE = """<!doctype html>
 to bind this browser to that employee subject before preparing a task. This
 login requests only OpenID and email; it does not replace the Drive grant.</p>
 <p id="identity">__IDENTITY__</p>
-<button id="login">Sign in with Google as Jules</button>
+<button id="login" __LOGIN_DISABLED__>Sign in with Google as Jules</button>
 <p>The browser creates a non-exportable Auths signing key for this task. The
 agent has a distinct Auths key, but this diagnostic runs both roles in one
 broker process.</p>
@@ -472,6 +473,7 @@ class LabHandler(BaseHTTPRequestHandler):
             page = (_PAGE.replace("__CSRF__", session.csrf)
                     .replace("__IDENTITY__", "Google authenticated: jules@auths.dev" if logged_in
                              else "Google authentication required")
+                    .replace("__LOGIN_DISABLED__", "disabled" if logged_in else "")
                     .replace("__PREPARE_DISABLED__", "" if logged_in else "disabled"))
             self._send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8", cookie=cookie)
         elif path == "/lab.js":
@@ -548,6 +550,9 @@ def main() -> int:
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535 or args.out.exists():
         parser.error("port or private output path is unavailable")
+    if (args.out.parent.is_symlink() or not args.out.parent.is_dir()
+            or stat.S_IMODE(args.out.parent.stat().st_mode) & 0o077):
+        parser.error("output directory must exist and be owner-only")
     inputs = load_inputs(args.producer_report, args.producer_report_sha256, args.oauth_client)
     oauth = json.loads(_private_read(args.oauth_client, 4096), object_pairs_hook=_unique_pairs)["installed"]
     oauth_config = GoogleOAuthConfig(inputs.client_id, oauth["client_secret"],

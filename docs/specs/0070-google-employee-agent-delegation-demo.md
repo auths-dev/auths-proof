@@ -486,11 +486,25 @@ The review screen shows the real account binding and exact selected IDs behind r
 > provider request, the receipt signature verified, and revocation denied a
 > new challenge. The browser signer was not authenticated by Google as Jules,
 > and the agent key ran in the diagnostic broker process. This is useful
-> minimum flow evidence, not §14 acceptance. TODO after the demo_co agent
-> finishes: consume its complete versioned export for the normal importer
-> and repeat with browser Google identity binding, separate agent process,
-> and the remaining employee and provider controls. Do not synthesize the
-> missing demo_co export in this repository.
+> minimum flow evidence, not §14 acceptance. The follow-up below adds
+> browser Google identity binding. The normal importer still needs the
+> complete demo_co export and an isolated agent process. Do not synthesize
+> the missing demo_co export in this repository.
+
+> **Jules Google-bound follow-up (25 October 2026):** The separate lab now
+> authenticates the Incognito browser through Google's OpenID/email flow,
+> validates the signed ID token and matches its subject to the pinned Jules
+> subject before accepting a browser-key signature. A human reviewed and
+> signed one fresh Project A grant. Native verification authorized the agent
+> action; Jules's existing Drive grant released 1,249 bytes through two
+> provider requests, matching the independent producer hash. Project B was
+> denied before a provider request, the signed receipt verified, and a new
+> challenge was denied after revocation. The owner-only redacted result has
+> SHA-256 `b3951c7148b415beeab6743a2a07261fc977191a15e0257831eee837ec8108d5`.
+> This establishes the Jules-only Google identity and read path. The agent
+> key still runs in the diagnostic broker process, and the complete demo_co
+> versioned export and remaining §14 controls are still pending. Do not
+> promote this partial result to full AP-SPEC-070 acceptance.
 
 Proposed application routes:
 
