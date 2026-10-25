@@ -87,6 +87,18 @@ The installed native trust must admit the recipe's provider action plus both
 `auths-agent-task` tools, `approve_agent_task_v1` and
 `confirm_agent_write_v1`. The task session refuses missing task-profile trust
 before activation or provider entry.
+The broker's [task authority builder](../broker/src/employee_read_demo/task_write_authority.py)
+now prepares that multi-profile trust and three distinct root-to-employee
+grants. It also prepares an employee-signed child grant for the selected
+agent's provider write tool. Native synthetic tests cover both this Google
+Docs profile and the Airtable write profile. The live operator issuance,
+Jules browser signatures and separate agent signing flow still need wiring.
+The private `auths-google-task-authority` operator command can now issue an
+owner-only package from the current company root seed, its trust manifest,
+Jules's enrolled identity and the operator-reviewed recipe profile/digest.
+It prints only a redacted summary; the package contains signed native grants
+and a trust template, no Google credential or human signing key. The browser
+and isolated agent must still complete their own signatures.
 
 `task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
 verifies the human's native signed task and registers its budget once.
