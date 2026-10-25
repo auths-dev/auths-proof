@@ -1421,6 +1421,7 @@ impl GatewayEngine {
             prepared: OnceLock::new(),
             task_write: Some(TaskWriteAdmission {
                 task,
+                pins: submission.pins,
                 binding: submission.binding,
                 approved: &approved,
                 ledger: submission.ledger,
@@ -2119,6 +2120,7 @@ impl TaskWriteSession<'_> {
             prepared: OnceLock::new(),
             task_write: Some(TaskWriteAdmission {
                 task: &task,
+                pins: &self.pins,
                 binding: &self.binding,
                 approved: &approved,
                 ledger: &self.ledger,
@@ -2225,6 +2227,7 @@ struct TaskWriteSubmission<'a> {
 #[cfg(unix)]
 struct TaskWriteAdmission<'a> {
     task: &'a ApprovedAgentTask,
+    pins: &'a TaskActivationPins,
     binding: &'a TaskWriteBinding,
     approved: &'a ApprovedTaskWrite,
     ledger: &'a FileReleaseTaskLedger,
@@ -2246,6 +2249,23 @@ struct EngineIo<'a> {
     commissioned_action: OnceLock<commissioning::CommissionedAction>,
     #[cfg(unix)]
     commissioning_refusal: OnceLock<&'static str>,
+}
+
+impl EngineIo<'_> {
+    #[cfg(unix)]
+    fn task_write_active(&self) -> bool {
+        self.task_write.as_ref().is_none_or(|admission| {
+            wall_clock_seconds().is_some_and(|now| {
+                admission
+                    .ledger
+                    .load(&admission.task.descriptor().task_id)
+                    .ok()
+                    .flatten()
+                    .and_then(|state| state.activated_task(admission.pins, now).ok())
+                    .is_some_and(|current| current.commitment() == admission.task.commitment())
+            })
+        })
+    }
 }
 
 impl SubmitIo for EngineIo<'_> {
@@ -2375,6 +2395,10 @@ impl SubmitIo for EngineIo<'_> {
 
     async fn reload(&self) -> bool {
         #[cfg(unix)]
+        if !self.task_write_active() {
+            return false;
+        }
+        #[cfg(unix)]
         if self.task_write.as_ref().is_some_and(|admission| {
             admission.preflight_valid_until.is_some_and(|valid_until| {
                 wall_clock_seconds().is_none_or(|now| now >= valid_until)
@@ -2410,6 +2434,10 @@ impl SubmitIo for EngineIo<'_> {
 
     async fn lease(&self) -> Option<StoredSecretLease> {
         let prepared = self.prepared.get()?;
+        #[cfg(unix)]
+        if !self.task_write_active() {
+            return None;
+        }
         #[cfg(unix)]
         if let Some(session) = self.commissioning {
             if let Err(code) = session.claim(self.commissioned_action.get()?).await {
@@ -3308,7 +3336,7 @@ pub(crate) mod tests {
             verify_exact_write_confirmation(
                 &engine.trusted_context,
                 &approved,
-                intent,
+                intent.clone(),
                 now,
                 &confirmation.proof,
                 &confirmation.action,
@@ -3487,9 +3515,42 @@ pub(crate) mod tests {
                 .await;
             assert_eq!(replay, not_entered("gateway.task.write-replay"));
             assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
+            let confirmed = verify_exact_write_confirmation(
+                &engine.trusted_context,
+                &approved,
+                intent,
+                now,
+                &confirmation.proof,
+                &confirmation.action,
+            )
+            .expect("confirmed write");
+            let raced = EngineIo {
+                engine,
+                proof: &agent_signed.proof,
+                action: &agent_signed.action,
+                started: Instant::now(),
+                prepared: OnceLock::new(),
+                task_write: Some(TaskWriteAdmission {
+                    task: &approved,
+                    pins: &config.pins,
+                    binding: &session.binding,
+                    approved: &confirmed,
+                    ledger: &session.ledger,
+                    child_scope: None,
+                    preflight_valid_until: None,
+                }),
+                commissioning: None,
+                commissioned_action: OnceLock::new(),
+                commissioning_refusal: OnceLock::new(),
+            };
+            raced.prepare().await.expect("prepare before revocation");
+            assert!(raced.reload().await);
             session
                 .revoke(&card.task_id)
                 .expect("durable task revocation");
+            assert!(!raced.reload().await);
+            assert!(raced.lease().await.is_none());
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
             let revoked = session
                 .submit(TaskWriteProofs {
                     task_id: &card.task_id,
