@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import base64
+import json
+import os
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 from auths import _native
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -21,6 +26,7 @@ class WriteProofTests(unittest.TestCase):
             Encoding.Raw, PrivateFormat.Raw, NoEncryption(),
         )
         agent = AgentKey(agent_seed)
+        recipe_digest = "2766350e0222f0d427b41bf3dc241c948aa6812e32893d983ddc208e09cbb73f"
         def authority(key):
             public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
             return _native.raw_key_ed25519_authority_v1(public)
@@ -64,7 +70,7 @@ class WriteProofTests(unittest.TestCase):
             None, 2, "raw-key-baseline", None,
         )
         compiled = _native.compile_trusted_context(
-            _native.self_contained_configuration(), None, 1, 1, 1,
+            _native.mcp_gateway_configuration(), None, 1, 1, 1,
             [anchor], assurance, None, None, "none-v1", ["raw-key-v1"], [],
         )
         challenge = bytes([0x37]) * 32
@@ -75,7 +81,7 @@ class WriteProofTests(unittest.TestCase):
             "agent_principal": agent.principal,
             "service": service, "tool": tool,
             "task_id": "task-1", "task_commitment": "a" * 64,
-            "recipe_digest": "b" * 64,
+            "recipe_digest": recipe_digest,
             "challenge_b64": encode(challenge),
             "write_parent_grant_b64": encode(_native.inspect_signed(parent)),
             "signed_child_grant_b64": encode(_native.inspect_signed(child)),
@@ -85,12 +91,37 @@ class WriteProofTests(unittest.TestCase):
         }
         arguments = {
             "task_id": "task-1", "task_commitment": "a" * 64,
-            "recipe_digest": "b" * 64, "record_id": "recTEST0000000001",
+            "recipe_digest": recipe_digest, "record_id": "recTEST0000000001",
             "replacement": "Approved", "operation_id": "write-1",
+            "operator_namespace": "airtable-demo",
         }
         proof, action = sign_write(package, arguments, agent, now=1100)
         self.assertGreater(len(proof), 0)
         self.assertGreater(len(action), 0)
+        binary = os.environ.get("AUTHS_GATEWAY_BIN")
+        if binary:
+            repository = Path(__file__).resolve().parents[4]
+            with tempfile.TemporaryDirectory() as directory:
+                root_path = Path(directory)
+                (root_path / "proof.cbor").write_bytes(proof)
+                (root_path / "action.cbor").write_bytes(action)
+                (root_path / "trust.cbor").write_bytes(
+                    _native.inspect_trusted_context(context),
+                )
+                reference = repository / "demos/airtable-gateway/write_reference"
+                result = subprocess.run([
+                    binary, "review-submission",
+                    "--recipe", str(reference / "recipe.json"),
+                    "--profile-lock", str(reference / "profile.lock.json"),
+                    "--trusted-context", str(root_path / "trust.cbor"),
+                    "--proof", str(root_path / "proof.cbor"),
+                    "--action", str(root_path / "action.cbor"),
+                    "--evaluated-at", "1100",
+                ], capture_output=True, text=True, check=True, timeout=30)
+                review = json.loads(result.stdout)
+                self.assertIn("actors", review, review)
+                self.assertEqual(review["actors"], [agent.principal])
+                self.assertEqual(review["request"]["method"], "PATCH")
         with self.assertRaises(ValueError):
             sign_write(package, {**arguments, "task_commitment": "c" * 64},
                        agent, now=1100)
