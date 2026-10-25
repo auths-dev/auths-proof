@@ -76,3 +76,12 @@ revoked it; the redacted task status now reports `revoked=true`, the original
 `release-refused` read, one charged call allowance, zero releases, zero bytes
 and zero writes. No Google provider request was made during that read or this
 revocation.
+
+At 22:40 UTC, the first installation's one-hour human authority expired
+without another signed task. A fresh development installation was prepared
+under `/private/tmp/ap071-materializer-live-v2-20261025` from the same
+reviewed recipes, Jules subject and opaque source reference. Its new task
+authority expires at 23:40:41 UTC. A live `task-materializer-probe` returned
+`materializer-probe-ready` for both new connections (`count: 2`), and the
+local workbench was restarted on port 8765 with this installation. No agent
+grant, Google document request, release or write has occurred under it yet.
