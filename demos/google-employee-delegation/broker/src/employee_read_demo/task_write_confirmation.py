@@ -18,6 +18,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .agent_registry import AgentBinding
 from .demo_co_contract import _unique_pairs
@@ -60,7 +61,8 @@ class TaskWriteConfirmationFlow:
     def __init__(self, *, authority_path: Path, installation_path: Path,
                  recipe_path: Path, profile_lock_path: Path,
                  private_output_dir: Path, gateway_binary: Path,
-                 gateway_sha256: str) -> None:
+                 gateway_sha256: str,
+                 preflight: Callable[[dict, ReviewedWrite], None] | None = None) -> None:
         if (private_output_dir.is_symlink() or not private_output_dir.is_dir()
                 or private_output_dir.stat().st_mode & 0o077
                 or type(gateway_sha256) is not str
@@ -73,6 +75,7 @@ class TaskWriteConfirmationFlow:
         self.private_output_dir = private_output_dir
         self.gateway_binary = gateway_binary
         self.gateway_sha256 = gateway_sha256
+        self.preflight = preflight
         self._pending: dict[str, _Pending] = {}
         self._lock = threading.Lock()
 
@@ -174,6 +177,8 @@ class TaskWriteConfirmationFlow:
                 agent: AgentBinding, now: int | None = None) -> PreparedConfirmation:
         now = int(time.time()) if now is None else now
         card, review = self._review(task_id, employee, agent, now)
+        if self.preflight is not None:
+            self.preflight(card, review)
         package = load_task_write_package(self.authority_path, now=now)
         action = prepare_exact_confirmation(package.authority, review.intent, now=now)
         nonce = secrets.token_urlsafe(24)
@@ -195,9 +200,11 @@ class TaskWriteConfirmationFlow:
         if (pending is None or pending.employee != employee
                 or pending.agent != agent or now >= pending.action.expires_at):
             raise OperatorDenied("exact write review is unavailable")
-        _, current = self._review(pending.task_id, employee, agent, now)
+        card, current = self._review(pending.task_id, employee, agent, now)
         if current != pending.review or current.intent != pending.intent:
             raise OperatorDenied("agent proposal changed during exact review")
+        if self.preflight is not None:
+            self.preflight(card, current)
         signed = pending.action.complete(signature, now=now)
         directory = self._task_dir(pending.task_id)
         _private_write(directory / "confirmation.proof", signed.proof)

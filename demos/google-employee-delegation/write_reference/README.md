@@ -123,15 +123,20 @@ The gateway must still activate that task and later require a separate exact
 confirmation before any provider write.
 For the separate confirmation screen, the operator also supplies
 `--task-write-gateway-bin` and its SHA-256 in
-`--task-write-gateway-sha256`. After the isolated agent signs, its
+`--task-write-gateway-sha256`, plus the private Jules grant and matching
+credential pins through `--task-write-grant` and
+`--task-write-credential-pins`. After the isolated agent signs, its
 `agent.proof` and `agent.action` are staged as mode-0600 files in that task's
 owner-private output directory. The screen runs the pinned gateway binary's
 `review-submission` command on those files and the pinned recipe and trust,
 shows Jules the complete credential-free method, URL and body, then signs the
-exact derived intent. It saves `confirmation.proof` and
-`confirmation.action` privately. Gateway activation, fresh Jules preflight,
-`task-submit`, response evidence and independent demo_co readback are still
-separate steps; the screen does not submit the provider write.
+exact derived intent. The broker runs the pinned, read-only Jules
+revision/ACL/baseline preflight both before rendering and when accepting her
+signature, and refuses a proposal whose Doc, tab, marker or revision differs.
+It saves `confirmation.proof` and `confirmation.action` privately. Gateway
+activation, another fresh preflight at gateway entry, `task-submit`, response
+evidence and independent demo_co readback are still separate steps; the
+screen does not submit the provider write.
 The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
 now prepares separate native preimages for a reviewed task card and an exact
 closed-write intent. It completes each proof only with a signature from the
@@ -155,8 +160,8 @@ binds that review to the signed task card and reviewed recipe, then computes
 the same domain-separated closed-request commitment that the gateway checks
 on submission. It does not claim or send the request. The optional Jules screen
 renders this projection and obtains her separate exact confirmation after the
-agent proof is staged. Its live use still needs the fresh Jules revision/ACL
-preflight and independent effect evidence.
+agent proof is staged. Its live use still needs the preflight repeated at
+gateway entry and independent effect evidence.
 The private authority package pins a fresh 32-byte operator challenge into
 the installed trust context. It pins the gateway's MCP policy verifier
 configuration, exposed by the native Python binding; the older self-contained

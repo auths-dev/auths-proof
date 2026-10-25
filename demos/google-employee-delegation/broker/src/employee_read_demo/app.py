@@ -38,6 +38,8 @@ from .task_write_confirmation import TaskWriteConfirmationFlow
 from .task_write_card import _installation
 from .task_write_package import load_task_write_package
 from .write_handoff import WriteHandoffPins, validate_write_handoff
+from .google_write_credential import WriteCredentialPins
+from .google_write_preflight import preflight_jules_edit
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 from .agent_transport import AgentTransport, AgentTransportDenied
 from .receipts import ReceiptStore
@@ -776,6 +778,8 @@ def main() -> int:
     parser.add_argument("--task-write-pins", type=Path)
     parser.add_argument("--task-write-gateway-bin", type=Path)
     parser.add_argument("--task-write-gateway-sha256")
+    parser.add_argument("--task-write-credential-pins", type=Path)
+    parser.add_argument("--task-write-grant", type=Path)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -880,12 +884,57 @@ def main() -> int:
             profile_lock_path=args.task_write_profile_lock,
             private_output_dir=args.task_write_output_dir,
         )
-    if ((args.task_write_gateway_bin is None)
-            != (args.task_write_gateway_sha256 is None)):
-        parser.error("gateway review binary and digest must be supplied together")
+    confirmation_options = (
+        args.task_write_gateway_bin, args.task_write_gateway_sha256,
+        args.task_write_credential_pins, args.task_write_grant,
+    )
+    if any(option is not None for option in confirmation_options) and not all(
+            option is not None for option in confirmation_options):
+        parser.error("gateway review and Jules preflight inputs must be supplied together")
     if args.task_write_gateway_bin is not None:
         if write_browser is None:
             parser.error("gateway review requires the task write installation")
+        raw_pins = json.loads(_private_file(args.task_write_credential_pins, 4096),
+                              object_pairs_hook=_unique_pairs)
+        if (type(raw_pins) is not dict
+                or set(raw_pins) != {"producer", "client_id", "primary_domain",
+                                     "connection_id", "connection_generation"}
+                or type(raw_pins["producer"]) is not dict
+                or set(raw_pins["producer"]) != {"company", "instance",
+                    "definition_hash", "customer_id", "jules_subject",
+                    "jules_email", "evidence_sha256"}):
+            parser.error("Jules write credential pins are malformed")
+        credential_pins = WriteCredentialPins(
+            producer=WriteHandoffPins(**raw_pins["producer"]),
+            client_id=raw_pins["client_id"],
+            primary_domain=raw_pins["primary_domain"],
+            connection_id=raw_pins["connection_id"],
+            connection_generation=raw_pins["connection_generation"],
+        )
+        credential_pins.validate()
+        installed_pins = _installation(args.task_write_installation)["pins"]
+        if (credential_pins.producer != write_pins
+                or credential_pins.connection_id != installed_pins["connection_id"]
+                or credential_pins.connection_generation
+                != installed_pins["connection_generation"]
+                or credential_pins.producer.jules_subject
+                != installed_pins["connection_subject"]):
+            parser.error("Jules preflight pins disagree with gateway installation")
+
+        def google_edit_preflight(card, reviewed):
+            observed = preflight_jules_edit(
+                args.task_write_evidence, args.task_write_grant,
+                credential_pins, connection_id=card["connection_id"],
+                connection_generation=card["connection_generation"],
+            )
+            evidence = validate_write_handoff(args.task_write_evidence, write_pins)
+            arguments = reviewed.arguments
+            if (arguments.get("document_id") != observed.document_id
+                    or arguments.get("tab_id") != observed.tab_id
+                    or arguments.get("marker") != evidence["marker"]
+                    or arguments.get("required_revision_id") != observed.revision_id):
+                raise OperatorDenied("agent proposal disagrees with fresh Jules preflight")
+
         write_confirmation = TaskWriteConfirmationFlow(
             authority_path=args.task_write_authority,
             installation_path=args.task_write_installation,
@@ -894,6 +943,7 @@ def main() -> int:
             private_output_dir=args.task_write_output_dir,
             gateway_binary=args.task_write_gateway_bin,
             gateway_sha256=args.task_write_gateway_sha256,
+            preflight=google_edit_preflight,
         )
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),

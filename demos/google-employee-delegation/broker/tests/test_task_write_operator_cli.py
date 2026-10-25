@@ -173,12 +173,15 @@ class TaskOperatorCliTests(unittest.TestCase):
                 os.chmod(completed.private_task_dir / "agent.proof", 0o600)
                 os.chmod(completed.private_task_dir / "agent.action", 0o600)
                 binary = Path(gateway_binary).resolve()
+                preflight_checks = []
                 confirmation = TaskWriteConfirmationFlow(
                     authority_path=output, installation_path=installed,
                     recipe_path=REFERENCE / "recipe.json",
                     profile_lock_path=REFERENCE / "profile.lock.json",
                     private_output_dir=private, gateway_binary=binary,
                     gateway_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                    preflight=lambda card, reviewed: preflight_checks.append(
+                        (card["task_id"], reviewed.arguments["required_revision_id"])),
                 )
                 proposal = confirmation.prepare(
                     task_id=prepared.card["task_id"], employee=employee,
@@ -203,6 +206,11 @@ class TaskOperatorCliTests(unittest.TestCase):
                 )
                 self.assertTrue((completed.private_task_dir / "confirmation.proof").is_file())
                 self.assertTrue((completed.private_task_dir / "confirmation.action").is_file())
+                self.assertEqual(preflight_checks, [
+                    (prepared.card["task_id"], "rev-1"),
+                    (prepared.card["task_id"], "rev-1"),
+                    (prepared.card["task_id"], "rev-1"),
+                ])
             with self.assertRaises(OperatorDenied):
                 flow.complete(
                     nonce=prepared.nonce, employee=employee, agent=agent,

@@ -23,6 +23,7 @@ _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 @dataclass(frozen=True)
 class ReviewedWrite:
     intent: dict
+    arguments: dict
     method: str
     url: str
     content_type: str
@@ -95,4 +96,4 @@ def project_exact_write(card: dict, review: dict, recipe: dict,
         "connection_generation": card["connection_generation"],
         "connection_subject": card["connection_subject"],
     }
-    return ReviewedWrite(intent, method, url, content_type, body)
+    return ReviewedWrite(intent, arguments, method, url, content_type, body)
