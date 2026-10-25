@@ -1699,6 +1699,53 @@ mod tests {
     }
 
     #[test]
+    fn paired_recipes_share_one_durable_write_budget_after_restart() {
+        let mut policy = write_policy();
+        policy.max_writes = 2;
+        policy.write_scopes.push(TaskWriteScope {
+            handle: "project-a-folder".to_owned(),
+            recipe_digest: "e".repeat(64),
+            verb: TaskWriteVerb::Create,
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 3,
+            connection_subject: "jules-subject".to_owned(),
+        });
+        let root = tempfile::tempdir().expect("private directory");
+        let path = fs::canonicalize(root.path())
+            .expect("canonical directory")
+            .join("task");
+        let ledger = FileReleaseTaskLedger::open(&path).expect("open");
+        ledger.initialize_policy(policy).expect("task");
+        let mut create = write_intent("create-1").intent().clone();
+        create.resource_handle = "project-a-folder".to_owned();
+        create.recipe_digest = "e".repeat(64);
+        create.verb = TaskWriteVerb::Create;
+        let create = ApprovedTaskWrite::from_test_intent(create);
+        ledger.reserve_write(&create, 101).expect("create reserved");
+        drop(ledger);
+        let reopened = FileReleaseTaskLedger::open(path).expect("reopen");
+        reopened
+            .reserve_write(&write_intent("edit-1"), 101)
+            .expect("edit reserved under same task");
+        assert_eq!(
+            reopened.reserve_write(&create, 101).err(),
+            Some(ReleaseStateError::Replay)
+        );
+        assert_eq!(
+            reopened.reserve_write(&write_intent("edit-2"), 101).err(),
+            Some(ReleaseStateError::Exhausted)
+        );
+        assert_eq!(
+            reopened
+                .load("task-1")
+                .expect("load")
+                .expect("task")
+                .write_count(),
+            2
+        );
+    }
+
+    #[test]
     fn read_and_write_share_task_replay_and_revocation() {
         let mut policy = policy();
         policy.max_writes = 1;
