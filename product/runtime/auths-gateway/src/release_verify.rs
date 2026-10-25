@@ -237,8 +237,9 @@ mod tests {
             resources: vec![ReleaseResourceScope {
                 handle: harness::RECORD.to_owned(),
                 recipe_digest: recipe.digest_hex(),
-                connection_id: "jules-connection".to_owned(),
+                connection_id: "jules-read".to_owned(),
                 connection_generation: 3,
+                connection_subject: "jules-subject".to_owned(),
             }],
         };
         let mut wrong_human = ReleaseTaskState::from_test_policy(ReleaseTaskPolicy {
@@ -248,7 +249,7 @@ mod tests {
         .expect("policy");
         assert!(
             wrong_human
-                .reserve_verified_request(&verified, "jules-connection", 3, NOW)
+                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
                 .is_err()
         );
         assert_eq!(wrong_human.counts(), (0, 0, 0));
@@ -259,24 +260,29 @@ mod tests {
         .expect("policy");
         assert!(
             wrong_task
-                .reserve_verified_request(&verified, "jules-connection", 3, NOW)
+                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
                 .is_err()
         );
         assert_eq!(wrong_task.counts(), (0, 0, 0));
         let mut state = ReleaseTaskState::from_test_policy(policy).expect("policy");
         assert!(
             state
-                .reserve_verified_request(&verified, "jules-connection", 4, NOW)
+                .reserve_verified_request(&verified, "jules-read", 4, "jules-subject", NOW)
+                .is_err()
+        );
+        assert!(
+            state
+                .reserve_verified_request(&verified, "jules-read", 3, "other-subject", NOW)
                 .is_err()
         );
         assert_eq!(state.counts(), (0, 0, 0));
         state
-            .reserve_verified_request(&verified, "jules-connection", 3, NOW)
+            .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
             .expect("task admission");
         assert_eq!(state.counts(), (1, 0, 0));
         assert!(
             state
-                .reserve_verified_request(&verified, "jules-connection", 3, NOW)
+                .reserve_verified_request(&verified, "jules-read", 3, "jules-subject", NOW)
                 .is_err()
         );
     }

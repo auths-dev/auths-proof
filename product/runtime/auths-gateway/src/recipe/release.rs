@@ -629,6 +629,7 @@ mod tests {
                 recipe_digest: recipe.digest_hex(),
                 connection_id: "jules-google".to_owned(),
                 connection_generation: 3,
+                connection_subject: "jules-subject".to_owned(),
             }],
         })
         .expect("task policy");
@@ -638,6 +639,7 @@ mod tests {
                 &["other-agent".to_owned()],
                 "jules-google",
                 3,
+                "jules-subject",
                 101
             ),
             Err(ReleaseStateError::Binding)
@@ -648,6 +650,7 @@ mod tests {
                 &["agent-principal".to_owned()],
                 "jules-google",
                 4,
+                "jules-subject",
                 101
             ),
             Err(ReleaseStateError::Binding)
@@ -659,6 +662,7 @@ mod tests {
                 &["agent-principal".to_owned()],
                 "jules-google",
                 3,
+                "jules-subject",
                 101,
             )
             .expect("exact binding");

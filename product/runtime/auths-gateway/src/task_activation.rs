@@ -159,6 +159,7 @@ impl ApprovedAgentTask {
                     recipe_digest: scope.recipe_digest.clone(),
                     connection_id: self.descriptor.connection_id.clone(),
                     connection_generation: self.descriptor.connection_generation,
+                    connection_subject: self.descriptor.connection_subject.clone(),
                 })
                 .collect(),
         }

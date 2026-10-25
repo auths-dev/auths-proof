@@ -22,7 +22,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/3";
+const SCHEMA: &str = "auths.gateway-agent-task-state/4";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -39,6 +39,7 @@ pub(crate) struct ReleaseResourceScope {
     pub(crate) recipe_digest: String,
     pub(crate) connection_id: String,
     pub(crate) connection_generation: u64,
+    pub(crate) connection_subject: String,
 }
 
 /// Task facts whose signature and company policy must be checked by the
@@ -86,6 +87,7 @@ struct ReleaseCall<'a> {
     recipe_digest: &'a str,
     connection_id: &'a str,
     connection_generation: u64,
+    connection_subject: &'a str,
     recipient: &'a str,
     action_commitment: [u8; 32],
 }
@@ -136,6 +138,7 @@ struct ReleaseOperation {
     recipe_digest: String,
     connection_id: String,
     connection_generation: u64,
+    connection_subject: String,
     recipient: String,
     action_commitment: String,
     stage: ReleaseStage,
@@ -266,9 +269,10 @@ impl ReleaseTaskState {
         for resource in &policy.resources {
             if !bounded_text(&resource.handle, 256)
                 || !valid_digest(&resource.recipe_digest)
-                || resource.connection_id != policy.connection_id
-                || resource.connection_generation != policy.connection_generation
-                || !distinct.insert(&resource.handle)
+                || !bounded_text(&resource.connection_id, 128)
+                || resource.connection_generation == 0
+                || !bounded_text(&resource.connection_subject, 256)
+                || !distinct.insert((&resource.handle, &resource.recipe_digest))
             {
                 return Err(ReleaseStateError::Binding);
             }
@@ -383,6 +387,7 @@ impl ReleaseTaskState {
                     && resource.recipe_digest == call.recipe_digest
                     && resource.connection_id == call.connection_id
                     && resource.connection_generation == call.connection_generation
+                    && resource.connection_subject == call.connection_subject
             })
         {
             return Err(ReleaseStateError::Binding);
@@ -404,6 +409,7 @@ impl ReleaseTaskState {
                 recipe_digest: call.recipe_digest.to_owned(),
                 connection_id: call.connection_id.to_owned(),
                 connection_generation: call.connection_generation,
+                connection_subject: call.connection_subject.to_owned(),
                 recipient: call.recipient.to_owned(),
                 action_commitment: hex::encode(call.action_commitment),
                 stage: ReleaseStage::ProviderCallReserved,
@@ -468,13 +474,14 @@ impl ReleaseTaskState {
     }
 
     /// Admit a compiled request only with a native-verified sole actor and
-    /// exact human-issued grant. The connection ID and generation must come
-    /// from the loaded, subject-bound credential record.
+    /// exact human-issued grant. The connection reference must come from the
+    /// loaded, subject-bound credential record for this read recipe.
     pub(crate) fn reserve_verified_request(
         &mut self,
         verified: &VerifiedReleaseRequest,
         connection_id: &str,
         connection_generation: u64,
+        connection_subject: &str,
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         let request = verified.request();
@@ -495,6 +502,7 @@ impl ReleaseTaskState {
                 recipe_digest: &hex::encode(request.recipe_digest()),
                 connection_id,
                 connection_generation,
+                connection_subject,
                 recipient: request.recipient(),
                 action_commitment: *request.action_commitment(),
             },
@@ -511,6 +519,7 @@ impl ReleaseTaskState {
         verified_actors: &[String],
         connection_id: &str,
         connection_generation: u64,
+        connection_subject: &str,
         now: u64,
     ) -> Result<(), ReleaseStateError> {
         if verified_actors.len() != 1 || verified_actors[0] != request.recipient() {
@@ -530,6 +539,7 @@ impl ReleaseTaskState {
                 recipe_digest: &hex::encode(request.recipe_digest()),
                 connection_id,
                 connection_generation,
+                connection_subject,
                 recipient: request.recipient(),
                 action_commitment: *request.action_commitment(),
             },
@@ -751,6 +761,7 @@ impl ReleaseTaskState {
                         && resource.recipe_digest == operation.recipe_digest
                         && resource.connection_id == operation.connection_id
                         && resource.connection_generation == operation.connection_generation
+                        && resource.connection_subject == operation.connection_subject
                 })
             {
                 return Err(ReleaseStateError::Corrupt);
@@ -983,10 +994,17 @@ impl FileReleaseTaskLedger {
         verified: &VerifiedReleaseRequest,
         connection_id: &str,
         connection_generation: u64,
+        connection_subject: &str,
         now: u64,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(verified.request().task_id(), |state| {
-            state.reserve_verified_request(verified, connection_id, connection_generation, now)
+            state.reserve_verified_request(
+                verified,
+                connection_id,
+                connection_generation,
+                connection_subject,
+                now,
+            )
         })
     }
 
@@ -1007,6 +1025,7 @@ impl FileReleaseTaskLedger {
         verified_actors: &[String],
         connection_id: &str,
         connection_generation: u64,
+        connection_subject: &str,
         now: u64,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(request.task_id(), |state| {
@@ -1015,6 +1034,7 @@ impl FileReleaseTaskLedger {
                 verified_actors,
                 connection_id,
                 connection_generation,
+                connection_subject,
                 now,
             )
         })
@@ -1091,8 +1111,9 @@ mod tests {
             resources: vec![ReleaseResourceScope {
                 handle: "source-1".to_owned(),
                 recipe_digest: "a".repeat(64),
-                connection_id: "jules-google".to_owned(),
+                connection_id: "jules-read".to_owned(),
                 connection_generation: 3,
+                connection_subject: "jules-subject".to_owned(),
             }],
         }
     }
@@ -1102,7 +1123,7 @@ mod tests {
         let state = ReleaseTaskState::new(policy()).expect("state");
         let mut value: serde_json::Value =
             serde_json::from_slice(&state.encode().expect("canonical state")).expect("state JSON");
-        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/2");
+        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/3");
         let obsolete = serde_json_canonicalizer::to_vec(&value).expect("canonical obsolete");
         assert!(matches!(
             ReleaseTaskState::decode(&obsolete),
@@ -1126,8 +1147,9 @@ mod tests {
             operation_id,
             resource_handle: "source-1",
             recipe_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            connection_id: "jules-google",
+            connection_id: "jules-read",
             connection_generation: 3,
+            connection_subject: "jules-subject",
             recipient: "agent-principal",
             action_commitment: [0x22; 32],
         }
@@ -1303,6 +1325,13 @@ mod tests {
         wrong.connection_generation = 4;
         assert_eq!(
             state.reserve_provider_call(wrong, 101),
+            Err(ReleaseStateError::Binding)
+        );
+        assert_eq!(state.counts(), (0, 0, 0));
+        let mut wrong_subject = call("read-1");
+        wrong_subject.connection_subject = "different-subject";
+        assert_eq!(
+            state.reserve_provider_call(wrong_subject, 101),
             Err(ReleaseStateError::Binding)
         );
         assert_eq!(state.counts(), (0, 0, 0));
