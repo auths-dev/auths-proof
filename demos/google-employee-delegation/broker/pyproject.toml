@@ -19,6 +19,7 @@ auths-google-read-partial-smoke = "employee_read_demo.partial_smoke_cli:main"
 auths-google-read-partial-delegation-lab = "employee_read_demo.partial_delegation_lab:main"
 auths-google-write-handoff = "employee_read_demo.write_handoff:main"
 auths-google-task-authority = "employee_read_demo.task_write_operator_cli:main"
+auths-google-populate-preflight = "employee_read_demo.task_populate_operator:main"
 
 [build-system]
 requires = ["setuptools>=75"]

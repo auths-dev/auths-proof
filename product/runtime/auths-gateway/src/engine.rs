@@ -1632,6 +1632,29 @@ struct PopulatePreflightPin {
     rule_digest: String,
 }
 
+/// Private operator handoff to a credential-bearing preflight vertical. These
+/// facts are read from the activated card, effect plan and bound-child journal;
+/// the agent cannot nominate a different child or plan through this command.
+#[cfg(unix)]
+#[derive(Serialize)]
+pub struct TaskPopulatePreflightInputs {
+    schema: &'static str,
+    task_id: String,
+    task_commitment: String,
+    plan_commitment: String,
+    create_operation_id: String,
+    child_id: String,
+    populate_recipe_digest: String,
+    preflight_rule_digest: String,
+    connection_id: String,
+    connection_generation: u64,
+    connection_subject: String,
+    parent_id: String,
+    title: String,
+    marker: String,
+    plan_expires_at: u64,
+}
+
 #[cfg(unix)]
 impl PopulatePreflightPin {
     fn valid(&self) -> bool {
@@ -1903,6 +1926,62 @@ impl TaskWriteSession<'_> {
             .record_populate_preflight(task_id, &verified, now)
             .map_err(|_| "gateway.task.preflight-journal")?;
         Ok(())
+    }
+
+    /// Return only the journal-derived, secret-free inputs required by the
+    /// installed vertical's fresh child GETs and signed report.
+    pub fn populate_preflight_inputs(
+        &self,
+        task_id: &str,
+    ) -> Result<TaskPopulatePreflightInputs, &'static str> {
+        let pin = self
+            .populate_preflight
+            .as_ref()
+            .ok_or("gateway.task.preflight-not-installed")?;
+        let now = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.preflight-state")?
+            .ok_or("gateway.task.preflight-state")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.preflight-inactive")?;
+        let plan = state
+            .effect_plan()
+            .ok_or("gateway.task.preflight-plan-required")?;
+        let child = state
+            .bound_child_scope()
+            .ok_or("gateway.task.preflight-child-required")?;
+        let pending = task
+            .descriptor()
+            .pending_child
+            .as_ref()
+            .ok_or("gateway.task.preflight-child-required")?;
+        if plan.expires_at <= now
+            || plan.preflight_rule_digest.as_deref() != Some(pin.rule_digest.as_str())
+            || plan.preflight_key_sha256.as_deref() != Some(pin.key_sha256().as_str())
+            || plan.populate_recipe_digest != child.recipe_digest
+        {
+            return Err("gateway.task.preflight-policy-changed");
+        }
+        Ok(TaskPopulatePreflightInputs {
+            schema: "auths.gateway-task-populate-preflight-inputs/1",
+            task_id: task_id.to_owned(),
+            task_commitment: hex::encode(task.commitment()),
+            plan_commitment: plan.plan_commitment.clone(),
+            create_operation_id: plan.create.operation_id.clone(),
+            child_id: child.handle,
+            populate_recipe_digest: plan.populate_recipe_digest.clone(),
+            preflight_rule_digest: pin.rule_digest.clone(),
+            connection_id: plan.create.connection_id.clone(),
+            connection_generation: plan.create.connection_generation,
+            connection_subject: plan.create.connection_subject.clone(),
+            parent_id: pending.parent_handle.clone(),
+            title: pending.title.clone(),
+            marker: pending.marker.clone(),
+            plan_expires_at: plan.expires_at,
+        })
     }
 
     /// Reconcile a recorded create response after a crash between the
@@ -3695,6 +3774,13 @@ pub(crate) mod tests {
                 &effect_plan.action,
             )
             .expect("record signed effect plan before create reservation");
+        assert_eq!(
+            session
+                .populate_preflight_inputs("task-create-reconcile")
+                .err(),
+            Some("gateway.task.preflight-child-required"),
+            "no preflight may be prepared for an unbound child"
+        );
         let mut changed_plan_args = plan_args.clone();
         changed_plan_args
             .get_mut("plan")
@@ -3870,6 +3956,20 @@ pub(crate) mod tests {
             "reconciliation cannot reserve another write"
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 4);
+
+        let preflight_inputs = serde_json::to_value(
+            session
+                .populate_preflight_inputs("task-create-reconcile")
+                .expect("journal-derived preflight inputs"),
+        )
+        .expect("preflight inputs JSON");
+        assert_eq!(preflight_inputs["child_id"], "child_ABC-123");
+        assert_eq!(preflight_inputs["parent_id"], "project-a-folder");
+        assert_eq!(preflight_inputs["marker"], marker);
+        assert_eq!(
+            preflight_inputs["plan_commitment"],
+            state.effect_plan().expect("plan").plan_commitment
+        );
 
         let recorded_plan = state.effect_plan().expect("recorded effect plan").clone();
         drop(session);

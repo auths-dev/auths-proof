@@ -496,6 +496,14 @@ mod unix {
             #[arg(long)]
             report: PathBuf,
         },
+        /// Development operator only: read exact plan and child facts from
+        /// the private task journal for a credential-bearing preflight.
+        TaskPopulatePreflightInputs {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
         /// Development operator only: reverify the original signed create
         /// after a recorded response, read its child metadata once, and bind
         /// that child in the task journal. Without exact confirmation files,
@@ -3835,6 +3843,22 @@ mod unix {
         Ok(())
     }
 
+    async fn task_populate_preflight_inputs(
+        state_dir: PathBuf,
+        task_id: String,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let inputs = session.populate_preflight_inputs(&task_id)?;
+        println!(
+            "{}",
+            serde_json::to_string(&inputs).map_err(|_| "gateway.task.preflight-inputs")?
+        );
+        Ok(())
+    }
+
     async fn observe(
         socket: PathBuf,
         read_back: Option<String>,
@@ -4818,6 +4842,9 @@ mod unix {
                 task_id,
                 report,
             } => task_record_populate_preflight(state_dir, task_id, report).await,
+            Command::TaskPopulatePreflightInputs { state_dir, task_id } => {
+                task_populate_preflight_inputs(state_dir, task_id).await
+            }
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -5413,6 +5440,25 @@ mod unix {
                     .expect("signed preflight report parses")
                     .command,
                 Command::TaskRecordPopulatePreflight { .. }
+            ));
+        }
+
+        #[test]
+        fn populate_preflight_inputs_require_an_activated_task_id() {
+            let base = [
+                "auths-gateway",
+                "task-populate-preflight-inputs",
+                "--state-dir",
+                "/state",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend(["--task-id", "task-create-1"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("journal preflight input request parses")
+                    .command,
+                Command::TaskPopulatePreflightInputs { .. }
             ));
         }
 
