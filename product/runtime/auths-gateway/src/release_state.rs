@@ -1973,6 +1973,43 @@ mod tests {
     }
 
     #[test]
+    fn no_send_receipt_survives_restart_without_refunding_or_replay() {
+        let root = tempfile::tempdir().expect("private directory");
+        let path = fs::canonicalize(root.path())
+            .expect("canonical directory")
+            .join("release");
+        let ledger = FileReleaseTaskLedger::open(&path).expect("open");
+        ledger.initialize_policy(policy()).expect("task");
+        ledger
+            .reserve_provider_call(call("read-1"), 101)
+            .expect("call claim");
+        let key = ReleaseCommitmentKey::new(1, Zeroizing::new([7; 32])).expect("key");
+        ledger
+            .enter_release("task-1", "read-1", b"Approved", &key, 102)
+            .expect("durable charge");
+        ledger
+            .not_delivered(&ProvenNoSend::before_content("task-1", "read-1"))
+            .expect("durable no-content proof");
+        drop(ledger);
+
+        let restarted = FileReleaseTaskLedger::open(&path).expect("reopen");
+        let loaded = restarted.load("task-1").expect("load").expect("task");
+        assert_eq!(loaded.stage("read-1"), Some(ReleaseStage::NotDelivered));
+        assert_eq!(loaded.counts(), (1, 1, 8));
+        assert!(!loaded.delivery_unknown("read-1"));
+        assert_eq!(
+            restarted.reserve_provider_call(call("read-1"), 103).err(),
+            Some(ReleaseStateError::Replay)
+        );
+        assert_eq!(
+            restarted
+                .enter_release("task-1", "read-1", b"Approved", &key, 103)
+                .err(),
+            Some(ReleaseStateError::Stage)
+        );
+    }
+
+    #[test]
     fn simultaneous_claim_has_one_winner_and_corruption_fails_closed() {
         let root = tempfile::tempdir().expect("private directory");
         let path = fs::canonicalize(root.path())
