@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import tempfile
@@ -16,9 +17,13 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from employee_read_demo.authority_identity import authority_for_identity_packet
 from employee_read_demo.enrollment import EnrollmentStore
+from employee_read_demo.enrollment import EmployeeBinding
+from employee_read_demo.agent_registry import AgentBinding
 from employee_read_demo.operator_cli import init_root
 from employee_read_demo.task_write_operator_cli import issue_task_package
 from employee_read_demo.task_write_package import load_task_write_package
+from employee_read_demo.task_write_card import build_exact_write_card
+from employee_read_demo.task_write_browser import TaskWriteBrowserFlow
 from employee_read_demo.operator_authority import OperatorDenied
 
 
@@ -76,6 +81,94 @@ class TaskOperatorCliTests(unittest.TestCase):
             loaded = load_task_write_package(output, now=1000)
             self.assertEqual(loaded.authority.human_principal, human)
             self.assertEqual(loaded.recipe_digest, digest)
+            agent_key = Ed25519PrivateKey.generate()
+            agent_public = agent_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+            agent_packet = create_raw_key_ed25519_identity(agent_public).to_bytes()
+            agent_principal, _ = authority_for_identity_packet(agent_packet)
+            agent_digest = hashlib.sha256(agent_packet).hexdigest()
+            installed = private / "task-write-installation.json"
+            installed.write_text(json.dumps({
+                "schema": "auths.gateway-task-installation/1",
+                "recipe_digest": digest,
+                "pins": {
+                    "company_id": "atlas-studio", "human_principal": human,
+                    "agent_principal": agent_principal,
+                    "agent_key_fingerprint": agent_digest,
+                    "connection_id": "jules-google",
+                    "connection_generation": 1,
+                    "connection_subject": "synthetic-subject",
+                    "delivery_channel": "agent-channel",
+                    "operator_policy_digest": "c" * 64,
+                    "allow_bounded_writes": False,
+                },
+            }, sort_keys=True, separators=(",", ":")))
+            os.chmod(installed, 0o600)
+            employee = EmployeeBinding(
+                "atlas-studio", "person-jules", "https://accounts.google.com",
+                "synthetic-subject", human, "binding-jules",
+            )
+            agent = AgentBinding("atlas-studio", "binding-jules",
+                                 agent_principal, agent_digest)
+            card = build_exact_write_card(
+                loaded, employee, agent, installation_path=installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                resource_handle="working-doc", purpose="Update Project A", now=1010,
+            )
+            self.assertEqual(card["write_approval_mode"], "exact")
+            self.assertEqual(card["write_scopes"][0]["handle"], "working-doc")
+            self.assertEqual(card["expires_at"], 1250)
+            flow = TaskWriteBrowserFlow(
+                authority_path=output, installation_path=installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                private_output_dir=private,
+            )
+            prepared = flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="working-doc", resource_label="Project A working Doc",
+                account_label="Jules Google account", purpose="Update Project A", now=1010,
+            )
+            completed = flow.complete(
+                nonce=prepared.nonce, employee=employee, agent=agent,
+                grant_signature=human_key.sign(prepared.grant_preimage),
+                task_signature=human_key.sign(prepared.task_preimage), now=1011,
+            )
+            self.assertEqual(completed.task_id, prepared.card["task_id"])
+            self.assertTrue((completed.private_task_dir / "task.proof").is_file())
+            self.assertTrue((completed.private_task_dir / "task.action").is_file())
+            self.assertEqual((completed.private_task_dir / "agent-package.json").stat().st_mode & 0o777, 0o600)
+            with self.assertRaises(OperatorDenied):
+                flow.complete(
+                    nonce=prepared.nonce, employee=employee, agent=agent,
+                    grant_signature=human_key.sign(prepared.grant_preimage),
+                    task_signature=human_key.sign(prepared.task_preimage), now=1011,
+                )
+            drifted = flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="working-doc", resource_label="Project A working Doc",
+                account_label="Jules Google account", purpose="Update Project A", now=1012,
+            )
+            changed_installation = json.loads(installed.read_text())
+            changed_installation["pins"]["connection_generation"] = 2
+            installed.write_text(json.dumps(changed_installation))
+            with self.assertRaises(OperatorDenied):
+                flow.complete(
+                    nonce=drifted.nonce, employee=employee, agent=agent,
+                    grant_signature=human_key.sign(drifted.grant_preimage),
+                    task_signature=human_key.sign(drifted.task_preimage), now=1013,
+                )
+            with self.assertRaises(OperatorDenied):
+                build_exact_write_card(
+                    loaded, employee, agent, installation_path=installed,
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
+                    resource_handle="other-doc", purpose="Bad\nPurpose", now=1010,
+                )
             tampered = private / "tampered.json"
             changed = dict(package)
             changed["challenge_b64"] = base64.urlsafe_b64encode(bytes(32)).decode()

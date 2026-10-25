@@ -107,6 +107,20 @@ The [owner-side package loader](../broker/src/employee_read_demo/task_write_pack
 now checks the private file's exact schema, lifetime, gateway verifier
 configuration, provider audience and operator challenge before any browser
 preimage is prepared. A changed challenge in the package is refused.
+The AP-070 workbench accepts an optional write ceremony only when all seven
+operator paths are supplied: `--task-write-authority`,
+`--task-write-installation`, `--task-write-recipe`,
+`--task-write-profile-lock`, `--task-write-output-dir`,
+`--task-write-evidence`, and `--task-write-pins`. The evidence and pins are
+private snapshots inside the owner-only output directory, so a live browser
+run does not read demo_co's mutable checkout. The pins file is a private JSON
+encoding of `WriteHandoffPins`; the evidence remains the producer's exact
+versioned export. The screen prepares a card from the active Jules enrollment,
+registered agent, installed gateway pins and reviewed recipe. It signs the
+task and child grant in Jules's browser, writes `task.proof` and `task.action`
+under a new private task directory, and downloads a public agent package.
+The gateway must still activate that task and later require a separate exact
+confirmation before any provider write.
 The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
 now prepares separate native preimages for a reviewed task card and an exact
 closed-write intent. It completes each proof only with a signature from the

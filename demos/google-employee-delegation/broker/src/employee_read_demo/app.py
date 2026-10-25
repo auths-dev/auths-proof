@@ -7,6 +7,7 @@ import asyncio
 import base64
 import binascii
 import json
+import sqlite3
 import stat
 from dataclasses import dataclass
 from dataclasses import asdict
@@ -21,7 +22,7 @@ from .browser_sessions import BrowserSession, BrowserSessionStore, SessionDenied
 from .admission import AdmissionDenied, AdmissionStore
 from .agent_registry import AgentDenied, AgentRegistry
 from .demo_co_contract import (
-    CompanyImport, OperatorPins, ImportStatus,
+    CompanyImport, ContractRejected, OperatorPins, ImportStatus,
     import_company, inspect_exports,
 )
 from .enrollment import EnrollmentDenied, EnrollmentStore, VerifiedGoogleSubject
@@ -32,6 +33,10 @@ from .contracts import valid_service
 from .task_approval import ApprovalDenied, TaskApprovalStore
 from .task_activation import ActivationDenied, TaskActivationStore
 from .operator_authority import OperatorDenied
+from .task_write_browser import TaskWriteBrowserFlow
+from .task_write_card import _installation
+from .task_write_package import load_task_write_package
+from .write_handoff import WriteHandoffPins, validate_write_handoff
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
 from .agent_transport import AgentTransport, AgentTransportDenied
 from .receipts import ReceiptStore
@@ -77,6 +82,9 @@ class Workbench:
     expected_root: str | None = None
     agent_transport: AgentTransport | None = None
     service: str | None = None
+    write_browser: TaskWriteBrowserFlow | None = None
+    write_evidence: Path | None = None
+    write_pins: WriteHandoffPins | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -176,6 +184,39 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Host") != urlsplit(self.workbench.origin).netloc:
             raise SessionDenied("request host is unavailable")
 
+    def _write_bindings(self, session: BrowserSession):
+        """Re-read Jules login, enrollment, agent and producer pins each step."""
+        workbench = self.workbench
+        if (workbench.company is None or workbench.write_browser is None
+                or workbench.write_evidence is None or workbench.write_pins is None
+                or not session.issuer or not session.subject
+                or session.subject != workbench.write_pins.jules_subject
+                or workbench.company.bundle["company_id"] != workbench.write_pins.company):
+            raise OperatorDenied("Jules write task is unavailable")
+        evidence = validate_write_handoff(workbench.write_evidence, workbench.write_pins)
+        employee = workbench.enrollment.lookup(
+            workbench.company,
+            VerifiedGoogleSubject("login", session.issuer, session.subject),
+        )
+        installed = _installation(workbench.write_browser.installation_path)
+        if installed["pins"]["connection_subject"] != session.subject:
+            raise OperatorDenied("installed write account differs from Google login")
+        agent = workbench.agents.lookup(employee, installed["pins"]["agent_principal"])
+        with sqlite3.connect(workbench.sessions.path.resolve().as_uri() + "?mode=ro", uri=True) as db:
+            human_row = db.execute("""SELECT identity_packet FROM employee_bindings
+                WHERE binding_ref=? AND principal=? AND status='active'""", (
+                    employee.binding_ref, employee.principal,
+                )).fetchone()
+            agent_row = db.execute("""SELECT identity_packet FROM registered_agents
+                WHERE company=? AND employee_binding=? AND agent_principal=?
+                AND packet_digest=? AND status='active'""", (
+                    agent.company_id, agent.employee_binding_ref,
+                    agent.agent_principal, agent.identity_packet_sha256,
+                )).fetchone()
+        if human_row is None or agent_row is None:
+            raise OperatorDenied("Jules or registered agent identity changed")
+        return employee, agent, human_row[0], agent_row[0], evidence
+
     def do_GET(self) -> None:
         try:
             self._check_host()
@@ -214,6 +255,11 @@ class Handler(BaseHTTPRequestHandler):
                     "company_id": None if self.workbench.company is None else self.workbench.company.bundle["company_id"],
                     "subject": session.subject,
                     "drive_connected": drive_connected,
+                    "task_write_available": bool(
+                        self.workbench.write_browser is not None
+                        and self.workbench.write_pins is not None
+                        and session.subject == self.workbench.write_pins.jules_subject
+                    ),
                     "csrf": session.csrf,
                 }, cookie=session.cookie if created else None)
                 return
@@ -375,6 +421,52 @@ class Handler(BaseHTTPRequestHandler):
                 self.workbench.vault.disconnect(session.connection_id)
                 self.workbench.sessions.clear_connection(session)
                 self._json(HTTPStatus.OK, {"status": "disconnected"})
+                return
+            if path in {"/api/v1/write/tasks/prepare", "/api/v1/write/tasks/authorize"}:
+                if self.workbench.write_browser is None:
+                    raise OperatorDenied("task write browser is unavailable")
+                employee, agent, human_packet, agent_packet, evidence = self._write_bindings(session)
+                if path.endswith("/prepare"):
+                    if set(body) != {"purpose"} or type(body["purpose"]) is not str:
+                        raise ValueError("task purpose is invalid")
+                    prepared = self.workbench.write_browser.prepare(
+                        employee=employee, agent=agent,
+                        employee_identity_packet=human_packet,
+                        agent_identity_packet=agent_packet,
+                        resource_handle=evidence["document_id"],
+                        resource_label=evidence["document_title"],
+                        account_label=evidence["jules_email"],
+                        purpose=body["purpose"],
+                    )
+                    self._json(HTTPStatus.OK, {
+                        "status": "awaiting_jules_signatures",
+                        "nonce": prepared.nonce, "card": prepared.card,
+                        "account_label": prepared.account_label,
+                        "resource_label": prepared.resource_label,
+                        "grant_preimage": base64.urlsafe_b64encode(
+                            prepared.grant_preimage).decode("ascii"),
+                        "task_preimage": base64.urlsafe_b64encode(
+                            prepared.task_preimage).decode("ascii"),
+                        "expires_at": prepared.expires_at,
+                    })
+                    return
+                if set(body) != {"nonce", "grant_signature", "task_signature"}:
+                    raise ValueError("task signatures are incomplete")
+                nonce = body["nonce"]
+                if type(nonce) is not str or not 1 <= len(nonce) <= 128:
+                    raise ValueError("task signing nonce is invalid")
+                completed = self.workbench.write_browser.complete(
+                    nonce=nonce, employee=employee, agent=agent,
+                    grant_signature=_b64(body["grant_signature"], max_bytes=64),
+                    task_signature=_b64(body["task_signature"], max_bytes=64),
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "approved_pending_gateway_activation",
+                    "task_id": completed.task_id,
+                    "agent_principal": completed.agent_principal,
+                    "expires_at": completed.expires_at,
+                    "agent_package": completed.agent_package,
+                })
                 return
             if path == "/api/v1/identity/packet":
                 from auths.identity.authoring import (
@@ -577,7 +669,7 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
-        except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied,
+        except (ValueError, binascii.Error, SessionDenied, EnrollmentDenied, ContractRejected,
                 AgentDenied, TaskDenied, ApprovalDenied, ActivationDenied, OperatorDenied,
                 AgentTransportDenied, AdmissionDenied, GoogleDenied,
                 PermissionError) as error:
@@ -625,6 +717,13 @@ def main() -> int:
     parser.add_argument("--fernet-key", type=Path)
     parser.add_argument("--trust-file", type=Path)
     parser.add_argument("--receipt-key", type=Path)
+    parser.add_argument("--task-write-authority", type=Path)
+    parser.add_argument("--task-write-installation", type=Path)
+    parser.add_argument("--task-write-recipe", type=Path)
+    parser.add_argument("--task-write-profile-lock", type=Path)
+    parser.add_argument("--task-write-output-dir", type=Path)
+    parser.add_argument("--task-write-evidence", type=Path)
+    parser.add_argument("--task-write-pins", type=Path)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -694,11 +793,46 @@ def main() -> int:
             args.state_db, vault=vault, trusted_template=trusted_template,
             expected_root=expected_root, receipts=receipts,
         )
+    write_options = (
+        args.task_write_authority, args.task_write_installation,
+        args.task_write_recipe, args.task_write_profile_lock,
+        args.task_write_output_dir, args.task_write_evidence, args.task_write_pins,
+    )
+    if any(option is not None for option in write_options) and not all(
+            option is not None for option in write_options):
+        parser.error("all task-write inputs must be supplied together")
+    write_browser = None
+    write_pins = None
+    if all(option is not None for option in write_options):
+        if company is None:
+            parser.error("task write requires an accepted company import")
+        output_dir = args.task_write_output_dir.resolve()
+        if (args.task_write_evidence.resolve().parent != output_dir
+                or args.task_write_pins.resolve().parent != output_dir):
+            parser.error("task write evidence and pins must be private local snapshots")
+        write_pins = WriteHandoffPins(**json.loads(
+            _private_file(args.task_write_pins, 4096), object_pairs_hook=_unique_pairs,
+        ))
+        if write_pins.company != company.bundle["company_id"]:
+            parser.error("task write producer company does not match import")
+        validate_write_handoff(args.task_write_evidence, write_pins)
+        loaded = load_task_write_package(args.task_write_authority)
+        if loaded.company_id != write_pins.company:
+            parser.error("task authority company disagrees with producer")
+        _installation(args.task_write_installation)
+        write_browser = TaskWriteBrowserFlow(
+            authority_path=args.task_write_authority,
+            installation_path=args.task_write_installation,
+            recipe_path=args.task_write_recipe,
+            profile_lock_path=args.task_write_profile_lock,
+            private_output_dir=args.task_write_output_dir,
+        )
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
                           vault, company, status, origin, trusted_template, expected_root,
-                          agent_transport, service)
+                          agent_transport, service, write_browser,
+                          args.task_write_evidence, write_pins)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

@@ -52,6 +52,20 @@
     </div>
   </section>
 
+  <section id="write-task" aria-labelledby="write-heading" hidden>
+    <h2 id="write-heading">Delegate one Project A edit</h2>
+    <p>The account, registered agent, working Doc, recipe and limits come from the operator's pinned installation. Review them before signing. The exact edit will need a separate confirmation after the agent proposes it.</p>
+    <label>Task purpose<input id="write-purpose" maxlength="512" value="Draft an update to the Project A working document"></label>
+    <button id="write-prepare" type="button">Review write task</button>
+    <div id="write-review" hidden>
+      <p id="write-account"></p>
+      <p id="write-resource"></p>
+      <pre id="write-card"></pre>
+      <button id="write-authorize" type="button">Sign task and delegate write to agent</button>
+    </div>
+    <pre id="write-status">No write task signed.</pre>
+  </section>
+
   <section aria-labelledby="run-heading">
     <h2 id="run-heading">4. Activate and run</h2>
     <label>Task ID<input id="task-id" autocomplete="off"></label>

@@ -9,6 +9,7 @@ let session = null;
 let preparedAgent = null;
 let preparedTask = null;
 let preparedActivation = null;
+let preparedWriteTask = null;
 let activationTaskId = null;
 
 async function api(path, body = null) {
@@ -170,6 +171,56 @@ async function authorizeTask() {
   message(`Employee grant signed: ${completed.status}. Agent activation is still required.`);
 }
 
+async function prepareWriteTask() {
+  const result = await api("/api/v1/write/tasks/prepare", {
+    purpose: value("write-purpose"),
+  });
+  preparedWriteTask = result;
+  byId("write-account").textContent = `Operator-pinned Google account: ${result.account_label}`;
+  byId("write-resource").textContent = `Destination: ${result.resource_label}`;
+  byId("write-card").textContent = JSON.stringify({
+    agent_principal: result.card.agent_principal,
+    destination_handle: result.card.write_scopes[0].handle,
+    verb: result.card.write_scopes[0].verb,
+    purpose: result.card.purpose,
+    account_subject: result.card.connection_subject,
+    connection_generation: result.card.connection_generation,
+    max_writes: result.card.max_writes,
+    write_approval_mode: result.card.write_approval_mode,
+    expires_at: result.card.expires_at,
+    recipe_digest: result.card.write_scopes[0].recipe_digest,
+  }, null, 2);
+  byId("write-review").hidden = false;
+  message("Review the account, destination, agent and limits before signing the task and child grant.");
+}
+
+async function authorizeWriteTask() {
+  if (!preparedWriteTask) throw new Error("Prepare and review a write task first");
+  if (Date.now() / 1000 >= preparedWriteTask.expires_at) {
+    throw new Error("This write task review expired; prepare a new one");
+  }
+  const grantSignature = await signEmployee(preparedWriteTask.grant_preimage);
+  const taskSignature = await signEmployee(preparedWriteTask.task_preimage);
+  const result = await api("/api/v1/write/tasks/authorize", {
+    nonce: preparedWriteTask.nonce,
+    grant_signature: grantSignature,
+    task_signature: taskSignature,
+  });
+  if (result.task_id !== preparedWriteTask.card.task_id ||
+      result.agent_principal !== preparedWriteTask.card.agent_principal) {
+    throw new Error("Signed write task differs from the reviewed task");
+  }
+  download(`auths-write-agent-${result.task_id}.json`,
+    JSON.stringify(result.agent_package, null, 2), "application/json");
+  byId("write-status").textContent = JSON.stringify({
+    task_id: result.task_id, status: result.status,
+    agent_principal: result.agent_principal, expires_at: result.expires_at,
+  }, null, 2);
+  byId("write-review").hidden = true;
+  preparedWriteTask = null;
+  message("Jules's write task is signed. Gateway activation and a separate exact edit confirmation are still required.");
+}
+
 async function prepareActivation() {
   const taskId = value("task-id");
   if (!taskId) throw new Error("Enter a task ID first");
@@ -325,6 +376,11 @@ async function start() {
   bind("agent-preimage", async () => download("agent-registration.preimage", bytes(preparedAgent.signing_preimage), "application/octet-stream"));
   bind("task-prepare", prepareTask);
   bind("task-authorize", authorizeTask);
+  byId("write-task").hidden = !session.task_write_available;
+  if (session.task_write_available) {
+    bind("write-prepare", prepareWriteTask);
+    bind("write-authorize", authorizeWriteTask);
+  }
   bind("activate-prepare", prepareActivation);
   bind("activate-complete", completeActivation);
   bind("activate-preimage", async () => download("agent-activation.preimage", bytes(preparedActivation.signing_preimage), "application/octet-stream"));
