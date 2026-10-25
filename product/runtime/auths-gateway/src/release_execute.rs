@@ -8,7 +8,9 @@ use crate::release_state::FileReleaseTaskLedger;
 use crate::release_verify::{VerifiedReleaseRequest, verify_release_request};
 use crate::task_activation::{ApprovedAgentTask, TaskActivationPins};
 use crate::transport::GatewayHttpTransport;
-use crate::{CompiledReleaseRecipe, GatewayConnectionDescriptor, LoadedConnection};
+use crate::{
+    CompiledReleaseRecipe, GatewayConnectionDescriptor, LoadedConnection, QualificationGate,
+};
 use auths_connections::ConnectionCredentialStore;
 use std::{
     sync::Arc,
@@ -47,6 +49,9 @@ pub(crate) struct ManagedReadSubmission<'a> {
     pub(crate) recipe: &'a CompiledReleaseRecipe,
     pub(crate) read_connection: &'a SharedConnection,
     pub(crate) read_credentials: &'a Arc<dyn ConnectionCredentialStore>,
+    /// Qualification for this exact read recipe and connection. The engine's
+    /// own gate belongs to its installed write recipe and cannot substitute.
+    pub(crate) read_qualification: &'a QualificationGate,
     pub(crate) ledger: &'a FileReleaseTaskLedger,
     pub(crate) commitment_key: &'a ReleaseCommitmentKey,
     pub(crate) channel: &'a UnixAgentReleaseChannel,
@@ -113,7 +118,7 @@ impl GatewayEngine {
             Err(failure) => return record_read_failure(&submission, operation_id, failure),
         };
         if !unchanged(submission.read_connection, &prepared.loaded).await
-            || self.qualification.check().is_err()
+            || submission.read_qualification.check().is_err()
         {
             return refuse_release(
                 &submission,
@@ -216,7 +221,8 @@ impl GatewayEngine {
         let descriptor =
             GatewayConnectionDescriptor::from_release_record(record, submission.recipe)
                 .map_err(|_| not_entered("gateway.release.recipe-binding"))?;
-        self.qualification
+        submission
+            .read_qualification
             .check()
             .map_err(|_| not_entered("gateway.release.unqualified"))?;
         #[cfg(feature = "loopback-provider")]
@@ -256,7 +262,7 @@ impl GatewayEngine {
         prepared: &PreparedRead,
     ) -> Result<Zeroizing<Vec<u8>>, ReadFailure> {
         if !unchanged(submission.read_connection, &prepared.loaded).await
-            || self.qualification.check().is_err()
+            || submission.read_qualification.check().is_err()
         {
             return Err(ReadFailure::Refused("gateway.release.connection-changed"));
         }
@@ -270,7 +276,7 @@ impl GatewayEngine {
             .await
             .map_err(|_| ReadFailure::Refused("gateway.release.credential-unavailable"))?;
         if !unchanged(submission.read_connection, &prepared.loaded).await
-            || self.qualification.check().is_err()
+            || submission.read_qualification.check().is_err()
         {
             return Err(ReadFailure::Refused("gateway.release.connection-changed"));
         }
@@ -498,6 +504,37 @@ mod tests {
             .expect("socket mode");
         let channel = UnixAgentReleaseChannel::new(socket, "agent-channel".to_owned(), packet)
             .expect("channel");
+        let unqualified_read = QualificationGate::unconfigured();
+        let refused = engine
+            .execute_managed_read(ManagedReadSubmission {
+                task_id: "task-1",
+                agent_proof: &signed.proof,
+                agent_action: &signed.action,
+                pins: &pins,
+                recipe: &read_recipe,
+                read_connection: &engine.connection,
+                read_credentials: &engine.credentials,
+                read_qualification: &unqualified_read,
+                ledger: &ledger,
+                commitment_key: &ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32]))
+                    .expect("key"),
+                channel: &channel,
+            })
+            .await;
+        assert!(matches!(
+            refused,
+            ManagedReleaseResult::NotEntered {
+                code: "gateway.release.unqualified"
+            }
+        ));
+        assert_eq!(
+            ledger
+                .load("task-1")
+                .expect("ledger")
+                .expect("task")
+                .counts(),
+            (0, 0, 0)
+        );
         let authenticated = Arc::new(AtomicBool::new(false));
         let agent_ready = Arc::clone(&authenticated);
         let agent_server = tokio::spawn(async move {
@@ -555,6 +592,7 @@ mod tests {
                 recipe: &read_recipe,
                 read_connection: &engine.connection,
                 read_credentials: &engine.credentials,
+                read_qualification: &engine.qualification,
                 ledger: &ledger,
                 commitment_key: &key,
                 channel: &channel,
