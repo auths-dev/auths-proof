@@ -53,3 +53,7 @@ The [write handoff shim](../broker/src/employee_read_demo/write_handoff.py)
 validates a digest-pinned producer generation and its independent probes but
 stays `write_not_configured` until the installed Auths task gate, credential
 lease, fresh preflight and independent post-write inspection are wired.
+The broker's read-only [Google preflight](../broker/src/employee_read_demo/google_write_preflight.py)
+checks the current Jules subject, working Doc ACL, one tab, revision and exact
+baseline before an edit proposal; it has passed against the private Atlas
+generation and does not perform a write.
