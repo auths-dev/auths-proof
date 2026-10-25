@@ -1254,7 +1254,16 @@ pub(crate) struct FormalAssuranceManifest {
     /// Qualification never refreshes this field automatically.
     statement_inventory_sha256: String,
     allowed_axioms: Vec<String>,
+    /// One independently resolved closure; every claim binds its digest.
+    semantic_source_closure: FormalSemanticSourceClosure,
     claims: Vec<FormalAssuranceClaim>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct FormalSemanticSourceClosure {
+    sha256: String,
+    paths: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1267,7 +1276,7 @@ pub(crate) struct FormalAssuranceClaim {
     lean_statement_sha256: String,
     formal_review: String,
     rust_symbols: Vec<String>,
-    semantic_source_closure: Vec<String>,
+    /// Reference to the manifest's shared closure, checked for every claim.
     semantic_source_closure_sha256: String,
     evidence: Vec<FormalEvidence>,
     scope: String,
@@ -1418,6 +1427,44 @@ fn lean_statement_inventory_sha256(audit: &LeanAssuranceAudit) -> String {
     hex::encode(digest.finalize())
 }
 
+/// Resolve references only against the independently discovered paths and
+/// freshly hashed source bytes, never against a producer-supplied closure.
+fn validate_manifest_source_closure(
+    manifest: &FormalAssuranceManifest,
+    expected_paths: &[String],
+    expected_digest: &str,
+) -> Result<(), String> {
+    let closure = &manifest.semantic_source_closure;
+    if closure.paths.is_empty() {
+        return Err(
+            "formal assurance manifest must declare a shared semantic source closure".to_owned(),
+        );
+    }
+    if closure.paths != expected_paths {
+        return Err(
+            "formal assurance manifest semantic source closure is not the Lean-resolved transitive assurance closure"
+                .to_owned(),
+        );
+    }
+    validate_sha256(&closure.sha256)
+        .map_err(|error| format!("invalid shared semantic source closure digest: {error}"))?;
+    if closure.sha256 != expected_digest {
+        return Err(format!(
+            "formal assurance manifest semantic source closure drifted: expected {}, found {expected_digest}",
+            closure.sha256
+        ));
+    }
+    for claim in &manifest.claims {
+        if claim.semantic_source_closure_sha256 != closure.sha256 {
+            return Err(format!(
+                "formal claim {} semantic source closure reference drifted: expected {}, found {}",
+                claim.lean_declaration, closure.sha256, claim.semantic_source_closure_sha256
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result<(), String> {
     let manifest_path = formal_root.join("assurance-manifest-v1.toml");
     let mut manifest: FormalAssuranceManifest = toml::from_str(
@@ -1504,6 +1551,11 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
     }
     let expected_source_closure = semantic_source_closure_paths(formal_root)?;
     let expected_closure_digest = semantic_source_closure_digest(&expected_source_closure)?;
+    validate_manifest_source_closure(
+        &manifest,
+        &expected_source_closure,
+        &expected_closure_digest,
+    )?;
     let mut reviewed = BTreeSet::new();
     let mut claim_ids = BTreeSet::new();
     for claim in &manifest.claims {
@@ -1584,26 +1636,10 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 claim.lean_declaration
             ));
         }
-        if claim.semantic_source_closure.is_empty()
-            || claim.evidence.is_empty()
-            || claim.residual_assumptions.is_empty()
-        {
+        if claim.evidence.is_empty() || claim.residual_assumptions.is_empty() {
             return Err(format!(
-                "formal claim {} must declare source closure, evidence, and residual assumptions",
+                "formal claim {} must declare evidence and residual assumptions",
                 claim.lean_declaration
-            ));
-        }
-        if claim.semantic_source_closure != expected_source_closure {
-            return Err(format!(
-                "formal claim {} semantic source closure is not the Lean-resolved transitive assurance closure",
-                claim.lean_declaration
-            ));
-        }
-        let closure_digest = &expected_closure_digest;
-        if *closure_digest != claim.semantic_source_closure_sha256 {
-            return Err(format!(
-                "formal claim {} semantic source closure drifted: expected {}, found {closure_digest}",
-                claim.lean_declaration, claim.semantic_source_closure_sha256
             ));
         }
         for symbol in &claim.rust_symbols {
@@ -1700,8 +1736,8 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
         }
     }
 
-    // All claims have the identical, independently resolved path set. Hash it
-    // once per snapshot, then reject mutation during the complete claim audit.
+    // Every claim references the shared, independently resolved path set.
+    // Reject source mutation during the complete claim audit.
     if semantic_source_closure_digest(&expected_source_closure)? != expected_closure_digest {
         return Err("Lean semantic source closure changed during assurance audit".to_owned());
     }
@@ -1827,7 +1863,6 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 lean_statement_sha256: String::new(),
                 formal_review: "rich-authority-refinement-2026-07-29".to_owned(),
                 rust_symbols: Vec::new(),
-                semantic_source_closure: Vec::new(),
                 semantic_source_closure_sha256: String::new(),
                 evidence: vec![FormalEvidence {
                     kind: FormalEvidenceKind::LeanProof,
@@ -2196,7 +2231,6 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 sha256: String::new(),
             },
         );
-        claim.semantic_source_closure.clone_from(&source_closure);
         claim
             .semantic_source_closure_sha256
             .clone_from(&source_closure_digest);
@@ -2262,6 +2296,10 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             existing.keys().collect::<Vec<_>>()
         ));
     }
+    manifest.semantic_source_closure = FormalSemanticSourceClosure {
+        sha256: source_closure_digest,
+        paths: source_closure,
+    };
     manifest.claims = claims;
     // Refresh every evidence digest before rendering.
     //
@@ -10744,6 +10782,161 @@ mod phase_ordering {
         assert!(validated_evidence_path("../outside").is_err());
         assert!(validated_evidence_path("formal").is_err());
         assert!(validated_evidence_path("formal/does-not-exist").is_err());
+    }
+
+    fn manifest_with_shared_source_closure() -> FormalAssuranceManifest {
+        let digest = "a".repeat(64);
+        let claim = |name: &str| {
+            serde_json::json!({
+                "claim_id": name,
+                "claim_text": "Fixture claim; only closure binding is tested here.",
+                "claim_status": "proved",
+                "lean_declaration": name,
+                "lean_statement_sha256": digest,
+                "formal_review": "fixture-review",
+                "rust_symbols": [],
+                "semantic_source_closure_sha256": digest,
+                "evidence": [{
+                    "kind": "lean-proof",
+                    "artifact": "formal/Auths.lean",
+                    "sha256": digest,
+                }],
+                "scope": "Fixture closure binding",
+                "residual_assumptions": ["Fixture assumption"],
+                "toolchain_lock_sha256": digest,
+                "axioms": [],
+            })
+        };
+        serde_json::from_value(serde_json::json!({
+            "schema": "auths-proof-formal-assurance/v1",
+            "lean_toolchain": "fixture-toolchain",
+            "toolchain_lock_sha256": digest,
+            "statement_review": "fixture-review",
+            "statement_inventory_sha256": digest,
+            "allowed_axioms": [],
+            "semantic_source_closure": {
+                "sha256": digest,
+                "paths": ["formal/Auths.lean", "formal/Auths/AssuranceAudit.lean"],
+            },
+            "claims": [claim("Fixture.first"), claim("Fixture.second")],
+        }))
+        .expect("complete shared-closure fixture")
+    }
+
+    #[test]
+    fn shared_source_closure_round_trip_keeps_every_claim_bound() {
+        let manifest = manifest_with_shared_source_closure();
+        let paths = &manifest.semantic_source_closure.paths;
+        let digest = &manifest.semantic_source_closure.sha256;
+        validate_manifest_source_closure(&manifest, paths, digest).expect("exact shared closure");
+        let rendered = toml::to_string_pretty(&manifest).expect("render manifest");
+        assert_eq!(rendered.matches("[semantic_source_closure]").count(), 1);
+        assert_eq!(
+            rendered.matches("semantic_source_closure_sha256 =").count(),
+            2
+        );
+        let decoded: FormalAssuranceManifest =
+            toml::from_str(&rendered).expect("parse normalized manifest");
+        validate_manifest_source_closure(&decoded, paths, digest).expect("round-trip binding");
+        assert_eq!(decoded.claims.len(), 2);
+    }
+
+    #[test]
+    fn shared_source_closure_rejects_changed_path_inventory() {
+        let mut manifest = manifest_with_shared_source_closure();
+        let expected = manifest.semantic_source_closure.paths.clone();
+        let digest = manifest.semantic_source_closure.sha256.clone();
+        for paths in [
+            Vec::new(),
+            vec![expected[0].clone()],
+            vec![expected[0].clone(), expected[0].clone()],
+            vec![expected[1].clone(), expected[0].clone()],
+            vec![expected[0].clone(), "formal/Other.lean".to_owned()],
+            vec![expected[0].clone(), expected[1].clone(), "extra".to_owned()],
+        ] {
+            manifest.semantic_source_closure.paths = paths;
+            assert!(validate_manifest_source_closure(&manifest, &expected, &digest).is_err());
+        }
+    }
+
+    #[test]
+    fn shared_source_closure_rejects_stale_digest_and_claim_references() {
+        let mut manifest = manifest_with_shared_source_closure();
+        let expected = manifest.semantic_source_closure.paths.clone();
+        let digest = manifest.semantic_source_closure.sha256.clone();
+        for changed in [String::new(), "A".repeat(64), "b".repeat(64)] {
+            manifest.semantic_source_closure.sha256.clone_from(&changed);
+            assert!(validate_manifest_source_closure(&manifest, &expected, &digest).is_err());
+            manifest.semantic_source_closure.sha256.clone_from(&digest);
+            // Alter the second reference so accepting only the first fails.
+            manifest.claims[1].semantic_source_closure_sha256 = changed;
+            assert!(validate_manifest_source_closure(&manifest, &expected, &digest).is_err());
+            manifest.claims[1]
+                .semantic_source_closure_sha256
+                .clone_from(&digest);
+        }
+        // Matching manifest/reference digests do not replace the actual hash.
+        assert!(validate_manifest_source_closure(&manifest, &expected, &"c".repeat(64)).is_err());
+    }
+
+    #[test]
+    fn shared_source_closure_schema_requires_table_and_references() {
+        let valid = serde_json::to_value(manifest_with_shared_source_closure())
+            .expect("serialize manifest fixture");
+        let mut missing_table = valid.clone();
+        missing_table
+            .as_object_mut()
+            .expect("manifest object")
+            .remove("semantic_source_closure");
+        assert!(serde_json::from_value::<FormalAssuranceManifest>(missing_table).is_err());
+        for field in ["paths", "sha256"] {
+            let mut missing = valid.clone();
+            missing["semantic_source_closure"]
+                .as_object_mut()
+                .expect("shared closure")
+                .remove(field);
+            assert!(serde_json::from_value::<FormalAssuranceManifest>(missing).is_err());
+        }
+        let mut missing_reference = valid.clone();
+        missing_reference["claims"][1]
+            .as_object_mut()
+            .expect("second claim")
+            .remove("semantic_source_closure_sha256");
+        assert!(serde_json::from_value::<FormalAssuranceManifest>(missing_reference).is_err());
+        let mut old_inline_list = valid;
+        old_inline_list["claims"][1]["semantic_source_closure"] =
+            serde_json::json!(["formal/Auths.lean"]);
+        assert!(serde_json::from_value::<FormalAssuranceManifest>(old_inline_list).is_err());
+    }
+
+    #[test]
+    fn shared_source_closure_detects_source_byte_mutation() {
+        let target = root().join("target");
+        fs::create_dir_all(&target).expect("target directory");
+        let directory = tempfile::tempdir_in(target).expect("temporary source closure");
+        let source = directory.path().join("Fixture.lean");
+        fs::write(&source, "theorem fixture : True := True.intro\n").expect("source fixture");
+        let relative = source
+            .strip_prefix(root())
+            .expect("repository-relative source")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let expected = vec![relative];
+        let digest = semantic_source_closure_digest(&expected).expect("original source digest");
+        let mut manifest = manifest_with_shared_source_closure();
+        manifest.semantic_source_closure.paths.clone_from(&expected);
+        manifest.semantic_source_closure.sha256.clone_from(&digest);
+        for claim in &mut manifest.claims {
+            claim.semantic_source_closure_sha256.clone_from(&digest);
+        }
+        validate_manifest_source_closure(&manifest, &expected, &digest).expect("original binding");
+        fs::write(&source, "theorem changed_fixture : True := True.intro\n")
+            .expect("mutate source bytes");
+        let after = semantic_source_closure_digest(&expected).expect("changed source digest");
+        assert_ne!(after, digest);
+        assert!(validate_manifest_source_closure(&manifest, &expected, &after).is_err());
+        let duplicates = vec![expected[0].clone(), expected[0].clone()];
+        assert!(semantic_source_closure_digest(&duplicates).is_err());
     }
 
     #[test]

@@ -14,6 +14,16 @@ declaration name, statement, transitive axiom set, source closure, and required
 evidence. This prevents a renamed, weakened, deleted, or `sorry`-backed theorem
 from satisfying the repository gate through a textual look-alike.
 
+The manifest stores the common semantic source closure once in
+`[semantic_source_closure]`, with its ordered `paths` and `sha256`. Every claim
+retains `semantic_source_closure_sha256` as a mandatory reference to that exact
+closure. The audit independently resolves the complete Lean import closure,
+requires an exact path match, hashes the actual source bytes, validates every
+claim reference, and hashes the closure again after the claim audit to reject
+changes during verification. Missing tables, stale references and legacy inline
+per-claim path lists are rejected. Normalizing this metadata does not refresh
+claim qualification, reviewed statements, axioms or evidence digests.
+
 The latest qualified development checkpoint has 917 compiled claims, 18/18
 qualification cases, 25 reviewed external models and two byte-identical full
 translation reproductions. Its latest batch proves exact payload, UTF-8, collection
