@@ -6,6 +6,7 @@
 //! checks (a probe literal, a method, a count) are parsed loosely here so the
 //! rule, not the parser, reports the stable code.
 
+use crate::task_activation::TaskWriteVerb;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -18,6 +19,8 @@ pub(super) struct RecipeSource {
     pub(super) service: String,
     pub(super) tool: String,
     pub(super) operator_namespace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) task_binding: Option<TaskBindingSource>,
     pub(super) credential: CredentialSource,
     pub(super) origin: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -37,6 +40,15 @@ pub(super) struct RecipeSource {
     pub(super) pre_entry: Option<PreEntrySource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) preconditions: Option<PreconditionSource>,
+}
+
+/// A reviewed task-write interpretation of one typed profile resource field.
+/// This is recipe data and enters the compiled recipe digest.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct TaskBindingSource {
+    pub(super) resource_field: String,
+    pub(super) verb: TaskWriteVerb,
 }
 
 /// The credential requirement plus the author's optional credential guard.

@@ -6,7 +6,7 @@
   "operator_namespace": "google-docs-demo",
   "credential": { "kind": "bearer" },
   "origin": "https://docs.googleapis.com",
-  "preconditions": {"verified": ["task_id", "task_commitment"]},
+  "task_binding": {"resource_field": "document_id", "verb": "edit"},
   "write": {
     "method": "POST",
     "path": [

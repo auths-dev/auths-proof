@@ -43,9 +43,11 @@ provider-signed response evidence. demo_co must independently compare the
 working Doc's revision and content after entry and verify that canonical and
 excluded Docs did not change. A 2xx response alone is not an observed edit.
 
-The v2 profile fields make an exact task binding possible; the installed
-gateway submit path does not yet enforce that binding or the human's exact
-confirmation. The current gateway also lacks a subject-bound Google OAuth write connection
+The v2 recipe declares a provider-neutral `task_binding` for its document field
+and edit verb. The gateway refuses ordinary proof/action submission for this
+recipe before any claim or lease; a task-aware submit path must enforce the
+human's exact confirmation and budget before live use. The current gateway
+also lacks a subject-bound Google OAuth write connection
 and refresh lease for Jules. Her saved read-only grant is insufficient.
 demo_co owns the folder, working Doc, ACL, consent probes and versioned export;
 Auths owns authority, connection custody, recipe admission and receipts.

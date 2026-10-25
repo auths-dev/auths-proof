@@ -8,7 +8,7 @@ use super::recovery::{
     IdempotencyKind, LostClaimReentry, RecoveryCapability, RecoveryClass, StateObservation,
     UnknownResolution,
 };
-use super::source::{EchoPlacement, IdempotencySource, PathSegment};
+use super::source::{EchoPlacement, IdempotencySource, PathSegment, RecipeSource};
 use super::{CompiledRecipe, CredentialRequirement, MAX_BODY_BYTES, WriteMethod, provider_header};
 use serde_json::{Value, json};
 
@@ -234,6 +234,33 @@ pub(crate) fn recovery_document(capability: &RecoveryCapability) -> Value {
     })
 }
 
+fn task_binding_document(source: &RecipeSource) -> Option<Value> {
+    source.task_binding.as_ref().map(|binding| json!({
+        "resource_field": binding.resource_field,
+        "verb": binding.verb,
+        "ordinary_submit": "refused",
+        "disclosure": "a separate human-agent task gate must verify the signed task card, exact write confirmation or explicit upfront mode, connection and write budget before the gateway may claim this action",
+    }))
+}
+
+fn provider_headers_document(source: &RecipeSource) -> Value {
+    source
+        .provider_headers
+        .as_ref()
+        .map_or(Value::Null, |headers| {
+            Value::Object(
+                headers
+                    .iter()
+                    .map(|(name, value)| {
+                        let response = provider_header(name)
+                            .map_or("not-checked", |entry| entry.response.as_str());
+                        (name.clone(), json!({"value": value, "response": response}))
+                    })
+                    .collect(),
+            )
+        })
+}
+
 impl CompiledRecipe {
     /// Returns a bounded, secret-free operator review projection.
     #[must_use]
@@ -315,23 +342,11 @@ impl CompiledRecipe {
             "recovery": recovery_document(&review.recovery()),
             "write_is_conditional": false,
         });
-        document["provider_headers"] =
-            source
-                .provider_headers
-                .as_ref()
-                .map_or(Value::Null, |headers| {
-                    Value::Object(
-                        headers
-                            .iter()
-                            .map(|(name, value)| {
-                                let response = provider_header(name)
-                                    .map_or("not-checked", |entry| entry.response.as_str());
-                                (name.clone(), json!({"value": value, "response": response}))
-                            })
-                            .collect(),
-                    )
-                });
+        document["provider_headers"] = provider_headers_document(source);
         document["credential_guard"] = self.guard_review();
+        if let Some(binding) = task_binding_document(source) {
+            document["task_binding"] = binding;
+        }
         document["idempotency"] =
             source
                 .write

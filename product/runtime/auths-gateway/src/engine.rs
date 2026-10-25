@@ -1146,6 +1146,9 @@ impl GatewayEngine {
     /// directs every step: a replay never writes again, and for a linked
     /// recipe it may perform one more read-only observation.
     pub async fn submit(&self, proof_cbor: &[u8], action_cbor: &[u8]) -> GatewaySubmitResult {
+        if self.recipe.requires_task_admission() {
+            return not_entered("gateway.task.task-submit-required");
+        }
         let io = EngineIo {
             engine: self,
             proof: proof_cbor,

@@ -58,6 +58,7 @@ fn three_independent_recipes_compile_without_provider_code() {
 #[test]
 fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
     let recipe = compiled("google-docs-edit");
+    assert!(recipe.requires_task_admission());
     let args = arguments(
         &recipe,
         &json!({
@@ -98,6 +99,9 @@ fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
         })
     );
     let review = recipe.review_document();
+    assert_eq!(review["task_binding"]["resource_field"], "document_id");
+    assert_eq!(review["task_binding"]["verb"], "edit");
+    assert_eq!(review["task_binding"]["ordinary_submit"], "refused");
     assert_eq!(review["path"][2], "<document_id>:batchUpdate");
     assert_eq!(review["recovery"]["unknown_resolution"], "none");
     assert_eq!(review["write_is_conditional"], false);
@@ -119,6 +123,17 @@ fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
             .expect("literal suffix stays outside encoded field")
             .url(),
         "https://docs.googleapis.com/v1/documents/doc%2Fwith%3Freserved:batchUpdate"
+    );
+
+    let (source, lock) = fixture("google-docs-edit");
+    let mut without_binding: Value = serde_json::from_slice(source).expect("source");
+    without_binding
+        .as_object_mut()
+        .expect("object")
+        .remove("task_binding");
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&without_binding).expect("bytes"), lock).err(),
+        Some(GatewayRecipeError::InvalidSource),
     );
 }
 

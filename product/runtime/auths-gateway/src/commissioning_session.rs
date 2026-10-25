@@ -70,6 +70,9 @@ impl GatewayEngine {
         &self,
         inputs: &CommissioningSessionInputs<'_>,
     ) -> Result<CommissioningSession<'_>, &'static str> {
+        if self.recipe.requires_task_admission() {
+            return Err("gateway.task.task-submit-required");
+        }
         let (root, tuple) = self
             .qualification
             .commissioning_target()

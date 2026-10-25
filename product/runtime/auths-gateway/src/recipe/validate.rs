@@ -808,6 +808,32 @@ pub(super) fn validate_source(
     if let Some(preconditions) = &source.preconditions {
         rules.preconditions(preconditions, source.observation.as_ref())?;
     }
+    if let Some(binding) = &source.task_binding {
+        if !matches!(fields.get("task_id"), Some(FieldSchema::String { minimum, maximum })
+                     if *minimum >= 1 && *maximum <= 128)
+            || !matches!(fields.get("task_commitment"), Some(FieldSchema::String { minimum, maximum })
+                         if *minimum == 64 && *maximum == 64)
+            || !matches!(fields.get(&binding.resource_field), Some(FieldSchema::String { minimum, maximum })
+                         if *minimum >= 1 && *maximum <= 256)
+            || matches!(
+                binding.resource_field.as_str(),
+                "operator_namespace"
+                    | "operation_id"
+                    | "recipe_digest"
+                    | "task_id"
+                    | "task_commitment"
+            )
+            || !rules.consumed.all.contains(&binding.resource_field)
+            || rules.consumed.all.contains("task_id")
+            || rules.consumed.all.contains("task_commitment")
+        {
+            return Err(GatewayRecipeError::InvalidSource);
+        }
+        rules.consume("task_id");
+        rules.consume("task_commitment");
+    } else if fields.contains_key("task_id") || fields.contains_key("task_commitment") {
+        return Err(GatewayRecipeError::InvalidSource);
+    }
     if let Some(headers) = &source.provider_headers {
         validate_provider_headers(headers)?;
     }

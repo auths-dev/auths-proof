@@ -580,6 +580,20 @@ impl CompiledRecipe {
         hex::encode(self.digest)
     }
 
+    /// Whether this recipe requires the separate human-agent task write gate.
+    /// Ordinary proof/action submission must refuse it before a claim.
+    #[must_use]
+    pub const fn requires_task_admission(&self) -> bool {
+        self.source.task_binding.is_some()
+    }
+
+    pub(crate) fn task_binding(&self) -> Option<(&str, crate::task_activation::TaskWriteVerb)> {
+        self.source
+            .task_binding
+            .as_ref()
+            .map(|binding| (binding.resource_field.as_str(), binding.verb.clone()))
+    }
+
     /// Returns the operator-controlled replay namespace.
     #[must_use]
     pub const fn namespace(&self) -> &OperatorNamespace {

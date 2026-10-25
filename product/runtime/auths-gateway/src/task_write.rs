@@ -110,6 +110,12 @@ pub(crate) fn derive_exact_write_intent(
     {
         return Err(not_entered("gateway.task.connection-binding"));
     }
+    if recipe
+        .task_binding()
+        .is_none_or(|(field, verb)| field != binding.resource_field || verb != binding.verb)
+    {
+        return Err(not_entered("gateway.task.recipe-binding"));
+    }
     let arguments = &verified.arguments;
     let expected_task_commitment = hex::encode(task.commitment());
     if arguments.get("task_id").and_then(Value::as_str) != Some(card.task_id.as_str())
@@ -285,14 +291,23 @@ mod tests {
         let agent = Signer::new(0x44);
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
-        let recipe = harness::recipe(
+        let (source, lock) = harness::recipe_sources(
             &json!({
                 "task_id": {"kind": "string", "minimum": 1, "maximum": 128},
                 "task_commitment": {"kind": "string", "minimum": 64, "maximum": 64}
             }),
-            &json!({"verified": ["task_id", "task_commitment"]}),
+            &json!({}),
         )
-        .expect("recipe");
+        .expect("recipe source");
+        let mut source: Value = serde_json::from_slice(&source).expect("source JSON");
+        source
+            .as_object_mut()
+            .expect("source object")
+            .remove("preconditions");
+        source["task_binding"] = json!({"resource_field": "record_id", "verb": "edit"});
+        let recipe =
+            CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source bytes"), &lock)
+                .expect("task-bound recipe");
         let card: AgentTaskDescriptor = serde_json::from_value(json!({
             "schema": "auths.agent-task/1",
             "task_id": "task-1",
