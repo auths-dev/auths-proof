@@ -1,0 +1,167 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "admin_revision_id": {
+      "title": "Admin Revision Id",
+      "type": "string"
+    },
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "blank_export_byte_count": {
+      "const": 3,
+      "default": 3,
+      "title": "Blank Export Byte Count",
+      "type": "integer"
+    },
+    "blank_export_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Export Sha256",
+      "type": "string"
+    },
+    "blank_layout": {
+      "const": "section-break-then-newline-paragraph/v1",
+      "default": "section-break-then-newline-paragraph/v1",
+      "title": "Blank Layout",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 3,
+      "default": 3,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "original_baseline_generation": {
+      "minimum": 2,
+      "title": "Original Baseline Generation",
+      "type": "integer"
+    },
+    "original_baseline_observed_at": {
+      "format": "date-time",
+      "title": "Original Baseline Observed At",
+      "type": "string"
+    },
+    "original_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Original Baseline Sha256",
+      "type": "string"
+    },
+    "preserved_child_created_at": {
+      "format": "date-time",
+      "title": "Preserved Child Created At",
+      "type": "string"
+    },
+    "preserved_child_id": {
+      "title": "Preserved Child Id",
+      "type": "string"
+    },
+    "preserved_child_title": {
+      "title": "Preserved Child Title",
+      "type": "string"
+    },
+    "preserved_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Preserved Marker",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-preserved-blank-observation/v1",
+      "default": "demo-co/google-preserved-blank-observation/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_verification_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Verification Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "observed_blank",
+      "default": "observed_blank",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    },
+    "working_document_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Working Document Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "source_verification_sha256",
+    "original_baseline_generation",
+    "original_baseline_sha256",
+    "original_baseline_observed_at",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "preserved_child_id",
+    "preserved_child_title",
+    "preserved_child_created_at",
+    "preserved_marker",
+    "blank_export_sha256",
+    "tab_id",
+    "admin_revision_id",
+    "working_document_sha256"
+  ],
+  "title": "GooglePreservedBlankObservation",
+  "type": "object"
+}

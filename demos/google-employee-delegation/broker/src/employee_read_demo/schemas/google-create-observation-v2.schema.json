@@ -1,0 +1,260 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 4,
+      "default": 4,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_project_b_write_denied": {
+      "const": true,
+      "default": true,
+      "title": "Jules Project B Write Denied",
+      "type": "boolean"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "new_admin_revision_id": {
+      "title": "New Admin Revision Id",
+      "type": "string"
+    },
+    "new_child_created_at": {
+      "format": "date-time",
+      "title": "New Child Created At",
+      "type": "string"
+    },
+    "new_child_id": {
+      "title": "New Child Id",
+      "type": "string"
+    },
+    "new_child_mime_type": {
+      "const": "application/vnd.google-apps.document",
+      "default": "application/vnd.google-apps.document",
+      "title": "New Child Mime Type",
+      "type": "string"
+    },
+    "new_child_title": {
+      "title": "New Child Title",
+      "type": "string"
+    },
+    "new_content_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "New Content Byte Count",
+      "type": "integer"
+    },
+    "new_content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "New Content Sha256",
+      "type": "string"
+    },
+    "new_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "New Marker",
+      "type": "string"
+    },
+    "new_marker_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "New Marker Match Count",
+      "type": "integer"
+    },
+    "new_tab_id": {
+      "title": "New Tab Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "preserved_blank_generation": {
+      "minimum": 2,
+      "title": "Preserved Blank Generation",
+      "type": "integer"
+    },
+    "preserved_blank_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Preserved Blank Sha256",
+      "type": "string"
+    },
+    "preserved_child_created_at": {
+      "format": "date-time",
+      "title": "Preserved Child Created At",
+      "type": "string"
+    },
+    "preserved_child_id": {
+      "title": "Preserved Child Id",
+      "type": "string"
+    },
+    "preserved_child_title": {
+      "title": "Preserved Child Title",
+      "type": "string"
+    },
+    "preserved_content_byte_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Preserved Content Byte Count",
+      "type": "integer"
+    },
+    "preserved_content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Preserved Content Sha256",
+      "type": "string"
+    },
+    "preserved_marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Preserved Marker",
+      "type": "string"
+    },
+    "preserved_marker_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Preserved Marker Match Count",
+      "type": "integer"
+    },
+    "preserved_matches_precreate_baseline": {
+      "const": true,
+      "default": true,
+      "title": "Preserved Matches Precreate Baseline",
+      "type": "boolean"
+    },
+    "preserved_original_blank": {
+      "const": true,
+      "default": true,
+      "title": "Preserved Original Blank",
+      "type": "boolean"
+    },
+    "preserved_state": {
+      "enum": [
+        "blank",
+        "populated"
+      ],
+      "title": "Preserved State",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-create-observation/v2",
+      "default": "demo-co/google-create-observation/v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_verification_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Verification Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "v2_baseline_generation": {
+      "minimum": 2,
+      "title": "V2 Baseline Generation",
+      "type": "integer"
+    },
+    "v2_baseline_observed_at": {
+      "format": "date-time",
+      "title": "V2 Baseline Observed At",
+      "type": "string"
+    },
+    "v2_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "V2 Baseline Sha256",
+      "type": "string"
+    },
+    "working_document_matches_precreate_baseline": {
+      "const": true,
+      "default": true,
+      "title": "Working Document Matches Precreate Baseline",
+      "type": "boolean"
+    },
+    "working_document_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Working Document Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "source_verification_sha256",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "preserved_blank_generation",
+    "preserved_blank_sha256",
+    "v2_baseline_generation",
+    "v2_baseline_sha256",
+    "v2_baseline_observed_at",
+    "new_child_id",
+    "new_child_title",
+    "new_child_created_at",
+    "new_marker",
+    "new_tab_id",
+    "new_admin_revision_id",
+    "new_content_sha256",
+    "new_content_byte_count",
+    "preserved_child_id",
+    "preserved_child_title",
+    "preserved_child_created_at",
+    "preserved_marker",
+    "preserved_content_sha256",
+    "preserved_content_byte_count",
+    "preserved_state",
+    "working_document_sha256"
+  ],
+  "title": "GoogleCreateObservationV2",
+  "type": "object"
+}

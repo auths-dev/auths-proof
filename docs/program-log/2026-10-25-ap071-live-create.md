@@ -70,3 +70,24 @@ confirmation. No exact-content approval arrived before this task expired at
 17:56:11 UTC. The post-expiry status still shows zero writes and no provider
 call. The signed proposal must not be submitted under the expired task; a
 fresh, reviewed delegation and confirmation are needed for population.
+
+demo_co confirmed its frozen v1 create observation requires exactly three
+direct Project A children. The preserved blank child is already the third.
+A second create would fail that independent inventory check, even with a new
+marker and baseline. Auths will keep the populate-only continuation as the
+minimum recovery example. A future fresh single-plan create/populate run
+requires demo_co's separately versioned v2 inspector that pins this blank
+child as an expected preserved item; Auths will not issue another v1 create.
+
+At 18:09:14 UTC demo_co saved a read-only historical snapshot of the
+preserved blank child as producer generation 0004. Its owner-private artifact
+is `google-preserved-blank-observation.json` in that generation and its
+SHA-256 is
+`646fbd37ce9cf18c62c906bc7b68edde95773cb302cb3f793e113b77f8ab85dc`.
+The producer reported the exact child ID, parent, marker and three-child
+inventory; a structurally blank Google Docs tab; a three-byte BOM-only Drive
+export; unchanged working and canonical documents; and Jules's subject.
+This is historical provider-state evidence, not an Auths write authorization.
+demo_co is implementing a separate v2 baseline and inspector that expect the
+preserved child alongside a future new child. The populate-only continuation
+may now proceed without erasing the original blank-state evidence.
