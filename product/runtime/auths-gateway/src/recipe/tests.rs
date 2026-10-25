@@ -217,8 +217,8 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
             "task_id": "task-1",
             "task_commitment": "45".repeat(32),
             "parent_id": "project-a-folder",
-            "title": "Project A handoff",
-            "recovery_marker": "auths-run-01-create-01"
+            "title": "Auths AP-071 Project A handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32))
         }),
     );
     let request = recipe
@@ -233,9 +233,9 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         serde_json::from_slice::<Value>(request.body()).expect("JSON body"),
         json!({
             "mimeType": "application/vnd.google-apps.document",
-            "name": "Project A handoff",
+            "name": "Auths AP-071 Project A handoff",
             "parents": ["project-a-folder"],
-            "properties": {"auths_operation_marker": "auths-run-01-create-01"}
+            "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))}
         })
     );
     let mut changed = args;

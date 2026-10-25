@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -18,6 +19,23 @@ from .demo_co_contract import ContractRejected, _load
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 MARKER = re.compile(r"ap071_[0-9a-f]{32}\Z")
 CHILD_TITLE = "Auths AP-071 Project A handoff"
+
+
+def prepare_create_inputs(parent_id: str, *, pinned_folder_id: str) -> dict[str, str]:
+    """Choose the first-run title and fresh marker before human review.
+
+    The caller must still put these values in the signed agent action and
+    exact human confirmation. This function confers no provider authority.
+    """
+    if (type(parent_id) is not str or type(pinned_folder_id) is not str
+            or not parent_id or parent_id != pinned_folder_id
+            or len(parent_id) > 64 or any(character.isspace() for character in parent_id)):
+        raise ContractRejected("create parent differs from the pinned Project A folder")
+    return {
+        "parent_id": parent_id,
+        "title": CHILD_TITLE,
+        "recovery_marker": "ap071_" + secrets.token_hex(16),
+    }
 
 
 @dataclass(frozen=True)

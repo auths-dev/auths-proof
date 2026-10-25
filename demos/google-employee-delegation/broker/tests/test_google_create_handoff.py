@@ -12,6 +12,7 @@ from employee_read_demo.google_create_handoff import (
     CHILD_TITLE,
     CreateObservationPins,
     inspect_create_observation,
+    prepare_create_inputs,
     validate_create_observation,
 )
 
@@ -53,6 +54,15 @@ def _write(path: Path, document: dict) -> str:
 
 
 class GoogleCreateHandoffTests(unittest.TestCase):
+    def test_create_inputs_use_pinned_parent_and_fresh_opaque_markers(self) -> None:
+        first = prepare_create_inputs("project-a-folder", pinned_folder_id="project-a-folder")
+        second = prepare_create_inputs("project-a-folder", pinned_folder_id="project-a-folder")
+        self.assertEqual(first["title"], CHILD_TITLE)
+        self.assertRegex(first["recovery_marker"], r"^ap071_[0-9a-f]{32}$")
+        self.assertNotEqual(first["recovery_marker"], second["recovery_marker"])
+        with self.assertRaises(ContractRejected):
+            prepare_create_inputs("project-b", pinned_folder_id="project-a-folder")
+
     def test_pinned_observation_reports_provider_state_without_agent_attribution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "google-create-observation.json"

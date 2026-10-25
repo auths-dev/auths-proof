@@ -29,6 +29,9 @@ a fresh marker value shaped as `ap071_` plus 32 lowercase hex characters.
 The profile permits the signed title and marker as arguments so the same
 gateway grammar stays provider-neutral; the operator-side Atlas handoff must
 enforce this fixture-specific title and marker format before Jules approves.
+`prepare_create_inputs` in the broker handoff module checks the pinned parent
+and generates a fresh 128-bit marker; the future task ceremony must sign and
+persist those values before any provider call.
 The [read-only producer observation consumer](../broker/src/employee_read_demo/google_create_handoff.py)
 checks demo_co's versioned create observation against exact private run pins.
 It reports only provider state; Auths has not yet bound a returned child ID to
