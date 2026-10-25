@@ -79,15 +79,124 @@ class PlannedCreateOperatorTests(unittest.TestCase):
         path.write_bytes(raw)
         os.chmod(path, 0o600)
 
-    def _submit(self):
+    def _submit(self, **kwargs):
         return submit_planned_create(
             gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
             gateway_state_dir=self.state_dir, task_dir=self.task_dir,
             task_id=self.task_id, write_evidence_path=self.root / "evidence",
             credential_pins_path=self.root / "pins", baseline_path=self.baseline,
             baseline_sha256=hashlib.sha256(self.baseline.read_bytes()).hexdigest(),
-            now=self.now,
+            now=self.now, **kwargs,
         )
+
+    def test_v2_baseline_is_pinned_before_four_child_create(self) -> None:
+        self.evidence.update({
+            "customer_id": "customer-1", "jules_subject": "jules-subject",
+            "drive_id": "drive-A", "folder_id": "project-a-folder",
+        })
+        self.pins.producer.evidence_sha256 = "f" * 64
+        historical = self.root / "generation-0004"
+        historical.mkdir(mode=0o700)
+        blank_path = historical / "google-preserved-blank-observation.json"
+        def at(seconds):
+            return datetime.fromtimestamp(self.now + seconds,
+                                          timezone.utc).isoformat()
+        blank = {
+            "schema_version": "demo-co/google-preserved-blank-observation/v1",
+            "status": "observed_blank", "attribution": "provider_state_only",
+            "company": "atlas-studio", "instance": "live-test-atlas",
+            "definition_hash": "a" * 64, "customer_id": "customer-1",
+            "jules_subject": "jules-subject",
+            "source_verification_sha256": "f" * 64,
+            "drive_id": "drive-A", "folder_id": "project-a-folder",
+            "observed_at": at(-200), "original_baseline_generation": 3,
+            "original_baseline_sha256": "1" * 64,
+            "original_baseline_observed_at": at(-280),
+            "preserved_child_created_at": at(-250),
+            "preserved_child_id": "old-child",
+            "preserved_child_title": CHILD_TITLE,
+            "preserved_marker": "ap071_" + "2" * 32,
+            "blank_export_sha256": hashlib.sha256(b"\xef\xbb\xbf").hexdigest(),
+            "blank_export_byte_count": 3,
+            "blank_layout": "section-break-then-newline-paragraph/v1",
+            "direct_child_count": 3, "tab_id": "t.0",
+            "admin_revision_id": "revision-old",
+            "working_document_sha256": "3" * 64,
+            "canonical_project_a_unchanged": True,
+            "canonical_project_b_unchanged": True,
+        }
+        self._write(blank_path, blank)
+        blank_sha = hashlib.sha256(blank_path.read_bytes()).hexdigest()
+        self.generation = self.root / "generation-0005"
+        self.generation.mkdir(mode=0o700)
+        self.baseline = self.generation / "google-create-v2-baseline.json"
+        v2 = {
+            "schema_version": "demo-co/google-create-v2-baseline/v1",
+            "status": "ready", "attribution": "provider_state_only",
+            "company": "atlas-studio", "instance": "live-test-atlas",
+            "definition_hash": "a" * 64, "customer_id": "customer-1",
+            "jules_subject": "jules-subject",
+            "source_verification_sha256": "f" * 64,
+            "drive_id": "drive-A", "folder_id": "project-a-folder",
+            "observed_at": at(-60), "preserved_blank_generation": 4,
+            "preserved_blank_sha256": blank_sha,
+            "working_document_id": "working-doc",
+            "working_content_sha256": "3" * 64,
+            "working_content_byte_count": 20,
+            "preserved_child_id": "old-child",
+            "preserved_child_title": CHILD_TITLE,
+            "preserved_child_created_at": at(-250),
+            "preserved_marker": "ap071_" + "2" * 32,
+            "preserved_content_sha256": "4" * 64,
+            "preserved_content_byte_count": 148,
+            "preserved_state": "populated", "direct_child_count": 3,
+            "canonical_project_a_unchanged": True,
+            "canonical_project_b_unchanged": True,
+        }
+        self._write(self.baseline, v2)
+        pins_path = self.root / "v2-pins.json"
+        self._write(pins_path, {
+            "company": "atlas-studio", "instance": "live-test-atlas",
+            "definition_hash": "a" * 64, "customer_id": "customer-1",
+            "jules_subject": "jules-subject",
+            "source_verification_sha256": "f" * 64,
+            "drive_id": "drive-A", "folder_id": "project-a-folder",
+            "working_document_id": "working-doc",
+            "original_baseline_generation": 3,
+            "original_baseline_sha256": "1" * 64,
+            "preserved_blank_generation": 4,
+            "preserved_blank_sha256": blank_sha,
+            "baseline_generation": 5,
+            "baseline_sha256": hashlib.sha256(self.baseline.read_bytes()).hexdigest(),
+            "preserved_child_id": "old-child",
+            "preserved_marker": "ap071_" + "2" * 32,
+        })
+        def run(command, **kwargs):
+            record = json.loads((self.task_dir / "pre-create-baseline.json").read_bytes())
+            self.assertEqual(record["schema"], "auths.ap071-pre-create-baseline/2")
+            self.assertEqual(record["preserved_blank_sha256"], blank_sha)
+            return subprocess.CompletedProcess(
+                command, 0, b'{"outcome":"response-recorded","status":200}', b"",
+            )
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    side_effect=run) as gateway):
+            with self.assertRaisesRegex(OperatorDenied, "v2 pre-create"):
+                self._submit(v2_pins_path=pins_path)
+            gateway.assert_not_called()
+            result = self._submit(v2_pins_path=pins_path,
+                                  preserved_blank_path=blank_path)
+            self.assertEqual(result["baseline_generation"], 5)
+            self.assertEqual(result["gateway_outcome"], "response-recorded")
+            with self.assertRaisesRegex(OperatorDenied, "already handed off"):
+                self._submit(v2_pins_path=pins_path,
+                             preserved_blank_path=blank_path)
+            gateway.assert_called_once()
 
     def test_baseline_is_durable_before_one_gateway_create(self) -> None:
         def run(command, **kwargs):

@@ -391,6 +391,20 @@ same baseline for child reconciliation and demo_co's `create-inspect`; take no
 automatic second create. The command does not populate the child. The separate
 Jules child preflight and agent-signed population still follow the gateway's
 recorded plan and response-derived child binding.
+For the next single-plan run, the earlier Auths child is a preserved third
+Project A child. Use demo_co's separate `google-create-v2-baseline.json` taken
+within five minutes of entry, plus its historical
+`google-preserved-blank-observation.json`. Pass `--preserved-blank` and
+`--v2-pins` to `auths-google-planned-create`; the latter is an owner-private
+JSON object with the exact `CreateV2BaselinePins` fields. It pins the two
+producer SHA-256 values and generations, original baseline digest, Jules and
+fixture identities, preserved child and marker. The command validates both
+hash-pinned schemas, the current exact three-child inventory, historical blank
+state, preserved current state, working Doc commitment and time ordering before
+durably recording a v2 baseline. It refuses a v2 export without those pins and
+never retries a create after an uncertain outcome. The frozen v1 observation
+continues to describe the completed first-child run; it cannot authorize a
+second create in the now three-child folder.
 The browser retains the canonical `effect-plan.json` beside its native proof.
 After the gateway binds the returned child and the Jules preflight is recorded,
 the isolated agent runs `auths-google-read-agent sign-planned-populate` with its

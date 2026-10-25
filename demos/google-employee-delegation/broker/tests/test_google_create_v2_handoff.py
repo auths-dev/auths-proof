@@ -11,7 +11,8 @@ from pathlib import Path
 
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_v2_handoff import (
-    CreateV2Pins, validate_create_v2_observation,
+    CreateV2BaselinePins, CreateV2Pins,
+    validate_create_v2_observation, validate_create_v2_precreate_baseline,
 )
 
 
@@ -147,6 +148,49 @@ class CreateV2HandoffTests(unittest.TestCase):
 
     def test_three_stages_match(self) -> None:
         validate_create_v2_observation(*self.staged())
+
+    def test_fresh_precreate_baseline_accepts_preserved_populated_child(self) -> None:
+        blank, baseline, _, pins = self.staged()
+        precreate = CreateV2BaselinePins(
+            company=pins.company, instance=pins.instance,
+            definition_hash=pins.definition_hash,
+            customer_id=pins.customer_id, jules_subject=pins.jules_subject,
+            source_verification_sha256=pins.source_verification_sha256,
+            drive_id=pins.drive_id, folder_id=pins.folder_id,
+            working_document_id=pins.working_document_id,
+            original_baseline_generation=pins.original_baseline_generation,
+            original_baseline_sha256=pins.original_baseline_sha256,
+            preserved_blank_generation=pins.preserved_blank_generation,
+            preserved_blank_sha256=pins.preserved_blank_sha256,
+            baseline_generation=pins.v2_baseline_generation,
+            baseline_sha256=pins.v2_baseline_sha256,
+            preserved_child_id=pins.preserved_child_id,
+            preserved_marker=pins.preserved_marker,
+        )
+        now = 1792951320  # 2026-10-25 18:02 UTC.
+        self.assertEqual(validate_create_v2_precreate_baseline(
+            blank, baseline, precreate, now=now,
+        )["preserved_state"], "populated")
+        for changed in (
+            replace(precreate, preserved_child_id="other-child"),
+            replace(precreate, source_verification_sha256="f" * 64),
+            replace(precreate, baseline_generation=4),
+        ):
+            with self.subTest(changed=changed), self.assertRaises(ContractRejected):
+                validate_create_v2_precreate_baseline(
+                    blank, baseline, changed, now=now,
+                )
+        with self.assertRaises(ContractRejected):
+            validate_create_v2_precreate_baseline(
+                blank, baseline, precreate, now=now + 241,
+            )
+        self.baseline["direct_child_count"] = 4
+        altered, altered_hash = self.write("altered-baseline.json", self.baseline)
+        with self.assertRaises(ContractRejected):
+            validate_create_v2_precreate_baseline(
+                blank, altered, replace(precreate, baseline_sha256=altered_hash),
+                now=now,
+            )
 
     def test_changed_preserved_content_refused_even_with_new_digest(self) -> None:
         blank, baseline, _, pins = self.staged()

@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from importlib.resources import files
 from pathlib import Path
 
@@ -27,6 +27,146 @@ SCHEMA_SHA256 = {
         "3fbf76db47200f4727fb8b7d6411d076a536720e7d6da93e30c8daaaa51e0492",
 }
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+
+
+@dataclass(frozen=True)
+class CreateV2BaselinePins:
+    """Operator-reviewed identity and historical-child pins before a new create."""
+
+    company: str
+    instance: str
+    definition_hash: str
+    customer_id: str
+    jules_subject: str
+    source_verification_sha256: str
+    drive_id: str
+    folder_id: str
+    working_document_id: str
+    original_baseline_generation: int
+    original_baseline_sha256: str
+    preserved_blank_generation: int
+    preserved_blank_sha256: str
+    baseline_generation: int
+    baseline_sha256: str
+    preserved_child_id: str
+    preserved_marker: str
+
+    def validate(self) -> None:
+        hashes = (self.definition_hash, self.source_verification_sha256,
+                  self.original_baseline_sha256, self.preserved_blank_sha256,
+                  self.baseline_sha256)
+        labels = (self.company, self.instance, self.customer_id,
+                  self.jules_subject, self.drive_id, self.folder_id,
+                  self.working_document_id, self.preserved_child_id)
+        if (any(type(value) is not str or HEX64.fullmatch(value) is None
+                for value in hashes)
+                or any(type(value) is not str or not 1 <= len(value) <= 256
+                       or any(character.isspace() for character in value)
+                       for value in labels)
+                or type(self.original_baseline_generation) is not int
+                or type(self.preserved_blank_generation) is not int
+                or type(self.baseline_generation) is not int
+                or not 2 <= self.original_baseline_generation
+                    < self.preserved_blank_generation < self.baseline_generation
+                or type(self.preserved_marker) is not str
+                or MARKER.fullmatch(self.preserved_marker) is None):
+            raise ContractRejected("v2 pre-create baseline pins are invalid")
+
+
+def validate_create_v2_precreate_baseline(
+    blank_export: Path, baseline_export: Path, pins: CreateV2BaselinePins,
+    *, now: int,
+) -> dict:
+    """Accept a fresh three-child baseline before any second provider create.
+
+    The old blank observation remains historical evidence. The fresh baseline
+    fixes the preserved child's *current* state and the working Doc so a v2
+    final observation can prove that the second create changed neither.
+    """
+    pins.validate()
+    if type(now) is not int:
+        raise ContractRejected("v2 pre-create time is invalid")
+    blank = _checked(blank_export,
+                     "google-preserved-blank-observation-v1.schema.json",
+                     pins.preserved_blank_sha256)
+    baseline = _checked(baseline_export,
+                        "google-create-v2-baseline-v1.schema.json",
+                        pins.baseline_sha256)
+    common = {
+        "company": pins.company, "instance": pins.instance,
+        "definition_hash": pins.definition_hash,
+        "customer_id": pins.customer_id,
+        "jules_subject": pins.jules_subject,
+        "source_verification_sha256": pins.source_verification_sha256,
+        "drive_id": pins.drive_id, "folder_id": pins.folder_id,
+    }
+    if any(any(document.get(name) != value for name, value in common.items())
+           or document.get("attribution") != "provider_state_only"
+           for document in (blank, baseline)):
+        raise ContractRejected("v2 pre-create identity differs from pins")
+    if (blank.get("schema_version")
+            != "demo-co/google-preserved-blank-observation/v1"
+            or blank.get("status") != "observed_blank"
+            or blank.get("original_baseline_generation")
+                != pins.original_baseline_generation
+            or blank.get("original_baseline_sha256")
+                != pins.original_baseline_sha256
+            or blank.get("preserved_child_id") != pins.preserved_child_id
+            or blank.get("preserved_child_title") != CHILD_TITLE
+            or blank.get("preserved_marker") != pins.preserved_marker
+            or blank.get("blank_export_byte_count") != 3
+            or blank.get("blank_export_sha256")
+                != hashlib.sha256(b"\xef\xbb\xbf").hexdigest()
+            or blank.get("blank_layout")
+                != "section-break-then-newline-paragraph/v1"
+            or blank.get("direct_child_count") != 3
+            or not all(blank.get(name) is True for name in (
+                "canonical_project_a_unchanged",
+                "canonical_project_b_unchanged"))):
+        raise ContractRejected("v2 historical blank observation differs")
+    if (baseline.get("schema_version")
+            != "demo-co/google-create-v2-baseline/v1"
+            or baseline.get("status") != "ready"
+            or baseline.get("preserved_blank_generation")
+                != pins.preserved_blank_generation
+            or baseline.get("preserved_blank_sha256")
+                != pins.preserved_blank_sha256
+            or baseline.get("working_document_id")
+                != pins.working_document_id
+            or baseline.get("working_content_sha256")
+                != blank.get("working_document_sha256")
+            or baseline.get("preserved_child_id") != pins.preserved_child_id
+            or baseline.get("preserved_child_title") != CHILD_TITLE
+            or baseline.get("preserved_child_created_at")
+                != blank.get("preserved_child_created_at")
+            or baseline.get("preserved_marker") != pins.preserved_marker
+            or baseline.get("direct_child_count") != 3
+            or baseline.get("preserved_state") not in ("blank", "populated")
+            or not all(baseline.get(name) is True for name in (
+                "canonical_project_a_unchanged",
+                "canonical_project_b_unchanged"))):
+        raise ContractRejected("v2 current pre-create baseline differs")
+    preserved_bytes = baseline.get("preserved_content_byte_count")
+    preserved_sha = baseline.get("preserved_content_sha256")
+    if (type(preserved_bytes) is not int
+            or type(preserved_sha) is not str
+            or HEX64.fullmatch(preserved_sha) is None
+            or (baseline["preserved_state"] == "blank" and
+                (preserved_bytes != 3
+                 or preserved_sha != hashlib.sha256(b"\xef\xbb\xbf").hexdigest()))
+            or (baseline["preserved_state"] == "populated"
+                and preserved_bytes <= 3)):
+        raise ContractRejected("v2 preserved-child content state disagrees")
+    original_at = _time(blank, "original_baseline_observed_at")
+    created_at = _time(blank, "preserved_child_created_at")
+    blank_at = _time(blank, "observed_at")
+    baseline_at = _time(baseline, "observed_at")
+    current = datetime.fromtimestamp(now, timezone.utc)
+    if (not original_at <= created_at <= blank_at <= baseline_at <= current
+            or created_at - original_at > timedelta(minutes=5)
+            or current - baseline_at > timedelta(minutes=5)):
+        raise ContractRejected("v2 pre-create observation is stale or unordered")
+    return baseline
 
 
 @dataclass(frozen=True)
