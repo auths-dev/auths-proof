@@ -747,6 +747,15 @@ impl CompiledRecipe {
             key.as_deref().unwrap_or_default().as_bytes(),
         )
         .map_err(GatewayRecipeError::from_construct)?;
+        let mut url = ascii(built.url)?;
+        if let Some(PathSegment::FieldSuffix { suffix, .. }) = self.source.write.path.last() {
+            if url.len().saturating_sub(self.source.origin.len()) + suffix.len()
+                > construct::MAX_PATH_BYTES
+            {
+                return Err(GatewayRecipeError::UnsafePath);
+            }
+            url.push_str(suffix);
+        }
         let content_type = match self.plans.write.body {
             construct::BodyPlan::Json(_) => "application/json",
             construct::BodyPlan::Form(_) => "application/x-www-form-urlencoded",
@@ -783,7 +792,7 @@ impl CompiledRecipe {
             echo,
             idempotency_key: key,
             method: self.source.write.method,
-            url: ascii(built.url)?,
+            url,
             content_type,
             body: built.body,
             headers,

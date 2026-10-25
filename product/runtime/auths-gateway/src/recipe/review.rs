@@ -169,6 +169,7 @@ fn segment_review(segment: &PathSegment) -> Value {
     match segment {
         PathSegment::Fixed { value } => json!(value),
         PathSegment::Field { name } => json!(format!("<{name}>")),
+        PathSegment::FieldSuffix { name, suffix } => json!(format!("<{name}>{suffix}")),
         PathSegment::ResponseField { pointer, max_bytes } => {
             json!(format!("<response:{pointer}:{max_bytes}>"))
         }

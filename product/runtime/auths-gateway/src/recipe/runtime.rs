@@ -429,6 +429,7 @@ impl CompiledRecipe {
                         .position(|field| field == name)
                         .ok_or(GatewayRecipeError::ActionMismatch)?,
                 ),
+                PathSegment::FieldSuffix { .. } => return Err(GatewayRecipeError::UnsafePath),
                 PathSegment::ResponseField { pointer, max_bytes } => {
                     segments.push(TemplateSegment::ResponseField {
                         pointer: pointer.clone(),

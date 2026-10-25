@@ -18,6 +18,14 @@ fn fixture(name: &str) -> (&'static [u8], &'static [u8]) {
             include_bytes!("../../../../../bindings/fixtures/gateway/github/recipe.json"),
             include_bytes!("../../../../../bindings/fixtures/gateway/github/profile.lock.json"),
         ),
+        "google-docs-edit" => (
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/write_reference/recipe.json"
+            ),
+            include_bytes!(
+                "../../../../../demos/google-employee-delegation/write_reference/profile.lock.json"
+            ),
+        ),
         _ => panic!("unknown test-only fixture"),
     }
 }
@@ -45,6 +53,119 @@ fn three_independent_recipes_compile_without_provider_code() {
         assert_eq!(recipe.digest_hex().len(), 64);
         assert_eq!(recipe.review().maximum_body_bytes(), MAX_BODY_BYTES);
     }
+}
+
+#[test]
+fn google_docs_exact_edit_is_a_closed_json_gateway_write() {
+    let recipe = compiled("google-docs-edit");
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "edit-1",
+            "document_id": "doc-Project-A-working",
+            "tab_id": "tab-1",
+            "marker": "[[AUTHs:PROJECT_A:RUN_1]]",
+            "replacement": "Project A is on track.\nNext: owner confirms handoff.",
+            "required_revision_id": "revision-1"
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed request");
+    assert_eq!(request.method(), WriteMethod::Post);
+    assert_eq!(
+        request.url(),
+        "https://docs.googleapis.com/v1/documents/doc-Project-A-working:batchUpdate"
+    );
+    let body: Value = serde_json::from_slice(request.body()).expect("bounded JSON body");
+    assert_eq!(
+        body,
+        json!({
+            "requests": [{
+                "replaceAllText": {
+                    "containsText": {
+                        "text": "[[AUTHs:PROJECT_A:RUN_1]]",
+                        "matchCase": true,
+                        "searchByRegex": false
+                    },
+                    "replaceText": "Project A is on track.\nNext: owner confirms handoff.",
+                    "tabsCriteria": {"tabIds": ["tab-1"]}
+                }
+            }],
+            "writeControl": {"requiredRevisionId": "revision-1"}
+        })
+    );
+    let review = recipe.review_document();
+    assert_eq!(review["path"][2], "<document_id>:batchUpdate");
+    assert_eq!(review["recovery"]["unknown_resolution"], "none");
+    assert_eq!(review["write_is_conditional"], false);
+
+    let mut changed = args.clone();
+    changed.insert("recipe_digest".into(), json!("0".repeat(64)));
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(&changed, [0x41; 32])
+            .err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
+
+    let mut encoded = args;
+    encoded.insert("document_id".into(), json!("doc/with?reserved"));
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(&encoded, [0x41; 32])
+            .expect("literal suffix stays outside encoded field")
+            .url(),
+        "https://docs.googleapis.com/v1/documents/doc%2Fwith%3Freserved:batchUpdate"
+    );
+}
+
+#[test]
+fn field_suffix_never_admits_url_control_bytes() {
+    let (source, lock) = fixture("google-docs-edit");
+    let source: Value = serde_json::from_slice(source).expect("source");
+    for suffix in [
+        "",
+        ":",
+        "/batchUpdate",
+        ":batchUpdate?x=1",
+        ".json#fragment",
+        ":../x",
+    ] {
+        let mut changed = source.clone();
+        changed["write"]["path"][2]["suffix"] = json!(suffix);
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&changed).expect("JSON"), lock).err(),
+            Some(GatewayRecipeError::UnsafePath),
+            "suffix: {suffix}"
+        );
+    }
+
+    let mut non_final = source;
+    non_final["write"]["path"]
+        .as_array_mut()
+        .expect("path")
+        .push(json!({
+            "kind": "fixed", "value": "extra"
+        }));
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&non_final).expect("JSON"), lock).err(),
+        Some(GatewayRecipeError::UnsafePath)
+    );
+
+    let (airtable, airtable_lock) = fixture("airtable");
+    let mut observation: Value = serde_json::from_slice(airtable).expect("source");
+    observation["observation"]["path"][3] = json!({
+        "kind": "field-suffix", "name": "record_id", "suffix": ".json"
+    });
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&observation).expect("JSON"),
+            airtable_lock
+        )
+        .err(),
+        Some(GatewayRecipeError::UnsafePath)
+    );
 }
 
 #[test]
@@ -1205,7 +1326,7 @@ mod oracle {
             path.push('/');
             match segment {
                 PathSegment::Fixed { value } => path.push_str(value),
-                PathSegment::Field { name } => {
+                PathSegment::Field { name } | PathSegment::FieldSuffix { name, .. } => {
                     for byte in arguments[name].as_str().expect("text").bytes() {
                         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~')
                         {
@@ -1215,6 +1336,9 @@ mod oracle {
                             path.push(char::from(HEX[usize::from(byte >> 4)]));
                             path.push(char::from(HEX[usize::from(byte & 0x0f)]));
                         }
+                    }
+                    if let PathSegment::FieldSuffix { suffix, .. } = segment {
+                        path.push_str(suffix);
                     }
                 }
                 PathSegment::ResponseField { .. } | PathSegment::Echo => {}

@@ -110,6 +110,18 @@ pub(super) fn valid_fixed_segment(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~'))
 }
 
+/// A closed suffix joined to one percent-encoded verified path field. The
+/// leading `:` or `.` is a literal operation/extension separator, never a
+/// URL query, fragment or path separator.
+pub(super) fn valid_field_suffix(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (2..=32).contains(&bytes.len())
+        && matches!(bytes[0], b':' | b'.')
+        && bytes[1..]
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
 fn read_bound_valid(bytes: u64) -> bool {
     (1..=MAX_READ_RESPONSE_BYTES).contains(&bytes)
 }
@@ -150,7 +162,7 @@ impl Rules<'_> {
             return Err(GatewayRecipeError::UnsafePath);
         }
         let mut response_fields = 0;
-        for segment in path {
+        for (index, segment) in path.iter().enumerate() {
             match segment {
                 PathSegment::Fixed { value } => {
                     if !valid_fixed_segment(value) {
@@ -159,6 +171,17 @@ impl Rules<'_> {
                 }
                 PathSegment::Field { name } => {
                     if !self.field(name).is_some_and(FieldSchema::is_path_scalar)
+                        || matches!(name.as_str(), "operator_namespace" | "recipe_digest")
+                    {
+                        return Err(GatewayRecipeError::UnsafePath);
+                    }
+                    self.consume(name);
+                }
+                PathSegment::FieldSuffix { name, suffix } => {
+                    if !valid_field_suffix(suffix)
+                        || !matches!(role, PathRole::Write)
+                        || index + 1 != path.len()
+                        || !self.field(name).is_some_and(FieldSchema::is_path_scalar)
                         || matches!(name.as_str(), "operator_namespace" | "recipe_digest")
                     {
                         return Err(GatewayRecipeError::UnsafePath);

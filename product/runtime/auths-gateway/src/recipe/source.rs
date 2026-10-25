@@ -195,6 +195,10 @@ pub(super) enum PathSegment {
     Field {
         name: String,
     },
+    FieldSuffix {
+        name: String,
+        suffix: String,
+    },
     ResponseField {
         pointer: String,
         max_bytes: u64,

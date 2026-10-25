@@ -1,0 +1,48 @@
+[profile]
+name = "google-docs-project-a-edit"
+version = 1
+service = "google-docs-delegation-demo"
+tool = "replace_project_a_marker"
+command = "ReplaceProjectAMarker"
+
+[arguments]
+type = "object"
+
+[arguments.fields.operator_namespace]
+type = "enum"
+variants = ["google-docs-demo"]
+
+[arguments.fields.operation_id]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.document_id]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.tab_id]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.marker]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.replacement]
+type = "string"
+min_bytes = 1
+max_bytes = 192
+
+[arguments.fields.required_revision_id]
+type = "string"
+min_bytes = 1
+max_bytes = 128
