@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_write_confirmation import TaskWriteConfirmationFlow
 from employee_read_demo.task_write_intent import ReviewedWrite
@@ -105,6 +106,34 @@ class TaskWriteExecutionTests(unittest.TestCase):
         self.assertEqual(command[1], "task-activate")
         self.assertEqual(command[command.index("--proof") + 1],
                          str(self.task_dir / "task.proof"))
+
+    def test_revoke_checks_task_owner_then_calls_gateway_once(self) -> None:
+        card = self.task_dir / "task-card.json"
+        card.write_text(json.dumps({
+            "task_id": self.task_id,
+            "company_id": "atlas",
+            "human_principal": "human-1",
+        }), encoding="utf-8")
+        os.chmod(card, 0o600)
+        employee = EmployeeBinding("atlas", "jules", "issuer", "subject",
+                                   "human-1", "binding")
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run") as run:
+            with self.assertRaisesRegex(OperatorDenied, "not owned"):
+                self.flow.revoke(task_id=self.task_id, employee=EmployeeBinding(
+                    "atlas", "other", "issuer", "other-subject", "other-human", "binding",
+                ))
+            run.assert_not_called()
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   return_value=subprocess.CompletedProcess(
+                       [], 0, b'{"outcome":"task-revoked"}\n', b"")) as run:
+            self.flow.revoke(task_id=self.task_id, employee=employee)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][1], "task-revoke")
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   return_value=subprocess.CompletedProcess(
+                       [], 0, b'{"outcome":"task-revoked","private":"leak"}', b"")):
+            with self.assertRaisesRegex(OperatorDenied, "outcome is unknown"):
+                self.flow.revoke(task_id=self.task_id, employee=employee)
 
 
 if __name__ == "__main__":

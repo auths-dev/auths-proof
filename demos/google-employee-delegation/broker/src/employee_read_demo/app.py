@@ -563,6 +563,21 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"task_id": body["task_id"],
                                             "gateway": outcome})
                 return
+            if path == "/api/v1/write/tasks/revoke":
+                flow = self.workbench.write_confirmation
+                if flow is None or flow.gateway_state_dir is None:
+                    raise OperatorDenied("gateway task revocation is unavailable")
+                if set(body) != {"task_id"} or type(body["task_id"]) is not str:
+                    raise ValueError("write task ID is invalid")
+                if self.workbench.company is None or not session.issuer or not session.subject:
+                    raise SessionDenied("employee session is unavailable")
+                employee = self.workbench.enrollment.lookup(
+                    self.workbench.company,
+                    VerifiedGoogleSubject("login", session.issuer, session.subject),
+                )
+                flow.revoke(task_id=body["task_id"], employee=employee)
+                self._json(HTTPStatus.OK, {"status": "revoked", "task_id": body["task_id"]})
+                return
             if path == "/api/v1/identity/packet":
                 from auths.identity.authoring import (
                     create_raw_key_ed25519_identity,

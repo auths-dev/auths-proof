@@ -241,7 +241,7 @@ have been enabled in the operator pins and is the only mode without a separate
 confirmation. `task-revoke --state-dir STATE --task-id TASK_ID` durably stops
 new reads and writes under that activated task; it does not undo an entered
 write or reclaim content already delivered. These commands refuse production
-installations while the task
-journal is single-host. They are a development integration route, not a
-substitute for the human review UI, separate agent process or independent
-effect verification.
+installations while the task journal is single-host. The Jules workbench
+exposes task revocation for her signed agent task and verifies ownership before
+invoking the gateway. These are development integration routes and still need
+independent effect verification.

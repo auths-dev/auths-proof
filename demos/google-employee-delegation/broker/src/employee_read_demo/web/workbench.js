@@ -290,6 +290,18 @@ async function submitApprovedWrite() {
   message("Gateway submission recorded. Run the independent demo_co write inspection before claiming an observed edit.");
 }
 
+async function revokeWriteTask() {
+  const taskId = value("write-confirm-task-id");
+  if (!taskId) throw new Error("Enter the signed agent task ID first");
+  const result = await api("/api/v1/write/tasks/revoke", {task_id: taskId});
+  if (result.task_id !== taskId || result.status !== "revoked") {
+    throw new Error("Gateway revocation did not match the selected task");
+  }
+  byId("write-status").textContent = JSON.stringify(result, null, 2);
+  byId("write-submit").hidden = true;
+  message("This agent task is revoked. New reads and writes are closed; prior deliveries and entered writes remain.");
+}
+
 async function prepareActivation() {
   const taskId = value("task-id");
   if (!taskId) throw new Error("Enter a task ID first");
@@ -455,7 +467,11 @@ async function start() {
   if (session.task_write_confirmation_available) {
     bind("write-confirm-prepare", prepareWriteConfirmation);
     bind("write-confirm-authorize", authorizeWriteConfirmation);
-    if (session.task_write_execution_available) bind("write-submit", submitApprovedWrite);
+    if (session.task_write_execution_available) {
+      bind("write-submit", submitApprovedWrite);
+      byId("write-revoke").hidden = false;
+      bind("write-revoke", revokeWriteTask);
+    }
   }
   bind("activate-prepare", prepareActivation);
   bind("activate-complete", completeActivation);

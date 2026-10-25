@@ -251,6 +251,36 @@ class TaskWriteConfirmationFlow:
                 "gateway task activation outcome is unknown; inspect state",
             )
 
+    def revoke(self, *, task_id: str, employee: EmployeeBinding) -> None:
+        """Stop future reads and writes for one task owned by this employee."""
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("gateway task execution is not configured")
+        directory = self._task_dir(task_id)
+        try:
+            card = json.loads(_private_read(directory / "task-card.json", 16_384),
+                              object_pairs_hook=_unique_pairs)
+        except (OSError, PermissionError, ValueError, UnicodeDecodeError) as error:
+            raise OperatorDenied("signed task card is unavailable") from error
+        if (type(card) is not dict or card.get("task_id") != task_id
+                or card.get("company_id") != employee.company_id
+                or card.get("human_principal") != employee.principal):
+            raise OperatorDenied("task is not owned by this employee")
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-revoke",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+            ], capture_output=True, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied(
+                "gateway task revocation outcome is unknown; inspect state",
+            ) from error
+        if (result.returncode != 0 or len(result.stdout) > 4096
+                or result.stdout.strip() != b'{"outcome":"task-revoked"}'):
+            raise OperatorDenied(
+                "gateway task revocation outcome is unknown; inspect state",
+            )
+
     def submit(self, *, task_id: str, employee: EmployeeBinding,
                agent: AgentBinding, now: int | None = None) -> dict:
         """Recheck Jules's edit precondition, then submit one exact agent write.
