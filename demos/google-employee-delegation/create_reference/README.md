@@ -23,6 +23,18 @@ never retried automatically. Google documents the metadata endpoint,
 and the [property guide](https://developers.google.com/workspace/drive/api/guides/properties)
 describes visibility and search.
 
+For the first Atlas run, Auths and demo_co agreed on the exact title
+`Auths AP-071 Project A handoff`, property key `auths_operation_marker`, and
+a fresh marker value shaped as `ap071_` plus 32 lowercase hex characters.
+The profile permits the signed title and marker as arguments so the same
+gateway grammar stays provider-neutral; the operator-side Atlas handoff must
+enforce this fixture-specific title and marker format before Jules approves.
+The [read-only producer observation consumer](../broker/src/employee_read_demo/google_create_handoff.py)
+checks demo_co's versioned create observation against exact private run pins.
+It reports only provider state; Auths has not yet bound a returned child ID to
+the signed create action or authorized population. The producer's inspector
+requires a fresh pre-create working-Doc baseline and leaves cleanup explicit.
+
 This reference does not bind a returned file ID to the task, authorize a
 follow-up populate action, inspect the create response or verify a provider
 effect. Those are required by AP-SPEC-071's create/populate acceptance and

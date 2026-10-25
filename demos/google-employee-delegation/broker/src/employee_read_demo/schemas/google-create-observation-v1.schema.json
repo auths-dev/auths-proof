@@ -1,0 +1,198 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "admin_revision_id": {
+      "title": "Admin Revision Id",
+      "type": "string"
+    },
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "child_created_at": {
+      "format": "date-time",
+      "title": "Child Created At",
+      "type": "string"
+    },
+    "child_id": {
+      "title": "Child Id",
+      "type": "string"
+    },
+    "child_mime_type": {
+      "const": "application/vnd.google-apps.document",
+      "default": "application/vnd.google-apps.document",
+      "title": "Child Mime Type",
+      "type": "string"
+    },
+    "child_parent_exact": {
+      "const": true,
+      "default": true,
+      "title": "Child Parent Exact",
+      "type": "boolean"
+    },
+    "child_title": {
+      "title": "Child Title",
+      "type": "string"
+    },
+    "company": {
+      "title": "Company",
+      "type": "string"
+    },
+    "content_byte_count": {
+      "exclusiveMinimum": 0,
+      "maximum": 100000,
+      "title": "Content Byte Count",
+      "type": "integer"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "direct_child_count": {
+      "const": 3,
+      "default": 3,
+      "title": "Direct Child Count",
+      "type": "integer"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "folder_id": {
+      "title": "Folder Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_project_b_write_denied": {
+      "const": true,
+      "default": true,
+      "title": "Jules Project B Write Denied",
+      "type": "boolean"
+    },
+    "jules_subject": {
+      "title": "Jules Subject",
+      "type": "string"
+    },
+    "marker_key": {
+      "const": "auths_operation_marker",
+      "default": "auths_operation_marker",
+      "title": "Marker Key",
+      "type": "string"
+    },
+    "marker_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Marker Match Count",
+      "type": "integer"
+    },
+    "marker_value": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker Value",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-create-observation/v1",
+      "default": "demo-co/google-create-observation/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_verification_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Verification Sha256",
+      "type": "string"
+    },
+    "status": {
+      "const": "ready",
+      "default": "ready",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    },
+    "working_baseline_generation": {
+      "minimum": 2,
+      "title": "Working Baseline Generation",
+      "type": "integer"
+    },
+    "working_baseline_observed_at": {
+      "format": "date-time",
+      "title": "Working Baseline Observed At",
+      "type": "string"
+    },
+    "working_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Working Baseline Sha256",
+      "type": "string"
+    },
+    "working_document_matches_expected": {
+      "const": true,
+      "default": true,
+      "title": "Working Document Matches Expected",
+      "type": "boolean"
+    },
+    "working_document_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Working Document Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "company",
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "source_verification_sha256",
+    "working_baseline_generation",
+    "working_baseline_sha256",
+    "working_baseline_observed_at",
+    "customer_id",
+    "jules_subject",
+    "drive_id",
+    "folder_id",
+    "child_id",
+    "child_title",
+    "child_created_at",
+    "marker_value",
+    "tab_id",
+    "admin_revision_id",
+    "content_sha256",
+    "content_byte_count",
+    "working_document_sha256"
+  ],
+  "title": "GoogleCreateObservation",
+  "type": "object"
+}
