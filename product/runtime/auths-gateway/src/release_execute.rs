@@ -4,7 +4,9 @@
 use super::{
     GatewayEngine, SharedConnection, TaskWriteSession, authorizes_entry, submit, wall_clock_seconds,
 };
-use crate::release_channel::{AuthenticatedReleaseChannel, UnixAgentReleaseChannel};
+use crate::release_channel::{
+    AuthenticatedReleaseChannel, ReleaseDeliveryError, UnixAgentReleaseChannel,
+};
 use crate::release_commitment::ReleaseCommitmentKey;
 use crate::release_state::FileReleaseTaskLedger;
 use crate::release_verify::{VerifiedReleaseRequest, verify_release_request};
@@ -39,6 +41,7 @@ pub enum ManagedReleaseResult {
     NoRelease {
         code: &'static str,
     },
+    NotDelivered,
     DeliveryUnknown,
     AgentAcknowledged {
         released_bytes: u64,
@@ -264,7 +267,16 @@ impl GatewayEngine {
             .await
         {
             Ok(evidence) => evidence,
-            Err(_) => return ManagedReleaseResult::DeliveryUnknown,
+            Err(ReleaseDeliveryError::NoContentSent(evidence)) => {
+                return if submission.ledger.not_delivered(&evidence).is_ok() {
+                    ManagedReleaseResult::NotDelivered
+                } else {
+                    ManagedReleaseResult::DeliveryUnknown
+                };
+            }
+            Err(ReleaseDeliveryError::DeliveryUnknown) => {
+                return ManagedReleaseResult::DeliveryUnknown;
+            }
         };
         if submission.ledger.acknowledge(&evidence).is_err() {
             return ManagedReleaseResult::DeliveryUnknown;

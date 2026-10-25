@@ -127,8 +127,8 @@ pub(crate) enum ReleaseStage {
     /// Bytes and one release were durably charged before channel entry. On
     /// restart, this is delivery-unknown without verified terminal evidence.
     ReleaseEntered,
-    /// The channel supplied durable proof that no byte was sent after the
-    /// charge. The conservative charge is never refunded.
+    /// The channel proved no private content byte was sent after the charge;
+    /// public framing bytes may have been sent. The charge is not refunded.
     NotDelivered,
     /// An authenticated acknowledgement of the exact delivery was verified
     /// by the channel before this transition was persisted.
@@ -148,11 +148,23 @@ pub(crate) struct VerifiedAgentAcknowledgement {
     pub(crate) content_commitment: String,
 }
 
-/// Minted only by a future channel executor with durable evidence that the
-/// transport did not begin. A missing acknowledgement is not this evidence.
+/// Minted by the channel only before attempting to send any private content.
+/// A missing acknowledgement or an error after content sending begins is not
+/// this evidence.
+#[derive(Debug)]
 pub(crate) struct ProvenNoSend {
     task_id: String,
     operation_id: String,
+}
+
+impl ProvenNoSend {
+    /// The channel may call this only before its first content-byte send.
+    pub(crate) fn before_content(task_id: &str, operation_id: &str) -> Self {
+        Self {
+            task_id: task_id.to_owned(),
+            operation_id: operation_id.to_owned(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1810,10 +1822,7 @@ mod tests {
             .enter_release("read-1", b"Approved", &key, 102)
             .expect("charge");
         assert!(state.delivery_unknown("read-1"));
-        let evidence = ProvenNoSend {
-            task_id: "task-1".to_owned(),
-            operation_id: "read-1".to_owned(),
-        };
+        let evidence = ProvenNoSend::before_content("task-1", "read-1");
         state
             .not_delivered(&evidence)
             .expect("durable no-send proof");

@@ -7,7 +7,7 @@ use crate::release_ack::{
     verify_agent_channel_challenge,
 };
 use crate::release_commitment::ReleaseCommitmentKey;
-use crate::release_state::VerifiedAgentAcknowledgement;
+use crate::release_state::{ProvenNoSend, VerifiedAgentAcknowledgement};
 use crate::task_activation::ApprovedAgentTask;
 use std::{
     fs,
@@ -26,8 +26,7 @@ const MAX_FRAME_BYTES: usize = 262_144;
 const MAX_SIGNATURE_BYTES: usize = 256;
 const PHASE_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// A release channel failed before authentication or has an unknown delivery
-/// outcome. Once the ledger entered release, any error is delivery-unknown.
+/// A release channel failed before content delivery was authorized.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub(crate) enum ReleaseChannelError {
     #[error("agent channel installation is unavailable")]
@@ -36,7 +35,13 @@ pub(crate) enum ReleaseChannelError {
     Binding,
     #[error("agent channel signature is invalid")]
     Signature,
-    #[error("agent delivery outcome is unknown")]
+}
+
+/// No-content proof is possible only before the first content-byte write.
+/// Every failure after that point remains an unknown delivery outcome.
+#[derive(Debug)]
+pub(crate) enum ReleaseDeliveryError {
+    NoContentSent(ProvenNoSend),
     DeliveryUnknown,
 }
 
@@ -123,18 +128,36 @@ impl AuthenticatedReleaseChannel {
         resource_handle: &str,
         content: &[u8],
         key: &ReleaseCommitmentKey,
-    ) -> Result<VerifiedAgentAcknowledgement, ReleaseChannelError> {
+    ) -> Result<VerifiedAgentAcknowledgement, ReleaseDeliveryError> {
+        let no_content = || {
+            ReleaseDeliveryError::NoContentSent(ProvenNoSend::before_content(
+                &task.descriptor().task_id,
+                operation_id,
+            ))
+        };
         let message = acknowledgement_message(task, operation_id, resource_handle, content, key)
-            .map_err(|_| ReleaseChannelError::DeliveryUnknown)?;
-        write_frame(&mut self.stream, content, MAX_FRAME_BYTES)
+            .map_err(|_| no_content())?;
+        if content.is_empty() || content.len() > MAX_FRAME_BYTES {
+            return Err(no_content());
+        }
+        let length = u32::try_from(content.len()).map_err(|_| no_content())?;
+        // A failed or partial frame header may have sent public framing bytes,
+        // but no private content. Once write_all starts, a partial content
+        // write is possible and the outcome must remain unknown.
+        timeout(PHASE_TIMEOUT, self.stream.write_u32(length))
             .await
-            .map_err(|_| ReleaseChannelError::DeliveryUnknown)?;
+            .map_err(|_| no_content())?
+            .map_err(|_| no_content())?;
+        timeout(PHASE_TIMEOUT, self.stream.write_all(content))
+            .await
+            .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?
+            .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
         write_frame(&mut self.stream, &message, MAX_FRAME_BYTES)
             .await
-            .map_err(|_| ReleaseChannelError::DeliveryUnknown)?;
+            .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
         let signature = read_frame(&mut self.stream, MAX_SIGNATURE_BYTES)
             .await
-            .map_err(|_| ReleaseChannelError::DeliveryUnknown)?;
+            .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)?;
         verify_agent_acknowledgement(
             task,
             operation_id,
@@ -144,7 +167,7 @@ impl AuthenticatedReleaseChannel {
             &self.agent_identity_packet,
             &signature,
         )
-        .map_err(|_| ReleaseChannelError::DeliveryUnknown)
+        .map_err(|_| ReleaseDeliveryError::DeliveryUnknown)
     }
 }
 
@@ -344,5 +367,28 @@ mod tests {
             Err(ReleaseChannelError::Signature)
         ));
         server.await.expect("server");
+    }
+
+    #[tokio::test]
+    async fn closed_write_half_before_content_returns_no_send_proof() {
+        let (task, _agent, _identity, packet) = task_and_identity();
+        let (mut stream, peer) = UnixStream::pair().expect("local socket pair");
+        stream
+            .shutdown()
+            .await
+            .expect("close write half before delivery");
+        drop(peer);
+        let channel = AuthenticatedReleaseChannel {
+            stream,
+            agent_identity_packet: packet,
+        };
+        let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).expect("key");
+        let result = channel
+            .deliver(&task, "read-1", "resource-1", b"private content", &key)
+            .await;
+        assert!(matches!(
+            result,
+            Err(ReleaseDeliveryError::NoContentSent(_))
+        ));
     }
 }
