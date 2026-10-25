@@ -173,9 +173,11 @@ def _wait_for(path: Path, process: subprocess.Popen) -> None:
 
 def run(env_file: Path, root: Path, binary: Path,
         *, drop_ack: bool = False, fail_before_content: bool = False,
-        revoke_before_actions: bool = False) -> None:
+        revoke_before_actions: bool = False,
+        upfront_second_write: bool = False) -> None:
     root = _private_dir(root, create=True)
-    if sum((drop_ack, fail_before_content, revoke_before_actions)) > 1:
+    if sum((drop_ack, fail_before_content, revoke_before_actions,
+            upfront_second_write)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -298,7 +300,7 @@ def run(env_file: Path, root: Path, binary: Path,
             "permitted_read_scopes": [read_scope],
             "delivery_channel": "airtable-agent-local",
             "operator_policy_digest": "d" * 64,
-            "allow_bounded_writes": False,
+            "allow_bounded_writes": upfront_second_write,
         },
     })
     _gateway(binary, "task-configure", "--state-dir", state,
@@ -315,6 +317,9 @@ def run(env_file: Path, root: Path, binary: Path,
         profile_lock_path=WRITE / "profile.lock.json",
         read_recipe_path=HERE / "recipe.json",
         read_profile_lock_path=HERE / "profile.lock.json",
+        upfront_allowed_arguments=([{"record_id": record, "replacement": value}
+                                    for value in ("Approved", "Pending")]
+                                   if upfront_second_write else None),
         private_output_dir=operator,
     )
     prepared = browser.prepare(
@@ -635,6 +640,62 @@ def run(env_file: Path, root: Path, binary: Path,
              "--task-id", signed.task_id, "--operation-id", read_operation,
              "--resource-handle", record, "--source-file", source,
              secret=hashlib.sha256(source.read_bytes()).hexdigest().encode("ascii"))
+    if upfront_second_write:
+        outcomes = []
+        first_status = None
+        first_readback = None
+        for number, replacement in enumerate(("Approved", "Pending"), start=1):
+            operation = f"airtable-upfront-write-{number}"
+            arguments = agent_dir / f"upfront-write-{number}-arguments.json"
+            output = _private_dir(agent_dir / f"upfront-write-{number}-output",
+                                  create=True)
+            _write_json(arguments, {
+                **common, "operator_namespace": "airtable-demo",
+                "operation_id": operation, "recipe_digest": WRITE_DIGEST,
+                "record_id": record, "replacement": replacement,
+            })
+            _agent("sign-write", "--key-file", agent_dir / "agent.seed",
+                   "--package-file", agent_dir / "write-package.json",
+                   "--arguments-file", arguments, "--out-dir", output)
+            outcome = _gateway(
+                binary, "task-submit", "--state-dir", state,
+                "--task-id", signed.task_id,
+                "--agent-proof", output / "agent.proof",
+                "--agent-action", output / "agent.action",
+            )
+            outcomes.append(outcome)
+            if number == 1:
+                first_status = _gateway(binary, "task-status", "--state-dir", state,
+                                        "--task-id", signed.task_id)
+                first_readback = airtable.request("GET", row_path)
+        final_status = _gateway(binary, "task-status", "--state-dir", state,
+                                "--task-id", signed.task_id)
+        final_readback = airtable.request("GET", row_path)
+        if (outcomes[0].get("outcome") not in {"observed-by-provider", "observed"}
+                or outcomes[1].get("outcome") != "not-entered"
+                or first_status != final_status
+                or first_readback != final_readback
+                or first_readback.get("fields", {}).get("DemoStatus") != "Approved"
+                or final_status.get("writes") != 1):
+            raise RuntimeError("second upfront Airtable write entered provider")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-upfront-second-write/1",
+            "task_id": signed.task_id, "record_id": record,
+            "first_write_outcome": outcomes[0]["outcome"],
+            "second_write_outcome": outcomes[1]["outcome"],
+            "second_write_code": outcomes[1].get("code"),
+            "gateway_status": final_status,
+            "independent_readback": "approved-unchanged-after-second",
+            "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-second-write-refused",
+            "task_id": signed.task_id, "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     write_operation = "airtable-write-one"
     _write_json(agent_dir / "write-arguments.json", {
         **common, "operator_namespace": "airtable-demo",
@@ -776,6 +837,8 @@ def main() -> None:
                         help="development gateway fault after release charge, before content")
     parser.add_argument("--revoke-before-actions", action="store_true",
                         help="revoke after both actions are signed but before provider entry")
+    parser.add_argument("--upfront-second-write", action="store_true",
+                        help="allow two bounded choices but only one write effect")
     args = parser.parse_args()
     if args.command == "run":
         if args.gateway_bin is None:
@@ -783,7 +846,8 @@ def main() -> None:
         run(args.env_file, args.root, args.gateway_bin,
             drop_ack=args.drop_ack,
             fail_before_content=args.fail_before_content,
-            revoke_before_actions=args.revoke_before_actions)
+            revoke_before_actions=args.revoke_before_actions,
+            upfront_second_write=args.upfront_second_write)
     else:
         cleanup(args.env_file, args.root)
 

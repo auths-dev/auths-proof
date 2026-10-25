@@ -133,3 +133,18 @@ that approved action was refused as above. The owned record
 `recrO8kDCJGBfiZVl` was retired, and the redacted result and ownership
 journal confirm cleanup. This exercises a byte-level action change after
 exact confirmation while preserving the legitimate approved operation.
+
+A ninth disposable run
+(`/private/tmp/ap071-airtable-upfront-second-20261025-2221`) used a
+synthetic human-signed bounded-upfront card listing the complete `Approved`
+and `Pending` arguments for one record, with **one** write effect allowed.
+The separate agent's first `Approved` action was `observed-by-provider`.
+It signed a distinct second operation selecting the other listed value;
+the installed gateway returned `not-entered` with
+`gateway.task.write-budget`. Status remained at one write, one read provider
+call, one release and seven released bytes. Independent Airtable GETs before
+and after the second submission matched the same `Approved` record. The
+owned record `recaBVHZk0sWxajOu` was retired, and the private result and
+ownership journal record verified cleanup. This demonstrates a second
+*permitted-choice* operation refused by the shared write budget; it is not
+a Jules-bound Airtable account or a Google upfront-policy refusal.
