@@ -47,6 +47,7 @@ from .write_handoff import (
     WriteHandoffPins, validate_current_write_observation, validate_write_handoff,
 )
 from .jules_write_context import JulesWriteContext
+from .finance_denial_handoff import FinanceDenialPins, validate_finance_denial
 from .google_write_credential import WriteCredentialPins
 from .google_write_preflight import preflight_jules_edit
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
@@ -99,6 +100,7 @@ class Workbench:
     write_pins: WriteHandoffPins | None = None
     write_confirmation: TaskWriteConfirmationFlow | None = None
     write_target: CreatedChildContinuationTarget | None = None
+    finance_read_target: str | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -292,6 +294,11 @@ class Handler(BaseHTTPRequestHandler):
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
                     ),
+                    "task_read_only_available": bool(
+                        self.workbench.finance_read_target is not None
+                        and self.workbench.write_pins is not None
+                        and session.subject == self.workbench.write_pins.jules_subject
+                    ),
                     "task_write_paired_available": bool(
                         self.workbench.write_confirmation is not None
                         and self.workbench.write_confirmation.companion_recipe_path is not None
@@ -306,6 +313,7 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                     "task_write_execution_available": bool(
                         self.workbench.write_confirmation is not None
+                        and self.workbench.finance_read_target is None
                         and self.workbench.write_confirmation.gateway_state_dir is not None
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
@@ -508,20 +516,27 @@ class Handler(BaseHTTPRequestHandler):
                         employee_identity_packet=human_packet,
                         agent_identity_packet=agent_packet,
                         resource_handle=(
+                            self.workbench.finance_read_target
+                            if self.workbench.finance_read_target is not None else
                             evidence["folder_id"] if paired else
                             self.workbench.write_target.child.candidate_id
                             if self.workbench.write_target is not None else
                             evidence["document_id"]),
                         resource_label=(
+                            "No write destination (read-only task)"
+                            if self.workbench.finance_read_target is not None else
                             "Project A destination folder" if paired else
                             self.workbench.write_target.child.title
                             if self.workbench.write_target is not None else
                             evidence["document_title"]),
                         pending_child=pending_child,
-                        read_resource_handle=(evidence["probe_document_id"]
+                        read_resource_handle=((self.workbench.finance_read_target
+                                              or evidence["probe_document_id"])
                                               if self.workbench.write_browser.read_recipe_path
                                               is not None else None),
-                        read_resource_label=("Project A source document"
+                        read_resource_label=(("Finance budget document; Google access unverified"
+                                              if self.workbench.finance_read_target is not None
+                                              else "Project A source document")
                                              if self.workbench.write_browser.read_recipe_path
                                              is not None else None),
                         account_label=evidence["jules_email"],
@@ -535,8 +550,9 @@ class Handler(BaseHTTPRequestHandler):
                         "read_resource_label": prepared.read_resource_label,
                         "write_tool": prepared.write_tool,
                         "companion_write_tool": prepared.companion_write_tool,
-                        "grant_preimage": base64.urlsafe_b64encode(
-                            prepared.grant_preimage).decode("ascii"),
+                        "grant_preimage": (
+                            None if prepared.grant_preimage is None else
+                            base64.urlsafe_b64encode(prepared.grant_preimage).decode("ascii")),
                         "read_grant_preimage": (
                             None if prepared.read_grant_preimage is None else
                             base64.urlsafe_b64encode(
@@ -550,7 +566,9 @@ class Handler(BaseHTTPRequestHandler):
                         "expires_at": prepared.expires_at,
                     })
                     return
-                expected = {"nonce", "grant_signature", "task_signature"}
+                expected = {"nonce", "task_signature"}
+                if not self.workbench.write_browser.read_only:
+                    expected.add("grant_signature")
                 if self.workbench.write_browser.read_recipe_path is not None:
                     expected.add("read_grant_signature")
                 if self.workbench.write_browser.companion_recipe_path is not None:
@@ -562,7 +580,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("task signing nonce is invalid")
                 completed = self.workbench.write_browser.complete(
                     nonce=nonce, employee=employee, agent=agent,
-                    grant_signature=_b64(body["grant_signature"], max_bytes=64),
+                    grant_signature=(_b64(body["grant_signature"], max_bytes=64)
+                                     if "grant_signature" in body else None),
                     read_grant_signature=(
                         _b64(body["read_grant_signature"], max_bytes=64)
                         if "read_grant_signature" in body else None),
@@ -586,6 +605,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path in {"/api/v1/write/confirmations/prepare",
                         "/api/v1/write/confirmations/authorize"}:
+                if self.workbench.finance_read_target is not None:
+                    raise OperatorDenied("read-only task has no write confirmation")
                 flow = self.workbench.write_confirmation
                 if flow is None:
                     raise OperatorDenied("exact write review is unavailable")
@@ -629,6 +650,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path in {"/api/v1/write/effect-plans/prepare",
                         "/api/v1/write/effect-plans/authorize"}:
+                if self.workbench.finance_read_target is not None:
+                    raise OperatorDenied("read-only task has no write effect plan")
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.companion_recipe_path is None:
                     raise OperatorDenied("paired effect-plan review is unavailable")
@@ -673,6 +696,8 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
             if path == "/api/v1/write/submissions/execute":
+                if self.workbench.finance_read_target is not None:
+                    raise OperatorDenied("read-only task cannot submit a write")
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.gateway_state_dir is None:
                     raise OperatorDenied("gateway task execution is unavailable")
@@ -995,6 +1020,12 @@ def main() -> int:
                         help="private pin for an existing blank child in a new edit task")
     parser.add_argument("--task-upfront-choices", type=Path,
                         help="owner-private exact argument choices for one upfront write")
+    parser.add_argument("--task-finance-denial-evidence", type=Path,
+                        help="private demo_co provider-denial observation for a read-only task")
+    parser.add_argument("--task-finance-denial-sha256",
+                        help="operator-reviewed digest of the finance denial observation")
+    parser.add_argument("--task-finance-document-id",
+                        help="operator-pinned finance document for a read-only task")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -1120,11 +1151,24 @@ def main() -> int:
             or args.task_companion_write_recipe is not None
             or args.task_write_gateway_state_dir is None):
         parser.error("bounded upfront requires an installed single-write task")
+    finance_options = (args.task_finance_denial_evidence,
+                       args.task_finance_denial_sha256,
+                       args.task_finance_document_id)
+    if any(option is not None for option in finance_options) and (
+            not all(option is not None for option in finance_options)
+            or not all(option is not None for option in write_options)
+            or args.task_upfront_choices is not None
+            or args.task_write_created_child is not None
+            or args.task_companion_write_recipe is not None
+            or args.task_read_recipe is None
+            or args.task_write_gateway_state_dir is None):
+        parser.error("finance denial needs pinned evidence and an installed read task")
     write_browser = None
     write_pins = None
     write_confirmation = None
     write_target = None
     upfront_choices = None
+    finance_read_target = None
     if all(option is not None for option in write_options):
         if company is None:
             parser.error("task write requires an accepted company import")
@@ -1142,6 +1186,22 @@ def main() -> int:
                      or write_pins.jules_subject != company.jules_subject)):
             parser.error("task write pins differ from Jules-only enrollment generation")
         write_evidence = validate_write_handoff(args.task_write_evidence, write_pins)
+        if args.task_finance_denial_evidence is not None:
+            try:
+                finance_read_target = validate_finance_denial(
+                    args.task_finance_denial_evidence,
+                    FinanceDenialPins(
+                        company=write_pins.company,
+                        instance=write_pins.instance,
+                        definition_hash=write_pins.definition_hash,
+                        customer_id=write_pins.customer_id,
+                        jules_subject=write_pins.jules_subject,
+                        document_id=args.task_finance_document_id,
+                        evidence_sha256=args.task_finance_denial_sha256,
+                    ), now=int(time.time()),
+                )["document_id"]
+            except (ContractRejected, OSError, PermissionError) as error:
+                parser.error(f"finance denial observation refused: {error}")
         if args.task_write_current_baseline is not None:
             try:
                 validate_current_write_observation(
@@ -1205,6 +1265,7 @@ def main() -> int:
             companion_recipe_path=args.task_companion_write_recipe,
             companion_profile_lock_path=args.task_companion_write_profile_lock,
             upfront_allowed_arguments=upfront_choices,
+            read_only=finance_read_target is not None,
             private_output_dir=args.task_write_output_dir,
         )
     confirmation_options = (
@@ -1313,7 +1374,7 @@ def main() -> int:
                           vault, company, status, origin, trusted_template, expected_root,
                           agent_transport, service, write_browser,
                           args.task_write_evidence, write_pins, write_confirmation,
-                          write_target)
+                          write_target, finance_read_target)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

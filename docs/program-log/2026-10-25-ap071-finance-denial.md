@@ -22,3 +22,13 @@ and the managed gateway to admit the task before it makes exactly one
 credential-bearing Google request. The expected result is provider denial and
 zero released bytes. A task-excluded Project B read remains a separate
 zero-provider-call denial.
+
+Auths now has a read-only Jules task ceremony for this test. The operator pins
+the fresh, private demo_co observation by SHA-256 and exact finance Doc ID at
+startup, installs that ID as the sole permitted read scope, and activates a
+card with one provider call, one possible bounded release and **zero writes**.
+The browser signs a read child grant and task only; it creates no write agent
+package. Synthetic signing and browser tests pass. This does not turn the
+provider-state probe into a live Auths denial: the separate agent must still
+sign the matching read and the gateway must record one Jules-credential Google
+403/404 with zero released bytes.

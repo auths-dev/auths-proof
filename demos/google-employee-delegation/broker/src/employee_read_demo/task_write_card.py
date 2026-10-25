@@ -77,6 +77,7 @@ def build_exact_write_card(
     companion_profile_lock_path: Path | None = None,
     pending_child: dict | None = None,
     upfront_allowed_arguments: list[dict] | None = None,
+    read_only: bool = False,
     now: int | None = None,
 ) -> dict:
     """Create one short task tied to the installed gateway and reviewed recipe."""
@@ -209,6 +210,12 @@ def build_exact_write_card(
                 or second_lock_sha != companion.profile_lock_sha256
                 or second_recipe["task_binding"]["verb"] != "edit"):
             raise OperatorDenied("reviewed companion write changed")
+    if (type(read_only) is not bool
+            or (read_only and (len(read_scopes) != 1
+                               or pending_child is not None
+                               or package.companion_write is not None
+                               or upfront_allowed_arguments is not None))):
+        raise OperatorDenied("read-only task needs one selected source and no write options")
     card = {
         "schema": "auths.agent-task/2",
         "task_id": secrets.token_urlsafe(18),
@@ -220,18 +227,19 @@ def build_exact_write_card(
         "connection_generation": pins["connection_generation"],
         "connection_subject": pins["connection_subject"],
         "read_scopes": read_scopes,
-        "write_scopes": [{"handle": resource_handle,
-                          "recipe_digest": package.recipe_digest, "verb": verb,
-                          "connection_id": pins["connection_id"],
-                          "connection_generation": pins["connection_generation"],
-                          "connection_subject": pins["connection_subject"]}],
+        "write_scopes": [] if read_only else [{"handle": resource_handle,
+                                                "recipe_digest": package.recipe_digest,
+                                                "verb": verb,
+                                                "connection_id": pins["connection_id"],
+                                                "connection_generation": pins["connection_generation"],
+                                                "connection_subject": pins["connection_subject"]}],
         "delivery_channel": pins["delivery_channel"],
         "not_before": now,
         "expires_at": min(now + 1800, authority.expires_at),
         "max_provider_calls": len(read_scopes),
         "max_releases": len(read_scopes),
         "max_release_bytes": release_bytes,
-        "max_writes": 2 if package.companion_write is not None else 1,
+        "max_writes": 0 if read_only else 2 if package.companion_write is not None else 1,
         "write_approval_mode": "exact",
         "operator_policy_digest": pins["operator_policy_digest"],
         "purpose": purpose,

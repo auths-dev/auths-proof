@@ -190,6 +190,7 @@ async function prepareWriteTask() {
   byId("write-source").textContent = result.read_resource_label
     ? `Source: ${result.read_resource_label}` : "No source read in this task";
   byId("write-resource").textContent = `Destination: ${result.resource_label}`;
+  const writeScope = result.card.write_scopes[0] || null;
   const choices = result.card.upfront_allowed_arguments || [];
   byId("write-upfront-review").hidden = choices.length === 0;
   const choiceList = byId("write-upfront-list");
@@ -203,8 +204,8 @@ async function prepareWriteTask() {
   byId("write-card").textContent = JSON.stringify({
     agent_principal: result.card.agent_principal,
     source_handles: result.card.read_scopes.map(scope => scope.handle),
-    destination_handle: result.card.write_scopes[0].handle,
-    verb: result.card.write_scopes[0].verb,
+    destination_handle: writeScope?.handle || null,
+    verb: writeScope?.verb || "read",
     purpose: result.card.purpose,
     account_subject: result.card.connection_subject,
     connection_generation: result.card.connection_generation,
@@ -215,13 +216,15 @@ async function prepareWriteTask() {
     write_approval_mode: result.card.write_approval_mode,
     upfront_allowed_arguments: result.card.upfront_allowed_arguments || null,
     expires_at: result.card.expires_at,
-    recipe_digest: result.card.write_scopes[0].recipe_digest,
+    recipe_digest: writeScope?.recipe_digest || result.card.read_scopes[0]?.recipe_digest,
     write_tool: result.write_tool,
     companion_write_tool: result.companion_write_tool,
     pending_child: result.card.pending_child || null,
   }, null, 2);
   byId("write-review").hidden = false;
-  message(result.card.pending_child
+  message(!writeScope
+    ? "Review Jules's account, finance source, agent and one-read budget. This task grants no write; Google may still deny the read."
+    : result.card.pending_child
     ? "Review the Project A folder, exact child proposal, agent and limits before signing both child grants and the task. The two-effect content plan is still required before provider entry."
     : result.card.write_approval_mode === "bounded-upfront"
       ? "Review every complete allowed edit, the account, destination, agent and one-write limit. One listed choice may be submitted later without another confirmation."
@@ -233,7 +236,8 @@ async function authorizeWriteTask() {
   if (Date.now() / 1000 >= preparedWriteTask.expires_at) {
     throw new Error("This write task review expired; prepare a new one");
   }
-  const grantSignature = await signEmployee(preparedWriteTask.grant_preimage);
+  const grantSignature = preparedWriteTask.grant_preimage
+    ? await signEmployee(preparedWriteTask.grant_preimage) : null;
   const readGrantSignature = preparedWriteTask.read_grant_preimage
     ? await signEmployee(preparedWriteTask.read_grant_preimage) : null;
   const companionGrantSignature = preparedWriteTask.companion_grant_preimage
@@ -241,9 +245,9 @@ async function authorizeWriteTask() {
   const taskSignature = await signEmployee(preparedWriteTask.task_preimage);
   const authorization = {
     nonce: preparedWriteTask.nonce,
-    grant_signature: grantSignature,
     task_signature: taskSignature,
   };
+  if (grantSignature) authorization.grant_signature = grantSignature;
   if (readGrantSignature) authorization.read_grant_signature = readGrantSignature;
   if (companionGrantSignature) authorization.companion_grant_signature = companionGrantSignature;
   const result = await api("/api/v1/write/tasks/authorize", authorization);
@@ -251,8 +255,10 @@ async function authorizeWriteTask() {
       result.agent_principal !== preparedWriteTask.card.agent_principal) {
     throw new Error("Signed write task differs from the reviewed task");
   }
-  download(`auths-write-agent-${result.task_id}.json`,
-    JSON.stringify(result.agent_package, null, 2), "application/json");
+  if (result.agent_package) {
+    download(`auths-write-agent-${result.task_id}.json`,
+      JSON.stringify(result.agent_package, null, 2), "application/json");
+  }
   download(`auths-task-card-${result.task_id}.json`,
     JSON.stringify(preparedWriteTask.card, null, 2), "application/json");
   if (result.read_agent_package) {
@@ -278,6 +284,8 @@ async function authorizeWriteTask() {
     message(result.status === "activated_awaiting_agent_proposal"
       ? "Jules's create/populate task is active. The exact two-effect content plan is still required before provider entry."
       : "Jules signed the create/populate task and both agent grants. Gateway activation and the exact two-effect content plan are still required before provider entry.");
+  } else if (!result.agent_package) {
+    message("Jules's read-only task is active. The separate agent may try the pinned finance read once; Google can deny access, and no write is permitted.");
   } else if (session.task_write_upfront_available) {
     message("Jules approved the displayed bounded choices. The separate agent must sign one complete choice before the gateway can submit it; no later exact confirmation will be requested.");
   } else if (result.status === "activated_awaiting_agent_proposal") {
@@ -553,13 +561,17 @@ async function start() {
   byId("drive").textContent = session.drive_connected ? "Drive connected under this employee." : "Drive is not connected.";
   byId("disconnect").hidden = !session.drive_connected;
   if (session.google_status === "jules_write_only") {
-    byId("page-title").textContent = session.task_write_upfront_available
+    byId("page-title").textContent = session.task_read_only_available
+      ? "Jules delegates one finance read attempt"
+      : session.task_write_upfront_available
       ? "Jules delegates one bounded Project A edit"
       : "Jules delegates Project A read and write";
-    byId("page-description").textContent = session.task_write_upfront_available
+    byId("page-description").textContent = session.task_read_only_available
+      ? "Jules signs a one-read agent task. The gateway admits it, then Google decides whether Jules may read the finance file."
+      : session.task_write_upfront_available
       ? "Jules signs one short agent task with the complete permitted edits shown in advance. The gateway accepts only one listed choice."
       : "Jules signs a bounded agent task, then confirms the exact proposed change before the gateway uses her existing Google grant.";
-    byId("status").textContent = `Jules-only Project A delegation; company: ${session.company_id}`;
+    byId("status").textContent = `Jules-only delegation; company: ${session.company_id}`;
     byId("drive").textContent = "The existing Jules Drive grant is held by the operator.";
     for (const id of ["connect-drive", "general-task", "general-run", "general-evidence"])
       byId(id).hidden = true;
@@ -580,13 +592,25 @@ async function start() {
   if (session.task_write_available) {
     bind("write-prepare", prepareWriteTask);
     bind("write-authorize", authorizeWriteTask);
-    if (session.task_write_upfront_available) {
+    if (session.task_read_only_available) {
+      byId("write-heading").textContent = "Delegate one finance read attempt";
+      byId("write-purpose").value = "Test Jules's provider-denied finance document access";
+      byId("write-prepare").textContent = "Review read-only task";
+      byId("write-status").textContent = "No read-only task signed.";
+      byId("write-task-description").textContent = "The pinned finance file, Jules account, separate agent and one-read budget are fixed by the operator's installation. This grants no write. Google may deny the read after Auths admits it.";
+    } else if (session.task_write_upfront_available) {
       byId("write-task-description").textContent = "The account, registered agent, destination and complete allowed edits come from the operator's pinned installation. Review both values before signing. This mode permits one listed edit without a later confirmation.";
     }
   }
   byId("write-confirmation").hidden = !session.task_write_confirmation_available;
   if (session.task_write_confirmation_available) {
-    if (session.task_write_upfront_available) {
+    if (session.task_read_only_available) {
+      byId("write-confirmation-heading").textContent = "Read attempt activity";
+      byId("write-confirmation-description").textContent = "The gateway reports whether the agent's admitted read reached Google and whether any bytes were released.";
+      byId("write-confirm-prepare").hidden = true;
+      byId("write-confirm-authorize").hidden = true;
+      byId("write-confirm-status").hidden = true;
+    } else if (session.task_write_upfront_available) {
       byId("write-confirmation-heading").textContent = "Submit the agent's bounded choice";
       byId("write-confirmation-description").textContent = "After the separate agent signs one complete listed choice and the operator stages its proof, submit it through the gateway. The gateway checks the signed task, choice and one-write limit before provider entry.";
       byId("write-confirm-prepare").hidden = true;

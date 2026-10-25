@@ -37,6 +37,7 @@ async function fetch(url, options = {}) {
   } else if (url === "/api/v1/write/tasks/prepare" && writePrepareResponse) {
     result = writePrepareResponse;
   } else if (url === "/api/v1/write/tasks/authorize" && writeAuthorizeResponse) {
+    posts.push(JSON.parse(options.body));
     result = writeAuthorizeResponse;
   } else if (url === "/api/v1/write/tasks/status" && writeStatusResponse) {
     result = writeStatusResponse;
@@ -169,6 +170,55 @@ async function main() {
   assert.equal(byId("write-confirm-task-id").value, "task-upfront");
   assert.equal(byId("write-submit").hidden, true);
   assert.match(byId("message").textContent, /do not sign the task again/);
+  elements.clear();
+  sessionOverride = { csrf: "synthetic-csrf", subject: "jules-subject",
+    google_status: "jules_write_only", company_id: "atlas-studio",
+    drive_connected: false, task_write_available: true,
+    task_write_confirmation_available: true, task_write_execution_available: false,
+    task_write_upfront_available: false, task_write_paired_available: false,
+    task_read_only_available: true };
+  writePrepareResponse = { account_label: "jules@auths.dev",
+    resource_label: "No write destination (read-only task)",
+    read_resource_label: "Finance budget document; Google access unverified",
+    write_tool: null, companion_write_tool: null,
+    card: { agent_principal: "agent-A",
+      read_scopes: [{ handle: "finance-doc", recipe_digest: "read-digest" }],
+      write_scopes: [], purpose: "Try finance access",
+      connection_subject: "jules-subject", connection_generation: 1,
+      max_provider_calls: 1, max_releases: 1, max_release_bytes: 16384,
+      max_writes: 0, write_approval_mode: "exact", expires_at: 9999999999,
+      task_id: "task-finance" },
+  };
+  writeAuthorizeResponse = { status: "activated_awaiting_agent_proposal",
+    task_id: "task-finance", agent_principal: "agent-A",
+    expires_at: 9999999999, agent_package: null,
+    read_agent_package: {}, companion_agent_package: null };
+  const readContext = vm.createContext({
+    document: { getElementById: byId, createElement: () => ({}) },
+    fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
+    TextEncoder, Uint8Array,
+  });
+  vm.runInContext(source, readContext);
+  await new Promise(setImmediate);
+  assert.equal(byId("page-title").textContent, "Jules delegates one finance read attempt");
+  assert.equal(byId("write-confirm-prepare").hidden, true);
+  await vm.runInContext("prepareWriteTask()", readContext);
+  assert.match(byId("write-card").textContent, /"max_writes": 0/);
+  assert.match(byId("write-card").textContent, /finance-doc/);
+  vm.runInContext(`
+    preparedWriteTask = {
+      nonce: "read-nonce", grant_preimage: null,
+      read_grant_preimage: "AA==", task_preimage: "AA==",
+      expires_at: 9999999999,
+      card: { task_id: "task-finance", agent_principal: "agent-A" },
+    };
+    signEmployee = async () => "signature";
+    download = () => {};
+  `, readContext);
+  await vm.runInContext("authorizeWriteTask()", readContext);
+  assert.equal(posts.at(-1).grant_signature, undefined);
+  assert.equal(posts.at(-1).read_grant_signature, "signature");
+  assert.match(byId("message").textContent, /read-only task is active/);
   console.log("browser activation and bounded choice review passed");
 }
 

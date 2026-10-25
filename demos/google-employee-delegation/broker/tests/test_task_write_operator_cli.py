@@ -344,6 +344,61 @@ class TaskOperatorCliTests(unittest.TestCase):
                              "agent-read-package.json").is_file())
             self.assertEqual(mixed_prepared.card["read_scopes"][0]["handle"],
                              "source-doc")
+            read_only_flow = TaskWriteBrowserFlow(
+                authority_path=mixed_output, installation_path=mixed_installed,
+                recipe_path=REFERENCE / "recipe.json",
+                profile_lock_path=REFERENCE / "profile.lock.json",
+                read_recipe_path=read_reference / "recipe.json",
+                read_profile_lock_path=read_reference / "profile.lock.json",
+                read_only=True, private_output_dir=private,
+            )
+            read_only_prepared = read_only_flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="source-doc", resource_label="No write destination",
+                read_resource_handle="source-doc",
+                read_resource_label="Pinned finance document",
+                account_label="Jules Google account",
+                purpose="Try the provider-denied finance read", now=1010,
+            )
+            self.assertEqual(read_only_prepared.card["write_scopes"], [])
+            self.assertEqual(read_only_prepared.card["max_writes"], 0)
+            self.assertEqual(read_only_prepared.card["max_provider_calls"], 1)
+            self.assertIsNone(read_only_prepared.grant_preimage)
+            read_only_completed = read_only_flow.complete(
+                nonce=read_only_prepared.nonce, employee=employee, agent=agent,
+                grant_signature=None,
+                read_grant_signature=human_key.sign(
+                    read_only_prepared.read_grant_preimage),
+                task_signature=human_key.sign(read_only_prepared.task_preimage),
+                now=1011,
+            )
+            self.assertIsNone(read_only_completed.agent_package)
+            self.assertIsNotNone(read_only_completed.read_agent_package)
+            self.assertFalse((read_only_completed.private_task_dir /
+                              "agent-package.json").exists())
+            self.assertTrue((read_only_completed.private_task_dir /
+                             "agent-read-package.json").is_file())
+            forged_write = read_only_flow.prepare(
+                employee=employee, agent=agent,
+                employee_identity_packet=identity.to_bytes(),
+                agent_identity_packet=agent_packet,
+                resource_handle="source-doc", resource_label="No write destination",
+                read_resource_handle="source-doc",
+                read_resource_label="Pinned finance document",
+                account_label="Jules Google account",
+                purpose="Try the provider-denied finance read", now=1012,
+            )
+            with self.assertRaisesRegex(OperatorDenied, "no write grant"):
+                read_only_flow.complete(
+                    nonce=forged_write.nonce, employee=employee, agent=agent,
+                    grant_signature=human_key.sign(b"forged-write"),
+                    read_grant_signature=human_key.sign(
+                        forged_write.read_grant_preimage),
+                    task_signature=human_key.sign(forged_write.task_preimage),
+                    now=1013,
+                )
             agent_seed = agent_key.private_bytes(
                 Encoding.Raw, PrivateFormat.Raw, NoEncryption())
             read_arguments = {

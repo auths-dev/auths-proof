@@ -35,9 +35,9 @@ class PreparedWriteTask:
     card: dict
     account_label: str
     resource_label: str
-    write_tool: str
+    write_tool: str | None
     companion_write_tool: str | None
-    grant_preimage: bytes
+    grant_preimage: bytes | None
     read_grant_preimage: bytes | None
     companion_grant_preimage: bytes | None
     task_preimage: bytes
@@ -50,7 +50,7 @@ class CompletedWriteTask:
     task_id: str
     agent_principal: str
     expires_at: int
-    agent_package: dict
+    agent_package: dict | None
     read_agent_package: dict | None
     companion_agent_package: dict | None
     private_task_dir: Path
@@ -62,7 +62,7 @@ class _Pending:
     agent: AgentBinding
     card: dict
     task_action: PreparedHumanAction
-    child: PreparedAgentDelegation
+    child: PreparedAgentDelegation | None
     read_child: PreparedAgentDelegation | None
     companion_child: PreparedAgentDelegation | None
     expires_at: int
@@ -76,6 +76,7 @@ class TaskWriteBrowserFlow:
                  companion_recipe_path: Path | None = None,
                  companion_profile_lock_path: Path | None = None,
                  upfront_allowed_arguments: list[dict] | None = None,
+                 read_only: bool = False,
                  private_output_dir: Path) -> None:
         if (private_output_dir.is_symlink() or not private_output_dir.is_dir()
                 or private_output_dir.stat().st_mode & 0o077):
@@ -89,6 +90,7 @@ class TaskWriteBrowserFlow:
         self.companion_recipe_path = companion_recipe_path
         self.companion_profile_lock_path = companion_profile_lock_path
         self.upfront_allowed_arguments = upfront_allowed_arguments
+        self.read_only = read_only
         self.private_output_dir = private_output_dir
         self._pending: dict[str, _Pending] = {}
         self._lock = threading.Lock()
@@ -116,9 +118,10 @@ class TaskWriteBrowserFlow:
             companion_profile_lock_path=self.companion_profile_lock_path,
             pending_child=pending_child,
             upfront_allowed_arguments=self.upfront_allowed_arguments,
+            read_only=self.read_only,
         )
         task_action = prepare_task_approval(package.authority, card, now=now)
-        child = prepare_agent_delegation(
+        child = None if self.read_only else prepare_agent_delegation(
             package.authority, employee_identity_packet, agent_identity_packet,
             card, package.recipe_digest,
         )
@@ -148,17 +151,18 @@ class TaskWriteBrowserFlow:
             )
         return PreparedWriteTask(
             nonce, card, account_label, resource_label,
-            f"{package.authority.provider_service}/{package.authority.provider_tool}",
+            (None if self.read_only else
+             f"{package.authority.provider_service}/{package.authority.provider_tool}"),
             (None if package.companion_write is None else
              f"{package.companion_write.service}/{package.companion_write.tool}"),
-            child.signing_preimage,
+            None if child is None else child.signing_preimage,
             None if read_child is None else read_child.signing_preimage,
             None if companion_child is None else companion_child.signing_preimage,
             task_action.signing_preimage, read_resource_label, expires_at,
         )
 
     def complete(self, *, nonce: str, employee: EmployeeBinding,
-                 agent: AgentBinding, grant_signature: bytes,
+                 agent: AgentBinding, grant_signature: bytes | None,
                  task_signature: bytes, read_grant_signature: bytes | None = None,
                  companion_grant_signature: bytes | None = None,
                  now: int | None = None) -> CompletedWriteTask:
@@ -170,7 +174,9 @@ class TaskWriteBrowserFlow:
             raise OperatorDenied("task signing ceremony is unavailable")
         current = load_task_write_package(self.authority_path, now=now)
         if (current.authority != pending.task_action.authority
-                or current.recipe_digest != pending.child.recipe_digest
+                or (pending.child is None) != self.read_only
+                or (pending.child is not None
+                    and current.recipe_digest != pending.child.recipe_digest)
                 or (current.read is None) != (pending.read_child is None)
                 or (current.read is not None and
                     current.read.recipe_digest != pending.read_child.recipe_digest)
@@ -183,7 +189,9 @@ class TaskWriteBrowserFlow:
         refreshed = build_exact_write_card(
             current, employee, agent, installation_path=self.installation_path,
             recipe_path=self.recipe_path, profile_lock_path=self.profile_lock_path,
-            resource_handle=pending.card["write_scopes"][0]["handle"],
+            resource_handle=(pending.card["read_scopes"][0]["handle"]
+                             if self.read_only else
+                             pending.card["write_scopes"][0]["handle"]),
             purpose=pending.card["purpose"], now=now,
             read_recipe_path=self.read_recipe_path,
             read_profile_lock_path=self.read_profile_lock_path,
@@ -193,11 +201,19 @@ class TaskWriteBrowserFlow:
             companion_profile_lock_path=self.companion_profile_lock_path,
             pending_child=pending.card.get("pending_child"),
             upfront_allowed_arguments=pending.card.get("upfront_allowed_arguments"),
+            read_only=self.read_only,
         )
         for key, reviewed in pending.card.items():
             if key not in {"task_id", "not_before", "expires_at"} and refreshed[key] != reviewed:
                 raise OperatorDenied("installed task scope changed during browser review")
-        agent_package = pending.child.complete(grant_signature, now=now)
+        if pending.child is None:
+            if grant_signature is not None:
+                raise OperatorDenied("read-only task has no write grant to sign")
+            agent_package = None
+        else:
+            if grant_signature is None:
+                raise OperatorDenied("task write grant signature is missing")
+            agent_package = pending.child.complete(grant_signature, now=now)
         if pending.read_child is None:
             if read_grant_signature is not None:
                 raise OperatorDenied("task has no read grant to sign")
@@ -228,9 +244,10 @@ class TaskWriteBrowserFlow:
                 pending.card, sort_keys=True, separators=(",", ":"),
             ).encode("utf-8"))
             _private_write(task_dir / "trusted-context.cbor", current.authority.trusted_template)
-            _private_write(task_dir / "agent-package.json", json.dumps(
-                agent_package, sort_keys=True, separators=(",", ":"),
-            ).encode("utf-8"))
+            if agent_package is not None:
+                _private_write(task_dir / "agent-package.json", json.dumps(
+                    agent_package, sort_keys=True, separators=(",", ":"),
+                ).encode("utf-8"))
             if read_agent_package is not None:
                 _private_write(task_dir / "agent-read-package.json", json.dumps(
                     read_agent_package, sort_keys=True, separators=(",", ":"),
