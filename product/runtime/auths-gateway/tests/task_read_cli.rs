@@ -20,9 +20,10 @@ fn installed_read_connection_has_independent_private_state_and_refuses_replaceme
     let root = fs::canonicalize(directory.path()).expect("canonical directory");
     fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private directory");
     let manifest = json!({
-        "schema": "auths.gateway-installation/5",
+        "schema": "auths.gateway-installation/6",
         "recipe_digest": "write-recipe-is-not-loaded-by-read-connect",
         "profile_lock_sha256": "write-lock-is-not-loaded-by-read-connect",
+        "task_companion": null,
         "trusted_context_sha256": "write-trust-is-not-loaded-by-read-connect",
         "provider": "google",
         "alias": "jules-write",

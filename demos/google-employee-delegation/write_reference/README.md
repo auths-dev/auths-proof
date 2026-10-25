@@ -95,6 +95,13 @@ the agent cannot submit these pins. The Auths connection's account label must
 be the provider's stable Jules UserInfo `sub` so its stored account commitment
 matches the task subject. demo_co confirmed that `jules_subject`, rather than
 email, is the canonical subject in its write evidence.
+For a development edit/create task, `install` takes the edit as its primary
+recipe and the create recipe through `--task-companion-recipe`,
+`--task-companion-profile-lock`, and `--task-companion-approve-digest`. It pins
+both reviewed recipes to one credential record and one state directory.
+`task-submit --recipe-digest DIGEST` selects the installed create recipe;
+omitting it selects the edit recipe. This prepares two distinct write effects
+under one task journal but does not bind a created child or permit population.
 The installed native trust must admit the recipe's provider action plus both
 `auths-agent-task` tools, `approve_agent_task_v1` and
 `confirm_agent_write_v1`. The task session refuses missing task-profile trust

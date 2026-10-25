@@ -3,10 +3,10 @@
 **Status:** Proposed for AP-SPEC-071. The gateway can now validate a bounded,
 operator-approved connection descriptor containing two to four task-bound
 recipe digests and their reviewed HTTPS origins for one credential. Task
-activation checks a closed installed recipe set against that connection. The
-CLI still loads one write recipe per state directory and has no child-resource
-binding. This ADR authorizes no
-production claim by itself.
+activation checks a closed installed recipe set against that connection. A
+development installation can load the Google edit and create recipes with one
+connection and task journal. There is still no child-resource binding or
+population authorization. This ADR authorizes no production claim by itself.
 
 **Date:** 25 October 2026
 
@@ -20,11 +20,12 @@ response, the artifact might exist while Auths has no ID. ADR 0013's
 response locator can feed a read-only observation path, but it does not
 authorize a later write to that locator.
 
-The present task card can list several write scopes, while its installed
-write session has one recipe. Two independent gateway installations would
-have separate write counters and cannot implement a single two-effect task.
-The general gateway must therefore bind several reviewed recipes to one
-task journal before the Google create/populate run can pass.
+The task card can list several write scopes. The development installer can
+now load two reviewed write recipes with one connection and task journal.
+That closes the installation topology, but not the child-ID authorization
+between create and populate. Two independent installations with separate
+task journals would still have separate counters and cannot implement one
+two-effect task.
 
 ## Proposed decision
 

@@ -29,11 +29,12 @@ mod unix {
     use auths_gateway::{
         CompiledRecipe, CompiledReleaseRecipe, FileGatewayAttemptStore, GatewayAttempts,
         GatewayConnectionDescriptor, GatewayEngine, GatewayObserveRequest, GatewayObserveResult,
-        GatewayObserver, GatewayObserverError, GatewaySubmitResult, ObserverCustody,
-        OnboardingAccount, OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, ReleaseCommitmentKey, TaskReadOperatorInputs, TaskWriteProofs,
-        check_candidate_credential, check_principal_separation, check_private_directory,
-        check_private_directory_owned_by, gateway_verifier_configuration,
+        GatewayObserver, GatewayObserverError, GatewaySubmitResult,
+        GatewayTaskConnectionDescriptor, ObserverCustody, OnboardingAccount, OnboardingFailure,
+        OperatorNamespace, PostgresGatewayAttemptStore, PrincipalSeparationError,
+        ReleaseCommitmentKey, TASK_CONNECTION_DESCRIPTOR_SCHEMA, TaskReadOperatorInputs,
+        TaskWriteProofs, check_candidate_credential, check_principal_separation,
+        check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
         DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
@@ -81,7 +82,9 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/5";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/6";
+    const TASK_COMPANION_RECIPE_FILE: &str = "task-companion-recipe.json";
+    const TASK_COMPANION_LOCK_FILE: &str = "task-companion-profile.lock.json";
     /// The directory of the state directory that holds the signed
     /// qualification inputs the operator imported.
     const QUALIFICATION_DIRECTORY: &str = "qualification";
@@ -181,6 +184,14 @@ mod unix {
             recipe: PathBuf,
             #[arg(long)]
             profile_lock: PathBuf,
+            /// Development task installation: a second reviewed write recipe
+            /// sharing this connection and the task journal.
+            #[arg(long, requires_all = ["task_companion_profile_lock", "task_companion_approve_digest"])]
+            task_companion_recipe: Option<PathBuf>,
+            #[arg(long, requires = "task_companion_recipe")]
+            task_companion_profile_lock: Option<PathBuf>,
+            #[arg(long, requires = "task_companion_recipe")]
+            task_companion_approve_digest: Option<String>,
             #[arg(long)]
             trusted_context: PathBuf,
             #[arg(long)]
@@ -440,6 +451,10 @@ mod unix {
             state_dir: PathBuf,
             #[arg(long)]
             task_id: String,
+            /// Select a digest from the installed closed task recipe set.
+            /// Omission selects the primary installed recipe.
+            #[arg(long)]
+            recipe_digest: Option<String>,
             #[arg(long)]
             agent_proof: PathBuf,
             #[arg(long)]
@@ -825,6 +840,7 @@ mod unix {
         schema: String,
         recipe_digest: String,
         profile_lock_sha256: String,
+        task_companion: Option<TaskCompanionInstallation>,
         trusted_context_sha256: String,
         provider: String,
         alias: String,
@@ -840,6 +856,14 @@ mod unix {
         credential_store: CredentialStoreSettings,
         /// Whether the recipe must be qualified, and what it is deployed as.
         qualification: QualificationSettings,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskCompanionInstallation {
+        recipe_digest: String,
+        recipe_source_sha256: String,
+        profile_lock_sha256: String,
     }
 
     /// The installation's qualification policy and the two tuple members a
@@ -1379,6 +1403,7 @@ mod unix {
         state_dir: PathBuf,
         recipe_path: PathBuf,
         lock_path: PathBuf,
+        task_companion: Option<(PathBuf, PathBuf, String)>,
         context_path: PathBuf,
         approved: String,
         provider_text: String,
@@ -1415,10 +1440,37 @@ mod unix {
         if approved != recipe.digest_hex() {
             return Err("gateway.install.approval-digest-mismatch".into());
         }
-        let descriptor = GatewayConnectionDescriptor::approve(&recipe, &credential_header)
-            .map_err(|_| "gateway.install.credential-header-mismatch")?
-            .to_bytes()
-            .map_err(|_| "gateway.install.invalid-descriptor")?;
+        if task_companion.is_some() && (deployment != Deployment::Development || join) {
+            return Err("gateway.install.task-companion-development-only".into());
+        }
+        let companion = match task_companion {
+            Some((recipe_path, lock_path, approved)) => {
+                let source = read_bounded(&recipe_path, 65_536)?;
+                let lock = read_bounded(&lock_path, 65_536)?;
+                let compiled = installable_recipe(&source, &lock)?;
+                if compiled.digest_hex() != approved {
+                    return Err("gateway.install.approval-digest-mismatch".into());
+                }
+                Some((source, lock, compiled))
+            }
+            None => None,
+        };
+        let (descriptor_schema, descriptor) = match &companion {
+            Some((_, _, compiled)) => (
+                TASK_CONNECTION_DESCRIPTOR_SCHEMA,
+                GatewayTaskConnectionDescriptor::approve(&[&recipe, compiled], &credential_header)
+                    .map_err(|_| "gateway.install.invalid-task-recipe-set")?
+                    .to_bytes()
+                    .map_err(|_| "gateway.install.invalid-descriptor")?,
+            ),
+            None => (
+                "auths.gateway-connection-descriptor/1",
+                GatewayConnectionDescriptor::approve(&recipe, &credential_header)
+                    .map_err(|_| "gateway.install.credential-header-mismatch")?
+                    .to_bytes()
+                    .map_err(|_| "gateway.install.invalid-descriptor")?,
+            ),
+        };
         let provider = ProviderKind::parse(provider_text.clone())
             .map_err(|_| "gateway.install.invalid-provider")?;
         let alias = ConnectionAlias::parse(alias_text.clone())
@@ -1434,6 +1486,13 @@ mod unix {
             schema: MANIFEST_SCHEMA.to_owned(),
             recipe_digest: approved,
             profile_lock_sha256: digest(&lock),
+            task_companion: companion.as_ref().map(|(source, lock, compiled)| {
+                TaskCompanionInstallation {
+                    recipe_digest: compiled.digest_hex(),
+                    recipe_source_sha256: digest(source),
+                    profile_lock_sha256: digest(lock),
+                }
+            }),
             trusted_context_sha256: digest(&trust),
             provider: provider_text,
             alias: alias_text,
@@ -1482,6 +1541,10 @@ mod unix {
         // Explicit store-only revocation can still make its journal collectible.
         private_file(&state_dir.join("recipe.json"), &source)?;
         private_file(&state_dir.join("profile.lock.json"), &lock)?;
+        if let Some((source, lock, _)) = &companion {
+            private_file(&state_dir.join(TASK_COMPANION_RECIPE_FILE), source)?;
+            private_file(&state_dir.join(TASK_COMPANION_LOCK_FILE), lock)?;
+        }
         private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
         if let Some(bytes) = &attestation {
             private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
@@ -1534,7 +1597,7 @@ mod unix {
                         record_id,
                         SemanticId::parse("auths.gateway-operation/1")
                             .map_err(|_| "gateway.install.contract")?,
-                        SemanticId::parse("auths.gateway-connection-descriptor/1")
+                        SemanticId::parse(descriptor_schema)
                             .map_err(|_| "gateway.install.descriptor-schema")?,
                         descriptor,
                         account_commitment,
@@ -1584,6 +1647,7 @@ mod unix {
                     "connection_id": connection_id,
                     "credential_generation": credential_generation,
                     "recipe_digest": manifest.recipe_digest,
+                    "task_companion_digest": manifest.task_companion.as_ref().map(|recipe| &recipe.recipe_digest),
                     "joined": join,
                 }))
                 .map_err(|_| "gateway.install.output")?
@@ -2018,6 +2082,22 @@ mod unix {
                 .map_err(|_| "gateway.serve.invalid-installation")?
                 != manifest_bytes
             || (manifest.deployment == Deployment::Production) != manifest.attempt_store.is_none()
+            || (manifest.deployment == Deployment::Production && manifest.task_companion.is_some())
+            || manifest.task_companion.as_ref().is_some_and(|companion| {
+                companion.recipe_digest == manifest.recipe_digest
+                    || [
+                        &companion.recipe_digest,
+                        &companion.recipe_source_sha256,
+                        &companion.profile_lock_sha256,
+                    ]
+                    .into_iter()
+                    .any(|value| {
+                        value.len() != 64
+                            || !value
+                                .bytes()
+                                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                    })
+            })
         {
             return Err("gateway.serve.invalid-installation");
         }
@@ -2083,14 +2163,64 @@ mod unix {
         state_dir: &Path,
         access: CredentialAccess,
     ) -> Result<GatewayEngine, Failure> {
+        load_engine_for_task_recipe(state_dir, access, None)
+    }
+
+    fn selected_write_recipe(
+        state_dir: &Path,
+        manifest: &Installation,
+        selected_digest: Option<&str>,
+    ) -> Result<CompiledRecipe, Failure> {
+        let companion = match selected_digest {
+            Some(digest) if digest != manifest.recipe_digest => Some(
+                manifest
+                    .task_companion
+                    .as_ref()
+                    .filter(|installed| installed.recipe_digest == digest)
+                    .ok_or("gateway.task.recipe-not-installed")?,
+            ),
+            _ => None,
+        };
+        let (recipe_path, lock_path, expected_recipe_digest, expected_lock_digest) = match companion
+        {
+            Some(installed) => (
+                TASK_COMPANION_RECIPE_FILE,
+                TASK_COMPANION_LOCK_FILE,
+                installed.recipe_digest.as_str(),
+                installed.profile_lock_sha256.as_str(),
+            ),
+            None => (
+                "recipe.json",
+                "profile.lock.json",
+                manifest.recipe_digest.as_str(),
+                manifest.profile_lock_sha256.as_str(),
+            ),
+        };
+        let source = read_bounded(&state_dir.join(recipe_path), 65_536)?;
+        let lock = read_bounded(&state_dir.join(lock_path), 65_536)?;
+        if digest(&lock) != expected_lock_digest
+            || companion.is_some_and(|installed| digest(&source) != installed.recipe_source_sha256)
+        {
+            return Err("gateway.serve.installation-changed".into());
+        }
+        let recipe =
+            CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
+        if recipe.digest_hex() != expected_recipe_digest {
+            return Err("gateway.serve.recipe-changed".into());
+        }
+        Ok(recipe)
+    }
+
+    fn load_engine_for_task_recipe(
+        state_dir: &Path,
+        access: CredentialAccess,
+        selected_digest: Option<&str>,
+    ) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         let manifest = installation(state_dir)?;
-        let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
-        let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536)?;
+        let recipe = selected_write_recipe(state_dir, &manifest, selected_digest)?;
         let trust = read_bounded(&state_dir.join("trusted.context.cbor"), 4 * 1024 * 1024)?;
-        if digest(&lock) != manifest.profile_lock_sha256
-            || digest(&trust) != manifest.trusted_context_sha256
-        {
+        if digest(&trust) != manifest.trusted_context_sha256 {
             return Err("gateway.serve.installation-changed".into());
         }
         let context = auths_codec::decode_verifier_context(&trust)
@@ -2113,11 +2243,6 @@ mod unix {
             }
             (None, Deployment::Development) => None,
         };
-        let recipe =
-            CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
-        if recipe.digest_hex() != manifest.recipe_digest {
-            return Err("gateway.serve.recipe-changed".into());
-        }
         let approved = *recipe.digest();
         let profile = ConnectionProfile::new(
             SemanticId::parse("auths.mcp").map_err(|_| "gateway.serve.profile")?,
@@ -3067,14 +3192,27 @@ mod unix {
     }
 
     async fn task_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
+        task_engine_for(state_dir, None).await
+    }
+
+    async fn task_engine_for(
+        state_dir: &Path,
+        recipe_digest: Option<String>,
+    ) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         if installation(state_dir)?.deployment != Deployment::Development {
             return Err("gateway.task.single-host-only".into());
         }
         let directory = state_dir.to_path_buf();
-        tokio::task::spawn_blocking(move || load_engine(&directory))
-            .await
-            .map_err(|_| "gateway.task.engine-unavailable")?
+        tokio::task::spawn_blocking(move || {
+            load_engine_for_task_recipe(
+                &directory,
+                CredentialAccess::Runtime,
+                recipe_digest.as_deref(),
+            )
+        })
+        .await
+        .map_err(|_| "gateway.task.engine-unavailable")?
     }
 
     fn task_private_file(state_dir: &Path, name: &str, maximum: usize) -> Result<Vec<u8>, Failure> {
@@ -3504,12 +3642,13 @@ mod unix {
     async fn task_submit(
         state_dir: PathBuf,
         task_id: String,
+        recipe_digest: Option<String>,
         agent_proof: PathBuf,
         agent_action: PathBuf,
         confirmation_proof: Option<PathBuf>,
         confirmation_action: Option<PathBuf>,
     ) -> Result<(), Failure> {
-        let engine = task_engine(&state_dir).await?;
+        let engine = task_engine_for(&state_dir, recipe_digest).await?;
         let installation = task_installation(&state_dir)?;
         let session =
             engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
@@ -4191,6 +4330,9 @@ mod unix {
                 state_dir,
                 recipe,
                 profile_lock,
+                task_companion_recipe,
+                task_companion_profile_lock,
+                task_companion_approve_digest,
                 trusted_context,
                 approve_digest,
                 provider,
@@ -4221,10 +4363,20 @@ mod unix {
                     kms_key: aws_kms_key,
                     identity: aws_identity,
                 };
+                let task_companion = match (
+                    task_companion_recipe,
+                    task_companion_profile_lock,
+                    task_companion_approve_digest,
+                ) {
+                    (None, None, None) => None,
+                    (Some(recipe), Some(lock), Some(digest)) => Some((recipe, lock, digest)),
+                    _ => return Err("gateway.install.incomplete-task-companion".into()),
+                };
                 install(
                     state_dir,
                     recipe,
                     profile_lock,
+                    task_companion,
                     trusted_context,
                     approve_digest,
                     provider,
@@ -4446,6 +4598,7 @@ mod unix {
             Command::TaskSubmit {
                 state_dir,
                 task_id,
+                recipe_digest,
                 agent_proof,
                 agent_action,
                 confirmation_proof,
@@ -4454,6 +4607,7 @@ mod unix {
                 task_submit(
                     state_dir,
                     task_id,
+                    recipe_digest,
                     agent_proof,
                     agent_action,
                     confirmation_proof,
@@ -4914,6 +5068,7 @@ mod unix {
                     .expect("upfront option parses")
                     .command,
                 Command::TaskSubmit {
+                    recipe_digest: None,
                     confirmation_proof: None,
                     confirmation_action: None,
                     ..
@@ -4923,6 +5078,7 @@ mod unix {
             partial.extend(["--confirmation-proof", "human.proof"]);
             assert!(Cli::try_parse_from(partial).is_err());
             let mut exact = base.to_vec();
+            exact.extend(["--recipe-digest", "a"]);
             exact.extend([
                 "--confirmation-proof",
                 "human.proof",
@@ -4934,6 +5090,7 @@ mod unix {
                     .expect("exact confirmation parses")
                     .command,
                 Command::TaskSubmit {
+                    recipe_digest: Some(_),
                     confirmation_proof: Some(_),
                     confirmation_action: Some(_),
                     ..
@@ -4979,6 +5136,29 @@ mod unix {
                     .command,
                 Command::Install {
                     connection_json: true,
+                    ..
+                }
+            ));
+            let mut incomplete = base.to_vec();
+            incomplete.extend(["--task-companion-recipe", "create.json"]);
+            assert!(Cli::try_parse_from(incomplete).is_err());
+            let mut paired = base.to_vec();
+            paired.extend([
+                "--task-companion-recipe",
+                "create.json",
+                "--task-companion-profile-lock",
+                "create-lock.json",
+                "--task-companion-approve-digest",
+                "b",
+            ]);
+            assert!(matches!(
+                Cli::try_parse_from(paired)
+                    .expect("closed companion inputs")
+                    .command,
+                Command::Install {
+                    task_companion_recipe: Some(_),
+                    task_companion_profile_lock: Some(_),
+                    task_companion_approve_digest: Some(_),
                     ..
                 }
             ));
