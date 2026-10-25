@@ -31,9 +31,9 @@ mod unix {
         GatewayConnectionDescriptor, GatewayEngine, GatewayObserveRequest, GatewayObserveResult,
         GatewayObserver, GatewayObserverError, GatewaySubmitResult, ObserverCustody,
         OnboardingAccount, OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, TaskWriteProofs, check_candidate_credential,
-        check_principal_separation, check_private_directory, check_private_directory_owned_by,
-        gateway_verifier_configuration,
+        PrincipalSeparationError, ReleaseCommitmentKey, TaskReadOperatorInputs, TaskWriteProofs,
+        check_candidate_credential, check_principal_separation, check_private_directory,
+        check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
         DeploymentFacts, DevelopmentClock, FILE_STORE_SCHEMA, POSTGRES_STORE_SCHEMA,
@@ -65,7 +65,10 @@ mod unix {
         io::{IsTerminal as _, Read as _, Write as _},
         num::NonZeroU64,
         os::unix::{
-            fs::{FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _},
+            fs::{
+                DirBuilderExt as _, FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _,
+                PermissionsExt as _,
+            },
             process::CommandExt as _,
         },
         path::{Component, Path, PathBuf},
@@ -90,6 +93,14 @@ mod unix {
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     const TASK_WRITE_INSTALLATION_FILE: &str = "task-write-installation.json";
     const TASK_WRITE_STATE_DIRECTORY: &str = "agent-task-state";
+    const TASK_READ_INSTALLATION_FILE: &str = "task-read-installation.json";
+    const TASK_READ_RECIPE_FILE: &str = "task-read-recipe.json";
+    const TASK_READ_LOCK_FILE: &str = "task-read-profile.lock.json";
+    const TASK_READ_FLOOR_DIRECTORY: &str = "task-read-floor";
+    const TASK_READ_JOURNAL_DIRECTORY: &str = "task-read-credential-journal";
+    const TASK_READ_RUNTIME_FILE: &str = "task-read-runtime.json";
+    const TASK_READ_AGENT_IDENTITY_FILE: &str = "task-read-agent-identity.cbor";
+    const TASK_READ_COMMITMENT_KEY_FILE: &str = "task-read-commitment.key";
     use auths_gateway::admin::{
         ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
     };
@@ -346,6 +357,54 @@ mod unix {
             state_dir: PathBuf,
             #[arg(long)]
             from: PathBuf,
+        },
+        /// Development operator only: install a distinct subject-bound read
+        /// connection and reviewed GET recipe beside the write installation.
+        /// A trusted custody shim must verify the provider subject before it
+        /// pipes a short-lived credential; this command makes no such claim.
+        TaskReadConnect {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            approve_digest: String,
+            #[arg(long)]
+            provider: String,
+            #[arg(long)]
+            alias: String,
+            #[arg(long)]
+            account_subject: String,
+            #[arg(long, default_value = "Authorization")]
+            credential_header: String,
+            #[arg(long, default_value_t = false)]
+            credential_stdin: bool,
+        },
+        /// Development operator only: bind the reviewed read connection to
+        /// one installed task, registered agent and private release channel.
+        TaskReadConfigure {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            agent_identity: PathBuf,
+            #[arg(long)]
+            channel_socket: PathBuf,
+            #[arg(long)]
+            channel_name: String,
+        },
+        /// Development operator only: execute one agent-signed GET and
+        /// release under the activated task and configured recipient.
+        TaskReadSubmit {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            agent_proof: PathBuf,
+            #[arg(long)]
+            agent_action: PathBuf,
         },
         /// Development operator only: activate one human-signed task in the
         /// durable task journal before any agent write can be submitted.
@@ -856,6 +915,33 @@ mod unix {
         kms_key: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         identity: Option<String>,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskReadInstallation {
+        schema: String,
+        recipe_digest: String,
+        recipe_source_sha256: String,
+        profile_lock_sha256: String,
+        provider: String,
+        alias: String,
+        connection_id: String,
+        connection_generation: u64,
+        connection_subject: String,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskReadRuntime {
+        schema: String,
+        recipe_digest: String,
+        connection_id: String,
+        connection_generation: u64,
+        channel_socket: String,
+        channel_name: String,
+        agent_identity_sha256: String,
+        commitment_key_version: u32,
     }
 
     /// Whether production custody policy applies. It always does for a
@@ -2974,8 +3060,8 @@ mod unix {
             .map_err(|_| "gateway.task.engine-unavailable")?
     }
 
-    fn task_installation(state_dir: &Path) -> Result<Vec<u8>, Failure> {
-        let path = state_dir.join(TASK_WRITE_INSTALLATION_FILE);
+    fn task_private_file(state_dir: &Path, name: &str, maximum: usize) -> Result<Vec<u8>, Failure> {
+        let path = state_dir.join(name);
         let metadata =
             fs::symlink_metadata(&path).map_err(|_| "gateway.task.installation-unavailable")?;
         if !metadata.is_file()
@@ -2985,7 +3071,58 @@ mod unix {
         {
             return Err("gateway.task.unsafe-installation".into());
         }
-        read_bounded(&path, 16 * 1024).map_err(Into::into)
+        read_bounded(&path, maximum).map_err(Into::into)
+    }
+
+    fn task_installation(state_dir: &Path) -> Result<Vec<u8>, Failure> {
+        task_private_file(state_dir, TASK_WRITE_INSTALLATION_FILE, 16 * 1024)
+    }
+
+    fn task_read_installation(state_dir: &Path) -> Result<TaskReadInstallation, Failure> {
+        let bytes = task_private_file(state_dir, TASK_READ_INSTALLATION_FILE, 4 * 1024)?;
+        let installed: TaskReadInstallation =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.release.invalid-installation")?;
+        if installed.schema != "auths.gateway-task-read-installation/1"
+            || serde_json_canonicalizer::to_vec(&installed)
+                .map_err(|_| "gateway.release.invalid-installation")?
+                != bytes
+        {
+            return Err("gateway.release.invalid-installation".into());
+        }
+        Ok(installed)
+    }
+
+    fn task_read_recipe(
+        state_dir: &Path,
+        installed: &TaskReadInstallation,
+    ) -> Result<CompiledReleaseRecipe, Failure> {
+        let source = task_private_file(state_dir, TASK_READ_RECIPE_FILE, 65_536)?;
+        let lock = task_private_file(state_dir, TASK_READ_LOCK_FILE, 65_536)?;
+        if digest(&source) != installed.recipe_source_sha256
+            || digest(&lock) != installed.profile_lock_sha256
+        {
+            return Err("gateway.release.installation-changed".into());
+        }
+        let recipe = CompiledReleaseRecipe::compile(&source, &lock)
+            .map_err(|_| "gateway.release.invalid-recipe")?;
+        if recipe.digest_hex() != installed.recipe_digest {
+            return Err("gateway.release.installation-changed".into());
+        }
+        Ok(recipe)
+    }
+
+    fn task_read_runtime(state_dir: &Path) -> Result<TaskReadRuntime, Failure> {
+        let bytes = task_private_file(state_dir, TASK_READ_RUNTIME_FILE, 4 * 1024)?;
+        let runtime: TaskReadRuntime =
+            serde_json::from_slice(&bytes).map_err(|_| "gateway.release.invalid-runtime")?;
+        if runtime.schema != "auths.gateway-task-read-runtime/1"
+            || serde_json_canonicalizer::to_vec(&runtime)
+                .map_err(|_| "gateway.release.invalid-runtime")?
+                != bytes
+        {
+            return Err("gateway.release.invalid-runtime".into());
+        }
+        Ok(runtime)
     }
 
     async fn task_configure(state_dir: PathBuf, from: PathBuf) -> Result<(), Failure> {
@@ -2994,6 +3131,307 @@ mod unix {
         engine.task_write_session(&bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
         private_file(&state_dir.join(TASK_WRITE_INSTALLATION_FILE), &bytes)?;
         println!("{{\"outcome\":\"task-installation-configured\"}}");
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    async fn task_read_connect(
+        state_dir: PathBuf,
+        recipe_path: PathBuf,
+        lock_path: PathBuf,
+        approved: String,
+        provider_text: String,
+        alias_text: String,
+        account_subject: String,
+        credential_header: String,
+        credential_stdin: bool,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let manifest = installation(&state_dir)?;
+        if manifest.deployment != Deployment::Development {
+            return Err("gateway.release.single-host-only".into());
+        }
+        if !credential_stdin || std::io::stdin().is_terminal() {
+            return Err("gateway.release.credential-must-be-piped-to-stdin".into());
+        }
+        if account_subject.is_empty()
+            || account_subject.len() > 256
+            || account_subject.chars().any(char::is_control)
+        {
+            return Err("gateway.release.invalid-account-subject".into());
+        }
+        for name in [
+            TASK_READ_INSTALLATION_FILE,
+            TASK_READ_RECIPE_FILE,
+            TASK_READ_LOCK_FILE,
+            TASK_READ_FLOOR_DIRECTORY,
+            TASK_READ_JOURNAL_DIRECTORY,
+        ] {
+            if state_dir.join(name).exists() {
+                return Err("gateway.release.already-or-partially-installed".into());
+            }
+        }
+        let source = read_bounded(&recipe_path, 65_536)?;
+        let lock = read_bounded(&lock_path, 65_536)?;
+        let recipe = CompiledReleaseRecipe::compile(&source, &lock)
+            .map_err(|_| "gateway.release.invalid-recipe")?;
+        if recipe.digest_hex() != approved {
+            return Err("gateway.release.approval-digest-mismatch".into());
+        }
+        let descriptor = GatewayConnectionDescriptor::approve_release(&recipe, &credential_header)
+            .map_err(|_| "gateway.release.credential-header-mismatch")?
+            .to_bytes()
+            .map_err(|_| "gateway.release.invalid-descriptor")?;
+        let provider = ProviderKind::parse(provider_text.clone())
+            .map_err(|_| "gateway.release.invalid-provider")?;
+        let alias = ConnectionAlias::parse(alias_text.clone())
+            .map_err(|_| "gateway.release.invalid-alias")?;
+        let mut candidate = read_install_credential()?;
+        let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+            .map_err(|_| "gateway.release.invalid-credential")?;
+        let attempts = open_attempts(
+            manifest.deployment,
+            manifest.attempt_store.as_ref().map(PathBuf::from),
+        )?;
+        let credentials = open_credentials_for(
+            &state_dir,
+            &manifest.credential_store,
+            manifest.deployment,
+            "gateway.release.credential-store-unavailable",
+            CredentialAccess::Operator,
+        )?;
+        let connection_id =
+            ConnectionId::generate().map_err(|_| "gateway.release.randomness-unavailable")?;
+        let profile = ConnectionProfile::new(
+            SemanticId::parse("auths.mcp").map_err(|_| "gateway.release.profile")?,
+            2,
+        )
+        .map_err(|_| "gateway.release.profile")?;
+        let mut account_hash = Sha256::new();
+        account_hash.update(b"auths.gateway-account/1\0");
+        account_hash.update(account_subject.as_bytes());
+        let account_commitment: [u8; 32] = account_hash.finalize().into();
+        let timestamp = now()?;
+        let floor_root = state_dir.join(TASK_READ_FLOOR_DIRECTORY);
+        let journal_root = state_dir.join(TASK_READ_JOURNAL_DIRECTORY);
+        for directory in [&floor_root, &journal_root] {
+            fs::DirBuilder::new()
+                .mode(0o700)
+                .create(directory)
+                .map_err(|_| "gateway.release.private-state-unavailable")?;
+        }
+        let journal = auths_gateway::CredentialJournal::new(journal_root);
+        let journal_id = connection_id.clone();
+        tokio::task::spawn_blocking(move || {
+            journal.initialize(&journal_id)?;
+            journal.register(&journal_id, NonZeroU64::MIN)
+        })
+        .await
+        .map_err(|_| "gateway.release.credential-journal-unavailable")??;
+        let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
+        let record_id = connection_id.clone();
+        let record = install_connection(
+            &shared,
+            &*credentials,
+            move |reference| {
+                ConnectionRecord::new(
+                    provider,
+                    alias,
+                    record_id,
+                    SemanticId::parse("auths.gateway-operation/1")
+                        .map_err(|_| "gateway.release.contract")?,
+                    SemanticId::parse("auths.gateway-connection-descriptor/1")
+                        .map_err(|_| "gateway.release.descriptor-schema")?,
+                    descriptor,
+                    account_commitment,
+                    reference,
+                    NonZeroU64::MIN,
+                    ConnectionState::Active,
+                    vec!["gateway".to_owned()],
+                    vec![profile],
+                    timestamp,
+                    timestamp,
+                    None,
+                )
+                .map_err(|_| "gateway.release.connection-invalid")
+            },
+            &connection_id,
+            secret,
+        )
+        .await?;
+        auths_gateway::GenerationFloor::new(floor_root)
+            .initialize(&record)
+            .map_err(|_| "gateway.release.floor-unavailable")?;
+        private_file(&state_dir.join(TASK_READ_RECIPE_FILE), &source)?;
+        private_file(&state_dir.join(TASK_READ_LOCK_FILE), &lock)?;
+        let installed = TaskReadInstallation {
+            schema: "auths.gateway-task-read-installation/1".to_owned(),
+            recipe_digest: recipe.digest_hex(),
+            recipe_source_sha256: digest(&source),
+            profile_lock_sha256: digest(&lock),
+            provider: provider_text,
+            alias: alias_text,
+            connection_id: record.connection_id().as_str().to_owned(),
+            connection_generation: record.generation().get(),
+            connection_subject: account_subject,
+        };
+        private_file(
+            &state_dir.join(TASK_READ_INSTALLATION_FILE),
+            &serde_json_canonicalizer::to_vec(&installed)
+                .map_err(|_| "gateway.release.installation-invalid")?,
+        )?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "outcome": "read-connection-installed",
+                "connection_id": installed.connection_id,
+                "connection_generation": installed.connection_generation,
+                "recipe_digest": installed.recipe_digest,
+            })
+        );
+        Ok(())
+    }
+
+    async fn task_read_configure(
+        state_dir: PathBuf,
+        agent_identity: PathBuf,
+        channel_socket: PathBuf,
+        channel_name: String,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        if installation(&state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.release.single-host-only".into());
+        }
+        for name in [
+            TASK_READ_RUNTIME_FILE,
+            TASK_READ_AGENT_IDENTITY_FILE,
+            TASK_READ_COMMITMENT_KEY_FILE,
+        ] {
+            if state_dir.join(name).exists() {
+                return Err("gateway.release.runtime-already-installed".into());
+            }
+        }
+        let installed = task_read_installation(&state_dir)?;
+        let recipe = task_read_recipe(&state_dir, &installed)?;
+        let packet = read_bounded(&agent_identity, 4_096)?;
+        let socket = channel_socket
+            .to_str()
+            .filter(|_| channel_socket.is_absolute())
+            .ok_or("gateway.release.invalid-channel-socket")?
+            .to_owned();
+        check_private_directory(
+            channel_socket
+                .parent()
+                .ok_or("gateway.release.invalid-channel-socket")?,
+        )
+        .map_err(|_| "gateway.release.unsafe-channel-directory")?;
+        let mut key_material = Zeroizing::new([0_u8; 32]);
+        getrandom::fill(&mut *key_material)
+            .map_err(|_| "gateway.release.randomness-unavailable")?;
+        let key = ReleaseCommitmentKey::new(1, Zeroizing::new(*key_material))
+            .map_err(|_| "gateway.release.invalid-commitment-key")?;
+        let engine = task_engine(&state_dir).await?;
+        let task_bytes = task_installation(&state_dir)?;
+        let task =
+            engine.task_write_session(&task_bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        task.read_session(TaskReadOperatorInputs {
+            recipe,
+            provider: ProviderKind::parse(installed.provider.clone())
+                .map_err(|_| "gateway.release.invalid-provider")?,
+            alias: ConnectionAlias::parse(installed.alias.clone())
+                .map_err(|_| "gateway.release.invalid-alias")?,
+            generation_floor: auths_gateway::GenerationFloor::new(
+                state_dir.join(TASK_READ_FLOOR_DIRECTORY),
+            ),
+            qualification: Arc::new(QualificationGate::development()),
+            commitment_key: key,
+            channel_socket,
+            channel_name: channel_name.clone(),
+            agent_identity_packet: packet.clone(),
+        })?;
+        let runtime = TaskReadRuntime {
+            schema: "auths.gateway-task-read-runtime/1".to_owned(),
+            recipe_digest: installed.recipe_digest,
+            connection_id: installed.connection_id,
+            connection_generation: installed.connection_generation,
+            channel_socket: socket,
+            channel_name,
+            agent_identity_sha256: digest(&packet),
+            commitment_key_version: 1,
+        };
+        private_file(&state_dir.join(TASK_READ_AGENT_IDENTITY_FILE), &packet)?;
+        private_file(
+            &state_dir.join(TASK_READ_COMMITMENT_KEY_FILE),
+            &key_material[..],
+        )?;
+        private_file(
+            &state_dir.join(TASK_READ_RUNTIME_FILE),
+            &serde_json_canonicalizer::to_vec(&runtime)
+                .map_err(|_| "gateway.release.invalid-runtime")?,
+        )?;
+        println!("{{\"outcome\":\"read-runtime-configured\"}}");
+        Ok(())
+    }
+
+    async fn task_read_submit(
+        state_dir: PathBuf,
+        task_id: String,
+        agent_proof: PathBuf,
+        agent_action: PathBuf,
+    ) -> Result<(), Failure> {
+        private_root(&state_dir)?;
+        let installed = task_read_installation(&state_dir)?;
+        let runtime = task_read_runtime(&state_dir)?;
+        if runtime.recipe_digest != installed.recipe_digest
+            || runtime.connection_id != installed.connection_id
+            || runtime.connection_generation != installed.connection_generation
+        {
+            return Err("gateway.release.runtime-changed".into());
+        }
+        let packet = task_private_file(&state_dir, TASK_READ_AGENT_IDENTITY_FILE, 4_096)?;
+        if digest(&packet) != runtime.agent_identity_sha256 {
+            return Err("gateway.release.runtime-changed".into());
+        }
+        let mut key_bytes = Zeroizing::new(task_private_file(
+            &state_dir,
+            TASK_READ_COMMITMENT_KEY_FILE,
+            32,
+        )?);
+        if key_bytes.len() != 32 {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        let mut key_material = Zeroizing::new([0_u8; 32]);
+        key_material.copy_from_slice(&key_bytes);
+        key_bytes.zeroize();
+        let key = ReleaseCommitmentKey::new(runtime.commitment_key_version, key_material)
+            .map_err(|_| "gateway.release.invalid-commitment-key")?;
+        let recipe = task_read_recipe(&state_dir, &installed)?;
+        let engine = task_engine(&state_dir).await?;
+        let task_bytes = task_installation(&state_dir)?;
+        let task =
+            engine.task_write_session(&task_bytes, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let read = task.read_session(TaskReadOperatorInputs {
+            recipe,
+            provider: ProviderKind::parse(installed.provider)
+                .map_err(|_| "gateway.release.invalid-provider")?,
+            alias: ConnectionAlias::parse(installed.alias)
+                .map_err(|_| "gateway.release.invalid-alias")?,
+            generation_floor: auths_gateway::GenerationFloor::new(
+                state_dir.join(TASK_READ_FLOOR_DIRECTORY),
+            ),
+            qualification: Arc::new(QualificationGate::development()),
+            commitment_key: key,
+            channel_socket: PathBuf::from(runtime.channel_socket),
+            channel_name: runtime.channel_name,
+            agent_identity_packet: packet,
+        })?;
+        let proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
+        let action = read_bounded(&agent_action, 64 * 1024)?;
+        let result = read.read(&task_id, &proof, &action).await;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.release.invalid-response")?
+        );
         Ok(())
     }
 
@@ -3922,6 +4360,42 @@ mod unix {
                 action,
             } => submit(app_socket, proof, action).await,
             Command::TaskConfigure { state_dir, from } => task_configure(state_dir, from).await,
+            Command::TaskReadConnect {
+                state_dir,
+                recipe,
+                profile_lock,
+                approve_digest,
+                provider,
+                alias,
+                account_subject,
+                credential_header,
+                credential_stdin,
+            } => {
+                task_read_connect(
+                    state_dir,
+                    recipe,
+                    profile_lock,
+                    approve_digest,
+                    provider,
+                    alias,
+                    account_subject,
+                    credential_header,
+                    credential_stdin,
+                )
+                .await
+            }
+            Command::TaskReadConfigure {
+                state_dir,
+                agent_identity,
+                channel_socket,
+                channel_name,
+            } => task_read_configure(state_dir, agent_identity, channel_socket, channel_name).await,
+            Command::TaskReadSubmit {
+                state_dir,
+                task_id,
+                agent_proof,
+                agent_action,
+            } => task_read_submit(state_dir, task_id, agent_proof, agent_action).await,
             Command::TaskActivate {
                 state_dir,
                 proof,
@@ -4481,6 +4955,168 @@ mod unix {
             fs::remove_file(&path).expect("remove pins");
             std::os::unix::fs::symlink(root.join("other"), &path).expect("linked pins");
             assert!(task_installation(&root).is_err());
+        }
+
+        #[test]
+        fn task_read_installation_refuses_tampering_and_shared_files() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let source = include_bytes!(
+                "../../../../../demos/google-employee-delegation/read_reference/recipe.json"
+            );
+            let lock = include_bytes!(
+                "../../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+            );
+            let recipe = CompiledReleaseRecipe::compile(source, lock).expect("closed recipe");
+            private_file(&root.join(TASK_READ_RECIPE_FILE), source).expect("recipe");
+            private_file(&root.join(TASK_READ_LOCK_FILE), lock).expect("lock");
+            let installed = TaskReadInstallation {
+                schema: "auths.gateway-task-read-installation/1".to_owned(),
+                recipe_digest: recipe.digest_hex(),
+                recipe_source_sha256: digest(source),
+                profile_lock_sha256: digest(lock),
+                provider: "google".to_owned(),
+                alias: "jules-read".to_owned(),
+                connection_id: "test-connection".to_owned(),
+                connection_generation: 1,
+                connection_subject: "test-subject".to_owned(),
+            };
+            let path = root.join(TASK_READ_INSTALLATION_FILE);
+            private_file(
+                &path,
+                &serde_json_canonicalizer::to_vec(&installed).expect("canonical"),
+            )
+            .expect("manifest");
+            let parsed = task_read_installation(&root).expect("private manifest");
+            assert_eq!(
+                task_read_recipe(&root, &parsed)
+                    .expect("reviewed recipe")
+                    .digest_hex(),
+                recipe.digest_hex()
+            );
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("shared");
+            assert!(task_read_installation(&root).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private");
+            fs::write(root.join(TASK_READ_RECIPE_FILE), b"changed").expect("tamper");
+            assert!(task_read_recipe(&root, &installed).is_err());
+        }
+
+        #[test]
+        fn task_read_operator_commands_keep_credential_off_argv() {
+            let connect = Cli::try_parse_from([
+                "auths-gateway",
+                "task-read-connect",
+                "--state-dir",
+                "/tmp/auths-state",
+                "--recipe",
+                "/tmp/read-recipe.json",
+                "--profile-lock",
+                "/tmp/profile.lock.json",
+                "--approve-digest",
+                "aa",
+                "--provider",
+                "google",
+                "--alias",
+                "jules-read",
+                "--account-subject",
+                "subject",
+                "--credential-stdin",
+            ])
+            .expect("connect command");
+            assert!(matches!(
+                connect.command,
+                Command::TaskReadConnect {
+                    credential_stdin: true,
+                    ..
+                }
+            ));
+            let configure = Cli::try_parse_from([
+                "auths-gateway",
+                "task-read-configure",
+                "--state-dir",
+                "/tmp/auths-state",
+                "--agent-identity",
+                "/tmp/agent.cbor",
+                "--channel-socket",
+                "/tmp/agent.sock",
+                "--channel-name",
+                "agent-channel",
+            ])
+            .expect("configure command");
+            assert!(matches!(
+                configure.command,
+                Command::TaskReadConfigure { .. }
+            ));
+        }
+
+        #[test]
+        fn task_read_journal_accepts_a_distinct_connection_from_the_write_journal() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let read_root = root.join(TASK_READ_JOURNAL_DIRECTORY);
+            fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&read_root)
+                .expect("read journal directory");
+            let write_id = ConnectionId::generate().expect("write ID");
+            let read_id = ConnectionId::generate().expect("read ID");
+            let write = auths_gateway::CredentialJournal::new(root);
+            let read = auths_gateway::CredentialJournal::new(read_root);
+            write.initialize(&write_id).expect("write journal");
+            write
+                .register(&write_id, NonZeroU64::MIN)
+                .expect("write generation");
+            read.initialize(&read_id).expect("separate read journal");
+            read.register(&read_id, NonZeroU64::MIN)
+                .expect("read generation");
+            assert_eq!(
+                read.generations(&read_id).expect("read generations"),
+                vec![NonZeroU64::MIN]
+            );
+            assert_eq!(
+                write.generations(&write_id).expect("write generations"),
+                vec![NonZeroU64::MIN]
+            );
+        }
+
+        #[test]
+        fn task_read_runtime_requires_canonical_private_state() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let runtime = TaskReadRuntime {
+                schema: "auths.gateway-task-read-runtime/1".to_owned(),
+                recipe_digest: "recipe".to_owned(),
+                connection_id: "connection".to_owned(),
+                connection_generation: 1,
+                channel_socket: root.join("agent.sock").display().to_string(),
+                channel_name: "channel".to_owned(),
+                agent_identity_sha256: "identity".to_owned(),
+                commitment_key_version: 1,
+            };
+            let path = root.join(TASK_READ_RUNTIME_FILE);
+            private_file(
+                &path,
+                &serde_json_canonicalizer::to_vec(&runtime).expect("canonical"),
+            )
+            .expect("runtime");
+            assert_eq!(
+                task_read_runtime(&root)
+                    .expect("private runtime")
+                    .channel_name,
+                "channel"
+            );
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("shared");
+            assert!(task_read_runtime(&root).is_err());
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("private");
+            fs::write(
+                &path,
+                serde_json::to_vec_pretty(&runtime).expect("noncanonical"),
+            )
+            .expect("rewrite");
+            assert!(task_read_runtime(&root).is_err());
         }
 
         #[test]

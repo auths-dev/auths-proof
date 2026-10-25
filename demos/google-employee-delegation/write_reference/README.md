@@ -142,9 +142,26 @@ registered agent, installed gateway pins and reviewed recipe. It signs the
 task and separate read/write child grants in Jules's browser, writes
 `task.proof` and `task.action` under a new private task directory, and exports
 public agent packages. The isolated agent can use `sign-read` to sign a bounded
-read action and `serve-release` to acknowledge delivered content. Managed read
-execution still requires an installed read connection, qualification and
-operator command; the signed package alone does not release content.
+read action and `serve-release` to acknowledge delivered content. The
+development gateway now has an installed read path, with a separate connection,
+credential journal and rollback floor. Review the closed GET recipe with
+`review-release`, then run `task-read-connect` with its exact digest, read
+provider/alias, verified provider subject, and a short-lived credential through
+`--credential-stdin`. The trusted demo custody shim must verify that the bearer
+belongs to the asserted subject before piping it; the generic gateway command
+does not independently establish provider identity. It prints only the new
+connection ID, generation and recipe digest. Use those values in the operator
+task pins before `task-configure`. An interrupted `task-read-connect` leaves
+private state for exact operator recovery; it refuses a blind retry so a second
+credential record cannot silently replace the first. After `task-configure`, run
+`task-read-configure` with the registered agent identity packet, a private
+Unix socket path and the signed card's channel name. The gateway generates and
+stores a separate 256-bit commitment key in private state. Activate the
+human-signed task, start the isolated agent's `serve-release`, then run
+`task-read-submit` with the agent's native proof/action and task ID. Its JSON
+result contains only redacted status, byte count and keyed commitment. This
+is a single-host development route; live Jules read delivery and credential
+refresh after task admission remain to be exercised and implemented.
 With the optional `--task-write-gateway-state-dir`, the workbench activates
 that signed task immediately in the owner-private gateway journal. Without
 that option, the operator activates it through `task-activate`. A separate
