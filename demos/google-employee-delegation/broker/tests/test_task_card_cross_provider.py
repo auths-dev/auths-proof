@@ -73,7 +73,10 @@ class CrossProviderTaskCardTests(unittest.TestCase):
             ).to_bytes()
             agent_principal, _ = authority_for_identity_packet(agent_packet)
             agent_digest = hashlib.sha256(agent_packet).hexdigest()
-            write_digest, read_digest = "b" * 64, "c" * 64
+            # Digests are the exact outputs of gateway `review` and
+            # `review-release` for the checked-in Airtable sources.
+            write_digest = "2766350e0222f0d427b41bf3dc241c948aa6812e32893d983ddc208e09cbb73f"
+            read_digest = "bc0335d9ab4fb4bb381834bef8aa5e6e6df58686f0920db460a109efa272fec7"
             authority = private / "airtable-task-authority.json"
             issue_task_package(
                 root_seed=root_seed, root_trust=root_trust, state_db=state,
