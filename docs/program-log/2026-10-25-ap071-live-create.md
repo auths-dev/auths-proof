@@ -227,3 +227,12 @@ and full AP-SPEC-071 acceptance still requires bounded-upfront execution,
 the mandatory negative matrix, cross-provider conformance and pinned
 installed artifacts. No cleanup has occurred; demo_co owns run fixture
 cleanup.
+
+After the live run, the development planned-population command gained an
+explicit `--recover-pre-entry-denial` path. It requires the first command's
+durable `denied` result, a different fresh preflight, and a gateway task
+status showing exactly the create operation and no population write claim.
+It records an exclusive recovery handoff before resubmission. Unknown
+results or any existing population claim remain closed. Unit tests cover
+both permitted recovery and those refusals. This code did not execute the
+live population above; that recovery was manually checked and submitted.

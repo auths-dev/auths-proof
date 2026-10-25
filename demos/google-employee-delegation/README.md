@@ -447,11 +447,16 @@ auths-google-planned-populate \
   --preflight "$PRIVATE_POPULATE_PREFLIGHT"
 ```
 
-Both effect submissions are one-shot handoffs. An unknown result requires
-inspection of the durable gateway attempt and the independent producer state.
-These commands remain a development operator path. One live Jules create
-produced a response-bound Project A child, but the paired population did not
-enter because its preflight signer was absent from that installation; see the
+Both effect submissions are one-shot handoffs. A recorded population
+`denied` result can be recovered once with `--recover-pre-entry-denial`, after
+a new Jules preflight and agent-signed action are staged. The command requires
+its original result file and a gateway journal showing the create operation
+but no population write claim, then records an exclusive recovery handoff.
+An unknown result, missing result file, or any population claim remains
+closed; inspect the durable gateway attempt and independent producer state.
+These commands remain a development operator path. One later live Jules plan
+created and populated a Project A child after a manually checked pre-entry
+denial and gateway repair; the new recovery flag was added afterward. See the
 [live create record](../../docs/program-log/2026-10-25-ap071-live-create.md).
 
 For a separately reset bounded-upfront edit test, the operator may supply an

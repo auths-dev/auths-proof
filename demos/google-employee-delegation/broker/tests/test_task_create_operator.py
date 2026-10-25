@@ -89,6 +89,50 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             now=self.now, **kwargs,
         )
 
+    def _population_fixture(self) -> tuple[Path, dict, dict]:
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, b'{"outcome":"response-recorded","status":200}', b"",
+                    ))):
+            self._submit()
+        plan = {
+            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "task_commitment": "a" * 64,
+            "create": {"operation_id": "create-1"},
+            "populate_recipe_digest": "b" * 64,
+            "populate_operation_id": "populate-1", "expires_at": self.now + 100,
+        }
+        package = {
+            "schema": "auths.ap071-agent-write-package/1",
+            "task_id": self.task_id, "recipe_digest": "b" * 64,
+        }
+        inputs = {
+            "schema": "auths.gateway-task-populate-preflight-inputs/1",
+            "task_id": self.task_id, "task_commitment": "a" * 64,
+            "plan_commitment": "f" * 64, "create_operation_id": "create-1",
+            "child_id": "child-1", "populate_recipe_digest": "b" * 64,
+            "preflight_rule_digest": "c" * 64,
+            "connection_id": "jules-connection", "connection_generation": 1,
+            "connection_subject": "jules-subject",
+        }
+        report = {"statement": inputs | {
+            "schema": "auths.gateway-task-populate-preflight/1",
+            "valid_until": self.now + 60,
+        }, "signature_b64": "signed-jules-report"}
+        preflight_path = self.root / "preflight.json"
+        self._write(self.task_dir / "effect-plan.json", plan)
+        self._write(self.task_dir / "agent-companion-write-package.json", package)
+        self._write(self.task_dir / "populate.proof", b"agent-populate-proof")
+        self._write(self.task_dir / "populate.action", b"agent-populate-action")
+        self._write(preflight_path, report)
+        return preflight_path, report, inputs
+
     def test_v2_baseline_is_pinned_before_four_child_create(self) -> None:
         self.evidence.update({
             "customer_id": "customer-1", "jules_subject": "jules-subject",
@@ -297,47 +341,7 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             gateway.assert_called_once()
 
     def test_population_enters_once_with_recorded_plan_and_jules_child(self) -> None:
-        with (patch("employee_read_demo.task_create_operator._gateway",
-                    return_value=self.root / "gateway"),
-              patch("employee_read_demo.task_create_operator._credential_pins",
-                    return_value=self.pins),
-              patch("employee_read_demo.task_create_operator.validate_write_handoff",
-                    return_value=self.evidence),
-              patch("employee_read_demo.task_create_operator.subprocess.run",
-                    return_value=subprocess.CompletedProcess(
-                        [], 0, b'{"outcome":"response-recorded","status":200}', b"",
-                    ))):
-            self._submit()
-        plan = {
-            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
-            "task_commitment": "a" * 64,
-            "create": {"operation_id": "create-1"},
-            "populate_recipe_digest": "b" * 64,
-            "populate_operation_id": "populate-1", "expires_at": self.now + 100,
-        }
-        package = {
-            "schema": "auths.ap071-agent-write-package/1",
-            "task_id": self.task_id, "recipe_digest": "b" * 64,
-        }
-        inputs = {
-            "schema": "auths.gateway-task-populate-preflight-inputs/1",
-            "task_id": self.task_id, "task_commitment": "a" * 64,
-            "plan_commitment": "f" * 64, "create_operation_id": "create-1",
-            "child_id": "child-1", "populate_recipe_digest": "b" * 64,
-            "preflight_rule_digest": "c" * 64,
-            "connection_id": "jules-connection", "connection_generation": 1,
-            "connection_subject": "jules-subject",
-        }
-        report = {"statement": inputs | {
-            "schema": "auths.gateway-task-populate-preflight/1",
-            "valid_until": self.now + 60,
-        }, "signature_b64": "signed-jules-report"}
-        preflight_path = self.root / "preflight.json"
-        self._write(self.task_dir / "effect-plan.json", plan)
-        self._write(self.task_dir / "agent-companion-write-package.json", package)
-        self._write(self.task_dir / "populate.proof", b"agent-populate-proof")
-        self._write(self.task_dir / "populate.action", b"agent-populate-action")
-        self._write(preflight_path, report)
+        preflight_path, report, inputs = self._population_fixture()
 
         def run(command, **kwargs):
             if command[1] == "task-populate-preflight-inputs":
@@ -375,6 +379,107 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             with self.assertRaisesRegex(OperatorDenied, "already handed off"):
                 populate()
             self.assertEqual(gateway.call_count, 4)
+
+    def test_only_recorded_pre_entry_denial_can_recover_population(self) -> None:
+        preflight_path, report, inputs = self._population_fixture()
+        status = {
+            "schema": "auths.gateway-agent-task-status/1",
+            "task_id": self.task_id, "writes": 1,
+            "write_operations": ["create-1"],
+        }
+        submissions = 0
+
+        def run(command, **kwargs):
+            nonlocal submissions
+            if command[1] == "task-populate-preflight-inputs":
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps(inputs).encode(), b"",
+                )
+            if command[1] == "task-status":
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps(status).encode(), b"",
+                )
+            self.assertEqual(command[1], "task-submit")
+            submissions += 1
+            return subprocess.CompletedProcess(
+                command, 0,
+                (b'{"outcome":"denied"}' if submissions == 1
+                 else b'{"outcome":"response-recorded","status":200}'), b"",
+            )
+
+        def populate(*, recover=False):
+            return submit_planned_population(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id, preflight_path=preflight_path,
+                now=self.now, recover_pre_entry_denial=recover,
+            )
+
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    side_effect=run)):
+            self.assertEqual(populate()["gateway_outcome"], "denied")
+            self.assertEqual(submissions, 1)
+            self.assertTrue((self.task_dir / "populate-result.json").exists())
+            with self.assertRaisesRegex(OperatorDenied, "already handed off"):
+                populate()
+            refreshed = json.loads(json.dumps(report))
+            refreshed["signature_b64"] = "fresh-jules-report"
+            self._write(preflight_path, refreshed)
+            status["writes"] = 2
+            status["write_operations"].append("populate-1")
+            with self.assertRaisesRegex(OperatorDenied, "may have entered"):
+                populate(recover=True)
+            self.assertEqual(submissions, 1)
+            self.assertFalse((self.task_dir / "populate-recovery-entry.json").exists())
+            status["writes"] = 1
+            status["write_operations"] = ["create-1"]
+            self.assertEqual(populate(recover=True)["gateway_outcome"],
+                             "response-recorded")
+            self.assertEqual(submissions, 2)
+            with self.assertRaisesRegex(OperatorDenied, "already handed off"):
+                populate(recover=True)
+
+    def test_unknown_population_outcome_never_opens_recovery(self) -> None:
+        preflight_path, report, inputs = self._population_fixture()
+        submissions = 0
+
+        def run(command, **kwargs):
+            nonlocal submissions
+            if command[1] == "task-populate-preflight-inputs":
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps(inputs).encode(), b"",
+                )
+            if command[1] == "task-status":
+                return subprocess.CompletedProcess(command, 0, json.dumps({
+                    "schema": "auths.gateway-agent-task-status/1",
+                    "task_id": self.task_id, "writes": 1,
+                    "write_operations": ["create-1"],
+                }).encode(), b"")
+            submissions += 1
+            return subprocess.CompletedProcess(command, 1, b"", b"lost response")
+
+        def populate(*, recover=False):
+            return submit_planned_population(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id, preflight_path=preflight_path,
+                now=self.now, recover_pre_entry_denial=recover,
+            )
+
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    side_effect=run)):
+            with self.assertRaisesRegex(OperatorDenied, "outcome is unknown"):
+                populate()
+            refreshed = json.loads(json.dumps(report))
+            refreshed["signature_b64"] = "fresh-jules-report"
+            self._write(preflight_path, refreshed)
+            with self.assertRaisesRegex(OperatorDenied, "cannot be proved"):
+                populate(recover=True)
+            self.assertEqual(submissions, 1)
 
 
 if __name__ == "__main__":

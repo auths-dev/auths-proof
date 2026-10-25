@@ -314,8 +314,9 @@ def reconcile_planned_child(*, gateway_binary: Path, gateway_sha256: str,
 def submit_planned_population(*, gateway_binary: Path, gateway_sha256: str,
                               gateway_state_dir: Path, task_dir: Path,
                               task_id: str, preflight_path: Path,
-                              now: int | None = None) -> dict:
-    """Submit one agent-signed population under the recorded Jules plan."""
+                              now: int | None = None,
+                              recover_pre_entry_denial: bool = False) -> dict:
+    """Submit one population, or recover a proven pre-entry denial once."""
     if (type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None
             or not gateway_state_dir.is_absolute() or not task_dir.is_absolute()
             or task_dir.name != task_id or task_dir.is_symlink()
@@ -387,14 +388,60 @@ def submit_planned_population(*, gateway_binary: Path, gateway_sha256: str,
         "baseline_sha256": baseline["observation_sha256"],
         "preflight_sha256": hashlib.sha256(preflight_raw).hexdigest(),
     }
-    try:
-        _private_write(task_dir / "populate-entry.json", json.dumps(
-            entry, sort_keys=True, separators=(",", ":"),
-        ).encode())
-    except FileExistsError as error:
-        raise OperatorDenied("planned population already handed off; inspect state") from error
-    except OSError as error:
-        raise OperatorDenied("private population entry could not be recorded") from error
+    result_path = task_dir / (
+        "populate-recovery-result.json" if recover_pre_entry_denial
+        else "populate-result.json"
+    )
+    if recover_pre_entry_denial:
+        try:
+            original = json.loads(_private_read(task_dir / "populate-entry.json", 4096),
+                                  object_pairs_hook=_unique_pairs)
+            prior = json.loads(_private_read(task_dir / "populate-result.json", 4096),
+                               object_pairs_hook=_unique_pairs)
+            status_result = subprocess.run([
+                str(binary), "task-status", "--state-dir", str(gateway_state_dir),
+                "--task-id", task_id,
+            ], capture_output=True, check=False, timeout=30)
+            if status_result.returncode != 0 or len(status_result.stdout) > 8192:
+                raise ValueError("gateway status unavailable")
+            status = json.loads(status_result.stdout, object_pairs_hook=_unique_pairs)
+        except (OSError, PermissionError, ValueError, TypeError,
+                subprocess.TimeoutExpired) as error:
+            raise OperatorDenied("pre-entry population denial cannot be proved") from error
+        if (type(original) is not dict or type(prior) is not dict
+                or type(status) is not dict
+                or any(original.get(field) != entry[field] for field in (
+                    "schema", "task_id", "child_id", "populate_operation_id",
+                    "baseline_sha256"))
+                or original.get("preflight_sha256") == entry["preflight_sha256"]
+                or prior != {
+                    "schema": "auths.ap071-populate-result/1",
+                    "task_id": task_id,
+                    "populate_operation_id": plan["populate_operation_id"],
+                    "outcome": "denied",
+                }
+                or status.get("schema") != "auths.gateway-agent-task-status/1"
+                or status.get("task_id") != task_id
+                or status.get("writes") != 1
+                or status.get("write_operations") != [create["operation_id"]]):
+            raise OperatorDenied("population may have entered; recovery refused")
+        try:
+            _private_write(task_dir / "populate-recovery-entry.json", json.dumps(
+                entry, sort_keys=True, separators=(",", ":"),
+            ).encode())
+        except FileExistsError as error:
+            raise OperatorDenied("planned population recovery already handed off") from error
+        except OSError as error:
+            raise OperatorDenied("private population recovery could not be recorded") from error
+    else:
+        try:
+            _private_write(task_dir / "populate-entry.json", json.dumps(
+                entry, sort_keys=True, separators=(",", ":"),
+            ).encode())
+        except FileExistsError as error:
+            raise OperatorDenied("planned population already handed off; inspect state") from error
+        except OSError as error:
+            raise OperatorDenied("private population entry could not be recorded") from error
     try:
         result = subprocess.run([
             str(binary), "task-submit", "--state-dir", str(gateway_state_dir),
@@ -416,6 +463,15 @@ def submit_planned_population(*, gateway_binary: Path, gateway_sha256: str,
             "denied", "indeterminate", "not-entered", "unknown",
             "response-recorded", "observed", "observed-by-provider"}:
         raise OperatorDenied("planned population outcome is unknown; inspect state")
+    try:
+        _private_write(result_path, json.dumps({
+            "schema": "auths.ap071-populate-result/1",
+            "task_id": task_id,
+            "populate_operation_id": plan["populate_operation_id"],
+            "outcome": outcome["outcome"],
+        }, sort_keys=True, separators=(",", ":")).encode())
+    except OSError as error:
+        raise OperatorDenied("planned population result could not be recorded; inspect state") from error
     return {
         "task_id": task_id, "child_id": inputs["child_id"],
         "gateway_outcome": outcome["outcome"],
@@ -472,11 +528,13 @@ def populate_main() -> int:
     parser.add_argument("--task-dir", type=Path, required=True)
     parser.add_argument("--task-id", required=True)
     parser.add_argument("--preflight", type=Path, required=True)
+    parser.add_argument("--recover-pre-entry-denial", action="store_true")
     args = parser.parse_args()
     print(json.dumps(submit_planned_population(
         gateway_binary=args.gateway_bin, gateway_sha256=args.gateway_sha256,
         gateway_state_dir=args.gateway_state_dir, task_dir=args.task_dir,
         task_id=args.task_id, preflight_path=args.preflight,
+        recover_pre_entry_denial=args.recover_pre_entry_denial,
     ), sort_keys=True))
     return 0
 
