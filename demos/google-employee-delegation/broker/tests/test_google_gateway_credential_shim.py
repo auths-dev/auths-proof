@@ -7,7 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from employee_read_demo.google_gateway_credential_shim import (
-    GatewayWriteCredentialDenied, install_jules_write_lease,
+    GatewayReadCredentialDenied, GatewayWriteCredentialDenied,
+    install_jules_read_lease, install_jules_write_lease,
 )
 from employee_read_demo.google_write_credential import WriteCredentialPins
 from employee_read_demo.token_store import TokenLease
@@ -38,6 +39,20 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             trusted_context_path=Path("/private/trust.cbor"),
             recipe_digest="c" * 64,
             alias="jules-write",
+            now=now,
+        )
+
+    def install_read(self, *, now: int = 1000):
+        return install_jules_read_lease(
+            evidence_path=Path("/private/evidence.json"),
+            grant_path=Path("/private/grant.json"),
+            write_credential_pins=self.pins(),
+            gateway_binary=Path("/opt/auths/bin/auths-gateway"),
+            state_dir=Path("/private/gateway"),
+            read_recipe_path=Path("/opt/auths/read-recipe.json"),
+            read_profile_lock_path=Path("/opt/auths/read-profile.lock.json"),
+            read_recipe_digest="d" * 64,
+            read_alias="jules-read",
             now=now,
         )
 
@@ -97,6 +112,51 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             with self.assertRaisesRegex(GatewayWriteCredentialDenied,
                                         "inspect state before retry") as caught:
                 self.install()
+            self.assertNotIn("private-access", str(caught.exception))
+
+    def test_checked_read_bearer_uses_a_distinct_connection_and_stdin(self) -> None:
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+            return_value=TokenLease("private-access", 2000),
+        ) as lease, patch(
+            "employee_read_demo.google_gateway_credential_shim.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, json.dumps({
+                "outcome": "read-connection-installed",
+                "connection_id": "conn_BBBBBBBBBBBBBBBBBBBBBB",
+                "connection_generation": 1,
+                "recipe_digest": "d" * 64,
+            }).encode(), b""),
+        ) as run:
+            installed = self.install_read()
+        self.assertEqual((installed.connection_id, installed.connection_subject,
+                          installed.recipe_digest, installed.expires_at),
+                         ("conn_BBBBBBBBBBBBBBBBBBBBBB", "subject-1", "d" * 64, 2000))
+        lease.assert_called_once()
+        args, kwargs = run.call_args
+        command = args[0]
+        self.assertEqual(command[1], "task-read-connect")
+        self.assertEqual(command[command.index("--account-subject") + 1], "subject-1")
+        self.assertEqual(kwargs["input"], b"private-access")
+        self.assertNotIn("private-access", repr(command))
+        self.assertNotIn("private-access", repr(installed))
+
+    def test_read_install_failures_keep_bearer_private(self) -> None:
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+            return_value=TokenLease("private-access", 1600),
+        ), patch("employee_read_demo.google_gateway_credential_shim.subprocess.run") as run:
+            with self.assertRaises(GatewayReadCredentialDenied):
+                self.install_read()
+            run.assert_not_called()
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+            return_value=TokenLease("private-access", 2000),
+        ), patch(
+            "employee_read_demo.google_gateway_credential_shim.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 1, b"private-access", b"private-access"),
+        ):
+            with self.assertRaises(GatewayReadCredentialDenied) as caught:
+                self.install_read()
             self.assertNotIn("private-access", str(caught.exception))
 
 

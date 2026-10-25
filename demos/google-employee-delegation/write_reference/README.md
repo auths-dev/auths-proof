@@ -153,7 +153,13 @@ does not independently establish provider identity. It prints only the new
 connection ID, generation and recipe digest. Use those values in the operator
 task pins before `task-configure`. An interrupted `task-read-connect` leaves
 private state for exact operator recovery; it refuses a blind retry so a second
-credential record cannot silently replace the first. After `task-configure`, run
+credential record cannot silently replace the first. The broker's
+`install_jules_read_lease` uses the existing checked Jules
+`drive.file` grant and sends only its short-lived access token to that command.
+It does not copy the producer's refresh credential into gateway state. The
+write connection pins identify the checked grant; the read connection gets
+its own new ID and generation for the task card.
+After `task-configure`, run
 `task-read-configure` with the registered agent identity packet, a private
 Unix socket path and the signed card's channel name. The gateway generates and
 stores a separate 256-bit commitment key in private state. Activate the
