@@ -127,8 +127,7 @@ vault, passed to the agent or browser, or copied into the operator kit. The
 producer must supply Jules's non-secret subject and independent partial probe
 evidence before a live run; neither is currently in the versioned export.
 This adapter does not activate the workbench importer or count as the normal
-broker-owned OAuth journey. No further Google sign-in or consent should be
-attempted for this smoke.
+broker-owned OAuth journey. It does not request another Drive consent.
 
 The installed `auths-google-read-partial-smoke` command consumes the producer's
 owner-only partial report and an independently reviewed SHA-256 pin, its
@@ -153,7 +152,12 @@ For the minimum human-signature demonstration, the separate installed
 `auths-google-read-partial-delegation-lab` command accepts the same five
 private inputs and `--out` arguments as `auths-google-read-partial-smoke`.
 It serves a one-use review page at `http://127.0.0.1:8870/`. The operator
-reviews the exact Jules account, Project A file, excluded Project B file,
+opens that page in Chrome Incognito and signs in to Google as Jules with only
+OpenID and email scopes. The lab validates the signed Google ID token's
+issuer, audience, nonce, hosted domain and subject against the producer's
+pinned Jules subject. It binds the browser session to the signing key and
+does not replace the existing Drive grant. The operator then reviews the
+exact Jules account, Project A file, excluded Project B file,
 agent principal, expiry and byte/call limits, then signs with a fresh,
 non-exportable browser Ed25519 key. The broker verifies that signature on a
 native employee-to-agent grant. A distinct agent key signs the exact MCP
@@ -164,13 +168,10 @@ challenge after revocation. The redacted result is written only to the
 operator-private `--out` path. Run this on a trusted local machine with an
 owner-only report, OAuth client file, grant file and output directory.
 
-This is an operator-assisted diagnostic: Google verifies the *existing grant*
-as Jules, but does not authenticate the person signing in this browser as
-Jules. The agent uses a distinct principal but runs inside the diagnostic
-broker process. The production importer and token vault remain closed. It
-does not count as employee onboarding or full AP-SPEC-070 acceptance. A
-complete demo_co versioned export, browser identity binding, and isolated
-agent run are still needed for that acceptance.
+This remains a diagnostic: the agent uses a distinct principal but runs
+inside the broker process. The production importer and token vault remain
+closed. It does not count as full AP-SPEC-070 acceptance. A complete demo_co
+versioned export and an isolated agent run are still needed for that acceptance.
 
 The browser review flow uses a non-exportable Ed25519 employee key stored in
 that browser's IndexedDB, keyed by the signed-in Google subject. Clearing the

@@ -11,10 +11,23 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from employee_read_demo.partial_delegation_lab import PartialDelegationLab, PartialInputs
+from employee_read_demo.partial_delegation_lab import (
+    PartialDelegationLab, PartialInputs, _callback_state_and_code,
+)
 
 
 class PartialDelegationLabTests(unittest.TestCase):
+    def test_google_callback_accepts_metadata_but_rejects_ambiguous_code(self) -> None:
+        self.assertEqual(
+            _callback_state_and_code("state=one&code=two&iss=https%3A%2F%2Faccounts.google.com"
+                                     "&scope=email+openid&authuser=2&hd=auths.dev"),
+            ("one", "two"),
+        )
+        for query in ("state=one", "code=two", "state=one&code=two&code=three",
+                      "state=one&state=two&code=three"):
+            with self.subTest(query=query), self.assertRaises(ValueError):
+                _callback_state_and_code(query)
+
     def test_wrong_browser_signature_is_one_use_and_never_opens_read_state(self) -> None:
         inputs = PartialInputs(
             "a" * 64, "b" * 64, "C0218tf2n", "auths.dev", "test-subject",
@@ -25,17 +38,24 @@ class PartialDelegationLabTests(unittest.TestCase):
         self.addCleanup(lab.close)
         browser = Ed25519PrivateKey.generate()
         public = browser.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        cookie = "browser-session-cookie"
+        with self.assertRaises(ValueError):
+            lab.prepare(public, google_subject="other-subject", browser_cookie=cookie)
         with patch("employee_read_demo.partial_delegation_lab.ExistingDemoCoConsentLease.lease"):
-            prepared = lab.prepare(public)
-        self.assertFalse(prepared["browser_google_identity_verified"])
+            prepared = lab.prepare(public, google_subject=inputs.subject, browser_cookie=cookie)
+        self.assertTrue(prepared["browser_google_identity_verified"])
         preimage = prepared["signing_preimage"]
         raw = base64.urlsafe_b64decode(preimage + "=" * (-len(preimage) % 4))
         wrong = Ed25519PrivateKey.generate().sign(raw)
+        with self.assertRaises(ValueError):
+            lab.approve_and_run(browser.sign(raw), google_subject=inputs.subject,
+                                browser_cookie="different-cookie")
         with self.assertRaises(InvalidSignature):
-            lab.approve_and_run(wrong)
+            lab.approve_and_run(wrong, google_subject=inputs.subject, browser_cookie=cookie)
         self.assertFalse(lab.db.exists())
         with self.assertRaises(ValueError):
-            lab.approve_and_run(browser.sign(raw))
+            lab.approve_and_run(browser.sign(raw), google_subject=inputs.subject,
+                                browser_cookie=cookie)
 
 
 if __name__ == "__main__":

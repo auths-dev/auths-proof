@@ -1,9 +1,9 @@
-"""Operator-assisted human signature over Jules's existing Google grant.
+"""Diagnostic human signature over Jules's existing Google grant.
 
-This deliberately bypasses only the missing demo_co *export* in a separate
-diagnostic process. The browser signer is not Google-authenticated as Jules;
-this must never be presented as employee onboarding or full AP-SPEC-070
-acceptance. The production company importer and OAuth vault stay closed.
+This bypasses only the missing demo_co export in a separate process. Google
+login binds the browser signer to Jules, while the existing Drive credential
+remains unchanged. It is not full AP-SPEC-070 acceptance: the agent key and
+broker still share a process. The production importer and vault stay closed.
 """
 
 from __future__ import annotations
@@ -20,17 +20,18 @@ from dataclasses import asdict, dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from .admission import AdmissionDenied, AdmissionStore
 from .authority import native_body_digest
+from .browser_sessions import SessionDenied
 from .contracts import TaskDescriptor, canonical_json
 from .demo_co_contract import _unique_pairs
 from .existing_consent_smoke import ExistingConsentPins, ExistingDemoCoConsentLease
 from .google_drive import GoogleDriveReader
-from .google_oauth import TOKEN_URL
+from .google_oauth import GoogleOAuth, GoogleOAuthConfig, OAuthStateStore, TOKEN_URL
 from .operator_cli import _private_read, _private_write
 from .read_executor import execute_read
 from .receipts import ReceiptStore, verify_receipt
@@ -56,6 +57,15 @@ def _unb64(value: str, length: int) -> bytes:
     if len(raw) != length:
         raise ValueError("encoded field has wrong length")
     return raw
+
+
+def _callback_state_and_code(raw_query: str) -> tuple[str, str]:
+    """Accept Google's extra callback metadata, never ambiguous code/state."""
+    query = parse_qs(raw_query, strict_parsing=True)
+    if (len(query.get("state", [])) != 1 or len(query.get("code", [])) != 1
+            or any(len(values) != 1 for values in query.values())):
+        raise ValueError("OAuth callback is invalid")
+    return query["state"][0], query["code"][0]
 
 
 @dataclass(frozen=True)
@@ -142,11 +152,15 @@ class PartialDelegationLab:
         self.prepared = None
         self.prepared_at: int | None = None
         self.used = False
+        self.preparing_session_hash: str | None = None
 
     def close(self) -> None:
         self._directory.cleanup()
 
-    def prepare(self, public_key: bytes) -> dict:
+    def prepare(self, public_key: bytes, *, google_subject: str,
+                browser_cookie: str) -> dict:
+        if google_subject != self.inputs.subject or not browser_cookie:
+            raise ValueError("Jules Google login is required")
         if self.task is not None or len(public_key) != 32:
             raise ValueError("one valid browser key may prepare this lab")
         from auths import _native
@@ -190,6 +204,7 @@ class PartialDelegationLab:
         self.task = task
         self.employee_public_key = public_key
         self.employee_evidence = evidence
+        self.preparing_session_hash = hashlib.sha256(browser_cookie.encode("ascii")).hexdigest()
         return {
             "qualification": QUALIFICATION,
             "review": {
@@ -204,10 +219,15 @@ class PartialDelegationLab:
                 "task_id": task.task_id, "task_commitment": task.digest,
             },
             "signing_preimage": _b64(bytes(self.prepared.signing_preimage)),
-            "browser_google_identity_verified": False,
+            "browser_google_identity_verified": True,
         }
 
-    def approve_and_run(self, signature: bytes) -> dict:
+    def approve_and_run(self, signature: bytes, *, google_subject: str,
+                        browser_cookie: str) -> dict:
+        if (google_subject != self.inputs.subject or not self.preparing_session_hash
+                or hashlib.sha256(browser_cookie.encode("ascii")).hexdigest()
+                != self.preparing_session_hash):
+            raise ValueError("Jules Google browser session changed")
         if (self.used or self.task is None or self.prepared is None
                 or self.employee_public_key is None or self.employee_evidence is None
                 or self.prepared_at is None):
@@ -302,7 +322,7 @@ class PartialDelegationLab:
             "producer_report_sha256": self.inputs.report_sha256,
             "task_id": task.task_id,
             "employee_key_signature_verified": True,
-            "browser_google_identity_verified": False,
+            "browser_google_identity_verified": True,
             "agent_distinct_principal": self.agent_principal != task.employee_principal,
             "agent_process_isolated": False,
             "native_code": outcome.native_code,
@@ -321,14 +341,18 @@ class PartialDelegationLab:
 _PAGE = """<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <meta name="csrf-token" content="__CSRF__">
-<title>Atlas partial delegation lab</title>
-<h1>Atlas · partial human-to-agent delegation lab</h1>
-<p>This uses Jules's existing Google grant. Google has not authenticated the
-person at this browser as Jules. The browser creates a non-exportable Auths
-signing key for this one task. The agent has a distinct Auths key, but this
-diagnostic runs both roles in one broker process.</p>
+<title>Atlas Jules delegation lab</title>
+<h1>Atlas · Jules human-to-agent delegation lab</h1>
+<p>This uses Jules's existing Google Drive grant. Sign in with Google as Jules
+to bind this browser to that employee subject before preparing a task. This
+login requests only OpenID and email; it does not replace the Drive grant.</p>
+<p id="identity">__IDENTITY__</p>
+<button id="login">Sign in with Google as Jules</button>
+<p>The browser creates a non-exportable Auths signing key for this task. The
+agent has a distinct Auths key, but this diagnostic runs both roles in one
+broker process.</p>
 <p>The production importer remains closed. This is not full AP-SPEC-070 acceptance.</p>
-<button id="prepare">Prepare exact delegation</button>
+<button id="prepare" __PREPARE_DISABLED__>Prepare exact delegation</button>
 <h2>Scope to review</h2><pre id="review">No task prepared.</pre>
 <button id="approve" disabled>Sign this exact delegation and run one read</button>
 <h2>Redacted result</h2><pre id="result">No read attempted.</pre>
@@ -343,6 +367,12 @@ const review = document.getElementById('review');
 const result = document.getElementById('result');
 const prepareButton = document.getElementById('prepare');
 const approveButton = document.getElementById('approve');
+document.getElementById('login').onclick = async () => {
+  try {
+    const data = await post('/oauth/start', {});
+    window.location.assign(data.authorization_url);
+  } catch (error) { review.textContent = String(error); }
+};
 function b64(bytes) {
   let s = ''; for (const byte of new Uint8Array(bytes)) s += String.fromCharCode(byte);
   return btoa(s).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
@@ -382,10 +412,11 @@ approveButton.onclick = async () => {
 
 
 class LabServer(HTTPServer):
-    def __init__(self, port: int, lab: PartialDelegationLab, output: Path) -> None:
+    def __init__(self, port: int, lab: PartialDelegationLab, output: Path,
+                 oauth_config: GoogleOAuthConfig) -> None:
         self.lab = lab
         self.output = output
-        self.csrf = secrets.token_urlsafe(32)
+        self.oauth = GoogleOAuth(oauth_config, OAuthStateStore(lab.db))
         super().__init__(("127.0.0.1", port), LabHandler)
 
 
@@ -395,7 +426,8 @@ class LabHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         pass
 
-    def _send(self, status: HTTPStatus, body: bytes, content_type: str) -> None:
+    def _send(self, status: HTTPStatus, body: bytes, content_type: str,
+              *, cookie: str | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -404,26 +436,75 @@ class LabHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy",
                          "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+        if cookie is not None:
+            self.send_header("Set-Cookie", f"ap070_lab={cookie}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600")
         self.end_headers()
         self.wfile.write(body)
 
     def _json(self, status: HTTPStatus, value: dict) -> None:
         self._send(status, canonical_json(value), "application/json; charset=utf-8")
 
+    def _session(self):
+        fields = [part.strip() for part in self.headers.get("Cookie", "").split(";")]
+        candidates = [part[10:] for part in fields if part.startswith("ap070_lab=")]
+        if len(candidates) != 1:
+            raise SessionDenied("browser session is unavailable")
+        return self.server.oauth.states.sessions.get(candidates[0])
+
+    def _redirect_home(self, cookie: str | None = None) -> None:
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", "/")
+        self.send_header("Cache-Control", "no-store")
+        if cookie is not None:
+            self.send_header("Set-Cookie", f"ap070_lab={cookie}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600")
+        self.end_headers()
+
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
         if path == "/":
-            self._send(HTTPStatus.OK, _PAGE.replace("__CSRF__", self.server.csrf).encode(),
-                       "text/html; charset=utf-8")
+            try:
+                session = self._session()
+                cookie = None
+            except SessionDenied:
+                session = self.server.oauth.states.sessions.create()
+                cookie = session.cookie
+            logged_in = session.subject == self.server.lab.inputs.subject
+            page = (_PAGE.replace("__CSRF__", session.csrf)
+                    .replace("__IDENTITY__", "Google authenticated: jules@auths.dev" if logged_in
+                             else "Google authentication required")
+                    .replace("__PREPARE_DISABLED__", "" if logged_in else "disabled"))
+            self._send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8", cookie=cookie)
         elif path == "/lab.js":
             self._send(HTTPStatus.OK, _SCRIPT.encode(), "text/javascript; charset=utf-8")
+        elif path == "/oauth/callback":
+            try:
+                session = self._session()
+                # Google can append issuer, scope, account and prompt metadata.
+                # Only state and code are consumed; both must be unambiguous.
+                state, code = _callback_state_and_code(urlsplit(self.path).query)
+                result = self.server.oauth.complete(state=state, code=code,
+                                                    browser_cookie=session.cookie)
+                if result.subject != self.server.lab.inputs.subject or result.email != self.server.lab.inputs.email:
+                    raise ValueError("Google subject is not Jules")
+                session = self.server.oauth.states.sessions.login(
+                    session, issuer=result.issuer, subject=result.subject)
+            except Exception as error:
+                print(f"Partial lab Google login failed: {type(error).__name__}", flush=True)
+                self._json(HTTPStatus.FORBIDDEN, {"error": "Jules Google login failed"})
+                return
+            self._redirect_home(session.cookie)
         else:
             self._json(HTTPStatus.NOT_FOUND, {"error": "unavailable"})
 
     def do_POST(self) -> None:
         origin = f"http://127.0.0.1:{self.server.server_port}"
+        try:
+            session = self._session()
+            self.server.oauth.states.sessions.check_csrf(session, self.headers.get("X-CSRF-Token", ""))
+        except SessionDenied:
+            self._json(HTTPStatus.FORBIDDEN, {"error": "browser session is unavailable"})
+            return
         if (self.headers.get("Origin") != origin
-                or self.headers.get("X-CSRF-Token") != self.server.csrf
                 or self.headers.get("Content-Type") != "application/json"):
             self._json(HTTPStatus.FORBIDDEN, {"error": "request origin is unavailable"})
             return
@@ -433,10 +514,17 @@ class LabHandler(BaseHTTPRequestHandler):
                 raise ValueError("request size is invalid")
             body = json.loads(self.rfile.read(size), object_pairs_hook=_unique_pairs)
             path = urlsplit(self.path).path
-            if path == "/prepare" and type(body) is dict and set(body) == {"public_key"}:
-                response = self.server.lab.prepare(_unb64(body["public_key"], 32))
+            if path == "/oauth/start" and body == {}:
+                url, _ = self.server.oauth.begin("login", browser_cookie=session.cookie)
+                response = {"authorization_url": url + "&login_hint=jules%40auths.dev&prompt=select_account"}
+            elif path == "/prepare" and type(body) is dict and set(body) == {"public_key"}:
+                response = self.server.lab.prepare(_unb64(body["public_key"], 32),
+                                                   google_subject=session.subject or "",
+                                                   browser_cookie=session.cookie)
             elif path == "/approve" and type(body) is dict and set(body) == {"signature"}:
-                response = self.server.lab.approve_and_run(_unb64(body["signature"], 64))
+                response = self.server.lab.approve_and_run(_unb64(body["signature"], 64),
+                                                           google_subject=session.subject or "",
+                                                           browser_cookie=session.cookie)
                 _private_write(self.server.output, canonical_json(response) + b"\n")
             else:
                 raise ValueError("lab action is unavailable")
@@ -461,9 +549,12 @@ def main() -> int:
     if not 1024 <= args.port <= 65535 or args.out.exists():
         parser.error("port or private output path is unavailable")
     inputs = load_inputs(args.producer_report, args.producer_report_sha256, args.oauth_client)
+    oauth = json.loads(_private_read(args.oauth_client, 4096), object_pairs_hook=_unique_pairs)["installed"]
+    oauth_config = GoogleOAuthConfig(inputs.client_id, oauth["client_secret"],
+                                    f"http://127.0.0.1:{args.port}/oauth/callback", inputs.domain)
     lab = PartialDelegationLab(inputs, args.employee_grant)
     try:
-        with LabServer(args.port, lab, args.out) as server:
+        with LabServer(args.port, lab, args.out, oauth_config) as server:
             print(f"Partial delegation lab: http://127.0.0.1:{args.port}/", flush=True)
             server.serve_forever(poll_interval=0.5)
     finally:
