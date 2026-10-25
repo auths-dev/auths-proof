@@ -48,6 +48,9 @@ from .write_handoff import (
 )
 from .jules_write_context import JulesWriteContext
 from .finance_denial_handoff import FinanceDenialPins, validate_finance_denial
+from .finance_write_grant_handoff import (
+    FinanceWriteGrantPins, validate_finance_write_grant,
+)
 from .google_write_credential import WriteCredentialPins
 from .google_write_preflight import preflight_jules_edit
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
@@ -1026,6 +1029,10 @@ def main() -> int:
                         help="operator-reviewed digest of the finance denial observation")
     parser.add_argument("--task-finance-document-id",
                         help="operator-pinned finance document for a read-only task")
+    parser.add_argument("--task-finance-write-grant-evidence", type=Path,
+                        help="private same-grant Jules finance denial observation")
+    parser.add_argument("--task-finance-write-grant-sha256",
+                        help="operator-reviewed digest of the same-grant observation")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -1153,7 +1160,9 @@ def main() -> int:
         parser.error("bounded upfront requires an installed single-write task")
     finance_options = (args.task_finance_denial_evidence,
                        args.task_finance_denial_sha256,
-                       args.task_finance_document_id)
+                       args.task_finance_document_id,
+                       args.task_finance_write_grant_evidence,
+                       args.task_finance_write_grant_sha256)
     if any(option is not None for option in finance_options) and (
             not all(option is not None for option in finance_options)
             or not all(option is not None for option in write_options)
@@ -1188,17 +1197,28 @@ def main() -> int:
         write_evidence = validate_write_handoff(args.task_write_evidence, write_pins)
         if args.task_finance_denial_evidence is not None:
             try:
-                finance_read_target = validate_finance_denial(
-                    args.task_finance_denial_evidence,
-                    FinanceDenialPins(
-                        company=write_pins.company,
-                        instance=write_pins.instance,
-                        definition_hash=write_pins.definition_hash,
-                        customer_id=write_pins.customer_id,
-                        jules_subject=write_pins.jules_subject,
-                        document_id=args.task_finance_document_id,
-                        evidence_sha256=args.task_finance_denial_sha256,
-                    ), now=int(time.time()),
+                finance_pins = FinanceDenialPins(
+                    company=write_pins.company,
+                    instance=write_pins.instance,
+                    definition_hash=write_pins.definition_hash,
+                    customer_id=write_pins.customer_id,
+                    jules_subject=write_pins.jules_subject,
+                    document_id=args.task_finance_document_id,
+                    evidence_sha256=args.task_finance_denial_sha256,
+                )
+                current_time = int(time.time())
+                validate_finance_denial(
+                    args.task_finance_denial_evidence, finance_pins,
+                    now=current_time,
+                )
+                source_generation = int(
+                    args.task_finance_denial_evidence.parent.name.split("-")[-1])
+                finance_read_target = validate_finance_write_grant(
+                    args.task_finance_write_grant_evidence,
+                    FinanceWriteGrantPins(
+                        finance_pins, source_generation,
+                        args.task_finance_write_grant_sha256,
+                    ), now=current_time,
                 )["document_id"]
             except (ContractRejected, OSError, PermissionError) as error:
                 parser.error(f"finance denial observation refused: {error}")

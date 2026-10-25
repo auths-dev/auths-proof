@@ -62,7 +62,7 @@
       <p id="write-source"></p>
       <p id="write-resource"></p>
       <div id="write-upfront-review" hidden>
-        <p>One of these complete edits may run later without another confirmation:</p>
+        <p>One listed marker replacement may run later without another confirmation. Text outside the unique marker remains in the Doc:</p>
         <ol id="write-upfront-list"></ol>
       </div>
       <pre id="write-card"></pre>
@@ -74,7 +74,7 @@
   <section id="write-confirmation" aria-labelledby="write-confirmation-heading" hidden>
     <h2 id="write-confirmation-heading">Confirm the agent's exact edit</h2>
     <p id="write-confirmation-description">After the separate agent signs its proposed action and the operator stages its proof, review the closed request below. Confirming saves Jules's signature; the gateway submission and independent readback are separate steps.</p>
-    <label>Write task ID<input id="write-confirm-task-id" autocomplete="off"></label>
+    <label><span id="write-confirm-task-label">Write task ID</span><input id="write-confirm-task-id" autocomplete="off"></label>
     <button id="write-confirm-prepare" type="button">Review agent proposal</button>
     <div id="write-confirm-review" hidden>
       <pre id="write-confirm-details"></pre>

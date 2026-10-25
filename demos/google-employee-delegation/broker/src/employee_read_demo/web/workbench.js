@@ -227,7 +227,7 @@ async function prepareWriteTask() {
     : result.card.pending_child
     ? "Review the Project A folder, exact child proposal, agent and limits before signing both child grants and the task. The two-effect content plan is still required before provider entry."
     : result.card.write_approval_mode === "bounded-upfront"
-      ? "Review every complete allowed edit, the account, destination, agent and one-write limit. One listed choice may be submitted later without another confirmation."
+      ? "Review each complete marker replacement, the account, destination, agent and one-write limit. Text outside the marker stays in the Doc; one listed choice may run without another confirmation."
     : "Review the account, destination, agent and limits before signing the task and child grant.");
 }
 
@@ -599,7 +599,7 @@ async function start() {
       byId("write-status").textContent = "No read-only task signed.";
       byId("write-task-description").textContent = "The pinned finance file, Jules account, separate agent and one-read budget are fixed by the operator's installation. This grants no write. Google may deny the read after Auths admits it.";
     } else if (session.task_write_upfront_available) {
-      byId("write-task-description").textContent = "The account, registered agent, destination and complete allowed edits come from the operator's pinned installation. Review both values before signing. This mode permits one listed edit without a later confirmation.";
+      byId("write-task-description").textContent = "The account, registered agent, destination and complete allowed marker replacements come from the operator's pinned installation. Surrounding Doc text remains. Review both choices before signing; one listed edit may run without a later confirmation.";
     }
   }
   byId("write-confirmation").hidden = !session.task_write_confirmation_available;
@@ -607,6 +607,7 @@ async function start() {
     if (session.task_read_only_available) {
       byId("write-confirmation-heading").textContent = "Read attempt activity";
       byId("write-confirmation-description").textContent = "The gateway reports whether the agent's admitted read reached Google and whether any bytes were released.";
+      byId("write-confirm-task-label").textContent = "Task ID";
       byId("write-confirm-prepare").hidden = true;
       byId("write-confirm-authorize").hidden = true;
       byId("write-confirm-status").hidden = true;

@@ -32,3 +32,18 @@ package. Synthetic signing and browser tests pass. This does not turn the
 provider-state probe into a live Auths denial: the separate agent must still
 sign the matching read and the gateway must record one Jules-credential Google
 403/404 with zero released bytes.
+
+The first direct Jules probe used her separate read-only grant. Auths's
+gateway instead leases her `drive.file` grant into a GET-only read connection.
+demo_co therefore ran a second direct, read-only metadata/export probe with
+that **same saved grant** and OAuth client. Both Google requests returned 404;
+no fixture title or source excerpt was present in the denied bodies. The
+private generation-0012 `google-finance-write-grant-denial.json`, SHA-256
+`b9828d5e8a7247968da363152397ee0773464f22e82fb0902f72f4cf9cb2d1bc`,
+pins generation-0009 and records the exact granted scope set. Auths vendors
+its `demo-co/google-finance-write-grant-denial/v1` schema at SHA-256
+`945d45f7f2a4ff7165d6ac168391a19bafb21f0b56136424ab6779ca0b447cb1`.
+The consumer requires both fresh, private observations, matching Jules subject
+and finance ID, the source digest, same-grant kind/scopes, two denied statuses
+and no-leak flags. The live generation passed those checks. No Auths-origin
+finance read had been submitted at the time of this record.
