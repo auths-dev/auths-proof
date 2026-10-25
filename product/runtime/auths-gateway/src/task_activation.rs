@@ -104,6 +104,28 @@ pub(crate) struct ApprovedAgentTask {
 }
 
 impl ApprovedAgentTask {
+    /// Reconstruct only a card already stored by the operator's successful
+    /// activation. The original short-lived proof is not a task-session token.
+    pub(crate) fn from_activated_card(
+        descriptor: AgentTaskDescriptor,
+        commitment: [u8; 32],
+        pins: &TaskActivationPins,
+        now: u64,
+    ) -> Result<Self, GatewaySubmitResult> {
+        descriptor.validate(pins, now)?;
+        let canonical = serde_json_canonicalizer::to_vec(&descriptor)
+            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
+        let actual = auths_codec::domain_commitment("auths.agent-task.v1", &canonical)
+            .map_err(|_| not_entered("gateway.task.invalid-card"))?;
+        if actual.as_bytes() != &commitment {
+            return Err(not_entered("gateway.task.activation-changed"));
+        }
+        Ok(Self {
+            descriptor,
+            commitment,
+        })
+    }
+
     #[cfg(test)]
     pub(crate) fn from_test_card(descriptor: AgentTaskDescriptor, commitment: [u8; 32]) -> Self {
         Self {

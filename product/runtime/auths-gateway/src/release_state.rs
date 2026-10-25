@@ -6,8 +6,8 @@
 #[cfg(test)]
 use crate::ClosedReleaseRequest;
 use crate::release_verify::VerifiedReleaseRequest;
-use crate::task_activation::ApprovedAgentTask;
 use crate::task_activation::TaskWriteScope;
+use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
 use crate::task_write::ApprovedTaskWrite;
 use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
@@ -166,6 +166,10 @@ pub(crate) struct ReleaseTaskState {
     connection_id: String,
     connection_generation: u64,
     connection_subject: String,
+    /// Written only after native verification at activation. Older policy-only
+    /// journal entries cannot authorize a write submission.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    activated_card: Option<AgentTaskDescriptor>,
     revoked: bool,
     provider_calls: u32,
     releases: u32,
@@ -297,6 +301,7 @@ impl ReleaseTaskState {
             connection_id: policy.connection_id,
             connection_generation: policy.connection_generation,
             connection_subject: policy.connection_subject,
+            activated_card: None,
             revoked: false,
             provider_calls: 0,
             releases: 0,
@@ -317,6 +322,49 @@ impl ReleaseTaskState {
         } else {
             Ok(())
         }
+    }
+
+    fn policy(&self) -> Result<ReleaseTaskPolicy, ReleaseStateError> {
+        let raw = hex::decode(&self.task_commitment).map_err(|_| ReleaseStateError::Corrupt)?;
+        let task_commitment: [u8; 32] = raw.try_into().map_err(|_| ReleaseStateError::Corrupt)?;
+        Ok(ReleaseTaskPolicy {
+            task_id: self.task_id.clone(),
+            task_commitment,
+            company_id: self.company_id.clone(),
+            human_principal: self.human_principal.clone(),
+            agent_principal: self.agent_principal.clone(),
+            not_before: self.not_before,
+            expires_at: self.expires_at,
+            max_provider_calls: self.max_provider_calls,
+            max_releases: self.max_releases,
+            max_release_bytes: self.max_release_bytes,
+            resources: self.resources.clone(),
+            max_writes: self.max_writes,
+            write_scopes: self.write_scopes.clone(),
+            connection_id: self.connection_id.clone(),
+            connection_generation: self.connection_generation,
+            connection_subject: self.connection_subject.clone(),
+        })
+    }
+
+    pub(crate) fn activated_task(
+        &self,
+        pins: &TaskActivationPins,
+        now: u64,
+    ) -> Result<ApprovedAgentTask, ReleaseStateError> {
+        self.active(now)?;
+        let card = self
+            .activated_card
+            .clone()
+            .ok_or(ReleaseStateError::Corrupt)?;
+        let policy = self.policy()?;
+        let approved =
+            ApprovedAgentTask::from_activated_card(card, policy.task_commitment, pins, now)
+                .map_err(|_| ReleaseStateError::Binding)?;
+        if approved.task_policy() != policy {
+            return Err(ReleaseStateError::Corrupt);
+        }
+        Ok(approved)
     }
 
     /// Spend one provider call and consume the logical operation ID before
@@ -690,30 +738,7 @@ impl ReleaseTaskState {
         if state.schema != SCHEMA || state.encode()?.as_slice() != bytes {
             return Err(ReleaseStateError::Corrupt);
         }
-        let raw_commitment =
-            hex::decode(&state.task_commitment).map_err(|_| ReleaseStateError::Corrupt)?;
-        let task_commitment: [u8; 32] = raw_commitment
-            .try_into()
-            .map_err(|_| ReleaseStateError::Corrupt)?;
-        Self::new(ReleaseTaskPolicy {
-            task_id: state.task_id.clone(),
-            task_commitment,
-            company_id: state.company_id.clone(),
-            human_principal: state.human_principal.clone(),
-            agent_principal: state.agent_principal.clone(),
-            not_before: state.not_before,
-            expires_at: state.expires_at,
-            max_provider_calls: state.max_provider_calls,
-            max_releases: state.max_releases,
-            max_release_bytes: state.max_release_bytes,
-            resources: state.resources.clone(),
-            max_writes: state.max_writes,
-            write_scopes: state.write_scopes.clone(),
-            connection_id: state.connection_id.clone(),
-            connection_generation: state.connection_generation,
-            connection_subject: state.connection_subject.clone(),
-        })
-        .map_err(|_| ReleaseStateError::Corrupt)?;
+        Self::new(state.policy()?).map_err(|_| ReleaseStateError::Corrupt)?;
         let mut releases = 0_u32;
         let mut released_bytes = 0_u64;
         state.validate_writes()?;
@@ -892,15 +917,24 @@ impl FileReleaseTaskLedger {
         &self,
         approved: &ApprovedAgentTask,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
-        let policy = approved.task_policy();
-        self.initialize_policy(policy)
+        let mut state = ReleaseTaskState::new(approved.task_policy())?;
+        state.activated_card = Some(approved.descriptor().clone());
+        self.initialize_state(state)
     }
 
+    #[cfg(test)]
     fn initialize_policy(
         &self,
         policy: ReleaseTaskPolicy,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         let state = ReleaseTaskState::new(policy)?;
+        self.initialize_state(state)
+    }
+
+    fn initialize_state(
+        &self,
+        state: ReleaseTaskState,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
         let path = self.key_path(&state.task_id)?;
         let _lock = self.lock(rustix::fs::FlockOperation::LockExclusive)?;
         self.write(&path, &state, true)?;

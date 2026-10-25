@@ -174,14 +174,14 @@ configuration, exposed by the native Python binding; the older self-contained
 read context has a different configuration ID and cannot be installed for
 this write path. Human and agent actions for that installation
 must sign that same challenge; the gateway does not accept an agent-selected
-challenge. The current development task command re-verifies the human task
-action on every write, so its native five-minute maximum action window also
-limits the live edit round trip. A durable active-task lookup that does not
-depend on a still-live initial signature is required for longer sessions.
+challenge. The operator verifies the human's short-lived task action once
+at activation and stores its exact card commitment in the private journal.
+Later submissions use that durable activation while checking current task
+expiry, revocation and operator pins.
 
 `task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
 verifies the human's native signed task and registers its budget once.
-`task-submit` then accepts the same task proof/action, one native agent
+`task-submit --task-id TASK_ID` then accepts one fresh native agent
 proof/action, and `--confirmation-proof` plus `--confirmation-action` for
 exact mode. It prints a redacted gateway result. Bounded-upfront mode must
 have been enabled in the operator pins and is the only mode without a separate

@@ -355,9 +355,7 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
             #[arg(long)]
-            task_proof: PathBuf,
-            #[arg(long)]
-            task_action: PathBuf,
+            task_id: String,
             #[arg(long)]
             agent_proof: PathBuf,
             #[arg(long)]
@@ -3003,14 +3001,9 @@ mod unix {
         }
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "CLI paths name six distinct signed artifacts"
-    )]
     async fn task_submit(
         state_dir: PathBuf,
-        task_proof: PathBuf,
-        task_action: PathBuf,
+        task_id: String,
         agent_proof: PathBuf,
         agent_action: PathBuf,
         confirmation_proof: Option<PathBuf>,
@@ -3020,8 +3013,6 @@ mod unix {
         let installation = task_installation(&state_dir)?;
         let session =
             engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
-        let task_proof = read_bounded(&task_proof, 4 * 1024 * 1024)?;
-        let task_action = read_bounded(&task_action, 64 * 1024)?;
         let agent_proof = read_bounded(&agent_proof, 4 * 1024 * 1024)?;
         let agent_action = read_bounded(&agent_action, 64 * 1024)?;
         let confirmation = match (confirmation_proof, confirmation_action) {
@@ -3034,8 +3025,7 @@ mod unix {
         };
         let result = session
             .submit(TaskWriteProofs {
-                task_proof: &task_proof,
-                task_action: &task_action,
+                task_id: &task_id,
                 agent_proof: &agent_proof,
                 agent_action: &agent_action,
                 confirmation: confirmation
@@ -3913,8 +3903,7 @@ mod unix {
             } => task_activate(state_dir, proof, action).await,
             Command::TaskSubmit {
                 state_dir,
-                task_proof,
-                task_action,
+                task_id,
                 agent_proof,
                 agent_action,
                 confirmation_proof,
@@ -3922,8 +3911,7 @@ mod unix {
             } => {
                 task_submit(
                     state_dir,
-                    task_proof,
-                    task_action,
+                    task_id,
                     agent_proof,
                     agent_action,
                     confirmation_proof,
@@ -4372,10 +4360,8 @@ mod unix {
                 "task-submit",
                 "--state-dir",
                 "/state",
-                "--task-proof",
-                "task.proof",
-                "--task-action",
-                "task.action",
+                "--task-id",
+                "task-installed-1",
                 "--agent-proof",
                 "agent.proof",
                 "--agent-action",

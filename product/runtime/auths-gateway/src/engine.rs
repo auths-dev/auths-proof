@@ -1259,15 +1259,14 @@ impl GatewayEngine {
                 code: "gateway.verify.clock-unavailable".to_owned(),
             };
         };
-        let task = match verify_task_activation(
-            &self.trusted_context,
-            submission.pins,
-            now,
-            submission.task_proof,
-            submission.task_action,
-        ) {
+        let state = match submission.ledger.load(submission.task_id) {
+            Ok(Some(state)) => state,
+            Ok(None) => return not_entered("gateway.task.not-activated"),
+            Err(error) => return not_entered(error.write_code()),
+        };
+        let task = match state.activated_task(submission.pins, now) {
             Ok(task) => task,
-            Err(result) => return result,
+            Err(error) => return not_entered(error.write_code()),
         };
         let verified = match verify_detailed(
             &self.recipe,
@@ -1536,8 +1535,7 @@ pub struct TaskWriteSession<'a> {
 /// separately enabled bounded-upfront mode.
 #[cfg(unix)]
 pub struct TaskWriteProofs<'a> {
-    pub task_proof: &'a [u8],
-    pub task_action: &'a [u8],
+    pub task_id: &'a str,
     pub agent_proof: &'a [u8],
     pub agent_action: &'a [u8],
     pub confirmation: Option<(&'a [u8], &'a [u8])>,
@@ -1545,8 +1543,8 @@ pub struct TaskWriteProofs<'a> {
 
 #[cfg(unix)]
 impl TaskWriteSession<'_> {
-    /// Registers a human-signed task once. A later submission must present
-    /// the same signed card, and the ledger refuses a different commitment.
+    /// Registers a human-signed task once. Later submissions name this durable
+    /// activation and need fresh agent and, in exact mode, human actions.
     ///
     /// # Errors
     /// Refuses invalid native authority, changed connection pins, duplicate
@@ -1601,8 +1599,7 @@ impl TaskWriteSession<'_> {
                 pins: &self.pins,
                 binding: &self.binding,
                 ledger: &self.ledger,
-                task_proof: proofs.task_proof,
-                task_action: proofs.task_action,
+                task_id: proofs.task_id,
                 agent_proof: proofs.agent_proof,
                 agent_action: proofs.agent_action,
                 confirmation: proofs.confirmation,
@@ -1647,8 +1644,7 @@ pub(crate) struct TaskWriteSubmission<'a> {
     pub(crate) pins: &'a TaskActivationPins,
     pub(crate) binding: &'a TaskWriteBinding,
     pub(crate) ledger: &'a FileReleaseTaskLedger,
-    pub(crate) task_proof: &'a [u8],
-    pub(crate) task_action: &'a [u8],
+    pub(crate) task_id: &'a str,
     pub(crate) agent_proof: &'a [u8],
     pub(crate) agent_action: &'a [u8],
     pub(crate) confirmation: Option<(&'a [u8], &'a [u8])>,
@@ -2486,6 +2482,24 @@ pub(crate) mod tests {
             .activate(&signed.proof, &signed.action)
             .await
             .expect("activated signed task");
+        let activated = session
+            .ledger
+            .load(&card.task_id)
+            .expect("journal read")
+            .expect("activated state");
+        assert!(activated.activated_task(&config.pins, now + 301).is_ok());
+        assert_eq!(
+            activated.activated_task(&config.pins, now + 601).err(),
+            Some(crate::release_state::ReleaseStateError::Inactive)
+        );
+        let mut drifted_pins: TaskActivationPins =
+            serde_json::from_value(serde_json::to_value(&config.pins).expect("pins"))
+                .expect("pins");
+        drifted_pins.operator_policy_digest = "c".repeat(64);
+        assert_eq!(
+            activated.activated_task(&drifted_pins, now + 301).err(),
+            Some(crate::release_state::ReleaseStateError::Binding)
+        );
         assert!(
             session
                 .activate(&signed.proof, &signed.action)
@@ -2540,8 +2554,7 @@ pub(crate) mod tests {
                 .expect("closed write intent");
         let missing_confirmation = session
             .submit(TaskWriteProofs {
-                task_proof: &signed.proof,
-                task_action: &signed.action,
+                task_id: &card.task_id,
                 agent_proof: &agent_signed.proof,
                 agent_action: &agent_signed.action,
                 confirmation: None,
@@ -2626,8 +2639,7 @@ pub(crate) mod tests {
             .expect("simulate operator descriptor change");
         let result = session
             .submit(TaskWriteProofs {
-                task_proof: &signed.proof,
-                task_action: &signed.action,
+                task_id: &card.task_id,
                 agent_proof: &agent_signed.proof,
                 agent_action: &agent_signed.action,
                 confirmation: Some((&confirmation.proof, &confirmation.action)),
@@ -2734,8 +2746,7 @@ pub(crate) mod tests {
             });
             let result = session
                 .submit(TaskWriteProofs {
-                    task_proof: &signed.proof,
-                    task_action: &signed.action,
+                    task_id: &card.task_id,
                     agent_proof: &agent_signed.proof,
                     agent_action: &agent_signed.action,
                     confirmation: Some((&confirmation.proof, &confirmation.action)),
@@ -2760,8 +2771,7 @@ pub(crate) mod tests {
             assert!(leases > 0);
             let replay = session
                 .submit(TaskWriteProofs {
-                    task_proof: &signed.proof,
-                    task_action: &signed.action,
+                    task_id: &card.task_id,
                     agent_proof: &agent_signed.proof,
                     agent_action: &agent_signed.action,
                     confirmation: Some((&confirmation.proof, &confirmation.action)),
