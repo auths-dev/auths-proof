@@ -50,7 +50,7 @@ class GoogleDriveTests(unittest.TestCase):
             body = self.reader.read_exact(self.task.calls()[0])
         self.assertEqual(body, b"approved synthetic document")
         self.assertEqual(calls, [
-            "/drive/v3/files/file-A?fields=id,mimeType,size,trashed,capabilities(canDownload)",
+            "/drive/v3/files/file-A?fields=id,mimeType,size,trashed,capabilities(canDownload)&supportsAllDrives=true",
             "/drive/v3/files/file-A/export?mimeType=text%2Fplain",
         ])
         self.assertEqual(self.reader.trace.requests_started, 2)

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import quote
 
+import certifi
+
 from .contracts import MAX_METADATA_BYTES, ReadCommand, TaskDescriptor
 from .token_store import TokenVault
 
@@ -141,7 +143,8 @@ def _get(path: str, token: str, limit: int, trace: ProviderTrace,
         budget = min(budget, trace.task_expires_at - time.time())
     deadline = time.monotonic() + max(0, budget)
     connection = _PinnedGoogleConnection(HOST, timeout=max(0, budget),
-                                         context=ssl.create_default_context(), deadline=deadline)
+                                         context=ssl.create_default_context(cafile=certifi.where()),
+                                         deadline=deadline)
     ordinal = trace.begin(phase)
     watchdog = threading.Timer(max(0, budget), _abort_connection, args=(connection,))
     watchdog.daemon = True
@@ -221,7 +224,8 @@ class GoogleDriveReader:
             raise GoogleDenied("task expired")
         lease = self.tokens.lease(self.task)
         file_id = quote(command.file_id, safe="")
-        metadata_path = f"/drive/v3/files/{file_id}?fields=id,mimeType,size,trashed,capabilities(canDownload)"
+        metadata_path = (f"/drive/v3/files/{file_id}?fields=id,mimeType,size,trashed,"
+                         "capabilities(canDownload)&supportsAllDrives=true")
         status, body, content_type = _get(metadata_path, lease.access_token, METADATA_LIMIT,
                                           self.trace, "metadata")
         if status in {401, 403, 404}:
