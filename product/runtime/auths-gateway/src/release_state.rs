@@ -22,7 +22,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/2";
+const SCHEMA: &str = "auths.gateway-agent-task-state/3";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -166,9 +166,8 @@ pub(crate) struct ReleaseTaskState {
     connection_id: String,
     connection_generation: u64,
     connection_subject: String,
-    /// Written only after native verification at activation. Older policy-only
-    /// journal entries cannot authorize a write submission.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Production activation writes the verified card. Policy-only synthetic
+    /// states use null and cannot authorize a task submission.
     activated_card: Option<AgentTaskDescriptor>,
     revoked: bool,
     provider_calls: u32,
@@ -1096,6 +1095,29 @@ mod tests {
                 connection_generation: 3,
             }],
         }
+    }
+
+    #[test]
+    fn obsolete_or_cardless_journal_shape_is_refused() {
+        let state = ReleaseTaskState::new(policy()).expect("state");
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&state.encode().expect("canonical state")).expect("state JSON");
+        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/2");
+        let obsolete = serde_json_canonicalizer::to_vec(&value).expect("canonical obsolete");
+        assert!(matches!(
+            ReleaseTaskState::decode(&obsolete),
+            Err(ReleaseStateError::Corrupt)
+        ));
+        value["schema"] = serde_json::json!(SCHEMA);
+        value
+            .as_object_mut()
+            .expect("object")
+            .remove("activated_card");
+        let missing = serde_json_canonicalizer::to_vec(&value).expect("canonical missing");
+        assert!(matches!(
+            ReleaseTaskState::decode(&missing),
+            Err(ReleaseStateError::Corrupt)
+        ));
     }
 
     fn call(operation_id: &str) -> ReleaseCall<'_> {
