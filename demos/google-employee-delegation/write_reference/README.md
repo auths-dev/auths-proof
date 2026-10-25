@@ -121,7 +121,10 @@ that public package. Serving it still requires an owner-scoped browser flow
 that rechecks active enrollment, registered agent, task card and operator
 pins at completion.
 The private authority package pins a fresh 32-byte operator challenge into
-the installed trust context. Human and agent actions for that installation
+the installed trust context. It pins the gateway's MCP policy verifier
+configuration, exposed by the native Python binding; the older self-contained
+read context has a different configuration ID and cannot be installed for
+this write path. Human and agent actions for that installation
 must sign that same challenge; the gateway does not accept an agent-selected
 challenge. The current development task command re-verifies the human task
 action on every write, so its native five-minute maximum action window also

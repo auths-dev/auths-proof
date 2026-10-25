@@ -1208,6 +1208,23 @@ fn self_contained_configuration(py: Python<'_>) -> PyResult<Bound<'_, PyBytes>> 
 }
 
 #[pyfunction]
+fn mcp_gateway_configuration(py: Python<'_>) -> PyResult<Bound<'_, PyBytes>> {
+    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(value_error)?;
+    let did_key = auths_did_key::DidKeyMethod::new().map_err(value_error)?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(value_error)?;
+    let ed25519 = auths_signature::Ed25519Suite::new().map_err(value_error)?;
+    let p256 = auths_signature::P256Sha256Suite::new().map_err(value_error)?;
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let configuration =
+        auths_profile_mcp::with_mcp_arguments_registries(&methods, &suites, |registries| {
+            *registries.configuration_id().as_bytes()
+        })
+        .map_err(value_error)?;
+    Ok(PyBytes::new(py, &configuration))
+}
+
+#[pyfunction]
 fn commit_plan_approval<'py>(
     py: Python<'py>,
     plan_commitment: &[u8],
@@ -1385,6 +1402,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(status_snapshot, module)?)?;
     module.add_function(wrap_pyfunction!(compile_trusted_context, module)?)?;
     module.add_function(wrap_pyfunction!(self_contained_configuration, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_gateway_configuration, module)?)?;
     module.add_function(wrap_pyfunction!(commit_plan_approval, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_unsigned, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_signed, module)?)?;

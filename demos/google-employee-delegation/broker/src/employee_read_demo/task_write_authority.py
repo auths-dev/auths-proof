@@ -103,7 +103,7 @@ def issue_task_write_authority(
         now, now + lifetime, None, 2, "raw-key-baseline", None,
     )
     compiled = _native.compile_trusted_context(
-        _native.self_contained_configuration(), None, 1, 1, 1,
+        _native.mcp_gateway_configuration(), None, 1, 1, 1,
         [anchor], assurance, None, None, "none-v1", ["raw-key-v1"], [],
     )
     challenge = secrets.token_bytes(32)
