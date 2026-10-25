@@ -27,10 +27,10 @@ mod unix {
         ArgumentCeilingPolicy, AuditPins, ListedValues, UnverifiedEntries, audit_bundle,
     };
     use auths_gateway::{
-        CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
-        GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
-        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
-        OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
+        CompiledRecipe, CompiledReleaseRecipe, FileGatewayAttemptStore, GatewayAttempts,
+        GatewayConnectionDescriptor, GatewayEngine, GatewayObserveRequest, GatewayObserveResult,
+        GatewayObserver, GatewayObserverError, GatewaySubmitResult, ObserverCustody,
+        OnboardingAccount, OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
         PrincipalSeparationError, TaskWriteProofs, check_candidate_credential,
         check_principal_separation, check_private_directory, check_private_directory_owned_by,
         gateway_verifier_configuration,
@@ -275,6 +275,14 @@ mod unix {
         /// what the recipe sends, and the verifier configuration a gateway
         /// trusted context must pin. Prints no secret and contacts nothing.
         Review {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+        },
+        /// Offline review of one closed GET release recipe. Prints its exact
+        /// digest and response limits; does not install or contact a provider.
+        ReviewRelease {
             #[arg(long)]
             recipe: PathBuf,
             #[arg(long)]
@@ -2557,6 +2565,20 @@ mod unix {
         Ok(())
     }
 
+    fn review_release(recipe_path: &Path, lock_path: &Path) -> Result<(), &'static str> {
+        let recipe = CompiledReleaseRecipe::compile(
+            &read_bounded(recipe_path, 65_536)?,
+            &read_bounded(lock_path, 65_536)?,
+        )
+        .map_err(|_| "gateway.review.invalid-release-recipe")?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&recipe.review_document())
+                .map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
     fn review_submission_files(
         recipe_path: &Path,
         lock_path: &Path,
@@ -3855,6 +3877,10 @@ mod unix {
                 recipe,
                 profile_lock,
             } => Ok(review(&recipe, &profile_lock)?),
+            Command::ReviewRelease {
+                recipe,
+                profile_lock,
+            } => Ok(review_release(&recipe, &profile_lock)?),
             Command::ReviewSubmission {
                 recipe,
                 profile_lock,
