@@ -28,6 +28,7 @@ from .enrollment import EnrollmentDenied, EnrollmentStore, VerifiedGoogleSubject
 from .google_oauth import GoogleOAuth, GoogleOAuthConfig, OAuthRejected, OAuthStateStore
 from .token_store import TokenVault
 from .task_proposals import TaskDenied, TaskProposalStore
+from .contracts import valid_service
 from .task_approval import ApprovalDenied, TaskApprovalStore
 from .task_activation import ActivationDenied, TaskActivationStore
 from .operator_authority import OperatorDenied
@@ -75,6 +76,7 @@ class Workbench:
     trusted_template: bytes | None = None
     expected_root: str | None = None
     agent_transport: AgentTransport | None = None
+    service: str | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -465,6 +467,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/v1/tasks/prepare":
                 if (self.workbench.company is None or self.workbench.vault is None
+                        or self.workbench.service is None
                         or not session.issuer or not session.subject
                         or not session.connection_id):
                     raise TaskDenied("task preparation is unavailable")
@@ -484,6 +487,7 @@ class Handler(BaseHTTPRequestHandler):
                 task = self.workbench.proposals.prepare(
                     company=self.workbench.company, employee=employee,
                     agent=agent, connection_id=session.connection_id,
+                    service=self.workbench.service,
                     logical_resource_ids=tuple(resources), purpose=purpose,
                     vault=self.workbench.vault,
                     inspector_factory=lambda descriptor: GoogleDriveReader(
@@ -664,17 +668,19 @@ def main() -> int:
                            refresh_client_secret=oauth.config.client_secret)
     trusted_template = None
     expected_root = None
+    service = None
     if args.trust_file is not None:
         from auths import _native
 
         manifest = json.loads(_private_file(args.trust_file, 262_144))
         if (manifest.get("contract") != "auths.google-read-root/v1"
-                or manifest.get("service") != "atlas-drive"
+                or not valid_service(manifest.get("service"))
                 or manifest.get("configuration_id") != bytes(
                     _native.self_contained_configuration()).hex()
                 or company is None or manifest.get("company_id") != company.bundle["company_id"]):
             parser.error("operator trust file does not match accepted company and SDK")
         expected_root = manifest.get("root_principal")
+        service = manifest["service"]
         trusted_template = base64.urlsafe_b64decode(manifest["trusted_template"])
         _native.parse_trusted_context(trusted_template)
     agent_transport = None
@@ -692,7 +698,7 @@ def main() -> int:
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
                           vault, company, status, origin, trusted_template, expected_root,
-                          agent_transport)
+                          agent_transport, service)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

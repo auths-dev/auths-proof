@@ -65,7 +65,7 @@ class AdmissionTests(unittest.TestCase):
 
     def test_replay_and_release_after_revocation_are_denied(self) -> None:
         command = self.verified()
-        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command, self.task.service), now=self.now)
         reservation = self.store.claim(self.task, command, challenge, now=self.now)
         with self.assertRaises(AdmissionDenied):
             self.store.claim(self.task, command, challenge, now=self.now)
@@ -76,7 +76,7 @@ class AdmissionTests(unittest.TestCase):
     def test_two_connections_share_atomic_capacity(self) -> None:
         peer = AdmissionStore(self.path)
         command = self.verified()
-        challenges = [self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        challenges = [self.store.issue_challenge(self.task, native_body_digest(command.command, self.task.service), now=self.now)
                       for _ in range(3)]
         def claim(value: bytes) -> bool:
             try:
@@ -91,7 +91,7 @@ class AdmissionTests(unittest.TestCase):
     def test_two_processes_share_atomic_capacity_and_provider_byte_reservations(self) -> None:
         descriptor = TaskDescriptor(**{**self.task.__dict__, "task_id": "process-task"})
         self.store.enroll(descriptor)
-        digest = native_body_digest(descriptor.calls()[0])
+        digest = native_body_digest(descriptor.calls()[0], descriptor.service)
         challenges = [self.store.issue_challenge(descriptor, digest, now=self.now)
                       for _ in range(3)]
         context = multiprocessing.get_context("spawn")
@@ -125,7 +125,7 @@ class AdmissionTests(unittest.TestCase):
                                  "max_calls": 4, "max_total_bytes": 4096})
         self.store.enroll(wide)
         command = VerifiedRead(wide.calls()[0], b"x" * 32, "authorized")
-        digest = native_body_digest(command.command)
+        digest = native_body_digest(command.command, self.task.service)
         challenges = [self.store.issue_challenge(wide, digest, now=self.now) for _ in range(3)]
         first = self.store.claim(wide, command, challenges[0], now=self.now)
         second = self.store.claim(wide, command, challenges[1], now=self.now)
@@ -138,7 +138,7 @@ class AdmissionTests(unittest.TestCase):
 
     def test_crashed_broker_reopens_slot_without_refunding_charges(self) -> None:
         command = self.verified()
-        digest = native_body_digest(command.command)
+        digest = native_body_digest(command.command, self.task.service)
         challenge = self.store.issue_challenge(self.task, digest, now=self.now)
         context = multiprocessing.get_context("spawn")
         worker = context.Process(target=_crash_during_provider_read,
@@ -173,7 +173,7 @@ class AdmissionTests(unittest.TestCase):
 
     def test_provider_attempts_survive_restart_with_unknown_outcome(self) -> None:
         command = self.verified()
-        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command, self.task.service), now=self.now)
         reservation = self.store.claim(self.task, command, challenge, now=self.now)
         observer = self.store.attempt_observer(reservation)
         with self.assertRaises(AdmissionDenied):
@@ -195,7 +195,7 @@ class AdmissionTests(unittest.TestCase):
 
     def test_receipt_write_failure_rolls_back_release_commitment(self) -> None:
         command = self.verified()
-        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command, self.task.service), now=self.now)
         reservation = self.store.claim(self.task, command, challenge, now=self.now)
 
         def refused_write(_db):
@@ -217,7 +217,7 @@ class AdmissionTests(unittest.TestCase):
 
     def test_disconnect_invalidates_task_and_generation(self) -> None:
         command = self.verified()
-        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command), now=self.now)
+        challenge = self.store.issue_challenge(self.task, native_body_digest(command.command, self.task.service), now=self.now)
         reservation = self.store.claim(self.task, command, challenge, now=self.now)
         self.assertEqual(self.store.disconnect("connection-1"), 2)
         self.assertFalse(self.store.current(reservation, now=self.now))

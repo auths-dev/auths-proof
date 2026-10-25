@@ -55,11 +55,13 @@ class TaskProposalTests(unittest.TestCase):
         inspector = Inspector({"file-A", "file-B"})
         task = self.store.prepare(
             company=self.company, employee=self.employee, agent=self.agent,
-            connection_id="connection-a", logical_resource_ids=("doc-b", "doc-a"),
+            connection_id="connection-a", service="customer-drive-read",
+            logical_resource_ids=("doc-b", "doc-a"),
             purpose="Summarize Project A", vault=self.vault,
             inspector_factory=lambda _: inspector, now=self.now,
         )
         self.assertEqual(task.file_ids, ("file-A", "file-B"))
+        self.assertEqual(task.service, "customer-drive-read")
         self.assertEqual(inspector.calls, ["file-A", "file-B"])
         self.assertEqual(self.store.get(task.task_id, self.employee, now=self.now), task)
         snapshot = self.store.describe(task.task_id, self.employee, now=self.now)
@@ -78,7 +80,8 @@ class TaskProposalTests(unittest.TestCase):
         with self.assertRaises(TaskDenied):
             self.store.prepare(
                 company=self.company, employee=self.employee, agent=self.agent,
-                connection_id="connection-a", logical_resource_ids=("doc-unknown",),
+                connection_id="connection-a", service="customer-drive-read",
+                logical_resource_ids=("doc-unknown",),
                 purpose="Summarize Project A", vault=self.vault,
                 inspector_factory=lambda _: inspector, now=self.now,
             )
@@ -86,7 +89,8 @@ class TaskProposalTests(unittest.TestCase):
         with self.assertRaises(TaskDenied):
             self.store.prepare(
                 company=self.company, employee=self.employee, agent=self.agent,
-                connection_id="connection-a", logical_resource_ids=("doc-b",),
+                connection_id="connection-a", service="customer-drive-read",
+                logical_resource_ids=("doc-b",),
                 purpose="Summarize Project A", vault=self.vault,
                 inspector_factory=lambda _: inspector, now=self.now,
             )

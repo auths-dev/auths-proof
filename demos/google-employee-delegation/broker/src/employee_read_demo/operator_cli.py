@@ -14,6 +14,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .demo_co_contract import prepare_operator_pins
+from .contracts import valid_service
 from .enrollment import EmployeeBinding
 from .operator_authority import EmployeeAuthorityStore, OperatorRoot
 from .token_store import TokenVault
@@ -66,7 +67,7 @@ def _template(root: OperatorRoot, service: str, start: int, end: int) -> bytes:
 
 def init_root(seed_file: Path, trust_file: Path, *, company: str,
               service: str, now: int | None = None) -> dict:
-    if not company or not service or seed_file == trust_file:
+    if not company or not valid_service(service) or seed_file == trust_file:
         raise ValueError("company, service and separate output paths are required")
     if seed_file.exists() or trust_file.exists():
         raise FileExistsError("operator root already exists")
@@ -145,7 +146,7 @@ def main() -> int:
     init.add_argument("--seed-file", type=Path, required=True)
     init.add_argument("--trust-file", type=Path, required=True)
     init.add_argument("--company", required=True)
-    init.add_argument("--service", default="atlas-drive")
+    init.add_argument("--service", default="google-drive-read")
     issue = commands.add_parser("issue-employee")
     issue.add_argument("--seed-file", type=Path, required=True)
     issue.add_argument("--trust-file", type=Path, required=True)

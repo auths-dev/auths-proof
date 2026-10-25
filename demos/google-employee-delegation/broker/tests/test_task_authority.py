@@ -56,7 +56,8 @@ class TaskAuthorityTests(unittest.TestCase):
         baseline = task(now)
         descriptor = type(baseline)(**{**baseline.__dict__,
                                        "employee_principal": employee_key.principal,
-                                       "agent_principal": agent_key.principal})
+                                       "agent_principal": agent_key.principal,
+                                       "service": "customer-drive-read"})
         audience = f"mcp://{descriptor.service}"
         resource = f"{audience}/tools/google_drive_document_read"
         request = _native.GrantRequest(
@@ -87,7 +88,7 @@ class TaskAuthorityTests(unittest.TestCase):
             binding_ref=descriptor.identity_binding_ref, generation=1,
         )
         store.enroll(descriptor)
-        challenge = store.issue_challenge(descriptor, native_body_digest(command), now=now)
+        challenge = store.issue_challenge(descriptor, native_body_digest(command, descriptor.service), now=now)
         prepared = _native.prepare_mcp_call_action(
             call, _native.Principal(agent_key.principal), child_grant, challenge, now, 30,
         )

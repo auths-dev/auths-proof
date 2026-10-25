@@ -227,12 +227,12 @@ class PartialDelegationLab:
         store.enroll(task)
         excluded = replace(command, file_id=self.inputs.project_b_id)
         try:
-            store.issue_challenge(task, native_body_digest(excluded), now=int(time.time()))
+            store.issue_challenge(task, native_body_digest(excluded, task.service), now=int(time.time()))
         except AdmissionDenied:
             pass
         else:
             raise RuntimeError("excluded Project B received a challenge")
-        challenge = store.issue_challenge(task, native_body_digest(command), now=int(time.time()))
+        challenge = store.issue_challenge(task, native_body_digest(command, task.service), now=int(time.time()))
         arguments = _native.canonicalize_mcp_arguments_json(canonical_json(asdict(command)))
         call = _native.mcp_call(task.service, "google_drive_document_read", arguments)
         prepared_action = _native.prepare_mcp_call_action(
@@ -290,7 +290,7 @@ class PartialDelegationLab:
             raise RuntimeError("signed read receipt did not verify")
         store.revoke(task.task_id)
         try:
-            store.issue_challenge(task, native_body_digest(command), now=int(time.time()))
+            store.issue_challenge(task, native_body_digest(command, task.service), now=int(time.time()))
         except AdmissionDenied:
             revoked = True
         else:

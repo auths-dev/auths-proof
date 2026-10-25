@@ -14,7 +14,7 @@ class VerifiedRead:
     native_code: str
 
 
-def native_body_digest(command: ReadCommand, service: str = "atlas-drive") -> bytes:
+def native_body_digest(command: ReadCommand, service: str) -> bytes:
     """Use the native MCP profile and codec for AllowedBodyDigests."""
     command.validate()
     from auths import _native

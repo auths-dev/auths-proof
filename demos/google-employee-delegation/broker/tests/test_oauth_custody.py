@@ -213,7 +213,7 @@ class OAuthCustodyTests(unittest.TestCase):
         store = AdmissionStore(self.path)
         store.enroll(descriptor)
         command = descriptor.calls()[0]
-        challenge = store.issue_challenge(descriptor, native_body_digest(command), now=self.now)
+        challenge = store.issue_challenge(descriptor, native_body_digest(command, descriptor.service), now=self.now)
         reservation = store.claim(descriptor, VerifiedRead(command, b"x" * 32, "authorized"),
                                   challenge, now=self.now)
         with self.assertRaises(AdmissionDenied):

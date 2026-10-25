@@ -89,7 +89,8 @@ class TaskApprovalTests(unittest.TestCase):
             }, {}, "a" * 64, True, True)
             task = TaskProposalStore(path).prepare(
                 company=company, employee=employee, agent=agent,
-                connection_id=connection_id, logical_resource_ids=("doc-a",),
+                connection_id=connection_id, service="atlas-drive",
+                logical_resource_ids=("doc-a",),
                 purpose="Summarize Project A", vault=vault,
                 inspector_factory=lambda _: _Inspector(), now=now,
             )

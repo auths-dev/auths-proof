@@ -45,7 +45,7 @@ class TaskProposalStore:
         return db
 
     def prepare(self, *, company: CompanyImport, employee: EmployeeBinding,
-                agent: AgentBinding, connection_id: str,
+                agent: AgentBinding, connection_id: str, service: str,
                 logical_resource_ids: tuple[str, ...], purpose: str,
                 vault: TokenVault,
                 inspector_factory: Callable[[TaskDescriptor], MetadataInspector],
@@ -72,7 +72,7 @@ class TaskProposalStore:
             "auths.google-read-task/v1", employee.company_id,
             company.bundle["instance_id"], company.bundle_sha256,
             employee.principal, employee.binding_ref, agent.agent_principal,
-            "atlas-drive", connection_id, generation,
+            service, connection_id, generation,
             tuple(sorted(catalog[value] for value in logical_resource_ids)),
             "text", 262_144, 16, 4 * 1024 * 1024,
             now, now + 900, secrets.token_urlsafe(24), purpose,

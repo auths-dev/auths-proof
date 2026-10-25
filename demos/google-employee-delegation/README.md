@@ -189,7 +189,8 @@ After employee enrollment, an operator can create a private directory and run:
 
 ```sh
 auths-google-read-operator init-root --seed-file /private/operator/root.seed \
-  --trust-file /private/operator/trust.json --company atlas-studio
+  --trust-file /private/operator/trust.json --company atlas-studio \
+  --service google-drive-read
 auths-google-read-operator issue-employee --seed-file /private/operator/root.seed \
   --trust-file /private/operator/trust.json \
   --state-db /private/broker.sqlite3 --binding-ref BINDING_REF
@@ -201,6 +202,10 @@ auths-google-read-operator offboard-employee --state-db /private/broker.sqlite3 
 
 The trust file is an operator pin. Protect both files with `0600` permissions
 inside a `0700` directory. The CLI refuses to overwrite either file.
+The service name is pinned by this trust file and used in every reviewed task,
+MCP audience and native body digest; it is not derived from the fixture's
+company name or from an agent request. The read operation itself remains a
+closed Google Drive contract.
 Offboarding disables the employee binding, all linked tasks and credentials,
 and signed-in browser sessions in one broker transaction. A later Google login
 for that disabled binding is refused until a deliberate new enrollment policy

@@ -18,6 +18,10 @@ _ID = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 _NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 
+def valid_service(service: object) -> bool:
+    return isinstance(service, str) and _NAME.fullmatch(service) is not None
+
+
 def canonical_json(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
@@ -90,7 +94,7 @@ class TaskDescriptor:
                 or len(self.employee_principal.encode("utf-8")) > 256
                 or len(self.agent_principal.encode("utf-8")) > 256):
             raise ValueError("employee and agent must be distinct")
-        if self.service != "atlas-drive" or self.output != "text":
+        if not valid_service(self.service) or self.output != "text":
             raise ValueError("unsupported service or output")
         if any(not _ID.fullmatch(x) for x in (self.connection_id, self.task_id, self.identity_binding_ref)):
             raise ValueError("invalid binding ID")
