@@ -220,7 +220,9 @@ async function authorizeWriteTask() {
   byId("write-review").hidden = true;
   byId("write-confirm-task-id").value = result.task_id;
   preparedWriteTask = null;
-  message("Jules's write task is signed. Gateway activation and a separate exact edit confirmation are still required.");
+  message(result.status === "activated_awaiting_agent_proposal"
+    ? "Jules's task is activated. The separate agent can now propose an edit for her exact confirmation."
+    : "Jules's write task is signed. Gateway activation and a separate exact edit confirmation are still required.");
 }
 
 async function prepareWriteConfirmation() {
@@ -259,7 +261,19 @@ async function authorizeWriteConfirmation() {
   byId("write-confirm-status").textContent = JSON.stringify(result, null, 2);
   byId("write-confirm-review").hidden = true;
   preparedWriteConfirmation = null;
-  message("Jules's exact edit is confirmed. The gateway has not submitted a provider write yet.");
+  byId("write-submit").hidden = !session.task_write_execution_available;
+  message(session.task_write_execution_available
+    ? "Jules's exact edit is confirmed. Submit it through the gateway when ready."
+    : "Jules's exact edit is confirmed. The gateway has not submitted a provider write yet.");
+}
+
+async function submitApprovedWrite() {
+  const result = await api("/api/v1/write/submissions/execute", {
+    task_id: value("write-confirm-task-id"),
+  });
+  byId("write-confirm-status").textContent = JSON.stringify(result, null, 2);
+  byId("write-submit").hidden = true;
+  message("Gateway submission recorded. Run the independent demo_co write inspection before claiming an observed edit.");
 }
 
 async function prepareActivation() {
@@ -398,7 +412,8 @@ function bind(id, action) {
     catch (error) { message(error.message || String(error)); }
     finally {
       if (!(id === "agent-complete" && !preparedAgent) &&
-          !(id === "activate-complete" && !preparedActivation)) byId(id).disabled = false;
+          !(id === "activate-complete" && !preparedActivation) &&
+          id !== "write-submit") byId(id).disabled = false;
     }
   });
 }
@@ -426,6 +441,7 @@ async function start() {
   if (session.task_write_confirmation_available) {
     bind("write-confirm-prepare", prepareWriteConfirmation);
     bind("write-confirm-authorize", authorizeWriteConfirmation);
+    if (session.task_write_execution_available) bind("write-submit", submitApprovedWrite);
   }
   bind("activate-prepare", prepareActivation);
   bind("activate-complete", completeActivation);

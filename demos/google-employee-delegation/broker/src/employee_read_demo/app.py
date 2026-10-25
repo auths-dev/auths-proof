@@ -269,6 +269,12 @@ class Handler(BaseHTTPRequestHandler):
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
                     ),
+                    "task_write_execution_available": bool(
+                        self.workbench.write_confirmation is not None
+                        and self.workbench.write_confirmation.gateway_state_dir is not None
+                        and self.workbench.write_pins is not None
+                        and session.subject == self.workbench.write_pins.jules_subject
+                    ),
                     "csrf": session.csrf,
                 }, cookie=session.cookie if created else None)
                 return
@@ -469,8 +475,14 @@ class Handler(BaseHTTPRequestHandler):
                     grant_signature=_b64(body["grant_signature"], max_bytes=64),
                     task_signature=_b64(body["task_signature"], max_bytes=64),
                 )
+                activated = False
+                if (self.workbench.write_confirmation is not None
+                        and self.workbench.write_confirmation.gateway_state_dir is not None):
+                    self.workbench.write_confirmation.activate(completed.task_id)
+                    activated = True
                 self._json(HTTPStatus.OK, {
-                    "status": "approved_pending_gateway_activation",
+                    "status": ("activated_awaiting_agent_proposal" if activated
+                               else "approved_pending_gateway_activation"),
                     "task_id": completed.task_id,
                     "agent_principal": completed.agent_principal,
                     "expires_at": completed.expires_at,
@@ -519,6 +531,19 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "confirmed_pending_gateway_submission",
                     "task_id": directory.name,
                 })
+                return
+            if path == "/api/v1/write/submissions/execute":
+                flow = self.workbench.write_confirmation
+                if flow is None or flow.gateway_state_dir is None:
+                    raise OperatorDenied("gateway task execution is unavailable")
+                if set(body) != {"task_id"} or type(body["task_id"]) is not str:
+                    raise ValueError("write task ID is invalid")
+                employee, agent, _, _, _ = self._write_bindings(session)
+                outcome = flow.submit(
+                    task_id=body["task_id"], employee=employee, agent=agent,
+                )
+                self._json(HTTPStatus.OK, {"task_id": body["task_id"],
+                                            "gateway": outcome})
                 return
             if path == "/api/v1/identity/packet":
                 from auths.identity.authoring import (
@@ -778,6 +803,8 @@ def main() -> int:
     parser.add_argument("--task-write-pins", type=Path)
     parser.add_argument("--task-write-gateway-bin", type=Path)
     parser.add_argument("--task-write-gateway-sha256")
+    parser.add_argument("--task-write-gateway-state-dir", type=Path,
+                        help="opt in to task activation and exact write submission")
     parser.add_argument("--task-write-credential-pins", type=Path)
     parser.add_argument("--task-write-grant", type=Path)
     parser.add_argument("--port", type=int, default=8765)
@@ -891,6 +918,9 @@ def main() -> int:
     if any(option is not None for option in confirmation_options) and not all(
             option is not None for option in confirmation_options):
         parser.error("gateway review and Jules preflight inputs must be supplied together")
+    if (args.task_write_gateway_state_dir is not None
+            and args.task_write_gateway_bin is None):
+        parser.error("gateway execution requires review and Jules preflight inputs")
     if args.task_write_gateway_bin is not None:
         if write_browser is None:
             parser.error("gateway review requires the task write installation")
@@ -944,6 +974,7 @@ def main() -> int:
             gateway_binary=args.task_write_gateway_bin,
             gateway_sha256=args.task_write_gateway_sha256,
             preflight=google_edit_preflight,
+            gateway_state_dir=args.task_write_gateway_state_dir,
         )
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),

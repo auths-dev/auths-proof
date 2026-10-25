@@ -62,7 +62,8 @@ class TaskWriteConfirmationFlow:
                  recipe_path: Path, profile_lock_path: Path,
                  private_output_dir: Path, gateway_binary: Path,
                  gateway_sha256: str,
-                 preflight: Callable[[dict, ReviewedWrite], None] | None = None) -> None:
+                 preflight: Callable[[dict, ReviewedWrite], None] | None = None,
+                 gateway_state_dir: Path | None = None) -> None:
         if (private_output_dir.is_symlink() or not private_output_dir.is_dir()
                 or private_output_dir.stat().st_mode & 0o077
                 or type(gateway_sha256) is not str
@@ -76,6 +77,9 @@ class TaskWriteConfirmationFlow:
         self.gateway_binary = gateway_binary
         self.gateway_sha256 = gateway_sha256
         self.preflight = preflight
+        if gateway_state_dir is not None and not gateway_state_dir.is_absolute():
+            raise OperatorDenied("gateway state directory must be absolute")
+        self.gateway_state_dir = gateway_state_dir
         self._pending: dict[str, _Pending] = {}
         self._lock = threading.Lock()
 
@@ -214,3 +218,78 @@ class TaskWriteConfirmationFlow:
             (directory / "confirmation.proof").unlink(missing_ok=True)
             raise
         return directory
+
+    def activate(self, task_id: str) -> None:
+        """Register the browser-signed task once in the private gateway journal."""
+        if self.gateway_state_dir is None:
+            raise OperatorDenied("gateway task execution is not configured")
+        directory = self._task_dir(task_id)
+        _private_read(directory / "task.proof", 4 * 1024 * 1024)
+        _private_read(directory / "task.action", 64 * 1024)
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-activate",
+                "--state-dir", str(self.gateway_state_dir),
+                "--proof", str(directory / "task.proof"),
+                "--action", str(directory / "task.action"),
+            ], capture_output=True, check=False, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied(
+                "gateway task activation outcome is unknown; inspect state",
+            ) from error
+        if (result.returncode != 0 or len(result.stdout) > 4096
+                or result.stdout.strip() != b'{"outcome":"task-activated"}'):
+            raise OperatorDenied(
+                "gateway task activation outcome is unknown; inspect state",
+            )
+
+    def submit(self, *, task_id: str, employee: EmployeeBinding,
+               agent: AgentBinding, now: int | None = None) -> dict:
+        """Recheck Jules's edit precondition, then submit one exact agent write.
+
+        The signed Docs action itself carries requiredRevisionId, so a change
+        between this read-only check and Google entry is refused by Google.
+        An uncertain gateway result is never retried here.
+        """
+        if self.gateway_state_dir is None or self.preflight is None:
+            raise OperatorDenied("gateway task execution is not configured")
+        now = int(time.time()) if now is None else now
+        card, review = self._review(task_id, employee, agent, now)
+        directory = self._task_dir(task_id)
+        _private_read(directory / "confirmation.proof", 4 * 1024 * 1024)
+        _private_read(directory / "confirmation.action", 64 * 1024)
+        self.preflight(card, review)
+        try:
+            result = subprocess.run([
+                str(self._binary()), "task-submit",
+                "--state-dir", str(self.gateway_state_dir),
+                "--task-id", task_id,
+                "--agent-proof", str(directory / "agent.proof"),
+                "--agent-action", str(directory / "agent.action"),
+                "--confirmation-proof", str(directory / "confirmation.proof"),
+                "--confirmation-action", str(directory / "confirmation.action"),
+            ], capture_output=True, check=False, timeout=90)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise OperatorDenied(
+                "gateway write outcome is unknown; inspect state before retry",
+            ) from error
+        if result.returncode != 0 or len(result.stdout) > 8192:
+            raise OperatorDenied(
+                "gateway write outcome is unknown; inspect state before retry",
+            )
+        try:
+            outcome = json.loads(result.stdout, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise OperatorDenied(
+                "gateway write outcome is unknown; inspect state before retry",
+            ) from error
+        if type(outcome) is not dict or outcome.get("outcome") not in {
+                "denied", "indeterminate", "not-entered", "unknown",
+                "response-recorded", "observed", "observed-by-provider"}:
+            raise OperatorDenied(
+                "gateway write outcome is unknown; inspect state before retry",
+            )
+        # Return only public status fields; provider response and document
+        # content never leave gateway/producer custody through this endpoint.
+        return {key: outcome[key] for key in ("outcome", "code", "status", "matched")
+                if key in outcome and type(outcome[key]) in (str, int, bool)}

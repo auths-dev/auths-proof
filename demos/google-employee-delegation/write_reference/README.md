@@ -97,8 +97,10 @@ The broker's [task authority builder](../broker/src/employee_read_demo/task_writ
 now prepares that multi-profile trust and three distinct root-to-employee
 grants. It also prepares an employee-signed child grant for the selected
 agent's provider write tool. Native synthetic tests cover both this Google
-Docs profile and the Airtable write profile. The live operator issuance,
-Jules browser signatures and separate agent signing flow still need wiring.
+Docs profile and the Airtable write profile. The operator issuance command,
+Jules browser signing screens and isolated agent signer are implemented;
+their live use still needs the operator to install the matching trust and
+credential, then Jules to sign the exact task and edit.
 The private `auths-google-task-authority` operator command can now issue an
 owner-only package from the current company root seed, its trust manifest,
 Jules's enrolled identity and the operator-reviewed recipe profile/digest.
@@ -107,8 +109,9 @@ service, tool, schema digest and task resource field against each other, and
 records both file hashes. The compiled recipe digest remains the operator's
 reviewed input and is checked again by the gateway at installation. The
 command prints only a redacted summary; the package contains signed native
-grants and a trust template, no Google credential or human signing key. The browser
-and isolated agent must still complete their own signatures.
+grants and a trust template, no Google credential or human signing key. The
+browser and isolated agent sign through their separate paths. A live Jules
+task and agent proposal have not yet been completed.
 The [owner-side package loader](../broker/src/employee_read_demo/task_write_package.py)
 now checks the private file's exact schema, lifetime, gateway verifier
 configuration, provider audience and operator challenge before any browser
@@ -125,8 +128,10 @@ versioned export. The screen prepares a card from the active Jules enrollment,
 registered agent, installed gateway pins and reviewed recipe. It signs the
 task and child grant in Jules's browser, writes `task.proof` and `task.action`
 under a new private task directory, and downloads a public agent package.
-The gateway must still activate that task and later require a separate exact
-confirmation before any provider write.
+With the optional `--task-write-gateway-state-dir`, the workbench activates
+that signed task immediately in the owner-private gateway journal. Without
+that option, the operator activates it through `task-activate`. A separate
+exact confirmation is still required before any provider write.
 For the separate confirmation screen, the operator also supplies
 `--task-write-gateway-bin` and its SHA-256 in
 `--task-write-gateway-sha256`, plus the private Jules grant and matching
@@ -139,10 +144,15 @@ shows Jules the complete credential-free method, URL and body, then signs the
 exact derived intent. The broker runs the pinned, read-only Jules
 revision/ACL/baseline preflight both before rendering and when accepting her
 signature, and refuses a proposal whose Doc, tab, marker or revision differs.
-It saves `confirmation.proof` and `confirmation.action` privately. Gateway
-activation, another fresh preflight at gateway entry, `task-submit`, response
-evidence and independent demo_co readback are still separate steps; the
-screen does not submit the provider write.
+It saves `confirmation.proof` and `confirmation.action` privately. With the
+optional gateway state directory, the screen presents a separate
+“Submit this confirmed edit” control. It re-verifies the agent proposal and
+Jules’s Google subject, ACL, Doc identity, baseline and revision just before
+`task-submit`; Google’s signed `requiredRevisionId` refuses an intervening
+revision change. The workbench returns only a redacted gateway outcome and
+never retries an uncertain submission. Independent demo_co readback remains
+required before claiming the intended edit was observed. Without the optional
+state directory, activation and submission remain operator CLI steps.
 The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
 now prepares separate native preimages for a reviewed task card and an exact
 closed-write intent. It completes each proof only with a signature from the
