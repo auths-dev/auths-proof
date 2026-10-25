@@ -33,7 +33,7 @@ class ExistingConsentSmokeTests(unittest.TestCase):
             "C0218tf2n", "auths.dev", "jules@auths.dev", "google-subject-jules",
             "demo-co-client-id", self.task.employee_principal,
             self.task.identity_binding_ref, self.task.connection_id,
-            self.task.connection_generation,
+            self.task.connection_generation, self.task.task_id, self.task.file_ids,
         )
         self.grant = {
             "client_id": "demo-co-client-id", "client_secret": "synthetic-secret",
@@ -63,6 +63,11 @@ class ExistingConsentSmokeTests(unittest.TestCase):
         with patch("employee_read_demo.existing_consent_smoke._private_grant") as secret:
             with self.assertRaises(ExistingConsentDenied):
                 ExistingDemoCoConsentLease(self.path, self.pins).lease(other, now=self.now)
+        secret.assert_not_called()
+        broader = type(self.task)(**{**self.task.__dict__, "file_ids": ("file-A", "file-C")})
+        with patch("employee_read_demo.existing_consent_smoke._private_grant") as secret:
+            with self.assertRaises(ExistingConsentDenied):
+                ExistingDemoCoConsentLease(self.path, self.pins).lease(broader, now=self.now)
         secret.assert_not_called()
 
     def test_reader_refuses_outside_document_before_secret_or_google_request(self) -> None:

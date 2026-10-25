@@ -119,9 +119,10 @@ broker can use `ExistingDemoCoConsentLease` from
 `employee_read_demo.existing_consent_smoke` as the lease source passed to
 `GoogleDriveReader`. This temporary adapter requires an owner-only credential
 file, exact Atlas instance/customer/Jules pins, the reviewed OAuth client ID,
-Jules's Google `sub`, and the Auths task's employee binding and connection
-generation. It verifies Google UserInfo before releasing an in-memory access
-token to the closed Drive reader. The grant is not written to Auths's token
+Jules's Google `sub`, and the Auths task's employee binding, connection
+generation, task ID and exact document set. It verifies Google UserInfo
+before releasing an in-memory access token to the closed Drive reader. The
+grant is not written to Auths's token
 vault, passed to the agent or browser, or copied into the operator kit. The
 producer must supply Jules's non-secret subject and independent partial probe
 evidence before a live run; neither is currently in the versioned export.

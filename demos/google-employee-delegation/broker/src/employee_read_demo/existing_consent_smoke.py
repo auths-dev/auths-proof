@@ -51,15 +51,18 @@ class ExistingConsentPins:
     identity_binding_ref: str
     connection_id: str
     connection_generation: int
+    task_id: str
+    file_ids: tuple[str, ...]
 
     def validate(self) -> None:
         if (self.company_id != "atlas-studio" or self.instance_id != SMOKE_INSTANCE
                 or self.person_id != "person-jules" or self.customer_id != SMOKE_CUSTOMER
                 or self.domain != "auths.dev" or self.email != "jules@auths.dev"
                 or not all((self.subject, self.client_id, self.employee_principal,
-                            self.identity_binding_ref, self.connection_id))
+                            self.identity_binding_ref, self.connection_id, self.task_id))
                 or type(self.connection_generation) is not int
-                or self.connection_generation < 1):
+                or self.connection_generation < 1 or not self.file_ids
+                or tuple(sorted(set(self.file_ids))) != self.file_ids):
             raise ExistingConsentDenied("existing-consent pins are incomplete")
 
 
@@ -134,6 +137,7 @@ class ExistingDemoCoConsentLease:
                 or task.identity_binding_ref != p.identity_binding_ref
                 or task.connection_id != p.connection_id
                 or task.connection_generation != p.connection_generation
+                or task.task_id != p.task_id or task.file_ids != p.file_ids
                 or not task.not_before <= now < task.expires_at):
             raise ExistingConsentDenied("task does not match existing-consent pins")
         grant = _private_grant(self.grant_path)

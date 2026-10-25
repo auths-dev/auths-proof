@@ -190,9 +190,10 @@ PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 > temporary trusted-broker lease adapter for a separately labelled local
 > smoke: it accepts only the exact Atlas instance/customer and Jules person,
 > requires operator pins for the OAuth client, Google `sub`, Auths employee
-> binding and connection generation, and rechecks Google UserInfo before a
-> lease. It reads the producer's private grant file without importing tokens
-> into the production vault or making them available to the agent/browser.
+> binding, connection generation, task ID and exact document set, and rechecks
+> Google UserInfo before a lease. It reads the producer's private grant file
+> without importing tokens into the production vault or making them available
+> to the agent/browser.
 > The producer still owns baseline provider probes and their export. This
 > shim does not activate the strict company importer, prove that Jules signed
 > an Auths delegation, or satisfy the spec's broker-owned OAuth onboarding
