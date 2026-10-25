@@ -61,8 +61,45 @@ Jules signature or Google write occurred at that point.
 
 ## Outcome
 
-Pending the new signed task, separate agent choice, one gateway submission,
-and demo_co's independent read-only after-state inspection. The only accepted
-effect result is a complete raw export match to the precommitted selected
-option with unchanged neighbor checks. A gateway HTTP 200 alone is
-`response-recorded`.
+Jules signed task `G-uUZcqy3F45L5NLBweYvjoY` in the installed Chrome
+Incognito workbench for the registered, separate agent, the one disposable
+Project A Doc, both complete precommitted choices, and a single bounded-upfront
+write. The task grants no read. The separate agent signed option A as operation
+`ZwgkCTXm6P95chCVO3YsgUMY`; Auths staged its proof and action without
+provider entry. The workbench's submit path performed a fresh Jules Google
+preflight, then submitted that signed action once. The gateway returned
+`response-recorded` with Google HTTP 200. Its durable task status shows
+`writes=1/1`, `provider_calls=0/0`, `releases=0/0`, and that one operation ID.
+The screenshot of the gateway result and activity is retained privately as
+`gateway-response-live.png` under the rerun work directory.
+
+demo_co then ran its independent read-only inspection and produced immutable
+generation 0015 `google-edit-rerun-observation.json`, SHA-256
+`59e5ee1bf9efaef6592ad2d448ea370e7b7d89a85c6acd9f5df073dfaa617900`.
+It observed the same owned Doc in the exact Project A parent, tab `t.0`, and
+a nonempty admin revision. The **complete** raw export is 93 bytes with SHA-256
+`a44c4cb6fcfa3af4b7a82357faa36f1e57f9664b305226b4badc1e6fbdf196ed`,
+equal to precommitted option A and unequal to option B. The original marker
+count is zero. The direct child count stayed five; the canonical Project A/B
+Docs, Jules probe, both prior Auths child Docs, and old working Doc were
+unchanged against their producer pins. The observation's attribution is
+`provider_state_only`; its admin revision is not treated as Jules's revision.
+
+Auths copied the immutable generation to private custody, validated its
+schema and pinned digest, and joined it to the signed task, agent-signed option
+A operation, gateway attempt `response-recorded` HTTP 200, and durable
+`writes=1/1` task ledger. The gateway attempt timestamp precedes the producer
+observation. This supports the exact bounded-upfront edit outcome, with the
+earlier failed run retained as a separate failed observation. The off-choice,
+second-write, and exact-confirmation-only policy refusals remain separate
+acceptance cases; this positive result does not prove those denials.
+
+The final branch-built broker wheel is SHA-256
+`fe3ddf343057636e6d66ca9736b4b22f7be5f52bd6bd62052a8357abb49aed0e`.
+An isolated install of that wheel and the unchanged agent wheel loaded both
+packages from its install target, not the repository source path. Its strict
+consumer accepted the private generation 0013 baseline, generation 0014
+choices, and generation 0015 observation against the pinned artifact hashes,
+signed task start time, exact document ID, option A's 93-byte complete raw
+export, and unchanged-neighbor verdicts. The broker's full 136-test suite
+passed with local loopback sockets enabled; `git diff --check` passed.

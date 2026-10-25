@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.edit_rerun_handoff import (
     EditRerunPins, OPTION_A, OPTION_B, validate_edit_rerun,
+    validate_edit_rerun_observation,
 )
 from employee_read_demo.write_handoff import WriteHandoffPins
 
@@ -122,6 +123,70 @@ class EditRerunHandoffTests(unittest.TestCase):
             with self.assertRaisesRegex(ContractRejected, 'choice commitment'):
                 validate_edit_rerun(before_path, choices_path, tampered_pins,
                                     source_evidence=source, now=now)
+
+            choices['option_b_expected_raw_sha256'] = digest(raw_b)
+            self.assertEqual(save(choices_path, choices), choices_sha)
+            observation_dir = root / 'generation-0015'
+            observation_dir.mkdir(mode=0o700)
+            observation_path = observation_dir / 'google-edit-rerun-observation.json'
+            observation = {
+                'schema_version': 'demo-co/google-edit-rerun-observation/v1',
+                'status': 'ready', 'attribution': 'provider_state_only',
+                'company': producer.company, 'instance': producer.instance,
+                'definition_hash': producer.definition_hash,
+                'observed_at': '2026-10-25T20:13:00Z',
+                'baseline_generation': 13, 'baseline_sha256': baseline_sha,
+                'choices_generation': 14, 'choices_sha256': choices_sha,
+                'selected_choice': 'A', 'document_id': target.document_id,
+                'admin_tab_id': target.tab_id,
+                'admin_revision_id': 'admin-revision-after',
+                'observed_raw_sha256': digest(raw_a),
+                'observed_raw_byte_count': len(raw_a),
+                'expected_raw_sha256': digest(raw_a),
+                'expected_raw_byte_count': len(raw_a),
+                'exact_expected_content': True, 'original_marker_count': 0,
+                'direct_child_count': 5,
+                'canonical_project_a_unchanged': True,
+                'canonical_project_b_unchanged': True,
+                'jules_probe_unchanged': True,
+                'preserved_child_unchanged': True,
+                'second_child_unchanged': True,
+                'working_document_unchanged': True,
+            }
+            observation_sha = save(observation_path, observation)
+            accepted = validate_edit_rerun_observation(
+                observation_path, observation_sha256=observation_sha,
+                baseline_path=before_path, choices_path=choices_path,
+                pins=pins, target=target, selected_choice='A',
+                task_not_before=now - 60, now=now,
+            )
+            self.assertEqual(accepted.raw_sha256, digest(raw_a))
+            with self.assertRaisesRegex(ContractRejected, 'target or identity'):
+                validate_edit_rerun_observation(
+                    observation_path, observation_sha256=observation_sha,
+                    baseline_path=before_path, choices_path=choices_path,
+                    pins=pins, target=target, selected_choice='B',
+                    task_not_before=now - 60, now=now,
+                )
+            observation['observed_raw_sha256'] = digest(raw_b)
+            bad_sha = save(observation_path, observation)
+            with self.assertRaisesRegex(ContractRejected, 'complete after-state'):
+                validate_edit_rerun_observation(
+                    observation_path, observation_sha256=bad_sha,
+                    baseline_path=before_path, choices_path=choices_path,
+                    pins=pins, target=target, selected_choice='A',
+                    task_not_before=now - 60, now=now,
+                )
+            observation['observed_raw_sha256'] = digest(raw_a)
+            observation['working_document_unchanged'] = False
+            bad_sha = save(observation_path, observation)
+            with self.assertRaisesRegex(ContractRejected, 'schema'):
+                validate_edit_rerun_observation(
+                    observation_path, observation_sha256=bad_sha,
+                    baseline_path=before_path, choices_path=choices_path,
+                    pins=pins, target=target, selected_choice='A',
+                    task_not_before=now - 60, now=now,
+                )
 
 
 if __name__ == '__main__':

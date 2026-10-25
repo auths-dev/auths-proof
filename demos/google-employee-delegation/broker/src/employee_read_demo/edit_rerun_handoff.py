@@ -19,6 +19,8 @@ BASELINE_SCHEMA = "google-edit-rerun-baseline-v1.schema.json"
 BASELINE_SCHEMA_SHA256 = "28a0f067d7592e01e85b2e1298c40e969c2d0bfec77f4b197fc14e21ffc5a79f"
 CHOICES_SCHEMA = "google-edit-rerun-choices-v1.schema.json"
 CHOICES_SCHEMA_SHA256 = "43fe66f9a0e57d5349e5e97c601eba74cbfc0c88199a1cfaa4236d73f85e11e3"
+OBSERVATION_SCHEMA = "google-edit-rerun-observation-v1.schema.json"
+OBSERVATION_SCHEMA_SHA256 = "cc156baaa42e924ed51383fb17f23eb991d39ea665c01703a49d21c3a2b70f27"
 OPTION_A = "Project A update: agent selected approved option A for the AP-071 upfront delegation test."
 OPTION_B = "Project A update: agent selected approved option B for the AP-071 upfront delegation test."
 LOGICAL_ID = "ap071-project-a-clean-edit-rerun"
@@ -61,6 +63,15 @@ class EditRerunTarget:
             "required_revision_id": self.revision_id,
             "tab_id": self.tab_id,
         } for replacement in (OPTION_A, OPTION_B)]
+
+
+@dataclass(frozen=True)
+class EditRerunObservation:
+    artifact_sha256: str
+    selected_choice: str
+    raw_sha256: str
+    raw_byte_count: int
+    observed_at: int
 
 
 def _private_generation(path: Path, filename: str, *, after: int = 1) -> int:
@@ -194,4 +205,74 @@ def validate_edit_rerun(baseline_path: Path, choices_path: Path,
         baseline["folder_id"], baseline["drive_id"], baseline["tab_id"],
         baseline["jules_revision_id"], baseline["marker"],
         baseline["baseline_raw_sha256"], baseline["baseline_raw_byte_count"],
+    )
+
+
+def validate_edit_rerun_observation(
+        observation_path: Path, *, observation_sha256: str,
+        baseline_path: Path, choices_path: Path, pins: EditRerunPins,
+        target: EditRerunTarget, selected_choice: str,
+        task_not_before: int, now: int) -> EditRerunObservation:
+    """Bind a producer-owned complete after-state to the signed upfront choice.
+
+    This validates provider state only. The caller must independently join the
+    signed task, agent operation and gateway attempt before claiming an effect.
+    """
+    pins.validate()
+    if (type(observation_sha256) is not str
+            or _HEX64.fullmatch(observation_sha256) is None
+            or selected_choice not in ("A", "B")
+            or type(task_not_before) is not int
+            or type(now) is not int):
+        raise ContractRejected("edit rerun observation pins are invalid")
+    baseline_generation = _private_generation(
+        baseline_path, "google-edit-rerun-baseline.json")
+    choices_generation = _private_generation(
+        choices_path, "google-edit-rerun-choices.json", after=baseline_generation)
+    observation_generation = _private_generation(
+        observation_path, "google-edit-rerun-observation.json", after=choices_generation)
+    if (choices_generation != baseline_generation + 1
+            or observation_generation != choices_generation + 1):
+        raise ContractRejected("edit rerun observation generation changed")
+    if hashlib.sha256(files("employee_read_demo").joinpath(
+            "schemas", OBSERVATION_SCHEMA).read_bytes()).hexdigest() != OBSERVATION_SCHEMA_SHA256:
+        raise ContractRejected("edit rerun observation schema changed")
+    observation, raw = _load(observation_path, OBSERVATION_SCHEMA)
+    if hashlib.sha256(raw).hexdigest() != observation_sha256:
+        raise ContractRejected("edit rerun observation digest disagrees with pin")
+    observed_at = _time(observation["observed_at"], now)
+    if observed_at < task_not_before:
+        raise ContractRejected("edit rerun observation preceded the signed task")
+    expected_raw = b"\xef\xbb\xbf" + (OPTION_A if selected_choice == "A" else OPTION_B).encode()
+    expected_hash = hashlib.sha256(expected_raw).hexdigest()
+    if ((observation["company"], observation["instance"],
+         observation["definition_hash"]) != (
+             pins.producer.company, pins.producer.instance,
+             pins.producer.definition_hash)
+            or observation["baseline_generation"] != baseline_generation
+            or observation["baseline_sha256"] != pins.baseline_sha256
+            or observation["choices_generation"] != choices_generation
+            or observation["choices_sha256"] != pins.choices_sha256
+            or observation["selected_choice"] != selected_choice
+            or observation["document_id"] != target.document_id
+            or observation["admin_tab_id"] != target.tab_id
+            or not 1 <= len(observation["admin_revision_id"].encode()) <= 128):
+        raise ContractRejected("edit rerun observation target or identity changed")
+    if (observation["status"] != "ready"
+            or observation["attribution"] != "provider_state_only"
+            or observation["exact_expected_content"] is not True
+            or observation["expected_raw_byte_count"] != len(expected_raw)
+            or observation["expected_raw_sha256"] != expected_hash
+            or observation["observed_raw_byte_count"] != len(expected_raw)
+            or observation["observed_raw_sha256"] != expected_hash
+            or observation["original_marker_count"] != 0
+            or observation["direct_child_count"] != 5
+            or any(observation[field] is not True for field in (
+                "canonical_project_a_unchanged", "canonical_project_b_unchanged",
+                "jules_probe_unchanged", "preserved_child_unchanged",
+                "second_child_unchanged", "working_document_unchanged"))):
+        raise ContractRejected("edit rerun complete after-state did not match")
+    return EditRerunObservation(
+        observation_sha256, selected_choice, expected_hash,
+        len(expected_raw), observed_at,
     )
