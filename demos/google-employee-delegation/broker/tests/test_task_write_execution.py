@@ -50,7 +50,7 @@ class TaskWriteExecutionTests(unittest.TestCase):
             {"task_id": task_id}, self.review,
         )
 
-    def test_submit_preflights_then_returns_only_redacted_gateway_result(self) -> None:
+    def test_submit_preflights_then_returns_gateway_result(self) -> None:
         def run(command, **kwargs):
             self.events.append("gateway")
             self.assertEqual(command[1], "task-submit")
@@ -58,7 +58,6 @@ class TaskWriteExecutionTests(unittest.TestCase):
             return subprocess.CompletedProcess(
                 command, 0, json.dumps({
                     "outcome": "response-recorded", "status": 200,
-                    "untrusted_private_field": "never return this",
                 }).encode(), b"",
             )
 
@@ -68,6 +67,15 @@ class TaskWriteExecutionTests(unittest.TestCase):
                                       now=1000)
         self.assertEqual(self.events, ["preflight", "gateway"])
         self.assertEqual(result, {"outcome": "response-recorded", "status": 200})
+
+    def test_unexpected_gateway_field_is_not_returned_or_retried(self) -> None:
+        with patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                   return_value=subprocess.CompletedProcess(
+                       [], 0, b'{"outcome":"unknown","private":"leak"}', b"")) as run:
+            with self.assertRaisesRegex(OperatorDenied, "outcome is unknown"):
+                self.flow.submit(task_id=self.task_id, employee=None, agent=None,
+                                 now=1000)
+        self.assertEqual(run.call_count, 1)
 
     def test_failed_preflight_never_invokes_gateway(self) -> None:
         def deny(card, review):

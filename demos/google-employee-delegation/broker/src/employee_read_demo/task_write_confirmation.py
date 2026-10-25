@@ -283,9 +283,27 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied(
                 "gateway write outcome is unknown; inspect state before retry",
             ) from error
-        if type(outcome) is not dict or outcome.get("outcome") not in {
-                "denied", "indeterminate", "not-entered", "unknown",
-                "response-recorded", "observed", "observed-by-provider"}:
+        if type(outcome) is not dict:
+            raise OperatorDenied(
+                "gateway write outcome is unknown; inspect state before retry",
+            )
+        kind = outcome.get("outcome")
+        fields = {
+            "denied": {"code"}, "indeterminate": {"code"},
+            "not-entered": {"code"}, "unknown": set(),
+            "response-recorded": {"status"},
+            "observed": {"status", "matched"},
+            "observed-by-provider": {"status", "evidence"},
+        }
+        if (kind not in fields or set(outcome) != {"outcome"} | fields[kind]
+                or ("code" in outcome and
+                    (type(outcome["code"]) is not str
+                     or not 1 <= len(outcome["code"]) <= 128))
+                or ("status" in outcome and outcome["status"] is not None
+                    and (type(outcome["status"]) is not int
+                         or not 100 <= outcome["status"] <= 599))
+                or ("matched" in outcome and type(outcome["matched"]) is not bool)
+                or ("evidence" in outcome and type(outcome["evidence"]) is not dict)):
             raise OperatorDenied(
                 "gateway write outcome is unknown; inspect state before retry",
             )
