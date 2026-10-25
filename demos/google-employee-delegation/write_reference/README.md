@@ -78,8 +78,9 @@ generation and does not perform a write.
 ## Operator-side development route
 
 `auths-gateway task-configure --state-dir STATE --from PINS.json` accepts one
-canonical JSON object with schema `auths.gateway-task-installation/2`, the
-compiled `recipe_digest`, and operator-controlled `pins`: `company_id`,
+canonical JSON object with schema `auths.gateway-task-installation/3`, a
+sorted, unique `recipe_digests` list of one to four compiled write recipes,
+and operator-controlled `pins`: `company_id`,
 `human_principal`, `agent_principal`, `agent_key_fingerprint`, `connection_id`,
 `connection_generation`, `connection_subject`, `delivery_channel`,
 `operator_policy_digest`, `allow_bounded_writes`, and

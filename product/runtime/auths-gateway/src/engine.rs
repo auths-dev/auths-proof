@@ -78,7 +78,7 @@ const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
 #[cfg(unix)]
-const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/2";
+const TASK_INSTALLATION_SCHEMA: &str = "auths.gateway-task-installation/3";
 /// How often `serve` sweeps expired count and sum slots.
 pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
 /// The most expired slots one sweep deletes.
@@ -1220,7 +1220,21 @@ impl GatewayEngine {
             .map_err(|_| "gateway.task.invalid-installation")?;
         if installation_bytes != canonical
             || installation.schema != TASK_INSTALLATION_SCHEMA
-            || installation.recipe_digest != self.recipe.digest_hex()
+            || installation.recipe_digests.is_empty()
+            || installation.recipe_digests.len() > 4
+            || installation.recipe_digests.iter().any(|digest| {
+                digest.len() != 64
+                    || !digest
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            })
+            || installation
+                .recipe_digests
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || !installation
+                .recipe_digests
+                .contains(&self.recipe.digest_hex())
         {
             return Err("gateway.task.invalid-installation");
         }
@@ -1243,6 +1257,7 @@ impl GatewayEngine {
         Ok(TaskWriteSession {
             engine: self,
             pins: installation.pins,
+            recipe_digests: installation.recipe_digests,
             binding,
             ledger,
         })
@@ -1521,7 +1536,7 @@ fn stored_result(snapshot: &crate::GatewayAttemptSnapshot) -> GatewaySubmitResul
 #[serde(deny_unknown_fields)]
 struct TaskWriteInstallation {
     schema: String,
-    recipe_digest: String,
+    recipe_digests: Vec<String>,
     pins: TaskActivationPins,
 }
 
@@ -1531,6 +1546,7 @@ struct TaskWriteInstallation {
 pub struct TaskWriteSession<'a> {
     engine: &'a GatewayEngine,
     pins: TaskActivationPins,
+    recipe_digests: Vec<String>,
     binding: TaskWriteBinding,
     ledger: FileReleaseTaskLedger,
 }
@@ -1594,6 +1610,14 @@ impl TaskWriteSession<'_> {
             proof_cbor,
             action_cbor,
         )?;
+        if task
+            .descriptor()
+            .write_scopes
+            .iter()
+            .any(|scope| !self.recipe_digests.contains(&scope.recipe_digest))
+        {
+            return Err(not_entered("gateway.task.recipe-not-installed"));
+        }
         let loaded = self
             .engine
             .connection
@@ -1609,8 +1633,12 @@ impl TaskWriteSession<'_> {
         {
             return Err(not_entered("gateway.task.connection-changed"));
         }
-        GatewayConnectionDescriptor::from_record(loaded.record(), &self.engine.recipe)
-            .map_err(|_| not_entered("gateway.connection.recipe-mismatch"))?;
+        let approved_recipes =
+            GatewayConnectionDescriptor::task_recipe_digests(loaded.record(), &self.engine.recipe)
+                .map_err(|_| not_entered("gateway.connection.recipe-mismatch"))?;
+        if approved_recipes != self.recipe_digests {
+            return Err(not_entered("gateway.task.recipe-not-installed"));
+        }
         self.ledger.initialize(&task).map_err(|error| {
             if error == crate::release_state::ReleaseStateError::Exists {
                 not_entered("gateway.task.already-activated")
@@ -2320,7 +2348,7 @@ pub(crate) mod tests {
         };
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
-            recipe_digest: engine.recipe.digest_hex(),
+            recipe_digests: vec![engine.recipe.digest_hex()],
             pins,
         };
         let bytes = serde_json_canonicalizer::to_vec(&config).expect("canonical config");
@@ -2422,7 +2450,17 @@ pub(crate) mod tests {
             Some("gateway.task.invalid-installation")
         );
         let mut changed: Value = serde_json::from_slice(&bytes).expect("JSON");
-        changed["recipe_digest"] = serde_json::json!("0".repeat(64));
+        changed["recipe_digests"] = serde_json::json!(["0".repeat(64)]);
+        assert_eq!(
+            engine
+                .task_write_session(
+                    &serde_json_canonicalizer::to_vec(&changed).expect("JSON"),
+                    &task_root,
+                )
+                .err(),
+            Some("gateway.task.invalid-installation")
+        );
+        changed["recipe_digests"] = serde_json::json!(vec![engine.recipe.digest_hex(); 2]);
         assert_eq!(
             engine
                 .task_write_session(
@@ -2552,7 +2590,7 @@ pub(crate) mod tests {
         .expect("card");
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
-            recipe_digest: engine.recipe.digest_hex(),
+            recipe_digests: vec![engine.recipe.digest_hex()],
             pins,
         };
         let bytes = serde_json_canonicalizer::to_vec(&config).expect("canonical config");
@@ -2586,6 +2624,18 @@ pub(crate) mod tests {
             "approve_agent_task_v1",
             now,
         );
+        let mut expanded: Value = serde_json::to_value(&config).expect("task installation");
+        let mut digests = vec![engine.recipe.digest_hex(), "f".repeat(64)];
+        digests.sort();
+        expanded["recipe_digests"] = serde_json::json!(digests);
+        let expanded_bytes = serde_json_canonicalizer::to_vec(&expanded).expect("installation");
+        let expanded_session = engine
+            .task_write_session(&expanded_bytes, root_path.with_file_name("expanded-state"))
+            .expect("bounded task installation");
+        assert!(matches!(
+            expanded_session.activate(&signed.proof, &signed.action).await,
+            Err(GatewaySubmitResult::NotEntered { code }) if code == "gateway.task.recipe-not-installed"
+        ));
         session
             .activate(&signed.proof, &signed.action)
             .await

@@ -736,6 +736,7 @@ mod tests {
         let task_session = TaskWriteSession {
             engine,
             pins,
+            recipe_digests: vec![engine.recipe.digest_hex()],
             binding: TaskWriteBinding {
                 resource_field: "record_id".to_owned(),
                 verb: TaskWriteVerb::Edit,

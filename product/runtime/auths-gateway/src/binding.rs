@@ -39,6 +39,7 @@ struct DescriptorWire {
 struct TaskRecipeEntry {
     operator_namespace: String,
     recipe_digest: String,
+    origin: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -59,7 +60,8 @@ pub struct GatewayTaskConnectionDescriptor {
 
 impl GatewayTaskConnectionDescriptor {
     /// Review all task recipes before installing the credential. Every recipe
-    /// must be task-bound and use the same injection header.
+    /// must be task-bound and use the same injection header. Each recipe's
+    /// reviewed HTTPS origin is pinned separately.
     ///
     /// # Errors
     /// Refuses a duplicate, non-task, mixed-credential or oversized set.
@@ -86,6 +88,7 @@ impl GatewayTaskConnectionDescriptor {
             entries.push(TaskRecipeEntry {
                 operator_namespace: recipe.namespace().as_str().to_owned(),
                 recipe_digest: recipe.digest_hex(),
+                origin: recipe.review().origin().to_owned(),
             });
         }
         entries.sort();
@@ -239,6 +242,27 @@ impl GatewayConnectionDescriptor {
         )
     }
 
+    /// Return the exact task recipe set only after validating the installed
+    /// descriptor against the recipe the operator loaded for this session.
+    pub(crate) fn task_recipe_digests(
+        record: &ConnectionRecord,
+        recipe: &CompiledRecipe,
+    ) -> Result<Vec<String>, GatewayConnectionError> {
+        Self::from_record(record, recipe)?;
+        if record.descriptor_schema().as_str() != TASK_CONNECTION_DESCRIPTOR_SCHEMA {
+            return Ok(vec![recipe.digest_hex()]);
+        }
+        let wire: TaskDescriptorWire = serde_json::from_slice(record.descriptor())
+            .map_err(|_| GatewayConnectionError::InvalidDescriptor)?;
+        let mut digests: Vec<_> = wire
+            .recipes
+            .into_iter()
+            .map(|entry| entry.recipe_digest)
+            .collect();
+        digests.sort();
+        Ok(digests)
+    }
+
     fn from_task_record(
         record: &ConnectionRecord,
         recipe: &CompiledRecipe,
@@ -273,6 +297,7 @@ impl GatewayConnectionDescriptor {
         let entry = TaskRecipeEntry {
             operator_namespace: expected.namespace.as_str().to_owned(),
             recipe_digest: hex::encode(expected.recipe_digest),
+            origin: recipe.review().origin().to_owned(),
         };
         if wire.credential != expected.credential || !wire.recipes.contains(&entry) {
             return Err(GatewayConnectionError::Mismatch);
@@ -499,6 +524,13 @@ mod tests {
         let installed = record(encoded.clone());
         assert!(GatewayConnectionDescriptor::from_record(&installed, &edit).is_ok());
         assert!(GatewayConnectionDescriptor::from_record(&installed, &create).is_ok());
+        let mut expected_digests = vec![edit.digest_hex(), create.digest_hex()];
+        expected_digests.sort();
+        assert_eq!(
+            GatewayConnectionDescriptor::task_recipe_digests(&installed, &edit)
+                .expect("approved task recipes"),
+            expected_digests
+        );
         assert_eq!(
             GatewayConnectionDescriptor::from_record(&installed, &unrelated),
             Err(GatewayConnectionError::Mismatch)
@@ -511,7 +543,6 @@ mod tests {
             GatewayTaskConnectionDescriptor::approve(&[&edit, &unrelated], "Authorization")
                 .is_err()
         );
-
         let mut changed: serde_json::Value = serde_json::from_slice(&encoded).expect("descriptor");
         changed["recipes"]
             .as_array_mut()
@@ -521,6 +552,19 @@ mod tests {
         assert_eq!(
             GatewayConnectionDescriptor::from_record(&record(noncanonical_order), &edit),
             Err(GatewayConnectionError::InvalidDescriptor)
+        );
+        let mut changed_origin: serde_json::Value =
+            serde_json::from_slice(&encoded).expect("descriptor");
+        for entry in changed_origin["recipes"].as_array_mut().expect("entries") {
+            if entry["recipe_digest"] == edit.digest_hex() {
+                entry["origin"] = serde_json::json!("https://unrelated.example");
+            }
+        }
+        let wrong_origin_record =
+            record(serde_json_canonicalizer::to_vec(&changed_origin).expect("JSON"));
+        assert_eq!(
+            GatewayConnectionDescriptor::from_record(&wrong_origin_record, &edit),
+            Err(GatewayConnectionError::Mismatch)
         );
     }
 }

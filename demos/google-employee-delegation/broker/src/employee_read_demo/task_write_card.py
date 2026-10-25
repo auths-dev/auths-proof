@@ -37,10 +37,13 @@ def _installation(path: Path) -> dict:
         document = json.loads(_private_read(path, 16_384), object_pairs_hook=_unique_pairs)
     except (PermissionError, UnicodeDecodeError, ValueError) as error:
         raise OperatorDenied("installed gateway task pins are unavailable") from error
-    if (type(document) is not dict or set(document) != {"schema", "recipe_digest", "pins"}
-            or document["schema"] != "auths.gateway-task-installation/2"
-            or type(document["recipe_digest"]) is not str
-            or _DIGEST.fullmatch(document["recipe_digest"]) is None
+    if (type(document) is not dict or set(document) != {"schema", "recipe_digests", "pins"}
+            or document["schema"] != "auths.gateway-task-installation/3"
+            or type(document["recipe_digests"]) is not list
+            or not 1 <= len(document["recipe_digests"]) <= 4
+            or any(type(value) is not str or _DIGEST.fullmatch(value) is None
+                   for value in document["recipe_digests"])
+            or document["recipe_digests"] != sorted(set(document["recipe_digests"]))
             or type(document["pins"]) is not dict
             or set(document["pins"]) != _PINS):
         raise OperatorDenied("installed gateway task pins are malformed")
@@ -76,7 +79,7 @@ def build_exact_write_card(
         raise OperatorDenied("reviewed write recipe is unavailable") from error
     binding = recipe.get("task_binding") if type(recipe) is dict else None
     verb = binding.get("verb") if type(binding) is dict else None
-    if (installation["recipe_digest"] != package.recipe_digest
+    if (package.recipe_digest not in installation["recipe_digests"]
             or recipe_sha != package.recipe_source_sha256
             or lock_sha != package.profile_lock_sha256
             or service != authority.provider_service

@@ -2,8 +2,10 @@
 
 **Status:** Proposed for AP-SPEC-071. The gateway can now validate a bounded,
 operator-approved connection descriptor containing two to four task-bound
-recipe digests for one credential. The installed runtime still has no shared
-multi-recipe task journal or child-resource binding. This ADR authorizes no
+recipe digests and their reviewed HTTPS origins for one credential. Task
+activation checks a closed installed recipe set against that connection. The
+CLI still loads one write recipe per state directory and has no child-resource
+binding. This ADR authorizes no
 production claim by itself.
 
 **Date:** 25 October 2026
