@@ -172,10 +172,11 @@ def _wait_for(path: Path, process: subprocess.Popen) -> None:
 
 
 def run(env_file: Path, root: Path, binary: Path,
-        *, drop_ack: bool = False, fail_before_content: bool = False) -> None:
+        *, drop_ack: bool = False, fail_before_content: bool = False,
+        revoke_before_actions: bool = False) -> None:
     root = _private_dir(root, create=True)
-    if drop_ack and fail_before_content:
-        raise ValueError("choose only one release fault")
+    if sum((drop_ack, fail_before_content, revoke_before_actions)) > 1:
+        raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
     state = _private_dir(root / "gateway", create=True)
@@ -445,6 +446,96 @@ def run(env_file: Path, root: Path, binary: Path,
            "--package-file", agent_dir / "read-package.json",
            "--arguments-file", agent_dir / "read-arguments.json",
            "--out-dir", read_output)
+    if revoke_before_actions:
+        write_operation = "airtable-write-after-revoke"
+        _write_json(agent_dir / "revoked-write-arguments.json", {
+            **common, "operator_namespace": "airtable-demo",
+            "operation_id": write_operation, "recipe_digest": WRITE_DIGEST,
+            "record_id": record, "replacement": "Approved",
+        })
+        write_output = _private_dir(agent_dir / "revoked-write-output", create=True)
+        _agent("sign-write", "--key-file", agent_dir / "agent.seed",
+               "--package-file", agent_dir / "write-package.json",
+               "--arguments-file", agent_dir / "revoked-write-arguments.json",
+               "--out-dir", write_output)
+        _private_write(signed.private_task_dir / "agent.proof",
+                       (write_output / "agent.proof").read_bytes())
+        _private_write(signed.private_task_dir / "agent.action",
+                       (write_output / "agent.action").read_bytes())
+
+        def revocation_preflight(card: dict, review: object) -> None:
+            current = airtable.request("GET", row_path)
+            if (card["write_scopes"][0]["handle"] != record
+                    or review.arguments.get("record_id") != record
+                    or review.arguments.get("replacement") != "Approved"
+                    or current != before):
+                raise RuntimeError("Airtable revocation proposal baseline changed")
+
+        flow = TaskWriteConfirmationFlow(
+            authority_path=authority, installation_path=installation,
+            recipe_path=WRITE / "recipe.json",
+            profile_lock_path=WRITE / "profile.lock.json",
+            read_recipe_path=HERE / "recipe.json",
+            read_profile_lock_path=HERE / "profile.lock.json",
+            private_output_dir=operator, gateway_binary=binary,
+            gateway_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+            preflight=revocation_preflight, gateway_state_dir=state,
+        )
+        exact = flow.prepare(task_id=signed.task_id, employee=employee, agent=agent)
+        flow.complete(nonce=exact.nonce, employee=employee, agent=agent,
+                      signature=human_key.sign(exact.signing_preimage))
+        prior = _gateway(binary, "task-status", "--state-dir", state,
+                         "--task-id", signed.task_id)
+        if (prior.get("provider_calls") != 0 or prior.get("releases") != 0
+                or prior.get("writes") != 0):
+            raise RuntimeError("revocation task spent budget before revocation")
+        _gateway(binary, "task-revoke", "--state-dir", state,
+                 "--task-id", signed.task_id)
+        revoked_read = _gateway(
+            binary, "task-read-submit", "--state-dir", state,
+            "--task-id", signed.task_id,
+            "--agent-proof", read_output / "read.proof",
+            "--agent-action", read_output / "read.action",
+        )
+        revoked_write = _gateway(
+            binary, "task-submit", "--state-dir", state,
+            "--task-id", signed.task_id,
+            "--agent-proof", signed.private_task_dir / "agent.proof",
+            "--agent-action", signed.private_task_dir / "agent.action",
+            "--confirmation-proof", signed.private_task_dir / "confirmation.proof",
+            "--confirmation-action", signed.private_task_dir / "confirmation.action",
+        )
+        after_revoke = _gateway(binary, "task-status", "--state-dir", state,
+                                "--task-id", signed.task_id)
+        after_provider = airtable.request("GET", row_path)
+        if (revoked_read != {"outcome": "not-entered",
+                             "code": "gateway.release.task-inactive"}
+                or revoked_write != {"outcome": "not-entered",
+                                    "code": "gateway.task.inactive"}
+                or after_revoke.get("provider_calls") != 0
+                or after_revoke.get("releases") != 0
+                or after_revoke.get("writes") != 0
+                or after_provider != before):
+            raise RuntimeError("revoked Airtable task reached provider or changed record")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-revocation/1",
+            "task_id": signed.task_id, "record_id": record,
+            "read_operation_id": read_operation,
+            "write_operation_id": write_operation,
+            "read_outcome": revoked_read,
+            "write_outcome": revoked_write,
+            "gateway_status": after_revoke,
+            "independent_readback": "unchanged-pending",
+            "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-revocation-observed",
+            "task_id": signed.task_id, "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     source = agent_dir / "released-status.txt"
     server = _agent("serve-release-lossy" if drop_ack else "serve-release",
                     "--key-file", agent_dir / "agent.seed",
@@ -641,13 +732,16 @@ def main() -> None:
                         help="receive bytes but deliberately lose agent ACK")
     parser.add_argument("--fail-before-content", action="store_true",
                         help="development gateway fault after release charge, before content")
+    parser.add_argument("--revoke-before-actions", action="store_true",
+                        help="revoke after both actions are signed but before provider entry")
     args = parser.parse_args()
     if args.command == "run":
         if args.gateway_bin is None:
             parser.error("run needs the reviewed gateway binary")
         run(args.env_file, args.root, args.gateway_bin,
             drop_ack=args.drop_ack,
-            fail_before_content=args.fail_before_content)
+            fail_before_content=args.fail_before_content,
+            revoke_before_actions=args.revoke_before_actions)
     else:
         cleanup(args.env_file, args.root)
 

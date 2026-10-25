@@ -92,3 +92,16 @@ independent operator GET confirmed the approved value and gateway echo. The
 run-owned record `recltn8I6tC22UfSo` was retired; the ownership journal has
 `retired=true` and the redacted result reports verified cleanup. This adds an
 installed wrong-recipe refusal without claiming the full §6 corpus is done.
+
+A sixth disposable run
+(`/private/tmp/ap071-airtable-revocation-20261025-2204`) signed both an agent
+read and an agent write under one synthetic-human task, then signed the exact
+write confirmation before revoking that task. The subsequent installed read
+submission returned `not-entered` with `gateway.release.task-inactive`; the
+write returned `not-entered` with `gateway.task.inactive`. The gateway status
+remained at zero provider calls, zero releases, zero released bytes and zero
+writes. An independent operator GET found the run-owned record unchanged at
+its `Pending` baseline. The record `recnLCNtLRpsGy5Iu` was retired and its
+ownership journal has `retired=true`. This proves the single-host revoked-task
+boundary for both action types before provider entry; it does not prove
+multi-host revocation or a human-bound Airtable account.
