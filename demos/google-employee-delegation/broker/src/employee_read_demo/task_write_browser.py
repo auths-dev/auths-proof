@@ -130,11 +130,16 @@ class TaskWriteBrowserFlow:
         try:
             _private_write(task_dir / "task.proof", signed_task.proof)
             _private_write(task_dir / "task.action", signed_task.action)
+            _private_write(task_dir / "task-card.json", json.dumps(
+                pending.card, sort_keys=True, separators=(",", ":"),
+            ).encode("utf-8"))
+            _private_write(task_dir / "trusted-context.cbor", current.authority.trusted_template)
             _private_write(task_dir / "agent-package.json", json.dumps(
                 agent_package, sort_keys=True, separators=(",", ":"),
             ).encode("utf-8"))
         except BaseException:
-            for name in ("task.proof", "task.action", "agent-package.json"):
+            for name in ("task.proof", "task.action", "task-card.json",
+                         "trusted-context.cbor", "agent-package.json"):
                 (task_dir / name).unlink(missing_ok=True)
             task_dir.rmdir()
             raise

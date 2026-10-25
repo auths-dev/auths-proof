@@ -10,6 +10,7 @@ let preparedAgent = null;
 let preparedTask = null;
 let preparedActivation = null;
 let preparedWriteTask = null;
+let preparedWriteConfirmation = null;
 let activationTaskId = null;
 
 async function api(path, body = null) {
@@ -217,8 +218,48 @@ async function authorizeWriteTask() {
     agent_principal: result.agent_principal, expires_at: result.expires_at,
   }, null, 2);
   byId("write-review").hidden = true;
+  byId("write-confirm-task-id").value = result.task_id;
   preparedWriteTask = null;
   message("Jules's write task is signed. Gateway activation and a separate exact edit confirmation are still required.");
+}
+
+async function prepareWriteConfirmation() {
+  const result = await api("/api/v1/write/confirmations/prepare", {
+    task_id: value("write-confirm-task-id"),
+  });
+  preparedWriteConfirmation = result;
+  byId("write-confirm-details").textContent = JSON.stringify({
+    task_id: result.task_id,
+    agent_principal: result.agent_principal,
+    account_subject: result.account_subject,
+    destination_handle: result.destination_handle,
+    method: result.method,
+    url: result.url,
+    content_type: result.content_type,
+    exact_request_body: result.body,
+    intent: result.intent,
+    expires_at: result.expires_at,
+  }, null, 2);
+  byId("write-confirm-review").hidden = false;
+  message("Review the complete destination and proposed request before signing.");
+}
+
+async function authorizeWriteConfirmation() {
+  if (!preparedWriteConfirmation) throw new Error("Review an agent proposal first");
+  if (Date.now() / 1000 >= preparedWriteConfirmation.expires_at) {
+    throw new Error("The exact edit review expired; review the proposal again");
+  }
+  const signature = await signEmployee(preparedWriteConfirmation.signing_preimage);
+  const result = await api("/api/v1/write/confirmations/authorize", {
+    nonce: preparedWriteConfirmation.nonce, signature,
+  });
+  if (result.task_id !== preparedWriteConfirmation.task_id) {
+    throw new Error("Confirmed task differs from the reviewed task");
+  }
+  byId("write-confirm-status").textContent = JSON.stringify(result, null, 2);
+  byId("write-confirm-review").hidden = true;
+  preparedWriteConfirmation = null;
+  message("Jules's exact edit is confirmed. The gateway has not submitted a provider write yet.");
 }
 
 async function prepareActivation() {
@@ -380,6 +421,11 @@ async function start() {
   if (session.task_write_available) {
     bind("write-prepare", prepareWriteTask);
     bind("write-authorize", authorizeWriteTask);
+  }
+  byId("write-confirmation").hidden = !session.task_write_confirmation_available;
+  if (session.task_write_confirmation_available) {
+    bind("write-confirm-prepare", prepareWriteConfirmation);
+    bind("write-confirm-authorize", authorizeWriteConfirmation);
   }
   bind("activate-prepare", prepareActivation);
   bind("activate-complete", completeActivation);

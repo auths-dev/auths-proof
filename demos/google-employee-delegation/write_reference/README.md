@@ -121,13 +121,24 @@ task and child grant in Jules's browser, writes `task.proof` and `task.action`
 under a new private task directory, and downloads a public agent package.
 The gateway must still activate that task and later require a separate exact
 confirmation before any provider write.
+For the separate confirmation screen, the operator also supplies
+`--task-write-gateway-bin` and its SHA-256 in
+`--task-write-gateway-sha256`. After the isolated agent signs, its
+`agent.proof` and `agent.action` are staged as mode-0600 files in that task's
+owner-private output directory. The screen runs the pinned gateway binary's
+`review-submission` command on those files and the pinned recipe and trust,
+shows Jules the complete credential-free method, URL and body, then signs the
+exact derived intent. It saves `confirmation.proof` and
+`confirmation.action` privately. Gateway activation, fresh Jules preflight,
+`task-submit`, response evidence and independent demo_co readback are still
+separate steps; the screen does not submit the provider write.
 The [human action helper](../broker/src/employee_read_demo/task_write_proofs.py)
 now prepares separate native preimages for a reviewed task card and an exact
 closed-write intent. It completes each proof only with a signature from the
 enrolled human key, which the browser currently holds. Its card commitment
 uses the gateway's domain-separated canonicalization. This is native proof
-construction, not a served Jules approval screen or an installed gateway
-activation.
+construction; the served approval screens still need a live Jules run and
+installed gateway activation.
 The isolated [agent write signer](../agent/src/employee_read_agent/write.py)
 can now sign a reviewed profile action under the human's completed child
 grant. `auths-google-read-agent sign-write` writes private proof and action
@@ -135,16 +146,17 @@ files; its package contains public grant/evidence bytes, operator challenge,
 task commitment and recipe digest, with no human key or Google token. The
 broker's [child-grant helper](../broker/src/employee_read_demo/task_write_delegation.py)
 now verifies Jules's signature against her enrolled public key and produces
-that public package. Serving it still requires an owner-scoped browser flow
-that rechecks active enrollment, registered agent, task card and operator
-pins at completion.
+that public package. The owner-scoped browser task flow rechecks active
+enrollment, registered agent, task card and operator pins at completion.
 After the agent signs, `auths-gateway review-submission` can verify its native
 proof offline and render the exact credential-free method, URL, headers and
 body. The [exact intent projection](../broker/src/employee_read_demo/task_write_intent.py)
 binds that review to the signed task card and reviewed recipe, then computes
 the same domain-separated closed-request commitment that the gateway checks
-on submission. It does not claim or send the request. The Jules screen still
-needs to render this projection and obtain her separate exact confirmation.
+on submission. It does not claim or send the request. The optional Jules screen
+renders this projection and obtains her separate exact confirmation after the
+agent proof is staged. Its live use still needs the fresh Jules revision/ACL
+preflight and independent effect evidence.
 The private authority package pins a fresh 32-byte operator challenge into
 the installed trust context. It pins the gateway's MCP policy verifier
 configuration, exposed by the native Python binding; the older self-contained

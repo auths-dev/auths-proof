@@ -13,7 +13,7 @@ from pathlib import Path
 from auths import _native
 from auths.identity.authoring import create_raw_key_ed25519_identity
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption
 
 from employee_read_demo.authority_identity import authority_for_identity_packet
 from employee_read_demo.enrollment import EnrollmentStore
@@ -24,6 +24,7 @@ from employee_read_demo.task_write_operator_cli import issue_task_package
 from employee_read_demo.task_write_package import load_task_write_package
 from employee_read_demo.task_write_card import build_exact_write_card
 from employee_read_demo.task_write_browser import TaskWriteBrowserFlow
+from employee_read_demo.task_write_confirmation import TaskWriteConfirmationFlow
 from employee_read_demo.operator_authority import OperatorDenied
 
 
@@ -59,7 +60,7 @@ class TaskOperatorCliTests(unittest.TestCase):
                         "https://accounts.google.com", "synthetic-subject",
                         human, identity.to_bytes(), "a" * 64,
                     ))
-            digest = "b" * 64
+            digest = "deec68be1e8fc256b2aa09cf100f6a6cc9481578d0faa19a633a7400b50945fe"
             summary = issue_task_package(
                 root_seed=seed, root_trust=trust, state_db=state,
                 binding_ref="binding-jules", company="atlas-studio",
@@ -139,7 +140,69 @@ class TaskOperatorCliTests(unittest.TestCase):
             self.assertEqual(completed.task_id, prepared.card["task_id"])
             self.assertTrue((completed.private_task_dir / "task.proof").is_file())
             self.assertTrue((completed.private_task_dir / "task.action").is_file())
+            self.assertEqual(json.loads((completed.private_task_dir / "task-card.json").read_text()),
+                             prepared.card)
+            self.assertEqual((completed.private_task_dir / "trusted-context.cbor").read_bytes(),
+                             loaded.authority.trusted_template)
             self.assertEqual((completed.private_task_dir / "agent-package.json").stat().st_mode & 0o777, 0o600)
+            gateway_binary = os.environ.get("AUTHS_GATEWAY_BIN")
+            if gateway_binary:
+                import sys
+                sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "agent" / "src"))
+                from employee_read_agent.run import AgentKey
+                from employee_read_agent.write import sign_write
+
+                agent_seed = agent_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+                arguments = {
+                    "operator_namespace": "google-docs-demo",
+                    "operation_id": "write-1",
+                    "recipe_digest": digest,
+                    "task_id": prepared.card["task_id"],
+                    "task_commitment": completed.agent_package["task_commitment"],
+                    "document_id": "working-doc",
+                    "tab_id": "t.0",
+                    "marker": "PLACEHOLDER",
+                    "replacement": "Updated Project A",
+                    "required_revision_id": "rev-1",
+                }
+                agent_proof, agent_action = sign_write(
+                    completed.agent_package, arguments, AgentKey(agent_seed), now=1012,
+                )
+                (completed.private_task_dir / "agent.proof").write_bytes(agent_proof)
+                (completed.private_task_dir / "agent.action").write_bytes(agent_action)
+                os.chmod(completed.private_task_dir / "agent.proof", 0o600)
+                os.chmod(completed.private_task_dir / "agent.action", 0o600)
+                binary = Path(gateway_binary).resolve()
+                confirmation = TaskWriteConfirmationFlow(
+                    authority_path=output, installation_path=installed,
+                    recipe_path=REFERENCE / "recipe.json",
+                    profile_lock_path=REFERENCE / "profile.lock.json",
+                    private_output_dir=private, gateway_binary=binary,
+                    gateway_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                )
+                proposal = confirmation.prepare(
+                    task_id=prepared.card["task_id"], employee=employee,
+                    agent=agent, now=1013,
+                )
+                self.assertEqual(proposal.intent["resource_handle"], "working-doc")
+                self.assertIn("Updated Project A", proposal.review.body)
+                (completed.private_task_dir / "agent.action").write_bytes(b"changed")
+                with self.assertRaises(OperatorDenied):
+                    confirmation.complete(
+                        nonce=proposal.nonce, employee=employee, agent=agent,
+                        signature=human_key.sign(proposal.signing_preimage), now=1014,
+                    )
+                (completed.private_task_dir / "agent.action").write_bytes(agent_action)
+                proposal = confirmation.prepare(
+                    task_id=prepared.card["task_id"], employee=employee,
+                    agent=agent, now=1014,
+                )
+                confirmation.complete(
+                    nonce=proposal.nonce, employee=employee, agent=agent,
+                    signature=human_key.sign(proposal.signing_preimage), now=1015,
+                )
+                self.assertTrue((completed.private_task_dir / "confirmation.proof").is_file())
+                self.assertTrue((completed.private_task_dir / "confirmation.action").is_file())
             with self.assertRaises(OperatorDenied):
                 flow.complete(
                     nonce=prepared.nonce, employee=employee, agent=agent,

@@ -66,6 +66,18 @@
     <pre id="write-status">No write task signed.</pre>
   </section>
 
+  <section id="write-confirmation" aria-labelledby="write-confirmation-heading" hidden>
+    <h2 id="write-confirmation-heading">Confirm the agent's exact edit</h2>
+    <p>After the separate agent signs its proposed action and the operator stages its proof, review the closed request below. Confirming saves Jules's signature; the gateway submission and independent readback are separate steps.</p>
+    <label>Write task ID<input id="write-confirm-task-id" autocomplete="off"></label>
+    <button id="write-confirm-prepare" type="button">Review agent proposal</button>
+    <div id="write-confirm-review" hidden>
+      <pre id="write-confirm-details"></pre>
+      <button id="write-confirm-authorize" type="button">Sign this exact edit</button>
+    </div>
+    <pre id="write-confirm-status">No exact edit confirmed.</pre>
+  </section>
+
   <section aria-labelledby="run-heading">
     <h2 id="run-heading">4. Activate and run</h2>
     <label>Task ID<input id="task-id" autocomplete="off"></label>

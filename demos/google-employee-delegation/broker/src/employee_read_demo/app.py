@@ -34,6 +34,7 @@ from .task_approval import ApprovalDenied, TaskApprovalStore
 from .task_activation import ActivationDenied, TaskActivationStore
 from .operator_authority import OperatorDenied
 from .task_write_browser import TaskWriteBrowserFlow
+from .task_write_confirmation import TaskWriteConfirmationFlow
 from .task_write_card import _installation
 from .task_write_package import load_task_write_package
 from .write_handoff import WriteHandoffPins, validate_write_handoff
@@ -85,6 +86,7 @@ class Workbench:
     write_browser: TaskWriteBrowserFlow | None = None
     write_evidence: Path | None = None
     write_pins: WriteHandoffPins | None = None
+    write_confirmation: TaskWriteConfirmationFlow | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -257,6 +259,11 @@ class Handler(BaseHTTPRequestHandler):
                     "drive_connected": drive_connected,
                     "task_write_available": bool(
                         self.workbench.write_browser is not None
+                        and self.workbench.write_pins is not None
+                        and session.subject == self.workbench.write_pins.jules_subject
+                    ),
+                    "task_write_confirmation_available": bool(
+                        self.workbench.write_confirmation is not None
                         and self.workbench.write_pins is not None
                         and session.subject == self.workbench.write_pins.jules_subject
                     ),
@@ -466,6 +473,49 @@ class Handler(BaseHTTPRequestHandler):
                     "agent_principal": completed.agent_principal,
                     "expires_at": completed.expires_at,
                     "agent_package": completed.agent_package,
+                })
+                return
+            if path in {"/api/v1/write/confirmations/prepare",
+                        "/api/v1/write/confirmations/authorize"}:
+                flow = self.workbench.write_confirmation
+                if flow is None:
+                    raise OperatorDenied("exact write review is unavailable")
+                employee, agent, _, _, _ = self._write_bindings(session)
+                if path.endswith("/prepare"):
+                    if set(body) != {"task_id"} or type(body["task_id"]) is not str:
+                        raise ValueError("write task ID is invalid")
+                    prepared = flow.prepare(
+                        task_id=body["task_id"], employee=employee, agent=agent,
+                    )
+                    self._json(HTTPStatus.OK, {
+                        "status": "awaiting_exact_confirmation",
+                        "nonce": prepared.nonce,
+                        "task_id": prepared.task_id,
+                        "agent_principal": prepared.card["agent_principal"],
+                        "account_subject": prepared.card["connection_subject"],
+                        "destination_handle": prepared.intent["resource_handle"],
+                        "method": prepared.review.method,
+                        "url": prepared.review.url,
+                        "content_type": prepared.review.content_type,
+                        "body": prepared.review.body,
+                        "intent": prepared.intent,
+                        "signing_preimage": base64.urlsafe_b64encode(
+                            prepared.signing_preimage).decode("ascii"),
+                        "expires_at": prepared.expires_at,
+                    })
+                    return
+                if set(body) != {"nonce", "signature"}:
+                    raise ValueError("exact confirmation is incomplete")
+                nonce = body["nonce"]
+                if type(nonce) is not str or not 1 <= len(nonce) <= 128:
+                    raise ValueError("exact confirmation nonce is invalid")
+                directory = flow.complete(
+                    nonce=nonce, employee=employee, agent=agent,
+                    signature=_b64(body["signature"], max_bytes=64),
+                )
+                self._json(HTTPStatus.OK, {
+                    "status": "confirmed_pending_gateway_submission",
+                    "task_id": directory.name,
                 })
                 return
             if path == "/api/v1/identity/packet":
@@ -724,6 +774,8 @@ def main() -> int:
     parser.add_argument("--task-write-output-dir", type=Path)
     parser.add_argument("--task-write-evidence", type=Path)
     parser.add_argument("--task-write-pins", type=Path)
+    parser.add_argument("--task-write-gateway-bin", type=Path)
+    parser.add_argument("--task-write-gateway-sha256")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -803,6 +855,7 @@ def main() -> int:
         parser.error("all task-write inputs must be supplied together")
     write_browser = None
     write_pins = None
+    write_confirmation = None
     if all(option is not None for option in write_options):
         if company is None:
             parser.error("task write requires an accepted company import")
@@ -827,12 +880,27 @@ def main() -> int:
             profile_lock_path=args.task_write_profile_lock,
             private_output_dir=args.task_write_output_dir,
         )
+    if ((args.task_write_gateway_bin is None)
+            != (args.task_write_gateway_sha256 is None)):
+        parser.error("gateway review binary and digest must be supplied together")
+    if args.task_write_gateway_bin is not None:
+        if write_browser is None:
+            parser.error("gateway review requires the task write installation")
+        write_confirmation = TaskWriteConfirmationFlow(
+            authority_path=args.task_write_authority,
+            installation_path=args.task_write_installation,
+            recipe_path=args.task_write_recipe,
+            profile_lock_path=args.task_write_profile_lock,
+            private_output_dir=args.task_write_output_dir,
+            gateway_binary=args.task_write_gateway_bin,
+            gateway_sha256=args.task_write_gateway_sha256,
+        )
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),
                           vault, company, status, origin, trusted_template, expected_root,
                           agent_transport, service, write_browser,
-                          args.task_write_evidence, write_pins)
+                          args.task_write_evidence, write_pins, write_confirmation)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

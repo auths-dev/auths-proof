@@ -1,0 +1,209 @@
+"""Owner-side review of a separately signed agent write before human confirmation.
+
+The agent proof/action are staged as owner-private files under an approved task.
+The installed gateway binary verifies them and compiles the closed request; no
+browser-supplied request or review JSON is accepted. This module never submits
+to the provider or opens a credential.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import secrets
+import stat
+import subprocess
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+from .agent_registry import AgentBinding
+from .demo_co_contract import _unique_pairs
+from .enrollment import EmployeeBinding
+from .operator_authority import OperatorDenied
+from .operator_cli import _private_read, _private_write
+from .task_write_card import build_exact_write_card
+from .task_write_intent import ReviewedWrite, project_exact_write
+from .task_write_operator_cli import _reviewed_profile
+from .task_write_package import load_task_write_package
+from .task_write_proofs import PreparedHumanAction, prepare_exact_confirmation, task_commitment
+
+
+_TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,32}\Z")
+_HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+
+
+@dataclass(frozen=True)
+class PreparedConfirmation:
+    nonce: str
+    task_id: str
+    card: dict
+    intent: dict
+    review: ReviewedWrite
+    signing_preimage: bytes
+    expires_at: int
+
+
+@dataclass(frozen=True)
+class _Pending:
+    employee: EmployeeBinding
+    agent: AgentBinding
+    task_id: str
+    intent: dict
+    review: ReviewedWrite
+    action: PreparedHumanAction
+
+
+class TaskWriteConfirmationFlow:
+    def __init__(self, *, authority_path: Path, installation_path: Path,
+                 recipe_path: Path, profile_lock_path: Path,
+                 private_output_dir: Path, gateway_binary: Path,
+                 gateway_sha256: str) -> None:
+        if (private_output_dir.is_symlink() or not private_output_dir.is_dir()
+                or private_output_dir.stat().st_mode & 0o077
+                or type(gateway_sha256) is not str
+                or _HEX64.fullmatch(gateway_sha256) is None):
+            raise OperatorDenied("confirmation installation is unavailable")
+        self.authority_path = authority_path
+        self.installation_path = installation_path
+        self.recipe_path = recipe_path
+        self.profile_lock_path = profile_lock_path
+        self.private_output_dir = private_output_dir
+        self.gateway_binary = gateway_binary
+        self.gateway_sha256 = gateway_sha256
+        self._pending: dict[str, _Pending] = {}
+        self._lock = threading.Lock()
+
+    def _binary(self) -> Path:
+        path = self.gateway_binary
+        if (not path.is_absolute() or path.is_symlink() or not path.is_file()
+                or not path.stat().st_mode & stat.S_IXUSR):
+            raise OperatorDenied("reviewed gateway binary is unavailable")
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != self.gateway_sha256:
+            raise OperatorDenied("reviewed gateway binary changed")
+        return path
+
+    def _task_dir(self, task_id: str) -> Path:
+        if type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None:
+            raise OperatorDenied("write task ID is invalid")
+        directory = self.private_output_dir / task_id
+        if (directory.is_symlink() or not directory.is_dir()
+                or directory.stat().st_mode & 0o077):
+            raise OperatorDenied("private write task is unavailable")
+        return directory
+
+    def _review(self, task_id: str, employee: EmployeeBinding,
+                agent: AgentBinding, now: int) -> tuple[dict, ReviewedWrite]:
+        directory = self._task_dir(task_id)
+        package = load_task_write_package(self.authority_path, now=now)
+        try:
+            card = json.loads(_private_read(directory / "task-card.json", 16_384),
+                              object_pairs_hook=_unique_pairs)
+            public = json.loads(_private_read(directory / "agent-package.json", 262_144),
+                                object_pairs_hook=_unique_pairs)
+            recipe = json.loads(self.recipe_path.read_bytes(), object_pairs_hook=_unique_pairs)
+            proof = _private_read(directory / "agent.proof", 4 * 1024 * 1024)
+            action = _private_read(directory / "agent.action", 64 * 1024)
+            trust = _private_read(directory / "trusted-context.cbor", 262_144)
+        except (OSError, PermissionError, ValueError, UnicodeDecodeError) as error:
+            raise OperatorDenied("staged agent proposal is unavailable") from error
+        if (type(card) is not dict or card.get("task_id") != task_id
+                or card.get("human_principal") != employee.principal
+                or card.get("agent_principal") != agent.agent_principal
+                or type(card.get("not_before")) is not int
+                or type(card.get("expires_at")) is not int
+                or not card["not_before"] <= now < card["expires_at"]
+                or type(card.get("write_scopes")) is not list
+                or len(card["write_scopes"]) != 1
+                or type(card["write_scopes"][0]) is not dict
+                or type(card["write_scopes"][0].get("handle")) is not str
+                or type(card.get("purpose")) is not str
+                or type(public) is not dict
+                or public.get("task_id") != task_id
+                or public.get("agent_principal") != agent.agent_principal
+                or public.get("task_commitment") != task_commitment(card)
+                or public.get("recipe_digest") != package.recipe_digest
+                or trust != package.authority.trusted_template):
+            raise OperatorDenied("staged proposal disagrees with signed task")
+        refreshed = build_exact_write_card(
+            package, employee, agent, installation_path=self.installation_path,
+            recipe_path=self.recipe_path, profile_lock_path=self.profile_lock_path,
+            resource_handle=card["write_scopes"][0]["handle"],
+            purpose=card["purpose"], now=now,
+        )
+        if set(card) != set(refreshed):
+            raise OperatorDenied("installed task scope changed")
+        for key, reviewed in card.items():
+            if key not in {"task_id", "not_before", "expires_at"} and refreshed[key] != reviewed:
+                raise OperatorDenied("installed task scope changed")
+        _, _, recipe_sha, lock_sha = _reviewed_profile(
+            self.recipe_path, self.profile_lock_path,
+        )
+        if (recipe_sha != package.recipe_source_sha256
+                or lock_sha != package.profile_lock_sha256):
+            raise OperatorDenied("reviewed recipe changed")
+        try:
+            completed = subprocess.run([
+                str(self._binary()), "review-submission",
+                "--recipe", str(self.recipe_path),
+                "--profile-lock", str(self.profile_lock_path),
+                "--trusted-context", str(directory / "trusted-context.cbor"),
+                "--proof", str(directory / "agent.proof"),
+                "--action", str(directory / "agent.action"),
+                "--evaluated-at", str(now),
+            ], capture_output=True, check=False, timeout=10)
+            if completed.returncode != 0 or len(completed.stdout) > 131_072:
+                raise OperatorDenied("gateway refused staged agent proposal")
+            review = json.loads(completed.stdout, object_pairs_hook=_unique_pairs)
+        except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+            raise OperatorDenied("gateway review is unavailable") from error
+        if (_private_read(directory / "agent.proof", 4 * 1024 * 1024) != proof
+                or _private_read(directory / "agent.action", 64 * 1024) != action):
+            raise OperatorDenied("agent proposal changed during gateway review")
+        if not proof or not action or type(recipe) is not dict:
+            raise OperatorDenied("staged agent proposal is invalid")
+        return card, project_exact_write(card, review, recipe, package.recipe_digest)
+
+    def prepare(self, *, task_id: str, employee: EmployeeBinding,
+                agent: AgentBinding, now: int | None = None) -> PreparedConfirmation:
+        now = int(time.time()) if now is None else now
+        card, review = self._review(task_id, employee, agent, now)
+        package = load_task_write_package(self.authority_path, now=now)
+        action = prepare_exact_confirmation(package.authority, review.intent, now=now)
+        nonce = secrets.token_urlsafe(24)
+        with self._lock:
+            self._pending[nonce] = _Pending(
+                employee, agent, task_id, review.intent, review, action,
+            )
+        return PreparedConfirmation(
+            nonce, task_id, card, review.intent, review,
+            action.signing_preimage, action.expires_at,
+        )
+
+    def complete(self, *, nonce: str, employee: EmployeeBinding,
+                 agent: AgentBinding, signature: bytes,
+                 now: int | None = None) -> Path:
+        now = int(time.time()) if now is None else now
+        with self._lock:
+            pending = self._pending.pop(nonce, None)
+        if (pending is None or pending.employee != employee
+                or pending.agent != agent or now >= pending.action.expires_at):
+            raise OperatorDenied("exact write review is unavailable")
+        _, current = self._review(pending.task_id, employee, agent, now)
+        if current != pending.review or current.intent != pending.intent:
+            raise OperatorDenied("agent proposal changed during exact review")
+        signed = pending.action.complete(signature, now=now)
+        directory = self._task_dir(pending.task_id)
+        _private_write(directory / "confirmation.proof", signed.proof)
+        try:
+            _private_write(directory / "confirmation.action", signed.action)
+        except BaseException:
+            (directory / "confirmation.proof").unlink(missing_ok=True)
+            raise
+        return directory
