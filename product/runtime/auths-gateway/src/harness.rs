@@ -422,6 +422,17 @@ pub(crate) fn context_for_agent_and_task(
     observer: &PrincipalId,
     now: u64,
 ) -> Result<TrustedContext, HarnessError> {
+    context_for_agent_and_task_profile(root, observer, now, SERVICE, TOOL)
+}
+
+#[cfg(test)]
+pub(crate) fn context_for_agent_and_task_profile(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    service: &str,
+    tool: &str,
+) -> Result<TrustedContext, HarnessError> {
     context_for_profiles(
         &[root],
         observer,
@@ -431,7 +442,7 @@ pub(crate) fn context_for_agent_and_task(
         fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
         &[RAW_KEY_V1],
         &[
-            (SERVICE, TOOL),
+            (service, tool),
             ("auths-agent-task", "approve_agent_task_v1"),
             ("auths-agent-task", "confirm_agent_write_v1"),
         ],

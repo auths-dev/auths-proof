@@ -2338,7 +2338,7 @@ pub(crate) mod tests {
         clippy::too_many_lines,
         reason = "installed activation fixture includes connection, task and native human proof"
     )]
-    async fn installed_task_session_activates_native_human_card_once() {
+    async fn installed_task_session_activates_and_gates_exact_agent_write() {
         use crate::harness::{self, Signer};
         use crate::observed_tests::submission_for;
         use crate::task_activation::AgentTaskDescriptor;
@@ -2351,14 +2351,27 @@ pub(crate) mod tests {
             include_bytes!("../../../../demos/airtable-gateway/write_reference/profile.lock.json"),
         )
         .expect("task recipe");
+        #[cfg(feature = "loopback-provider")]
+        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("loopback listener");
+        #[cfg(feature = "loopback-provider")]
+        {
+            engine.loopback_port = Some(listener.local_addr().expect("loopback address").port());
+        }
         let now = wall_clock_seconds().expect("clock");
         let root = Signer::new(0x11);
         let human = Signer::new(0x22);
         let agent = Signer::new(0x44);
         let observer = GatewayObserver::from_test_seed(0x33);
-        engine.trusted_context =
-            harness::context_for_agent_and_task(&root, observer.principal(), now)
-                .expect("installed trust");
+        engine.trusted_context = harness::context_for_agent_and_task_profile(
+            &root,
+            observer.principal(),
+            now,
+            "airtable-gateway-demo",
+            "set_demo_status_v2",
+        )
+        .expect("installed trust");
         let loaded = engine
             .connection
             .load()
@@ -2473,6 +2486,255 @@ pub(crate) mod tests {
                 .await
                 .is_err()
         );
+        let approved = verify_task_activation(
+            &engine.trusted_context,
+            &config.pins,
+            now,
+            &signed.proof,
+            &signed.action,
+        )
+        .expect("approved task");
+        let agent_grant = harness::grant_for(
+            &root,
+            &agent.principal,
+            now,
+            "airtable-gateway-demo",
+            "set_demo_status_v2",
+        )
+        .expect("agent grant");
+        let agent_arguments = json!({
+            "operator_namespace": "airtable-demo",
+            "operation_id": "write-installed-1",
+            "recipe_digest": engine.recipe.digest_hex(),
+            "record_id": "recTEST0000000001",
+            "replacement": "Approved",
+            "task_id": card.task_id,
+            "task_commitment": hex::encode(approved.commitment()),
+        });
+        let agent_signed = submission_for(
+            &root,
+            &agent,
+            &agent_grant,
+            agent_arguments.as_object().expect("agent arguments"),
+            &[],
+            "airtable-gateway-demo",
+            "set_demo_status_v2",
+            now,
+        );
+        let verified = verify_detailed(
+            &engine.recipe,
+            &engine.trusted_context,
+            now,
+            &agent_signed.proof,
+            &agent_signed.action,
+        )
+        .expect("native agent action");
+        let intent =
+            derive_exact_write_intent(&approved, &verified, &engine.recipe, &session.binding, now)
+                .expect("closed write intent");
+        let missing_confirmation = session
+            .submit(TaskWriteProofs {
+                task_proof: &signed.proof,
+                task_action: &signed.action,
+                agent_proof: &agent_signed.proof,
+                agent_action: &agent_signed.action,
+                confirmation: None,
+            })
+            .await;
+        assert_eq!(
+            missing_confirmation,
+            not_entered("gateway.task.exact-confirmation-required")
+        );
+        assert_eq!(
+            session
+                .ledger
+                .load("task-installed-1")
+                .expect("ledger")
+                .expect("task")
+                .write_count(),
+            0
+        );
+        let confirmation_grant = harness::grant_for(
+            &root,
+            &human.principal,
+            now,
+            TASK_SERVICE,
+            CONFIRMATION_TOOL,
+        )
+        .expect("confirmation grant");
+        let mut confirmation_arguments = Map::new();
+        confirmation_arguments.insert(
+            "write".to_owned(),
+            serde_json::to_value(&intent).expect("intent"),
+        );
+        let confirmation = submission_for(
+            &root,
+            &human,
+            &confirmation_grant,
+            &confirmation_arguments,
+            &[],
+            TASK_SERVICE,
+            CONFIRMATION_TOOL,
+            now,
+        );
+        assert!(
+            verify_exact_write_confirmation(
+                &engine.trusted_context,
+                &approved,
+                intent,
+                now,
+                &confirmation.proof,
+                &confirmation.action,
+            )
+            .is_ok()
+        );
+        let result = session
+            .submit(TaskWriteProofs {
+                task_proof: &signed.proof,
+                task_action: &signed.action,
+                agent_proof: &agent_signed.proof,
+                agent_action: &agent_signed.action,
+                confirmation: Some((&confirmation.proof, &confirmation.action)),
+            })
+            .await;
+        // The fixture retains its old connection descriptor. Native task
+        // admission succeeds, then preparation refuses before a claim or
+        // provider entry. No write slot is spent for this pre-claim refusal.
+        assert_eq!(result, not_entered("gateway.connection.recipe-mismatch"));
+        assert_eq!(
+            session
+                .ledger
+                .load("task-installed-1")
+                .expect("ledger")
+                .expect("task")
+                .write_count(),
+            0
+        );
+        assert_eq!(installation.first.leases.load(Ordering::SeqCst), 0);
+
+        #[cfg(feature = "loopback-provider")]
+        {
+            use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+            let loaded = engine
+                .connection
+                .load()
+                .await
+                .expect("connection")
+                .expect("record");
+            let old = loaded.record();
+            let descriptor = GatewayConnectionDescriptor::approve(&engine.recipe, "Authorization")
+                .expect("descriptor")
+                .to_bytes()
+                .expect("descriptor bytes");
+            let ready = ConnectionRecord::new(
+                old.provider_kind().clone(),
+                old.alias().clone(),
+                old.connection_id().clone(),
+                old.contract().clone(),
+                old.descriptor_schema().clone(),
+                descriptor,
+                *old.account_commitment(),
+                *old.credential_reference_commitment(),
+                old.generation(),
+                old.state(),
+                old.allowed_workloads().to_vec(),
+                old.allowed_profiles().to_vec(),
+                old.created_at_unix_seconds(),
+                old.updated_at_unix_seconds(),
+                old.revoked_at_unix_seconds(),
+            )
+            .expect("ready connection");
+            engine
+                .connection
+                .replace(&loaded, &ready)
+                .await
+                .expect("install task descriptor");
+            let provider = tokio::spawn(async move {
+                const BODY: &[u8] =
+                    br#"{"id":"recTEST0000000001","fields":{"DemoStatus":"Approved"}}"#;
+                let mut methods = Vec::new();
+                for _ in 0..2 {
+                    let Ok(Ok((mut stream, _))) =
+                        tokio::time::timeout(Duration::from_secs(5), listener.accept()).await
+                    else {
+                        break;
+                    };
+                    let mut bytes = Vec::new();
+                    let mut chunk = [0_u8; 4096];
+                    let end = loop {
+                        let read = stream.read(&mut chunk).await.expect("provider request");
+                        assert!(read > 0, "provider request ended early");
+                        bytes.extend_from_slice(&chunk[..read]);
+                        if let Some(end) = bytes.windows(4).position(|part| part == b"\r\n\r\n") {
+                            break end;
+                        }
+                    };
+                    let head = String::from_utf8(bytes[..end].to_vec()).expect("request head");
+                    methods.push(head.split_whitespace().next().expect("method").to_owned());
+                    let length = head
+                        .lines()
+                        .find_map(|line| {
+                            line.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(str::to_owned)
+                        })
+                        .map_or(0, |value| value.trim().parse::<usize>().expect("length"));
+                    while bytes.len() < end + 4 + length {
+                        let read = stream.read(&mut chunk).await.expect("provider body");
+                        assert!(read > 0, "provider body ended early");
+                        bytes.extend_from_slice(&chunk[..read]);
+                    }
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                        BODY.len()
+                    );
+                    stream
+                        .write_all(response.as_bytes())
+                        .await
+                        .expect("response");
+                    stream.write_all(BODY).await.expect("response body");
+                }
+                methods
+            });
+            let result = session
+                .submit(TaskWriteProofs {
+                    task_proof: &signed.proof,
+                    task_action: &signed.action,
+                    agent_proof: &agent_signed.proof,
+                    agent_action: &agent_signed.action,
+                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                })
+                .await;
+            let methods = provider.await.expect("provider task");
+            assert_eq!(methods, ["PATCH", "GET"]);
+            assert!(
+                matches!(result, GatewaySubmitResult::Observed { matched: true, .. }),
+                "unexpected gateway result: {result:?}"
+            );
+            assert_eq!(
+                session
+                    .ledger
+                    .load("task-installed-1")
+                    .expect("ledger")
+                    .expect("task")
+                    .write_count(),
+                1
+            );
+            let leases = installation.first.leases.load(Ordering::SeqCst);
+            assert!(leases > 0);
+            let replay = session
+                .submit(TaskWriteProofs {
+                    task_proof: &signed.proof,
+                    task_action: &signed.action,
+                    agent_proof: &agent_signed.proof,
+                    agent_action: &agent_signed.action,
+                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                })
+                .await;
+            assert_eq!(replay, not_entered("gateway.task.write-replay"));
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
+        }
     }
 
     // Connection administration over the shared record and each process's

@@ -8,11 +8,13 @@ as the reviewed resource field and `edit` as the verb. A focused gateway test
 compiles both references and checks their closed methods, URLs, bodies and
 task-binding review output without provider-name branches in the interpreter.
 
-The existing Airtable demo uses an operator PAT. This reference does not
-establish a human-bound Airtable grant, an installed task write, a provider
-effect or a cross-provider delegation claim. Live conformance still needs an
-operator-pinned connection, exact human confirmation, the task-aware installed
-gateway path, counted provider requests and an independent record readback.
+An installed single-host gateway test now uses this recipe with synthetic
+human and agent keys, an exact confirmation and an operator PAT. Against a
+local provider double, it records one PATCH, one GET readback, an observed
+matching value, one durable write charge and replay refusal without another
+credential lease. This does not establish a human-bound Airtable grant or a
+live provider effect. Live conformance still needs a human-owned connection,
+real provider requests and independent record readback.
 
 Edit `profile.toml` and regenerate `generated.py`, `vectors.json` and
 `profile.lock.json` with Auths's profile generator before changing the recipe
