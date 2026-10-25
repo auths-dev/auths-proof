@@ -1180,6 +1180,12 @@ def main() -> int:
     if args.task_write_gateway_bin is not None:
         if write_browser is None:
             parser.error("gateway review requires the task write installation")
+        if args.task_write_gateway_state_dir is not None:
+            installed_trust = _private_file(
+                args.task_write_gateway_state_dir / "trusted.context.cbor", 262_144,
+            )
+            if installed_trust != loaded.authority.trusted_template:
+                parser.error("gateway trust differs from issued task authority")
         raw_pins = json.loads(_private_file(args.task_write_credential_pins, 4096),
                               object_pairs_hook=_unique_pairs)
         if (type(raw_pins) is not dict
@@ -1251,6 +1257,10 @@ def main() -> int:
                        else google_edit_preflight),
             gateway_state_dir=args.task_write_gateway_state_dir,
         )
+        try:
+            write_confirmation._binary()
+        except OperatorDenied as error:
+            parser.error(str(error))
     workbench = Workbench(sessions, oauth, EnrollmentStore(args.state_db),
                           AgentRegistry(args.state_db), TaskProposalStore(args.state_db),
                           TaskApprovalStore(args.state_db), TaskActivationStore(args.state_db),

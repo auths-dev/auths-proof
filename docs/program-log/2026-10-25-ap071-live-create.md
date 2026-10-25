@@ -49,3 +49,23 @@ two-recipe installation before a fresh paired task is offered. Its rule digest
 pins the installed Google preflight source revision, and the signer refuses a
 later source change. This prepares a future single-plan rerun; it does not
 alter the blank child or create another one.
+
+## Populate-only continuation
+
+Jules signed a new populate-only task, `MjEVb8hXTcMf1qAh394IEwBQ`, for the
+same registered agent and exact existing child. Its budget is one edit, zero
+reads and zero creates. The first activation was rejected with
+`challenge-mismatch`: the development gateway installation had inadvertently
+copied the previous create task's trust context. The private context and
+manifest were corrected to the new issued authority before activation; the
+task journal was empty. The second activation succeeded. No provider write
+was attempted during this repair.
+
+A fresh Jules read-only preflight observed the signed child metadata, marker,
+Project A parent, edit capability, blank Docs body, tab and revision. The
+separate agent then signed the original 145-byte draft for a single
+revision-guarded `documents.batchUpdate`. The broker's gateway review and
+fresh preflight presented the complete request for Jules's separate exact
+confirmation. At this checkpoint, the task status shows zero writes and no
+provider call. The exact confirmation and submission still require the
+action-time approval; this log must be updated after the outcome is known.

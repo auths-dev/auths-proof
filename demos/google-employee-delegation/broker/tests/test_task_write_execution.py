@@ -55,7 +55,7 @@ class TaskWriteExecutionTests(unittest.TestCase):
         )
         self.flow._binary = lambda: self.root / "gateway"
         self.flow._review = lambda task_id, employee, agent, now: (
-            {"task_id": task_id}, self.review,
+            {"task_id": task_id, "write_approval_mode": "exact"}, self.review,
         )
 
     def test_submit_preflights_then_returns_gateway_result(self) -> None:
