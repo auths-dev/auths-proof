@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from .authority_identity import authority_for_identity_packet
 from .operator_authority import OperatorDenied
 from .task_write_authority import (
-    TaskWriteAuthority, plan_agent_read_grant, plan_agent_write_grant,
+    TaskWriteAuthority, plan_agent_companion_write_grant,
+    plan_agent_read_grant, plan_agent_write_grant,
 )
 from .task_write_proofs import task_commitment
 
@@ -54,16 +55,22 @@ class PreparedAgentDelegation:
         child = self._signing.complete(signature)
         encode = lambda raw: base64.urlsafe_b64encode(bytes(raw)).decode("ascii")
         read = self.kind == "read"
+        companion = self.kind == "companion-write"
         parent = (self.authority.read_parent_grant if read else
+                  self.authority.companion_write_parent_grant if companion else
                   self.authority.write_parent_grant)
+        service = (self.authority.read_service if read else
+                   self.authority.companion_write_service if companion else
+                   self.authority.provider_service)
+        tool = (self.authority.read_tool if read else
+                self.authority.companion_write_tool if companion else
+                self.authority.provider_tool)
         return {
             "schema": ("auths.ap071-agent-read-package/1" if read else
                        "auths.ap071-agent-write-package/1"),
             "agent_principal": self.agent_principal,
-            "service": (self.authority.read_service if read else
-                        self.authority.provider_service),
-            "tool": (self.authority.read_tool if read else
-                     self.authority.provider_tool),
+            "service": service,
+            "tool": tool,
             "task_id": self.task_id,
             "expires_at": self.expires_at,
             "task_commitment": self.task_commitment,
@@ -104,6 +111,17 @@ def prepare_agent_read_delegation(
     )
 
 
+def prepare_agent_companion_write_delegation(
+    authority: TaskWriteAuthority, human_identity_packet: bytes,
+    registered_agent_packet: bytes, card: dict, recipe_digest: str,
+) -> PreparedAgentDelegation:
+    """Prepare the pending child's reviewed populate grant for the same agent."""
+    return _prepare_provider_delegation(
+        authority, human_identity_packet, registered_agent_packet,
+        card, recipe_digest, "companion-write",
+    )
+
+
 def _prepare_provider_delegation(
     authority: TaskWriteAuthority, human_identity_packet: bytes,
     registered_agent_packet: bytes, card: dict, recipe_digest: str,
@@ -113,8 +131,11 @@ def _prepare_provider_delegation(
 
     human, evidence = authority_for_identity_packet(human_identity_packet)
     agent, _ = authority_for_identity_packet(registered_agent_packet)
-    scopes = card.get(f"{kind}_scopes") if type(card) is dict else None
+    scopes = (card.get("read_scopes" if kind == "read" else "write_scopes")
+              if type(card) is dict else None)
+    pending = card.get("pending_child") if type(card) is dict else None
     parent = (authority.read_parent_grant if kind == "read" else
+              authority.companion_write_parent_grant if kind == "companion-write" else
               authority.write_parent_grant)
     if (human != authority.human_principal
             or parent is None or evidence != parent.employee_evidence
@@ -127,7 +148,13 @@ def _prepare_provider_delegation(
             or type(scopes[0]) is not dict
             or (kind == "write" and scopes[0].get("verb") not in ("edit", "create"))
             or (kind == "read" and "verb" in scopes[0])
-            or scopes[0].get("recipe_digest") != recipe_digest
+            or (kind != "companion-write" and
+                scopes[0].get("recipe_digest") != recipe_digest)
+            or (kind == "companion-write" and
+                (scopes[0].get("verb") != "create"
+                 or type(pending) is not dict
+                 or pending.get("create_recipe_digest") != scopes[0].get("recipe_digest")
+                 or pending.get("populate_recipe_digest") != recipe_digest))
             or type(recipe_digest) is not str
             or _DIGEST.fullmatch(recipe_digest) is None
             or type(card.get("not_before")) is not int
@@ -136,6 +163,7 @@ def _prepare_provider_delegation(
     projection = _native.decode_identity_descriptor_v1(human_identity_packet)
     public_key = projection.relationships[0][3][0][1]
     plan = (plan_agent_read_grant if kind == "read" else
+            plan_agent_companion_write_grant if kind == "companion-write" else
             plan_agent_write_grant)(authority, agent,
                                     not_before=card["not_before"],
                                     expires_at=card["expires_at"])

@@ -164,6 +164,8 @@ The Google vertical now includes a read-only bounded search parser that follows 
 
 If creation is known to have succeeded but population is unknown or fails, show an incomplete artifact and reconcile the known ID before any new action. Do not create another file to hide an ambiguous first result. The producer checks the actual parent, title, content, owner/permissions, count of run-owned children and unchanged excluded state. Cleanup is explicit and occurs only after evidence capture.
 
+The private operator issuer can now package separate reviewed create and populate parent grants under one native trust context. A synthetic native test has the enrolled human sign both child grants for the same registered agent, then the agent signs a populate action using its own key and public package. The installed browser ceremony, one-ceremony effect plan and live provider entry still need integration.
+
 ### 5.4 Bounded upfront mode
 
 In a separate reset run, company policy may permit one short, finite update to a fixed disposable Doc without a second human prompt. The initial task names the Doc, exact allowed range, two enumerated replacement strings, one write, expiry and Google account. Jules's UI explicitly says that a later confirmation will not occur. The agent still signs the exact chosen value; gateway admission and independent readback are unchanged. Any other text, range, Doc, folder, second write or policy change is refused before provider entry. Company policy requiring exact confirmation overrides this mode.

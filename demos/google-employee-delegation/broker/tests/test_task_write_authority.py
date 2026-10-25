@@ -15,7 +15,8 @@ from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied, OperatorRoot
 from employee_read_demo.task_write_authority import (
     APPROVAL_TOOL, CONFIRMATION_TOOL, TASK_SERVICE,
-    issue_task_write_authority, plan_agent_read_grant, plan_agent_write_grant,
+    issue_task_write_authority, plan_agent_companion_write_grant,
+    plan_agent_read_grant, plan_agent_write_grant,
 )
 
 
@@ -61,6 +62,53 @@ def _verify_action(authority, *, service: str, tool: str, key, actor: str,
 
 
 class TaskWriteAuthorityTests(unittest.TestCase):
+    def test_two_reviewed_write_tools_share_one_human_and_agent_trust(self) -> None:
+        human_key, human_identity, human, human_evidence = _identity()
+        agent_key, _, agent, agent_evidence = _identity()
+        binding = EmployeeBinding(
+            "atlas-studio", "person-jules", "https://accounts.google.com",
+            "synthetic-subject", human, "synthetic-binding",
+        )
+        root = OperatorRoot(bytes([0x21]) * 32)
+        authority = issue_task_write_authority(
+            root, binding, human_identity.to_bytes(),
+            provider_service="google-drive-delegation-demo",
+            provider_tool="create_project_a_document_v1",
+            companion_write_service="google-docs-delegation-demo",
+            companion_write_tool="populate_created_project_a_document_v1",
+            now=1000, lifetime=600,
+        )
+        for service, tool, plan, grant in (
+            (authority.provider_service, authority.provider_tool,
+             plan_agent_write_grant, authority.write_parent_grant),
+            (authority.companion_write_service, authority.companion_write_tool,
+             plan_agent_companion_write_grant,
+             authority.companion_write_parent_grant),
+        ):
+            with self.subTest(tool=tool):
+                child_plan = plan(authority, agent, not_before=1010, expires_at=1300)
+                signing = _native.prepare_signing(
+                    child_plan.unsigned, "raw-key-v1", human, "ed25519-v1",
+                )
+                child = signing.complete(human_key.sign(bytes(signing.signing_preimage)))
+                parent = _native.parse_signed("grant", grant.signed_grant)
+                _verify_action(
+                    authority, service=service, tool=tool,
+                    key=agent_key, actor=agent, actor_evidence=agent_evidence,
+                    terminal=child, grants=[parent, child],
+                    grant_evidence=[[_evidence(root.evidence)],
+                                    [_evidence(human_evidence)]],
+                )
+        with self.assertRaises(OperatorDenied):
+            issue_task_write_authority(
+                root, binding, human_identity.to_bytes(),
+                provider_service="google-drive-delegation-demo",
+                provider_tool="create_project_a_document_v1",
+                companion_write_service="google-drive-delegation-demo",
+                companion_write_tool="create_project_a_document_v1",
+                now=1000, lifetime=600,
+            )
+
     def test_human_and_agent_proofs_share_one_provider_neutral_trust(self) -> None:
         for service, tool, read_service, read_tool in (
             ("google-docs-delegation-demo", "replace_project_a_marker_v2",
@@ -168,6 +216,10 @@ class TaskWriteAuthorityTests(unittest.TestCase):
             provider_service="airtable-gateway-demo",
             provider_tool="set_demo_status_v2", now=1000, lifetime=600,
         )
+        with self.assertRaises(OperatorDenied):
+            plan_agent_companion_write_grant(
+                authority, agent, not_before=1010, expires_at=1300,
+            )
         for start, end in ((999, 1300), (1100, 1601), (1200, 1100)):
             with self.assertRaises(OperatorDenied):
                 plan_agent_write_grant(

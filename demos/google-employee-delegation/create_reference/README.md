@@ -12,6 +12,13 @@ JSON shape or credential. The task gate must independently confirm that the
 signed parent is the human-approved folder and that the connected Google
 subject and generation match the task.
 
+The private operator issuer can now package separate, reviewed create and
+populate parent grants in one trust context. The enrolled human signs each
+child grant for the same registered agent, and the agent can form a native
+populate proof without receiving Jules's key or Google credential. This is an
+offline authority path. The browser task card and write review still need to
+carry and display the paired grant and exact two-effect plan before a live run.
+
 The marker is an opaque run identifier, not a secret or permission. It is
 visible to other applications through Drive's `properties` field and can
 support an independently checked search after a lost create response. A

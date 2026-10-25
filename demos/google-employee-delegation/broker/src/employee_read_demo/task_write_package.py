@@ -31,14 +31,25 @@ _FIELDS = {
     "confirmation_grant_b64", "write_parent_grant_b64", "root_evidence_b64",
     "human_evidence_b64", "read",
 }
+_FIELDS_V3 = _FIELDS | {"companion_write"}
 _READ_FIELDS = {
     "service", "tool", "recipe_digest", "recipe_source_sha256",
     "profile_lock_sha256", "parent_grant_b64",
 }
+_COMPANION_FIELDS = _READ_FIELDS
 
 
 @dataclass(frozen=True)
 class ReadProfile:
+    service: str
+    tool: str
+    recipe_digest: str
+    recipe_source_sha256: str
+    profile_lock_sha256: str
+
+
+@dataclass(frozen=True)
+class CompanionWriteProfile:
     service: str
     tool: str
     recipe_digest: str
@@ -55,6 +66,7 @@ class LoadedTaskWritePackage:
     profile_lock_sha256: str
     read: ReadProfile | None
     authority: TaskWriteAuthority
+    companion_write: CompanionWriteProfile | None = None
 
 
 def _decode(value: object, maximum: int) -> bytes:
@@ -77,8 +89,10 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
         package = json.loads(_private_read(path, 262_144), object_pairs_hook=_unique_pairs)
     except (UnicodeDecodeError, ValueError, PermissionError) as error:
         raise OperatorDenied("task authority package is unavailable") from error
-    if (type(package) is not dict or set(package) != _FIELDS
-            or package.get("schema") != "auths.ap071-task-authority/2"
+    if (type(package) is not dict
+            or (package.get("schema"), set(package)) not in (
+                ("auths.ap071-task-authority/2", _FIELDS),
+                ("auths.ap071-task-authority/3", _FIELDS_V3))
             or type(package.get("company_id")) is not str
             or not 1 <= len(package["company_id"]) <= 128
             or type(package.get("binding_ref")) is not str
@@ -110,6 +124,22 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
                    for field in ("recipe_digest", "recipe_source_sha256",
                                  "profile_lock_sha256"))):
         raise OperatorDenied("task read authority package is malformed")
+    companion = package.get("companion_write")
+    if companion is not None and (
+            type(companion) is not dict or set(companion) != _COMPANION_FIELDS
+            or not valid_service(companion.get("service"))
+            or companion["service"] == "auths-agent-task"
+            or type(companion.get("tool")) is not str
+            or _TOOL.fullmatch(companion["tool"]) is None
+            or (companion["service"], companion["tool"]) in (
+                (package["provider_service"], package["provider_tool"]),
+                (read["service"], read["tool"]) if read is not None else (None, None))
+            or any(type(companion.get(field)) is not str
+                   or _DIGEST.fullmatch(companion[field]) is None
+                   for field in ("recipe_digest", "recipe_source_sha256",
+                                 "profile_lock_sha256"))
+            or companion["recipe_digest"] == package["recipe_digest"]):
+        raise OperatorDenied("task companion write authority package is malformed")
     now = int(time.time()) if now is None else now
     if not package["not_before"] <= now < package["expires_at"]:
         raise OperatorDenied("task authority package expired")
@@ -124,6 +154,9 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
         }
         if read is not None:
             grants["read_parent_grant"] = _decode(read["parent_grant_b64"], 262_144)
+        if companion is not None:
+            grants["companion_write_parent_grant"] = _decode(
+                companion["parent_grant_b64"], 262_144)
         context = _native.parse_trusted_context(trusted)
         for raw in grants.values():
             _native.parse_signed("grant", raw)
@@ -151,13 +184,20 @@ def load_task_write_package(path: Path, *, now: int | None = None) -> LoadedTask
         None if read is None else read["service"],
         None if read is None else read["tool"],
         None if read is None else employee_grant("read_parent_grant"),
+        None if companion is None else companion["service"],
+        None if companion is None else companion["tool"],
+        None if companion is None else employee_grant("companion_write_parent_grant"),
     )
     read_profile = None if read is None else ReadProfile(
         read["service"], read["tool"], read["recipe_digest"],
         read["recipe_source_sha256"], read["profile_lock_sha256"],
     )
+    companion_profile = None if companion is None else CompanionWriteProfile(
+        companion["service"], companion["tool"], companion["recipe_digest"],
+        companion["recipe_source_sha256"], companion["profile_lock_sha256"],
+    )
     return LoadedTaskWritePackage(
         package["company_id"], package["binding_ref"], package["recipe_digest"],
         package["recipe_source_sha256"], package["profile_lock_sha256"],
-        read_profile, authority,
+        read_profile, authority, companion_profile,
     )

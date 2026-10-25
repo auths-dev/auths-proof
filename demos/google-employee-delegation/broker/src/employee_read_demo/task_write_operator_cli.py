@@ -111,6 +111,11 @@ def issue_task_package(
     read_service: str | None = None,
     read_tool: str | None = None,
     read_recipe_digest: str | None = None,
+    companion_write_recipe_path: Path | None = None,
+    companion_write_profile_lock_path: Path | None = None,
+    companion_write_service: str | None = None,
+    companion_write_tool: str | None = None,
+    companion_write_recipe_digest: str | None = None,
     output: Path,
     now: int | None = None,
 ) -> dict:
@@ -138,6 +143,37 @@ def issue_task_package(
                 or _DIGEST.fullmatch(read_recipe_digest) is None):
             raise ValueError("reviewed read profile inputs are invalid")
         read_profile = (checked_service, checked_tool, read_recipe_sha, read_lock_sha)
+    companion_inputs = (
+        companion_write_recipe_path, companion_write_profile_lock_path,
+        companion_write_service, companion_write_tool,
+        companion_write_recipe_digest,
+    )
+    if any(value is not None for value in companion_inputs) and any(
+            value is None for value in companion_inputs):
+        raise ValueError("reviewed companion write inputs must be supplied together")
+    companion_profile = None
+    if companion_write_recipe_path is not None and companion_write_profile_lock_path is not None:
+        primary_source = json.loads(recipe_path.read_bytes(),
+                                    object_pairs_hook=_unique_pairs)
+        checked_service, checked_tool, companion_recipe_sha, companion_lock_sha = (
+            _reviewed_profile(companion_write_recipe_path,
+                              companion_write_profile_lock_path)
+        )
+        companion_source = json.loads(companion_write_recipe_path.read_bytes(),
+                                      object_pairs_hook=_unique_pairs)
+        if (primary_source["task_binding"]["verb"] != "create"
+                or companion_source["task_binding"]["verb"] != "edit"
+                or companion_write_service != checked_service
+                or companion_write_tool != checked_tool
+                or (companion_write_service, companion_write_tool) ==
+                (provider_service, provider_tool)
+                or type(companion_write_recipe_digest) is not str
+                or _DIGEST.fullmatch(companion_write_recipe_digest) is None
+                or companion_write_recipe_digest == recipe_digest):
+            raise ValueError("reviewed companion write inputs are invalid")
+        companion_profile = (
+            checked_service, checked_tool, companion_recipe_sha, companion_lock_sha,
+        )
     if (provider_service != reviewed_service or provider_tool != reviewed_tool
             or not isinstance(binding_ref, str) or not 1 <= len(binding_ref) <= 256
             or not isinstance(company, str) or not 1 <= len(company) <= 128
@@ -175,11 +211,14 @@ def issue_task_package(
         root, binding, row[5], provider_service=provider_service,
         provider_tool=provider_tool,
         read_service=read_service, read_tool=read_tool, now=now,
+        companion_write_service=companion_write_service,
+        companion_write_tool=companion_write_tool,
         lifetime=min(3600, manifest["expires_at"] - now),
     )
     encode = lambda value: base64.urlsafe_b64encode(value).decode("ascii")
     package = {
-        "schema": "auths.ap071-task-authority/2",
+        "schema": ("auths.ap071-task-authority/3" if companion_profile is not None
+                   else "auths.ap071-task-authority/2"),
         "company_id": company,
         "binding_ref": binding_ref,
         "root_principal": authority.root_principal,
@@ -206,6 +245,15 @@ def issue_task_package(
         "root_evidence_b64": encode(authority.approval_grant.root_evidence),
         "human_evidence_b64": encode(authority.approval_grant.employee_evidence),
     }
+    if companion_profile is not None:
+        package["companion_write"] = {
+            "service": companion_profile[0], "tool": companion_profile[1],
+            "recipe_digest": companion_write_recipe_digest,
+            "recipe_source_sha256": companion_profile[2],
+            "profile_lock_sha256": companion_profile[3],
+            "parent_grant_b64": encode(
+                authority.companion_write_parent_grant.signed_grant),
+        }
     _private_write(output, json.dumps(package, sort_keys=True,
                                       separators=(",", ":")).encode("utf-8"))
     return {
@@ -238,6 +286,11 @@ def main() -> int:
     parser.add_argument("--read-service")
     parser.add_argument("--read-tool")
     parser.add_argument("--read-recipe-digest")
+    parser.add_argument("--companion-write-recipe", type=Path)
+    parser.add_argument("--companion-write-profile-lock", type=Path)
+    parser.add_argument("--companion-write-service")
+    parser.add_argument("--companion-write-tool")
+    parser.add_argument("--companion-write-recipe-digest")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     result = issue_task_package(
@@ -250,6 +303,11 @@ def main() -> int:
         read_profile_lock_path=args.read_profile_lock,
         read_service=args.read_service, read_tool=args.read_tool,
         read_recipe_digest=args.read_recipe_digest,
+        companion_write_recipe_path=args.companion_write_recipe,
+        companion_write_profile_lock_path=args.companion_write_profile_lock,
+        companion_write_service=args.companion_write_service,
+        companion_write_tool=args.companion_write_tool,
+        companion_write_recipe_digest=args.companion_write_recipe_digest,
         output=args.out,
     )
     print(json.dumps(result, sort_keys=True))

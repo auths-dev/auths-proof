@@ -24,12 +24,14 @@ from employee_read_demo.task_write_operator_cli import issue_task_package
 from employee_read_demo.task_write_package import load_task_write_package
 from employee_read_demo.task_write_card import build_exact_write_card
 from employee_read_demo.task_write_browser import TaskWriteBrowserFlow
-from employee_read_demo.task_write_delegation import prepare_agent_read_delegation
+from employee_read_demo.task_write_delegation import (
+    prepare_agent_companion_write_delegation, prepare_agent_read_delegation,
+)
 from employee_read_demo.task_write_proofs import task_commitment
 from employee_read_demo.task_write_confirmation import TaskWriteConfirmationFlow
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_agent.run import AgentKey
-from employee_read_agent.write import sign_read
+from employee_read_agent.write import sign_read, sign_write
 
 
 REFERENCE = Path(__file__).resolve().parents[2] / "write_reference"
@@ -87,6 +89,37 @@ class TaskOperatorCliTests(unittest.TestCase):
             loaded = load_task_write_package(output, now=1000)
             self.assertEqual(loaded.authority.human_principal, human)
             self.assertEqual(loaded.recipe_digest, digest)
+            create_reference = Path(__file__).resolve().parents[2] / "create_reference"
+            populate_reference = Path(__file__).resolve().parents[2] / "populate_reference"
+            create_digest, populate_digest = "a" * 64, "b" * 64
+            paired_output = private / "paired-task-authority.json"
+            issue_task_package(
+                root_seed=seed, root_trust=trust, state_db=state,
+                binding_ref="binding-jules", company="atlas-studio",
+                recipe_path=create_reference / "recipe.json",
+                profile_lock_path=create_reference / "profile.lock.json",
+                provider_service="google-drive-delegation-demo",
+                provider_tool="create_project_a_document_v1",
+                recipe_digest=create_digest,
+                companion_write_recipe_path=populate_reference / "recipe.json",
+                companion_write_profile_lock_path=populate_reference / "profile.lock.json",
+                companion_write_service="google-docs-delegation-demo",
+                companion_write_tool="populate_created_project_a_document_v1",
+                companion_write_recipe_digest=populate_digest,
+                output=paired_output, now=1000,
+            )
+            paired_raw = json.loads(paired_output.read_bytes())
+            self.assertEqual(paired_raw["schema"], "auths.ap071-task-authority/3")
+            paired = load_task_write_package(paired_output, now=1000)
+            self.assertEqual(paired.companion_write.recipe_digest, populate_digest)
+            self.assertEqual(paired.authority.companion_write_service,
+                             "google-docs-delegation-demo")
+            tampered_pair = private / "tampered-pair.json"
+            paired_raw["companion_write"]["parent_grant_b64"] = "invalid"
+            tampered_pair.write_text(json.dumps(paired_raw))
+            os.chmod(tampered_pair, 0o600)
+            with self.assertRaises(OperatorDenied):
+                load_task_write_package(tampered_pair, now=1000)
             read_reference = Path(__file__).resolve().parents[2] / "read_reference"
             mixed_output = private / "mixed-task-authority.json"
             read_digest = "57673e6adc5b7b000fe65a6441279fc03e019b887d66c488a2978fccb4d6e97c"
@@ -146,6 +179,44 @@ class TaskOperatorCliTests(unittest.TestCase):
             )
             agent = AgentBinding("atlas-studio", "binding-jules",
                                  agent_principal, agent_digest)
+            paired_card = {
+                "schema": "auths.agent-task/2", "task_id": "paired-task",
+                "human_principal": human, "agent_principal": agent_principal,
+                "not_before": 1010, "expires_at": 1300,
+                "write_scopes": [{"handle": "project-a-folder",
+                                  "recipe_digest": create_digest, "verb": "create"}],
+                "pending_child": {"create_operation_id": "create-1",
+                                  "create_recipe_digest": create_digest,
+                                  "populate_recipe_digest": populate_digest,
+                                  "parent_handle": "project-a-folder",
+                                  "title": "Auths AP-071 Project A handoff",
+                                  "marker": "ap071_" + "d" * 32},
+            }
+            companion = prepare_agent_companion_write_delegation(
+                paired.authority, identity.to_bytes(), agent_packet,
+                paired_card, populate_digest,
+            )
+            companion_package = companion.complete(
+                human_key.sign(companion.signing_preimage), now=1011,
+            )
+            self.assertEqual(companion_package["recipe_digest"], populate_digest)
+            self.assertEqual(companion_package["service"],
+                             "google-docs-delegation-demo")
+            companion_seed = agent_key.private_bytes(
+                Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+            companion_proof, companion_action = sign_write(
+                companion_package, {
+                    "operator_namespace": "google-docs-populate-demo",
+                    "operation_id": "populate-1",
+                    "recipe_digest": populate_digest,
+                    "task_id": paired_card["task_id"],
+                    "task_commitment": task_commitment(paired_card),
+                    "document_id": "child_ABC-123", "tab_id": "t.0",
+                    "required_revision_id": "revision-1",
+                    "text": "Project A handoff",
+                }, AgentKey(companion_seed), now=1012,
+            )
+            self.assertTrue(companion_proof and companion_action)
             mixed_installed = private / "mixed-task-installation.json"
             mixed_pins = json.loads(installed.read_text())
             mixed_pins["pins"]["permitted_read_scopes"] = [{
@@ -284,7 +355,6 @@ class TaskOperatorCliTests(unittest.TestCase):
             if gateway_binary:
                 import sys
                 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "agent" / "src"))
-                from employee_read_agent.write import sign_write
 
                 agent_seed = agent_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
                 arguments = {

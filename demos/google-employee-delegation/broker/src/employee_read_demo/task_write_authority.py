@@ -43,6 +43,9 @@ class TaskWriteAuthority:
     read_service: str | None = None
     read_tool: str | None = None
     read_parent_grant: EmployeeAuthority | None = None
+    companion_write_service: str | None = None
+    companion_write_tool: str | None = None
+    companion_write_parent_grant: EmployeeAuthority | None = None
 
 
 def _permission(service: str, tool: str) -> tuple[str, str]:
@@ -58,6 +61,8 @@ def issue_task_write_authority(
     provider_tool: str,
     read_service: str | None = None,
     read_tool: str | None = None,
+    companion_write_service: str | None = None,
+    companion_write_tool: str | None = None,
     now: int | None = None,
     lifetime: int = 3600,
 ) -> TaskWriteAuthority:
@@ -74,11 +79,21 @@ def issue_task_write_authority(
             or not isinstance(provider_tool, str)
             or _TOOL.fullmatch(provider_tool) is None
             or ((read_service is None) != (read_tool is None))
+            or ((companion_write_service is None) != (companion_write_tool is None))
             or (read_service is not None and
                 (not valid_service(read_service) or read_service == TASK_SERVICE
                  or not isinstance(read_tool, str)
                  or _TOOL.fullmatch(read_tool) is None
                  or (read_service, read_tool) == (provider_service, provider_tool)))
+            or (companion_write_service is not None and
+                (not valid_service(companion_write_service)
+                 or companion_write_service == TASK_SERVICE
+                 or not isinstance(companion_write_tool, str)
+                 or _TOOL.fullmatch(companion_write_tool) is None
+                 or (companion_write_service, companion_write_tool) ==
+                 (provider_service, provider_tool)
+                 or (companion_write_service, companion_write_tool) ==
+                 (read_service, read_tool)))
             or not 60 <= lifetime <= 3600):
         raise OperatorDenied("task provider profile or lifetime is invalid")
     now = int(time.time()) if now is None else now
@@ -104,9 +119,18 @@ def issue_task_write_authority(
             service=read_service, tool=read_tool, now=now,
             lifetime=lifetime, remaining_depth=1,
         )
+    companion_write_parent = None
+    if companion_write_service is not None and companion_write_tool is not None:
+        companion_write_parent = root.issue_employee_for_tool(
+            binding=binding, identity_packet=identity_packet,
+            service=companion_write_service, tool=companion_write_tool, now=now,
+            lifetime=lifetime, remaining_depth=1,
+        )
     task_audience = f"mcp://{TASK_SERVICE}"
     provider_audience = f"mcp://{provider_service}"
     read_audience = f"mcp://{read_service}" if read_service is not None else None
+    companion_write_audience = (f"mcp://{companion_write_service}"
+                                if companion_write_service is not None else None)
     assurance = _native.AssurancePolicy("raw-key-baseline", [
         ("root", "every", "self-certifying-identifier", None),
         ("actor", "every", "self-certifying-identifier", None),
@@ -120,6 +144,10 @@ def issue_task_write_authority(
         permissions.append(_permission(read_service, read_tool))
         if read_audience not in audiences:
             audiences.append(read_audience)
+    if companion_write_audience is not None and companion_write_tool is not None:
+        permissions.append(_permission(companion_write_service, companion_write_tool))
+        if companion_write_audience not in audiences:
+            audiences.append(companion_write_audience)
     anchor = _native.TrustAnchor(
         root.principal, _native.Principal(root.principal),
         ["raw-key-v1"], [("auths.mcp", 2)],
@@ -137,6 +165,7 @@ def issue_task_write_authority(
         bytes(_native.inspect_trusted_context(provider_context)),
         approval, confirmation, write_parent, challenge, now, now + lifetime,
         read_service, read_tool, read_parent,
+        companion_write_service, companion_write_tool, companion_write_parent,
     )
 
 
@@ -178,6 +207,27 @@ def plan_agent_read_grant(
     return _plan_agent_provider_grant(
         authority.read_parent_grant, authority.read_service,
         authority.read_tool, agent_principal, not_before, expires_at,
+    )
+
+
+def plan_agent_companion_write_grant(
+    authority: TaskWriteAuthority,
+    agent_principal: str,
+    *,
+    not_before: int,
+    expires_at: int,
+):
+    """Prepare a second reviewed provider write under the same task trust."""
+    if (authority.companion_write_parent_grant is None
+            or authority.companion_write_service is None
+            or authority.companion_write_tool is None
+            or not authority.not_before <= not_before < expires_at <= authority.expires_at
+            or agent_principal == authority.human_principal):
+        raise OperatorDenied("agent companion write grant is outside human authority")
+    return _plan_agent_provider_grant(
+        authority.companion_write_parent_grant,
+        authority.companion_write_service, authority.companion_write_tool,
+        agent_principal, not_before, expires_at,
     )
 
 
