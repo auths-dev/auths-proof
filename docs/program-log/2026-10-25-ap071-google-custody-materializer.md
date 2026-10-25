@@ -53,3 +53,19 @@ materializer configuration. Runtime materialization repeats those local checks
 after admission and still requires a fresh Google refresh and UserInfo match.
 This catches malformed or mismatched local inputs before asking Jules to sign
 another task; it does not prove that a future network refresh will succeed.
+
+The development-only `task-materializer-probe --state-dir` command now makes
+one OAuth refresh and UserInfo check for every installed pinned connection,
+discards each token, and reports only the number of ready connections. It
+does not admit an agent action, release document content or prove a later
+provider read/write. It lets the operator check the live identity path before
+another short-lived human signing ceremony; the task path still rechecks it.
+
+The first live readiness probe used gateway binary SHA-256
+`f17084b2796ba7deee148814054f1b3f50beeb8af5ab4e401359fe8ee50460a7`
+against the existing owner-private Jules read and write installation. It
+returned `materializer-probe-ready` with `count: 2`: both pinned grants
+refreshed and matched Google's live UserInfo. No task action, Drive request,
+document release or write was attempted by this command. demo_co separately
+confirmed that the pinned Project A source remained a 51-byte unchanged
+export; this is a source baseline, not evidence of the later agent read.

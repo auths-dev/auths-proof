@@ -239,6 +239,17 @@ impl GoogleCustodyMaterializer {
         &self.pins.connection_id
     }
 
+    /// Operator readiness check only: no task authority, provider data, or
+    /// credential lease is returned. Admission repeats every check.
+    pub(super) async fn probe_identity(&self) -> Result<(), CredentialMaterializationError> {
+        let grant = self.checked_grant()?;
+        let (token, _) = self.fresh_token(&grant).await?;
+        if !self.userinfo_valid(&token).await {
+            return Err(CredentialMaterializationError);
+        }
+        Ok(())
+    }
+
     fn evidence_valid(&self) -> bool {
         let Ok(raw) = private_file(&self.pins.producer_evidence_file) else {
             return false;
@@ -617,28 +628,30 @@ mod tests {
             .expect("provider double");
         let address = listener.local_addr().expect("address");
         let server = tokio::spawn(async move {
-            for (path, body) in [
-                (
-                    "/token",
-                    json!({"access_token": "synthetic-fresh", "expires_in": 3600,
+            for _ in 0..2 {
+                for (path, body) in [
+                    (
+                        "/token",
+                        json!({"access_token": "synthetic-fresh", "expires_in": 3600,
                     "scope": SCOPES.join(" "), "token_type": "Bearer"}),
-                ),
-                (
-                    "/userinfo",
-                    json!({"sub": "subject-1", "email": "jules@example.test",
+                    ),
+                    (
+                        "/userinfo",
+                        json!({"sub": "subject-1", "email": "jules@example.test",
                     "email_verified": true, "hd": "example.test"}),
-                ),
-            ] {
-                let (mut stream, _) = listener.accept().await.expect("accept");
-                let mut buf = [0_u8; 4096];
-                let size = stream.read(&mut buf).await.expect("request");
-                let request = String::from_utf8_lossy(&buf[..size]);
-                assert!(request.lines().next().unwrap_or_default().contains(path));
-                if path == "/userinfo" {
-                    assert!(request.contains("Bearer synthetic-fresh"));
+                    ),
+                ] {
+                    let (mut stream, _) = listener.accept().await.expect("accept");
+                    let mut buf = [0_u8; 4096];
+                    let size = stream.read(&mut buf).await.expect("request");
+                    let request = String::from_utf8_lossy(&buf[..size]);
+                    assert!(request.lines().next().unwrap_or_default().contains(path));
+                    if path == "/userinfo" {
+                        assert!(request.contains("Bearer synthetic-fresh"));
+                    }
+                    let body = body.to_string();
+                    stream.write_all(format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.expect("response");
                 }
-                let body = body.to_string();
-                stream.write_all(format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.expect("response");
             }
         });
         let mut adapter = GoogleCustodyMaterializer::new(pins.clone()).expect("pins");
@@ -653,6 +666,7 @@ mod tests {
         );
         adapter.token_url = format!("http://{address}/token");
         adapter.userinfo_url = format!("http://{address}/userinfo");
+        adapter.probe_identity().await.expect("identity probe");
         let context = request(&pins);
         let lease = adapter
             .materialize(

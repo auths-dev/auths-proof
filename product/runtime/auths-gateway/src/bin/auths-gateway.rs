@@ -393,6 +393,12 @@ mod unix {
             #[arg(long)]
             from: PathBuf,
         },
+        /// Development operator only: refresh each installed Google grant and
+        /// verify its pinned identity without releasing a token or reading data.
+        TaskMaterializerProbe {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
         /// Development operator only: install a distinct subject-bound read
         /// connection and reviewed GET recipe beside the write installation.
         /// A trusted custody shim must verify the provider subject before it
@@ -3489,6 +3495,24 @@ mod unix {
         Ok(())
     }
 
+    async fn task_materializer_probe(state_dir: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.materializer.development-only".into());
+        }
+        let bytes = task_private_file(state_dir, TASK_MATERIALIZERS_FILE, 16 * 1024)?;
+        let bundle = parse_task_materializers(&bytes)?;
+        let count = bundle.materializers.len();
+        for pins in bundle.materializers {
+            GoogleCustodyMaterializer::new(pins)?
+                .probe_identity()
+                .await
+                .map_err(|_| "gateway.materializer.identity-probe-refused")?;
+        }
+        println!("{{\"outcome\":\"materializer-probe-ready\",\"count\":{count}}}");
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     async fn task_read_connect(
         state_dir: PathBuf,
@@ -4976,6 +5000,9 @@ mod unix {
             Command::TaskMaterializerConfigure { state_dir, from } => {
                 task_materializer_configure(&state_dir, &from)
             }
+            Command::TaskMaterializerProbe { state_dir } => {
+                task_materializer_probe(&state_dir).await
+            }
             Command::TaskReadConnect {
                 state_dir,
                 recipe,
@@ -5846,6 +5873,17 @@ mod unix {
                 .expect("operator configuration parses")
                 .command,
                 Command::TaskMaterializerConfigure { .. }
+            ));
+            assert!(matches!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-materializer-probe",
+                    "--state-dir",
+                    "/state",
+                ])
+                .expect("operator identity probe parses")
+                .command,
+                Command::TaskMaterializerProbe { .. }
             ));
         }
 
