@@ -3,7 +3,9 @@
 //! performs the corresponding provider or agent-channel I/O. This model alone
 //! neither verifies a grant nor sends content.
 
-use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
+use crate::{
+    ClosedReleaseRequest, ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
@@ -257,6 +259,35 @@ impl ReleaseTaskState {
             },
         );
         Ok(())
+    }
+
+    /// Admit the compiled request only for the sole actor the native sealed
+    /// proof authorized. The connection ID and generation must come from the
+    /// loaded, subject-bound credential record, not the agent's arguments.
+    pub(crate) fn reserve_closed_request(
+        &mut self,
+        request: &ClosedReleaseRequest,
+        verified_actors: &[String],
+        connection_id: &str,
+        connection_generation: u64,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        if verified_actors.len() != 1 || verified_actors[0] != request.recipient() {
+            return Err(ReleaseStateError::Binding);
+        }
+        self.reserve_provider_call(
+            ReleaseCall {
+                task_id: request.task_id(),
+                operation_id: request.operation_id().as_str(),
+                resource_handle: request.resource_handle(),
+                recipe_digest: &hex::encode(request.recipe_digest()),
+                connection_id,
+                connection_generation,
+                recipient: request.recipient(),
+                action_commitment: *request.action_commitment(),
+            },
+            now,
+        )
     }
 
     /// A failed/incomplete provider response consumes the call but no content
@@ -611,6 +642,25 @@ impl FileReleaseTaskLedger {
         now: u64,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(call.task_id, |state| state.reserve_provider_call(call, now))
+    }
+
+    pub(crate) fn reserve_closed_request(
+        &self,
+        request: &ClosedReleaseRequest,
+        verified_actors: &[String],
+        connection_id: &str,
+        connection_generation: u64,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(request.task_id(), |state| {
+            state.reserve_closed_request(
+                request,
+                verified_actors,
+                connection_id,
+                connection_generation,
+                now,
+            )
+        })
     }
 
     pub(crate) fn provider_unavailable(

@@ -82,6 +82,7 @@ pub struct ClosedReleaseRequest {
     task_id: String,
     resource_handle: String,
     recipient: String,
+    recipe_digest: [u8; 32],
     action_commitment: [u8; 32],
     url: String,
 }
@@ -109,6 +110,12 @@ impl ClosedReleaseRequest {
     #[must_use]
     pub fn recipient(&self) -> &str {
         &self.recipient
+    }
+
+    /// Exact reviewed release recipe bound in the native-verified action.
+    #[must_use]
+    pub const fn recipe_digest(&self) -> &[u8; 32] {
+        &self.recipe_digest
     }
 
     /// The stable, replay-claimed logical operation ID.
@@ -300,6 +307,7 @@ impl CompiledReleaseRecipe {
             task_id: task_id.to_owned(),
             resource_handle: resource_handle.to_owned(),
             recipient: recipient.to_owned(),
+            recipe_digest: self.digest,
             action_commitment,
             url,
         })
@@ -477,6 +485,9 @@ fn content_type_matches(observed: &str, expected: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::release_state::{
+        ReleaseResourceScope, ReleaseStateError, ReleaseTaskPolicy, ReleaseTaskState,
+    };
     use serde_json::json;
 
     fn fixture(google: bool) -> (&'static [u8], &'static [u8]) {
@@ -560,6 +571,65 @@ mod tests {
             ),
             Ok(b"Approved".to_vec())
         );
+    }
+
+    #[test]
+    fn closed_request_admits_only_matching_task_actor_and_connection() {
+        let (source, lock) = fixture(true);
+        let recipe = CompiledReleaseRecipe::compile(source, lock).expect("release compiles");
+        let request = recipe
+            .closed_request_from_arguments(&arguments(&recipe, "google-read-demo"), [7; 32])
+            .expect("closed request");
+        let mut state = ReleaseTaskState::new(ReleaseTaskPolicy {
+            task_id: "task-1".to_owned(),
+            task_commitment: [1; 32],
+            company_id: "atlas".to_owned(),
+            human_principal: "jules".to_owned(),
+            agent_principal: "agent-principal".to_owned(),
+            not_before: 100,
+            expires_at: 200,
+            max_provider_calls: 1,
+            max_releases: 1,
+            max_release_bytes: 512,
+            resources: vec![ReleaseResourceScope {
+                handle: "resource-1".to_owned(),
+                recipe_digest: recipe.digest_hex(),
+                connection_id: "jules-google".to_owned(),
+                connection_generation: 3,
+            }],
+        })
+        .expect("task policy");
+        assert_eq!(
+            state.reserve_closed_request(
+                &request,
+                &["other-agent".to_owned()],
+                "jules-google",
+                3,
+                101
+            ),
+            Err(ReleaseStateError::Binding)
+        );
+        assert_eq!(
+            state.reserve_closed_request(
+                &request,
+                &["agent-principal".to_owned()],
+                "jules-google",
+                4,
+                101
+            ),
+            Err(ReleaseStateError::Binding)
+        );
+        assert_eq!(state.counts(), (0, 0, 0));
+        state
+            .reserve_closed_request(
+                &request,
+                &["agent-principal".to_owned()],
+                "jules-google",
+                3,
+                101,
+            )
+            .expect("exact binding");
+        assert_eq!(state.counts(), (1, 0, 0));
     }
 
     #[test]
