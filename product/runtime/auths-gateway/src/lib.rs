@@ -21,6 +21,8 @@ pub use engine::{
     GatewaySubmissionReview, TaskWriteProofs, TaskWriteSession, commissioning_principal_sha256,
     review_submission,
 };
+#[cfg(unix)]
+pub use engine::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
 mod connection;
 mod credential_journal;
 mod echo_verify;

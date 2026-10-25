@@ -66,12 +66,13 @@ use thiserror::Error;
 mod commissioning;
 #[cfg(unix)]
 #[path = "release_execute.rs"]
-#[allow(dead_code)] // The installed read command is not yet exposed by the CLI.
 mod release_execute;
 #[cfg(unix)]
 pub use commissioning::{
     CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
 };
+#[cfg(unix)]
+pub use release_execute::{ManagedReleaseResult, TaskReadOperatorInputs, TaskReadSession};
 
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
@@ -2233,7 +2234,14 @@ pub(crate) mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one operator-pinned read and write fixture covers native trust and recipient binding"
+    )]
     async fn task_session_uses_canonical_operator_pins_for_the_installed_recipe() {
+        use crate::{CompiledReleaseRecipe, QualificationGate};
+        use sha2::Digest as _;
+
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
         engine.recipe = CompiledRecipe::compile(
@@ -2249,15 +2257,38 @@ pub(crate) mod tests {
             .expect("connection");
         let human = crate::harness::Signer::new(0x22);
         let agent = crate::harness::Signer::new(0x44);
+        let read_recipe = CompiledReleaseRecipe::compile(
+            include_bytes!("../../../../demos/airtable-gateway/read_reference/recipe.json"),
+            include_bytes!("../../../../demos/airtable-gateway/read_reference/profile.lock.json"),
+        )
+        .expect("read recipe");
+        let identity = auths_identity_raw_key::RawKeyIdentityMethod::identity(
+            auths_signature_ed25519::ED25519_V1,
+            agent.key.verifying_key().to_bytes().to_vec(),
+        )
+        .expect("identity")
+        .into_public_identity()
+        .to_descriptor()
+        .expect("descriptor")
+        .encode()
+        .expect("identity packet");
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
             human_principal: human.principal.as_str().to_owned(),
             agent_principal: agent.principal.as_str().to_owned(),
-            agent_key_fingerprint: "a".repeat(64),
+            agent_key_fingerprint: hex::encode(sha2::Sha256::digest(&identity)),
             connection_id: record.record().connection_id().as_str().to_owned(),
             connection_generation: record.record().generation().get(),
             connection_subject: "acct_TESTPLATFORM1".to_owned(),
-            permitted_read_scopes: vec![],
+            permitted_read_scopes: vec![
+                serde_json::from_value(serde_json::json!({
+                    "handle": "recTEST0000000001", "recipe_digest": read_recipe.digest_hex(),
+                    "connection_id": record.record().connection_id().as_str(),
+                    "connection_generation": record.record().generation().get(),
+                    "connection_subject": "acct_TESTPLATFORM1"
+                }))
+                .expect("read scope"),
+            ],
             delivery_channel: "agent-channel".to_owned(),
             operator_policy_digest: "b".repeat(64),
             allow_bounded_writes: false,
@@ -2284,6 +2315,48 @@ pub(crate) mod tests {
         let session = engine
             .task_write_session(&bytes, &task_root)
             .expect("operator session");
+        let read_inputs = |recipe, packet| TaskReadOperatorInputs {
+            recipe,
+            provider: record.record().provider_kind().clone(),
+            alias: record.record().alias().clone(),
+            qualification: Arc::new(QualificationGate::development()),
+            commitment_key: crate::ReleaseCommitmentKey::new(
+                1,
+                zeroize::Zeroizing::new([0x77; 32]),
+            )
+            .expect("commitment key"),
+            channel_socket: std::fs::canonicalize(directory.path())
+                .expect("canonical path")
+                .join("agent.sock"),
+            channel_name: "agent-channel".to_owned(),
+            agent_identity_packet: packet,
+        };
+        assert_eq!(
+            session
+                .read_session(read_inputs(
+                    CompiledReleaseRecipe::compile(
+                        include_bytes!(
+                            "../../../../demos/google-employee-delegation/read_reference/recipe.json"
+                        ),
+                        include_bytes!(
+                            "../../../../demos/google-employee-delegation/read_reference/profile.lock.json"
+                        ),
+                    )
+                    .expect("other read recipe"),
+                    identity.clone(),
+                ))
+                .err(),
+            Some("gateway.release.recipe-not-installed")
+        );
+        assert_eq!(
+            session
+                .read_session(read_inputs(read_recipe.clone(), vec![0x01]))
+                .err(),
+            Some("gateway.release.recipient-not-installed")
+        );
+        session
+            .read_session(read_inputs(read_recipe, identity))
+            .expect("operator-pinned read session");
         // The shared administration fixture deliberately uses a synthetic
         // account commitment, so it cannot assert this provider subject.
         assert!(!task_connection_matches(record.record(), &session.binding));

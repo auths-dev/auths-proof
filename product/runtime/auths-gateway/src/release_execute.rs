@@ -1,7 +1,9 @@
 //! Credential-owning read-release order for one installed task and recipe.
 //! The operator still needs to expose this through an installed read command.
 
-use super::{GatewayEngine, SharedConnection, authorizes_entry, submit, wall_clock_seconds};
+use super::{
+    GatewayEngine, SharedConnection, TaskWriteSession, authorizes_entry, submit, wall_clock_seconds,
+};
 use crate::release_channel::{AuthenticatedReleaseChannel, UnixAgentReleaseChannel};
 use crate::release_commitment::ReleaseCommitmentKey;
 use crate::release_state::FileReleaseTaskLedger;
@@ -12,7 +14,11 @@ use crate::{
     CompiledReleaseRecipe, GatewayConnectionDescriptor, LoadedConnection, QualificationGate,
 };
 use auths_connections::ConnectionCredentialStore;
+use auths_connections::{ConnectionAlias, ProviderKind};
+use serde::Serialize;
+use sha2::{Digest as _, Sha256};
 use std::{
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -20,8 +26,9 @@ use zeroize::Zeroizing;
 
 /// Secret-free status of one signed read action. A spent provider call and an
 /// agent-visible release are distinct even when either later step fails.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum ManagedReleaseResult {
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "outcome", rename_all = "kebab-case")]
+pub enum ManagedReleaseResult {
     NotEntered {
         code: &'static str,
     },
@@ -37,6 +44,102 @@ pub(crate) enum ManagedReleaseResult {
         commitment_key_version: u32,
         content_commitment: String,
     },
+}
+
+/// Read inputs installed by the operator beside the write task. A separate
+/// qualification gate belongs to the exact read recipe; the write gate must
+/// not be reused merely because the task has a write installation.
+pub struct TaskReadOperatorInputs {
+    pub recipe: CompiledReleaseRecipe,
+    pub provider: ProviderKind,
+    pub alias: ConnectionAlias,
+    pub qualification: Arc<QualificationGate>,
+    pub commitment_key: ReleaseCommitmentKey,
+    pub channel_socket: PathBuf,
+    pub channel_name: String,
+    pub agent_identity_packet: Vec<u8>,
+}
+
+/// One operator-owned read path joined to the same activated task journal as
+/// the installed write path. It owns no provider credential; the gateway
+/// leases from its custody store under the distinct read connection record.
+pub struct TaskReadSession<'s, 'e> {
+    task: &'s TaskWriteSession<'e>,
+    recipe: CompiledReleaseRecipe,
+    connection: SharedConnection,
+    qualification: Arc<QualificationGate>,
+    commitment_key: ReleaseCommitmentKey,
+    channel: UnixAgentReleaseChannel,
+}
+
+impl<'e> TaskWriteSession<'e> {
+    /// Bind an operator-installed read recipe, recipient and connection to
+    /// this task's immutable pins. No agent-supplied value can widen them.
+    ///
+    /// # Errors
+    /// Refuses an unlisted recipe or a changed recipient before any provider
+    /// call. The exact connection ID, generation and subject are checked
+    /// again against the signed scope at read admission.
+    pub fn read_session<'s>(
+        &'s self,
+        inputs: TaskReadOperatorInputs,
+    ) -> Result<TaskReadSession<'s, 'e>, &'static str> {
+        if !self.pins.permits_read_recipe(&inputs.recipe.digest_hex()) {
+            return Err("gateway.release.recipe-not-installed");
+        }
+        if inputs.channel_name != self.pins.delivery_channel
+            || hex::encode(Sha256::digest(&inputs.agent_identity_packet))
+                != self.pins.agent_key_fingerprint
+        {
+            return Err("gateway.release.recipient-not-installed");
+        }
+        let channel = UnixAgentReleaseChannel::new(
+            inputs.channel_socket,
+            inputs.channel_name,
+            inputs.agent_identity_packet,
+        )
+        .map_err(|_| "gateway.release.invalid-channel")?;
+        Ok(TaskReadSession {
+            task: self,
+            recipe: inputs.recipe,
+            connection: SharedConnection::new(
+                self.engine.attempts.store(),
+                inputs.provider,
+                inputs.alias,
+            ),
+            qualification: inputs.qualification,
+            commitment_key: inputs.commitment_key,
+            channel,
+        })
+    }
+}
+
+impl TaskReadSession<'_, '_> {
+    /// Execute one native-verified read against the already activated task.
+    /// The returned status contains no provider body or credential.
+    pub async fn read(
+        &self,
+        task_id: &str,
+        agent_proof: &[u8],
+        agent_action: &[u8],
+    ) -> ManagedReleaseResult {
+        self.task
+            .engine
+            .execute_managed_read(ManagedReadSubmission {
+                task_id,
+                agent_proof,
+                agent_action,
+                pins: &self.task.pins,
+                recipe: &self.recipe,
+                read_connection: &self.connection,
+                read_credentials: &self.task.engine.credentials,
+                read_qualification: &self.qualification,
+                ledger: &self.task.ledger,
+                commitment_key: &self.commitment_key,
+                channel: &self.channel,
+            })
+            .await
+    }
 }
 
 /// All authority and custody inputs come from operator-owned installation,
@@ -350,12 +453,14 @@ mod tests {
     use crate::harness::{self, Signer};
     use crate::release_state::ReleaseStage;
     use crate::release_verify::tests::{arguments, exact_grant, recipe};
-    use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskReadScope};
+    use crate::task_activation::{
+        AgentTaskDescriptor, ApprovedAgentTask, TaskReadScope, TaskWriteVerb,
+    };
+    use crate::task_write::TaskWriteBinding;
     use auths_connections::ConnectionRecord;
     use auths_identity_raw_key::RawKeyIdentityMethod;
     use ed25519_dalek::Signer as _;
     use serde_json::json;
-    use sha2::{Digest as _, Sha256};
     use std::{
         os::unix::fs::PermissionsExt as _,
         sync::atomic::{AtomicBool, Ordering},
@@ -502,8 +607,12 @@ mod tests {
         let listener = UnixListener::bind(&socket).expect("agent socket");
         std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
             .expect("socket mode");
-        let channel = UnixAgentReleaseChannel::new(socket, "agent-channel".to_owned(), packet)
-            .expect("channel");
+        let channel = UnixAgentReleaseChannel::new(
+            socket.clone(),
+            "agent-channel".to_owned(),
+            packet.clone(),
+        )
+        .expect("channel");
         let unqualified_read = QualificationGate::unconfigured();
         let refused = engine
             .execute_managed_read(ManagedReadSubmission {
@@ -615,21 +724,33 @@ mod tests {
             stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.expect("headers");
             stream.write_all(body).await.expect("body");
         });
-        let key = ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32])).expect("key");
-        let result = engine
-            .execute_managed_read(ManagedReadSubmission {
-                task_id: "task-1",
-                agent_proof: &signed.proof,
-                agent_action: &signed.action,
-                pins: &pins,
-                recipe: &read_recipe,
-                read_connection: &engine.connection,
-                read_credentials: &engine.credentials,
-                read_qualification: &engine.qualification,
-                ledger: &ledger,
-                commitment_key: &key,
-                channel: &channel,
+        let task_session = TaskWriteSession {
+            engine,
+            pins,
+            binding: TaskWriteBinding {
+                resource_field: "record_id".to_owned(),
+                verb: TaskWriteVerb::Edit,
+                connection_id: bound.connection_id().as_str().to_owned(),
+                connection_generation: bound.generation().get(),
+                connection_subject: subject.to_owned(),
+            },
+            ledger,
+        };
+        let read_session = task_session
+            .read_session(TaskReadOperatorInputs {
+                recipe: read_recipe,
+                provider: bound.provider_kind().clone(),
+                alias: bound.alias().clone(),
+                qualification: Arc::clone(&engine.qualification),
+                commitment_key: ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32]))
+                    .expect("key"),
+                channel_socket: socket,
+                channel_name: "agent-channel".to_owned(),
+                agent_identity_packet: packet,
             })
+            .expect("installed read session");
+        let result = read_session
+            .read("task-1", &signed.proof, &signed.action)
             .await;
         assert!(
             matches!(
@@ -643,7 +764,11 @@ mod tests {
         );
         assert_eq!(agent_server.await.expect("agent"), b"Ready");
         provider_server.await.expect("provider");
-        let state = ledger.load("task-1").expect("ledger").expect("task");
+        let state = task_session
+            .ledger
+            .load("task-1")
+            .expect("ledger")
+            .expect("task");
         assert_eq!(state.counts(), (1, 1, 5));
         assert_eq!(state.stage("read-1"), Some(ReleaseStage::AgentAcknowledged));
     }

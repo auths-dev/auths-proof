@@ -105,6 +105,14 @@ pub(crate) struct TaskActivationPins {
     pub(crate) allow_bounded_writes: bool,
 }
 
+impl TaskActivationPins {
+    pub(crate) fn permits_read_recipe(&self, digest: &str) -> bool {
+        self.permitted_read_scopes
+            .iter()
+            .any(|scope| scope.recipe_digest == digest)
+    }
+}
+
 /// A verified human approval of the exact task card. No public constructor
 /// exists; the read ledger can derive its policy only from this value.
 pub(crate) struct ApprovedAgentTask {
