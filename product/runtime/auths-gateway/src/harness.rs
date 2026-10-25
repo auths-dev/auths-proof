@@ -401,12 +401,64 @@ fn context_for(
     composition: CompositionRequirement,
     methods: &[&str],
 ) -> Result<TrustedContext, HarnessError> {
+    context_for_profile(
+        roots,
+        observer,
+        configuration,
+        now,
+        depth,
+        composition,
+        methods,
+        SERVICE,
+        TOOL,
+    )
+}
+
+/// A test trust context pinned to the real task approval or confirmation MCP
+/// profile, including its trust-anchor permission and audience.
+#[cfg(test)]
+pub(crate) fn context_for_task_profile(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    service: &str,
+    tool: &str,
+) -> Result<TrustedContext, HarnessError> {
+    context_for_profile(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        &[RAW_KEY_V1],
+        service,
+        tool,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test trust includes named MCP profile"
+)]
+fn context_for_profile(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+    methods: &[&str],
+    service: &str,
+    tool: &str,
+) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
     };
     let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
-    let unbound = call(&Map::new())?;
+    let unbound = fixture(McpToolCall::new(service, tool, Map::new()), "call")?;
+    let audience = fixture(Audience::parse(&format!("mcp://{service}")), "audience")?;
     let mut anchors = Vec::with_capacity(roots.len());
     for (index, root) in roots.iter().enumerate() {
         let id = if roots.len() == 1 {
@@ -425,10 +477,10 @@ fn context_for(
                     "permissions",
                 )?,
                 vec![fixture(
-                    ResourceId::parse(&format!("mcp://{SERVICE}/")),
+                    ResourceId::parse(&format!("mcp://{service}/")),
                     "namespace",
                 )?],
-                fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
+                fixture(AudienceSet::new(vec![audience.clone()]), "audiences")?,
                 window(now - 86_400, now + 86_400)?,
                 None,
                 depth,
@@ -444,7 +496,7 @@ fn context_for(
             composition,
             anchors,
             accepted_registries_for(methods)?,
-            audience()?,
+            audience,
             Challenge::new([0; 32]),
             Timestamp::new(now),
             fixture(
@@ -524,6 +576,37 @@ pub(crate) fn grant_within(
     requirement: Option<ObservationRequirement>,
     validity: ValidityWindow,
 ) -> Result<SignedGrant, HarnessError> {
+    grant_within_for(root, subject, requirement, validity, SERVICE, TOOL)
+}
+
+/// A synthetic root grant for a named MCP profile. Task tests use their real
+/// approval and confirmation names rather than the gateway demo tool.
+#[cfg(test)]
+pub(crate) fn grant_for(
+    root: &Signer,
+    subject: &PrincipalId,
+    now: u64,
+    service: &str,
+    tool: &str,
+) -> Result<SignedGrant, HarnessError> {
+    grant_within_for(
+        root,
+        subject,
+        None,
+        window(now - 3_600, now + 86_400)?,
+        service,
+        tool,
+    )
+}
+
+fn grant_within_for(
+    root: &Signer,
+    subject: &PrincipalId,
+    requirement: Option<ObservationRequirement>,
+    validity: ValidityWindow,
+    service: &str,
+    tool: &str,
+) -> Result<SignedGrant, HarnessError> {
     let extensions = match requirement {
         None => CriticalExtensions::empty(),
         Some(requirement) => {
@@ -549,7 +632,7 @@ pub(crate) fn grant_within(
             )?
         }
     };
-    let unbound = call(&Map::new())?;
+    let unbound = fixture(McpToolCall::new(service, tool, Map::new()), "call")?;
     let statement = GrantStatement::new(
         root.principal.clone(),
         subject.clone(),
@@ -559,7 +642,13 @@ pub(crate) fn grant_within(
             "permissions",
         )?,
         validity,
-        fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
+        fixture(
+            AudienceSet::new(vec![fixture(
+                Audience::parse(&format!("mcp://{service}")),
+                "audience",
+            )?]),
+            "audiences",
+        )?,
         ActionConstraint::AnyBody,
         None,
         0,

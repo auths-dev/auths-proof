@@ -196,15 +196,38 @@ fn envelope(
     proof_ref: ProofRef,
     descriptors: Vec<AttachmentDescriptor>,
 ) -> ActionEnvelope {
+    envelope_for(
+        agent,
+        canonical,
+        grant,
+        plan,
+        proof_ref,
+        descriptors,
+        h::SERVICE,
+        NOW,
+    )
+}
+
+#[allow(clippy::too_many_arguments, reason = "test action includes named MCP audience and time")]
+fn envelope_for(
+    agent: &Signer,
+    canonical: &CanonicalAction,
+    grant: &SignedGrant,
+    plan: &AuthorizationPlan,
+    proof_ref: ProofRef,
+    descriptors: Vec<AttachmentDescriptor>,
+    service: &str,
+    now: u64,
+) -> ActionEnvelope {
     ActionEnvelope::new(
         canonical.profile().clone(),
         canonical.media_type().clone(),
         body_digest(canonical.body()),
         canonical.permission().clone(),
         None,
-        audience(),
+        Audience::parse(&format!("mcp://{service}")).expect("audience"),
         Challenge::new([0; 32]),
-        window(NOW - 3_600, NOW + 3_600),
+        window(now - 3_600, now + 3_600),
         agent.principal.clone(),
         Some(grant_id(grant.statement()).expect("grant ID")),
         plan_id(plan).expect("plan ID"),
@@ -222,7 +245,36 @@ pub(crate) fn submission(
     arguments: &Map<String, Value>,
     observations: &[Vec<u8>],
 ) -> Submission {
-    let bytes = call(arguments).canonical_bytes().expect("canonical call");
+    submission_for(
+        root,
+        agent,
+        grant,
+        arguments,
+        observations,
+        h::SERVICE,
+        h::TOOL,
+        NOW,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "test helper identifies exact MCP profile and time"
+)]
+pub(crate) fn submission_for(
+    root: &Signer,
+    agent: &Signer,
+    grant: &SignedGrant,
+    arguments: &Map<String, Value>,
+    observations: &[Vec<u8>],
+    service: &str,
+    tool: &str,
+    now: u64,
+) -> Submission {
+    let bytes = McpToolCall::new(service, tool, arguments.clone())
+        .expect("call")
+        .canonical_bytes()
+        .expect("canonical call");
     let (descriptors, detached) = attachments(observations);
     let canonical: CanonicalAction = McpProfile
         .canonicalize(&bytes)
@@ -233,13 +285,15 @@ pub(crate) fn submission(
     let plan = AuthorizationPlan::proof(proof_ref);
     let action = sign_action(
         agent,
-        envelope(
+        envelope_for(
             agent,
             &canonical,
             grant,
             &plan,
             proof_ref,
             descriptors.clone(),
+            service,
+            now,
         ),
     );
     let bindings = vec![

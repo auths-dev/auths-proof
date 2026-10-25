@@ -328,7 +328,7 @@ mod tests {
     use super::*;
     use crate::GatewayObserver;
     use crate::harness::{self, Signer};
-    use crate::observed_tests::submission;
+    use crate::observed_tests::{submission, submission_for};
     use crate::release_state::FileReleaseTaskLedger;
     use serde_json::{Map, json};
     use std::fs;
@@ -395,6 +395,29 @@ mod tests {
         (signed.proof, signed.action)
     }
 
+    fn signed_card_for_approval(
+        root: &Signer,
+        human: &Signer,
+        card: &AgentTaskDescriptor,
+    ) -> (Vec<u8>, Vec<u8>) {
+        let grant =
+            harness::grant_for(root, &human.principal, NOW, APPROVAL_SERVICE, APPROVAL_TOOL)
+                .expect("human approval grant");
+        let mut arguments = Map::new();
+        arguments.insert("task".to_owned(), serde_json::to_value(card).expect("card"));
+        let signed = submission_for(
+            root,
+            human,
+            &grant,
+            &arguments,
+            &[],
+            APPROVAL_SERVICE,
+            APPROVAL_TOOL,
+            NOW,
+        );
+        (signed.proof, signed.action)
+    }
+
     #[test]
     fn human_signed_card_initializes_exact_read_policy() {
         let root = Signer::new(0x11);
@@ -402,18 +425,17 @@ mod tests {
         let agent = Signer::new(0x44);
         let card = card(&human, &agent);
         let observer = GatewayObserver::from_test_seed(0x33);
-        let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
-        let (proof, action) = signed_card(&root, &human, &card);
-        let approved = verify_task_activation_for_profile(
-            &context,
-            &pins(&card),
+        let context = harness::context_for_task_profile(
+            &root,
+            observer.principal(),
             NOW,
-            &proof,
-            &action,
-            harness::SERVICE,
-            harness::TOOL,
+            APPROVAL_SERVICE,
+            APPROVAL_TOOL,
         )
-        .expect("human approval");
+        .expect("approval context");
+        let (proof, action) = signed_card_for_approval(&root, &human, &card);
+        let approved = verify_task_activation(&context, &pins(&card), NOW, &proof, &action)
+            .expect("human approval");
         assert_eq!(approved.descriptor(), &card);
         assert_ne!(approved.commitment(), &[0; 32]);
         let policy = approved.task_policy();

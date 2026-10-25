@@ -280,7 +280,7 @@ mod tests {
     use crate::GatewayObserver;
     use crate::engine::verify_detailed;
     use crate::harness::{self, Signer};
-    use crate::observed_tests::submission;
+    use crate::observed_tests::{submission, submission_for};
     use crate::task_activation::AgentTaskDescriptor;
     use serde_json::{Map, json};
 
@@ -422,63 +422,72 @@ mod tests {
         (signed.proof, signed.action)
     }
 
+    fn confirmation_for_exact_profile(
+        root: &Signer,
+        human: &Signer,
+        intent: &ExactWriteIntent,
+    ) -> (Vec<u8>, Vec<u8>) {
+        let grant = harness::grant_for(
+            root,
+            &human.principal,
+            NOW,
+            CONFIRMATION_SERVICE,
+            CONFIRMATION_TOOL,
+        )
+        .expect("human confirmation grant");
+        let mut arguments = Map::new();
+        arguments.insert(
+            "write".to_owned(),
+            serde_json::to_value(intent).expect("intent"),
+        );
+        let signed = submission_for(
+            root,
+            human,
+            &grant,
+            &arguments,
+            &[],
+            CONFIRMATION_SERVICE,
+            CONFIRMATION_TOOL,
+            NOW,
+        );
+        (signed.proof, signed.action)
+    }
+
     #[test]
     fn exact_human_signature_binds_the_native_agent_action_and_closed_request() {
-        let (task, intent, context, root, human) = setup();
-        let (proof, action) = confirmation(&root, &human, &intent);
-        let approved = verify_exact_write_confirmation_for_profile(
-            &context,
-            &task,
-            intent.clone(),
+        let (task, intent, _agent_context, root, human) = setup();
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let context = harness::context_for_task_profile(
+            &root,
+            observer.principal(),
             NOW,
-            &proof,
-            &action,
-            (harness::SERVICE, harness::TOOL),
+            CONFIRMATION_SERVICE,
+            CONFIRMATION_TOOL,
         )
-        .expect("exact confirmation");
+        .expect("confirmation context");
+        let (proof, action) = confirmation_for_exact_profile(&root, &human, &intent);
+        let approved =
+            verify_exact_write_confirmation(&context, &task, intent.clone(), NOW, &proof, &action)
+                .expect("exact confirmation");
         assert_eq!(approved.intent(), &intent);
 
         let mut changed = intent.clone();
         changed.request_commitment = "0".repeat(64);
         assert!(
-            verify_exact_write_confirmation_for_profile(
-                &context,
-                &task,
-                changed,
-                NOW,
-                &proof,
-                &action,
-                (harness::SERVICE, harness::TOOL),
-            )
-            .is_err()
+            verify_exact_write_confirmation(&context, &task, changed, NOW, &proof, &action,)
+                .is_err()
         );
         let mut changed = intent.clone();
         changed.operation_id = "write-2".to_owned();
         assert!(
-            verify_exact_write_confirmation_for_profile(
-                &context,
-                &task,
-                changed,
-                NOW,
-                &proof,
-                &action,
-                (harness::SERVICE, harness::TOOL),
-            )
-            .is_err()
+            verify_exact_write_confirmation(&context, &task, changed, NOW, &proof, &action,)
+                .is_err()
         );
         let wrong_human = Signer::new(0x66);
-        let (proof, action) = confirmation(&root, &wrong_human, &intent);
+        let (proof, action) = confirmation_for_exact_profile(&root, &wrong_human, &intent);
         assert!(
-            verify_exact_write_confirmation_for_profile(
-                &context,
-                &task,
-                intent,
-                NOW,
-                &proof,
-                &action,
-                (harness::SERVICE, harness::TOOL),
-            )
-            .is_err()
+            verify_exact_write_confirmation(&context, &task, intent, NOW, &proof, &action,)
+                .is_err()
         );
     }
 
