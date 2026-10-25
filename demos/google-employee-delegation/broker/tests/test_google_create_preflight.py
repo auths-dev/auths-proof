@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -103,7 +104,8 @@ class JulesChildPreflightTests(unittest.TestCase):
                      (metadata, access, document)]
         session = _Session()
         credential = SimpleNamespace(
-            producer=SimpleNamespace(), connection_id="jules-google",
+            producer=SimpleNamespace(jules_subject="jules-subject"),
+            connection_id="jules-google",
             connection_generation=1,
         )
         with (patch("employee_read_demo.google_create_preflight.validate_write_handoff",
@@ -122,6 +124,12 @@ class JulesChildPreflightTests(unittest.TestCase):
             )
         self.assertEqual((result.child_id, result.tab_id, result.revision_id),
                          (pins.candidate_id, "t.0", "revision-1"))
+        self.assertEqual((result.connection_id, result.connection_generation,
+                          result.connection_subject),
+                         ("jules-google", 1, "jules-subject"))
+        self.assertEqual((result.metadata_sha256, result.capability_sha256,
+                          result.docs_sha256),
+                         tuple(hashlib.sha256(raw).hexdigest() for raw in responses))
         self.assertTrue(session.closed)
         self.assertFalse(session.trust_env)
         self.assertEqual(session.headers["Authorization"], "Bearer secret-test-token")

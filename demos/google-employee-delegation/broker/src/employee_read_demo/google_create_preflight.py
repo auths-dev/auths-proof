@@ -8,6 +8,7 @@ subject-bound credential. It never creates, populates or binds the child.
 
 from __future__ import annotations
 
+import hashlib
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -39,6 +40,12 @@ class JulesCreatedChildPreflight:
     revision_id: str
     created_at: datetime
     checked_at: int
+    connection_id: str
+    connection_generation: int
+    connection_subject: str
+    metadata_sha256: str
+    capability_sha256: str
+    docs_sha256: str
 
 
 def preflight_jules_created_child(
@@ -72,24 +79,31 @@ def preflight_jules_created_child(
         "Accept-Encoding": "identity",
     })
     try:
-        metadata = _json_object(_bounded_get(
+        metadata_raw = _bounded_get(
             session, created_child_metadata_url(child_pins), params={},
             maximum=MAX_METADATA_BYTES, media_type="application/json",
-        ))
+        )
+        metadata = _json_object(metadata_raw)
         created_at = validate_created_child_metadata(metadata, child_pins)
-        access = _json_object(_bounded_get(
+        access_raw = _bounded_get(
             session, created_child_edit_access_url(child_pins), params={},
             maximum=MAX_METADATA_BYTES, media_type="application/json",
-        ))
+        )
+        access = _json_object(access_raw)
         validate_created_child_edit_access(access, child_pins)
-        document = _json_object(_bounded_get(
+        document_raw = _bounded_get(
             session, created_child_docs_url(child_pins), params={},
             maximum=MAX_DOCS_BYTES, media_type="application/json",
-        ))
+        )
+        document = _json_object(document_raw)
         revision = validate_created_child_docs_read(document, child_pins)
         return JulesCreatedChildPreflight(
             child_pins.candidate_id, revision.tab_id, revision.revision_id,
-            created_at, now,
+            created_at, now, connection_id, connection_generation,
+            credential_pins.producer.jules_subject,
+            hashlib.sha256(metadata_raw).hexdigest(),
+            hashlib.sha256(access_raw).hexdigest(),
+            hashlib.sha256(document_raw).hexdigest(),
         )
     finally:
         session.close()

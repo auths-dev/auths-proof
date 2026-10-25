@@ -37,7 +37,10 @@ numeric insertion index.
 subject-checked Jules token lease and three bounded, redirect-free GETs:
 child metadata, exact-child `canEdit`, then Docs tabs/revision. A synthetic
 test verifies the request order and refusal when the child leaves the pinned
-folder. The caller still must obtain the child ID from Auths's durable binding
+folder. The result also carries the checked Jules connection ID, generation,
+subject and SHA-256 digests of the three exact provider response bodies for
+later private evidence binding. These fields are observations, not a signed
+gateway preflight or agent authority. The caller still must obtain the child ID from Auths's durable binding
 after native admission; this helper neither binds it nor sends a write.
 
 The human-signed task card names the populate recipe digest but contains no

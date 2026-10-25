@@ -120,6 +120,47 @@ as permission to populate an unbound ID. The current code instead requires
 a second exact human confirmation for population, which is a safe interim
 path but does not meet the one-ceremony acceptance condition.
 
+The plan format and commit points are part of that future implementation:
+
+1. A new native `confirm_agent_effect_plan_v1` action signs the task-card
+   commitment, verified create action and closed request commitments, create
+   operation ID, reviewed create and populate recipe digests, complete initial
+   content bytes or a private digest **and length**, one fixed populate
+   operation ID, one create plus one population, and an expiry no later than
+   the task. The UI renders the actual content and destination before signing.
+   Neither the plain digest nor a low-entropy content excerpt enters a public
+   receipt. The gateway verifies the human chain and stores the plan durably
+   in the shared task journal **before** reserving or entering create. A
+   changed plan for that task is refused, including after restart.
+2. The operator-reviewed populate recipe declares exactly which profile
+   fields are late bound: the task-bound child ID and the fields produced by a
+   named, bounded credential-bearing preflight recipe. Every other profile
+   argument that can affect the closed request, including the initial text,
+   is fixed by the signed plan. The compiler verifies that the declared
+   fields are actually consumed by the closed request and that no undeclared
+   agent-controlled field can change its method, URL, query, headers or body.
+   The agent cannot select the preflight recipe or supply its result.
+3. The gateway records the preflight result in the same task journal, bound to
+   the immutable child ID, provider subject and generation, recipe digest,
+   observed response digest, checked time and a short validity window. The
+   Google vertical's preflight rule rejects nonblank or nested Docs content,
+   extra tabs and denied `canEdit`, and extracts only the actual Jules tab ID
+   and revision. Another provider supplies its own reviewed extraction rule;
+   the core only handles typed fields and their provenance. Population
+   admission reconstructs the entire closed request from the fresh agent
+   action, then compares the fixed fields with the plan and each late-bound
+   field with its stored source. It reserves the second write only after all
+   comparisons pass. A stale preflight or changed revision fails before
+   transport entry; the provider's own revision precondition remains the
+   final concurrency check.
+4. A recorded create response is not enough if the task-journal child-binding
+   commit failed. After restart, reconciliation reloads the original
+   native-verified create fields or their sealed projection and the recorded
+   response locator, redoes the reviewed metadata GET, and performs the same
+   one-time journal transition. It performs **no create**. A lost response
+   follows the separate signed recovered-child path below. Neither path can
+   use an arbitrary operator-supplied child ID as its proof source.
+
 ### Lost response and recovered child
 
 A lost or incomplete create response leaves the attempt `outcome_unknown` and
