@@ -238,7 +238,10 @@ verifies the human's native signed task and registers its budget once.
 proof/action, and `--confirmation-proof` plus `--confirmation-action` for
 exact mode. It prints a redacted gateway result. Bounded-upfront mode must
 have been enabled in the operator pins and is the only mode without a separate
-confirmation. These commands refuse production installations while the task
+confirmation. `task-revoke --state-dir STATE --task-id TASK_ID` durably stops
+new reads and writes under that activated task; it does not undo an entered
+write or reclaim content already delivered. These commands refuse production
+installations while the task
 journal is single-host. They are a development integration route, not a
 substitute for the human review UI, separate agent process or independent
 effect verification.

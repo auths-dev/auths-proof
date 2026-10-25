@@ -406,6 +406,15 @@ mod unix {
             #[arg(long)]
             agent_action: PathBuf,
         },
+        /// Development operator only: durably stop new reads and writes
+        /// under one activated task. It cannot retract delivered content or
+        /// an already entered provider request.
+        TaskRevoke {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+        },
         /// Development operator only: activate one human-signed task in the
         /// durable task journal before any agent write can be submitted.
         TaskActivate {
@@ -3435,6 +3444,16 @@ mod unix {
         Ok(())
     }
 
+    async fn task_revoke(state_dir: PathBuf, task_id: String) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        session.revoke(&task_id)?;
+        println!("{{\"outcome\":\"task-revoked\"}}");
+        Ok(())
+    }
+
     async fn task_activate(
         state_dir: PathBuf,
         proof: PathBuf,
@@ -4396,6 +4415,7 @@ mod unix {
                 agent_proof,
                 agent_action,
             } => task_read_submit(state_dir, task_id, agent_proof, agent_action).await,
+            Command::TaskRevoke { state_dir, task_id } => task_revoke(state_dir, task_id).await,
             Command::TaskActivate {
                 state_dir,
                 proof,

@@ -781,5 +781,14 @@ mod tests {
             .expect("task");
         assert_eq!(state.counts(), (1, 1, 5));
         assert_eq!(state.stage("read-1"), Some(ReleaseStage::AgentAcknowledged));
+        task_session.revoke("task-1").expect("durable revocation");
+        assert_eq!(
+            read_session
+                .read("task-1", &signed.proof, &signed.action)
+                .await,
+            ManagedReleaseResult::NotEntered {
+                code: "gateway.release.task-inactive"
+            }
+        );
     }
 }

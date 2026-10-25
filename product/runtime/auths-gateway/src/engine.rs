@@ -1548,6 +1548,18 @@ pub struct TaskWriteProofs<'a> {
 
 #[cfg(unix)]
 impl TaskWriteSession<'_> {
+    /// Durably stop new reads and writes under one activated task. A provider
+    /// call already entered or bytes already delivered cannot be recalled.
+    ///
+    /// # Errors
+    /// Refuses an unknown task or unavailable private journal.
+    pub fn revoke(&self, task_id: &str) -> Result<(), &'static str> {
+        self.ledger
+            .revoke(task_id)
+            .map(|_| ())
+            .map_err(|_| "gateway.task.revoke-unavailable")
+    }
+
     /// Registers a human-signed task once. Later submissions name this durable
     /// activation and need fresh agent and, in exact mode, human actions.
     ///
@@ -2861,6 +2873,19 @@ pub(crate) mod tests {
                 })
                 .await;
             assert_eq!(replay, not_entered("gateway.task.write-replay"));
+            assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
+            session
+                .revoke(&card.task_id)
+                .expect("durable task revocation");
+            let revoked = session
+                .submit(TaskWriteProofs {
+                    task_id: &card.task_id,
+                    agent_proof: &agent_signed.proof,
+                    agent_action: &agent_signed.action,
+                    confirmation: Some((&confirmation.proof, &confirmation.action)),
+                })
+                .await;
+            assert_eq!(revoked, not_entered("gateway.task.inactive"));
             assert_eq!(installation.first.leases.load(Ordering::SeqCst), leases);
         }
     }
