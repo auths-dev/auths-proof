@@ -127,8 +127,8 @@ pub(crate) enum ReleaseStage {
     /// Bytes and one release were durably charged before channel entry. On
     /// restart, this is delivery-unknown without verified terminal evidence.
     ReleaseEntered,
-    /// The channel proved no private content byte was sent after the charge;
-    /// public framing bytes may have been sent. The charge is not refunded.
+    /// The channel proved no content byte was sent after the charge; length
+    /// framing may have been observed. The charge is not refunded.
     NotDelivered,
     /// An authenticated acknowledgement of the exact delivery was verified
     /// by the channel before this transition was persisted.

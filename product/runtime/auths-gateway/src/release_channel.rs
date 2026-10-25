@@ -141,8 +141,8 @@ impl AuthenticatedReleaseChannel {
             return Err(no_content());
         }
         let length = u32::try_from(content.len()).map_err(|_| no_content())?;
-        // A failed or partial frame header may have sent public framing bytes,
-        // but no private content. Once write_all starts, a partial content
+        // A failed or partial frame header may expose length framing, but no
+        // content bytes. Once write_all starts, a partial content
         // write is possible and the outcome must remain unknown.
         timeout(PHASE_TIMEOUT, self.stream.write_u32(length))
             .await
