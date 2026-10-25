@@ -189,6 +189,8 @@ pub(crate) struct GatewayHttpTransport {
     requirement: CredentialRequirement,
     /// Exact canonical fixed query from the reviewed write recipe.
     fixed_write_query: String,
+    /// Exact canonical fixed query from the reviewed observation GET.
+    fixed_observation_query: String,
     /// Version headers every response must echo with these values.
     required_versions: Vec<(String, String)>,
     #[allow(dead_code)] // Used by the pending installed read-release session.
@@ -246,6 +248,7 @@ impl GatewayHttpTransport {
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
             fixed_write_query: recipe.fixed_write_query().to_owned(),
+            fixed_observation_query: recipe.fixed_observation_query().to_owned(),
             required_versions: recipe.required_response_versions(),
             release_digest: None,
             release_maximum_bytes: None,
@@ -293,6 +296,7 @@ impl GatewayHttpTransport {
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
             fixed_write_query: String::new(),
+            fixed_observation_query: String::new(),
             required_versions: Vec::new(),
             release_digest: Some(*recipe.digest()),
             release_maximum_bytes: Some(recipe.maximum_provider_bytes()),
@@ -328,6 +332,7 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
             fixed_write_query: recipe.fixed_write_query().to_owned(),
+            fixed_observation_query: recipe.fixed_observation_query().to_owned(),
             required_versions: recipe.required_response_versions(),
             release_digest: None,
             release_maximum_bytes: None,
@@ -361,6 +366,7 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
             fixed_write_query: String::new(),
+            fixed_observation_query: String::new(),
             required_versions: Vec::new(),
             release_digest: Some(*recipe.digest()),
             release_maximum_bytes: Some(recipe.maximum_provider_bytes()),
@@ -460,7 +466,7 @@ impl GatewayHttpTransport {
         maximum_response_bytes: usize,
         secret: &[u8],
     ) -> Option<ProviderResponse> {
-        if !self.owns_url(url) {
+        if !self.owns_read_url(url) {
             return None;
         }
         let credential = credential_headers(&self.requirement, secret).ok()?;
@@ -561,6 +567,7 @@ impl GatewayHttpTransport {
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: review.credential().clone(),
             fixed_write_query: recipe.fixed_write_query().to_owned(),
+            fixed_observation_query: recipe.fixed_observation_query().to_owned(),
             required_versions: recipe.required_response_versions(),
             release_digest: None,
             release_maximum_bytes: None,
@@ -575,6 +582,14 @@ impl GatewayHttpTransport {
 
     fn owns_url(&self, candidate: &str) -> bool {
         self.owns_url_with_query(candidate, false)
+    }
+
+    fn owns_read_url(&self, candidate: &str) -> bool {
+        self.owns_url(candidate)
+            || (!self.fixed_observation_query.is_empty()
+                && self.owns_url_with_query(candidate, true)
+                && Url::parse(candidate)
+                    .is_ok_and(|url| url.query() == self.fixed_observation_query.strip_prefix('?')))
     }
 
     fn owns_write_url(&self, candidate: &str) -> bool {
@@ -803,6 +818,76 @@ mod tests {
             assert!(!transport.owns_write_url(&candidate), "{candidate}");
         }
         assert!(!transport.owns_url(&format!("{path}?supportsAllDrives=true")));
+    }
+
+    #[test]
+    fn observation_transport_accepts_only_the_compiled_fixed_query() {
+        let source = include_bytes!(
+            "../../../../demos/google-employee-delegation/create_reference/recipe.json"
+        );
+        let lock = include_bytes!(
+            "../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+        );
+        let recipe = CompiledRecipe::compile(source, lock).expect("create recipe");
+        let transport = GatewayHttpTransport::for_loopback_test(&recipe, 18765);
+        let path = "https://www.googleapis.com/drive/v3/files/child_ABC-123";
+        assert!(transport.owns_read_url(&format!("{path}?supportsAllDrives=true")));
+        for candidate in [
+            format!("{path}?supportsAllDrives=false"),
+            format!("{path}?supportsAllDrives=true&fields=id"),
+            format!(
+                "https://elsewhere.example/drive/v3/files/child_ABC-123?supportsAllDrives=true"
+            ),
+            format!("{path}?supportsAllDrives=true#fragment"),
+        ] {
+            assert!(!transport.owns_read_url(&candidate), "{candidate}");
+        }
+    }
+
+    #[tokio::test]
+    async fn reviewed_observation_query_enters_one_closed_get() {
+        let source = include_bytes!(
+            "../../../../demos/google-employee-delegation/create_reference/recipe.json"
+        );
+        let lock = include_bytes!(
+            "../../../../demos/google-employee-delegation/create_reference/profile.lock.json"
+        );
+        let recipe = CompiledRecipe::compile(source, lock).expect("create recipe");
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("bind test provider");
+        let port = listener.local_addr().expect("address").port();
+        let provider = tokio::spawn(async move { capture_heads(&listener, 1).await });
+        let transport = GatewayHttpTransport::for_loopback_test(&recipe, port);
+        let url = "https://www.googleapis.com/drive/v3/files/child_ABC-123?supportsAllDrives=true";
+        let rejected = transport
+            .read(
+                reqwest::Method::GET,
+                "https://www.googleapis.com/drive/v3/files/child_ABC-123?supportsAllDrives=false",
+                &[],
+                1024,
+                b"synthetic-transport-fixture",
+            )
+            .await;
+        assert!(rejected.is_none());
+        let accepted = transport
+            .read(
+                reqwest::Method::GET,
+                url,
+                &[],
+                1024,
+                b"synthetic-transport-fixture",
+            )
+            .await;
+        assert!(accepted.is_some());
+        let heads = provider.await.expect("provider");
+        assert_eq!(heads.len(), 1);
+        assert!(
+            heads[0]
+                .starts_with("get /drive/v3/files/child_abc-123?supportsalldrives=true http/1.1"),
+            "{}",
+            heads[0]
+        );
     }
 
     #[tokio::test]

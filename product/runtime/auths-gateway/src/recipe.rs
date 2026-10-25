@@ -519,6 +519,7 @@ pub struct CompiledRecipe {
     digest: [u8; 32],
     plans: lower::Plans,
     fixed_write_query: String,
+    fixed_observation_query: String,
 }
 
 impl CompiledRecipe {
@@ -558,6 +559,12 @@ impl CompiledRecipe {
         validate_origin(&source.origin)?;
         validate::validate_source(&source, &fields)?;
         let fixed_write_query = release::fixed_query(&source.write.query)?;
+        let fixed_observation_query = source
+            .observation
+            .as_ref()
+            .map(|observation| release::fixed_query(&observation.query))
+            .transpose()?
+            .unwrap_or_default();
         let canonical = serde_json_canonicalizer::to_vec(&source)
             .map_err(|_| GatewayRecipeError::InvalidSource)?;
         let mut hasher = Sha256::new();
@@ -572,6 +579,7 @@ impl CompiledRecipe {
             digest,
             plans,
             fixed_write_query,
+            fixed_observation_query,
         })
     }
 
@@ -609,6 +617,10 @@ impl CompiledRecipe {
 
     pub(crate) fn fixed_write_query(&self) -> &str {
         &self.fixed_write_query
+    }
+
+    pub(crate) fn fixed_observation_query(&self) -> &str {
+        &self.fixed_observation_query
     }
 
     /// What this recipe can prove after an ambiguous write.

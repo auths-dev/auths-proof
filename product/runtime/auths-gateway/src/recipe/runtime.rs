@@ -464,7 +464,7 @@ impl CompiledRecipe {
         let template = ObservationTemplate {
             origin: self.source.origin.clone(),
             segments,
-            query: super::release::fixed_query(&source.query)?,
+            query: self.fixed_observation_query.clone(),
             headers: headers
                 .iter()
                 .filter(|header| header.name != super::IDEMPOTENCY_HEADER)
