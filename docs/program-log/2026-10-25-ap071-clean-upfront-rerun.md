@@ -49,6 +49,16 @@ rerun configuration with the listener replaced by a no-op. This checks package
 contents and startup contract compatibility; it is not the live installed
 Google run.
 
+After the live finance denial, a read-only task activity control fix was
+packaged into an updated broker wheel with SHA-256
+`311ec7176db308cf040dbd5951be79603576fdacaf461677af67b98500c1fcaa`.
+That wheel and the unchanged agent wheel were installed in a separate target.
+The updated broker started the Jules workbench from that installed target;
+the Chrome Incognito page showed the precommitted marker, complete option A
+and B replacements, same target Doc and revision, the distinct agent, zero
+reads and one allowed write. This is a refreshed review card only. No new
+Jules signature or Google write occurred at that point.
+
 ## Outcome
 
 Pending the new signed task, separate agent choice, one gateway submission,
