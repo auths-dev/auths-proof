@@ -74,7 +74,7 @@ class GoogleCreateHandoffTests(unittest.TestCase):
             "mimeType": "application/vnd.google-apps.document",
             "parents": [pins.parent_id], "driveId": pins.drive_id,
             "properties": {"auths_operation_marker": pins.marker_value},
-            "trashed": False, "createdTime": "2026-10-25T10:03:00+00:00",
+            "trashed": False, "createdTime": "2026-10-25T10:03:00Z",
         }
         self.assertEqual(
             validate_created_child_metadata(metadata, pins).isoformat(),

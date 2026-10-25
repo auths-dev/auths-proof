@@ -94,7 +94,12 @@ def validate_created_child_metadata(metadata: Mapping[str, object],
             or metadata["properties"].get("auths_operation_marker") != pins.marker_value):
         raise ContractRejected("created-child metadata differs from signed and operator pins")
     try:
-        created = datetime.fromisoformat(metadata["createdTime"])
+        timestamp = metadata["createdTime"]
+        if type(timestamp) is not str or len(timestamp) > 40:
+            raise ValueError("invalid timestamp shape")
+        created = datetime.fromisoformat(
+            timestamp[:-1] + "+00:00" if timestamp.endswith("Z") else timestamp
+        )
     except (KeyError, TypeError, ValueError) as error:
         raise ContractRejected("created-child creation time is invalid") from error
     if created.tzinfo is None or created.utcoffset() is None:
