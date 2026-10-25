@@ -192,6 +192,10 @@ mod unix {
             credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// Print one secret-free JSON result with the generated connection
+            /// ID and credential generation for operator task pinning.
+            #[arg(long, default_value_t = false)]
+            connection_json: bool,
             /// `development` keeps attempts and the connection record in a
             /// single-host file store; `production` requires the
             /// `PostgreSQL` store, an authenticated operator, and no software
@@ -1274,6 +1278,7 @@ mod unix {
         join: bool,
         credential_header: String,
         credential_stdin: bool,
+        connection_json: bool,
         deployment: Deployment,
         operator_attestation: Option<PathBuf>,
         attempt_store: Option<PathBuf>,
@@ -1457,14 +1462,30 @@ mod unix {
         }
         let floor = auths_gateway::GenerationFloor::new(state_dir.clone());
         let record = installed.record().clone();
+        let connection_id = record.connection_id().as_str().to_owned();
+        let credential_generation = record.credential_generation().get();
         tokio::task::spawn_blocking(move || floor.initialize(&record))
             .await
             .map_err(|_| "gateway.install.connection-store-unavailable")??;
-        println!(
-            "{} recipe {} with separate gateway credential custody",
-            if join { "joined" } else { "installed" },
-            manifest.recipe_digest
-        );
+        if connection_json {
+            println!(
+                "{}",
+                serde_json_canonicalizer::to_string(&serde_json::json!({
+                    "schema": "auths.gateway-install-result/1",
+                    "connection_id": connection_id,
+                    "credential_generation": credential_generation,
+                    "recipe_digest": manifest.recipe_digest,
+                    "joined": join,
+                }))
+                .map_err(|_| "gateway.install.output")?
+            );
+        } else {
+            println!(
+                "{} recipe {} with separate gateway credential custody",
+                if join { "joined" } else { "installed" },
+                manifest.recipe_digest
+            );
+        }
         Ok(())
     }
 
@@ -3688,6 +3709,7 @@ mod unix {
                 join,
                 credential_header,
                 credential_stdin,
+                connection_json,
                 deployment,
                 operator_attestation,
                 attempt_store,
@@ -3721,6 +3743,7 @@ mod unix {
                     join,
                     credential_header,
                     credential_stdin,
+                    connection_json,
                     deployment,
                     operator_attestation,
                     attempt_store,
@@ -4385,6 +4408,49 @@ mod unix {
                 Command::TaskSubmit {
                     confirmation_proof: Some(_),
                     confirmation_action: Some(_),
+                    ..
+                }
+            ));
+        }
+
+        #[test]
+        fn install_connection_json_is_opt_in() {
+            let base = [
+                "auths-gateway",
+                "install",
+                "--state-dir",
+                "/state",
+                "--recipe",
+                "recipe.json",
+                "--profile-lock",
+                "lock.json",
+                "--trusted-context",
+                "trust.cbor",
+                "--approve-digest",
+                "a",
+                "--provider",
+                "google",
+                "--alias",
+                "jules",
+                "--account-label",
+                "jules-subject",
+                "--credential-stdin",
+            ];
+            assert!(matches!(
+                Cli::try_parse_from(base).expect("ordinary install").command,
+                Command::Install {
+                    connection_json: false,
+                    ..
+                }
+            ));
+            let mut structured = base.to_vec();
+            structured.push("--connection-json");
+            assert!(matches!(
+                Cli::try_parse_from(structured)
+                    .expect("operator connection result")
+                    .command,
+                Command::Install {
+                    connection_json: true,
                     ..
                 }
             ));

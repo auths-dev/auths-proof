@@ -58,6 +58,12 @@ now pipes a checked, short-lived bearer into a new gateway installation with
 the Google UserInfo `sub` as account label. It has synthetic secret-custody
 tests; no live gateway installation or edit has run. Her saved read-only grant
 is insufficient.
+The shim requests the gateway's opt-in, secret-free `--connection-json` install
+result and returns its generated connection ID and credential generation. The
+operator uses those returned values in the task installation and in the
+post-install Jules credential pins used by preflight. A malformed successful
+install result is an unknown setup outcome: inspect that gateway state before
+trying another installation.
 demo_co owns the folder, working Doc, ACL, consent probes and versioned export;
 Auths owns authority, connection custody, recipe admission and receipts.
 The [write handoff shim](../broker/src/employee_read_demo/write_handoff.py)

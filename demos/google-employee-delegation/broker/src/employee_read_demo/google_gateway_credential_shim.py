@@ -9,6 +9,7 @@ installed bearer is short lived; this is not production OAuth refresh custody.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -21,6 +22,7 @@ from .google_write_credential import WriteCredentialPins, lease_jules_write_toke
 
 MIN_REMAINING_SECONDS = 600
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+_CONNECTION_ID = re.compile(r"conn_[A-Za-z0-9_-]{22}\Z")
 
 
 class GatewayWriteCredentialDenied(PermissionError):
@@ -29,6 +31,7 @@ class GatewayWriteCredentialDenied(PermissionError):
 
 @dataclass(frozen=True)
 class InstalledWriteLease:
+    connection_id: str
     connection_subject: str
     connection_generation: int
     expires_at: int
@@ -83,6 +86,7 @@ def install_jules_write_lease(
         "--alias", alias,
         "--account-label", pins.producer.jules_subject,
         "--credential-stdin",
+        "--connection-json",
         "--deployment", "development",
     ]
     try:
@@ -101,8 +105,26 @@ def install_jules_write_lease(
         # Do not surface child output: an unexpected diagnostic could include
         # the bearer even though the gateway's normal errors are redacted.
         raise GatewayWriteCredentialDenied("gateway refused the checked bearer")
+    try:
+        if len(result.stdout) > 4096:
+            raise ValueError("gateway result exceeds bounds")
+        installed = json.loads(result.stdout)
+        if (type(installed) is not dict
+                or set(installed) != {"schema", "connection_id",
+                                      "credential_generation", "recipe_digest", "joined"}
+                or installed["schema"] != "auths.gateway-install-result/1"
+                or type(installed["connection_id"]) is not str
+                or _CONNECTION_ID.fullmatch(installed["connection_id"]) is None
+                or type(installed["credential_generation"]) is not int
+                or installed["credential_generation"] != pins.connection_generation
+                or installed["recipe_digest"] != recipe_digest
+                or installed["joined"] is not False):
+            raise ValueError("gateway result disagrees with installation")
+    except (UnicodeDecodeError, ValueError) as error:
+        raise GatewayWriteCredentialDenied(
+            "gateway install result unavailable; inspect state before retry",
+        ) from error
     return InstalledWriteLease(
-        pins.producer.jules_subject,
-        pins.connection_generation,
-        lease.expires_at,
+        installed["connection_id"], pins.producer.jules_subject,
+        installed["credential_generation"], lease.expires_at,
     )

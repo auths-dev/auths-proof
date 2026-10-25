@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -46,16 +47,24 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             return_value=TokenLease("private-access", 2000),
         ) as lease, patch(
             "employee_read_demo.google_gateway_credential_shim.subprocess.run",
-            return_value=subprocess.CompletedProcess([], 0, b"installed", b""),
+            return_value=subprocess.CompletedProcess([], 0, json.dumps({
+                "schema": "auths.gateway-install-result/1",
+                "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
+                "credential_generation": 1,
+                "recipe_digest": "c" * 64,
+                "joined": False,
+            }).encode(), b""),
         ) as run:
             installed = self.install()
-        self.assertEqual((installed.connection_subject, installed.expires_at),
-                         ("subject-1", 2000))
+        self.assertEqual((installed.connection_id, installed.connection_subject,
+                          installed.expires_at),
+                         ("conn_AAAAAAAAAAAAAAAAAAAAAA", "subject-1", 2000))
         lease.assert_called_once()
         args, kwargs = run.call_args
         command = args[0]
         self.assertEqual(command[command.index("--account-label") + 1], "subject-1")
         self.assertEqual(command[command.index("--provider") + 1], "google")
+        self.assertIn("--connection-json", command)
         self.assertEqual(kwargs["input"], b"private-access")
         self.assertNotIn("private-access", repr(command))
         self.assertNotIn("private-access", repr(installed))
@@ -76,6 +85,17 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
             return_value=subprocess.CompletedProcess([], 1, b"private-access", b"private-access"),
         ):
             with self.assertRaises(GatewayWriteCredentialDenied) as caught:
+                self.install()
+            self.assertNotIn("private-access", str(caught.exception))
+        with patch(
+            "employee_read_demo.google_gateway_credential_shim.lease_jules_write_token",
+            return_value=TokenLease("private-access", 2000),
+        ), patch(
+            "employee_read_demo.google_gateway_credential_shim.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, b"unexpected", b"private-access"),
+        ):
+            with self.assertRaisesRegex(GatewayWriteCredentialDenied,
+                                        "inspect state before retry") as caught:
                 self.install()
             self.assertNotIn("private-access", str(caught.exception))
 
