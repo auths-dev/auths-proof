@@ -67,6 +67,7 @@ class GoogleGatewayCredentialShimTests(unittest.TestCase):
                 "connection_id": "conn_AAAAAAAAAAAAAAAAAAAAAA",
                 "credential_generation": 1,
                 "recipe_digest": "c" * 64,
+                "task_companion_digest": None,
                 "joined": False,
             }).encode(), b""),
         ) as run:

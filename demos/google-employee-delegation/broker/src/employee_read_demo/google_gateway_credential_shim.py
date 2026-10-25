@@ -126,13 +126,15 @@ def install_jules_write_lease(
         installed = json.loads(result.stdout)
         if (type(installed) is not dict
                 or set(installed) != {"schema", "connection_id",
-                                      "credential_generation", "recipe_digest", "joined"}
+                                      "credential_generation", "recipe_digest",
+                                      "task_companion_digest", "joined"}
                 or installed["schema"] != "auths.gateway-install-result/1"
                 or type(installed["connection_id"]) is not str
                 or _CONNECTION_ID.fullmatch(installed["connection_id"]) is None
                 or type(installed["credential_generation"]) is not int
                 or installed["credential_generation"] != pins.connection_generation
                 or installed["recipe_digest"] != recipe_digest
+                or installed["task_companion_digest"] is not None
                 or installed["joined"] is not False):
             raise ValueError("gateway result disagrees with installation")
     except (UnicodeDecodeError, ValueError) as error:
