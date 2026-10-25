@@ -92,8 +92,10 @@ and connection generation before returning a short-lived bearer to gateway
 transport. Its implementation must keep refresh material outside the agent,
 task, ordinary command arguments and receipts. A one-time installed access
 token is only a development shim with an explicit expiry, not renewal or a
-general managed-read claim. This ADR does not approve provider-specific token
-refresh code inside the data-only gateway.
+general managed-read claim. [ADR 0020](0020-post-admission-provider-credential-lease.md)
+defines the proposed post-admission materializer and its subject/generation
+checks. This ADR does not approve provider-specific token refresh code inside
+the data-only gateway.
 
 ## Evidence before acceptance
 
