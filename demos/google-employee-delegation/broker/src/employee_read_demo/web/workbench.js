@@ -630,6 +630,8 @@ async function start() {
     }
     if (session.task_write_execution_available) {
       bind("write-submit", submitApprovedWrite);
+    }
+    if (session.task_write_execution_available || session.task_read_only_available) {
       byId("write-status-refresh").hidden = false;
       bind("write-status-refresh", loadWriteTaskStatus);
       byId("write-revoke").hidden = false;

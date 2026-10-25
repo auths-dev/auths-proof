@@ -202,6 +202,8 @@ async function main() {
   await new Promise(setImmediate);
   assert.equal(byId("page-title").textContent, "Jules delegates one finance read attempt");
   assert.equal(byId("write-confirm-prepare").hidden, true);
+  assert.equal(byId("write-status-refresh").hidden, false);
+  assert.equal(byId("write-revoke").hidden, false);
   await vm.runInContext("prepareWriteTask()", readContext);
   assert.match(byId("write-card").textContent, /"max_writes": 0/);
   assert.match(byId("write-card").textContent, /finance-doc/);
