@@ -68,6 +68,9 @@ def validate_write_handoff(export: Path, pins: WriteHandoffPins) -> dict:
     evidence, raw = _load(export, "google-write-verification-v1.schema.json")
     if hashlib.sha256(raw).hexdigest() != pins.evidence_sha256:
         raise ContractRejected("write handoff digest disagrees with operator pin")
+    if (evidence.get("schema_version") != "demo-co/google-write-verification/v1"
+            or evidence.get("status") != "ready"):
+        raise ContractRejected("write handoff version or status is unavailable")
     if (evidence["company"], evidence["instance"], evidence["definition_hash"],
             evidence["customer_id"], evidence["jules_subject"], evidence["jules_email"]) != (
             pins.company, pins.instance, pins.definition_hash, pins.customer_id,
@@ -80,9 +83,10 @@ def validate_write_handoff(export: Path, pins: WriteHandoffPins) -> dict:
             or not evidence["probe_created_as_jules"]
             or not evidence["probe_edited_as_jules"]
             or not evidence["project_b_write_capability_denied"]
-            or evidence.get("canonical_documents_mutated", False)):
+            or evidence.get("canonical_documents_mutated") is not False):
         raise ContractRejected("write handoff lacks required independent probes")
-    for name, maximum in (("document_id", 64), ("folder_id", 128),
+    for name, maximum in (("drive_id", 128), ("document_id", 64),
+                          ("folder_id", 128), ("probe_document_id", 64),
                           ("tab_id", 16), ("revision_id", 128), ("marker", 48)):
         value = evidence[name]
         if not value or len(value.encode("utf-8")) > maximum or any(c.isspace() for c in value):
