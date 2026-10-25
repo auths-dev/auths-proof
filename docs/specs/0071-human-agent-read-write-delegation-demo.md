@@ -67,6 +67,8 @@ This is a proposed product capability, not an assertion that the current gateway
 
 Checked-in [Google Drive text](../../demos/google-employee-delegation/read_reference/README.md) and [Airtable field](../../demos/airtable-gateway/read_reference/README.md) references now compile with the same release grammar and distinct response projections. This establishes request construction and bounded extraction only; neither reference has the managed custody, task-admission, budget, delivery or installed-provider evidence required above.
 
+An internal single-host task journal now tests the intended ordering of one provider-call reservation, an atomic release/byte charge before delivery, replay refusal, revocation, restart and competing claims. It is not connected to native task verification, credential transport or an agent channel. It does not yet accept an agent acknowledgement or prove a no-send outcome, and the multi-host production store is not implemented. This is release-accounting construction evidence, not a managed release claim.
+
 ### 3.2 Writes use the existing general gateway
 
 Every production provider write uses ADR 0012's data-only, credential-isolated gateway. A write recipe fixes the target origin, typed path, request shape, credential binding, limits and any observation rule. The native agent action and, for exact mode, human confirmation bind the operation ID, resource, recipe digest and exact intended effect. Provider-specific effects, idempotency and retry safety stay in vertical reference tests and operator review. The gateway reports verified, admitted, entered, response-recorded and, where available, observed stages without inventing provider success. An ambiguous entered write is outcome_unknown and is not blindly retried.

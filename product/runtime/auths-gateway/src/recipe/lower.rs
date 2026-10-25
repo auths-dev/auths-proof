@@ -136,8 +136,9 @@ impl Lowering<'_> {
         path.iter()
             .map(|segment| match segment {
                 PathSegment::Fixed { value } => Ok(SegmentPlan::Fixed(value.as_bytes().to_vec())),
-                PathSegment::Field { name } => self.index(name).map(SegmentPlan::Field),
-                PathSegment::FieldSuffix { name, .. } => self.index(name).map(SegmentPlan::Field),
+                PathSegment::Field { name } | PathSegment::FieldSuffix { name, .. } => {
+                    self.index(name).map(SegmentPlan::Field)
+                }
                 PathSegment::ResponseField { .. } | PathSegment::Echo => {
                     Err(GatewayRecipeError::InvalidSource)
                 }

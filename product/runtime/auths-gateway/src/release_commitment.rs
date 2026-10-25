@@ -73,10 +73,14 @@ impl ReleaseCommitmentKey {
     }
 
     /// Commit to exact private bytes under one validated receipt context.
+    ///
+    /// # Panics
+    /// The fixed 32-byte HMAC key and validated context lengths are always
+    /// accepted by their encoders; failure would violate those invariants.
     #[must_use]
     pub fn commit(
         &self,
-        context: &ReleaseCommitmentContext<'_>,
+        scope: &ReleaseCommitmentContext<'_>,
         content: &[u8],
     ) -> ReleaseCommitment {
         let mut mac = HmacSha256::new_from_slice(&*self.material)
@@ -84,13 +88,14 @@ impl ReleaseCommitmentKey {
         mac.update(DOMAIN);
         mac.update(&self.version.to_be_bytes());
         for field in [
-            context.task_id,
-            context.resource_handle,
-            context.operation_id,
-            context.receipt_kind,
+            scope.task_id,
+            scope.resource_handle,
+            scope.operation_id,
+            scope.receipt_kind,
         ] {
             let bytes = field.as_bytes();
-            mac.update(&(bytes.len() as u32).to_be_bytes());
+            let length = u32::try_from(bytes.len()).expect("context fields are at most 512 bytes");
+            mac.update(&length.to_be_bytes());
             mac.update(bytes);
         }
         mac.update(&(content.len() as u64).to_be_bytes());
@@ -105,12 +110,12 @@ impl ReleaseCommitmentKey {
     #[must_use]
     pub fn verify(
         &self,
-        context: &ReleaseCommitmentContext<'_>,
+        scope: &ReleaseCommitmentContext<'_>,
         content: &[u8],
         receipt: &ReleaseCommitment,
     ) -> bool {
         self.version == receipt.key_version
-            && bool::from(self.commit(context, content).mac.ct_eq(&receipt.mac))
+            && bool::from(self.commit(scope, content).mac.ct_eq(&receipt.mac))
     }
 }
 

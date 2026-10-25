@@ -39,6 +39,10 @@ mod qualification;
 mod readiness;
 pub mod recipe;
 mod release_commitment;
+// The closed task state is not yet wired to native admission or delivery.
+// Keep its durable transition tests active while those runtime gates are built.
+#[allow(dead_code)]
+mod release_state;
 mod semantic_closure;
 mod separation;
 mod store;

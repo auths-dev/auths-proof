@@ -324,7 +324,7 @@ impl CompiledReleaseRecipe {
         if !content_type_matches(content_type, &response.media_type) {
             return Err(ReleaseProjectionError::MediaType);
         }
-        if body.len() > response.maximum_provider_bytes as usize {
+        if !u64::try_from(body.len()).is_ok_and(|bytes| bytes <= response.maximum_provider_bytes) {
             return Err(ReleaseProjectionError::Body);
         }
         let selected = match &response.projection {
@@ -343,7 +343,8 @@ impl CompiledReleaseRecipe {
                     .to_vec()
             }
         };
-        if selected.len() > response.maximum_release_bytes as usize {
+        if !u64::try_from(selected.len()).is_ok_and(|bytes| bytes <= response.maximum_release_bytes)
+        {
             return Err(ReleaseProjectionError::Projection);
         }
         Ok(selected)
@@ -420,10 +421,10 @@ fn validate_and_lower(
     {
         return Err(GatewayRecipeError::UnsafeTemplate);
     }
-    if let Projection::JsonString { pointer } = &response.projection {
-        if !super::validate::valid_response_pointer(pointer) {
-            return Err(GatewayRecipeError::UnsafeTemplate);
-        }
+    if let Projection::JsonString { pointer } = &response.projection
+        && !super::validate::valid_response_pointer(pointer)
+    {
+        return Err(GatewayRecipeError::UnsafeTemplate);
     }
     Ok(ActionReadPlan {
         origin: source.origin.as_bytes().to_vec(),
