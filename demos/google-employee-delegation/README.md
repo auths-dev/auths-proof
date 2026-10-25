@@ -112,6 +112,23 @@ The output directory must be private (`0700`); the command creates a new
 generation before passing it to the workbench. A local export can produce a
 candidate but cannot activate Google; a live candidate requires the pinned
 verification file and independent scenario results to pass import checks.
+
+The live Atlas setup currently has a Jules employee grant but no complete
+versioned Google export. For a separately labelled local smoke, the trusted
+broker can use `ExistingDemoCoConsentLease` from
+`employee_read_demo.existing_consent_smoke` as the lease source passed to
+`GoogleDriveReader`. This temporary adapter requires an owner-only credential
+file, exact Atlas instance/customer/Jules pins, the reviewed OAuth client ID,
+Jules's Google `sub`, and the Auths task's employee binding and connection
+generation. It verifies Google UserInfo before releasing an in-memory access
+token to the closed Drive reader. The grant is not written to Auths's token
+vault, passed to the agent or browser, or copied into the operator kit. The
+producer must supply Jules's non-secret subject and independent partial probe
+evidence before a live run; neither is currently in the versioned export.
+This adapter does not activate the workbench importer or count as the normal
+broker-owned OAuth journey. No further Google sign-in or consent should be
+attempted for this smoke.
+
 The browser review flow uses a non-exportable Ed25519 employee key stored in
 that browser's IndexedDB, keyed by the signed-in Google subject. Clearing the
 browser profile removes access to that key. The workbench returns the native

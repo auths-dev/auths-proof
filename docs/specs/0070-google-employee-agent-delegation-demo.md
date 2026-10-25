@@ -182,6 +182,23 @@ PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 > and requires the operator-pinned verification artifact for a live import.
 > The JSON consumer shim remains until those producer artifacts exist.
 
+> **Existing-consent smoke handoff (25 October 2026):** The producer has a
+> local live Atlas instance and an owner-only Jules OAuth grant, but it has
+> not yet emitted a versioned Google verification, complete scenario results,
+> or a ready connections export. The user directed us to avoid another Google
+> sign-in or consent attempt. `existing_consent_smoke.py` is therefore a
+> temporary trusted-broker lease adapter for a separately labelled local
+> smoke: it accepts only the exact Atlas instance/customer and Jules person,
+> requires operator pins for the OAuth client, Google `sub`, Auths employee
+> binding and connection generation, and rechecks Google UserInfo before a
+> lease. It reads the producer's private grant file without importing tokens
+> into the production vault or making them available to the agent/browser.
+> The producer still owns baseline provider probes and their export. This
+> shim does not activate the strict company importer, prove that Jules signed
+> an Auths delegation, or satisfy the spec's broker-owned OAuth onboarding
+> acceptance. Replace this shim with the pinned producer artifact and the
+> normal broker-owned OAuth connection after the pending handoff is complete.
+
 > **Operator pin preparation (25 October 2026):** The installed broker CLI
 > can write a private candidate `pins.json` from one copied export generation.
 > Company, instance, definition, dataset and Google tenant values must be
