@@ -2319,6 +2319,7 @@ pub(crate) mod tests {
             recipe,
             provider: record.record().provider_kind().clone(),
             alias: record.record().alias().clone(),
+            generation_floor: crate::GenerationFloor::new(directory.path().to_path_buf()),
             qualification: Arc::new(QualificationGate::development()),
             commitment_key: crate::ReleaseCommitmentKey::new(
                 1,

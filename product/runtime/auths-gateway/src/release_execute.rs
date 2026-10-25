@@ -11,7 +11,8 @@ use crate::release_verify::{VerifiedReleaseRequest, verify_release_request};
 use crate::task_activation::{ApprovedAgentTask, TaskActivationPins};
 use crate::transport::GatewayHttpTransport;
 use crate::{
-    CompiledReleaseRecipe, GatewayConnectionDescriptor, LoadedConnection, QualificationGate,
+    CompiledReleaseRecipe, GatewayConnectionDescriptor, GenerationFloor, LoadedConnection,
+    QualificationGate,
 };
 use auths_connections::ConnectionCredentialStore;
 use auths_connections::{ConnectionAlias, ProviderKind};
@@ -53,6 +54,7 @@ pub struct TaskReadOperatorInputs {
     pub recipe: CompiledReleaseRecipe,
     pub provider: ProviderKind,
     pub alias: ConnectionAlias,
+    pub generation_floor: GenerationFloor,
     pub qualification: Arc<QualificationGate>,
     pub commitment_key: ReleaseCommitmentKey,
     pub channel_socket: PathBuf,
@@ -106,7 +108,8 @@ impl<'e> TaskWriteSession<'e> {
                 self.engine.attempts.store(),
                 inputs.provider,
                 inputs.alias,
-            ),
+            )
+            .with_generation_floor(inputs.generation_floor),
             qualification: inputs.qualification,
             commitment_key: inputs.commitment_key,
             channel,
@@ -583,6 +586,12 @@ mod tests {
             std::fs::canonicalize(ledger_root).expect("canonical ledger root"),
         )
         .expect("ledger");
+        let floor_root = directory.path().join("read-floor");
+        std::fs::create_dir(&floor_root).expect("read floor directory");
+        std::fs::set_permissions(&floor_root, std::fs::Permissions::from_mode(0o700))
+            .expect("read floor mode");
+        let read_floor = GenerationFloor::new(floor_root);
+        read_floor.initialize(&bound).expect("read floor");
         ledger.initialize(&approved).expect("activate");
         let mut action_arguments = arguments(&read_recipe, agent.principal.as_str());
         action_arguments.insert(
@@ -741,6 +750,7 @@ mod tests {
                 recipe: read_recipe,
                 provider: bound.provider_kind().clone(),
                 alias: bound.alias().clone(),
+                generation_floor: read_floor,
                 qualification: Arc::clone(&engine.qualification),
                 commitment_key: ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32]))
                     .expect("key"),
