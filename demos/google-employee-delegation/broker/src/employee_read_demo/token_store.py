@@ -17,7 +17,10 @@ from .browser_sessions import BrowserSessionStore
 from .contracts import TaskDescriptor
 from .enrollment import EnrollmentStore
 from .enrollment import EmployeeBinding
-from .google_oauth import CONNECT_SCOPES, OAuthResult, TOKEN_URL, _bounded_json_response
+from .google_oauth import (
+    CONNECT_SCOPES, OAuthResult, TOKEN_URL, _bounded_json_response,
+    normalize_scopes,
+)
 
 
 @dataclass(frozen=True)
@@ -161,7 +164,8 @@ class TokenVault:
             scopes = result.get("scope")
             if (not isinstance(access, str) or not access or type(expires_in) is not int
                     or not 1 <= expires_in <= 86_400 or (scopes is not None
-                    and (not isinstance(scopes, str) or not CONNECT_SCOPES.issubset(set(scopes.split()))))):
+                    and (not isinstance(scopes, str)
+                         or not CONNECT_SCOPES.issubset(normalize_scopes(scopes.split()))))):
                 raise AdmissionDenied("Google refresh response is incomplete")
             rotated = result.get("refresh_token", refresh_token)
             if not isinstance(rotated, str) or not rotated:

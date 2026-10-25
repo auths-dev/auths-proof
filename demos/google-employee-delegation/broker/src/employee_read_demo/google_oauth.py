@@ -20,8 +20,11 @@ from .browser_sessions import BrowserSessionStore, SessionDenied
 
 ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
-LOGIN_SCOPES = frozenset({"openid", "email"})
+EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email"
+LOGIN_SCOPES = frozenset({"openid", EMAIL_SCOPE})
 CONNECT_SCOPES = LOGIN_SCOPES | {DRIVE_SCOPE}
+LOGIN_REQUEST_SCOPES = frozenset({"openid", "email"})
+CONNECT_REQUEST_SCOPES = LOGIN_REQUEST_SCOPES | {DRIVE_SCOPE}
 AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
@@ -37,6 +40,14 @@ def _bounded_json_response(response: requests.Response, limit: int) -> dict:
     if type(result) is not dict:
         raise ValueError("Google JSON response is not an object")
     return result
+
+
+def normalize_scopes(values: object) -> frozenset[str]:
+    if not isinstance(values, (list, tuple, set, frozenset)) or any(
+        not isinstance(value, str) for value in values
+    ):
+        raise ValueError("Google scope list is invalid")
+    return frozenset(EMAIL_SCOPE if value == "email" else value for value in values)
 
 
 class OAuthRejected(PermissionError):
@@ -143,7 +154,7 @@ class GoogleOAuth:
         state, nonce, verifier = self.states.create(kind, expected_subject,
                                                     int(time.time()), browser_cookie)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
-        scopes = LOGIN_SCOPES if kind == "login" else CONNECT_SCOPES
+        scopes = LOGIN_REQUEST_SCOPES if kind == "login" else CONNECT_REQUEST_SCOPES
         parameters = {
             "client_id": self.config.client_id,
             "redirect_uri": self.config.redirect_uri,
@@ -192,7 +203,7 @@ class GoogleOAuth:
             subject = claims.get("sub")
             if not isinstance(subject, str) or not subject or (expected_subject is not None and subject != expected_subject):
                 raise OAuthRejected("Google subject does not match enrollment")
-            scopes = frozenset(tokens.get("scope", "").split())
+            scopes = normalize_scopes(tokens.get("scope", "").split())
             required = LOGIN_SCOPES if kind == "login" else CONNECT_SCOPES
             if not required.issubset(scopes):
                 raise OAuthRejected("Google consent is incomplete")

@@ -20,7 +20,7 @@ from employee_read_demo.browser_sessions import BrowserSessionStore, SessionDeni
 from employee_read_demo.google_oauth import (
     CONNECT_SCOPES, GoogleOAuth, GoogleOAuthConfig, OAuthRejected,
     OAuthResult, OAuthStateStore,
-    _bounded_json_response,
+    _bounded_json_response, normalize_scopes,
 )
 from employee_read_demo.operator_cli import offboard_employee
 from employee_read_demo.token_store import TokenVault
@@ -37,6 +37,12 @@ class OAuthCustodyTests(unittest.TestCase):
     def test_desktop_loopback_origin_is_valid_redirect(self) -> None:
         GoogleOAuthConfig("client-id", "synthetic-secret", "http://127.0.0.1:8765",
                           "example.invalid").validate()
+
+    def test_google_email_scope_aliases_normalize_to_one_custody_scope(self) -> None:
+        self.assertEqual(normalize_scopes(["openid", "email",
+                                           "https://www.googleapis.com/auth/drive.readonly"]),
+                         CONNECT_SCOPES)
+        self.assertEqual(normalize_scopes(CONNECT_SCOPES), CONNECT_SCOPES)
 
     def test_compressed_token_json_is_decoded_with_post_decompression_limit(self) -> None:
         payload = b'{"access_token":"synthetic-access"}'
