@@ -4,6 +4,9 @@
 use super::{
     GatewayEngine, SharedConnection, TaskWriteSession, authorizes_entry, submit, wall_clock_seconds,
 };
+use crate::materializer::{
+    CredentialMaterializationContext, CredentialRequestKind, task_lease_deadline,
+};
 use crate::release_channel::{
     AuthenticatedReleaseChannel, ReleaseDeliveryError, UnixAgentReleaseChannel,
 };
@@ -396,7 +399,7 @@ impl GatewayEngine {
             return Err(ReadFailure::Refused("gateway.release.connection-changed"));
         }
         self.execution_witness.lease();
-        let lease = submission
+        let source = submission
             .read_credentials
             .lease_secret(
                 &prepared.loaded.record().credential_binding(),
@@ -404,6 +407,32 @@ impl GatewayEngine {
             )
             .await
             .map_err(|_| ReadFailure::Refused("gateway.release.credential-unavailable"))?;
+        let lease = if let Some(installation) = self
+            .materializers
+            .get(prepared.loaded.record().connection_id().as_str())
+        {
+            let request = prepared.verified.request();
+            let context = CredentialMaterializationContext {
+                task_id: request.task_id().to_owned(),
+                operation_id: request.operation_id().as_str().to_owned(),
+                connection_id: prepared.loaded.record().connection_id().as_str().to_owned(),
+                connection_generation: prepared.loaded.record().generation().get(),
+                source_generation: prepared.loaded.record().credential_generation().get(),
+                account_subject: prepared.connection_subject.clone(),
+                recipe_digest: hex::encode(request.recipe_digest()),
+                task_expires_at: prepared.task.descriptor().expires_at,
+                kind: CredentialRequestKind::ReadRelease,
+            };
+            let deadline = task_lease_deadline(&source, context.task_expires_at).ok_or(
+                ReadFailure::Refused("gateway.release.materialization-refused"),
+            )?;
+            installation
+                .lease(&context, &source, deadline)
+                .await
+                .map_err(|_| ReadFailure::Refused("gateway.release.materialization-refused"))?
+        } else {
+            source
+        };
         if !unchanged(submission.read_connection, &prepared.loaded).await
             || submission.read_qualification.check().is_err()
         {
@@ -489,7 +518,7 @@ mod tests {
     use serde_json::json;
     use std::{
         os::unix::fs::PermissionsExt as _,
-        sync::atomic::{AtomicBool, Ordering},
+        sync::atomic::{AtomicBool, AtomicU64, Ordering},
     };
     use tokio::{
         io::{AsyncReadExt as _, AsyncWriteExt as _},
@@ -498,25 +527,75 @@ mod tests {
 
     #[tokio::test]
     async fn managed_read_joins_native_task_provider_and_registered_agent() {
-        run_managed_read(false, false).await;
+        run_managed_read(false, false, false, false).await;
+    }
+
+    #[tokio::test]
+    async fn managed_read_materializes_after_task_reservation() {
+        run_managed_read(false, false, true, false).await;
+    }
+
+    #[tokio::test]
+    async fn failed_materialization_never_sends_source_to_provider() {
+        run_managed_read(false, false, true, true).await;
     }
 
     #[tokio::test]
     async fn no_send_after_release_entry_has_a_durable_charged_receipt() {
-        run_managed_read(true, false).await;
+        run_managed_read(true, false, false, false).await;
     }
 
     #[tokio::test]
     async fn provider_denial_after_task_admission_releases_no_content() {
-        run_managed_read(false, true).await;
+        run_managed_read(false, true, false, false).await;
+    }
+
+    struct ReadMaterializer {
+        calls: Arc<AtomicU64>,
+        fail: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::CredentialMaterializer for ReadMaterializer {
+        async fn materialize(
+            &self,
+            context: &crate::CredentialMaterializationContext,
+            source: &auths_connections::StoredSecretLease,
+            deadline: Instant,
+        ) -> Result<crate::MaterializedCredential, crate::CredentialMaterializationError> {
+            assert_eq!(context.task_id, "task-1");
+            assert_eq!(context.operation_id, "read-1");
+            assert_eq!(context.connection_generation, 1);
+            assert_eq!(context.source_generation, 1);
+            assert_eq!(context.kind, CredentialRequestKind::ReadRelease);
+            assert_eq!(source.expose(Instant::now()).unwrap(), b"pat-initial");
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail {
+                return Err(crate::CredentialMaterializationError);
+            }
+            Ok(crate::MaterializedCredential {
+                lease: auths_connections::StoredSecretLease::from_store(
+                    Zeroizing::new(b"pat-materialized".to_vec()),
+                    deadline,
+                ),
+                account_subject: context.account_subject.clone(),
+                effective_authority_digest: [9; 32],
+            })
+        }
     }
 
     #[allow(
         clippy::too_many_lines,
         reason = "one installed-style fixture spans task, native proof, credential, provider and agent channel"
     )]
-    async fn run_managed_read(fail_before_content: bool, provider_denied: bool) {
+    async fn run_managed_read(
+        fail_before_content: bool,
+        provider_denied: bool,
+        materialize: bool,
+        fail_materialization: bool,
+    ) {
         assert!(!(fail_before_content && provider_denied));
+        assert!(!fail_materialization || materialize);
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
         let read_recipe = recipe();
@@ -566,6 +645,19 @@ mod tests {
             .replace(&loaded, &bound)
             .await
             .expect("replace");
+        let materializer_calls = Arc::new(AtomicU64::new(0));
+        if materialize {
+            engine.materializers.insert(
+                bound.connection_id().as_str().to_owned(),
+                Arc::new(crate::MaterializerInstallation::new(
+                    Arc::new(ReadMaterializer {
+                        calls: Arc::clone(&materializer_calls),
+                        fail: fail_materialization,
+                    }),
+                    [9; 32],
+                )),
+            );
+        }
 
         let identity = RawKeyIdentityMethod::identity(
             auths_signature_ed25519::ED25519_V1,
@@ -740,7 +832,7 @@ mod tests {
             stream.write_all(&signature).await.expect("signature");
             let length = match stream.read_u32().await {
                 Ok(length) => length as usize,
-                Err(error) if fail_before_content || provider_denied => {
+                Err(error) if fail_before_content || provider_denied || fail_materialization => {
                     assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
                     return Vec::new();
                 }
@@ -761,6 +853,14 @@ mod tests {
         });
         let provider_ready = Arc::clone(&authenticated);
         let provider_server = tokio::spawn(async move {
+            if fail_materialization {
+                assert!(
+                    tokio::time::timeout(Duration::from_millis(250), provider.accept())
+                        .await
+                        .is_err()
+                );
+                return;
+            }
             let (mut stream, _) = provider.accept().await.expect("provider accept");
             assert!(
                 provider_ready.load(Ordering::SeqCst),
@@ -770,10 +870,12 @@ mod tests {
             let size = stream.read(&mut request).await.expect("request");
             let request = std::str::from_utf8(&request[..size]).expect("request text");
             assert!(request.starts_with("GET /v0/"));
-            assert!(
-                request.contains("Authorization: Bearer pat-initial")
-                    || request.contains("authorization: Bearer pat-initial")
-            );
+            let bearer = if materialize {
+                "pat-materialized"
+            } else {
+                "pat-initial"
+            };
+            assert!(request.contains(&format!("Bearer {bearer}")));
             let body = if provider_denied {
                 br#"{"error":"forbidden"}"#.as_slice()
             } else {
@@ -821,7 +923,15 @@ mod tests {
         let result = read_session
             .read("task-1", &signed.proof, &signed.action)
             .await;
-        if provider_denied {
+        if fail_materialization {
+            assert_eq!(
+                result,
+                ManagedReleaseResult::NoRelease {
+                    code: "gateway.release.materialization-refused"
+                }
+            );
+            assert!(agent_server.await.expect("agent").is_empty());
+        } else if provider_denied {
             assert_eq!(
                 result,
                 ManagedReleaseResult::ProviderUnavailable { status: Some(403) }
@@ -844,6 +954,10 @@ mod tests {
             assert_eq!(agent_server.await.expect("agent"), b"Ready");
         }
         provider_server.await.expect("provider");
+        assert_eq!(
+            materializer_calls.load(Ordering::SeqCst),
+            u64::from(materialize)
+        );
         let state = task_session
             .ledger
             .load("task-1")
@@ -851,13 +965,15 @@ mod tests {
             .expect("task");
         assert_eq!(
             state.counts(),
-            if provider_denied {
+            if provider_denied || fail_materialization {
                 (1, 0, 0)
             } else {
                 (1, 1, 5)
             }
         );
-        let stage = if provider_denied {
+        let stage = if fail_materialization {
+            ReleaseStage::ReleaseRefused
+        } else if provider_denied {
             ReleaseStage::ProviderUnavailable
         } else if fail_before_content {
             ReleaseStage::NotDelivered
@@ -869,7 +985,9 @@ mod tests {
             .expect("redacted status");
         assert_eq!(
             status["reads"][0]["stage"],
-            if provider_denied {
+            if fail_materialization {
+                "release-refused"
+            } else if provider_denied {
                 "provider-unavailable"
             } else if fail_before_content {
                 "not-delivered"
@@ -879,7 +997,11 @@ mod tests {
         );
         assert_eq!(
             status["released_bytes"],
-            if provider_denied { 0 } else { 5 }
+            if provider_denied || fail_materialization {
+                0
+            } else {
+                5
+            }
         );
         let public = status.to_string();
         assert!(!public.contains(subject));

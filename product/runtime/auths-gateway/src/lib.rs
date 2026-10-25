@@ -34,6 +34,7 @@ pub mod fuzzing;
 mod generation_floor;
 #[cfg(unix)]
 pub mod listener;
+mod materializer;
 mod observer;
 mod onboarding;
 mod operator;
@@ -129,6 +130,10 @@ pub use engine::{
     SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
 };
 pub use generation_floor::GenerationFloor;
+pub use materializer::{
+    CredentialMaterializationContext, CredentialMaterializationError, CredentialMaterializer,
+    CredentialRequestKind, MaterializedCredential, MaterializerInstallation,
+};
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,

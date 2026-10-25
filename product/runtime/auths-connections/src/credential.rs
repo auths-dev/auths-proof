@@ -139,6 +139,14 @@ impl StoredSecretLease {
         }
         Ok(self.bytes.as_slice())
     }
+
+    /// The latest instant this leased copy may be used. A credential
+    /// materializer must return a request credential no longer lived than
+    /// the gateway's operation deadline.
+    #[must_use]
+    pub const fn deadline(&self) -> Instant {
+        self.deadline
+    }
 }
 
 impl fmt::Debug for StoredSecretLease {

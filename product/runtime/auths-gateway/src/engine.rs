@@ -10,6 +10,10 @@ use crate::bounds::{BoundAdmission, admit_bounds};
 use crate::connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry,
 };
+use crate::materializer::{
+    CredentialMaterializationContext, CredentialRequestKind, MaterializerInstallation,
+    task_lease_deadline,
+};
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
     outcome_facts, read_back_facts,
@@ -42,7 +46,7 @@ use crate::{
     RequestHeader,
 };
 use auths_connections::{
-    ConnectionAlias, ConnectionCredentialStore, ConnectionProfile, ConnectionRecord,
+    ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionProfile, ConnectionRecord,
     ConnectionState, ProviderKind, SecretBytes, StoredSecretLease,
 };
 use auths_model::{
@@ -58,6 +62,7 @@ use auths_registries::ImmutableRegistries;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 #[cfg(unix)]
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -355,6 +360,7 @@ pub struct GatewayEngine {
     profile: ConnectionProfile,
     connection: SharedConnection,
     credentials: Arc<dyn ConnectionCredentialStore>,
+    materializers: BTreeMap<String, Arc<MaterializerInstallation>>,
     credential_journal: Option<crate::CredentialJournal>,
     /// Whether this deployment's recipe is qualified; consulted before every
     /// lease.
@@ -432,6 +438,7 @@ impl GatewayEngine {
             profile,
             connection: SharedConnection::new(attempts.store(), provider, alias),
             credentials,
+            materializers: BTreeMap::new(),
             credential_journal: None,
             qualification: Arc::new(crate::QualificationGate::unconfigured()),
             attempts,
@@ -456,6 +463,27 @@ impl GatewayEngine {
     pub fn with_loopback_provider(mut self, port: u16) -> Self {
         self.loopback_port = Some(port);
         self
+    }
+
+    /// Opt one exact connection into post-admission credential materialization.
+    /// A configured source reference is never sent directly as a bearer.
+    /// Distinct read and write connections may use distinct custody adapters.
+    ///
+    /// # Errors
+    /// Refuses a duplicate installation for one connection.
+    pub fn with_credential_materializer(
+        mut self,
+        connection_id: ConnectionId,
+        installation: Arc<MaterializerInstallation>,
+    ) -> Result<Self, &'static str> {
+        if self
+            .materializers
+            .insert(connection_id.as_str().to_owned(), installation)
+            .is_some()
+        {
+            return Err("gateway.materializer.duplicate-connection");
+        }
+        Ok(self)
     }
 
     /// Pins the host's independently retained anti-rollback witness.
@@ -1509,6 +1537,16 @@ impl GatewayEngine {
     /// Leases through the credential-store trait, naming exactly the
     /// credential generation the loaded record seals.
     async fn lease(&self, prepared: &PreparedEntry) -> Result<StoredSecretLease, ()> {
+        if self
+            .materializers
+            .contains_key(prepared.loaded.record().connection_id().as_str())
+        {
+            return Err(());
+        }
+        self.lease_source(prepared).await
+    }
+
+    async fn lease_source(&self, prepared: &PreparedEntry) -> Result<StoredSecretLease, ()> {
         // Time moved since the entry was prepared, so the gate is asked
         // again: nothing reaches the credential store unqualified.
         self.qualification.check().map_err(|_| ())?;
@@ -2439,6 +2477,29 @@ impl SubmitIo for EngineIo<'_> {
             return None;
         }
         #[cfg(unix)]
+        if let Some(installation) = self
+            .engine
+            .materializers
+            .get(prepared.loaded.record().connection_id().as_str())
+        {
+            let admission = self.task_write.as_ref()?;
+            let source = self.engine.lease_source(prepared).await.ok()?;
+            let intent = admission.approved.intent();
+            let deadline = task_lease_deadline(&source, admission.task.descriptor().expires_at)?;
+            let context = CredentialMaterializationContext {
+                task_id: intent.task_id.clone(),
+                operation_id: intent.operation_id.clone(),
+                connection_id: intent.connection_id.clone(),
+                connection_generation: intent.connection_generation,
+                source_generation: prepared.loaded.record().credential_generation().get(),
+                account_subject: intent.connection_subject.clone(),
+                recipe_digest: intent.recipe_digest.clone(),
+                task_expires_at: admission.task.descriptor().expires_at,
+                kind: CredentialRequestKind::WriteEffect,
+            };
+            return installation.lease(&context, &source, deadline).await.ok();
+        }
+        #[cfg(unix)]
         if let Some(session) = self.commissioning {
             if let Err(code) = session.claim(self.commissioned_action.get()?).await {
                 let _ = self.commissioning_refusal.set(code);
@@ -3057,6 +3118,37 @@ pub(crate) mod tests {
 
         let mut installation = administration::installation(8).await;
         let engine = &mut installation.first.engine;
+        #[cfg(feature = "loopback-provider")]
+        struct TestMaterializer {
+            calls: Arc<AtomicU64>,
+        }
+        #[cfg(feature = "loopback-provider")]
+        #[async_trait::async_trait]
+        impl crate::CredentialMaterializer for TestMaterializer {
+            async fn materialize(
+                &self,
+                context: &crate::CredentialMaterializationContext,
+                source: &StoredSecretLease,
+                deadline: Instant,
+            ) -> Result<crate::MaterializedCredential, crate::CredentialMaterializationError>
+            {
+                assert_eq!(context.task_id, "task-installed-1");
+                assert_eq!(context.operation_id, "write-installed-1");
+                assert_eq!(context.connection_generation, 1);
+                assert_eq!(context.source_generation, 1);
+                assert_eq!(context.kind, crate::CredentialRequestKind::WriteEffect);
+                assert_eq!(source.expose(Instant::now()).unwrap(), b"pat-initial");
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                Ok(crate::MaterializedCredential {
+                    lease: StoredSecretLease::from_store(
+                        zeroize::Zeroizing::new(b"pat-materialized".to_vec()),
+                        deadline,
+                    ),
+                    account_subject: context.account_subject.clone(),
+                    effective_authority_digest: [9; 32],
+                })
+            }
+        }
         engine.recipe = CompiledRecipe::compile(
             include_bytes!("../../../../demos/airtable-gateway/write_reference/recipe.json"),
             include_bytes!("../../../../demos/airtable-gateway/write_reference/profile.lock.json"),
@@ -3118,6 +3210,27 @@ pub(crate) mod tests {
             .replace(&loaded, &bound)
             .await
             .expect("bind subject");
+        #[cfg(feature = "loopback-provider")]
+        let materializer_calls = Arc::new(AtomicU64::new(0));
+        #[cfg(feature = "loopback-provider")]
+        engine.materializers.insert(
+            bound.connection_id().as_str().to_owned(),
+            Arc::new(crate::MaterializerInstallation::new(
+                Arc::new(TestMaterializer {
+                    calls: Arc::clone(&materializer_calls),
+                }),
+                [9; 32],
+            )),
+        );
+        #[cfg(feature = "loopback-provider")]
+        {
+            let prepared = engine
+                .prepare_entry()
+                .await
+                .expect("prepared source connection");
+            assert!(engine.lease(&prepared).await.is_err());
+            assert_eq!(materializer_calls.load(Ordering::SeqCst), 0);
+        }
         let pins = TaskActivationPins {
             company_id: "atlas".to_owned(),
             human_principal: human.principal.as_str().to_owned(),
@@ -3454,6 +3567,10 @@ pub(crate) mod tests {
                         }
                     };
                     let head = String::from_utf8(bytes[..end].to_vec()).expect("request head");
+                    assert!(
+                        head.contains("Bearer pat-materialized"),
+                        "materialized bearer"
+                    );
                     methods.push(head.split_whitespace().next().expect("method").to_owned());
                     let length = head
                         .lines()
@@ -3490,6 +3607,9 @@ pub(crate) mod tests {
                 .await;
             let methods = provider.await.expect("provider task");
             assert_eq!(methods, ["PATCH", "GET"]);
+            // The state machine leases once for credential checks and once
+            // for the final write entry; both receive a fresh materialization.
+            assert_eq!(materializer_calls.load(Ordering::SeqCst), 2);
             assert!(
                 matches!(result, GatewaySubmitResult::Observed { matched: true, .. }),
                 "unexpected gateway result: {result:?}"

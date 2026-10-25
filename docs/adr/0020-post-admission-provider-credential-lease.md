@@ -1,9 +1,13 @@
 # ADR 0020: Materialize a provider credential after task admission
 
-**Status:** Proposed for AP-SPEC-071. The live Jules runs installed a checked,
-short-lived access token before task activation. No post-admission materializer
-is installed, and this ADR does not qualify that development path as durable
-OAuth custody.
+**Status:** Partially implemented for AP-SPEC-071. The gateway library now has
+a connection-specific, operator-installed materializer port invoked after
+task read/write reservation. It checks the returned subject, pinned effective
+authority digest and lease deadline; a configured source reference cannot
+fall back to the ordinary bearer path. The live Jules runs still installed a
+checked, short-lived access token before task activation. No Google custody
+adapter or installed CLI configuration uses the new port yet, so those runs do
+not qualify as post-admission renewal or durable OAuth custody.
 
 **Date:** 25 October 2026
 
