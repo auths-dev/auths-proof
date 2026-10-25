@@ -110,6 +110,13 @@ enrolled human key, which the browser currently holds. Its card commitment
 uses the gateway's domain-separated canonicalization. This is native proof
 construction, not a served Jules approval screen or an installed gateway
 activation.
+The isolated [agent write signer](../agent/src/employee_read_agent/write.py)
+can now sign a reviewed profile action under the human's completed child
+grant. `auths-google-read-agent sign-write` writes private proof and action
+files; its package contains public grant/evidence bytes, operator challenge,
+task commitment and recipe digest, with no human key or Google token. The
+broker still needs to complete the child-grant handoff and issue that package
+after Jules reviews and signs it.
 The private authority package pins a fresh 32-byte operator challenge into
 the installed trust context. Human and agent actions for that installation
 must sign that same challenge; the gateway does not accept an agent-selected
