@@ -40,6 +40,7 @@ from .task_write_card import _installation
 from .task_write_package import load_task_write_package
 from .google_create_handoff import prepare_create_inputs
 from .write_handoff import WriteHandoffPins, validate_write_handoff
+from .jules_write_context import JulesWriteContext
 from .google_write_credential import WriteCredentialPins
 from .google_write_preflight import preflight_jules_edit
 from .google_drive import GoogleDenied, GoogleUnavailable, GoogleDriveReader
@@ -80,7 +81,7 @@ class Workbench:
     approvals: TaskApprovalStore
     activations: TaskActivationStore
     vault: TokenVault | None
-    company: CompanyImport | None
+    company: CompanyImport | JulesWriteContext | None
     status: ImportStatus
     origin: str
     trusted_template: bytes | None = None
@@ -352,6 +353,8 @@ class Handler(BaseHTTPRequestHandler):
                 kind = parse_qs(parsed.query).get("kind", ["login"])
                 if kind not in (["login"], ["connect"]):
                     raise ValueError("unsupported Google authorization kind")
+                if isinstance(self.workbench.company, JulesWriteContext) and kind == ["connect"]:
+                    raise OAuthRejected("Jules task uses the existing checked Drive grant")
                 session, created = self._session(create=kind == ["login"])
                 uri, _ = self.workbench.oauth.begin(kind[0], browser_cookie=session.cookie,
                                                      expected_subject=session.subject if kind == ["connect"] else None)
@@ -370,6 +373,9 @@ class Handler(BaseHTTPRequestHandler):
                     state=state[0], code=code[0], browser_cookie=session.cookie,
                 )
                 if result.kind == "login":
+                    if (isinstance(self.workbench.company, JulesWriteContext)
+                            and result.subject != self.workbench.company.jules_subject):
+                        raise OAuthRejected("Google login is not pinned Jules")
                     rotated = self.workbench.sessions.login(
                         session, issuer=result.issuer, subject=result.subject,
                         company=self.workbench.company.bundle["company_id"],
@@ -912,6 +918,10 @@ def main() -> int:
     parser.add_argument("--scenario-dir", type=Path,
                         help="directory of operator-pinned scenario-result-*.json exports")
     parser.add_argument("--pins", type=Path)
+    parser.add_argument("--jules-only-evidence", type=Path,
+                        help="private pinned AP-071 producer write evidence")
+    parser.add_argument("--jules-only-pins", type=Path,
+                        help="private Jules-only write handoff pins")
     parser.add_argument("--oauth-config", type=Path)
     parser.add_argument("--fernet-key", type=Path)
     parser.add_argument("--trust-file", type=Path)
@@ -959,6 +969,32 @@ def main() -> int:
         company = import_company(args.connections, args.access_expectations, pins,
                                  scenario_results=scenario_results,
                                  google_verification=args.google_verification)
+    jules_only = (args.jules_only_evidence is not None
+                  or args.jules_only_pins is not None)
+    if jules_only:
+        if (company is not None or args.jules_only_evidence is None
+                or args.jules_only_pins is None or args.oauth_config is None
+                or args.fernet_key is not None):
+            parser.error("Jules-only mode needs pinned evidence, pins and Google login only")
+        try:
+            snapshot_dir = args.jules_only_evidence.resolve().parent
+            if (snapshot_dir != args.jules_only_pins.resolve().parent
+                    or stat.S_IMODE(snapshot_dir.stat().st_mode) & 0o077):
+                raise ValueError("Jules-only snapshots need one private directory")
+            _private_file(args.jules_only_evidence, 65_536)
+            jules_pins = WriteHandoffPins(**json.loads(
+                _private_file(args.jules_only_pins, 4096),
+                object_pairs_hook=_unique_pairs,
+            ))
+            company = JulesWriteContext.from_pinned_evidence(
+                args.jules_only_evidence, jules_pins,
+            )
+        except (OSError, PermissionError, ValueError, TypeError) as error:
+            parser.error(f"Jules-only producer handoff is unavailable: {error}")
+        status = ImportStatus(
+            "jules_write_only", "not_imported", "not_imported",
+            "pinned Jules write evidence; full company import remains incomplete",
+        )
     sessions = BrowserSessionStore(args.state_db)
     oauth = None
     if args.oauth_config is not None:
@@ -992,7 +1028,8 @@ def main() -> int:
         trusted_template = base64.urlsafe_b64decode(manifest["trusted_template"])
         _native.parse_trusted_context(trusted_template)
     agent_transport = None
-    if company is not None and vault is not None and trusted_template is not None:
+    if (isinstance(company, CompanyImport) and vault is not None
+            and trusted_template is not None):
         if args.receipt_key is None:
             parser.error("live agent transport requires a private receipt signing key")
         receipts = ReceiptStore(args.state_db, Ed25519PrivateKey.from_private_bytes(
@@ -1031,6 +1068,10 @@ def main() -> int:
         ))
         if write_pins.company != company.bundle["company_id"]:
             parser.error("task write producer company does not match import")
+        if (isinstance(company, JulesWriteContext)
+                and (write_pins.evidence_sha256 != company.bundle_sha256
+                     or write_pins.jules_subject != company.jules_subject)):
+            parser.error("task write pins differ from Jules-only enrollment generation")
         validate_write_handoff(args.task_write_evidence, write_pins)
         loaded = load_task_write_package(args.task_write_authority)
         if loaded.company_id != write_pins.company:

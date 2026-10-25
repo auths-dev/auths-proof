@@ -488,7 +488,17 @@ async function start() {
   byId("employee").textContent = session.subject ? `Signed in as Google subject ${session.subject}` : "No Google account signed in.";
   byId("drive").textContent = session.drive_connected ? "Drive connected under this employee." : "Drive is not connected.";
   byId("disconnect").hidden = !session.drive_connected;
-  if (session.google_status !== "ready") message("Google is not configured. Live task controls remain unavailable.");
+  if (session.google_status === "jules_write_only") {
+    byId("page-title").textContent = "Jules delegates Project A read and write";
+    byId("page-description").textContent = "Jules signs a bounded agent task, then confirms the exact proposed change before the gateway uses her existing Google grant.";
+    byId("status").textContent = `Jules-only Project A delegation; company: ${session.company_id}`;
+    byId("drive").textContent = "The existing Jules Drive grant is held by the operator.";
+    for (const id of ["connect-drive", "general-task", "general-run", "general-evidence"])
+      byId(id).hidden = true;
+    message("Sign in as Jules, enroll this browser key, then register the separate agent.");
+  } else if (session.google_status !== "ready") {
+    message("Google is not configured. Live task controls remain unavailable.");
+  }
   bind("disconnect", async () => { await api("/api/v1/google/disconnect", {}); location.reload(); });
   bind("enroll", enrollEmployee);
   bind("agent-prepare", prepareAgent);

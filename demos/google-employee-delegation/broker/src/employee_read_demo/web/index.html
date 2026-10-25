@@ -8,8 +8,8 @@
 <main>
   <header>
     <p class="eyebrow">Auths · Atlas Studio</p>
-    <h1>Employee to agent Google read</h1>
-    <p>Approve exact documents for one short task. The agent signs each read; the broker keeps your Google credential.</p>
+    <h1 id="page-title">Employee to agent Google read</h1>
+    <p id="page-description">Approve exact documents for one short task. The agent signs each read; the broker keeps your Google credential.</p>
     <p id="status" role="status">Checking company prerequisites…</p>
   </header>
 
@@ -19,7 +19,7 @@
     <p id="drive">Drive is not connected.</p>
     <div class="actions">
       <a href="/api/v1/google/authorize?kind=login">Sign in with Google</a>
-      <a href="/api/v1/google/authorize?kind=connect">Connect Drive</a>
+      <a id="connect-drive" href="/api/v1/google/authorize?kind=connect">Connect Drive</a>
       <button id="disconnect" type="button" hidden>Disconnect Drive</button>
     </div>
     <p class="hint">Google consent and the Auths employee key are separate steps.</p>
@@ -39,7 +39,7 @@
     <p id="agent-principal"></p>
   </section>
 
-  <section aria-labelledby="task-heading">
+  <section id="general-task" aria-labelledby="task-heading">
     <h2 id="task-heading">3. Review and authorize one task</h2>
     <label>Registered agent principal<input id="task-agent" autocomplete="off"></label>
     <label>Approved logical document IDs, separated by commas<input id="task-resources" autocomplete="off" placeholder="project-a-brief, project-a-status"></label>
@@ -83,7 +83,7 @@
     <pre id="write-activity">No gateway task activity loaded.</pre>
   </section>
 
-  <section aria-labelledby="run-heading">
+  <section id="general-run" aria-labelledby="run-heading">
     <h2 id="run-heading">4. Activate and run</h2>
     <label>Task ID<input id="task-id" autocomplete="off"></label>
     <label>Approved call used to prove agent activation
@@ -101,7 +101,7 @@
     <p>Move the downloaded public package into the agent environment and run <code>auths-google-read-agent run</code>. Only approved call descriptors and public proof material are exported.</p>
   </section>
 
-  <section aria-labelledby="evidence-heading">
+  <section id="general-evidence" aria-labelledby="evidence-heading">
     <h2 id="evidence-heading">5. Read evidence</h2>
     <p>Load the JSON printed by the isolated agent. The summary is agent-reported text; each cited read is checked against this employee's broker-signed receipt.</p>
     <label>Agent result JSON<input id="result-file" type="file" accept="application/json,.json"></label>

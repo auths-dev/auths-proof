@@ -135,6 +135,16 @@ The [owner-side package loader](../broker/src/employee_read_demo/task_write_pack
 now checks the private file's exact schema, lifetime, gateway verifier
 configuration, provider audience and operator challenge before any browser
 preimage is prepared. A changed challenge in the package is refused.
+For the Jules-only AP-071 milestone, the workbench can first start with
+`--jules-only-evidence`, `--jules-only-pins` and `--oauth-config` pointing to
+one owner-private snapshot directory and the Desktop Google login client.
+This permits only the producer-pinned Jules subject to sign in, enroll an
+employee key and register the agent. It reports `jules_write_only`, does not
+request fresh Drive consent, and leaves the general AP-070 task transport
+disabled. The operator can then issue the task authority from that enrollment
+and restart with the write installation below; a six-person import is not a
+prerequisite for this scoped milestone. This mode does not claim full company
+Google readiness.
 The AP-070 workbench accepts an optional write ceremony only when all seven
 operator paths are supplied: `--task-write-authority`,
 `--task-write-installation`, `--task-write-recipe`,

@@ -16,6 +16,7 @@ from employee_read_demo.browser_sessions import BrowserSessionStore
 from employee_read_demo.demo_co_contract import ImportStatus
 from employee_read_demo.enrollment import EnrollmentStore
 from employee_read_demo.google_oauth import OAuthResult
+from employee_read_demo.jules_write_context import JulesWriteContext
 from employee_read_demo.task_proposals import TaskProposalStore
 from employee_read_demo.task_approval import TaskApprovalStore
 from employee_read_demo.task_activation import TaskActivationStore
@@ -163,6 +164,36 @@ class WorkbenchTests(unittest.TestCase):
             csrf=other.csrf,
         )
         self.assertEqual(status, 403)
+
+    def test_jules_only_login_refuses_other_subject_and_drive_reconsent(self) -> None:
+        context = JulesWriteContext(
+            {"company_id": "atlas-studio", "people": []},
+            "c" * 64, "jules-subject",
+        )
+        self.server.workbench = replace(
+            self.server.workbench, company=context,
+            status=ImportStatus("jules_write_only", "not_imported", "not_imported",
+                                "pinned Jules evidence"),
+            oauth=SimpleNamespace(complete=lambda **kwargs: OAuthResult(
+                "login", "https://accounts.google.com", "other-subject",
+                None, frozenset(), "access-token", None, 3600,
+            )),
+        )
+        status, session, cookie = self.request("GET", "/api/v1/session")
+        self.assertEqual(status, 200)
+        self.assertEqual(session["google_status"], "jules_write_only")
+        self.assertFalse(session["task_write_available"])
+        session_cookie = cookie.split(";", 1)[0]
+        status, denied, _ = self.request(
+            "GET", "/api/v1/google/authorize?kind=connect", cookie=session_cookie,
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("existing checked Drive grant", denied["error"])
+        status, denied, _ = self.request(
+            "GET", "/?state=state-a&code=code-a", cookie=session_cookie,
+        )
+        self.assertEqual(status, 403)
+        self.assertEqual(denied["error"], "Google login is not pinned Jules")
 
 
 if __name__ == "__main__":

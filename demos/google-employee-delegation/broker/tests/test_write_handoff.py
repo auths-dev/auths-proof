@@ -8,6 +8,7 @@ from pathlib import Path
 
 from employee_read_demo.write_handoff import (WriteHandoffPending, WriteHandoffPins,
                                                inspect_write_handoff)
+from employee_read_demo.jules_write_context import JulesWriteContext
 
 
 class WriteHandoffTests(unittest.TestCase):
@@ -63,6 +64,11 @@ class WriteHandoffTests(unittest.TestCase):
             self.assertTrue(status.producer_ready)
             self.assertFalse(status.ready)
             self.assertEqual(status.status, "write_not_configured")
+            context = JulesWriteContext.from_pinned_evidence(path, pins)
+            self.assertEqual(context.jules_subject, "subject-1")
+            self.assertEqual(context.bundle_sha256, pins.evidence_sha256)
+            self.assertFalse(context.google_ready)
+            self.assertFalse(context.adoptable)
             with self.assertRaises(WriteHandoffPending):
                 status.require_ready()
             evidence["probe_edited_as_jules"] = False

@@ -341,6 +341,19 @@ content through the model relay to OpenAI; that data leaves the Mac.
 
 ## AP-SPEC-071 write handoff
 
+The development workbench supports `--jules-only-evidence` and
+`--jules-only-pins` alongside a private Desktop OAuth `--oauth-config`.
+These are owner-private snapshots of one pinned demo_co write generation;
+they let Jules sign in, enroll her browser key and register a separate agent
+while the broader six-person company export is unfinished. The workbench
+checks the Google login against the pinned Jules subject and disables the
+general AP-SPEC-070 task and Drive-consent controls in this mode. Its status
+is `jules_write_only`, never full Google company readiness. After enrollment,
+the operator issues the native task authority and restarts the workbench with
+the installed task-write inputs for the exact review. The existing Jules
+`drive.file` grant remains in protected operator custody; this mode does not
+request another Drive consent.
+
 This package's AP-SPEC-070 read export does not authorize a Google write.
 demo_co now has a separate versioned AP-SPEC-071 Project A folder, working Doc,
 Jules `drive.file` consent and independent probe export. The broker's

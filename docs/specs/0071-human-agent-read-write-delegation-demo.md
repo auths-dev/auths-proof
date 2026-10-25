@@ -132,6 +132,18 @@ The installed milestone may use this bounded broker while §3.1 is built, but mu
 
 ### 5.2 Edit an existing Google Doc
 
+For the Jules-only installed milestone, the development workbench can now
+load one owner-private, digest-pinned demo_co write generation as a restricted
+company context. Google login must return the pinned Jules subject before
+enrollment, agent registration or task review. This context does not mark the
+six-person Google import ready, does not enable AP-SPEC-070's general task
+transport, and does not request new Drive consent; the existing checked Jules
+grant remains in operator custody. After Jules enrolls her key and registers
+the distinct agent, the operator can issue the native task authority and
+restart the workbench with the reviewed read/write installation. This removes
+the full-company export dependency from the first Jules read/write test while
+preserving the separate provider, human and agent checks.
+
 ADR 0012 makes the data-only gateway the single production provider-write path. The Auths application and agent MUST NOT send a credential-bearing Google write directly. A reviewed, operator-pinned recipe issues one closed Google Docs documents.batchUpdate JSON request to the fixed working Doc ID. For the first fixture, it replaces one unique marker in one tab with bounded approved text; the response must report exactly one replacement. The exact marker, replacement bytes, operation ID, recipe digest, Doc ID and Jules-observed revision are signed in her confirmation and the agent's action. The request uses requiredRevisionId. An altered byte, stale revision, changed target or replacement count other than one cannot be recorded as the approved effect.
 
 The [offline Google edit reference](../../demos/google-employee-delegation/write_reference/README.md) now compiles the exact `/{documentId}:batchUpdate` path and one-request JSON body. The fixed suffix is the provider-neutral [ADR 0018](../adr/0018-typed-path-field-suffix.md) mechanism, with [Case 0010](../research/domains/abstraction-cases/0010-typed-path-field-suffix.md) recording a second independent API shape. These are construction tests, not a qualified connection or live edit. The current gateway retains only the complete response's status and digest; it does not yet record the Docs `replies[0].replaceAllText.occurrencesChanged` value. A reviewed, bounded response assertion or equivalent independent response evidence must establish exactly one before the milestone can claim the approved effect. The separate producer readback remains mandatory.
