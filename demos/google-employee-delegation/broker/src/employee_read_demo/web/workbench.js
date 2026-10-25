@@ -386,7 +386,7 @@ async function loadWriteTaskStatus() {
     "provider-unavailable": "provider unavailable; no content delivered",
     "release-refused": "release refused; no content delivered",
     "delivery-unknown": "delivery may have started; agent acknowledgement is missing",
-    "not-delivered": "transport did not begin after the release budget was charged",
+    "not-delivered": "no private content was sent; the release budget remains charged",
     "agent-acknowledged": "agent acknowledged the delivered bytes",
   };
   for (const read of status.reads) {
