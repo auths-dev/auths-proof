@@ -90,6 +90,28 @@ example, `http://127.0.0.1:8765` for a Desktop OAuth client), and
 `hosted_domain`; `--fernet-key` points to a separate private encryption key
 file. Both operator secret files must have mode `0600`. The workbench binds
 only to `127.0.0.1`.
+An operator can prepare a private pin candidate after copying one immutable
+`demo_co` generation. Enter the company, instance, definition, dataset and
+Google tenant values from the reviewed setup record, independently of the
+export being pinned:
+
+```sh
+auths-google-read-operator propose-pins \
+  --connections /exports/connections.json \
+  --access-expectations /exports/access-expectations.json \
+  --google-verification /exports/google-verification.json \
+  --scenario-dir /exports/scenarios \
+  --company atlas-studio --instance INSTANCE_ID \
+  --definition-hash DEFINITION_SHA256 --dataset-version DATASET_VERSION \
+  --google-customer-id CUSTOMER_ID --google-primary-domain DOMAIN \
+  --out /private/operator/pins.json
+```
+
+The output directory must be private (`0700`); the command creates a new
+`0600` file and refuses to overwrite one. Review its digest list and source
+generation before passing it to the workbench. A local export can produce a
+candidate but cannot activate Google; a live candidate requires the pinned
+verification file and independent scenario results to pass import checks.
 The browser review flow uses a non-exportable Ed25519 employee key stored in
 that browser's IndexedDB, keyed by the signed-in Google subject. Clearing the
 browser profile removes access to that key. The workbench returns the native

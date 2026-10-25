@@ -10,8 +10,10 @@ import secrets
 import sqlite3
 import stat
 import time
+from dataclasses import asdict
 from pathlib import Path
 
+from .demo_co_contract import prepare_operator_pins
 from .enrollment import EmployeeBinding
 from .operator_authority import EmployeeAuthorityStore, OperatorRoot
 from .token_store import TokenVault
@@ -157,6 +159,18 @@ def main() -> int:
     offboard.add_argument("--fernet-key", type=Path, required=True)
     receipt = commands.add_parser("init-receipt-key")
     receipt.add_argument("--key-file", type=Path, required=True)
+    propose = commands.add_parser("propose-pins", help="write a private export pin candidate for operator review")
+    propose.add_argument("--connections", type=Path, required=True)
+    propose.add_argument("--access-expectations", type=Path, required=True)
+    propose.add_argument("--google-verification", type=Path)
+    propose.add_argument("--scenario-dir", type=Path)
+    propose.add_argument("--company", required=True)
+    propose.add_argument("--instance", required=True)
+    propose.add_argument("--definition-hash", required=True)
+    propose.add_argument("--dataset-version", required=True)
+    propose.add_argument("--google-customer-id", required=True)
+    propose.add_argument("--google-primary-domain", required=True)
+    propose.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "init-root":
         result = init_root(args.seed_file, args.trust_file,
@@ -167,6 +181,27 @@ def main() -> int:
     elif args.command == "offboard-employee":
         result = offboard_employee(args.state_db, args.binding_ref, args.company,
                                    args.oauth_config, args.fernet_key)
+    elif args.command == "propose-pins":
+        scenario_results = ()
+        if args.scenario_dir is not None:
+            if args.scenario_dir.is_symlink() or not args.scenario_dir.is_dir():
+                parser.error("scenario directory is unavailable")
+            scenario_results = tuple(sorted(args.scenario_dir.glob("scenario-result-*.json")))
+        pins, accepted = prepare_operator_pins(
+            args.connections, args.access_expectations,
+            company_id=args.company, instance_id=args.instance,
+            definition_hash=args.definition_hash, dataset_version=args.dataset_version,
+            google_customer_id=args.google_customer_id,
+            google_primary_domain=args.google_primary_domain,
+            scenario_results=scenario_results,
+            google_verification=args.google_verification,
+        )
+        _private_write(args.out, (json.dumps(asdict(pins), sort_keys=True, indent=2) + "\n").encode("utf-8"))
+        result = {"status": "review_required", "company_id": args.company,
+                  "instance_id": args.instance,
+                  "bundle_generation": accepted.bundle["bundle_generation"],
+                  "google": accepted.status.google,
+                  "pin_file": str(args.out)}
     else:
         seed = secrets.token_bytes(32)
         _private_write(args.key_file, seed)

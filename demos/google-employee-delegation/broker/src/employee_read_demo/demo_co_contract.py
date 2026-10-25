@@ -75,6 +75,41 @@ class CompanyImport:
         return ImportStatus(state, "validated", "validated", "Google provider prerequisites are incomplete")
 
 
+def prepare_operator_pins(connections: Path, access_expectations: Path,
+                          *, company_id: str, instance_id: str,
+                          definition_hash: str, dataset_version: str,
+                          google_customer_id: str, google_primary_domain: str,
+                          scenario_results: tuple[Path, ...] = (),
+                          google_verification: Path | None = None) -> tuple[OperatorPins, CompanyImport]:
+    """Build a review candidate from independently entered identities and exact artifact bytes."""
+    _, bundle_raw = _load(connections, "connections-v1.schema.json")
+    access, _ = _load(access_expectations, "access-expectations-v1.schema.json")
+    if len(scenario_results) > 4096:
+        raise ContractRejected("too many scenario results")
+    scenario_hashes = []
+    for path in scenario_results:
+        _, raw = _load(path, "scenario-result-v1.schema.json")
+        scenario_hashes.append(hashlib.sha256(raw).hexdigest())
+    verification_hash = None
+    if google_verification is not None:
+        _, raw = _load(google_verification, "google-verification-v1.schema.json")
+        verification_hash = hashlib.sha256(raw).hexdigest()
+    pins = OperatorPins(
+        company_id, instance_id, definition_hash, dataset_version,
+        hashlib.sha256(bundle_raw).hexdigest(), access["expectation_hash"],
+        google_customer_id, google_primary_domain,
+        tuple(scenario_hashes), verification_hash,
+    )
+    accepted = validate_artifacts(connections, access_expectations, pins)
+    if accepted.google_ready:
+        if google_verification is None:
+            raise ContractPending("live Google verification export is missing")
+        import_company(connections, access_expectations, pins,
+                       scenario_results=scenario_results,
+                       google_verification=google_verification)
+    return pins, accepted
+
+
 def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:

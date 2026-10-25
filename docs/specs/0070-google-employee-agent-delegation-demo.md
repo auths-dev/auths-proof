@@ -182,6 +182,15 @@ PostgreSQL/ClickHouse readiness does not advance the Google acceptance gate.
 > and requires the operator-pinned verification artifact for a live import.
 > The JSON consumer shim remains until those producer artifacts exist.
 
+> **Operator pin preparation (25 October 2026):** The installed broker CLI
+> can write a private candidate `pins.json` from one copied export generation.
+> Company, instance, definition, dataset and Google tenant values must be
+> entered from an independently reviewed operator record. The command checks
+> the pinned artifact bytes and, for a ready Google generation, requires the
+> independent verification and scenario files before producing the candidate.
+> The operator reviews the resulting hashes; preparation does not activate an
+> import or make a provider request.
+
 Spec 0001 names connection/evidence schemas but does not yet specify a byte-exact access-matrix export. Add a companion `demo-co/access-expectations/v1` artifact in `demo_co` before end-to-end implementation acceptance. It contains stable fixture person/resource IDs, provider identity/resource mappings, expected baseline outcomes, dataset version and independent probe evidence references.
 
 Pin both artifact schemas and example vectors in the Auths demo. Unknown/missing versions produce actionable errors, not guessed fields. Changes needed in `demo_co` belong in that repository; this spec records the cross-repository deliverable without introducing a mutable dependency.

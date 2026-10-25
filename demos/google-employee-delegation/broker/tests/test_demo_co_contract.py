@@ -8,7 +8,8 @@ from pathlib import Path
 
 from employee_read_demo.demo_co_contract import (
     CompanyImport, ContractPending, ContractRejected, OperatorPins, import_company,
-    validate_artifacts, validate_google_verification, validate_scenario_result,
+    prepare_operator_pins, validate_artifacts, validate_google_verification,
+    validate_scenario_result,
 )
 
 
@@ -50,6 +51,21 @@ class DemoCoContractTests(unittest.TestCase):
         self.assertEqual(accepted.status.google, "not_configured")
         with self.assertRaises(ContractPending):
             import_company(self.connections, self.access, self.pins)
+
+    def test_pin_candidate_uses_independent_operator_identity_inputs(self) -> None:
+        values = dict(
+            company_id=self.pins.company_id, instance_id=self.pins.instance_id,
+            definition_hash=self.pins.definition_hash,
+            dataset_version=self.pins.dataset_version,
+            google_customer_id=self.pins.google_customer_id,
+            google_primary_domain=self.pins.google_primary_domain,
+        )
+        candidate, accepted = prepare_operator_pins(self.connections, self.access, **values)
+        self.assertEqual(candidate, self.pins)
+        self.assertFalse(accepted.google_ready)
+        with self.assertRaises(ContractRejected):
+            prepare_operator_pins(self.connections, self.access,
+                                  **{**values, "company_id": "wrong-company"})
 
     def test_optional_oidc_client_metadata_does_not_activate_google(self) -> None:
         bundle = json.loads(self.connections.read_bytes())
