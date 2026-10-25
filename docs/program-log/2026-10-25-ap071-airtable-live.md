@@ -30,6 +30,14 @@ verified that the run-owned name no longer appeared. The journal's `retired`
 flag and the result's cleanup field are both true. The base and table were
 retained.
 
+Before task expiry, the separate agent signed a fresh read action reusing
+`airtable-read-one` against the already consumed task. The gateway returned
+`not-entered` with `gateway.release.task-admission`. Status after that probe
+still showed one provider call, one acknowledged release, seven bytes and one
+write. The authenticated channel received no second content frame. This is
+one installed replay denial with zero additional provider requests, not the
+full hostile corpus.
+
 This proves one installed second-provider task/read/exact-write mechanism
 using the same native gateway path. The Airtable PAT is an operator credential
 with no demonstrated human subject, so this run does **not** prove a second
