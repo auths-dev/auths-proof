@@ -673,6 +673,30 @@ def run(env_file: Path, root: Path, binary: Path,
     exact = flow.prepare(task_id=signed.task_id, employee=employee, agent=agent)
     flow.complete(nonce=exact.nonce, employee=employee, agent=agent,
                   signature=human_key.sign(exact.signing_preimage))
+    _write_json(agent_dir / "changed-write-arguments.json", {
+        **common, "operator_namespace": "airtable-demo",
+        "operation_id": write_operation, "recipe_digest": WRITE_DIGEST,
+        "record_id": record, "replacement": "Pending",
+    })
+    changed_output = _private_dir(agent_dir / "changed-write-output", create=True)
+    _agent("sign-write", "--key-file", agent_dir / "agent.seed",
+           "--package-file", agent_dir / "write-package.json",
+           "--arguments-file", agent_dir / "changed-write-arguments.json",
+           "--out-dir", changed_output)
+    changed = _gateway(
+        binary, "task-submit", "--state-dir", state,
+        "--task-id", signed.task_id,
+        "--agent-proof", changed_output / "agent.proof",
+        "--agent-action", changed_output / "agent.action",
+        "--confirmation-proof", signed.private_task_dir / "confirmation.proof",
+        "--confirmation-action", signed.private_task_dir / "confirmation.action",
+    )
+    before_allowed = _gateway(binary, "task-status", "--state-dir", state,
+                              "--task-id", signed.task_id)
+    if (changed.get("outcome") != "not-entered"
+            or before_allowed.get("writes") != 0
+            or airtable.request("GET", row_path) != before):
+        raise RuntimeError("changed Airtable action entered provider or spent write")
     outcome = flow.submit(task_id=signed.task_id, employee=employee, agent=agent)
     after = airtable.request("GET", row_path)
     if (after.get("id") != record
@@ -707,6 +731,8 @@ def run(env_file: Path, root: Path, binary: Path,
         "wrong_recipe_outcome": wrong_recipe_result.get("outcome"),
         "wrong_recipe_code": wrong_recipe_result.get("code"),
         "wrong_recipient_outcome": "agent-signing-refused",
+        "changed_after_confirmation_outcome": changed.get("outcome"),
+        "changed_after_confirmation_code": changed.get("code"),
         "write_replay_outcome": replay.get("outcome"),
         "write_replay_code": replay.get("code"),
         "gateway_status": status,

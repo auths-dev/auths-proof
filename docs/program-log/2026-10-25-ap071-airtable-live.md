@@ -119,3 +119,17 @@ ownership journal reports `retired=true`. The private redacted result in
 `operator/redacted-result.json` records both outcomes and cleanup. This
 proves installed write-operation replay refusal for Airtable; a separately
 signed second operation and cross-host replay remain distinct tests.
+
+An eighth disposable run
+(`/private/tmp/ap071-airtable-exact-tamper-20261025-2220`) signed the agent's
+`Approved` proposal and the synthetic human's exact confirmation. Before
+the approved PATCH, the same agent signed the same operation ID with the
+different, recipe-allowed value `Pending` and paired it with the original
+human confirmation. The installed gateway returned `not-entered` with
+`gateway.task.exact-write-mismatch`; the task still had zero writes and an
+independent Airtable GET matched the original `Pending` record. The original
+approved action then succeeded and was observed by the provider. Replaying
+that approved action was refused as above. The owned record
+`recrO8kDCJGBfiZVl` was retired, and the redacted result and ownership
+journal confirm cleanup. This exercises a byte-level action change after
+exact confirmation while preserving the legitimate approved operation.
