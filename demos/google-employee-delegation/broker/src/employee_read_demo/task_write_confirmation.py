@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import base64
+import binascii
 import json
 import re
 import secrets
@@ -564,12 +565,14 @@ class TaskWriteConfirmationFlow:
             signature = base64.urlsafe_b64decode(
                 envelope["signature_b64"] + "=" * (-len(envelope["signature_b64"]) % 4))
             if (len(public) != 32 or len(signature) != 64
+                    or base64.b64encode(signature).decode("ascii").rstrip("=")
+                    != envelope["signature_b64"]
                     or hashlib.sha256(public).hexdigest()
                     != inputs["recovery_key_sha256"]):
                 raise ValueError("recovery key changed")
             Ed25519PublicKey.from_public_bytes(public).verify(
                 signature, RECOVERY_DOMAIN + _canonical_json(statement))
-        except (InvalidSignature, ValueError, TypeError) as error:
+        except (InvalidSignature, ValueError, TypeError, binascii.Error) as error:
             raise OperatorDenied("recovery attestation signature is invalid") from error
         if (_private_read(directory / "recovery-attestation.json", 8192) != report
                 or now >= statement["valid_until"]):
