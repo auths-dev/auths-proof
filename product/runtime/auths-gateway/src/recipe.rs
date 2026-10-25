@@ -356,6 +356,9 @@ pub enum GatewayRecipeError {
     /// A response-field segment is misplaced or outside its rules.
     #[error("response locator conflict")]
     ResponseLocatorConflict,
+    /// A task-bound created-child response declaration is outside its rules.
+    #[error("invalid created-child declaration")]
+    InvalidCreatedChild,
     /// The pre-entry re-read is outside its rules.
     #[error("invalid pre-entry re-read")]
     InvalidPreEntry,
@@ -414,6 +417,7 @@ impl GatewayRecipeError {
             Self::InvalidRelativeCeiling => "gateway.recipe.invalid-relative-ceiling",
             Self::InvalidIdempotency => "gateway.recipe.invalid-idempotency",
             Self::ResponseLocatorConflict => "gateway.recipe.response-locator-conflict",
+            Self::InvalidCreatedChild => "gateway.recipe.invalid-created-child",
             Self::InvalidPreEntry => "gateway.recipe.invalid-pre-entry",
             Self::InvalidNamespace => "gateway.recipe.invalid-namespace",
             Self::InvalidOperationId => "gateway.recipe.invalid-operation-id",
@@ -794,6 +798,7 @@ impl CompiledRecipe {
             )?,
             None => None,
         };
+        let created_child = self.created_child_request()?;
         let pre_entry = action_read(self.plans.pre_entry.as_ref(), &values, || {
             self.source
                 .pre_entry
@@ -821,9 +826,24 @@ impl CompiledRecipe {
             credential_requirement: credential_requirement(&self.source.credential),
             observation,
             observation_template,
+            created_child,
             pre_entry,
             relative_ceiling,
         })
+    }
+
+    fn created_child_request(&self) -> Result<Option<CreatedChildRequest>, GatewayRecipeError> {
+        self.source
+            .created_child
+            .as_ref()
+            .map(|source| {
+                Ok(CreatedChildRequest {
+                    response_id_pointer: source.response_id_pointer.clone(),
+                    maximum_id_bytes: usize::try_from(source.maximum_id_bytes)
+                        .map_err(|_| GatewayRecipeError::InvalidCreatedChild)?,
+                })
+            })
+            .transpose()
     }
 
     fn observation_request(
@@ -1024,6 +1044,7 @@ pub struct ClosedProviderRequest {
     credential_requirement: CredentialRequirement,
     observation: Option<ClosedObservationRequest>,
     observation_template: Option<ObservationTemplate>,
+    created_child: Option<CreatedChildRequest>,
     pre_entry: Option<ClosedActionRead>,
     relative_ceiling: Option<ClosedActionRead>,
 }
@@ -1100,6 +1121,12 @@ impl ClosedProviderRequest {
     pub(crate) const fn observation_template(&self) -> Option<&ObservationTemplate> {
         self.observation_template.as_ref()
     }
+    /// The exact signed create request fields and its reviewed response ID
+    /// selector. A returned ID is only a candidate until separate metadata
+    /// verification and task-journal binding complete.
+    pub(crate) const fn created_child(&self) -> Option<&CreatedChildRequest> {
+        self.created_child.as_ref()
+    }
     /// Returns the declared pre-entry re-read.
     #[must_use]
     pub const fn pre_entry_read(&self) -> Option<&ClosedActionRead> {
@@ -1109,6 +1136,35 @@ impl ClosedProviderRequest {
     #[must_use]
     pub const fn relative_ceiling_read(&self) -> Option<&ClosedActionRead> {
         self.relative_ceiling.as_ref()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CreatedChildRequest {
+    pub(crate) response_id_pointer: String,
+    maximum_id_bytes: usize,
+}
+
+impl CreatedChildRequest {
+    /// Extract only one bounded path-safe ID from a complete successful
+    /// response. The caller must not treat it as a task-bound resource.
+    pub(crate) fn candidate_id(
+        &self,
+        status: u16,
+        version_ok: bool,
+        body: &[u8],
+    ) -> Option<String> {
+        if !(200..300).contains(&status) || !version_ok {
+            return None;
+        }
+        let document: Value = serde_json::from_slice(body).ok()?;
+        let id = document.pointer(&self.response_id_pointer)?.as_str()?;
+        (id.len() <= self.maximum_id_bytes
+            && !id.is_empty()
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')))
+        .then(|| id.to_owned())
     }
 }
 

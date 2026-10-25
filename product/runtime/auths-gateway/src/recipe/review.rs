@@ -268,6 +268,19 @@ fn provider_headers_document(source: &RecipeSource) -> Value {
         })
 }
 
+fn created_child_document(source: &RecipeSource) -> Value {
+    source.created_child.as_ref().map_or(Value::Null, |child| {
+        json!({
+            "response_id_pointer": child.response_id_pointer,
+            "maximum_id_bytes": child.maximum_id_bytes,
+            "parent_field": child.parent_field,
+            "title_field": child.title_field,
+            "marker_field": child.marker_field,
+            "disclosure": "a complete 2xx response can nominate one child ID; metadata verification and a task-journal binding are required before another write may use it",
+        })
+    })
+}
+
 impl CompiledRecipe {
     /// Returns a bounded, secret-free operator review projection.
     #[must_use]
@@ -358,6 +371,7 @@ impl CompiledRecipe {
         if let Some(binding) = task_binding_document(source) {
             document["task_binding"] = binding;
         }
+        document["created_child"] = created_child_document(source);
         document["idempotency"] =
             source
                 .write
@@ -384,6 +398,7 @@ impl CompiledRecipe {
                 json!({
                     "locator": observation_name(review.recovery().state_observation),
                     "path": path_review(&observation.path),
+                    "query": observation.query,
                     "json_pointer": observation.json_pointer,
                     "expected_field": observation.expected_field,
                     "maximum_response_bytes": observation.maximum_response_bytes,

@@ -5,6 +5,13 @@
   "tool": "create_project_a_document_v1",
   "operator_namespace": "google-drive-create-demo",
   "task_binding": {"resource_field": "parent_id", "verb": "create"},
+  "created_child": {
+    "response_id_pointer": "/id",
+    "maximum_id_bytes": 64,
+    "parent_field": "parent_id",
+    "title_field": "title",
+    "marker_field": "recovery_marker"
+  },
   "credential": {"kind": "bearer"},
   "origin": "https://www.googleapis.com",
   "write": {
@@ -35,5 +42,17 @@
         }
       }
     }
+  },
+  "observation": {
+    "path": [
+      {"kind": "fixed", "value": "drive"},
+      {"kind": "fixed", "value": "v3"},
+      {"kind": "fixed", "value": "files"},
+      {"kind": "response-field", "pointer": "/id", "max_bytes": 64}
+    ],
+    "query": {"supportsAllDrives": "true"},
+    "json_pointer": "/name",
+    "expected_field": "title",
+    "maximum_response_bytes": 16384
   }
 }

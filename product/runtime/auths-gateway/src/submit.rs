@@ -29,12 +29,36 @@ use auths_gateway_kernel::order::{
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
+use std::collections::BTreeMap;
 use subtle::ConstantTimeEq as _;
 
 /// No submission takes more steps than this; a longer run halts.
 const MAX_STEPS: usize = 64;
 /// The account-commitment domain `install` hashes the account label under.
 const ACCOUNT_DOMAIN: &[u8] = b"auths.gateway-account/1\0";
+
+/// Retain a reviewed child ID only as response evidence. Task authority for
+/// that child requires a separate metadata check and durable binding.
+pub(crate) fn response_locator(
+    request: &ClosedProviderRequest,
+    status: u16,
+    version_ok: bool,
+    body: &[u8],
+) -> Option<BTreeMap<String, String>> {
+    let mut locator = request
+        .observation_template()
+        .filter(|template| template.has_response_fields())
+        .filter(|_| version_ok && (200..300).contains(&status))
+        .and_then(|template| template.extract_locator(body))
+        .unwrap_or_default();
+    if let Some(child) = request.created_child() {
+        locator.remove(&child.response_id_pointer);
+        if let Some(id) = child.candidate_id(status, version_ok, body) {
+            locator.insert(child.response_id_pointer.clone(), id);
+        }
+    }
+    (!locator.is_empty()).then_some(locator)
+}
 
 /// The I/O one submission may perform, each only when the step machine
 /// names it.
@@ -712,12 +736,7 @@ impl<I: SubmitIo> Run<'_, I> {
         else {
             return ResponseRecord::Failed;
         };
-        let locator = verified
-            .request
-            .observation_template()
-            .filter(|template| template.has_response_fields())
-            .filter(|_| version_ok && (200..300).contains(&status))
-            .and_then(|template| template.extract_locator(&body));
+        let locator = response_locator(&verified.request, status, version_ok, &body);
         match claim.record_response(status, digest, locator).await {
             Ok(observable) => {
                 let can_observe = observable.observation_request().is_some();

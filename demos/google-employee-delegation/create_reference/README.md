@@ -32,16 +32,25 @@ enforce this fixture-specific title and marker format before Jules approves.
 `prepare_create_inputs` in the broker handoff module checks the pinned parent
 and generates a fresh 128-bit marker; the future task ceremony must sign and
 persist those values before any provider call.
+The gateway recipe now declares one bounded `created_child` mapping for the
+complete successful response's `/id`. Its reviewed observation GET uses that
+candidate ID and a fixed `supportsAllDrives=true` query. A recorded response
+retains the candidate across a gateway restart. This is response evidence:
+the current observation compares the file name only, and neither it nor the
+candidate grants permission to populate the file. The task still needs a
+separate metadata check of subject, parent, type and marker followed by a
+durable child binding before a second write can be admitted.
+
 The [read-only producer observation consumer](../broker/src/employee_read_demo/google_create_handoff.py)
 checks demo_co's versioned create observation against exact private run pins.
 It reports only provider state; Auths has not yet bound a returned child ID to
-the signed create action or authorized population. The producer's inspector
+the signed task or authorized population. The producer's inspector
 requires a fresh pre-create working-Doc baseline and leaves cleanup explicit.
 
 This reference does not bind a returned file ID to the task, authorize a
-follow-up populate action, inspect the create response or verify a provider
-effect. Those are required by AP-SPEC-071's create/populate acceptance and
-will need reviewed generic response binding plus independent demo_co
-inspection. The producer owns the folder and its ACL; Auths owns the task
-authority and gateway recipe. The Rust test proves only the exact closed
-request body and URL from synthetic signed fields.
+follow-up populate action or verify a provider effect. Those are required by
+AP-SPEC-071's create/populate acceptance. The producer owns the folder and
+its ACL; Auths owns the task authority and gateway recipe. Rust tests prove
+the exact closed request and observation URLs, hostile declaration rejection,
+bounded response extraction and durable candidate recording with synthetic
+data; they do not establish a live provider effect.

@@ -210,6 +210,10 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         recipe.review_document()["task_binding"]["resource_field"],
         "parent_id"
     );
+    assert_eq!(
+        recipe.review_document()["created_child"]["response_id_pointer"],
+        "/id"
+    );
     let args = arguments(
         &recipe,
         &json!({
@@ -238,12 +242,177 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
             "properties": {"auths_operation_marker": format!("ap071_{}", "d".repeat(32))}
         })
     );
+    let child = request.created_child().expect("reviewed child candidate");
+    assert_eq!(
+        recipe.review_document()["created_child"]["parent_field"],
+        "parent_id"
+    );
+    assert_eq!(
+        recipe.review_document()["created_child"]["title_field"],
+        "title"
+    );
+    assert_eq!(
+        recipe.review_document()["created_child"]["marker_field"],
+        "recovery_marker"
+    );
+    assert_eq!(
+        child.candidate_id(200, true, br#"{"id":"child_ABC-123"}"#),
+        Some("child_ABC-123".to_owned())
+    );
+    let locator =
+        crate::submit::response_locator(&request, 200, true, br#"{"id":"child_ABC-123"}"#)
+            .expect("bounded response locator");
+    let observation = request
+        .observation_template()
+        .expect("reviewed observation")
+        .request(Some(&locator))
+        .expect("closed observation request");
+    assert_eq!(
+        observation.url(),
+        "https://www.googleapis.com/drive/v3/files/child_ABC-123?supportsAllDrives=true"
+    );
+    assert_eq!(
+        recipe.review_document()["observation"]["query"]["supportsAllDrives"],
+        "true"
+    );
+    for (status, version_ok, body) in [
+        (500, true, br#"{"id":"child_ABC-123"}"#.as_slice()),
+        (200, false, br#"{"id":"child_ABC-123"}"#.as_slice()),
+        (200, true, br#"{"id":"child/other"}"#.as_slice()),
+        (200, true, br#"{"id":""}"#.as_slice()),
+        (200, true, br#"{"id":123}"#.as_slice()),
+        (200, true, br#"{"other":"child_ABC-123"}"#.as_slice()),
+    ] {
+        assert_eq!(child.candidate_id(status, version_ok, body), None);
+    }
     let mut changed = args;
     changed.insert("parent_id".into(), json!("project-b-folder"));
     let other = recipe
         .closed_request_from_arguments(&changed, [0x41; 32])
         .expect("changed request requires a different native action");
     assert_ne!(request.body(), other.body());
+}
+
+#[test]
+fn created_child_declaration_requires_a_closed_task_create_and_consumed_fields() {
+    let (source, lock) = fixture("google-drive-create");
+    let source: Value = serde_json::from_slice(source).expect("create source");
+    for changed in [
+        json!({"created_child": {"response_id_pointer": "id", "maximum_id_bytes": 64,
+            "parent_field": "parent_id", "title_field": "title", "marker_field": "recovery_marker"}}),
+        json!({"created_child": {"response_id_pointer": "/id", "maximum_id_bytes": 0,
+            "parent_field": "parent_id", "title_field": "title", "marker_field": "recovery_marker"}}),
+        json!({"created_child": {"response_id_pointer": "/id", "maximum_id_bytes": 64,
+            "parent_field": "title", "title_field": "title", "marker_field": "recovery_marker"}}),
+        json!({"created_child": {"response_id_pointer": "/id", "maximum_id_bytes": 64,
+            "parent_field": "parent_id", "title_field": "operation_id", "marker_field": "recovery_marker"}}),
+    ] {
+        let mut candidate = source.clone();
+        candidate["created_child"] = changed["created_child"].clone();
+        assert_eq!(
+            CompiledRecipe::compile(&serde_json::to_vec(&candidate).expect("JSON"), lock).err(),
+            Some(GatewayRecipeError::InvalidCreatedChild)
+        );
+    }
+    let mut wrong_verb = source.clone();
+    wrong_verb["task_binding"]["verb"] = json!("edit");
+    assert_eq!(
+        CompiledRecipe::compile(&serde_json::to_vec(&wrong_verb).expect("JSON"), lock).err(),
+        Some(GatewayRecipeError::InvalidCreatedChild)
+    );
+    let mut missing_observation = source.clone();
+    missing_observation
+        .as_object_mut()
+        .expect("source object")
+        .remove("observation");
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&missing_observation).expect("JSON"),
+            lock
+        )
+        .err(),
+        Some(GatewayRecipeError::InvalidCreatedChild)
+    );
+    let mut mismatched_locator = source;
+    mismatched_locator["observation"]["path"][3]["pointer"] = json!("/other_id");
+    assert_eq!(
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&mismatched_locator).expect("JSON"),
+            lock
+        )
+        .err(),
+        Some(GatewayRecipeError::InvalidCreatedChild)
+    );
+}
+
+#[tokio::test]
+async fn created_child_candidate_survives_restart_without_granting_child_authority() {
+    let recipe = compiled("google-drive-create");
+    let args = arguments(
+        &recipe,
+        &json!({
+            "operation_id": "create-record-1",
+            "task_id": "task-1",
+            "task_commitment": "45".repeat(32),
+            "parent_id": "project-a-folder",
+            "title": "Auths AP-071 Project A handoff",
+            "recovery_marker": format!("ap071_{}", "d".repeat(32))
+        }),
+    );
+    let request = recipe
+        .closed_request_from_arguments(&args, [0x41; 32])
+        .expect("closed create request");
+    let complete_response = br#"{"id":"child_ABC-123"}"#;
+    let locator = crate::submit::response_locator(&request, 200, true, complete_response)
+        .expect("bounded candidate");
+    assert_eq!(locator.get("/id"), Some(&"child_ABC-123".to_owned()));
+    for (status, version_ok, body) in [
+        (500, true, complete_response.as_slice()),
+        (200, false, complete_response.as_slice()),
+        (200, true, br#"{"id":"child/other"}"#.as_slice()),
+    ] {
+        assert_eq!(
+            crate::submit::response_locator(&request, status, version_ok, body),
+            None
+        );
+    }
+    let temp = tempfile::tempdir().expect("temp directory");
+    let root = std::fs::canonicalize(temp.path())
+        .expect("canonical temp")
+        .join("attempts");
+    let store = crate::GatewayAttempts::new(Arc::new(
+        FileGatewayAttemptStore::open(&root).expect("private store"),
+    ));
+    let claim = store
+        .claim(&request, *recipe.digest(), 1_790_000_000)
+        .await
+        .expect("claim");
+    let response = claim
+        .record_response(200, [3; 32], Some(locator))
+        .await
+        .expect("record response");
+    assert_eq!(
+        response.snapshot().expect("snapshot").stage(),
+        GatewayAttemptStage::ResponseRecorded
+    );
+    drop(response);
+    drop(store);
+    let reopened = crate::GatewayAttempts::new(Arc::new(
+        FileGatewayAttemptStore::open(&root).expect("reopen private store"),
+    ));
+    let snapshot = reopened
+        .read(request.namespace(), request.operation_id())
+        .await
+        .expect("read")
+        .expect("recorded attempt");
+    assert_eq!(snapshot.stage(), GatewayAttemptStage::ResponseRecorded);
+    assert_eq!(
+        snapshot
+            .response_locator()
+            .and_then(|values| values.get("/id")),
+        Some(&"child_ABC-123".to_owned())
+    );
+    assert_eq!(snapshot.observation_match(), None);
 }
 
 #[test]

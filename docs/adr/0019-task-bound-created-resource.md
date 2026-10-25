@@ -5,7 +5,11 @@ operator-approved connection descriptor containing two to four task-bound
 recipe digests and their reviewed HTTPS origins for one credential. Task
 activation checks a closed installed recipe set against that connection. A
 development installation can load the Google edit and create recipes with one
-connection and task journal. There is still no child-resource binding or
+connection and task journal. A reviewed create declaration now extracts one
+bounded child ID from a complete successful response and retains it as a
+candidate in the attempt journal across restart. The reviewed observation
+path can address that candidate; its name comparison is not the metadata
+verification required below. There is still no child-resource binding or
 population authorization. This ADR authorizes no production claim by itself.
 
 **Date:** 25 October 2026

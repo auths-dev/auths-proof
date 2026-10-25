@@ -33,6 +33,8 @@ pub(super) struct RecipeSource {
     pub(super) relative_ceiling: Option<RelativeCeilingSource>,
     pub(super) write: WriteSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) created_child: Option<CreatedChildSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) observation: Option<ObservationSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) echo: Option<EchoSource>,
@@ -49,6 +51,18 @@ pub(super) struct RecipeSource {
 pub(super) struct TaskBindingSource {
     pub(super) resource_field: String,
     pub(super) verb: TaskWriteVerb,
+}
+
+/// A response-derived candidate child ID for a task-bound create. These
+/// named profile fields must all be consumed by the closed write body.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CreatedChildSource {
+    pub(super) response_id_pointer: String,
+    pub(super) maximum_id_bytes: u64,
+    pub(super) parent_field: String,
+    pub(super) title_field: String,
+    pub(super) marker_field: String,
 }
 
 /// The credential requirement plus the author's optional credential guard.
@@ -273,6 +287,8 @@ pub(super) enum ValueExpr {
 #[serde(deny_unknown_fields)]
 pub(super) struct ObservationSource {
     pub(super) path: Vec<PathSegment>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) query: BTreeMap<String, String>,
     pub(super) json_pointer: String,
     pub(super) expected_field: String,
     pub(super) maximum_response_bytes: usize,

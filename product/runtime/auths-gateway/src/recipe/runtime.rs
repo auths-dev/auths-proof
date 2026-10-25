@@ -153,6 +153,8 @@ pub(crate) struct TemplateHeader {
 pub(crate) struct ObservationTemplate {
     pub(crate) origin: String,
     pub(crate) segments: Vec<TemplateSegment>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub(crate) query: String,
     pub(crate) headers: Vec<TemplateHeader>,
     pub(crate) json_pointer: String,
     pub(crate) expected: String,
@@ -187,6 +189,11 @@ impl ObservationTemplate {
             .filter(|segment| matches!(segment, TemplateSegment::ResponseField { .. }))
             .count();
         !self.origin.is_empty()
+            && self.query.len() <= 512
+            && (self.query.is_empty()
+                || (self.query.starts_with('?')
+                    && self.query.is_ascii()
+                    && !self.query.bytes().any(|byte| byte <= 0x20 || byte >= 0x7f)))
             && !self.segments.is_empty()
             && self.segments.len() <= 16
             && fields <= MAX_LOCATOR_VALUES
@@ -280,7 +287,12 @@ impl ObservationTemplate {
         if path.len() > MAX_TEMPLATE_PATH_BYTES {
             return None;
         }
-        let url = format!("{}{}", self.origin, String::from_utf8(path).ok()?);
+        let url = format!(
+            "{}{}{}",
+            self.origin,
+            String::from_utf8(path).ok()?,
+            self.query
+        );
         let expected = serde_json::from_str(&self.expected).ok()?;
         Some(ClosedObservationRequest {
             url,
@@ -452,6 +464,7 @@ impl CompiledRecipe {
         let template = ObservationTemplate {
             origin: self.source.origin.clone(),
             segments,
+            query: super::release::fixed_query(&source.query)?,
             headers: headers
                 .iter()
                 .filter(|header| header.name != super::IDEMPOTENCY_HEADER)
