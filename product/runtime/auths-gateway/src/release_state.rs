@@ -10,6 +10,7 @@ use crate::release_verify::VerifiedReleaseRequest;
 use crate::task_activation::TaskWriteScope;
 use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask, TaskActivationPins};
 use crate::task_effect_plan::VerifiedEffectPlan;
+use crate::task_populate_attestation::{ExpectedPopulatePreflight, VerifiedPopulatePreflight};
 use crate::task_write::ApprovedTaskWrite;
 use crate::{ReleaseCommitmentContext, ReleaseCommitmentError, ReleaseCommitmentKey};
 use serde::{Deserialize, Serialize};
@@ -204,6 +205,8 @@ pub(crate) struct ReleaseTaskState {
     child_binding: Option<BoundChild>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     effect_plan: Option<VerifiedEffectPlan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    populate_preflight: Option<VerifiedPopulatePreflight>,
 }
 
 /// Owner-visible accounting only. No provider bytes, account subject,
@@ -403,6 +406,7 @@ impl ReleaseTaskState {
             writes: BTreeMap::new(),
             child_binding: None,
             effect_plan: None,
+            populate_preflight: None,
         })
     }
 
@@ -445,6 +449,11 @@ impl ReleaseTaskState {
             && (1..=192).contains(&plan.content_length)
             && plan.expires_at > card.not_before
             && plan.expires_at <= self.expires_at
+            && match (&plan.preflight_rule_digest, &plan.preflight_key_sha256) {
+                (None, None) => true,
+                (Some(rule), Some(key)) => valid_digest(rule) && valid_digest(key),
+                _ => false,
+            }
             && plan.populate_recipe_digest == pending.populate_recipe_digest
             && bounded_text(&plan.populate_operation_id, 128)
             && plan.populate_operation_id != create.operation_id
@@ -467,6 +476,51 @@ impl ReleaseTaskState {
                 create.connection_generation,
                 &create.connection_subject,
             )
+    }
+
+    fn valid_populate_preflight(&self, preflight: &VerifiedPopulatePreflight) -> bool {
+        let (Some(plan), Some(child)) = (&self.effect_plan, &self.child_binding) else {
+            return false;
+        };
+        let Some(rule_digest) = plan.preflight_rule_digest.as_deref() else {
+            return false;
+        };
+        preflight.matches_expected(&ExpectedPopulatePreflight {
+            task_id: &self.task_id,
+            task_commitment: &self.task_commitment,
+            child_id: &child.id,
+            rule_digest,
+            plan,
+        })
+    }
+
+    fn record_populate_preflight(
+        &mut self,
+        preflight: &VerifiedPopulatePreflight,
+        now: u64,
+    ) -> Result<(), ReleaseStateError> {
+        self.active(now)?;
+        if !self.valid_populate_preflight(preflight) {
+            return Err(ReleaseStateError::Binding);
+        }
+        let Some(child) = &self.child_binding else {
+            return Err(ReleaseStateError::Binding);
+        };
+        if self.writes.values().any(|write| {
+            write.resource_handle == child.id && write.recipe_digest == child.populate_recipe_digest
+        }) {
+            return Err(ReleaseStateError::Replay);
+        }
+        if let Some(existing) = &self.populate_preflight {
+            if existing == preflight {
+                return Ok(());
+            }
+            if preflight.checked_at() <= existing.checked_at() {
+                return Err(ReleaseStateError::Replay);
+            }
+        }
+        self.populate_preflight = Some(preflight.clone());
+        Ok(())
     }
 
     #[cfg(test)]
@@ -732,6 +786,10 @@ impl ReleaseTaskState {
 
     pub(crate) fn effect_plan(&self) -> Option<&VerifiedEffectPlan> {
         self.effect_plan.as_ref()
+    }
+
+    pub(crate) fn populate_preflight(&self) -> Option<&VerifiedPopulatePreflight> {
+        self.populate_preflight.as_ref()
     }
 
     fn scope_matches(
@@ -1106,6 +1164,13 @@ impl ReleaseTaskState {
         {
             return Err(ReleaseStateError::Corrupt);
         }
+        if state
+            .populate_preflight
+            .as_ref()
+            .is_some_and(|preflight| !state.valid_populate_preflight(preflight))
+        {
+            return Err(ReleaseStateError::Corrupt);
+        }
         for (operation_id, operation) in &state.operations {
             if !bounded_text(operation_id, 128)
                 || operation.recipient != state.agent_principal
@@ -1380,6 +1445,17 @@ impl FileReleaseTaskLedger {
         now: u64,
     ) -> Result<ReleaseTaskState, ReleaseStateError> {
         self.update(task_id, |state| state.record_effect_plan(plan, now))
+    }
+
+    pub(crate) fn record_populate_preflight(
+        &self,
+        task_id: &str,
+        preflight: &VerifiedPopulatePreflight,
+        now: u64,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(task_id, |state| {
+            state.record_populate_preflight(preflight, now)
+        })
     }
 
     pub(crate) fn bind_created_child(

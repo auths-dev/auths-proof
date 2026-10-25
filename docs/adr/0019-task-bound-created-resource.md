@@ -102,9 +102,7 @@ unrecorded response or an arbitrary operator-supplied ID.
 
 For population, the fresh agent action may name only the child ID in that
 binding. The gateway checks it before reserving the second write, then
-derives the exact closed request. The current gateway requires a second exact
-human confirmation showing the actual child ID and complete initial content;
-the final product path uses the one-ceremony effect plan below. The shared
+derives the exact closed request. The ordinary exact-confirmation path can show the actual child ID and complete initial content. The planned path now consumes one earlier human effect plan with a signed, fresh child preflight in a synthetic loopback test; installed Google execution remains. The shared
 task budget charges create and populate separately.
 An unsuccessful or unknown populate leaves an incomplete artifact and does
 not authorize another create.
@@ -127,9 +125,9 @@ as permission to populate an unbound ID. The current code instead requires
 a second exact human confirmation for population, which is a safe interim
 path but does not meet the one-ceremony acceptance condition.
 
-A native verifier and private journal transition now accept one effect-plan signature over the closed create intent, one populate recipe and operation, exact initial text and expiry. The journal records a private content digest and byte length before any write, refuses a changed plan, and accepts identical evidence after restart. The owner-side authority package can issue the separate human grant. The create admission path can now consume the exact recorded plan without a second human confirmation, and recorded-response reconciliation can use that immutable plan after a metadata-read failure. Population still needs fresh preflight binding and plan consumption; the following checks remain the execution contract.
+A native verifier and private journal transition now accept one effect-plan signature over the closed create intent, one populate recipe and operation, exact initial text and expiry. The journal records a private content digest and byte length before any write, refuses a changed plan, and accepts identical evidence after restart. The owner-side authority package can issue the separate human grant. The create admission path can now consume the exact recorded plan without a second human confirmation, and recorded-response reconciliation can use that immutable plan after a metadata-read failure. Population now requires a fresh, signed preflight bound to the child and consumes the recorded plan in the synthetic gateway path. The following checks remain the execution contract for installed Google execution.
 
-The reviewed populate recipe now declares its text, tab and revision fields, and the compiler excludes other provider-affecting profile fields from this planned request. A native comparison helper rejects changed content, child, tab, operation or expiry against the plan and proposed preflight facts. The gateway does not yet authenticate, journal or consume those preflight facts, so this helper confers no population authority today.
+The reviewed populate recipe now declares its text, tab and revision fields, and the compiler excludes other provider-affecting profile fields from this planned request. A native comparison helper rejects changed content, child, tab, operation or expiry against the plan and proposed preflight facts. The gateway now authenticates an operator-pinned signed report, journals its short-lived facts, and consumes them with the recorded human plan in a synthetic two-effect loopback test. The Google signer exists as a vertical helper; installed key custody, a live Jules run and independent effect inspection remain.
 
 The plan format and commit points are part of that future implementation:
 

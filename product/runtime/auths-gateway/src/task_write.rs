@@ -78,6 +78,22 @@ impl ApprovedTaskWrite {
         Ok(Self { intent })
     }
 
+    /// The same human plan permits one population only when the recorded
+    /// credential-bearing preflight supplied every late-bound field.
+    pub(crate) fn from_recorded_effect_plan_populate(
+        plan: &crate::task_effect_plan::VerifiedEffectPlan,
+        recipe: &CompiledRecipe,
+        intent: ExactWriteIntent,
+        arguments: &Map<String, Value>,
+        preflight: &crate::task_effect_plan::PopulatePreflightFacts<'_>,
+        now: u64,
+    ) -> Result<Self, GatewaySubmitResult> {
+        if !plan.matches_populate_action(recipe, &intent, arguments, preflight, now) {
+            return Err(not_entered("gateway.task.effect-plan-populate-mismatch"));
+        }
+        Ok(Self { intent })
+    }
+
     /// Recovery only: expiry stops new provider entry, but cannot erase the
     /// evidence of a create already reserved and sent under this plan.
     pub(crate) fn from_recorded_effect_plan_reconciliation(

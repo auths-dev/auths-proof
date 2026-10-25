@@ -70,6 +70,7 @@ mod task_activation;
 // A signed two-effect plan is verified before it can enter the task journal.
 #[allow(dead_code)]
 mod task_effect_plan;
+mod task_populate_attestation;
 // Exact task-write confirmation is called only by the owner-side task session.
 #[allow(dead_code)]
 mod task_write;

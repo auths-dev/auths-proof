@@ -26,6 +26,8 @@ use crate::task_activation::{
 #[cfg(unix)]
 use crate::task_effect_plan::verify_effect_plan;
 #[cfg(unix)]
+use crate::task_populate_attestation::{ExpectedPopulatePreflight, verify_populate_preflight};
+#[cfg(unix)]
 use crate::task_write::{
     ApprovedTaskWrite, CONFIRMATION_TOOL, TaskWriteBinding, admit_bounded_upfront_write,
     derive_exact_write_intent, verify_exact_write_confirmation,
@@ -1243,6 +1245,10 @@ impl GatewayEngine {
             || !installation
                 .recipe_digests
                 .contains(&self.recipe.digest_hex())
+            || installation
+                .populate_preflight
+                .as_ref()
+                .is_some_and(|pin| !pin.valid())
         {
             return Err("gateway.task.invalid-installation");
         }
@@ -1266,6 +1272,7 @@ impl GatewayEngine {
             engine: self,
             pins: installation.pins,
             recipe_digests: installation.recipe_digests,
+            populate_preflight: installation.populate_preflight,
             binding,
             ledger,
         })
@@ -1275,10 +1282,7 @@ impl GatewayEngine {
     /// caller supplies operator-installed pins and a private journal; these
     /// are never accepted from the agent or ordinary application frame.
     #[cfg(unix)]
-    pub(crate) async fn submit_task_write(
-        &self,
-        submission: TaskWriteSubmission<'_>,
-    ) -> GatewaySubmitResult {
+    async fn submit_task_write(&self, submission: TaskWriteSubmission<'_>) -> GatewaySubmitResult {
         if !self.recipe.requires_task_admission() {
             return not_entered("gateway.task.recipe-not-bound");
         }
@@ -1327,12 +1331,45 @@ impl GatewayEngine {
                     let Some(plan) = state.effect_plan() else {
                         return not_entered("gateway.task.effect-plan-required");
                     };
+                    let (approved, preflight_valid_until) = if intent.verb
+                        == crate::task_activation::TaskWriteVerb::Create
+                    {
+                        (
+                            ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
+                            None,
+                        )
+                    } else {
+                        let Some(pin) = submission.preflight_pin else {
+                            return not_entered("gateway.task.preflight-not-installed");
+                        };
+                        let Some(preflight) = state.populate_preflight() else {
+                            return not_entered("gateway.task.preflight-required");
+                        };
+                        if plan.preflight_rule_digest.as_deref() != Some(pin.rule_digest.as_str())
+                            || plan.preflight_key_sha256.as_deref()
+                                != Some(pin.key_sha256().as_str())
+                        {
+                            return not_entered("gateway.task.preflight-policy-changed");
+                        }
+                        (
+                            ApprovedTaskWrite::from_recorded_effect_plan_populate(
+                                plan,
+                                &self.recipe,
+                                intent,
+                                &verified.arguments,
+                                &preflight.facts(),
+                                now,
+                            ),
+                            Some(preflight.facts().valid_until),
+                        )
+                    };
                     return self
                         .run_admitted_task_write(
                             submission,
                             &task,
                             child_scope,
-                            ApprovedTaskWrite::from_recorded_effect_plan_create(plan, intent, now),
+                            approved,
+                            preflight_valid_until,
                         )
                         .await;
                 }
@@ -1359,7 +1396,7 @@ impl GatewayEngine {
             Ok(approved) => approved,
             Err(result) => return result,
         };
-        self.run_admitted_task_write(submission, &task, child_scope, Ok(approved))
+        self.run_admitted_task_write(submission, &task, child_scope, Ok(approved), None)
             .await
     }
 
@@ -1370,6 +1407,7 @@ impl GatewayEngine {
         task: &ApprovedAgentTask,
         child_scope: Option<crate::task_activation::TaskWriteScope>,
         approved: Result<ApprovedTaskWrite, GatewaySubmitResult>,
+        preflight_valid_until: Option<u64>,
     ) -> GatewaySubmitResult {
         let approved = match approved {
             Ok(approved) => approved,
@@ -1387,6 +1425,7 @@ impl GatewayEngine {
                 approved: &approved,
                 ledger: submission.ledger,
                 child_scope,
+                preflight_valid_until,
             }),
             commissioning: None,
             commissioned_action: OnceLock::new(),
@@ -1581,6 +1620,43 @@ struct TaskWriteInstallation {
     schema: String,
     recipe_digests: Vec<String>,
     pins: TaskActivationPins,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    populate_preflight: Option<PopulatePreflightPin>,
+}
+
+#[cfg(unix)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PopulatePreflightPin {
+    public_key_hex: String,
+    rule_digest: String,
+}
+
+#[cfg(unix)]
+impl PopulatePreflightPin {
+    fn valid(&self) -> bool {
+        let digest = |value: &str| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        };
+        if !digest(&self.public_key_hex) || !digest(&self.rule_digest) {
+            return false;
+        }
+        hex::decode(&self.public_key_hex)
+            .ok()
+            .and_then(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok())
+            .and_then(|bytes| ed25519_dalek::VerifyingKey::from_bytes(&bytes).ok())
+            .is_some()
+    }
+
+    fn key_sha256(&self) -> String {
+        use sha2::Digest as _;
+        hex::encode(sha2::Sha256::digest(
+            hex::decode(&self.public_key_hex).expect("validated installation key"),
+        ))
+    }
 }
 
 /// Operator-owned activation and write path for one installed task-bound
@@ -1590,6 +1666,7 @@ pub struct TaskWriteSession<'a> {
     engine: &'a GatewayEngine,
     pins: TaskActivationPins,
     recipe_digests: Vec<String>,
+    populate_preflight: Option<PopulatePreflightPin>,
     binding: TaskWriteBinding,
     ledger: FileReleaseTaskLedger,
 }
@@ -1695,6 +1772,7 @@ impl TaskWriteSession<'_> {
                 pins: &self.pins,
                 binding: &self.binding,
                 ledger: &self.ledger,
+                preflight_pin: self.populate_preflight.as_ref(),
                 task_id: proofs.task_id,
                 agent_proof: proofs.agent_proof,
                 agent_action: proofs.agent_action,
@@ -1704,14 +1782,15 @@ impl TaskWriteSession<'_> {
             .await
     }
 
-    /// Execute the exact recorded create under one previously verified human
-    /// effect plan. The plan must have been committed before write entry.
-    pub async fn submit_planned_create(&self, proofs: TaskWriteProofs<'_>) -> GatewaySubmitResult {
+    /// Execute the exact recorded create or one preflight-bound population
+    /// under a previously verified human effect plan.
+    pub async fn submit_planned_effect(&self, proofs: TaskWriteProofs<'_>) -> GatewaySubmitResult {
         self.engine
             .submit_task_write(TaskWriteSubmission {
                 pins: &self.pins,
                 binding: &self.binding,
                 ledger: &self.ledger,
+                preflight_pin: self.populate_preflight.as_ref(),
                 task_id: proofs.task_id,
                 agent_proof: proofs.agent_proof,
                 agent_action: proofs.agent_action,
@@ -1771,10 +1850,58 @@ impl TaskWriteSession<'_> {
             plan_proof,
             plan_action,
         )
-        .map_err(|_| "gateway.task.effect-plan-human-proof")?;
+        .map_err(|_| "gateway.task.effect-plan-human-proof")?
+        .bind_preflight_policy(
+            self.populate_preflight
+                .as_ref()
+                .map(|pin| (pin.rule_digest.as_str(), pin.public_key_hex.as_str())),
+        );
         self.ledger
             .record_effect_plan(task_id, &plan, now)
             .map_err(|_| "gateway.task.effect-plan-journal")?;
+        Ok(())
+    }
+
+    /// Verify and durably bind a fresh preflight report from the installed
+    /// credential-bearing vertical. The report signer and rule digest are
+    /// pinned before the human effect plan is recorded. This does not write
+    /// to the provider or authorize a changed draft.
+    pub fn record_populate_preflight(
+        &self,
+        task_id: &str,
+        report: &[u8],
+    ) -> Result<(), &'static str> {
+        let pin = self
+            .populate_preflight
+            .as_ref()
+            .ok_or("gateway.task.preflight-not-installed")?;
+        let now = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+        let state = self
+            .ledger
+            .load(task_id)
+            .map_err(|_| "gateway.task.preflight-state")?
+            .ok_or("gateway.task.preflight-state")?;
+        let task = state
+            .activated_task(&self.pins, now)
+            .map_err(|_| "gateway.task.preflight-inactive")?;
+        let plan = state
+            .effect_plan()
+            .ok_or("gateway.task.preflight-plan-required")?;
+        let child = state
+            .bound_child_scope()
+            .ok_or("gateway.task.preflight-child-required")?;
+        let expected = ExpectedPopulatePreflight {
+            task_id,
+            task_commitment: &hex::encode(task.commitment()),
+            child_id: &child.handle,
+            rule_digest: &pin.rule_digest,
+            plan,
+        };
+        let verified = verify_populate_preflight(report, &pin.public_key_hex, &expected, now)
+            .ok_or("gateway.task.preflight-report-refused")?;
+        self.ledger
+            .record_populate_preflight(task_id, &verified, now)
+            .map_err(|_| "gateway.task.preflight-journal")?;
         Ok(())
     }
 
@@ -1894,6 +2021,7 @@ impl TaskWriteSession<'_> {
                 approved: &approved,
                 ledger: &self.ledger,
                 child_scope: None,
+                preflight_valid_until: None,
             }),
             commissioning: None,
             commissioned_action: OnceLock::new(),
@@ -1980,10 +2108,11 @@ fn task_trust_available(context: &TrustedContext) -> bool {
 }
 
 #[cfg(unix)]
-pub(crate) struct TaskWriteSubmission<'a> {
+struct TaskWriteSubmission<'a> {
     pub(crate) pins: &'a TaskActivationPins,
     pub(crate) binding: &'a TaskWriteBinding,
     pub(crate) ledger: &'a FileReleaseTaskLedger,
+    pub(crate) preflight_pin: Option<&'a PopulatePreflightPin>,
     pub(crate) task_id: &'a str,
     pub(crate) agent_proof: &'a [u8],
     pub(crate) agent_action: &'a [u8],
@@ -1998,6 +2127,7 @@ struct TaskWriteAdmission<'a> {
     approved: &'a ApprovedTaskWrite,
     ledger: &'a FileReleaseTaskLedger,
     child_scope: Option<crate::task_activation::TaskWriteScope>,
+    preflight_valid_until: Option<u64>,
 }
 
 struct EngineIo<'a> {
@@ -2075,6 +2205,15 @@ impl SubmitIo for EngineIo<'_> {
         #[cfg(unix)]
         {
             if let Some(admission) = &self.task_write {
+                let now = if let Some(valid_until) = admission.preflight_valid_until {
+                    let current = wall_clock_seconds().ok_or("gateway.task.preflight-clock")?;
+                    if current >= valid_until {
+                        return Err("gateway.task.preflight-stale");
+                    }
+                    current
+                } else {
+                    now
+                };
                 return admission
                     .ledger
                     .reserve_write(admission.approved, now)
@@ -2133,6 +2272,14 @@ impl SubmitIo for EngineIo<'_> {
     }
 
     async fn reload(&self) -> bool {
+        #[cfg(unix)]
+        if self.task_write.as_ref().is_some_and(|admission| {
+            admission.preflight_valid_until.is_some_and(|valid_until| {
+                wall_clock_seconds().is_none_or(|now| now >= valid_until)
+            })
+        }) {
+            return false;
+        }
         #[cfg(unix)]
         if let Some(session) = self.commissioning {
             let checked = self
@@ -2222,6 +2369,14 @@ impl SubmitIo for EngineIo<'_> {
         lease: &StoredSecretLease,
         request: &ClosedProviderRequest,
     ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        #[cfg(unix)]
+        if self.task_write.as_ref().is_some_and(|admission| {
+            admission.preflight_valid_until.is_some_and(|valid_until| {
+                wall_clock_seconds().is_none_or(|now| now >= valid_until)
+            })
+        }) {
+            return Err(GatewayTransportError::NotEntered);
+        }
         match self.prepared.get() {
             Some(prepared) => {
                 LeasedTransport {
@@ -2649,6 +2804,7 @@ pub(crate) mod tests {
         };
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
+            populate_preflight: None,
             recipe_digests: vec![engine.recipe.digest_hex()],
             pins,
         };
@@ -2891,6 +3047,7 @@ pub(crate) mod tests {
         .expect("card");
         let config = TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
+            populate_preflight: None,
             recipe_digests: vec![engine.recipe.digest_hex()],
             pins,
         };
@@ -3271,6 +3428,8 @@ pub(crate) mod tests {
         use crate::observed_tests::submission_for;
         use crate::task_activation::{AgentTaskDescriptor, ApprovedAgentTask};
         use auths_connections::SemanticId;
+        use base64ct::{Base64Unpadded, Encoding as _};
+        use ed25519_dalek::{Signer as _, SigningKey};
         use serde_json::{Map, json};
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
@@ -3399,8 +3558,14 @@ pub(crate) mod tests {
         let task = ApprovedAgentTask::from_test_card(card, *commitment.as_bytes());
         let mut digests = vec![engine.recipe.digest_hex(), populate.digest_hex()];
         digests.sort();
+        let preflight_key = SigningKey::from_bytes(&[0x55; 32]);
+        let preflight_rule_digest = "2".repeat(64);
         let installation_bytes = serde_json_canonicalizer::to_vec(&TaskWriteInstallation {
             schema: TASK_INSTALLATION_SCHEMA.to_owned(),
+            populate_preflight: Some(PopulatePreflightPin {
+                public_key_hex: hex::encode(preflight_key.verifying_key().to_bytes()),
+                rule_digest: preflight_rule_digest.clone(),
+            }),
             recipe_digests: digests,
             pins,
         })
@@ -3497,7 +3662,7 @@ pub(crate) mod tests {
         *altered_plan.last_mut().expect("plan action byte") ^= 1;
         assert_eq!(
             session
-                .submit_planned_create(TaskWriteProofs {
+                .submit_planned_effect(TaskWriteProofs {
                     task_id: "task-create-reconcile",
                     agent_proof: &signed.proof,
                     agent_action: &signed.action,
@@ -3605,7 +3770,7 @@ pub(crate) mod tests {
             }
         });
         let result = session
-            .submit_planned_create(TaskWriteProofs {
+            .submit_planned_effect(TaskWriteProofs {
                 task_id: "task-create-reconcile",
                 agent_proof: &signed.proof,
                 agent_action: &signed.action,
@@ -3705,6 +3870,187 @@ pub(crate) mod tests {
             "reconciliation cannot reserve another write"
         );
         assert_eq!(installation.first.leases.load(Ordering::SeqCst), 4);
+
+        let recorded_plan = state.effect_plan().expect("recorded effect plan").clone();
+        drop(session);
+        let populate_listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("populate provider listener");
+        engine.loopback_port = Some(
+            populate_listener
+                .local_addr()
+                .expect("populate address")
+                .port(),
+        );
+        engine.recipe = populate;
+        engine.trusted_context = harness::context_for_agent_and_task_profile(
+            &root,
+            observer.principal(),
+            now,
+            "google-docs-delegation-demo",
+            "populate_created_project_a_document_v1",
+        )
+        .expect("populate trust");
+        let session = engine
+            .task_write_session(&installation_bytes, &state_root)
+            .expect("populate task session");
+        let populate_grant = harness::grant_for(
+            &root,
+            &agent.principal,
+            now,
+            "google-docs-delegation-demo",
+            "populate_created_project_a_document_v1",
+        )
+        .expect("agent populate grant");
+        let populate_args = json!({
+            "operator_namespace": "google-docs-populate-demo",
+            "operation_id": "populate-reconcile-1",
+            "recipe_digest": engine.recipe.digest_hex(),
+            "task_id": "task-create-reconcile",
+            "task_commitment": hex::encode(commitment.as_bytes()),
+            "document_id": "child_ABC-123",
+            "text": "Project A handoff draft",
+            "tab_id": "t.0",
+            "required_revision_id": "revision-1",
+        });
+        let populate_signed = submission_for(
+            &root,
+            &agent,
+            &populate_grant,
+            populate_args.as_object().expect("populate arguments"),
+            &[],
+            "google-docs-delegation-demo",
+            "populate_created_project_a_document_v1",
+            now,
+        );
+        assert_eq!(
+            session
+                .submit_planned_effect(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &populate_signed.proof,
+                    agent_action: &populate_signed.action,
+                    confirmation: None,
+                })
+                .await,
+            not_entered("gateway.task.preflight-required"),
+            "a child binding alone cannot authorize population"
+        );
+        let checked_at = wall_clock_seconds().expect("preflight time");
+        let statement = json!({
+            "schema": "auths.gateway-task-populate-preflight/1",
+            "task_id": "task-create-reconcile",
+            "task_commitment": hex::encode(commitment.as_bytes()),
+            "plan_commitment": recorded_plan.plan_commitment,
+            "create_operation_id": "create-reconcile-1",
+            "child_id": "child_ABC-123",
+            "populate_recipe_digest": engine.recipe.digest_hex(),
+            "preflight_rule_digest": preflight_rule_digest,
+            "connection_id": bound.connection_id().as_str(),
+            "connection_generation": bound.generation().get(),
+            "connection_subject": subject,
+            "tab_id": "t.0",
+            "revision_id": "revision-1",
+            "metadata_sha256": "3".repeat(64),
+            "capability_sha256": "4".repeat(64),
+            "docs_sha256": "5".repeat(64),
+            "checked_at": checked_at,
+            "valid_until": checked_at + 60,
+        });
+        let mut preimage = b"auths.gateway-task-populate-preflight/1\0".to_vec();
+        preimage.extend(serde_json_canonicalizer::to_vec(&statement).expect("statement"));
+        let report = serde_json_canonicalizer::to_vec(&json!({
+            "statement": statement,
+            "signature_b64": Base64Unpadded::encode_string(&preflight_key.sign(&preimage).to_bytes()),
+        }))
+        .expect("signed report");
+        session
+            .record_populate_preflight("task-create-reconcile", &report)
+            .expect("durably record Jules child preflight");
+        let mut changed_args = populate_args.clone();
+        changed_args["text"] = json!("Changed handoff draft");
+        let changed = submission_for(
+            &root,
+            &agent,
+            &populate_grant,
+            changed_args.as_object().expect("changed arguments"),
+            &[],
+            "google-docs-delegation-demo",
+            "populate_created_project_a_document_v1",
+            now,
+        );
+        assert_eq!(
+            session
+                .submit_planned_effect(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &changed.proof,
+                    agent_action: &changed.action,
+                    confirmation: None,
+                })
+                .await,
+            not_entered("gateway.task.effect-plan-populate-mismatch"),
+            "the agent cannot change the human-approved text"
+        );
+        let populate_provider = tokio::spawn(async move {
+            let (mut stream, _) = populate_listener.accept().await.expect("populate request");
+            let mut request = [0_u8; 4096];
+            let size = stream.read(&mut request).await.expect("populate bytes");
+            let request = std::str::from_utf8(&request[..size]).expect("populate request text");
+            assert!(
+                request.starts_with("POST /v1/documents/child_ABC-123:batchUpdate "),
+                "{request}"
+            );
+            assert!(request.contains("Project A handoff draft"), "{request}");
+            assert!(request.contains("revision-1"), "{request}");
+            assert!(request.contains("t.0"), "{request}");
+            let body = br#"{"documentId":"child_ABC-123","replies":[{}]}"#;
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(headers.as_bytes()).await.expect("headers");
+            stream.write_all(body).await.expect("populate response");
+        });
+        let result = session
+            .submit_planned_effect(TaskWriteProofs {
+                task_id: "task-create-reconcile",
+                agent_proof: &populate_signed.proof,
+                agent_action: &populate_signed.action,
+                confirmation: None,
+            })
+            .await;
+        assert!(
+            matches!(
+                result,
+                GatewaySubmitResult::ResponseRecorded { status: 200 }
+            ),
+            "planned population entered once: {result:?}"
+        );
+        tokio::time::timeout(Duration::from_secs(3), populate_provider)
+            .await
+            .expect("populate provider completed")
+            .expect("populate provider task");
+        assert_eq!(
+            session
+                .ledger
+                .load("task-create-reconcile")
+                .expect("task journal")
+                .expect("task state")
+                .write_count(),
+            2,
+            "create and populate share one two-write budget"
+        );
+        assert_eq!(
+            session
+                .submit_planned_effect(TaskWriteProofs {
+                    task_id: "task-create-reconcile",
+                    agent_proof: &populate_signed.proof,
+                    agent_action: &populate_signed.action,
+                    confirmation: None,
+                })
+                .await,
+            not_entered("gateway.task.write-replay"),
+            "a successful population cannot enter the provider again"
+        );
     }
 
     // Connection administration over the shared record and each process's

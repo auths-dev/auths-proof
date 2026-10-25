@@ -46,6 +46,10 @@ pub(crate) struct VerifiedEffectPlan {
     pub(crate) content_commitment: String,
     pub(crate) content_length: u16,
     pub(crate) expires_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) preflight_rule_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) preflight_key_sha256: Option<String>,
 }
 
 /// Comparison inputs only. A caller may use these facts for admission only
@@ -66,6 +70,16 @@ pub(crate) struct PopulatePreflightFacts<'a> {
 }
 
 impl VerifiedEffectPlan {
+    pub(crate) fn bind_preflight_policy(mut self, policy: Option<(&str, &str)>) -> Self {
+        if let Some((rule_digest, public_key_hex)) = policy {
+            self.preflight_rule_digest = Some(rule_digest.to_owned());
+            self.preflight_key_sha256 = Some(hex::encode(Sha256::digest(
+                hex::decode(public_key_hex).expect("validated installation key"),
+            )));
+        }
+        self
+    }
+
     pub(crate) fn matches_content(&self, bytes: &[u8]) -> bool {
         bytes.len() == usize::from(self.content_length)
             && content_commitment(bytes) == self.content_commitment
@@ -243,6 +257,8 @@ pub(crate) fn verify_effect_plan(
         content_length: u16::try_from(plan.initial_text.len())
             .map_err(|_| not_entered("gateway.task.effect-plan-mismatch"))?,
         expires_at: plan.expires_at,
+        preflight_rule_digest: None,
+        preflight_key_sha256: None,
     })
 }
 
@@ -283,6 +299,8 @@ mod tests {
             content_commitment: content_commitment(b"Approved text"),
             content_length: 13,
             expires_at: 200,
+            preflight_rule_digest: None,
+            preflight_key_sha256: None,
         };
         let mut populate = create;
         populate.operation_id = "populate-1".into();

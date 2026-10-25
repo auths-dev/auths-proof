@@ -486,6 +486,16 @@ mod unix {
             #[arg(long)]
             plan_action: PathBuf,
         },
+        /// Development operator only: authenticate one signed, fresh,
+        /// credential-bearing child preflight and bind it to the task journal.
+        TaskRecordPopulatePreflight {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            task_id: String,
+            #[arg(long)]
+            report: PathBuf,
+        },
         /// Development operator only: reverify the original signed create
         /// after a recorded response, read its child metadata once, and bind
         /// that child in the task journal. Without exact confirmation files,
@@ -3726,7 +3736,7 @@ mod unix {
                 .map(|(proof, action)| (proof.as_slice(), action.as_slice())),
         };
         let result = if recorded_effect_plan {
-            session.submit_planned_create(proofs).await
+            session.submit_planned_effect(proofs).await
         } else {
             session.submit(proofs).await
         };
@@ -3807,6 +3817,21 @@ mod unix {
             &plan_action,
         )?;
         println!("{{\"outcome\":\"effect-plan-recorded\"}}");
+        Ok(())
+    }
+
+    async fn task_record_populate_preflight(
+        state_dir: PathBuf,
+        task_id: String,
+        report: PathBuf,
+    ) -> Result<(), Failure> {
+        let engine = task_engine(&state_dir).await?;
+        let installation = task_installation(&state_dir)?;
+        let session =
+            engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let report = read_bounded(&report, 8_192)?;
+        session.record_populate_preflight(&task_id, &report)?;
+        println!("{{\"outcome\":\"populate-preflight-recorded\"}}");
         Ok(())
     }
 
@@ -4788,6 +4813,11 @@ mod unix {
                 )
                 .await
             }
+            Command::TaskRecordPopulatePreflight {
+                state_dir,
+                task_id,
+                report,
+            } => task_record_populate_preflight(state_dir, task_id, report).await,
             Command::Disable {
                 state_dir,
                 admin_socket,
@@ -5362,6 +5392,27 @@ mod unix {
                     .expect("complete plan record parses")
                     .command,
                 Command::TaskRecordEffectPlan { .. }
+            ));
+        }
+
+        #[test]
+        fn populate_preflight_record_requires_a_private_report() {
+            let base = [
+                "auths-gateway",
+                "task-record-populate-preflight",
+                "--state-dir",
+                "/state",
+                "--task-id",
+                "task-create-1",
+            ];
+            assert!(Cli::try_parse_from(base).is_err());
+            let mut complete = base.to_vec();
+            complete.extend(["--report", "preflight.json"]);
+            assert!(matches!(
+                Cli::try_parse_from(complete)
+                    .expect("signed preflight report parses")
+                    .command,
+                Command::TaskRecordPopulatePreflight { .. }
             ));
         }
 

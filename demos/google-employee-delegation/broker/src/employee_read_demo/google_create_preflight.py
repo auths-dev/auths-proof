@@ -8,13 +8,17 @@ subject-bound credential. It never creates, populates or binds the child.
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import requests
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from .demo_co_contract import ContractRejected
 from .google_create_handoff import (
@@ -31,6 +35,14 @@ from .google_write_preflight import (
 from .write_handoff import validate_write_handoff
 
 MAX_RECOVERY_PAGE_BYTES = 131_072
+POPULATE_PREFLIGHT_SCHEMA = "auths.gateway-task-populate-preflight/1"
+POPULATE_PREFLIGHT_DOMAIN = b"auths.gateway-task-populate-preflight/1\0"
+_DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def _canonical_json(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False).encode("utf-8")
 
 
 @dataclass(frozen=True)
@@ -107,6 +119,76 @@ def preflight_jules_created_child(
         )
     finally:
         session.close()
+
+
+def attest_jules_created_child(
+    evidence_path: Path,
+    grant_path: Path,
+    credential_pins: WriteCredentialPins,
+    child_pins: CreatedChildMetadataPins,
+    *,
+    connection_id: str,
+    connection_generation: int,
+    task_id: str,
+    task_commitment: str,
+    plan_commitment: str,
+    create_operation_id: str,
+    populate_recipe_digest: str,
+    rule_digest: str,
+    plan_expires_at: int,
+    signing_key: Ed25519PrivateKey,
+    now: int | None = None,
+) -> bytes:
+    """Run the Jules-only GET checks and sign their bounded facts for Auths.
+
+    The operator keeps this key beside the credential-bearing vertical, never
+    in an agent action or a public receipt. The gateway independently checks
+    its pinned public key, plan, task and response-derived child binding.
+    """
+    if (type(task_id) is not str or not 1 <= len(task_id) <= 128
+            or type(create_operation_id) is not str
+            or not 1 <= len(create_operation_id) <= 128
+            or any(type(value) is not str or _DIGEST.fullmatch(value) is None
+                   for value in (task_commitment, plan_commitment,
+                                 populate_recipe_digest, rule_digest))
+            or type(plan_expires_at) is not int):
+        raise ContractRejected("populate preflight plan pins are invalid")
+    now = int(time.time()) if now is None else now
+    if plan_expires_at <= now:
+        raise ContractRejected("populate preflight plan has expired")
+    observed = preflight_jules_created_child(
+        evidence_path, grant_path, credential_pins, child_pins,
+        connection_id=connection_id,
+        connection_generation=connection_generation, now=now,
+    )
+    valid_until = min(observed.checked_at + 60, plan_expires_at)
+    if valid_until <= observed.checked_at:
+        raise ContractRejected("populate preflight plan has expired")
+    statement = {
+        "schema": POPULATE_PREFLIGHT_SCHEMA,
+        "task_id": task_id,
+        "task_commitment": task_commitment,
+        "plan_commitment": plan_commitment,
+        "create_operation_id": create_operation_id,
+        "child_id": observed.child_id,
+        "populate_recipe_digest": populate_recipe_digest,
+        "preflight_rule_digest": rule_digest,
+        "connection_id": observed.connection_id,
+        "connection_generation": observed.connection_generation,
+        "connection_subject": observed.connection_subject,
+        "tab_id": observed.tab_id,
+        "revision_id": observed.revision_id,
+        "metadata_sha256": observed.metadata_sha256,
+        "capability_sha256": observed.capability_sha256,
+        "docs_sha256": observed.docs_sha256,
+        "checked_at": observed.checked_at,
+        "valid_until": valid_until,
+    }
+    signature = signing_key.sign(POPULATE_PREFLIGHT_DOMAIN + _canonical_json(statement))
+    return _canonical_json({
+        "statement": statement,
+        "signature_b64": base64.b64encode(signature).decode("ascii").rstrip("="),
+    })
 
 
 def search_jules_created_child(

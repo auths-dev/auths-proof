@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import CHILD_TITLE, CreatedChildMetadataPins
 from employee_read_demo.google_create_preflight import (
-    preflight_jules_created_child, search_jules_created_child,
+    JulesCreatedChildPreflight, POPULATE_PREFLIGHT_DOMAIN,
+    attest_jules_created_child, preflight_jules_created_child,
+    search_jules_created_child,
 )
 
 
@@ -25,6 +31,57 @@ class _Session:
 
 
 class JulesChildPreflightTests(unittest.TestCase):
+    def test_signed_report_binds_fresh_jules_preflight_to_plan(self) -> None:
+        key = Ed25519PrivateKey.from_private_bytes(b"\x55" * 32)
+        pins = CreatedChildMetadataPins(
+            candidate_id="child_ABC-123", parent_id="project-a-folder",
+            drive_id="shared-drive-1", title=CHILD_TITLE,
+            marker_value="ap071_" + "d" * 32,
+        )
+        observed = JulesCreatedChildPreflight(
+            child_id=pins.candidate_id, tab_id="t.0", revision_id="revision-1",
+            created_at=datetime(2026, 10, 25, tzinfo=timezone.utc),
+            checked_at=1000, connection_id="jules-google",
+            connection_generation=1, connection_subject="jules-subject",
+            metadata_sha256="3" * 64, capability_sha256="4" * 64,
+            docs_sha256="5" * 64,
+        )
+        with patch(
+            "employee_read_demo.google_create_preflight.preflight_jules_created_child",
+            return_value=observed,
+        ) as preflight:
+            report = attest_jules_created_child(
+                Path("evidence.json"), Path("grant.json"), SimpleNamespace(), pins,
+                connection_id="jules-google", connection_generation=1,
+                task_id="task-create-1", task_commitment="a" * 64,
+                plan_commitment="b" * 64, create_operation_id="create-1",
+                populate_recipe_digest="c" * 64, rule_digest="d" * 64,
+                plan_expires_at=1050, signing_key=key, now=1000,
+            )
+        preflight.assert_called_once()
+        envelope = json.loads(report)
+        statement = envelope["statement"]
+        self.assertEqual((statement["child_id"], statement["tab_id"],
+                          statement["revision_id"], statement["valid_until"]),
+                         (pins.candidate_id, "t.0", "revision-1", 1050))
+        self.assertEqual(
+            report,
+            json.dumps(envelope, sort_keys=True, separators=(",", ":"),
+                       ensure_ascii=False).encode("utf-8"),
+        )
+        signature = base64.b64decode(envelope["signature_b64"] + "==")
+        payload = POPULATE_PREFLIGHT_DOMAIN + json.dumps(
+            statement, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        key.public_key().verify(signature, payload)
+        statement["child_id"] = "other-child"
+        with self.assertRaises(InvalidSignature):
+            key.public_key().verify(signature, POPULATE_PREFLIGHT_DOMAIN + json.dumps(
+                statement, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8"))
+
     def test_lost_response_search_rechecks_one_child_without_minting_authority(self) -> None:
         marker = "ap071_" + "d" * 32
         child = {
