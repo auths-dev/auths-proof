@@ -341,10 +341,18 @@ content through the model relay to OpenAI; that data leaves the Mac.
 
 ## AP-SPEC-071 write handoff
 
-This package's AP-SPEC-070 read export does not authorize a Google write. The
-installed broker includes `auths-google-write-handoff`, which currently
-reports `write_not_configured` and exits 2, even if passed an unreviewed local
-`--export` file. The [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
-requires a separately versioned demo_co folder/Doc, Jules write consent and
-independent probe export before this seam can activate a write. The command
-does not read the proposed export or handle provider tokens.
+This package's AP-SPEC-070 read export does not authorize a Google write.
+demo_co now has a separate versioned AP-SPEC-071 Project A folder, working Doc,
+Jules `drive.file` consent and independent probe export. The broker's
+`validate_write_handoff` pins that export, and the private Jules credential
+shim checks the OAuth client, scopes and current UserInfo subject. A read-only
+live preflight has confirmed that Jules can still see the pinned folder and
+working Doc and that its original baseline remains intact; its
+[redacted observation](evidence/2026-10-25-jules-readonly-preflight.json)
+records the exact producer generation and source revision. The checked-in
+`auths-google-write-handoff` command is still a deliberately closed installed
+entry point: it reports `write_not_configured` and exits 2. It must only open
+after the native task authority, agent proof, exact confirmation, gateway
+installation and independent effect observation are joined and qualified.
+See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
+for the remaining live acceptance path.

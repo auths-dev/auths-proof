@@ -1,0 +1,21 @@
+{
+  "schema": "auths.ap071-google-readonly-preflight/1",
+  "checked_at": "2026-10-25T12:25:30Z",
+  "source_revision": "c8e8c04c5b6e749f992d8c54811c5ce9a3d07505",
+  "mode": "source-checkout-readonly-preflight",
+  "company": "atlas-studio",
+  "instance": "live-test-atlas-20261025",
+  "producer_generation": 1,
+  "producer_evidence_sha256": "f3dff8ba878766fd77304af6c5f4cac4c7baef113b011a4a4335cc1b5fbb9717",
+  "connection_subject": "113654555744401103740",
+  "connection_generation": 1,
+  "folder_id": "1ZtmuBMypwxDZ_onYgV3tspl-_Mzv_8SA",
+  "document_id": "1u5EQZ0F_iMWr6IngLJaAtxeXYAGUSMrtS4EhEAmlx8s",
+  "tab_id": "t.0",
+  "baseline_byte_count": 65,
+  "marker_count": 1,
+  "result": "ready",
+  "provider_write_performed": false,
+  "agent_action_submitted": false,
+  "installed_gateway_exercised": false
+}
