@@ -1581,6 +1581,8 @@ impl TaskWriteSession<'_> {
         {
             return Err(not_entered("gateway.task.connection-changed"));
         }
+        GatewayConnectionDescriptor::from_record(loaded.record(), &self.engine.recipe)
+            .map_err(|_| not_entered("gateway.connection.recipe-mismatch"))?;
         self.ledger.initialize(&task).map_err(|error| {
             if error == crate::release_state::ReleaseStateError::Exists {
                 not_entered("gateway.task.already-activated")
@@ -2380,13 +2382,17 @@ pub(crate) mod tests {
             .expect("connection");
         let old = loaded.record();
         let subject = "acct_TESTPLATFORM1";
+        let task_descriptor = GatewayConnectionDescriptor::approve(&engine.recipe, "Authorization")
+            .expect("task descriptor")
+            .to_bytes()
+            .expect("task descriptor bytes");
         let bound = ConnectionRecord::new(
             old.provider_kind().clone(),
             old.alias().clone(),
             old.connection_id().clone(),
             old.contract().clone(),
             old.descriptor_schema().clone(),
-            old.descriptor().to_vec(),
+            task_descriptor,
             submit::account_commitment(subject),
             *old.credential_reference_commitment(),
             old.generation(),
@@ -2588,6 +2594,36 @@ pub(crate) mod tests {
             )
             .is_ok()
         );
+        let current = engine
+            .connection
+            .load()
+            .await
+            .expect("connection")
+            .expect("record");
+        let active = current.record();
+        let drifted = ConnectionRecord::new(
+            active.provider_kind().clone(),
+            active.alias().clone(),
+            active.connection_id().clone(),
+            active.contract().clone(),
+            active.descriptor_schema().clone(),
+            old.descriptor().to_vec(),
+            *active.account_commitment(),
+            *active.credential_reference_commitment(),
+            active.generation(),
+            active.state(),
+            active.allowed_workloads().to_vec(),
+            active.allowed_profiles().to_vec(),
+            active.created_at_unix_seconds(),
+            active.updated_at_unix_seconds(),
+            active.revoked_at_unix_seconds(),
+        )
+        .expect("drifted descriptor");
+        engine
+            .connection
+            .replace(&current, &drifted)
+            .await
+            .expect("simulate operator descriptor change");
         let result = session
             .submit(TaskWriteProofs {
                 task_proof: &signed.proof,
@@ -2597,9 +2633,8 @@ pub(crate) mod tests {
                 confirmation: Some((&confirmation.proof, &confirmation.action)),
             })
             .await;
-        // The fixture retains its old connection descriptor. Native task
-        // admission succeeds, then preparation refuses before a claim or
-        // provider entry. No write slot is spent for this pre-claim refusal.
+        // A changed connection descriptor after activation refuses at
+        // preparation before a claim, lease or provider request.
         assert_eq!(result, not_entered("gateway.connection.recipe-mismatch"));
         assert_eq!(
             session
