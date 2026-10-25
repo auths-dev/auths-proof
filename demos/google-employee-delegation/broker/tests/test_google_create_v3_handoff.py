@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import os
 import tempfile
@@ -11,6 +12,9 @@ from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import CHILD_TITLE
 from employee_read_demo.google_create_v3_handoff import (
@@ -18,6 +22,10 @@ from employee_read_demo.google_create_v3_handoff import (
     CreateV3NeighborPins, validate_create_v3_candidate_blank,
     validate_create_v3_observation, validate_create_v3_precreate_baseline,
     validate_create_v3_recovery_handoff,
+)
+from employee_read_demo.task_recovery_operator import (
+    DOMAIN, attest_response_less_candidate,
+    current_recovery_attestation_rule_digest,
 )
 
 
@@ -239,6 +247,52 @@ class CreateV3ConsumerTests(unittest.TestCase):
             )
 
         self.assertEqual(check(report)["candidate_id"], "doc-new")
+        signer = Ed25519PrivateKey.generate()
+        public = signer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        now = int((self.baseline_at + timedelta(minutes=3)).timestamp())
+        gateway_inputs = {
+            "schema": "auths.gateway-task-create-recovery-inputs/1",
+            "task_id": "task-1", "task_commitment": "4" * 64,
+            "plan_commitment": "5" * 64, "content_commitment": "6" * 64,
+            "create_operation_id": "create-1", "create_recipe_digest": "7" * 64,
+            "action_commitment": "8" * 64, "request_commitment": "9" * 64,
+            "populate_recipe_digest": "a" * 64,
+            "connection_id": "jules-connection", "connection_generation": 1,
+            "connection_subject": "subject-1",
+            "recovery_rule_digest": current_recovery_attestation_rule_digest(),
+            "recovery_key_sha256": hashlib.sha256(public).hexdigest(),
+            "parent_id": "folder-A", "title": CHILD_TITLE,
+            "marker": "ap071_" + "c" * 32,
+            "plan_expires_at": now + 300,
+            "attempt_stage": "unknown", "authority": "none",
+        }
+        signed = attest_response_less_candidate(
+            gateway_inputs, self.baseline_path, self.candidate_path,
+            report_path, self.candidate_pins,
+            search_report_sha256=hashlib.sha256(report_path.read_bytes()).hexdigest(),
+            signing_key=signer, now=now,
+        )
+        envelope = json.loads(signed)
+        statement = envelope["statement"]
+        signer.public_key().verify(
+            base64.b64decode(envelope["signature_b64"] + "=="),
+            DOMAIN + json.dumps(statement, sort_keys=True,
+                                separators=(",", ":"),
+                                ensure_ascii=False).encode("utf-8"),
+        )
+        self.assertEqual(statement["candidate_id"], "doc-new")
+        self.assertEqual(statement["candidate_metadata_sha256"], "3" * 64)
+        self.assertEqual(statement["content_commitment"], "6" * 64)
+        self.assertLessEqual(statement["valid_until"],
+                             report["result"]["checked_at"] + 300)
+        with self.assertRaises(ContractRejected):
+            attest_response_less_candidate(
+                gateway_inputs | {"connection_subject": "other"},
+                self.baseline_path, self.candidate_path, report_path,
+                self.candidate_pins,
+                search_report_sha256=hashlib.sha256(report_path.read_bytes()).hexdigest(),
+                signing_key=signer, now=now,
+            )
         for change in (
             {"authority": "child-bound"},
             {"baseline_sha256": "0" * 64},

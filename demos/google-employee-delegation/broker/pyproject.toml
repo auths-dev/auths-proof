@@ -23,6 +23,8 @@ auths-google-populate-preflight = "employee_read_demo.task_populate_operator:mai
 auths-google-planned-create = "employee_read_demo.task_create_operator:main"
 auths-google-reconcile-child = "employee_read_demo.task_create_operator:reconcile_main"
 auths-google-recovery-search = "employee_read_demo.task_create_operator:recovery_search_main"
+auths-google-recovery-attest = "employee_read_demo.task_recovery_operator:main"
+auths-google-recovery-setup = "employee_read_demo.task_recovery_setup:main"
 auths-google-planned-populate = "employee_read_demo.task_create_operator:populate_main"
 
 [build-system]

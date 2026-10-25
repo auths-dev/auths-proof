@@ -223,10 +223,13 @@ attestation format. It checks the pinned key, task/card and effect-plan
 commitments, original create action and request commitments, signed pending
 child fields, connection subject/generation, candidate ID, hashes of Jules's
 search report and demo_co's blank-candidate observation, baseline and
-candidate metadata, and a validity window of at most 90 seconds. Its output
-is evidence only. The signer, native human recovery action, fresh metadata
-read and task-journal `recovered` transition are still to be implemented; the
-verifier alone cannot create a child scope.
+candidate metadata, and a validity window of at most three minutes, capped
+by the original observations' five-minute freshness windows. Its output
+is evidence only. The private Google operator can now sign the joined report
+after validating the gateway's unknown-attempt facts, Jules's bounded search
+and demo_co's pinned blank-child observation. The native human recovery
+action, fresh metadata read and task-journal `recovered` transition are still
+to be implemented; the verifier alone cannot create a child scope.
 
 The private `task-create-recovery-inputs` command now reads the active task,
 immutable plan, one reserved create and durable attempt before the operator
@@ -244,8 +247,11 @@ occurred, nor does it test live recovered-child population.
 The installation can now pin a separate recovery-attestation public key and
 reviewed rule digest. The private unknown-create input record includes their
 commitments. Existing installations without that pin cannot enter this
-recovery handoff. This pin is distinct from the populate-preflight signer;
-the operator-side evidence signer still needs implementation.
+recovery handoff. A private setup command generates a distinct Ed25519 seed,
+installs only its public key and source-rule digest, and refuses an incomplete
+paired installation. A later private operator command signs one joined
+candidate report but grants no child authority. These commands have synthetic
+tests; they have not run against a live unknown Google create.
 
 ### Cleanup and receipts
 

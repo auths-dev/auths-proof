@@ -14,7 +14,7 @@ use sha2::Digest as _;
 const SCHEMA: &str = "auths.gateway-task-create-recovery-attestation/1";
 const DOMAIN: &[u8] = b"auths.gateway-task-create-recovery-attestation/1\0";
 const MAX_REPORT_BYTES: usize = 8_192;
-const MAX_VALIDITY_SECONDS: u64 = 90;
+const MAX_VALIDITY_SECONDS: u64 = 180;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

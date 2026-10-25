@@ -16,9 +16,13 @@ for the exact operation IDs, provider statuses and private evidence pins.
 | Install and cleanup | The live runs used local development artifacts; Airtable run-owned records were retired. The Google created Docs remain as preserved evidence and demo_co's current inventory has five children. | Publish exact build/recipe/producer pins, complete production custody and qualification, inspect effect links and cleanup status, and run the full suite from pinned installed artifacts. |
 
 The native gateway now verifies the shape and signature of a short-lived,
-task-bound operator recovery attestation in a focused synthetic test. No
-operator signer or human recovery action uses it yet, and it has not bound a
-response-less child in the task journal.
+task-bound operator recovery attestation in a focused synthetic test. The
+private operator can generate a distinct recovery signer before task
+configuration and sign a joined report from the gateway's original unknown
+create facts, Jules's one-candidate search, and demo_co's pinned blank-child
+observation. Synthetic tests cover that report and signer setup. No live
+operator report, human recovery action, or response-less child binding has
+run yet.
 The gateway also has a read-only private command that refuses to emit
 recovery inputs until the original create is the sole reserved write and its
 attempt is `unknown` with no recorded response. The existing recorded-response
@@ -28,7 +32,7 @@ the original unknown-attempt facts without binding a child. A live unknown
 attempt and the signed recovery sequence remain open.
 The gateway installation now accepts an optional, separately pinned recovery
 signer key and rule digest; the response-less input command requires that pin.
-The operator signer and human recovery confirmation are not implemented.
+The human recovery confirmation and journal binding are not implemented.
 
 The full spec is **open**. The already verified single-plan Google positive
 case must not be reported as missing; conversely, its manual pre-entry recovery
