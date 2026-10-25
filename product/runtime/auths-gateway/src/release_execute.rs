@@ -535,6 +535,39 @@ mod tests {
                 .counts(),
             (0, 0, 0)
         );
+        let mut altered_action = signed.action.clone();
+        let last = altered_action.last_mut().expect("action byte");
+        *last ^= 1;
+        let refused = engine
+            .execute_managed_read(ManagedReadSubmission {
+                task_id: "task-1",
+                agent_proof: &signed.proof,
+                agent_action: &altered_action,
+                pins: &pins,
+                recipe: &read_recipe,
+                read_connection: &engine.connection,
+                read_credentials: &engine.credentials,
+                read_qualification: &engine.qualification,
+                ledger: &ledger,
+                commitment_key: &ReleaseCommitmentKey::new(1, Zeroizing::new([0x55; 32]))
+                    .expect("key"),
+                channel: &channel,
+            })
+            .await;
+        assert!(matches!(
+            refused,
+            ManagedReleaseResult::NotEntered {
+                code: "gateway.release.native-proof"
+            }
+        ));
+        assert_eq!(
+            ledger
+                .load("task-1")
+                .expect("ledger")
+                .expect("task")
+                .counts(),
+            (0, 0, 0)
+        );
         let authenticated = Arc::new(AtomicBool::new(false));
         let agent_ready = Arc::clone(&authenticated);
         let agent_server = tokio::spawn(async move {

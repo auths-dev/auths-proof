@@ -40,20 +40,20 @@ mod qualification;
 mod readiness;
 pub mod recipe;
 mod release_commitment;
-// Only the installed agent channel may present this signature after sending
-// the exact release bytes; its verifier is not yet connected to that channel.
+// The internal release channel presents this signature after sending the
+// exact bytes. The installed read operator path is not yet exposed.
 #[allow(dead_code)]
 mod release_ack;
-// The channel is not yet wired to the credential-owning read session.
+// The internal credential-owning read executor uses this local channel;
+// installed command wiring and stronger process isolation remain open.
 #[allow(dead_code)]
 #[cfg(unix)]
 mod release_channel;
-// Native proof admission is not yet connected to the installed read-release
-// session that joins task activation, credential custody and delivery.
+// Native proof admission is joined in the internal managed read executor;
+// installed command wiring remains open.
 #[allow(dead_code)]
 mod release_verify;
-// The task state is used by installed writes; its release transitions await
-// the installed read session and agent delivery channel.
+// The task state serves installed writes and internal managed read delivery.
 #[allow(dead_code)]
 mod release_state;
 mod semantic_closure;

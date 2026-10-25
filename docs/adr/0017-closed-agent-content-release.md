@@ -1,7 +1,8 @@
 # ADR 0017: Closed, credential-isolated content release to a delegated agent
 
-**Status:** Proposed for AP-SPEC-071. No managed release implementation or
-qualification claim is approved by this draft.
+**Status:** Proposed for AP-SPEC-071. An internal executor and synthetic
+provider-to-agent test exist; no installed managed release or qualification
+claim is approved by this draft.
 
 **Date:** 25 October 2026
 
@@ -67,6 +68,11 @@ key-retention rule.
 - The product gateway owns compiled release recipes, credential custody,
   bounded request/response mechanics, operation claims, budgets and delivery
   stages. It interprets no provider field beyond the typed extraction rule.
+- A read connection has its own recipe descriptor, subject and credential
+  generation, and its own qualification gate. A write recipe's attestation
+  cannot qualify a different read digest. Installation must bind the gate to
+  the exact read tuple before any lease; a development optional gate is only
+  synthetic evidence.
 - The Google and Airtable vertical references own provider account meaning,
   permission probes, content semantics, freshness and independent checks.
 - The task UI owns human-readable names and approval presentation, never
@@ -75,6 +81,19 @@ key-retention rule.
   a 2xx response alone does not prove the agent received content.
 - Release through a self-hosted, application-owned adapter remains possible
   under AP-SPEC-051, but it is not this managed custody claim.
+
+The Atlas producer's protected Jules grant can refresh a bearer on demand.
+Auths may bind distinct read and write connection records to the same Google
+subject and Desktop OAuth client, but the current generic credential store
+leases the exact installed secret generation. A freshly refreshed access
+token is not that stored secret. The installed design therefore needs a
+reviewed custody lease port that matches a stable, protected grant reference
+and connection generation before returning a short-lived bearer to gateway
+transport. Its implementation must keep refresh material outside the agent,
+task, ordinary command arguments and receipts. A one-time installed access
+token is only a development shim with an explicit expiry, not renewal or a
+general managed-read claim. This ADR does not approve provider-specific token
+refresh code inside the data-only gateway.
 
 ## Evidence before acceptance
 
