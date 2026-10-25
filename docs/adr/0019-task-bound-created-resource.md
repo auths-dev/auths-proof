@@ -90,12 +90,30 @@ unrecorded response or an arbitrary operator-supplied ID.
 
 For population, the fresh agent action may name only the child ID in that
 binding. The gateway checks it before reserving the second write, then
-derives the exact closed request. In the default mode the human signs a new
-exact confirmation showing the actual child ID and complete initial content;
-this confirmation must match the signed two-effect proposal's content
-commitment. The shared task budget charges create and populate separately.
+derives the exact closed request. The current gateway requires a second exact
+human confirmation showing the actual child ID and complete initial content;
+the final product path uses the one-ceremony effect plan below. The shared
+task budget charges create and populate separately.
 An unsuccessful or unknown populate leaves an incomplete artifact and does
 not authorize another create.
+
+**One-ceremony product contract still to implement.** The initial task card
+may be signed before the agent has drafted the content, so it cannot pretend
+to approve later text. After the draft, a distinct human-signed effect plan
+must commit to the exact closed create request, the complete initial text (or
+a private commitment to those exact bytes), the one reviewed populate recipe,
+the same task/card/agent, the maximum of one create and one population, and a
+short expiry. Custody durably records that plan before create entry. The
+successor file ID is not a wildcard: it must be the one child subsequently
+bound from the response and metadata read above. Before population, a fresh
+credential-bearing Docs read under the same Jules subject must supply the
+single tab and required revision; the agent action must match that tab,
+revision, bound ID, recipe and planned text bytes. This permits one human
+confirmation of both effects while preserving the provider's stale-revision
+check. A lost create response or ambiguous recovery cannot inherit this plan
+as permission to populate an unbound ID. The current code instead requires
+a second exact human confirmation for population, which is a safe interim
+path but does not meet the one-ceremony acceptance condition.
 
 ### Lost response and recovered child
 

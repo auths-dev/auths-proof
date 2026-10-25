@@ -331,6 +331,11 @@ fn google_drive_create_is_a_task_bound_metadata_request() {
         "createdTime": "2026-10-25T10:00:00Z"
     });
     assert!(child.metadata_matches("child_ABC-123", &serde_json::to_vec(&metadata).unwrap()));
+    let verified = child
+        .verify_metadata("child_ABC-123", &serde_json::to_vec(&metadata).unwrap())
+        .expect("matched metadata yields a bounded child token");
+    assert_eq!(verified.id(), "child_ABC-123");
+    assert_eq!(verified.metadata_digest().len(), 64);
     for (pointer, replacement) in [
         ("/id", json!("other-child")),
         ("/name", json!("Other title")),
