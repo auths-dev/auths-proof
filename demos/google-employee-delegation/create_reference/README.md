@@ -80,9 +80,16 @@ only a proposal for independent inspection and a fresh human-signed recovery
 binding; this helper cannot create, retry, populate or mint task authority.
 The Google vertical can now run this read-only search through Jules's
 subject-checked grant and recheck a sole candidate by exact ID with a second
-bounded `files.get`. Synthetic tests verify pagination, request order and
-zero/multiple-match refusal. It is not yet an installed recovery operation and
-does not replace demo_co's independent probe.
+bounded `files.get`. The `auths-google-recovery-search` development operator
+command takes the original private task, baseline and effect plan; it refuses
+unless the gateway reports exactly that create operation as its sole claimed
+write. It writes an owner-private, one-shot report distinguishing zero, one
+and multiple candidates and retaining bounded response digests. The report
+explicitly says `authority: none`. Synthetic tests verify pagination,
+request order, distinct outcomes and claimed-operation mismatch refusal.
+This command has not yet run against an actual unknown-create task; it does
+not replace demo_co's independent probe, Jules's fresh recovery signature or
+a gateway recovered-child binding.
 The broker's test-only Google metadata oracle now defines the exact `files.get`
 request and rejects mismatched child ID, name, MIME type, sole parent, shared
 drive, public marker, trash state or creation time. It does not call Google or

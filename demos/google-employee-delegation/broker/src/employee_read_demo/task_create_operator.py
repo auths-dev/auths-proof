@@ -15,11 +15,13 @@ import re
 import stat
 import subprocess
 import time
+from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
 
 from .demo_co_contract import ContractRejected, _unique_pairs
 from .google_create_handoff import CHILD_TITLE
+from .google_create_preflight import search_jules_created_child
 from .google_create_v2_handoff import (
     CreateV2BaselinePins, validate_create_v2_precreate_baseline,
 )
@@ -29,7 +31,7 @@ from .google_create_v3_handoff import (
 )
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
-from .task_populate_operator import _credential_pins, _gateway
+from .task_populate_operator import _credential_pins, _gateway, _run_gateway
 from .write_handoff import validate_current_write_observation, validate_write_handoff
 
 
@@ -42,6 +44,7 @@ _BASELINE_RECORD_FIELDS = {
     "schema", "task_id", "create_operation_id", "marker", "generation",
     "observation_sha256", "observed_at",
 }
+_RECOVERY_REPORT_NAME = re.compile(r"recovery-search-[A-Za-z0-9_-]{1,32}\.json\Z")
 
 
 def _recorded_baseline_is_valid(record: object, task_id: str) -> bool:
@@ -334,6 +337,110 @@ def reconcile_planned_child(*, gateway_binary: Path, gateway_sha256: str,
     }
 
 
+def search_planned_created_child(*, gateway_binary: Path, gateway_sha256: str,
+                                 gateway_state_dir: Path, task_dir: Path,
+                                 task_id: str, write_evidence_path: Path,
+                                 grant_path: Path, credential_pins_path: Path,
+                                 report_path: Path, now: int | None = None) -> dict:
+    """Search the original task marker after one claimed create; bind nothing.
+
+    The private report distinguishes zero, one and multiple candidates. Even
+    one rechecked candidate is only input to an independent producer check and
+    a fresh human-signed recovery action; it never authorizes population or a
+    create retry.
+    """
+    if (type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None
+            or not gateway_state_dir.is_absolute() or not task_dir.is_absolute()
+            or task_dir.name != task_id or task_dir.is_symlink()
+            or not task_dir.is_dir() or stat.S_IMODE(task_dir.stat().st_mode) & 0o077
+            or not report_path.is_absolute() or report_path.parent != task_dir
+            or _RECOVERY_REPORT_NAME.fullmatch(report_path.name) is None
+            or report_path.exists() or report_path.is_symlink()):
+        raise OperatorDenied("private planned-create recovery path is unavailable")
+    binary = _gateway(gateway_binary, gateway_sha256)
+    pins = _credential_pins(credential_pins_path)
+    try:
+        evidence = validate_write_handoff(write_evidence_path, pins.producer)
+        baseline = json.loads(_private_read(task_dir / "pre-create-baseline.json", 4096),
+                              object_pairs_hook=_unique_pairs)
+        card = json.loads(_private_read(task_dir / "task-card.json", 16_384),
+                          object_pairs_hook=_unique_pairs)
+        plan = json.loads(_private_read(task_dir / "effect-plan.json", 4096),
+                          object_pairs_hook=_unique_pairs)
+        for name, limit in (("agent.proof", 4 * 1024 * 1024),
+                            ("agent.action", 64 * 1024),
+                            ("effect-plan.proof", 4 * 1024 * 1024),
+                            ("effect-plan.action", 64 * 1024)):
+            if not _private_read(task_dir / name, limit):
+                raise ValueError("empty signed action")
+        status = json.loads(_run_gateway(binary, [
+            "task-status", "--state-dir", str(gateway_state_dir),
+            "--task-id", task_id,
+        ], limit=8192), object_pairs_hook=_unique_pairs)
+    except (OSError, PermissionError, ValueError, TypeError, ContractRejected) as error:
+        raise OperatorDenied("planned-create recovery inputs are unavailable") from error
+    pending = card.get("pending_child") if type(card) is dict else None
+    create = plan.get("create") if type(plan) is dict else None
+    if (not _recorded_baseline_is_valid(baseline, task_id)
+            or type(card) is not dict or card.get("task_id") != task_id
+            or card.get("company_id") != pins.producer.company
+            or card.get("connection_id") != pins.connection_id
+            or card.get("connection_generation") != pins.connection_generation
+            or card.get("connection_subject") != pins.producer.jules_subject
+            or type(pending) is not dict
+            or pending.get("create_operation_id") != baseline["create_operation_id"]
+            or pending.get("marker") != baseline["marker"]
+            or pending.get("parent_handle") != evidence["folder_id"]
+            or pending.get("title") != CHILD_TITLE
+            or type(plan) is not dict or plan.get("schema") != "auths.agent-effect-plan/1"
+            or plan.get("task_id") != task_id or type(create) is not dict
+            or create.get("operation_id") != baseline["create_operation_id"]
+            or create.get("resource_handle") != evidence["folder_id"]
+            or create.get("recipe_digest") != pending.get("create_recipe_digest")
+            or create.get("connection_id") != pins.connection_id
+            or create.get("connection_generation") != pins.connection_generation
+            or create.get("connection_subject") != pins.producer.jules_subject
+            or type(status) is not dict
+            or status.get("schema") != "auths.gateway-agent-task-status/1"
+            or status.get("task_id") != task_id or status.get("writes") != 1
+            or status.get("write_operations") != [baseline["create_operation_id"]]):
+        raise OperatorDenied("planned-create recovery differs from claimed task")
+    now = int(time.time()) if now is None else now
+    try:
+        result = search_jules_created_child(
+            write_evidence_path, grant_path, pins, baseline["marker"],
+            connection_id=pins.connection_id,
+            connection_generation=pins.connection_generation, now=now,
+        )
+    except ContractRejected as error:
+        raise OperatorDenied("Jules recovery search is incomplete or invalid") from error
+    if (result.marker_value != baseline["marker"]
+            or result.parent_id != evidence["folder_id"]
+            or result.drive_id != evidence["drive_id"]
+            or result.connection_id != pins.connection_id
+            or result.connection_generation != pins.connection_generation
+            or result.connection_subject != pins.producer.jules_subject
+            or result.checked_at != now):
+        raise OperatorDenied("Jules recovery search changed task pins")
+    report = {
+        "schema": "auths.ap071-create-recovery-search/1",
+        "task_id": task_id,
+        "create_operation_id": baseline["create_operation_id"],
+        "baseline_sha256": baseline["observation_sha256"],
+        "result": asdict(result) | {"status": result.status},
+        "authority": "none",
+    }
+    try:
+        _private_write(report_path, json.dumps(
+            report, sort_keys=True, separators=(",", ":"),
+        ).encode())
+    except OSError as error:
+        raise OperatorDenied("private recovery search report could not be recorded") from error
+    return {"task_id": task_id, "status": result.status,
+            "candidate_count": result.candidate_count,
+            "report": str(report_path), "authority": "none"}
+
+
 def submit_planned_population(*, gateway_binary: Path, gateway_sha256: str,
                               gateway_state_dir: Path, task_dir: Path,
                               task_id: str, preflight_path: Path,
@@ -541,6 +648,28 @@ def reconcile_main() -> int:
         gateway_binary=args.gateway_bin, gateway_sha256=args.gateway_sha256,
         gateway_state_dir=args.gateway_state_dir, task_dir=args.task_dir,
         task_id=args.task_id,
+    ), sort_keys=True))
+    return 0
+
+
+def recovery_search_main() -> int:
+    parser = argparse.ArgumentParser(description="Search a claimed Google create without binding it")
+    parser.add_argument("--gateway-bin", type=Path, required=True)
+    parser.add_argument("--gateway-sha256", required=True)
+    parser.add_argument("--gateway-state-dir", type=Path, required=True)
+    parser.add_argument("--task-dir", type=Path, required=True)
+    parser.add_argument("--task-id", required=True)
+    parser.add_argument("--write-evidence", type=Path, required=True)
+    parser.add_argument("--grant", type=Path, required=True)
+    parser.add_argument("--credential-pins", type=Path, required=True)
+    parser.add_argument("--report", type=Path, required=True)
+    args = parser.parse_args()
+    print(json.dumps(search_planned_created_child(
+        gateway_binary=args.gateway_bin, gateway_sha256=args.gateway_sha256,
+        gateway_state_dir=args.gateway_state_dir, task_dir=args.task_dir,
+        task_id=args.task_id, write_evidence_path=args.write_evidence,
+        grant_path=args.grant, credential_pins_path=args.credential_pins,
+        report_path=args.report,
     ), sort_keys=True))
     return 0
 

@@ -202,6 +202,18 @@ class CreateRecoverySearch:
     def complete(self) -> bool:
         return self._complete
 
+    @property
+    def candidate_count(self) -> int:
+        if not self._complete:
+            raise ContractRejected("recovery search is incomplete")
+        return len(self._candidates)
+
+    @property
+    def page_count(self) -> int:
+        if not self._complete:
+            raise ContractRejected("recovery search is incomplete")
+        return self._pages
+
     def accept_page(self, document: Mapping[str, object]) -> None:
         if self._complete or self._pages >= MAX_RECOVERY_PAGES:
             raise ContractRejected("recovery search cannot accept another page")

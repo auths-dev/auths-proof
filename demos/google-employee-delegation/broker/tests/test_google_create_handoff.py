@@ -135,11 +135,13 @@ class GoogleCreateHandoffTests(unittest.TestCase):
                                     drive_id="shared-drive-1", marker_value=marker)
         zero.accept_page({"incompleteSearch": False, "files": []})
         self.assertIsNone(zero.single_candidate())
+        self.assertEqual((zero.candidate_count, zero.page_count), (0, 1))
         multiple = CreateRecoverySearch(parent_id="project-a-folder",
                                         drive_id="shared-drive-1", marker_value=marker)
         multiple.accept_page({"incompleteSearch": False,
                               "files": [child, child | {"id": "other-child"}]})
         self.assertIsNone(multiple.single_candidate())
+        self.assertEqual((multiple.candidate_count, multiple.page_count), (2, 1))
         capped = CreateRecoverySearch(parent_id="project-a-folder",
                                       drive_id="shared-drive-1", marker_value=marker)
         for page in range(3):

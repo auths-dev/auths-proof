@@ -22,6 +22,7 @@ auths-google-task-authority = "employee_read_demo.task_write_operator_cli:main"
 auths-google-populate-preflight = "employee_read_demo.task_populate_operator:main"
 auths-google-planned-create = "employee_read_demo.task_create_operator:main"
 auths-google-reconcile-child = "employee_read_demo.task_create_operator:reconcile_main"
+auths-google-recovery-search = "employee_read_demo.task_create_operator:recovery_search_main"
 auths-google-planned-populate = "employee_read_demo.task_create_operator:populate_main"
 
 [build-system]

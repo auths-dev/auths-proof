@@ -91,7 +91,7 @@ class JulesChildPreflightTests(unittest.TestCase):
             "properties": {"auths_operation_marker": marker},
             "trashed": False, "createdTime": "2026-10-25T10:03:00Z",
         }
-        credential = SimpleNamespace(producer=SimpleNamespace())
+        credential = SimpleNamespace(producer=SimpleNamespace(jules_subject="jules-subject"))
         session = _Session()
         pages = [{"incompleteSearch": False, "files": [],
                   "nextPageToken": "page-2"},
@@ -111,13 +111,19 @@ class JulesChildPreflightTests(unittest.TestCase):
                 Path("evidence.json"), Path("grant.json"), credential, marker,
                 connection_id="jules-google", connection_generation=1, now=1000,
             )
-        self.assertEqual(candidate, child["id"])
+        self.assertEqual(candidate.status, "single")
+        self.assertEqual(candidate.candidate_id, child["id"])
+        self.assertEqual(candidate.candidate_count, 1)
+        self.assertEqual(len(candidate.page_sha256), 2)
+        self.assertIsNotNone(candidate.metadata_sha256)
+        self.assertEqual(candidate.connection_subject, "jules-subject")
         self.assertEqual(read.call_count, 3)
         self.assertIn("pageToken=page-2", read.call_args_list[1].args[1])
         self.assertIn("/child_ABC-123?", read.call_args_list[2].args[1])
         self.assertTrue(session.closed)
 
-        for files in ([], [child, child | {"id": "other-child"}]):
+        for files, expected in (([], "zero"),
+                                ([child, child | {"id": "other-child"}], "multiple")):
             with (patch("employee_read_demo.google_create_preflight.validate_write_handoff",
                         return_value={"folder_id": "project-a-folder",
                                       "drive_id": "shared-drive-1"}),
@@ -129,10 +135,15 @@ class JulesChildPreflightTests(unittest.TestCase):
                   patch("employee_read_demo.google_create_preflight._bounded_get",
                         return_value=json.dumps({"incompleteSearch": False,
                                                  "files": files}).encode()) as read):
-                self.assertIsNone(search_jules_created_child(
+                result = search_jules_created_child(
                     Path("evidence.json"), Path("grant.json"), credential, marker,
                     connection_id="jules-google", connection_generation=1, now=1000,
-                ))
+                )
+                self.assertEqual(result.status, expected)
+                self.assertIsNone(result.candidate_id)
+                self.assertEqual(result.candidate_count, len(files))
+                self.assertIsNone(result.metadata_sha256)
+                self.assertEqual(len(result.page_sha256), 1)
                 self.assertEqual(read.call_count, 1)
 
     def test_three_bounded_jules_reads_pin_child_capability_and_blank_revision(self) -> None:

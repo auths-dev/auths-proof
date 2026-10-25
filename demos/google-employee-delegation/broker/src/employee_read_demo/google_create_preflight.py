@@ -83,6 +83,29 @@ class JulesCreatedChildPreflight:
     docs_sha256: str
 
 
+@dataclass(frozen=True)
+class JulesCreateRecoverySearchResult:
+    """Private search evidence only; it cannot authorize population or retry."""
+
+    candidate_id: str | None
+    candidate_count: int
+    parent_id: str
+    drive_id: str
+    marker_value: str
+    page_sha256: tuple[str, ...]
+    metadata_sha256: str | None
+    checked_at: int
+    connection_id: str
+    connection_generation: int
+    connection_subject: str
+
+    @property
+    def status(self) -> str:
+        if self.candidate_count == 0:
+            return "zero"
+        return "single" if self.candidate_count == 1 else "multiple"
+
+
 def preflight_jules_created_child(
     evidence_path: Path,
     grant_path: Path,
@@ -223,8 +246,8 @@ def search_jules_created_child(
     connection_id: str,
     connection_generation: int,
     now: int | None = None,
-) -> str | None:
-    """Find a sole candidate after response loss; never grant or retry create.
+) -> JulesCreateRecoverySearchResult:
+    """Collect bounded recovery evidence; never grant or retry create.
 
     The caller must take `marker_value` from the original signed task, not an
     agent message. A returned ID is only a proposal for demo_co inspection and
@@ -250,25 +273,40 @@ def search_jules_created_child(
         "Accept-Encoding": "identity",
     })
     try:
+        page_sha256 = []
         while not search.complete:
-            page = _json_object(_bounded_get(
+            raw = _bounded_get(
                 session, search.next_url(), params={},
                 maximum=MAX_RECOVERY_PAGE_BYTES, media_type="application/json",
-            ))
+            )
+            page = _json_object(raw)
             search.accept_page(page)
+            page_sha256.append(hashlib.sha256(raw).hexdigest())
         candidate_id = search.single_candidate()
         if candidate_id is None:
-            return None
+            return JulesCreateRecoverySearchResult(
+                None, search.candidate_count, evidence["folder_id"],
+                evidence["drive_id"], marker_value, tuple(page_sha256), None,
+                now, connection_id, connection_generation,
+                credential_pins.producer.jules_subject,
+            )
         pins = CreatedChildMetadataPins(
             candidate_id=candidate_id, parent_id=evidence["folder_id"],
             drive_id=evidence["drive_id"], title=CHILD_TITLE,
             marker_value=marker_value,
         )
-        metadata = _json_object(_bounded_get(
+        metadata_raw = _bounded_get(
             session, created_child_metadata_url(pins), params={},
             maximum=MAX_METADATA_BYTES, media_type="application/json",
-        ))
+        )
+        metadata = _json_object(metadata_raw)
         validate_created_child_metadata(metadata, pins)
-        return candidate_id
+        return JulesCreateRecoverySearchResult(
+            candidate_id, search.candidate_count, evidence["folder_id"],
+            evidence["drive_id"], marker_value, tuple(page_sha256),
+            hashlib.sha256(metadata_raw).hexdigest(), now,
+            connection_id, connection_generation,
+            credential_pins.producer.jules_subject,
+        )
     finally:
         session.close()

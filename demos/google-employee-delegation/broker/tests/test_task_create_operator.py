@@ -14,10 +14,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from employee_read_demo.google_create_handoff import CHILD_TITLE
+from employee_read_demo.google_create_preflight import JulesCreateRecoverySearchResult
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_create_operator import (
     _recorded_baseline_is_valid, reconcile_planned_child, submit_planned_create,
-    submit_planned_population,
+    submit_planned_population, search_planned_created_child,
 )
 
 
@@ -72,6 +73,7 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             "definition_hash": "a" * 64, "document_id": "working-doc",
             "tab_id": "tab-1",
             "folder_id": "project-a-folder",
+            "drive_id": "drive-A",
         }
 
     @staticmethod
@@ -134,6 +136,84 @@ class PlannedCreateOperatorTests(unittest.TestCase):
         self._write(self.task_dir / "populate.action", b"agent-populate-action")
         self._write(preflight_path, report)
         return preflight_path, report, inputs
+
+    def test_recovery_search_records_only_candidate_evidence(self) -> None:
+        self._write(self.task_dir / "pre-create-baseline.json", {
+            "schema": "auths.ap071-pre-create-baseline/1",
+            "task_id": self.task_id, "create_operation_id": "create-1",
+            "marker": self.card["pending_child"]["marker"],
+            "generation": 2, "observation_sha256": "a" * 64,
+            "observed_at": "2026-10-25T11:59:00Z",
+        })
+        self._write(self.task_dir / "effect-plan.json", {
+            "schema": "auths.agent-effect-plan/1", "task_id": self.task_id,
+            "create": {
+                "operation_id": "create-1", "resource_handle": "project-a-folder",
+                "recipe_digest": "d" * 64, "connection_id": "jules-connection",
+                "connection_generation": 1, "connection_subject": "jules-subject",
+            },
+        })
+        status = {
+            "schema": "auths.gateway-agent-task-status/1",
+            "task_id": self.task_id, "writes": 1,
+            "write_operations": ["create-1"],
+        }
+        for candidate_count in (0, 1, 2):
+            with self.subTest(candidate_count=candidate_count):
+                candidate_id = "child-1" if candidate_count == 1 else None
+                result = JulesCreateRecoverySearchResult(
+                    candidate_id, candidate_count, "project-a-folder",
+                    "drive-A", self.card["pending_child"]["marker"],
+                    ("b" * 64,), "c" * 64 if candidate_id else None,
+                    self.now, "jules-connection", 1, "jules-subject",
+                )
+                report_path = self.task_dir / f"recovery-search-{candidate_count}.json"
+                with (patch("employee_read_demo.task_create_operator._gateway",
+                            return_value=self.root / "gateway"),
+                      patch("employee_read_demo.task_create_operator._credential_pins",
+                            return_value=self.pins),
+                      patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                            return_value=self.evidence),
+                      patch("employee_read_demo.task_create_operator._run_gateway",
+                            return_value=json.dumps(status).encode()),
+                      patch("employee_read_demo.task_create_operator.search_jules_created_child",
+                            return_value=result) as search):
+                    output = search_planned_created_child(
+                        gateway_binary=self.root / "gateway",
+                        gateway_sha256="e" * 64,
+                        gateway_state_dir=self.state_dir,
+                        task_dir=self.task_dir, task_id=self.task_id,
+                        write_evidence_path=self.root / "evidence",
+                        grant_path=self.root / "grant",
+                        credential_pins_path=self.root / "pins",
+                        report_path=report_path, now=self.now,
+                    )
+                self.assertEqual(output["candidate_count"], candidate_count)
+                self.assertEqual(output["authority"], "none")
+                self.assertEqual(search.call_args.args[3],
+                                 self.card["pending_child"]["marker"])
+                recorded = json.loads(report_path.read_bytes())
+                self.assertEqual(recorded["result"]["candidate_id"], candidate_id)
+                self.assertEqual(recorded["authority"], "none")
+        status["write_operations"] = ["different-operation"]
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator._run_gateway",
+                    return_value=json.dumps(status).encode()),
+              patch("employee_read_demo.task_create_operator.search_jules_created_child") as search,
+              self.assertRaises(OperatorDenied)):
+            search_planned_created_child(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id, write_evidence_path=self.root / "evidence",
+                grant_path=self.root / "grant", credential_pins_path=self.root / "pins",
+                report_path=self.task_dir / "recovery-search-refused.json", now=self.now,
+            )
+            search.assert_not_called()
 
     def test_v2_baseline_is_pinned_before_four_child_create(self) -> None:
         self.evidence.update({
