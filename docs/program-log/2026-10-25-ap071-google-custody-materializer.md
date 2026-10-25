@@ -46,3 +46,10 @@ and Google's fresh UserInfo supplies the exact Jules subject, verified email
 and hosted domain. Synthetic tests cover that actual file shape and reject a
 conflicting nonempty account. The spent read cannot be retried under that task;
 an installed live refresh remains to be rerun with a fresh signed task.
+
+The development installer now checks the private producer evidence, saved
+grant, original Desktop client and scope set before committing its immutable
+materializer configuration. Runtime materialization repeats those local checks
+after admission and still requires a fresh Google refresh and UserInfo match.
+This catches malformed or mismatched local inputs before asking Jules to sign
+another task; it does not prove that a future network refresh will succeed.

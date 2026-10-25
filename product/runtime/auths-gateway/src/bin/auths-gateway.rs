@@ -3480,7 +3480,10 @@ mod unix {
             return Err("gateway.materializer.already-installed".into());
         }
         let bytes = read_bounded(from, 16 * 1024)?;
-        parse_task_materializers(&bytes)?;
+        let bundle = parse_task_materializers(&bytes)?;
+        for pins in bundle.materializers {
+            GoogleCustodyMaterializer::new(pins)?;
+        }
         private_file(&state_dir.join(TASK_MATERIALIZERS_FILE), &bytes)?;
         println!("{{\"outcome\":\"task-materializers-configured\"}}");
         Ok(())

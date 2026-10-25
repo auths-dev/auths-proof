@@ -216,13 +216,19 @@ impl GoogleCustodyMaterializer {
             .build()
             .map_err(|_| "gateway.materializer.http-unavailable")?;
         let authority_digest = pins.authority_digest();
-        Ok(Self {
+        let adapter = Self {
             pins,
             client,
             authority_digest,
             token_url: TOKEN_URL.to_owned(),
             userinfo_url: USERINFO_URL.to_owned(),
-        })
+        };
+        // Refuse a broken operator installation before any human task is
+        // signed. Every actual lease repeats these checks after admission.
+        adapter
+            .checked_grant()
+            .map_err(|_| "gateway.materializer.invalid-local-source")?;
+        Ok(adapter)
     }
 
     pub(super) const fn authority_digest(&self) -> [u8; 32] {
@@ -267,6 +273,43 @@ impl GoogleCustodyMaterializer {
             && evidence["probe_edited_as_jules"] == true
             && evidence["project_b_write_capability_denied"] == true
             && evidence["canonical_documents_mutated"] == false
+    }
+
+    fn checked_grant(&self) -> Result<GoogleGrant, CredentialMaterializationError> {
+        if !self.evidence_valid() {
+            return Err(CredentialMaterializationError);
+        }
+        let raw =
+            private_file(&self.pins.grant_file).map_err(|()| CredentialMaterializationError)?;
+        let grant: GoogleGrant =
+            serde_json::from_slice(&raw).map_err(|_| CredentialMaterializationError)?;
+        let client_raw = private_file(&self.pins.oauth_client_file)
+            .map_err(|()| CredentialMaterializationError)?;
+        let client_file: OAuthClientFile =
+            serde_json::from_slice(&client_raw).map_err(|_| CredentialMaterializationError)?;
+        if grant.token_uri != TOKEN_URL
+            || grant.universe_domain != "googleapis.com"
+            || grant.client_id != self.pins.client_id
+            // Google's authorized-user file may leave `account` empty. The
+            // live UserInfo check supplies the subject/email binding.
+            || (!grant.account.is_empty() && grant.account != self.pins.email)
+            || grant.client_secret.is_empty()
+            || grant.refresh_token.is_empty()
+            || client_file.installed.token_uri != TOKEN_URL
+            || client_file.installed.client_id != self.pins.client_id
+            || client_file.installed.client_secret.len() != grant.client_secret.len()
+            || !bool::from(
+                client_file
+                    .installed
+                    .client_secret
+                    .as_bytes()
+                    .ct_eq(grant.client_secret.as_bytes()),
+            )
+            || !exact_scope_values(grant.scopes.iter().map(String::as_str))
+        {
+            return Err(CredentialMaterializationError);
+        }
+        Ok(grant)
     }
 
     async fn fresh_token(
@@ -373,40 +416,10 @@ impl CredentialMaterializer for GoogleCustodyMaterializer {
             || context.task_expires_at <= now
             || actual.len() != expected.len()
             || !bool::from(actual.ct_eq(expected))
-            || !self.evidence_valid()
         {
             return Err(CredentialMaterializationError);
         }
-        let raw =
-            private_file(&self.pins.grant_file).map_err(|()| CredentialMaterializationError)?;
-        let grant: GoogleGrant =
-            serde_json::from_slice(&raw).map_err(|_| CredentialMaterializationError)?;
-        let client_raw = private_file(&self.pins.oauth_client_file)
-            .map_err(|()| CredentialMaterializationError)?;
-        let client_file: OAuthClientFile =
-            serde_json::from_slice(&client_raw).map_err(|_| CredentialMaterializationError)?;
-        if grant.token_uri != TOKEN_URL
-            || grant.universe_domain != "googleapis.com"
-            || grant.client_id != self.pins.client_id
-            // Google's authorized-user file may leave `account` empty. The
-            // live UserInfo check below supplies the subject/email binding.
-            || (!grant.account.is_empty() && grant.account != self.pins.email)
-            || grant.client_secret.is_empty()
-            || grant.refresh_token.is_empty()
-            || client_file.installed.token_uri != TOKEN_URL
-            || client_file.installed.client_id != self.pins.client_id
-            || client_file.installed.client_secret.len() != grant.client_secret.len()
-            || !bool::from(
-                client_file
-                    .installed
-                    .client_secret
-                    .as_bytes()
-                    .ct_eq(grant.client_secret.as_bytes()),
-            )
-            || !exact_scope_values(grant.scopes.iter().map(String::as_str))
-        {
-            return Err(CredentialMaterializationError);
-        }
+        let grant = self.checked_grant()?;
         let (token, seconds) = self.fresh_token(&grant).await?;
         if !self.userinfo_valid(&token).await {
             return Err(CredentialMaterializationError);
@@ -584,6 +597,16 @@ mod tests {
             Zeroizing::new(pins.source_ref.as_bytes().to_vec()),
             Instant::now() + Duration::from_secs(30),
         )
+    }
+
+    #[test]
+    fn invalid_saved_grant_is_refused_before_installation() {
+        let (_directory, pins) = fixture();
+        let mut grant: serde_json::Value =
+            serde_json::from_slice(&fs::read(&pins.grant_file).unwrap()).unwrap();
+        grant["scopes"] = json!(["openid"]);
+        fs::write(&pins.grant_file, serde_json::to_vec(&grant).unwrap()).unwrap();
+        assert!(GoogleCustodyMaterializer::new(pins).is_err());
     }
 
     #[tokio::test]
