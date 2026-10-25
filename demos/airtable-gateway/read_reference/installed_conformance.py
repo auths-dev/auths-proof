@@ -332,6 +332,31 @@ def run(env_file: Path, root: Path, binary: Path,
     _write_json(agent_dir / "write-package.json", signed.agent_package)
     common = {"task_id": signed.task_id,
               "task_commitment": task_commitment(prepared.card)}
+    _write_json(agent_dir / "wrong-recipient-read-arguments.json", {
+        **common, "operator_namespace": "airtable-read-demo",
+        "operation_id": "airtable-read-wrong-recipient",
+        "recipe_digest": READ_DIGEST,
+        "resource_id": record,
+        "agent_principal": "key:sha256:wrong-recipient",
+    })
+    wrong_recipient_output = _private_dir(
+        agent_dir / "wrong-recipient-read-output", create=True)
+    try:
+        _agent("sign-read", "--key-file", agent_dir / "agent.seed",
+               "--package-file", agent_dir / "read-package.json",
+               "--arguments-file", agent_dir / "wrong-recipient-read-arguments.json",
+               "--out-dir", wrong_recipient_output)
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError("agent signed a release to a different recipient")
+    before_read = _gateway(binary, "task-status", "--state-dir", state,
+                           "--task-id", signed.task_id)
+    if ((wrong_recipient_output / "read.proof").exists()
+            or (wrong_recipient_output / "read.action").exists()
+            or before_read.get("provider_calls") != 0
+            or before_read.get("releases") != 0):
+        raise RuntimeError("wrong Airtable recipient entered provider or released content")
     excluded_record = record[:-1] + ("Z" if record[-1] != "Z" else "Y")
     _write_json(agent_dir / "excluded-read-arguments.json", {
         **common, "operator_namespace": "airtable-read-demo",
@@ -529,6 +554,7 @@ def run(env_file: Path, root: Path, binary: Path,
         "independent_readback": "approved-with-echo",
         "excluded_read_outcome": excluded.get("outcome"),
         "excluded_read_code": excluded.get("code"),
+        "wrong_recipient_outcome": "agent-signing-refused",
         "gateway_status": status,
         "cleanup": "pending",
     })

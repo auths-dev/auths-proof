@@ -66,3 +66,15 @@ content and left all counters unchanged. The run-owned record was retired.
 Its redacted result is `operator/redacted-result.json` under that root. This
 proves the lost-ACK accounting and same-operation replay refusal in the
 installed Airtable path; it does not prove the agent used the bytes.
+
+A fourth disposable run (`/private/tmp/ap071-airtable-recipient-20261025-1950`)
+attempted to sign a read addressed to a principal other than the registered
+agent before the permitted read. The separate agent signer refused to produce
+a proof or action; the gateway task still showed zero provider calls and zero
+releases. This is an agent-side refusal, not a claim that a forged low-level
+proof reached the gateway. The subsequent permitted read was acknowledged,
+the exact confirmed write had independent provider readback, and the
+run-owned record was retired. The redacted result records one provider call,
+one release of seven bytes and one write. The gateway's separate synthetic
+recipient-mismatch case covers a forged proof at its native admission
+boundary.
