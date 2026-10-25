@@ -12,7 +12,7 @@ use crate::connection::{
 };
 use crate::materializer::{
     CredentialMaterializationContext, CredentialRequestKind, MaterializerInstallation,
-    task_lease_deadline,
+    is_materializer_source, task_lease_deadline,
 };
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
@@ -473,7 +473,7 @@ impl GatewayEngine {
     /// Refuses a duplicate installation for one connection.
     pub fn with_credential_materializer(
         mut self,
-        connection_id: ConnectionId,
+        connection_id: &ConnectionId,
         installation: Arc<MaterializerInstallation>,
     ) -> Result<Self, &'static str> {
         if self
@@ -1543,7 +1543,11 @@ impl GatewayEngine {
         {
             return Err(());
         }
-        self.lease_source(prepared).await
+        let source = self.lease_source(prepared).await?;
+        if is_materializer_source(&source) {
+            return Err(());
+        }
+        Ok(source)
     }
 
     async fn lease_source(&self, prepared: &PreparedEntry) -> Result<StoredSecretLease, ()> {
@@ -2513,7 +2517,7 @@ impl SubmitIo for EngineIo<'_> {
                 return None;
             }
             self.engine.execution_witness.lease();
-            return self
+            let source = self
                 .engine
                 .credentials
                 .lease_secret(
@@ -2521,7 +2525,8 @@ impl SubmitIo for EngineIo<'_> {
                     Instant::now() + Duration::from_secs(30),
                 )
                 .await
-                .ok();
+                .ok()?;
+            return (!is_materializer_source(&source)).then_some(source);
         }
         self.engine.lease(prepared).await.ok()
     }
@@ -2915,6 +2920,51 @@ pub(crate) mod tests {
             include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
         )
         .expect("fixture compiles")
+    }
+
+    #[cfg(all(unix, feature = "loopback-provider"))]
+    #[tokio::test]
+    async fn opaque_source_without_materializer_never_leases_as_a_bearer() {
+        let mut installation = administration::installation(8).await;
+        let engine = &mut installation.first.engine;
+        engine.loopback_port = Some(12345);
+        let loaded = engine.connection.load().await.unwrap().unwrap();
+        let old = loaded.record();
+        let next = std::num::NonZeroU64::new(2).unwrap();
+        let reference = engine
+            .credentials
+            .replace(
+                old.connection_id(),
+                old.credential_generation(),
+                next,
+                SecretBytes::new(
+                    b"auths.materializer-source/1:demo-co-local-secret://test/employee".to_vec(),
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        let changed = ConnectionRecord::new(
+            old.provider_kind().clone(),
+            old.alias().clone(),
+            old.connection_id().clone(),
+            old.contract().clone(),
+            old.descriptor_schema().clone(),
+            old.descriptor().to_vec(),
+            *old.account_commitment(),
+            *reference.as_bytes(),
+            next,
+            old.state(),
+            old.allowed_workloads().to_vec(),
+            old.allowed_profiles().to_vec(),
+            old.created_at_unix_seconds(),
+            old.updated_at_unix_seconds() + 1,
+            old.revoked_at_unix_seconds(),
+        )
+        .unwrap();
+        engine.connection.replace(&loaded, &changed).await.unwrap();
+        let prepared = engine.prepare_entry().await.expect("source connection");
+        assert!(engine.lease(&prepared).await.is_err());
     }
 
     #[cfg(unix)]

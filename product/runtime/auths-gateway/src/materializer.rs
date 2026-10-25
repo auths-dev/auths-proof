@@ -15,6 +15,16 @@ use std::{
 use subtle::ConstantTimeEq as _;
 use thiserror::Error;
 
+/// Opaque connection source references use this marker so an installation
+/// cannot accidentally send one to a provider before its adapter is wired.
+pub const MATERIALIZER_SOURCE_PREFIX: &[u8] = b"auths.materializer-source/1:";
+
+pub(crate) fn is_materializer_source(lease: &StoredSecretLease) -> bool {
+    lease
+        .expose(Instant::now())
+        .is_ok_and(|bytes| bytes.starts_with(MATERIALIZER_SOURCE_PREFIX))
+}
+
 /// The kind of already admitted task operation requesting a credential.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CredentialRequestKind {
@@ -243,5 +253,19 @@ mod tests {
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn opaque_source_marker_cannot_be_treated_as_a_static_bearer() {
+        let source = StoredSecretLease::from_store(
+            Zeroizing::new(b"auths.materializer-source/1:demo-co-local-secret://fixture".to_vec()),
+            Instant::now() + Duration::from_secs(30),
+        );
+        assert!(is_materializer_source(&source));
+        let bearer = StoredSecretLease::from_store(
+            Zeroizing::new(b"synthetic-static-bearer".to_vec()),
+            Instant::now() + Duration::from_secs(30),
+        );
+        assert!(!is_materializer_source(&bearer));
     }
 }

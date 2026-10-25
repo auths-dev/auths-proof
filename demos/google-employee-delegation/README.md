@@ -182,6 +182,35 @@ provider file IDs, task commitment, expiry and limits before the employee
 signs. Package export, revocation and receipt verification are employee-scoped
 routes. Agent execution still happens in the separate process.
 
+### AP-071 post-reservation Google credential source (development)
+
+The task gateway can now store an opaque source reference instead of a Google
+access token. Use `install --credential-stdin --credential-source-stdin` for the
+write connection and `task-read-connect` with the same two flags for a distinct
+GET-only read connection. The stdin value is a versioned
+`auths.materializer-source/1:` reference tied to the pinned demo_co producer
+generation; it contains no token. Without a matching materializer, the
+gateway refuses to send that reference as a provider bearer.
+
+After both connection IDs are known, the operator installs one owner-private,
+canonical `auths.gateway-task-materializers/1` JSON file using
+`task-materializer-configure --state-dir STATE --from PINS`. Each
+`auths.google-credential-materializer/1` entry pins one connection and source
+generation, the exact source reference, the demo_co verification file and
+SHA-256, the owner-private Google grant and Desktop client files, client ID, subject,
+verified email, hosted domain, reviewed recipe digests and allowed read/write
+operation kinds. The write connection uses `write-effect`; the read connection
+uses `read-release`. Configure the adapter before activating a new task.
+
+For an admitted operation, the adapter rechecks those pins, refreshes the
+existing Google grant in memory, verifies live UserInfo, and leases only the
+short-lived bearer to gateway transport. The agent, task card and recipe never
+receive the grant. Synthetic and installed setup checks are recorded in the
+[AP-071 custody log](../../docs/program-log/2026-10-25-ap071-google-custody-materializer.md);
+the earlier live Jules writes used the original preinstalled bearer path, so
+post-claim live renewal still needs a fresh signed task and independent
+provider readback.
+
 ```sh
 auths-google-read-workbench --state-db /path/to/private/broker.sqlite3
 ```

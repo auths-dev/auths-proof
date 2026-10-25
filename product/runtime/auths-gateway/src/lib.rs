@@ -132,7 +132,8 @@ pub use engine::{
 pub use generation_floor::GenerationFloor;
 pub use materializer::{
     CredentialMaterializationContext, CredentialMaterializationError, CredentialMaterializer,
-    CredentialRequestKind, MaterializedCredential, MaterializerInstallation,
+    CredentialRequestKind, MATERIALIZER_SOURCE_PREFIX, MaterializedCredential,
+    MaterializerInstallation,
 };
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,

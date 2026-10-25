@@ -12,7 +12,12 @@ fn main() {
 }
 
 #[cfg(unix)]
+#[path = "google_custody.rs"]
+mod google_custody;
+
+#[cfg(unix)]
 mod unix {
+    use super::google_custody::{GoogleCustodyMaterializer, GoogleCustodyPins};
     use auths_connections::{
         ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionProfile,
         ConnectionRecord, ConnectionState, CredentialStoreKind, PersistentCredentialStore,
@@ -96,6 +101,7 @@ mod unix {
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
     const TASK_WRITE_INSTALLATION_FILE: &str = "task-write-installation.json";
+    const TASK_MATERIALIZERS_FILE: &str = "task-google-materializers.json";
     const TASK_WRITE_STATE_DIRECTORY: &str = "agent-task-state";
     const TASK_READ_INSTALLATION_FILE: &str = "task-read-installation.json";
     const TASK_READ_RECIPE_FILE: &str = "task-read-recipe.json";
@@ -215,6 +221,15 @@ mod unix {
             credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// Development only: stdin holds an opaque materializer source,
+            /// not a bearer. Task execution requires a matching adapter.
+            #[arg(
+                long,
+                default_value_t = false,
+                requires = "credential_stdin",
+                conflicts_with = "join"
+            )]
+            credential_source_stdin: bool,
             /// Print one secret-free JSON result with the generated connection
             /// ID and credential generation for operator task pinning.
             #[arg(long, default_value_t = false)]
@@ -370,6 +385,14 @@ mod unix {
             #[arg(long)]
             from: PathBuf,
         },
+        /// Development operator only: bind private Google custody pins to
+        /// already installed opaque-source connections. Contains no tokens.
+        TaskMaterializerConfigure {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            from: PathBuf,
+        },
         /// Development operator only: install a distinct subject-bound read
         /// connection and reviewed GET recipe beside the write installation.
         /// A trusted custody shim must verify the provider subject before it
@@ -393,6 +416,9 @@ mod unix {
             credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// Stdin holds an opaque source reference for a later adapter.
+            #[arg(long, default_value_t = false, requires = "credential_stdin")]
+            credential_source_stdin: bool,
         },
         /// Development operator only: bind the reviewed read connection to
         /// one installed task, registered agent and private release channel.
@@ -1066,6 +1092,13 @@ mod unix {
         commitment_key_version: u32,
     }
 
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct TaskGoogleMaterializers {
+        schema: String,
+        materializers: Vec<GoogleCustodyPins>,
+    }
+
     /// Whether production custody policy applies. It always does for a
     /// production deployment in a shipped build; only a build made for
     /// tests can relax it.
@@ -1078,6 +1111,12 @@ mod unix {
     enum CredentialAccess {
         Runtime,
         Operator,
+    }
+
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    enum CredentialInputMode {
+        StaticBearer,
+        MaterializerSource,
     }
 
     fn open_credentials_for(
@@ -1493,6 +1532,7 @@ mod unix {
         join: bool,
         credential_header: String,
         credential_stdin: bool,
+        credential_input_mode: CredentialInputMode,
         connection_json: bool,
         deployment: Deployment,
         operator_attestation: Option<PathBuf>,
@@ -1510,6 +1550,11 @@ mod unix {
             qualification_settings(qualification, deployment)?;
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin".into());
+        }
+        if credential_input_mode == CredentialInputMode::MaterializerSource
+            && (deployment != Deployment::Development || join)
+        {
+            return Err("gateway.install.source-development-only".into());
         }
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
@@ -1595,7 +1640,12 @@ mod unix {
             }
             (None, Deployment::Development) => None,
         };
-        let candidate = read_install_credential()?;
+        let mut candidate = read_install_credential()?;
+        if (credential_input_mode == CredentialInputMode::MaterializerSource)
+            != candidate.starts_with(auths_gateway::MATERIALIZER_SOURCE_PREFIX)
+        {
+            return Err("gateway.install.invalid-source-reference".into());
+        }
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed".into());
@@ -1644,9 +1694,13 @@ mod unix {
             if account_label.is_empty() || account_label.len() > 256 {
                 return Err("gateway.install.invalid-account-label".into());
             }
-            let secret =
+            let secret = if credential_input_mode == CredentialInputMode::MaterializerSource {
+                SecretBytes::new(std::mem::take(&mut *candidate))
+                    .map_err(|_| "gateway.install.invalid-source-reference")?
+            } else {
                 checked_install_credential(&recipe, candidate, &account_label, loopback_provider)
-                    .await?;
+                    .await?
+            };
             let connection_id =
                 ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
             let profile = ConnectionProfile::new(
@@ -3286,14 +3340,61 @@ mod unix {
         }
         let directory = state_dir.to_path_buf();
         tokio::task::spawn_blocking(move || {
-            load_engine_for_task_recipe(
+            let engine = load_engine_for_task_recipe(
                 &directory,
                 CredentialAccess::Runtime,
                 recipe_digest.as_deref(),
-            )
+            )?;
+            attach_task_materializers(&directory, engine)
         })
         .await
         .map_err(|_| "gateway.task.engine-unavailable")?
+    }
+
+    fn parse_task_materializers(bytes: &[u8]) -> Result<TaskGoogleMaterializers, Failure> {
+        let bundle: TaskGoogleMaterializers = serde_json::from_slice(bytes)
+            .map_err(|_| "gateway.materializer.invalid-installation")?;
+        if bundle.schema != "auths.gateway-task-materializers/1"
+            || bundle.materializers.is_empty()
+            || bundle.materializers.len() > 4
+            || serde_json_canonicalizer::to_vec(&bundle)
+                .map_err(|_| "gateway.materializer.invalid-installation")?
+                != bytes
+        {
+            return Err("gateway.materializer.invalid-installation".into());
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for pins in &bundle.materializers {
+            pins.validate()?;
+            if !ids.insert(pins.connection_id.as_str()) {
+                return Err("gateway.materializer.duplicate-connection".into());
+            }
+        }
+        Ok(bundle)
+    }
+
+    fn attach_task_materializers(
+        state_dir: &Path,
+        mut engine: GatewayEngine,
+    ) -> Result<GatewayEngine, Failure> {
+        if !state_dir.join(TASK_MATERIALIZERS_FILE).exists() {
+            return Ok(engine);
+        }
+        let bytes = task_private_file(state_dir, TASK_MATERIALIZERS_FILE, 16 * 1024)?;
+        let bundle = parse_task_materializers(&bytes)?;
+        for pins in bundle.materializers {
+            let adapter = Arc::new(GoogleCustodyMaterializer::new(pins)?);
+            let id = ConnectionId::parse(adapter.connection_id().to_owned())
+                .map_err(|_| "gateway.materializer.invalid-connection")?;
+            let authority = adapter.authority_digest();
+            engine = engine.with_credential_materializer(
+                &id,
+                Arc::new(auths_gateway::MaterializerInstallation::new(
+                    adapter, authority,
+                )),
+            )?;
+        }
+        Ok(engine)
     }
 
     fn task_private_file(state_dir: &Path, name: &str, maximum: usize) -> Result<Vec<u8>, Failure> {
@@ -3370,6 +3471,21 @@ mod unix {
         Ok(())
     }
 
+    fn task_materializer_configure(state_dir: &Path, from: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.materializer.development-only".into());
+        }
+        if state_dir.join(TASK_MATERIALIZERS_FILE).exists() {
+            return Err("gateway.materializer.already-installed".into());
+        }
+        let bytes = read_bounded(from, 16 * 1024)?;
+        parse_task_materializers(&bytes)?;
+        private_file(&state_dir.join(TASK_MATERIALIZERS_FILE), &bytes)?;
+        println!("{{\"outcome\":\"task-materializers-configured\"}}");
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     async fn task_read_connect(
         state_dir: PathBuf,
@@ -3381,6 +3497,7 @@ mod unix {
         account_subject: String,
         credential_header: String,
         credential_stdin: bool,
+        credential_source_stdin: bool,
     ) -> Result<(), Failure> {
         private_root(&state_dir)?;
         let manifest = installation(&state_dir)?;
@@ -3423,6 +3540,11 @@ mod unix {
         let alias = ConnectionAlias::parse(alias_text.clone())
             .map_err(|_| "gateway.release.invalid-alias")?;
         let mut candidate = read_install_credential()?;
+        if credential_source_stdin
+            != candidate.starts_with(auths_gateway::MATERIALIZER_SOURCE_PREFIX)
+        {
+            return Err("gateway.release.invalid-source-reference".into());
+        }
         let secret = SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.release.invalid-credential")?;
         let attempts = open_attempts(
@@ -4631,6 +4753,7 @@ mod unix {
                 join,
                 credential_header,
                 credential_stdin,
+                credential_source_stdin,
                 connection_json,
                 deployment,
                 operator_attestation,
@@ -4675,6 +4798,11 @@ mod unix {
                     join,
                     credential_header,
                     credential_stdin,
+                    if credential_source_stdin {
+                        CredentialInputMode::MaterializerSource
+                    } else {
+                        CredentialInputMode::StaticBearer
+                    },
                     connection_json,
                     deployment,
                     operator_attestation,
@@ -4842,6 +4970,9 @@ mod unix {
                 action,
             } => submit(app_socket, proof, action).await,
             Command::TaskConfigure { state_dir, from } => task_configure(state_dir, from).await,
+            Command::TaskMaterializerConfigure { state_dir, from } => {
+                task_materializer_configure(&state_dir, &from)
+            }
             Command::TaskReadConnect {
                 state_dir,
                 recipe,
@@ -4852,6 +4983,7 @@ mod unix {
                 account_subject,
                 credential_header,
                 credential_stdin,
+                credential_source_stdin,
             } => {
                 task_read_connect(
                     state_dir,
@@ -4863,6 +4995,7 @@ mod unix {
                     account_subject,
                     credential_header,
                     credential_stdin,
+                    credential_source_stdin,
                 )
                 .await
             }
@@ -5663,6 +5796,53 @@ mod unix {
                     task_companion_approve_digest: Some(_),
                     ..
                 }
+            ));
+            let mut opaque = base.to_vec();
+            opaque.push("--credential-source-stdin");
+            assert!(matches!(
+                Cli::try_parse_from(opaque)
+                    .expect("opaque source install")
+                    .command,
+                Command::Install {
+                    credential_source_stdin: true,
+                    ..
+                }
+            ));
+            let without_stdin = base
+                .iter()
+                .copied()
+                .filter(|value| *value != "--credential-stdin")
+                .chain(["--credential-source-stdin"]);
+            assert!(Cli::try_parse_from(without_stdin).is_err());
+            let mut joined = base.to_vec();
+            joined.retain(|value| *value != "--account-label" && *value != "jules-subject");
+            joined.extend(["--join", "--credential-source-stdin"]);
+            assert!(Cli::try_parse_from(joined).is_err());
+        }
+
+        #[test]
+        fn materializer_configuration_requires_private_source_file_argument() {
+            assert!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-materializer-configure",
+                    "--state-dir",
+                    "/state"
+                ])
+                .is_err()
+            );
+            assert!(matches!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-materializer-configure",
+                    "--state-dir",
+                    "/state",
+                    "--from",
+                    "/operator/materializers.json",
+                ])
+                .expect("operator configuration parses")
+                .command,
+                Command::TaskMaterializerConfigure { .. }
             ));
         }
 

@@ -5,7 +5,8 @@ use super::{
     GatewayEngine, SharedConnection, TaskWriteSession, authorizes_entry, submit, wall_clock_seconds,
 };
 use crate::materializer::{
-    CredentialMaterializationContext, CredentialRequestKind, task_lease_deadline,
+    CredentialMaterializationContext, CredentialRequestKind, is_materializer_source,
+    task_lease_deadline,
 };
 use crate::release_channel::{
     AuthenticatedReleaseChannel, ReleaseDeliveryError, UnixAgentReleaseChannel,
@@ -430,6 +431,10 @@ impl GatewayEngine {
                 .lease(&context, &source, deadline)
                 .await
                 .map_err(|_| ReadFailure::Refused("gateway.release.materialization-refused"))?
+        } else if is_materializer_source(&source) {
+            return Err(ReadFailure::Refused(
+                "gateway.release.materializer-not-installed",
+            ));
         } else {
             source
         };

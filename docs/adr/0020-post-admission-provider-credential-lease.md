@@ -4,10 +4,12 @@
 a connection-specific, operator-installed materializer port invoked after
 task read/write reservation. It checks the returned subject, pinned effective
 authority digest and lease deadline; a configured source reference cannot
-fall back to the ordinary bearer path. The live Jules runs still installed a
-checked, short-lived access token before task activation. No Google custody
-adapter or installed CLI configuration uses the new port yet, so those runs do
-not qualify as post-admission renewal or durable OAuth custody.
+fall back to the ordinary bearer path. A development Google custody adapter
+and installed opaque-source commands now use this port; synthetic refresh,
+subject, scope and fail-closed tests pass. The live Jules runs still installed
+a checked, short-lived access token before task activation. No fresh Jules task
+has yet exercised post-claim refresh through the new adapter, and production
+custody and qualification remain open.
 
 **Date:** 25 October 2026
 
