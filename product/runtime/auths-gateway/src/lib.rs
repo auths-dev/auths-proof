@@ -72,6 +72,8 @@ mod task_activation;
 #[allow(dead_code)]
 mod task_effect_plan;
 mod task_populate_attestation;
+#[allow(dead_code)]
+mod task_recovery_attestation;
 // Exact task-write confirmation is called only by the owner-side task session.
 #[allow(dead_code)]
 mod task_write;

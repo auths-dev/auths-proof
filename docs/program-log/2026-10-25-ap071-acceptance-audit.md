@@ -15,6 +15,11 @@ for the exact operation IDs, provider statuses and private evidence pins.
 | Delivery accounting and revocation | Airtable's [lost-ACK run](2026-10-25-ap071-airtable-live.md) retained `delivery-unknown`, charged the bytes and refused replay. A separate [pre-content fault run](2026-10-25-ap071-airtable-no-send.md) recorded `not-delivered`, charged bytes, sent none, and refused replay. Task-excluded reads supplied an installed `not-entered` case. A further installed run staged both signed actions, revoked the task, and refused read and write before provider entry with unchanged counters and record. | Pin the final installed artifacts and exercise the complete Google task activity/revocation journey. These delivery stages were tested in separate disposable runs, not one continuous task; production multi-host revocation remains open. |
 | Install and cleanup | The live runs used local development artifacts; Airtable run-owned records were retired. The Google created Docs remain as preserved evidence and demo_co's current inventory has five children. | Publish exact build/recipe/producer pins, complete production custody and qualification, inspect effect links and cleanup status, and run the full suite from pinned installed artifacts. |
 
+The native gateway now verifies the shape and signature of a short-lived,
+task-bound operator recovery attestation in a focused synthetic test. No
+operator signer or human recovery action uses it yet, and it has not bound a
+response-less child in the task journal.
+
 The full spec is **open**. The already verified single-plan Google positive
 case must not be reported as missing; conversely, its manual pre-entry recovery
 must not be reported as a completed installed recovery workflow. The current

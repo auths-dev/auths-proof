@@ -218,6 +218,16 @@ effect plan has expired, this same-task binding fails; any later populate
 requires a newly signed, exact child-specific task as a separate continuation,
 which cannot retroactively make the original two-effect plan successful.
 
+The gateway now has a canonical Ed25519 verifier for the proposed operator
+attestation format. It checks the pinned key, task/card and effect-plan
+commitments, original create action and request commitments, signed pending
+child fields, connection subject/generation, candidate ID, hashes of Jules's
+search report and demo_co's blank-candidate observation, baseline and
+candidate metadata, and a validity window of at most 90 seconds. Its output
+is evidence only. The signer, native human recovery action, fresh metadata
+read and task-journal `recovered` transition are still to be implemented; the
+verifier alone cannot create a child scope.
+
 ### Cleanup and receipts
 
 Activity reports separate create entry, response recording, child binding,
