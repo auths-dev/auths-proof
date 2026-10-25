@@ -377,6 +377,14 @@ same baseline for child reconciliation and demo_co's `create-inspect`; take no
 automatic second create. The command does not populate the child. The separate
 Jules child preflight and agent-signed population still follow the gateway's
 recorded plan and response-derived child binding.
+The browser retains the canonical `effect-plan.json` beside its native proof.
+After the gateway binds the returned child and the Jules preflight is recorded,
+the isolated agent runs `auths-google-read-agent sign-planned-populate` with its
+companion write package, that plan, the private signed preflight report, its
+own signed draft and the reviewed populate recipe. The command forms and signs
+the exact child, tab, revision and approved text; the gateway independently
+rechecks all of them at planned population submission. No operator edits an
+agent action JSON or signs with Jules's key.
 
 ```sh
 auths-google-planned-create \

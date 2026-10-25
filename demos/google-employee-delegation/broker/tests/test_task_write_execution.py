@@ -262,6 +262,8 @@ class TaskWriteExecutionTests(unittest.TestCase):
                              b"human-proof")
             self.assertEqual((self.task_dir / "effect-plan.action").read_bytes(),
                              b"human-action")
+            self.assertEqual(json.loads((self.task_dir / "effect-plan.json").read_bytes()),
+                             prepared.plan)
             self.assertNotIn("task-submit", command)
 
     def test_owner_verifies_agent_signature_and_read_before_plan_review(self) -> None:

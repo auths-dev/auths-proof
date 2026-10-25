@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption,
 from .run import AgentKey, HttpBroker, OpenAIModel, run_task
 from .release_channel import serve_one_release
 from .draft import author_signed_draft
+from .planned_populate import planned_populate_arguments
 from .write import sign_read, sign_write
 
 
@@ -113,6 +114,14 @@ def main() -> None:
     draft.add_argument("--model", required=True)
     draft.add_argument("--model-base-url")
     draft.add_argument("--model-api-key-file", type=Path)
+    populate = commands.add_parser("sign-planned-populate")
+    populate.add_argument("--key-file", type=Path, required=True)
+    populate.add_argument("--package-file", type=Path, required=True)
+    populate.add_argument("--plan-file", type=Path, required=True)
+    populate.add_argument("--preflight-file", type=Path, required=True)
+    populate.add_argument("--draft-file", type=Path, required=True)
+    populate.add_argument("--recipe-file", type=Path, required=True)
+    populate.add_argument("--out-dir", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "init-key":
         seed = Ed25519PrivateKey.generate().private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -170,6 +179,32 @@ def main() -> None:
         output = args.out_dir / "agent-draft.json"
         _private_output(output, envelope)
         print(json.dumps({"status": "agent-draft-signed", "output": str(output)},
+                         sort_keys=True))
+        return
+    if args.command == "sign-planned-populate":
+        if (args.out_dir.is_symlink() or not args.out_dir.is_dir()
+                or stat.S_IMODE(args.out_dir.stat().st_mode) & 0o077):
+            parser.error("agent output directory must be private")
+        package = _bounded_json(args.package_file, 1_000_000)
+        arguments = planned_populate_arguments(
+            package=package, plan=_bounded_json(args.plan_file, 4096),
+            preflight=_bounded_json(args.preflight_file, 8192),
+            draft=_bounded_json(args.draft_file, 4096),
+            recipe=_bounded_json(args.recipe_file, 65_536), key=key,
+        )
+        proof, action = sign_write(package, arguments, key)
+        proof_path = args.out_dir / "populate.proof"
+        action_path = args.out_dir / "populate.action"
+        if proof_path.exists() or action_path.exists():
+            parser.error("agent proof or action already exists")
+        _private_output(proof_path, proof)
+        try:
+            _private_output(action_path, action)
+        except BaseException:
+            proof_path.unlink(missing_ok=True)
+            raise
+        print(json.dumps({"status": "planned-populate-signed",
+                          "proof": str(proof_path), "action": str(action_path)},
                          sort_keys=True))
         return
     if args.command in ("sign-write", "sign-read"):

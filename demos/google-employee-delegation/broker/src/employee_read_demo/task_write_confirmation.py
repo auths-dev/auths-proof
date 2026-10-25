@@ -391,11 +391,17 @@ class TaskWriteConfirmationFlow:
             raise OperatorDenied("agent proposal changed during effect-plan review")
         signed = pending.action.complete(signature, now=now)
         directory = self._task_dir(pending.task_id)
-        _private_write(directory / "effect-plan.proof", signed.proof)
+        plan_path = directory / "effect-plan.json"
+        _private_write(plan_path, json.dumps(
+            pending.plan, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False, allow_nan=False,
+        ).encode("utf-8"))
         try:
+            _private_write(directory / "effect-plan.proof", signed.proof)
             _private_write(directory / "effect-plan.action", signed.action)
         except BaseException:
             (directory / "effect-plan.proof").unlink(missing_ok=True)
+            plan_path.unlink(missing_ok=True)
             raise
         try:
             result = subprocess.run([
