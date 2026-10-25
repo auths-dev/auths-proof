@@ -56,6 +56,7 @@ class PreparedAgentDelegation:
             "service": self.authority.provider_service,
             "tool": self.authority.provider_tool,
             "task_id": self.task_id,
+            "expires_at": self.expires_at,
             "task_commitment": self.task_commitment,
             "recipe_digest": self.recipe_digest,
             "challenge_b64": encode(self.authority.challenge),

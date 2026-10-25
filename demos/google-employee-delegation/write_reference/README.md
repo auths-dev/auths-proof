@@ -178,6 +178,9 @@ challenge. The operator verifies the human's short-lived task action once
 at activation and stores its exact card commitment in the private journal.
 Later submissions use that durable activation while checking current task
 expiry, revocation and operator pins.
+The current browser task lasts at most 30 minutes; each agent proposal and
+exact confirmation has at most five minutes and must be renewed if review
+runs longer.
 
 `task-activate --state-dir STATE --proof HUMAN.proof --action HUMAN.action`
 verifies the human's native signed task and registers its budget once.

@@ -47,6 +47,7 @@ def sign_write(package: dict, arguments: dict, key: AgentKey,
             or not isinstance(package.get("tool"), str)
             or _TOOL.fullmatch(package["tool"]) is None
             or type(package.get("task_id")) is not str
+            or type(package.get("expires_at")) is not int
             or not isinstance(package.get("task_commitment"), str)
             or _DIGEST.fullmatch(package["task_commitment"]) is None
             or not isinstance(package.get("recipe_digest"), str)
@@ -56,6 +57,8 @@ def sign_write(package: dict, arguments: dict, key: AgentKey,
             or arguments.get("recipe_digest") != package["recipe_digest"]):
         raise ValueError("agent write is outside its task package")
     now = int(time.time()) if now is None else now
+    if now >= package["expires_at"]:
+        raise ValueError("agent write task has expired")
     challenge = _decode(package.get("challenge_b64"), 32)
     if len(challenge) != 32:
         raise ValueError("installed challenge is invalid")
@@ -75,7 +78,8 @@ def sign_write(package: dict, arguments: dict, key: AgentKey,
     canonical = _native.canonicalize_mcp_arguments_json(encoded)
     call = _native.mcp_call(package["service"], package["tool"], canonical)
     prepared = _native.prepare_mcp_call_action(
-        call, _native.Principal(key.principal), child, challenge, now, 30,
+        call, _native.Principal(key.principal), child, challenge, now,
+        min(300, package["expires_at"] - now),
     )
     signing = _native.prepare_signing(
         prepared.unsigned, "raw-key-v1", key.principal, "ed25519-v1",

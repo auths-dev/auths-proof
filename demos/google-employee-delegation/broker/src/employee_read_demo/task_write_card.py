@@ -122,7 +122,7 @@ def build_exact_write_card(
                           "recipe_digest": package.recipe_digest, "verb": verb}],
         "delivery_channel": pins["delivery_channel"],
         "not_before": now,
-        "expires_at": min(now + 240, authority.expires_at),
+        "expires_at": min(now + 1800, authority.expires_at),
         "max_provider_calls": 0,
         "max_releases": 0,
         "max_release_bytes": 0,

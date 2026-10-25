@@ -81,6 +81,7 @@ class WriteProofTests(unittest.TestCase):
             "agent_principal": agent.principal,
             "service": service, "tool": tool,
             "task_id": "task-1", "task_commitment": "a" * 64,
+            "expires_at": 1500,
             "recipe_digest": recipe_digest,
             "challenge_b64": encode(challenge),
             "write_parent_grant_b64": encode(_native.inspect_signed(parent)),
@@ -128,6 +129,9 @@ class WriteProofTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             sign_write({**package, "agent_principal": human}, arguments,
                        agent, now=1100)
+        self.assertTrue(sign_write(package, arguments, agent, now=1499)[0])
+        with self.assertRaises(ValueError):
+            sign_write(package, arguments, agent, now=1500)
 
 
 if __name__ == "__main__":

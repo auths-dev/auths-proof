@@ -118,7 +118,7 @@ class TaskOperatorCliTests(unittest.TestCase):
             )
             self.assertEqual(card["write_approval_mode"], "exact")
             self.assertEqual(card["write_scopes"][0]["handle"], "working-doc")
-            self.assertEqual(card["expires_at"], 1250)
+            self.assertEqual(card["expires_at"], 2810)
             flow = TaskWriteBrowserFlow(
                 authority_path=output, installation_path=installed,
                 recipe_path=REFERENCE / "recipe.json",

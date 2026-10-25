@@ -84,15 +84,15 @@ def _prepare(authority: TaskWriteAuthority, *, tool: str,
     call = _native.mcp_call(TASK_SERVICE, tool, arguments)
     prepared = _native.prepare_mcp_call_action(
         call, _native.Principal(authority.human_principal), terminal,
-        challenge, now, 300 if tool == APPROVAL_TOOL else 30,
+        challenge, now, min(300, authority.expires_at - now),
     )
     signing = _native.prepare_signing(
         prepared.unsigned, "raw-key-v1", authority.human_principal, "ed25519-v1",
     )
     return PreparedHumanAction(
         tool, arguments, bytes(signing.signing_preimage), challenge, now,
-        min(now + 300 if tool == APPROVAL_TOOL else now + 30,
-            authority.expires_at), authority, prepared, signing, terminal,
+        min(now + 300, authority.expires_at), authority, prepared, signing,
+        terminal,
     )
 
 
