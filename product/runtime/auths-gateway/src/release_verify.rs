@@ -100,7 +100,7 @@ pub(crate) fn verify_release_request(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::GatewayObserver;
     use crate::harness::{self, Signer};
@@ -117,7 +117,7 @@ mod tests {
 
     const NOW: u64 = 1_790_000_000;
 
-    fn recipe() -> CompiledReleaseRecipe {
+    pub(crate) fn recipe() -> CompiledReleaseRecipe {
         let schema = json!({"kind": "object", "fields": {
             "agent_principal": {"kind": "string", "minimum": 1, "maximum": 128},
             "operation_id": {"kind": "string", "minimum": 1, "maximum": 64},
@@ -156,7 +156,7 @@ mod tests {
         .expect("release recipe")
     }
 
-    fn arguments(recipe: &CompiledReleaseRecipe, recipient: &str) -> Map<String, Value> {
+    pub(crate) fn arguments(recipe: &CompiledReleaseRecipe, recipient: &str) -> Map<String, Value> {
         json!({
             "agent_principal": recipient,
             "operation_id": "read-1",
@@ -171,7 +171,12 @@ mod tests {
         .clone()
     }
 
-    fn exact_grant(root: &Signer, agent: &Signer, arguments: &Map<String, Value>) -> SignedGrant {
+    pub(crate) fn exact_grant(
+        root: &Signer,
+        agent: &Signer,
+        arguments: &Map<String, Value>,
+        now: u64,
+    ) -> SignedGrant {
         let call = harness::call(arguments).expect("call");
         let canonical = McpProfile
             .canonicalize(&call.canonical_bytes().expect("body"))
@@ -181,7 +186,7 @@ mod tests {
             agent.principal.clone(),
             call.profile_ref().expect("profile"),
             PermissionSet::new(vec![call.permission().expect("permission")]).expect("permissions"),
-            harness::window(NOW - 3_600, NOW + 3_600).expect("window"),
+            harness::window(now - 3_600, now + 3_600).expect("window"),
             AudienceSet::new(vec![harness::audience().expect("audience")]).expect("audiences"),
             ActionConstraint::ExactBodyDigest(body_digest(canonical.body())),
             None,
@@ -205,7 +210,7 @@ mod tests {
         let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
         let recipe = recipe();
         let arguments = arguments(&recipe, agent.principal.as_str());
-        let grant = exact_grant(&root, &agent, &arguments);
+        let grant = exact_grant(&root, &agent, &arguments, NOW);
         let signed = submission(&root, &agent, &grant, &arguments, &[]);
         let verified =
             verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action)
@@ -295,7 +300,7 @@ mod tests {
         let context = harness::context(&root, observer.principal(), None, NOW).expect("context");
         let recipe = recipe();
         let wrong_recipient = arguments(&recipe, Signer::new(0x44).principal.as_str());
-        let grant = exact_grant(&root, &agent, &wrong_recipient);
+        let grant = exact_grant(&root, &agent, &wrong_recipient, NOW);
         let signed = submission(&root, &agent, &grant, &wrong_recipient, &[]);
         assert!(matches!(
             verify_release_request(&recipe, &context, NOW, &signed.proof, &signed.action),
@@ -303,7 +308,7 @@ mod tests {
         ));
 
         let arguments = arguments(&recipe, agent.principal.as_str());
-        let exact = exact_grant(&root, &agent, &arguments);
+        let exact = exact_grant(&root, &agent, &arguments, NOW);
         let mut changed = arguments.clone();
         changed.insert("record_id".to_owned(), json!(harness::OTHER_RECORD));
         let signed = submission(&root, &agent, &exact, &changed, &[]);

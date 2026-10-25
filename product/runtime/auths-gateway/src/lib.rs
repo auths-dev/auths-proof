@@ -44,6 +44,10 @@ mod release_commitment;
 // the exact release bytes; its verifier is not yet connected to that channel.
 #[allow(dead_code)]
 mod release_ack;
+// The channel is not yet wired to the credential-owning read session.
+#[allow(dead_code)]
+#[cfg(unix)]
+mod release_channel;
 // Native proof admission is not yet connected to the installed read-release
 // session that joins task activation, credential custody and delivery.
 #[allow(dead_code)]

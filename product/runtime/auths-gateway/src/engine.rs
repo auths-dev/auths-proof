@@ -65,6 +65,10 @@ use thiserror::Error;
 #[path = "commissioning_session.rs"]
 mod commissioning;
 #[cfg(unix)]
+#[path = "release_execute.rs"]
+#[allow(dead_code)] // The installed read command is not yet exposed by the CLI.
+mod release_execute;
+#[cfg(unix)]
 pub use commissioning::{
     CommissioningSession, CommissioningSessionInputs, commissioning_principal_sha256,
 };

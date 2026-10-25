@@ -22,7 +22,7 @@ use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
-const SCHEMA: &str = "auths.gateway-agent-task-state/5";
+const SCHEMA: &str = "auths.gateway-agent-task-state/6";
 const MAX_RESOURCES: usize = 16;
 const MAX_OPERATIONS: usize = 64;
 const MAX_TASK_RELEASE_BYTES: u64 = 16 * 1_048_576;
@@ -101,6 +101,9 @@ pub(crate) enum ReleaseStage {
     ProviderCallReserved,
     /// No complete projectable provider result was available.
     ProviderUnavailable,
+    /// Provider call was spent, but current policy, connection or release
+    /// budget refused any agent-channel entry.
+    ReleaseRefused,
     /// Bytes and one release were durably charged before channel entry. On
     /// restart, this is delivery-unknown without verified terminal evidence.
     ReleaseEntered,
@@ -568,6 +571,20 @@ impl ReleaseTaskState {
             return Err(ReleaseStateError::Stage);
         }
         operation.stage = ReleaseStage::ProviderUnavailable;
+        Ok(())
+    }
+
+    /// A complete result was held back before release entry because current
+    /// authority, connection or release budget no longer admitted it.
+    pub(crate) fn release_refused(&mut self, operation_id: &str) -> Result<(), ReleaseStateError> {
+        let operation = self
+            .operations
+            .get_mut(operation_id)
+            .ok_or(ReleaseStateError::Binding)?;
+        if operation.stage != ReleaseStage::ProviderCallReserved {
+            return Err(ReleaseStateError::Stage);
+        }
+        operation.stage = ReleaseStage::ReleaseRefused;
         Ok(())
     }
 
@@ -1060,6 +1077,14 @@ impl FileReleaseTaskLedger {
         self.update(task_id, |state| state.provider_unavailable(operation_id))
     }
 
+    pub(crate) fn release_refused(
+        &self,
+        task_id: &str,
+        operation_id: &str,
+    ) -> Result<ReleaseTaskState, ReleaseStateError> {
+        self.update(task_id, |state| state.release_refused(operation_id))
+    }
+
     pub(crate) fn enter_release(
         &self,
         task_id: &str,
@@ -1135,7 +1160,7 @@ mod tests {
         let state = ReleaseTaskState::new(policy()).expect("state");
         let mut value: serde_json::Value =
             serde_json::from_slice(&state.encode().expect("canonical state")).expect("state JSON");
-        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/4");
+        value["schema"] = serde_json::json!("auths.gateway-agent-task-state/5");
         let obsolete = serde_json_canonicalizer::to_vec(&value).expect("canonical obsolete");
         assert!(matches!(
             ReleaseTaskState::decode(&obsolete),
@@ -1374,6 +1399,26 @@ mod tests {
         assert_eq!(
             state.reserve_provider_call(call("read-3"), 103),
             Err(ReleaseStateError::Exhausted)
+        );
+    }
+
+    #[test]
+    fn post_provider_policy_refusal_is_terminal_without_delivering_content() {
+        let mut state = ReleaseTaskState::new(policy()).expect("policy");
+        state
+            .reserve_provider_call(call("read-1"), 101)
+            .expect("call charged");
+        state.release_refused("read-1").expect("withheld");
+        assert_eq!(state.stage("read-1"), Some(ReleaseStage::ReleaseRefused));
+        assert_eq!(state.counts(), (1, 0, 0));
+        let key = ReleaseCommitmentKey::new(1, Zeroizing::new([1; 32])).expect("key");
+        assert_eq!(
+            state.enter_release("read-1", b"private", &key, 102),
+            Err(ReleaseStateError::Stage)
+        );
+        assert_eq!(
+            state.reserve_provider_call(call("read-1"), 103),
+            Err(ReleaseStateError::Replay)
         );
     }
 
