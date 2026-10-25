@@ -231,6 +231,8 @@ async function authorizeWriteTask() {
   }
   download(`auths-write-agent-${result.task_id}.json`,
     JSON.stringify(result.agent_package, null, 2), "application/json");
+  download(`auths-task-card-${result.task_id}.json`,
+    JSON.stringify(preparedWriteTask.card, null, 2), "application/json");
   if (result.read_agent_package) {
     download(`auths-read-agent-${result.task_id}.json`,
       JSON.stringify(result.read_agent_package, null, 2), "application/json");

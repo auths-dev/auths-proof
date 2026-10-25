@@ -22,11 +22,13 @@ from pathlib import Path
 from typing import Callable
 
 from .agent_registry import AgentBinding
+from .authority_identity import raw_key_public_for_identity_packet
 from .demo_co_contract import _unique_pairs
 from .enrollment import EmployeeBinding
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
 from .task_write_card import build_exact_write_card
+from .task_agent_draft import verify_agent_draft
 from .task_write_intent import ReviewedWrite, project_exact_write
 from .task_write_operator_cli import _reviewed_profile
 from .task_write_package import load_task_write_package
@@ -79,6 +81,7 @@ class _PendingEffectPlan:
     task_id: str
     review: ReviewedWrite
     plan: dict
+    draft_digest: str
     action: PreparedHumanAction
 
 
@@ -268,18 +271,35 @@ class TaskWriteConfirmationFlow:
             raise
         return directory
 
-    def _agent_draft(self, task_id: str) -> str:
+    def _acknowledged_reads(self, task_id: str,
+                            employee: EmployeeBinding) -> dict[str, int]:
+        status = self.status(task_id=task_id, employee=employee)
+        return {entry["operation_id"]: entry["released_bytes"]
+                for entry in status["reads"]
+                if entry["stage"] == "agent-acknowledged"
+                and entry["released_bytes"] is not None}
+
+    def _agent_draft(self, task_id: str, employee: EmployeeBinding,
+                     agent: AgentBinding, agent_identity_packet: bytes,
+                     card: dict) -> tuple[str, str]:
         try:
-            raw = _private_read(self._task_dir(task_id) / "agent-draft.txt", 192)
-            text = raw.decode("utf-8")
-        except (OSError, PermissionError, UnicodeDecodeError) as error:
-            raise OperatorDenied("private agent draft is unavailable") from error
-        if not text or "\x00" in text:
-            raise OperatorDenied("private agent draft is invalid")
-        return text
+            raw = _private_read(self._task_dir(task_id) / "agent-draft.json", 4096)
+            if (type(agent_identity_packet) is not bytes
+                    or hashlib.sha256(agent_identity_packet).hexdigest()
+                    != agent.identity_packet_sha256):
+                raise OperatorDenied("registered agent identity changed")
+            public_key = raw_key_public_for_identity_packet(agent_identity_packet)
+        except (OSError, PermissionError, ValueError) as error:
+            raise OperatorDenied("private agent draft or identity is unavailable") from error
+        content = verify_agent_draft(
+            raw, card=card, agent_principal=agent.agent_principal,
+            public_key=public_key,
+            acknowledged_reads=self._acknowledged_reads(task_id, employee),
+        )
+        return content, hashlib.sha256(raw).hexdigest()
 
     def prepare_effect_plan(self, *, task_id: str, employee: EmployeeBinding,
-                            agent: AgentBinding,
+                            agent: AgentBinding, agent_identity_packet: bytes,
                             now: int | None = None) -> PreparedEffectPlan:
         if (self.companion_recipe_path is None or self.gateway_state_dir is None):
             raise OperatorDenied("paired create plan is not installed")
@@ -303,6 +323,9 @@ class TaskWriteConfirmationFlow:
         expires_at = min(now + 180, card["expires_at"])
         if expires_at <= now:
             raise OperatorDenied("effect plan expired before review")
+        draft, draft_digest = self._agent_draft(
+            task_id, employee, agent, agent_identity_packet, card,
+        )
         plan = {
             "schema": "auths.agent-effect-plan/1",
             "task_id": task_id,
@@ -310,14 +333,14 @@ class TaskWriteConfirmationFlow:
             "create": intent,
             "populate_recipe_digest": package.companion_write.recipe_digest,
             "populate_operation_id": "populate-" + secrets.token_urlsafe(12),
-            "initial_text": self._agent_draft(task_id),
+            "initial_text": draft,
             "expires_at": expires_at,
         }
         action = prepare_effect_plan_confirmation(package.authority, plan, now=now)
         nonce = secrets.token_urlsafe(24)
         with self._lock:
             self._pending_plans[nonce] = _PendingEffectPlan(
-                employee, agent, task_id, review, plan, action,
+                employee, agent, task_id, review, plan, draft_digest, action,
             )
         return PreparedEffectPlan(
             nonce, task_id, card, review, plan, action.signing_preimage,
@@ -325,7 +348,8 @@ class TaskWriteConfirmationFlow:
         )
 
     def complete_effect_plan(self, *, nonce: str, employee: EmployeeBinding,
-                             agent: AgentBinding, signature: bytes,
+                             agent: AgentBinding, agent_identity_packet: bytes,
+                             signature: bytes,
                              now: int | None = None) -> Path:
         now = int(time.time()) if now is None else now
         with self._lock:
@@ -335,10 +359,13 @@ class TaskWriteConfirmationFlow:
                 or now >= pending.action.expires_at):
             raise OperatorDenied("effect plan review is unavailable")
         card, review = self._review(pending.task_id, employee, agent, now)
+        draft, draft_digest = self._agent_draft(
+            pending.task_id, employee, agent, agent_identity_packet, card,
+        )
         if (review != pending.review or task_commitment(card)
                 != pending.plan["task_commitment"]
-                or self._agent_draft(pending.task_id)
-                != pending.plan["initial_text"]):
+                or draft != pending.plan["initial_text"]
+                or draft_digest != pending.draft_digest):
             raise OperatorDenied("agent proposal changed during effect-plan review")
         signed = pending.action.complete(signature, now=now)
         directory = self._task_dir(pending.task_id)

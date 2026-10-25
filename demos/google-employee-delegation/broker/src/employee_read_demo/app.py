@@ -594,12 +594,13 @@ class Handler(BaseHTTPRequestHandler):
                 flow = self.workbench.write_confirmation
                 if flow is None or flow.companion_recipe_path is None:
                     raise OperatorDenied("paired effect-plan review is unavailable")
-                employee, agent, _, _, _ = self._write_bindings(session)
+                employee, agent, _, agent_packet, _ = self._write_bindings(session)
                 if path.endswith("/prepare"):
                     if set(body) != {"task_id"} or type(body["task_id"]) is not str:
                         raise ValueError("write task ID is invalid")
                     prepared = flow.prepare_effect_plan(
                         task_id=body["task_id"], employee=employee, agent=agent,
+                        agent_identity_packet=agent_packet,
                     )
                     self._json(HTTPStatus.OK, {
                         "status": "awaiting_exact_effect_plan",
@@ -625,6 +626,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("effect-plan nonce is invalid")
                 directory = flow.complete_effect_plan(
                     nonce=nonce, employee=employee, agent=agent,
+                    agent_identity_packet=agent_packet,
                     signature=_b64(body["signature"], max_bytes=64),
                 )
                 self._json(HTTPStatus.OK, {

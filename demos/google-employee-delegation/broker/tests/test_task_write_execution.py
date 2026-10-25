@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import base64
 import os
 import subprocess
 import tempfile
@@ -11,6 +13,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+from employee_read_demo.agent_registry import AgentBinding
 from employee_read_demo.enrollment import EmployeeBinding
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_write_confirmation import TaskWriteConfirmationFlow
@@ -171,7 +177,7 @@ class TaskWriteExecutionTests(unittest.TestCase):
     def test_one_effect_plan_records_exact_draft_before_any_provider_write(self) -> None:
         self.flow.companion_recipe_path = self.root / "populate-recipe"
         self.flow.companion_profile_lock_path = self.root / "populate-lock"
-        draft = self.task_dir / "agent-draft.txt"
+        draft = self.task_dir / "agent-draft.json"
         draft.write_text("Agent's approved Project A handoff", encoding="utf-8")
         draft.chmod(0o600)
         pending_child = {
@@ -192,6 +198,10 @@ class TaskWriteExecutionTests(unittest.TestCase):
             "application/json", "{}",
         )
         self.flow._review = lambda task_id, employee, agent, now: (card, reviewed)
+        self.flow._agent_draft = lambda task_id, employee, agent, packet, card: (
+            draft.read_text(encoding="utf-8"),
+            hashlib.sha256(draft.read_bytes()).hexdigest(),
+        )
         package = SimpleNamespace(
             companion_write=SimpleNamespace(recipe_digest="d" * 64),
             authority=object(),
@@ -214,7 +224,8 @@ class TaskWriteExecutionTests(unittest.TestCase):
                   return_value=human_action),
         ):
             prepared = self.flow.prepare_effect_plan(
-                task_id=self.task_id, employee=None, agent=None, now=1000,
+                task_id=self.task_id, employee=None, agent=None,
+                agent_identity_packet=b"packet", now=1000,
             )
             self.assertEqual(prepared.plan["initial_text"],
                              "Agent's approved Project A handoff")
@@ -226,19 +237,22 @@ class TaskWriteExecutionTests(unittest.TestCase):
                 with self.assertRaisesRegex(OperatorDenied, "proposal changed"):
                     self.flow.complete_effect_plan(
                         nonce=prepared.nonce, employee=None, agent=None,
+                        agent_identity_packet=b"packet",
                         signature=b"signed-by-jules", now=1001,
                     )
                 run.assert_not_called()
 
             draft.write_text("Agent's approved Project A handoff", encoding="utf-8")
             prepared = self.flow.prepare_effect_plan(
-                task_id=self.task_id, employee=None, agent=None, now=1002,
+                task_id=self.task_id, employee=None, agent=None,
+                agent_identity_packet=b"packet", now=1002,
             )
             with patch("employee_read_demo.task_write_confirmation.subprocess.run",
                        return_value=subprocess.CompletedProcess(
                            [], 0, b'{"outcome":"effect-plan-recorded"}\n', b"")) as run:
                 self.flow.complete_effect_plan(
                     nonce=prepared.nonce, employee=None, agent=None,
+                    agent_identity_packet=b"packet",
                     signature=b"signed-by-jules", now=1003,
                 )
             command = run.call_args.args[0]
@@ -249,6 +263,56 @@ class TaskWriteExecutionTests(unittest.TestCase):
             self.assertEqual((self.task_dir / "effect-plan.action").read_bytes(),
                              b"human-action")
             self.assertNotIn("task-submit", command)
+
+    def test_owner_verifies_agent_signature_and_read_before_plan_review(self) -> None:
+        key = Ed25519PrivateKey.from_private_bytes(b"\x55" * 32)
+        public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        packet = b"registered-agent-identity"
+        agent = AgentBinding("atlas", "binding", "agent-1",
+                             hashlib.sha256(packet).hexdigest())
+        card = {"task_id": self.task_id,
+                "read_scopes": [{"handle": "source-1"}]}
+        statement = {
+            "schema": "auths.agent-draft/1", "task_id": self.task_id,
+            "task_commitment": "a" * 64, "agent_principal": "agent-1",
+            "source_resource_handle": "source-1", "read_operation_id": "read-1",
+            "source_sha256": "b" * 64, "source_bytes": 30,
+            "content": "Project A is ready for review. [source-1]",
+        }
+        canonical = lambda value: json.dumps(value, sort_keys=True,
+                                             separators=(",", ":"),
+                                             ensure_ascii=False).encode()
+        envelope = {
+            "statement": statement,
+            "signature_b64": base64.b64encode(
+                key.sign(b"auths.agent-draft/1\0" + canonical(statement)),
+            ).decode().rstrip("="),
+        }
+        draft = self.task_dir / "agent-draft.json"
+        draft.write_bytes(canonical(envelope))
+        draft.chmod(0o600)
+        with (
+            patch("employee_read_demo.task_write_confirmation.raw_key_public_for_identity_packet",
+                  return_value=public),
+            patch("employee_read_demo.task_agent_draft.task_commitment",
+                  return_value="a" * 64),
+            patch.object(self.flow, "_acknowledged_reads",
+                         return_value={"read-1": 30}) as reads,
+        ):
+            text, digest = self.flow._agent_draft(
+                self.task_id, None, agent, packet, card,
+            )
+            self.assertEqual(text, statement["content"])
+            self.assertEqual(digest, hashlib.sha256(draft.read_bytes()).hexdigest())
+            reads.assert_called_once()
+            envelope["statement"]["content"] = "Changed [source-1]"
+            draft.write_bytes(canonical(envelope))
+            with self.assertRaisesRegex(OperatorDenied, "signature"):
+                self.flow._agent_draft(self.task_id, None, agent, packet, card)
+            with self.assertRaisesRegex(OperatorDenied, "identity"):
+                self.flow._agent_draft(
+                    self.task_id, None, agent, b"wrong-packet", card,
+                )
 
 
 if __name__ == "__main__":

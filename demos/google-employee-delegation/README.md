@@ -354,5 +354,16 @@ records the exact producer generation and source revision. The checked-in
 entry point: it reports `write_not_configured` and exits 2. It must only open
 after the native task authority, agent proof, exact confirmation, gateway
 installation and independent effect observation are joined and qualified.
+The separate development task workbench can prepare a paired create/populate
+review. After an acknowledged managed read, the isolated agent uses
+`auths-google-read-agent author-draft` with its private release file, read
+package, operation ID, source handle and signing key. An operator transfers the
+resulting owner-private `agent-draft.json` into that task's private review
+directory. The workbench verifies the registered agent signature, task and
+acknowledged read before Jules signs the exact draft and two-effect plan. The
+draft's source digest still needs private comparison with the bytes actually
+released by the gateway; an acknowledged byte count alone does not establish
+that comparison. No live Google write or independent post-write inspection has
+qualified this development path yet.
 See the [AP-SPEC-071 handoff](../../docs/specs/0071-human-agent-read-write-delegation-demo.md)
 for the remaining live acceptance path.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def authority_for_identity_packet(packet: bytes) -> tuple[str, bytes]:
+def raw_key_public_for_identity_packet(packet: bytes) -> bytes:
     from auths import _native
     from auths.identity import IdentityOk, raw_key_ed25519
 
@@ -17,4 +17,15 @@ def authority_for_identity_packet(packet: bytes) -> tuple[str, bytes]:
     materials = projection.relationships[0][3]
     if len(materials) != 1 or materials[0][0] != "default-key":
         raise ValueError("unsupported identity verification material")
-    return _native.raw_key_ed25519_authority_v1(materials[0][1])
+    public_key = bytes(materials[0][1])
+    if len(public_key) != 32:
+        raise ValueError("unsupported identity verification material")
+    return public_key
+
+
+def authority_for_identity_packet(packet: bytes) -> tuple[str, bytes]:
+    from auths import _native
+
+    return _native.raw_key_ed25519_authority_v1(
+        raw_key_public_for_identity_packet(packet),
+    )

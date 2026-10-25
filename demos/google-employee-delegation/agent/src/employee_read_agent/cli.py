@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption,
 
 from .run import AgentKey, HttpBroker, OpenAIModel, run_task
 from .release_channel import serve_one_release
+from .draft import author_signed_draft
 from .write import sign_read, sign_write
 
 
@@ -36,6 +37,35 @@ def _private_output(path: Path, content: bytes) -> None:
     except BaseException:
         path.unlink(missing_ok=True)
         raise
+
+
+def _private_source(path: Path, maximum: int) -> bytes:
+    if not path.is_absolute() or path.resolve() != path:
+        raise ValueError("agent source file must be private and bounded")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(descriptor, "rb") as source:
+        metadata = os.fstat(source.fileno())
+        if (not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) & 0o077
+                or not 1 <= metadata.st_size <= maximum):
+            raise ValueError("agent source file must be private and bounded")
+        content = source.read(maximum + 1)
+    if not 1 <= len(content) <= maximum:
+        raise ValueError("agent source file must be private and bounded")
+    return content
+
+
+def _model_key(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    if (path.is_symlink() or not path.is_file()
+            or path.stat().st_size > 4096):
+        raise ValueError("model API key file is invalid")
+    value = path.read_text(encoding="utf-8").strip()
+    if not value or "\n" in value or "\r" in value:
+        raise ValueError("model API key is invalid")
+    return value
 
 
 def main() -> None:
@@ -72,6 +102,17 @@ def main() -> None:
     release.add_argument("--operation-id", required=True)
     release.add_argument("--resource-handle", required=True)
     release.add_argument("--channel-name", required=True)
+    draft = commands.add_parser("author-draft")
+    draft.add_argument("--key-file", type=Path, required=True)
+    draft.add_argument("--read-package-file", type=Path, required=True)
+    draft.add_argument("--source-file", type=Path, required=True)
+    draft.add_argument("--source-resource-handle", required=True)
+    draft.add_argument("--read-operation-id", required=True)
+    draft.add_argument("--purpose", required=True)
+    draft.add_argument("--out-dir", type=Path, required=True)
+    draft.add_argument("--model", required=True)
+    draft.add_argument("--model-base-url")
+    draft.add_argument("--model-api-key-file", type=Path)
     args = parser.parse_args()
     if args.command == "init-key":
         seed = Ed25519PrivateKey.generate().private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -106,6 +147,31 @@ def main() -> None:
         import base64
         print(base64.urlsafe_b64encode(key.private.sign(raw)).decode("ascii"))
         return
+    if args.command == "author-draft":
+        if (args.out_dir.is_symlink() or not args.out_dir.is_dir()
+                or stat.S_IMODE(args.out_dir.stat().st_mode) & 0o077):
+            parser.error("agent output directory must be private")
+        package = _bounded_json(args.read_package_file, 1_000_000)
+        if (package.get("schema") != "auths.ap071-agent-read-package/1"
+                or package.get("agent_principal") != key.principal):
+            parser.error("agent read package differs from its registered key")
+        envelope = author_signed_draft(
+            source=_private_source(args.source_file, 16_384),
+            source_resource_handle=args.source_resource_handle,
+            read_operation_id=args.read_operation_id,
+            task_id=package.get("task_id"),
+            task_commitment=package.get("task_commitment"),
+            agent_principal=key.principal,
+            purpose=args.purpose,
+            model=OpenAIModel(args.model, args.model_base_url,
+                              _model_key(args.model_api_key_file)),
+            key=key.private,
+        )
+        output = args.out_dir / "agent-draft.json"
+        _private_output(output, envelope)
+        print(json.dumps({"status": "agent-draft-signed", "output": str(output)},
+                         sort_keys=True))
+        return
     if args.command in ("sign-write", "sign-read"):
         if (args.out_dir.is_symlink() or not args.out_dir.is_dir()
                 or stat.S_IMODE(args.out_dir.stat().st_mode) & 0o077):
@@ -134,15 +200,7 @@ def main() -> None:
     if args.package_file.stat().st_size > 1_000_000:
         parser.error("agent package exceeds bounds")
     package = json.loads(args.package_file.read_bytes())
-    model_key = None
-    if args.model_api_key_file is not None:
-        key_file = args.model_api_key_file
-        if (key_file.is_symlink() or not key_file.is_file()
-                or key_file.stat().st_size > 4096):
-            parser.error("model API key file is invalid")
-        model_key = key_file.read_text(encoding="utf-8").strip()
-        if not model_key or "\n" in model_key or "\r" in model_key:
-            parser.error("model API key is invalid")
+    model_key = _model_key(args.model_api_key_file)
     result = run_task(package, key, HttpBroker(args.broker_origin),
                       OpenAIModel(args.model, args.model_base_url, model_key))
     print(json.dumps(result, indent=2, sort_keys=True))
