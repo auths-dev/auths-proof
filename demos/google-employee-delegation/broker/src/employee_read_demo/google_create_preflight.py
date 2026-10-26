@@ -246,6 +246,7 @@ def search_jules_created_child(
     connection_id: str,
     connection_generation: int,
     pinned_parent_id: str | None = None,
+    inject_incomplete_search_for_test: bool = False,
     now: int | None = None,
 ) -> JulesCreateRecoverySearchResult:
     """Collect bounded recovery evidence; never grant or retry create.
@@ -283,6 +284,11 @@ def search_jules_created_child(
                 maximum=MAX_RECOVERY_PAGE_BYTES, media_type="application/json",
             )
             page = _json_object(raw)
+            if inject_incomplete_search_for_test:
+                # An Auths-owned fault test exercises the same parser with a
+                # deliberately incomplete page. The raw Google reply remains
+                # separately hashed; this flag never grants a child scope.
+                page = page | {"incompleteSearch": True}
             search.accept_page(page)
             page_sha256.append(hashlib.sha256(raw).hexdigest())
         candidate_id = search.single_candidate()

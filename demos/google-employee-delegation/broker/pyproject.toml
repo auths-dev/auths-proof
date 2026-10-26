@@ -26,6 +26,8 @@ auths-google-recovery-search = "employee_read_demo.task_create_operator:recovery
 auths-google-recovery-attest = "employee_read_demo.task_recovery_operator:main"
 auths-google-recovery-setup = "employee_read_demo.task_recovery_setup:main"
 auths-google-planned-populate = "employee_read_demo.task_create_operator:populate_main"
+auths-google-negative-refusal = "employee_read_demo.task_negative_recovery_operator:main"
+auths-google-negative-join = "employee_read_demo.task_negative_recovery_operator:join_main"
 
 [build-system]
 requires = ["setuptools>=75"]

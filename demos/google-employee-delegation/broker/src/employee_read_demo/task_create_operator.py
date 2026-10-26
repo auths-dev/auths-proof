@@ -190,6 +190,7 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
                           negative_setup_sha256: str | None = None,
                           negative_v4_pins_path: Path | None = None,
                           negative_source_paths: tuple[Path, Path, Path] | None = None,
+                          pre_provider_uncertainty_for_test: bool = False,
                           now: int | None = None) -> dict:
     """Record the sole baseline, then submit the immutable human effect plan once."""
     if (type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None
@@ -218,6 +219,8 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             or negative_source_paths is None
             or len(negative_source_paths) != 3):
         raise OperatorDenied("negative pre-create source pins are incomplete")
+    if pre_provider_uncertainty_for_test and negative_setup_path is None:
+        raise OperatorDenied("pre-provider uncertainty requires negative setup")
     if v2_pins_path is not None:
         try:
             v2_pins = CreateV2BaselinePins(**json.loads(
@@ -277,6 +280,9 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             preserved_blank_path=preserved_blank_path, v2_pins=v2_pins,
             v3_pins=v3_pins, v4_pins=v4_pins,
         )
+    if pre_provider_uncertainty_for_test and (
+            negative_target is None or negative_target.case != "zero"):
+        raise OperatorDenied("pre-provider uncertainty requires the zero case")
     try:
         card = json.loads(_private_read(task_dir / "task-card.json", 16_384),
                           object_pairs_hook=_unique_pairs)
@@ -336,6 +342,15 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
         ) from error
     except OSError as error:
         raise OperatorDenied("private pre-create baseline could not be recorded") from error
+    if pre_provider_uncertainty_for_test:
+        # Deliberately drop the signed operation before gateway entry. The
+        # exclusive baseline record prevents a later create retry. This is a
+        # zero-match pre-provider test, not a claim that Google lost a create.
+        return {
+            "task_id": task_id, "baseline_generation": generation,
+            "baseline_sha256": baseline_sha256,
+            "gateway_outcome": "pre-provider-uncertain",
+        }
     try:
         result = subprocess.run([
             str(binary), "task-submit", "--state-dir", str(gateway_state_dir),
@@ -711,7 +726,20 @@ def main() -> int:
     parser.add_argument("--v2-pins", type=Path)
     parser.add_argument("--v3-pins", type=Path)
     parser.add_argument("--v4-pins", type=Path)
+    parser.add_argument("--negative-setup", type=Path)
+    parser.add_argument("--negative-setup-sha256")
+    parser.add_argument("--negative-v4-pins", type=Path)
+    parser.add_argument("--negative-v4-baseline", type=Path)
+    parser.add_argument("--negative-v4-candidate", type=Path)
+    parser.add_argument("--negative-v4-final", type=Path)
+    parser.add_argument("--pre-provider-uncertainty-for-test", action="store_true")
     args = parser.parse_args()
+    negative_paths = (args.negative_v4_baseline,
+                      args.negative_v4_candidate,
+                      args.negative_v4_final)
+    if any(path is not None for path in negative_paths) and not all(
+            path is not None for path in negative_paths):
+        parser.error("all frozen v4 source paths are required")
     print(json.dumps(submit_planned_create(
         gateway_binary=args.gateway_bin, gateway_sha256=args.gateway_sha256,
         gateway_state_dir=args.gateway_state_dir, task_dir=args.task_dir,
@@ -721,6 +749,12 @@ def main() -> int:
         preserved_blank_path=args.preserved_blank, v2_pins_path=args.v2_pins,
         v3_pins_path=args.v3_pins,
         v4_pins_path=args.v4_pins,
+        negative_setup_path=args.negative_setup,
+        negative_setup_sha256=args.negative_setup_sha256,
+        negative_v4_pins_path=args.negative_v4_pins,
+        negative_source_paths=negative_paths if all(negative_paths) else None,
+        pre_provider_uncertainty_for_test=(
+            args.pre_provider_uncertainty_for_test),
     ), sort_keys=True))
     return 0
 

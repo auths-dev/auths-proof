@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_create_handoff import CHILD_TITLE
+from employee_read_demo.google_create_negative_handoff import NegativeCreateTarget
 from employee_read_demo.google_create_preflight import JulesCreateRecoverySearchResult
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_create_operator import (
@@ -137,6 +138,128 @@ class PlannedCreateOperatorTests(unittest.TestCase):
         self._write(self.task_dir / "populate.action", b"agent-populate-action")
         self._write(preflight_path, report)
         return preflight_path, report, inputs
+
+    def test_negative_create_uses_only_the_pinned_run_folder_and_marker(self) -> None:
+        target = NegativeCreateTarget(
+            "negative-run", "multiple", "ap071_" + "c" * 32,
+            "scratch-run-folder", 24, "a" * 64,
+        )
+        self.card["pending_child"]["parent_handle"] = target.parent_id
+        self._write(self.task_dir / "task-card.json", self.card)
+        baseline_path = self.root / "generation-0025" / "google-create-negative-baseline.json"
+        baseline_path.parent.mkdir(mode=0o700)
+        self._write(baseline_path, {"observed_at": self.observation["observed_at"]})
+        baseline_sha = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
+        sources = tuple(self.root / f"source-{index}" for index in range(3))
+        extra = {
+            "negative_setup_path": self.root / "generation-0024" /
+                                   "google-create-negative-setup.json",
+            "negative_setup_sha256": target.setup_sha256,
+            "negative_v4_pins_path": self.root / "v4-final-pins.json",
+            "negative_source_paths": sources,
+        }
+
+        def gateway(command, **kwargs):
+            recorded = json.loads(
+                (self.task_dir / "pre-create-baseline.json").read_bytes())
+            self.assertEqual(recorded["schema"],
+                             "auths.ap071-pre-create-baseline-negative/1")
+            self.assertEqual(recorded["observation_sha256"], baseline_sha)
+            return subprocess.CompletedProcess(
+                command, 0, b'{"outcome":"unknown"}', b"",
+            )
+
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.load_v4_final_pins",
+                    return_value=object()),
+              patch("employee_read_demo.task_create_operator."
+                    "validate_negative_precreate_baseline",
+                    return_value=(target, 25, {
+                        "observed_at": self.observation["observed_at"],
+                    })),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    side_effect=gateway) as entered):
+            self.card["pending_child"]["parent_handle"] = "project-a-folder"
+            self._write(self.task_dir / "task-card.json", self.card)
+            with self.assertRaisesRegex(OperatorDenied, "scratch|Project A"):
+                submit_planned_create(
+                    gateway_binary=self.root / "gateway",
+                    gateway_sha256="e" * 64, gateway_state_dir=self.state_dir,
+                    task_dir=self.task_dir, task_id=self.task_id,
+                    write_evidence_path=self.root / "evidence",
+                    credential_pins_path=self.root / "pins",
+                    baseline_path=baseline_path, baseline_sha256=baseline_sha,
+                    now=self.now, **extra,
+                )
+            entered.assert_not_called()
+            self.card["pending_child"]["parent_handle"] = target.parent_id
+            self._write(self.task_dir / "task-card.json", self.card)
+            result = submit_planned_create(
+                gateway_binary=self.root / "gateway",
+                gateway_sha256="e" * 64, gateway_state_dir=self.state_dir,
+                task_dir=self.task_dir, task_id=self.task_id,
+                write_evidence_path=self.root / "evidence",
+                credential_pins_path=self.root / "pins",
+                baseline_path=baseline_path, baseline_sha256=baseline_sha,
+                now=self.now, **extra,
+            )
+            self.assertEqual(result["gateway_outcome"], "unknown")
+            entered.assert_called_once()
+
+    def test_zero_case_is_dropped_before_gateway_and_cannot_be_retried(self) -> None:
+        target = NegativeCreateTarget(
+            "negative-zero", "zero", "ap071_" + "c" * 32,
+            "scratch-zero", 24, "a" * 64,
+        )
+        self.card["pending_child"]["parent_handle"] = target.parent_id
+        self._write(self.task_dir / "task-card.json", self.card)
+        baseline_path = self.root / "generation-0025" / "google-create-negative-baseline.json"
+        baseline_path.parent.mkdir(mode=0o700)
+        self._write(baseline_path, {"observed_at": self.observation["observed_at"]})
+        baseline_sha = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
+        extra = {
+            "negative_setup_path": self.root / "setup",
+            "negative_setup_sha256": target.setup_sha256,
+            "negative_v4_pins_path": self.root / "v4-pins",
+            "negative_source_paths": tuple(self.root / f"source-{index}"
+                                           for index in range(3)),
+            "pre_provider_uncertainty_for_test": True,
+        }
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.load_v4_final_pins",
+                    return_value=object()),
+              patch("employee_read_demo.task_create_operator."
+                    "validate_negative_precreate_baseline",
+                    return_value=(target, 25, {
+                        "observed_at": self.observation["observed_at"],
+                    })),
+              patch("employee_read_demo.task_create_operator.subprocess.run") as gateway):
+            kwargs = dict(
+                gateway_binary=self.root / "gateway",
+                gateway_sha256="e" * 64, gateway_state_dir=self.state_dir,
+                task_dir=self.task_dir, task_id=self.task_id,
+                write_evidence_path=self.root / "evidence",
+                credential_pins_path=self.root / "pins",
+                baseline_path=baseline_path, baseline_sha256=baseline_sha,
+                now=self.now, **extra,
+            )
+            outcome = submit_planned_create(**kwargs)
+            self.assertEqual(outcome["gateway_outcome"],
+                             "pre-provider-uncertain")
+            gateway.assert_not_called()
+            with self.assertRaisesRegex(OperatorDenied, "already handed off"):
+                submit_planned_create(**kwargs)
+            gateway.assert_not_called()
 
     def test_recovery_search_records_only_candidate_evidence(self) -> None:
         self._write(self.task_dir / "pre-create-baseline.json", {

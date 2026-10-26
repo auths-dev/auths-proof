@@ -146,6 +146,26 @@ class JulesChildPreflightTests(unittest.TestCase):
                 self.assertEqual(len(result.page_sha256), 1)
                 self.assertEqual(read.call_count, 1)
 
+        with (patch("employee_read_demo.google_create_preflight.validate_write_handoff",
+                    return_value={"folder_id": "project-a-folder",
+                                  "drive_id": "shared-drive-1"}),
+              patch("employee_read_demo.google_create_preflight.lease_jules_write_token",
+                    return_value=SimpleNamespace(access_token="secret-test-token",
+                                                 expires_at=1200)),
+              patch("employee_read_demo.google_create_preflight.requests.Session",
+                    return_value=_Session()),
+              patch("employee_read_demo.google_create_preflight._bounded_get",
+                    return_value=json.dumps({"incompleteSearch": False,
+                                             "files": [child]}).encode()) as read):
+            with self.assertRaisesRegex(ContractRejected, "incomplete"):
+                search_jules_created_child(
+                    Path("evidence.json"), Path("grant.json"), credential,
+                    marker, connection_id="jules-google",
+                    connection_generation=1, pinned_parent_id="project-a-folder",
+                    inject_incomplete_search_for_test=True, now=1000,
+                )
+            self.assertEqual(read.call_count, 1)
+
     def test_three_bounded_jules_reads_pin_child_capability_and_blank_revision(self) -> None:
         pins = CreatedChildMetadataPins(
             candidate_id="child_ABC-123", parent_id="project-a-folder",
