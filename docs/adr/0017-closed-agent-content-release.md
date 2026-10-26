@@ -1,8 +1,8 @@
 # ADR 0017: Closed, credential-isolated content release to a delegated agent
 
-**Status:** Proposed for AP-SPEC-071. An internal executor and synthetic
-provider-to-agent test exist; no installed managed release or qualification
-claim is approved by this draft.
+**Status:** Proposed for AP-SPEC-071. Installed Google and Airtable managed
+releases and a source-free container read/write run now exist. Production
+qualification and the complete hostile corpus remain open.
 
 **Date:** 25 October 2026
 
@@ -60,6 +60,14 @@ not be dictionary-recoverable from a receipt. A private verifier may compare
 actual bytes and export only a verdict. The receipt key stays in custody and
 old retained receipts remain verifiable after rotation under a documented
 key-retention rule.
+
+The development operator can now rotate the release audit key without
+changing a task or connection. It persists a new versioned owner-private key
+before atomically publishing that version, keeps earlier keys while the task
+journal exists, and selects the acknowledged receipt's recorded version for
+private source comparison. A pre-publication crash can reuse the durable
+candidate key; an invalid or missing old key fails closed. This local file
+store behavior is not a production key-store or retention qualification.
 
 ## Ownership and limits
 

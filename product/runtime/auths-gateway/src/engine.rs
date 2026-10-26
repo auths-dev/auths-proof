@@ -1981,6 +1981,24 @@ impl TaskWriteSession<'_> {
             .ok_or("gateway.release.source-unavailable")
     }
 
+    /// Return the retained audit-key version for one acknowledged release.
+    /// It grants no access to the commitment or released bytes.
+    ///
+    /// # Errors
+    /// Refuses an unknown or corrupt task journal.
+    pub fn acknowledged_release_key_version(
+        &self,
+        task_id: &str,
+        operation_id: &str,
+        resource_handle: &str,
+    ) -> Result<Option<u32>, &'static str> {
+        self.ledger
+            .load(task_id)
+            .map_err(|_| "gateway.release.source-unavailable")?
+            .map(|state| state.acknowledged_key_version(operation_id, resource_handle))
+            .ok_or("gateway.release.source-unavailable")
+    }
+
     /// Durably stop new reads and writes under one activated task. A provider
     /// call already entered or bytes already delivered cannot be recalled.
     ///

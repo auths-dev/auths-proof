@@ -111,6 +111,7 @@ mod unix {
     const TASK_READ_RUNTIME_FILE: &str = "task-read-runtime.json";
     const TASK_READ_AGENT_IDENTITY_FILE: &str = "task-read-agent-identity.cbor";
     const TASK_READ_COMMITMENT_KEY_FILE: &str = "task-read-commitment.key";
+    const TASK_READ_COMMITMENT_ROTATION_LOCK: &str = "task-read-commitment.lock";
     use auths_gateway::admin::{
         ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
     };
@@ -437,6 +438,12 @@ mod unix {
             channel_socket: PathBuf,
             #[arg(long)]
             channel_name: String,
+        },
+        /// Development operator only: publish a fresh release audit key.
+        /// Old private keys remain until the associated task journal is retired.
+        TaskReadCommitmentRotate {
+            #[arg(long)]
+            state_dir: PathBuf,
         },
         /// Development operator only: execute one agent-signed GET and
         /// release under the activated task and configured recipient.
@@ -3520,6 +3527,7 @@ mod unix {
         let runtime: TaskReadRuntime =
             serde_json::from_slice(&bytes).map_err(|_| "gateway.release.invalid-runtime")?;
         if runtime.schema != "auths.gateway-task-read-runtime/1"
+            || runtime.commitment_key_version == 0
             || serde_json_canonicalizer::to_vec(&runtime)
                 .map_err(|_| "gateway.release.invalid-runtime")?
                 != bytes
@@ -3822,23 +3830,101 @@ mod unix {
         Ok(())
     }
 
+    fn task_read_commitment_key_file(version: u32) -> Result<String, Failure> {
+        if version == 0 {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        Ok(if version == 1 {
+            TASK_READ_COMMITMENT_KEY_FILE.to_owned()
+        } else {
+            format!("task-read-commitment-v{version}.key")
+        })
+    }
+
     fn task_read_commitment_key(
         state_dir: &Path,
-        runtime: &TaskReadRuntime,
+        version: u32,
     ) -> Result<ReleaseCommitmentKey, Failure> {
-        let mut key_bytes = Zeroizing::new(task_private_file(
-            state_dir,
-            TASK_READ_COMMITMENT_KEY_FILE,
-            32,
-        )?);
+        let name = task_read_commitment_key_file(version)?;
+        let mut key_bytes = Zeroizing::new(task_private_file(state_dir, &name, 32)?);
         if key_bytes.len() != 32 {
             return Err("gateway.release.invalid-commitment-key".into());
         }
         let mut key_material = Zeroizing::new([0_u8; 32]);
         key_material.copy_from_slice(&key_bytes);
         key_bytes.zeroize();
-        ReleaseCommitmentKey::new(runtime.commitment_key_version, key_material)
+        ReleaseCommitmentKey::new(version, key_material)
             .map_err(|_| "gateway.release.invalid-commitment-key".into())
+    }
+
+    /// Publish one new key version after its private file is durable. A
+    /// crashed pre-publication attempt can reuse that file; old keys are kept
+    /// for private comparison until the task journal is retired.
+    fn task_read_commitment_rotate(state_dir: &Path) -> Result<(), Failure> {
+        private_root(state_dir)?;
+        if installation(state_dir)?.deployment != Deployment::Development {
+            return Err("gateway.release.single-host-only".into());
+        }
+        let installed = task_read_installation(state_dir)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+            .open(state_dir.join(TASK_READ_COMMITMENT_ROTATION_LOCK))
+            .map_err(|_| "gateway.release.rotation-unavailable")?;
+        let metadata = lock
+            .metadata()
+            .map_err(|_| "gateway.release.rotation-unavailable")?;
+        if !metadata.is_file()
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.nlink() != 1
+            || metadata.permissions().mode() & 0o077 != 0
+        {
+            return Err("gateway.release.rotation-unavailable".into());
+        }
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| "gateway.release.rotation-unavailable")?;
+        let mut runtime = task_read_runtime(state_dir)?;
+        if runtime.recipe_digest != installed.recipe_digest
+            || runtime.connection_id != installed.connection_id
+            || runtime.connection_generation != installed.connection_generation
+        {
+            return Err("gateway.release.runtime-changed".into());
+        }
+        task_read_commitment_key(state_dir, runtime.commitment_key_version)?;
+        let next = runtime
+            .commitment_key_version
+            .checked_add(1)
+            .ok_or("gateway.release.rotation-exhausted")?;
+        let name = task_read_commitment_key_file(next)?;
+        let path = state_dir.join(&name);
+        match fs::symlink_metadata(&path) {
+            Ok(_) => {
+                task_read_commitment_key(state_dir, next)?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let mut key_material = Zeroizing::new([0_u8; 32]);
+                getrandom::fill(&mut *key_material)
+                    .map_err(|_| "gateway.release.randomness-unavailable")?;
+                private_file(&path, &key_material[..])?;
+            }
+            Err(_) => return Err("gateway.release.rotation-unavailable".into()),
+        }
+        runtime.commitment_key_version = next;
+        let bytes = serde_json_canonicalizer::to_vec(&runtime)
+            .map_err(|_| "gateway.release.invalid-runtime")?;
+        replace_private_file(&state_dir.join(TASK_READ_RUNTIME_FILE), &bytes)?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "outcome": "read-commitment-key-rotated",
+                "key_version": next,
+            })
+        );
+        Ok(())
     }
 
     async fn task_read_submit(
@@ -3863,7 +3949,7 @@ mod unix {
         if digest(&packet) != runtime.agent_identity_sha256 {
             return Err("gateway.release.runtime-changed".into());
         }
-        let key = task_read_commitment_key(&state_dir, &runtime)?;
+        let key = task_read_commitment_key(&state_dir, runtime.commitment_key_version)?;
         let recipe = task_read_recipe(&state_dir, &installed)?;
         let engine = task_engine(&state_dir).await?;
         let task_bytes = task_installation(&state_dir)?;
@@ -3913,7 +3999,6 @@ mod unix {
     ) -> Result<(), Failure> {
         private_root(&state_dir)?;
         let runtime = task_read_runtime(&state_dir)?;
-        let key = task_read_commitment_key(&state_dir, &runtime)?;
         let parent = source_file
             .parent()
             .ok_or("gateway.release.source-unavailable")?;
@@ -3966,6 +4051,13 @@ mod unix {
         let installation = task_installation(&state_dir)?;
         let session =
             engine.task_write_session(&installation, state_dir.join(TASK_WRITE_STATE_DIRECTORY))?;
+        let version = session
+            .acknowledged_release_key_version(&task_id, &operation_id, &resource_handle)?
+            .ok_or("gateway.release.source-mismatch")?;
+        if version > runtime.commitment_key_version {
+            return Err("gateway.release.invalid-commitment-key".into());
+        }
+        let key = task_read_commitment_key(&state_dir, version)?;
         if !session.acknowledged_release_matches(
             &task_id,
             &operation_id,
@@ -5203,6 +5295,9 @@ mod unix {
                 channel_socket,
                 channel_name,
             } => task_read_configure(state_dir, agent_identity, channel_socket, channel_name).await,
+            Command::TaskReadCommitmentRotate { state_dir } => {
+                task_read_commitment_rotate(&state_dir)
+            }
             Command::TaskReadSubmit {
                 state_dir,
                 task_id,
@@ -6255,6 +6350,17 @@ mod unix {
                 configure.command,
                 Command::TaskReadConfigure { .. }
             ));
+            assert!(matches!(
+                Cli::try_parse_from([
+                    "auths-gateway",
+                    "task-read-commitment-rotate",
+                    "--state-dir",
+                    "/tmp/auths-state",
+                ])
+                .expect("operator audit-key rotation")
+                .command,
+                Command::TaskReadCommitmentRotate { .. }
+            ));
             let compare = Cli::try_parse_from([
                 "auths-gateway",
                 "task-release-compare",
@@ -6343,6 +6449,104 @@ mod unix {
             )
             .expect("rewrite");
             assert!(task_read_runtime(&root).is_err());
+        }
+
+        #[test]
+        fn rotated_release_audit_key_retains_private_comparison() {
+            let directory = tempfile::tempdir().expect("private state");
+            let root = fs::canonicalize(directory.path()).expect("canonical state");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).expect("private state");
+            let manifest = serde_json::json!({
+                "schema": MANIFEST_SCHEMA,
+                "recipe_digest": "write-recipe",
+                "profile_lock_sha256": "write-lock",
+                "task_companion": null,
+                "trusted_context_sha256": "write-trust",
+                "provider": "airtable",
+                "alias": "operator-write",
+                "deployment": "development",
+                "operator_attestation_sha256": null,
+                "attempt_store": root.display().to_string(),
+                "credential_store": {"kind": "local-file-v1"},
+                "qualification": {"policy": "optional"}
+            });
+            private_file(
+                &root.join("installation.json"),
+                &serde_json_canonicalizer::to_vec(&manifest).expect("manifest"),
+            )
+            .expect("private installation");
+            let installed = TaskReadInstallation {
+                schema: "auths.gateway-task-read-installation/1".to_owned(),
+                recipe_digest: "read-recipe".to_owned(),
+                recipe_source_sha256: "read-source".to_owned(),
+                profile_lock_sha256: "read-lock".to_owned(),
+                provider: "airtable".to_owned(),
+                alias: "operator-read".to_owned(),
+                connection_id: "read-connection".to_owned(),
+                connection_generation: 1,
+                connection_subject: "operator-subject".to_owned(),
+            };
+            private_file(
+                &root.join(TASK_READ_INSTALLATION_FILE),
+                &serde_json_canonicalizer::to_vec(&installed).expect("read installation"),
+            )
+            .expect("private read installation");
+            let runtime = TaskReadRuntime {
+                schema: "auths.gateway-task-read-runtime/1".to_owned(),
+                recipe_digest: installed.recipe_digest.clone(),
+                connection_id: installed.connection_id.clone(),
+                connection_generation: installed.connection_generation,
+                channel_socket: root.join("agent.sock").display().to_string(),
+                channel_name: "agent-channel".to_owned(),
+                agent_identity_sha256: "agent-identity".to_owned(),
+                commitment_key_version: 1,
+            };
+            private_file(
+                &root.join(TASK_READ_RUNTIME_FILE),
+                &serde_json_canonicalizer::to_vec(&runtime).expect("runtime"),
+            )
+            .expect("private runtime");
+            private_file(&root.join(TASK_READ_COMMITMENT_KEY_FILE), &[0x91; 32])
+                .expect("first audit key");
+            let scope = auths_gateway::ReleaseCommitmentContext::new(
+                "task-1", "record-1", "read-1", "released",
+            )
+            .expect("receipt scope");
+            let first = task_read_commitment_key(&root, 1).expect("first key");
+            let receipt = first.commit(&scope, b"Pending");
+            task_read_commitment_rotate(&root).expect("rotate key");
+            assert_eq!(
+                task_read_runtime(&root)
+                    .expect("runtime")
+                    .commitment_key_version,
+                2
+            );
+            let retained = task_read_commitment_key(&root, 1).expect("retained key");
+            let current = task_read_commitment_key(&root, 2).expect("current key");
+            assert!(retained.verify(&scope, b"Pending", &receipt));
+            assert!(!current.verify(&scope, b"Pending", &receipt));
+            assert_ne!(receipt.hex(), current.commit(&scope, b"Pending").hex());
+            let pending = root.join("task-read-commitment-v3.key");
+            private_file(&pending, &[0x37; 32]).expect("durable unpublished candidate");
+            task_read_commitment_rotate(&root).expect("resume pre-publication rotation");
+            assert_eq!(
+                task_read_runtime(&root)
+                    .expect("runtime")
+                    .commitment_key_version,
+                3
+            );
+            assert_eq!(fs::read(&pending).expect("retained candidate"), [0x37; 32]);
+            assert!(
+                task_read_commitment_key(&root, 1)
+                    .expect("retained key")
+                    .verify(&scope, b"Pending", &receipt)
+            );
+            fs::set_permissions(
+                root.join(TASK_READ_COMMITMENT_KEY_FILE),
+                fs::Permissions::from_mode(0o644),
+            )
+            .expect("tamper retained key");
+            assert!(task_read_commitment_key(&root, 1).is_err());
         }
 
         #[test]

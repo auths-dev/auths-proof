@@ -1247,6 +1247,20 @@ impl ReleaseTaskState {
         ))
     }
 
+    /// Select the retained audit-key version only for an acknowledged release
+    /// of this exact resource. The commitment and content stay private.
+    pub(crate) fn acknowledged_key_version(
+        &self,
+        operation_id: &str,
+        resource_handle: &str,
+    ) -> Option<u32> {
+        let operation = self.operations.get(operation_id)?;
+        (operation.stage == ReleaseStage::AgentAcknowledged
+            && operation.resource_handle == resource_handle)
+            .then(|| self.commitment(operation_id).map(|(version, _)| version))
+            .flatten()
+    }
+
     /// Compare operator-presented bytes with an acknowledged release without
     /// exporting the keyed commitment or a guessable content digest.
     pub(crate) fn acknowledged_content_matches(
@@ -1938,6 +1952,7 @@ mod tests {
         let entered = ledger
             .enter_release("task-1", "read-1", b"Approved", &key, 102)
             .expect("charge");
+        assert_eq!(entered.acknowledged_key_version("read-1", "source-1"), None);
         assert!(!entered.acknowledged_content_matches("read-1", "source-1", b"Approved", &key,));
         let mut wrong = acknowledgement(&entered, "read-1");
         wrong.recipient = "other-agent".to_owned();
@@ -1980,6 +1995,11 @@ mod tests {
             Some(ReleaseStage::AgentAcknowledged)
         );
         assert_eq!(loaded.counts(), (1, 1, 8));
+        assert_eq!(
+            loaded.acknowledged_key_version("read-1", "source-1"),
+            Some(2)
+        );
+        assert_eq!(loaded.acknowledged_key_version("read-1", "other"), None);
         assert!(loaded.acknowledged_content_matches("read-1", "source-1", b"Approved", &key));
         assert!(!loaded.acknowledged_content_matches("read-1", "other", b"Approved", &key));
         assert!(!loaded.acknowledged_content_matches("read-1", "source-1", b"Rejected", &key));
