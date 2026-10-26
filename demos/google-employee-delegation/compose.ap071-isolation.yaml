@@ -18,7 +18,7 @@ services:
     volumes:
       - ${AP071_GATEWAY_STATE_DIR:?set private gateway state directory}:/gateway-state:rw
       - ${AP071_OPERATOR_PRIVATE_DIR:?set private operator input directory}:/operator:ro
-      - ${AP071_CHANNEL_DIR:?set private agent channel directory}:/channel:ro
+      - ap071_channel:/channel:ro
     networks: [provider_egress]
 
   agent:
@@ -32,8 +32,13 @@ services:
     tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
     volumes:
       - ${AP071_AGENT_DIR:?set private agent key and action directory}:/agent:rw
-      - ${AP071_CHANNEL_DIR:?set private agent channel directory}:/channel:rw
+      - ap071_channel:/channel:rw
     network_mode: none
 
 networks:
   provider_egress: {}
+
+volumes:
+  ap071_channel:
+    external: true
+    name: ${AP071_CHANNEL_VOLUME:?set an initialized private Docker channel volume}

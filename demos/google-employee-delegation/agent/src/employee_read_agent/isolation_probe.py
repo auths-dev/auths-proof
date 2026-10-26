@@ -101,16 +101,33 @@ def main() -> None:
         "docker_socket": _inaccessible(Path("/var/run/docker.sock")),
     }
     try:
-        interfaces = sorted(path.name for path in Path("/sys/class/net").iterdir())
+        interfaces = sorted(
+            path.name for path in Path("/sys/class/net").iterdir() if path.is_dir()
+        )
+        active_nonloopback = sorted(
+            name for name in interfaces if name != "lo"
+            and (Path("/sys/class/net") / name / "operstate").read_text().strip()
+            != "down"
+        )
     except OSError:
-        interfaces = []
+        interfaces, active_nonloopback = [], []
+    egress = socket.socket()
+    try:
+        egress.settimeout(2)
+        egress_denied = egress.connect_ex(("1.1.1.1", 443)) in {
+            errno.ENETUNREACH, errno.EHOSTUNREACH, errno.EPERM, errno.EACCES,
+        }
+    finally:
+        egress.close()
     result = {
         "schema": "auths.ap071-agent-isolation-probe/1",
         "agent_private": _private_owned_directory(agent),
         "channel_private": _private_owned_directory(channel),
         "inaccessible": inaccessible,
         "network_interfaces": interfaces,
-        "network_isolated": interfaces == ["lo"],
+        "active_nonloopback": active_nonloopback,
+        "egress_denied": egress_denied,
+        "network_isolated": "lo" in interfaces and not active_nonloopback and egress_denied,
     }
     result["passed"] = (result["agent_private"] and result["channel_private"]
                         and all(inaccessible.values()) and result["network_isolated"])
