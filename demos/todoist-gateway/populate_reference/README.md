@@ -11,6 +11,16 @@ has **no late-bound provider fields**. The common gateway compares its empty
 provider-values map against this recipe, the bound child and the exact human
 plan. No Todoist version or tab field is invented.
 
+[`preflight_reference.py`](preflight_reference.py) is the independent,
+test-only domain oracle for that metadata check. It accepts a bounded raw
+`GET /api/v1/tasks/{bound-task-id}` response and pinned child/project/title/
+marker, rejects ambiguous or changed responses, and yields an empty
+`provider_values` map plus a private metadata digest. Its synthetic hostile
+cases run with `python -m unittest discover -s
+demos/todoist-gateway/populate_reference -p 'test_*.py'`. A caller must
+authenticate the provider GET under the pinned human connection and sign the
+gateway's preflight statement separately; this pure reference does neither.
+
 The [official Todoist API v1 reference](https://developer.todoist.com/api/v1/)
 specifies the task update endpoint and `description` property. The fixture is
 synthetic. It does not establish a live Todoist account, a subject-bound
