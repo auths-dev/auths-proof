@@ -97,8 +97,9 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for nine installed cases on
-this host, including both restart boundaries and the two-task swap.
+pins the bundle manifests and redacted receipts for ten installed cases on
+this host, including both restart boundaries, the two-task swap and the
+no-content delivery fault.
 
 If a run fails after fixture creation, preserve its private root and execute
 `cleanup` once the effect has been inspected. Do not start another run on the
@@ -120,6 +121,8 @@ the first content-byte write. The operator verifies a charged `not-delivered`
 receipt, no agent content file, and same-operation replay refusal before
 retiring the disposable record. This fault flag is absent from the ordinary
 gateway build.
+A [source-free installed run](../../../docs/program-log/2026-10-26-ap071-installed-no-content.md)
+used the pinned fault-enabled gateway and retired its disposable record.
 
 The same development build also accepts `--exit-after-release-entry`. It
 terminates the gateway process after durably charging the release and before

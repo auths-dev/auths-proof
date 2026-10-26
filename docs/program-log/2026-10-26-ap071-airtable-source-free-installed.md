@@ -37,10 +37,12 @@ with exactly one admitted. Each case has a redacted result under
 run-owned record was retired. The cases are `lost_ack`, `revocation`,
 `second_write`, and `concurrent_writes`.
 
-The source-free no-content fault was **not run**: the current packaged gateway
-does not expose the development-only `--fail-before-content` switch. The runner
-refused before creating a provider record. The historical installed development
-run remains separate evidence; this gap still needs an installed fault method.
+The original packaged gateway did not expose the development-only
+`--fail-before-content` switch, so its first no-content invocation refused
+before fixture creation. A later [source-free installed rerun](2026-10-26-ap071-installed-no-content.md)
+used a pinned fault-enabled gateway. It recorded one provider call, seven
+charged bytes at `not-delivered`, no agent content, refused replay and verified
+run-owned record retirement.
 This run demonstrates the installed shared mechanism on a second HTTPS provider;
 the Airtable PAT is operator held and does not establish a second human-bound
 employee identity. The remaining hostile and isolation matrix in the
