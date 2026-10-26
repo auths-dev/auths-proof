@@ -244,6 +244,12 @@ demo_co's [focused finance probe](../program-log/2026-10-25-ap071-finance-denial
 
 ## 9. Completion and implementation order
 
+The revised Google gateway, custody process, native/broker/agent wheels and
+four recipe pairs now have a [source-free installed bundle](../program-log/2026-10-26-ap071-google-source-free-prep.md)
+with an independently checked manifest pin and offline installation. This
+preparation makes the next Jules run reproducible; no revised-recipe Google
+task has yet run from that bundle.
+
 The edit milestone passes only with a real Jules-approved Google Doc edit performed by a separate agent through the credential-isolated gateway and independently observed in the Project A fixture; its read path is explicitly reported. Full AP-SPEC-071 passes when the managed read-release path, Google create/populate and bounded-upfront scenarios, mandatory negative matrix and §6's independent HTTPS provider conformance also pass on pinned installed artifacts. Publish setup time, actual OAuth scopes, operator/admin steps, effect links and cleanup status. AP-SPEC-070's wider multi-employee and second-company acceptance remains a separate claim.
 
 Implementation order: (1) freeze the provider-neutral task, exact-confirmation and read-release contracts and the Google/Airtable abstraction case; (2) implement the managed read-release capability with independent provider references, while agreeing the demo_co folder, writable Doc, Jules ACL, consent and export; (3) freeze the Google Docs edit reference action and hostile vectors, then prove the gateway's OAuth and JSON recipe capabilities or add the reviewed data-only mechanism; (4) integrate task UI, exact confirmation and isolated agent and pass the live edit milestone; (5) review task-bound created-child response chaining, then pass create/populate, bounded-upfront and cross-provider runs. Keep producer provisioning and verification in demo_co; Auths uses an explicit not-ready contract shim until its versioned write slice exists.
