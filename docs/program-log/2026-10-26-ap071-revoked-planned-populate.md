@@ -50,11 +50,15 @@ task. A direct gateway submission of the staged agent proof returned
 `not-entered / gateway.task.inactive`. The task activity shows one write used
 for create, zero population writes, and no durable population provider attempt.
 
-The direct submission's exact wall time was not retained. It may have reached
-the gateway just after the 13:13:51 preflight expiry. Thus this run proves
-that a valid signed population was staged and revoked while its preflight was
-fresh, and that the later gateway attempt was refused as inactive. It does
-not isolate revocation from preflight expiry at the attempted entry instant.
+The direct submission's exact wall time was not retained. It occurred before
+the 13:15:35 independent inspection and well before the task's 13:33:03
+expiry. The gateway's `submit_task_write` checks the durable task's active
+state before evaluating the population preflight; an expired preflight has a
+different refusal path. Since this activated task was within its time window,
+`gateway.task.inactive` isolates the recorded revocation as the cause of the
+pre-entry refusal. The preflight may nevertheless have expired by the attempt
+instant, so this run does not demonstrate a denial while *both* revocation and
+an otherwise fresh preflight were simultaneously present at entry.
 The independent generation-0057 inspection returned
 `blank_unchanged_after_gateway_denial`: the same child, marker, parent, tab,
 admin revision and 3-byte raw export (SHA-256
@@ -62,4 +66,5 @@ admin revision and 3-byte raw export (SHA-256
 remained unchanged, as did the source, original siblings and canonical Docs.
 The blank child and scratch folder are retained for review; cleanup is not
 claimed. A later run with a captured gateway attempt time inside the valid
-preflight window would close the stronger timing-specific acceptance case.
+preflight window would test that stronger timing-specific condition, but is
+not needed to attribute this refusal to revocation.
