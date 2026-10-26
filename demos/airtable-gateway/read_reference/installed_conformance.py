@@ -148,7 +148,7 @@ class Airtable:
         self.token = token
 
     def request(self, method: str, path: str, fields: dict | None = None) -> dict:
-        if (method not in {"GET", "POST", "DELETE"} or not path.startswith("/v0/")
+        if (method not in {"GET", "POST", "PATCH", "DELETE"} or not path.startswith("/v0/")
                 or path.startswith("//") or any(char in path for char in "\r\n")):
             raise ValueError("Airtable operator request is outside the fixture")
         response = self.session.request(
@@ -316,6 +316,7 @@ def run(env_file: Path, root: Path, binary: Path,
         two_task_swap: bool = False,
         rotate_before_write: bool = False,
         rotate_release_audit_key: bool = False,
+        oversize_field: bool = False,
         macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, exit_after_release_entry,
@@ -323,7 +324,8 @@ def run(env_file: Path, root: Path, binary: Path,
             revoke_before_actions,
             upfront_second_write, concurrent_upfront_writes,
             exit_after_write_reservation, two_task_swap,
-            rotate_before_write, rotate_release_audit_key)) > 1:
+            rotate_before_write, rotate_release_audit_key,
+            oversize_field)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -789,6 +791,69 @@ def run(env_file: Path, root: Path, binary: Path,
            "--package-file", agent_dir / "read-package.json",
            "--arguments-file", agent_dir / "read-arguments.json",
            "--out-dir", read_output)
+    if oversize_field:
+        # The operator changes only this run-owned record after task admission.
+        # The 65-byte projection exceeds the reviewed recipe's 64-byte ceiling.
+        oversized = "X" * 65
+        changed = airtable.request("PATCH", row_path,
+                                   {"fields": {"DemoStatus": oversized}})
+        if (changed.get("id") != record
+                or changed.get("fields", {}).get("DemoStatus") != oversized):
+            raise RuntimeError("Airtable oversize fixture did not take effect")
+        receiver = _agent(
+            "serve-release", "--key-file", agent_dir / "agent.seed",
+            "--socket", channel, "--output", agent_dir / "oversize-source.bin",
+            "--task-id", signed.task_id,
+            "--task-commitment", common["task_commitment"],
+            "--operation-id", read_operation,
+            "--resource-handle", record,
+            "--channel-name", "airtable-agent-local", wait=False,
+        )
+        try:
+            _wait_for(channel, receiver)
+            result = _gateway(
+                binary, "task-read-submit", "--state-dir", state,
+                "--task-id", signed.task_id,
+                "--agent-proof", read_output / "read.proof",
+                "--agent-action", read_output / "read.action",
+            )
+        finally:
+            if receiver.poll() is None:
+                receiver.terminate()
+            receiver.communicate(timeout=5)
+            if channel.is_socket():
+                channel.unlink()
+        status = _gateway(binary, "task-status", "--state-dir", state,
+                          "--task-id", signed.task_id)
+        observed = airtable.request("GET", row_path)
+        if (result.get("outcome") != "provider-unavailable"
+                or result.get("status") != 200
+                or status.get("provider_calls") != 1
+                or status.get("releases") != 0
+                or status.get("released_bytes") != 0
+                or status.get("writes") != 0
+                or status.get("reads", [{}])[0].get("stage") != "provider-unavailable"
+                or (agent_dir / "oversize-source.bin").exists()
+                or observed.get("id") != record
+                or observed.get("fields", {}).get("DemoStatus") != oversized):
+            raise RuntimeError("oversize Airtable field escaped the release limit")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-oversize-field/1",
+            "task_id": signed.task_id, "record_id": record,
+            "projected_field_bytes": len(oversized),
+            "reviewed_release_limit_bytes": 64,
+            "read_outcome": result, "gateway_status": status,
+            "independent_readback": "65-byte-field-retained",
+            "agent_content": "none", "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-oversize-field-refused",
+            "task_id": signed.task_id, "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     if revoke_before_actions:
         write_operation = "airtable-write-after-revoke"
         _write_json(agent_dir / "revoked-write-arguments.json", {
@@ -1370,6 +1435,8 @@ def main() -> None:
                         help="rotate write connection after exact confirmation and refuse stale task")
     parser.add_argument("--rotate-release-audit-key", action="store_true",
                         help="rotate the release commitment key and compare an earlier acknowledged read")
+    parser.add_argument("--oversize-field", action="store_true",
+                        help="refuse a task-admitted 65-byte Airtable field before agent release")
     parser.add_argument("--macos-agent-sandbox", action="store_true",
                         help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
@@ -1388,6 +1455,7 @@ def main() -> None:
             two_task_swap=args.two_task_swap,
             rotate_before_write=args.rotate_before_write,
             rotate_release_audit_key=args.rotate_release_audit_key,
+            oversize_field=args.oversize_field,
             macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)

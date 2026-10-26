@@ -119,6 +119,15 @@
       "receipt_sha256": "cadd64812d32c074579645b9d8afaf1325221c0c12b384ddac1729b201724625",
       "task_ids": ["xcCfKOpvIPl06GJzT3Fbbk-i"],
       "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "oversize-projected-field-refused",
+      "bundle": "/private/tmp/ap071-airtable-oversize-bundle-20261026",
+      "bundle_manifest_sha256": "b2151a4854f3b0515427094efcd6ddabe5f86d685b86a89ccfa5b24c6dd67298",
+      "receipt": "/private/tmp/ap071-airtable-oversize-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "5487c4f9761cc02f4b87f6ea5eaef43d82795996b4158b5e2216c459a3ba366a",
+      "task_ids": ["EjpWFieK2cWlHc4mlnd7tUYI"],
+      "cleanup": "run-owned-record-retired"
     }
   ]
 }

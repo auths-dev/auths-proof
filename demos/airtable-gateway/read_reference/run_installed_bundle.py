@@ -64,7 +64,7 @@ def main() -> None:
                  "upfront-second-write", "concurrent-upfront-writes",
                  "exit-after-write-reservation", "two-task-swap",
                  "rotate-before-write", "rotate-release-audit-key",
-                 "macos-agent-sandbox"):
+                 "macos-agent-sandbox", "oversize-field"):
         parser.add_argument("--" + flag, action="store_true")
     args = parser.parse_args()
     if not args.env_file.is_absolute() or not args.root.is_absolute():
@@ -101,6 +101,7 @@ def main() -> None:
         "exit_after_write_reservation", "two_task_swap",
         "rotate_before_write", "rotate_release_audit_key",
         "macos_agent_sandbox",
+        "oversize_field",
     ) if getattr(args, name)]
     if args.action == "container-run":
         if not args.agent_container or not args.gateway_container or extra:
