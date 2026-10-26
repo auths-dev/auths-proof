@@ -88,6 +88,7 @@
     "identity_signing_preimage_v1",
     "mcp_call",
     "mcp_body_digest",
+    "mcp_gateway_configuration",
     "mcp_signed_action_from_proof",
     "native_abi_version",
     "open_approval_request",

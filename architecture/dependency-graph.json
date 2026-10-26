@@ -3360,7 +3360,7 @@
       "target": "async-trait",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
