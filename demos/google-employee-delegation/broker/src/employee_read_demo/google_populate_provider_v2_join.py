@@ -278,6 +278,18 @@ def join_populate_provider_final_v2(
                 and by_operation[plan["populate_operation_id"]].get("stage")
                     != "observed-by-provider"):
         raise ContractRejected("provider v2 attempt lineage differs from task")
+    create_attempt = by_operation[create["operation_id"]]
+    create_stage = create_attempt["stage"]
+    create_status = create_attempt.get("response_status")
+    if (create_stage == "unknown"
+            and (create_status is not None
+                 or create_attempt.get("observation_match") is not None)
+            or create_stage != "unknown"
+                and (type(create_status) is not int
+                     or not 200 <= create_status < 300)
+            or create_stage == "observed"
+                and create_attempt.get("observation_match") is not True):
+        raise ContractRejected("provider v2 create attempt is not a successful response")
     populate_attempt = by_operation[plan["populate_operation_id"]]
     stage = populate_attempt["stage"]
     status = populate_attempt.get("response_status")

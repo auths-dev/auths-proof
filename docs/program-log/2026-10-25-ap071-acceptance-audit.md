@@ -117,4 +117,7 @@ lineage readout identifies the journal-bound preflight signature; the private
 task/provider join checks that signature, native task/plan commitments,
 charged reads and writes, and exact attempt stages. This source and loopback
 evidence does not prove that Auths entered Google under the revised recipe; a
-fresh Jules-signed installed run and a redacted owner-view effect link remain.
+fresh Jules-signed installed run remains. The owner workbench now conditionally
+recomputes the private producer/task join and shows a redacted effect row and
+checked-child link, but this path has passed synthetic tests only, not a live
+v2 provider observation.

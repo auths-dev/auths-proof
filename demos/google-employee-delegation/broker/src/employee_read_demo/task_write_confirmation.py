@@ -29,7 +29,11 @@ from cryptography.exceptions import InvalidSignature
 from .agent_registry import AgentBinding
 from .contracts import commitment
 from .authority_identity import raw_key_public_for_identity_packet
-from .demo_co_contract import _unique_pairs
+from .demo_co_contract import ContractRejected, _unique_pairs
+from .google_populate_provider_v2_owner import (
+    MANIFEST_NAME as PROVIDER_V2_MANIFEST,
+    owner_provider_v2_effect,
+)
 from .enrollment import EmployeeBinding
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
@@ -866,6 +870,27 @@ class TaskWriteConfirmationFlow:
             operation_ids.append(write["operation_id"])
         if sorted(operation_ids) != sorted(status["write_operations"]):
             raise OperatorDenied("gateway task activity is unavailable")
+        task_dir = self._task_dir(task_id)
+        manifest = task_dir / PROVIDER_V2_MANIFEST
+        if manifest.exists() or manifest.is_symlink():
+            try:
+                lineage_result = subprocess.run([
+                    str(self._binary()), "task-population-lineage",
+                    "--state-dir", str(self.gateway_state_dir),
+                    "--task-id", task_id,
+                ], capture_output=True, check=False, timeout=30)
+                if lineage_result.returncode != 0 or len(lineage_result.stdout) > 8192:
+                    raise OperatorDenied("gateway population lineage is unavailable")
+                lineage = json.loads(lineage_result.stdout,
+                                     object_pairs_hook=_unique_pairs)
+                activity["provider_effect"] = owner_provider_v2_effect(
+                    task_dir, activity, lineage,
+                )
+            except (OSError, subprocess.TimeoutExpired, UnicodeError,
+                    ValueError, ContractRejected) as error:
+                raise OperatorDenied(
+                    "independent provider effect evidence is unavailable"
+                ) from error
         return activity
 
     def submit(self, *, task_id: str, employee: EmployeeBinding,

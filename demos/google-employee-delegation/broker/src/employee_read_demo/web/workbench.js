@@ -480,6 +480,27 @@ async function loadWriteTaskStatus() {
       ? " Readback did not match." : "";
     addEvent(`Write ${write.operation_id}: ${writeStage[write.stage]}${response}.${comparison}`);
   }
+  if (activity.provider_effect !== undefined) {
+    const effect = activity.provider_effect;
+    if (effect?.schema !== "auths.ap071-populate-task-provider-join/1" ||
+        effect.status !== "joined" || effect.task_id !== taskId ||
+        effect.provider_state !== "exact_populated" ||
+        effect.retry_authorized !== false ||
+        !["unknown", "response-recorded", "observed",
+          "observed-by-provider"].includes(effect.population_outcome) ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(effect.child_id)) {
+      throw new Error("Independent provider effect did not match the task");
+    }
+    addEvent(`Independent Google inspection found the exact approved content in the bound child. Gateway population outcome: ${effect.population_outcome}. This observation does not by itself attribute the edit to the agent.`);
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = `https://docs.google.com/document/d/${encodeURIComponent(effect.child_id)}/edit`;
+    link.textContent = "Open the independently checked Doc";
+    link.rel = "noopener noreferrer";
+    link.target = "_blank";
+    item.append(link);
+    timeline.append(item);
+  }
   if (status.revoked) addEvent("Task revoked; new actions are closed.");
   message(status.revoked ? "This agent task is revoked." : "Gateway task activity is current.");
 }

@@ -217,6 +217,23 @@ class TaskWriteExecutionTests(unittest.TestCase):
             with self.assertRaisesRegex(OperatorDenied, "activity is unavailable"):
                 self.flow.activity(task_id=self.task_id, employee=employee)
 
+        manifest = self.task_dir / "provider-v2-evidence.json"
+        manifest.write_text("{}", encoding="utf-8")
+        manifest.chmod(0o600)
+        effect = {"schema": "auths.ap071-populate-task-provider-join/1",
+                  "status": "joined", "task_id": self.task_id,
+                  "provider_state": "exact_populated", "retry_authorized": False}
+        with (patch("employee_read_demo.task_write_confirmation.subprocess.run",
+                    side_effect=[gateway_result(status), gateway_result(activity),
+                                 gateway_result({"schema": "lineage"})]) as run,
+              patch("employee_read_demo.task_write_confirmation."
+                    "owner_provider_v2_effect", return_value=effect) as join):
+            observed = self.flow.activity(task_id=self.task_id, employee=employee)
+        self.assertEqual(observed["provider_effect"], effect)
+        self.assertEqual([call.args[0][1] for call in run.call_args_list],
+                         ["task-status", "task-activity", "task-population-lineage"])
+        self.assertEqual(join.call_args.args[0], self.task_dir)
+
     def test_one_effect_plan_records_exact_draft_before_any_provider_write(self) -> None:
         self.flow.companion_recipe_path = self.root / "populate-recipe"
         self.flow.companion_profile_lock_path = self.root / "populate-lock"

@@ -43,8 +43,9 @@ response lost after population stays `unknown` in the joined result; the
 independent exact provider state does not convert it into a successful gateway
 response or permit retry. The join returns no plain content hash.
 
-Six focused join tests pass, including task, plan, child, preflight and
-attempt swaps, malformed inputs, and response-status checks. The gateway's
+Eight focused join tests pass, including task, plan, child, preflight and
+attempt swaps, malformed inputs, response-status checks and the private owner
+manifest. The gateway's
 loopback create/populate test checks the journal-derived preflight signature
 hash, and the CLI help exposes the new
 read-only command. A final broker wheel containing both the consumer and
@@ -53,6 +54,33 @@ join was built at
 with SHA-256 `d7c11b4d9d5c2e61db539c04dce015e080194aa49a224af69bc1ef71aa70e680`.
 It installed and imported from a source-free private target path. Neither
 wheel nor gateway command has run against a fresh Google task.
+
+The owner workbench now has a conditional provider-effect row. An operator
+places `provider-v2-evidence.json` in the owner-only task directory after
+demo_co publishes the fresh reports. The manifest has schema
+`auths.ap071-provider-v2-evidence/1`, the exact task ID, three absolute v4
+source observation paths, an absolute v4 final-pins path, the pinned source
+document ID/raw SHA-256/byte count, the signed preflight basename, and
+`{path, sha256}` pairs for `setup`, `inventory`, `precreate`, `blank` and
+`final`. Every file and manifest is private to the operator; the producer
+reports are never sent to the browser. On each owner activity request, the
+broker revalidates those pinned reports, reads the gateway's durable task
+activity and population lineage, reruns the private join, and returns only
+the redacted exact-state verdict and a link to the checked child. Missing
+manifest means no independent effect claim. Invalid evidence refuses the
+effect view. The browser labels the provider observation separately from the
+gateway outcome and never converts `unknown` into response success or retry
+permission. This is a Google demo adapter in the broker; the task and gateway
+contracts remain provider-neutral. The source and synthetic tests cover this
+path, but a real v2 report has not exercised it yet.
+The complete broker suite passed 194 local tests, and its browser workbench
+test rendered the independent effect and checked-child link. The updated
+source-free wheel contains the consumer, join, owner adapter, two vendored
+schemas and workbench JS at
+`/private/tmp/ap071-provider-v2-owner-wheel-20261026/auths_google_employee_delegation_broker-0.1.0-py3-none-any.whl`
+with SHA-256 `60f2a7da04f69eb1213eac1338ab1ec3f9bdd62466753566ca27faef1f373856`.
+It installed without dependencies into a clean private target, and both owner
+modules imported from that target outside the checkout.
 
 The next live run needs a new demo_co setup/run folder and marker, a fresh
 inventory and pre-create baseline, one Jules-signed task and exact plan using

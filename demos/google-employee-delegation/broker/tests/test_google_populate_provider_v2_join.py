@@ -9,11 +9,15 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from employee_read_demo.contracts import commitment
 from employee_read_demo.demo_co_contract import ContractRejected
 from employee_read_demo.google_populate_provider_v2_join import (
     join_populate_provider_final_v2,
+)
+from employee_read_demo.google_populate_provider_v2_owner import (
+    owner_provider_v2_effect,
 )
 from employee_read_demo.task_write_proofs import task_commitment
 
@@ -282,6 +286,46 @@ class ProviderV2TaskJoinTests(unittest.TestCase):
         attempt["observation_match"] = False
         with self.assertRaises(ContractRejected):
             self.join()
+
+    def test_create_stage_cannot_claim_a_failed_response(self) -> None:
+        create = self.activity["write_attempts"][0]
+        create["stage"] = "response-recorded"
+        create["response_status"] = 403
+        with self.assertRaises(ContractRejected):
+            self.join()
+
+    def test_owner_view_recomputes_from_private_pinned_evidence(self) -> None:
+        self.write_records()
+        manifest = {
+            "schema": "auths.ap071-provider-v2-evidence/1",
+            "task_id": "task-one",
+            "source_v4_paths": [str(self.task / name)
+                                for name in ("v4-baseline", "v4-blank", "v4-final")],
+            "v4_pins_path": str(self.task / "v4-pins.json"),
+            "source": {"document_id": "source-doc", "raw_sha256": "c" * 64,
+                       "raw_byte_count": 51},
+            "preflight_name": self.preflight_path.name,
+        }
+        for name in ("setup", "inventory", "precreate", "blank", "final"):
+            manifest[name] = {"path": str(self.task / name), "sha256": "f" * 64}
+        path = self.task / "provider-v2-evidence.json"
+        path.write_text(json.dumps(manifest))
+        path.chmod(0o600)
+        with (patch("employee_read_demo.google_populate_provider_v2_owner."
+                    "load_v4_final_pins", return_value=object()),
+              patch("employee_read_demo.google_populate_provider_v2_owner."
+                    "validate_populate_provider_final_v2",
+                    return_value=self.provider) as consume):
+            result = owner_provider_v2_effect(self.task, self.activity,
+                                              self.lineage)
+            self.assertEqual(result["provider_state"], "exact_populated")
+            self.assertEqual(result["task_id"], "task-one")
+            self.assertNotIn("expected_raw_sha256", result)
+            self.assertEqual(consume.call_args.kwargs["expected_text"], self.text)
+            manifest["final"]["sha256"] = "bad"
+            path.write_text(json.dumps(manifest))
+            with self.assertRaises(ContractRejected):
+                owner_provider_v2_effect(self.task, self.activity, self.lineage)
 
 
 if __name__ == "__main__":

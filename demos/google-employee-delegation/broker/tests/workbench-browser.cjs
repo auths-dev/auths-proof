@@ -28,6 +28,7 @@ let receiptResourceRef = nodeCrypto.createHash("sha256").update("file-A").digest
 let sessionOverride = null;
 let writePrepareResponse = null;
 let writeStatusResponse = null;
+let writeEffectResponse = null;
 let writeAuthorizeResponse = null;
 async function fetch(url, options = {}) {
   let result;
@@ -44,6 +45,7 @@ async function fetch(url, options = {}) {
       task: writeStatusResponse,
       write_attempts: [{operation_id: "write-1", stage: "response-recorded",
         response_status: 200, observation_match: null}]};
+    if (writeEffectResponse) result.provider_effect = writeEffectResponse;
   } else if (url === "/api/v1/tasks/task-1") {
     result = { task: { task_id: "task-1", company_id: "atlas-studio",
       employee_principal: "employee-A", agent_principal: "agent-A",
@@ -72,7 +74,8 @@ async function fetch(url, options = {}) {
 
 async function main() {
   const context = vm.createContext({
-    document: { getElementById: byId, createElement: () => ({}) },
+    document: { getElementById: byId,
+      createElement: () => ({append(child) { this.child = child; }}) },
     fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
     TextEncoder, Uint8Array,
   });
@@ -126,7 +129,8 @@ async function main() {
       ], expires_at: 123456, task_id: "task-upfront" },
   };
   const upfrontContext = vm.createContext({
-    document: { getElementById: byId, createElement: () => ({}) },
+    document: { getElementById: byId,
+      createElement: () => ({append(child) { this.child = child; }}) },
     fetch, console, setTimeout, crypto: nodeCrypto.webcrypto,
     TextEncoder, Uint8Array,
   });
@@ -160,6 +164,21 @@ async function main() {
     /provider response recorded; intended effect needs independent verification/);
   assert.match(byId("write-activity-timeline").options[2].textContent,
     /HTTP 200/);
+  writeEffectResponse = {
+    schema: "auths.ap071-populate-task-provider-join/1", status: "joined",
+    task_id: "task-upfront", child_id: "checked-doc",
+    provider_state: "exact_populated", population_outcome: "unknown",
+    retry_authorized: false,
+  };
+  await vm.runInContext("loadWriteTaskStatus()", upfrontContext);
+  assert.equal(byId("write-activity-timeline").options.length, 5);
+  assert.match(byId("write-activity-timeline").options[3].textContent,
+    /independent Google inspection/i);
+  assert.match(byId("write-activity-timeline").options[3].textContent,
+    /unknown/);
+  assert.equal(byId("write-activity-timeline").options[4].child.href,
+    "https://docs.google.com/document/d/checked-doc/edit");
+  writeEffectResponse = null;
   writeAuthorizeResponse = {
     status: "signed_activation_unconfirmed", task_id: "task-upfront",
     agent_principal: "agent-A", expires_at: 9999999999,
