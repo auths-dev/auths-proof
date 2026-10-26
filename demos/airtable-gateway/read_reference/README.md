@@ -97,9 +97,22 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for eleven installed cases
+pins the bundle manifests and redacted receipts for twelve installed cases
 on this host, including both restart boundaries, the two-task swap, the
-no-content delivery fault and a stale-generation write refusal.
+no-content delivery fault, a stale-generation write refusal and an isolated
+Linux container read/write run.
+
+For the [container case](../../../docs/program-log/2026-10-26-ap071-container-read-write.md),
+start the digest-pinned images with the
+[AP-071 Compose topology](../../google-employee-delegation/isolation/AP071.md).
+Give `run.py container-run` the existing container names through
+`--agent-container` and `--gateway-container` along with the normal manifest,
+env-file and private-root arguments. The runner signs agent actions inside the
+isolated installed agent, executes task admission and provider operations in
+the installed Linux gateway, checks independent Airtable after-state, and
+leaves a separate cleanup journal. Run `run.py cleanup` for that root after
+inspection. The development PAT remains operator-held; this case does not
+establish an employee-bound provider grant.
 
 Use `--rotate-before-write` for the stale-generation case. The runner signs
 and exact-confirms a valid write, publishes the next installed write

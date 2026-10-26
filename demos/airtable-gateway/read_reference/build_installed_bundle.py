@@ -21,8 +21,8 @@ SUPPORT = (
     "fresh_evidence.py", "stripe_platform.py",
 )
 READ_FILES = (
-    "installed_conformance.py", "lost_ack_agent.py", "airtable_custody.py", "recipe.json",
-    "profile.lock.json",
+    "installed_conformance.py", "container_conformance.py", "lost_ack_agent.py",
+    "airtable_custody.py", "recipe.json", "profile.lock.json",
 )
 WRITE_FILES = ("recipe.json", "profile.lock.json")
 

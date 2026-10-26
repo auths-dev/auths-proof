@@ -52,10 +52,12 @@ def verify_bundle(expected_manifest_sha256: str) -> dict[str, dict[str, object]]
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("run", "cleanup"))
+    parser.add_argument("action", choices=("run", "cleanup", "container-run"))
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--env-file", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument("--agent-container")
+    parser.add_argument("--gateway-container")
     for flag in ("drop-ack", "fail-before-content", "exit-after-release-entry",
                  "exit-after-content-send",
                  "revoke-before-actions",
@@ -100,6 +102,19 @@ def main() -> None:
         "rotate_before_write",
         "macos_agent_sandbox",
     ) if getattr(args, name)]
+    if args.action == "container-run":
+        if not args.agent_container or not args.gateway_container or extra:
+            parser.error("container-run needs both installed containers and no fault flags")
+        command = [
+            str(python), str(ROOT / "read_reference/container_conformance.py"),
+            "--env-file", str(args.env_file), "--root", str(args.root),
+            "--agent-container", args.agent_container,
+            "--gateway-container", args.gateway_container,
+            "--reviewed-gateway", str(ROOT / "bin/auths-gateway"),
+        ]
+        raise SystemExit(subprocess.run(command, env=env, check=False).returncode)
+    if args.agent_container or args.gateway_container:
+        parser.error("container names apply only to container-run")
     command = [str(python), str(ROOT / "read_reference/installed_conformance.py"),
                args.action, "--env-file", str(args.env_file), "--root", str(args.root),
                "--gateway-bin", str(ROOT / "bin/auths-gateway"), *extra]

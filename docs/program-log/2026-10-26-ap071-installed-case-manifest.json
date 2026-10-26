@@ -101,6 +101,15 @@
       "receipt_sha256": "5734d74ac3dfe9c54216dc64b8765f6163f0fc4c456a0ea5c34ebf77b2c1e0e7",
       "task_ids": ["MWq6c1gyHYyCTIsW0UoLI8Zj"],
       "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "isolated-container-read-exact-write",
+      "bundle": "/private/tmp/ap071-airtable-container-bundle-v3-20261026",
+      "bundle_manifest_sha256": "7a8875963914f7ede085fea3221fe97f7e110b7ace42cbec6953799f22310c27",
+      "receipt": "/private/tmp/ap071-airtable-container-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "b7165d4974cf974af678e12ddaaac8d393139c93ab5c7a8ee18fc7060ebbcdb0",
+      "task_ids": ["8SgI-xIjgqXWWCjEX7Qj3ZnB"],
+      "cleanup": "run-owned-record-retired"
     }
   ]
 }
