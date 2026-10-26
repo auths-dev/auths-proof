@@ -82,6 +82,31 @@ with SHA-256 `60f2a7da04f69eb1213eac1338ab1ec3f9bdd62466753566ca27faef1f373856`.
 It installed without dependencies into a clean private target, and both owner
 modules imported from that target outside the checkout.
 
+demo_co confirmed the fresh producer order and output names. Run its CLI from
+the demo_co checkout with `PYTHONPATH=src .venv/bin/python -m demo_co.cli google`
+and the `atlas-studio --instance live-test-atlas-20261025` arguments. The
+subcommands, in order, are:
+
+1. `populate-failure-setup --run-id RUN_ID --marker ap071_HEX32 --v4-baseline-generation 21 --v4-baseline-sha256 PIN --v4-final-generation 23 --v4-final-sha256 PIN`. This creates one new Google run folder. Start it only when the installed Auths run and Jules browser signing can follow. It emits `google-populate-failure-setup.json` and prints its absolute private path and SHA-256.
+2. `populate-provider-inventory --setup-generation N --setup-sha256 PIN` performs read-only sibling and Jules-source checks, emitting `google-populate-provider-inventory.json`.
+3. After Jules signs the task and exact plan, immediately before Auths create, `populate-precreate-baseline --setup-generation N --setup-sha256 PIN` emits `google-populate-precreate-baseline.json`. The create must enter within its five-minute window.
+4. After Auths binds the exact child, `populate-blank-baseline --setup-generation N --setup-sha256 PIN --child-id BOUND_ID` emits `google-populate-blank-baseline.json`. Use its child/tab facts in Jules's signed v2 preflight before the single population attempt.
+5. After that attempt, `populate-provider-final-v2 --inventory-generation N --inventory-sha256 PIN --blank-baseline-generation N --blank-baseline-sha256 PIN --expected-raw-sha256 PRIVATE_PIN --expected-raw-byte-count COUNT` emits `google-populate-provider-final-v2.json`. The expected bytes include Google's text export BOM.
+
+Take every generation and digest from that command's printed
+`private_evidence` and `private_evidence_sha256`; generation numbers are shared
+across evidence types and must not be predicted. The frozen v4 source trio is
+`generation-0021/google-create-v4-baseline.json`,
+`generation-0022/google-create-v4-candidate-blank.json`, and
+`generation-0023/google-create-observation-v4.json` under demo_co's private
+write-evidence directory. The Auths owner-only
+`/private/tmp/ap071-v4-fixed-20261025/v4-final-pins.json` was revalidated
+against those three files with `validate_create_v4_observation`; it passed.
+The new task's `provider-v2-evidence.json` manifest points to that frozen
+trio and pins file, the five new report paths and SHA-256s, the private source
+pin, and the signed preflight basename. No new Google action was taken to
+prepare this sequence.
+
 The next live run needs a new demo_co setup/run folder and marker, a fresh
 inventory and pre-create baseline, one Jules-signed task and exact plan using
 the current `provider_values` recipe, a blank-child baseline, one population
