@@ -73,6 +73,7 @@ gateway outcome and never converts `unknown` into response success or retry
 permission. This is a Google demo adapter in the broker; the task and gateway
 contracts remain provider-neutral. The source and synthetic tests cover this
 path, but a real v2 report has not exercised it yet.
+
 The complete broker suite passed 194 local tests, and its browser workbench
 test rendered the independent effect and checked-child link. The updated
 source-free wheel contains the consumer, join, owner adapter, two vendored
@@ -106,6 +107,14 @@ The new task's `provider-v2-evidence.json` manifest points to that frozen
 trio and pins file, the five new report paths and SHA-256s, the private source
 pin, and the signed preflight basename. No new Google action was taken to
 prepare this sequence.
+
+The gateway was built and copied to the owner-private
+`/private/tmp/ap071-gateway-v2-20261026/auths-gateway` before a live task.
+Its SHA-256 is
+`707c4ec66188b0ccdb388c298e8262270bae7ae8116e5875a2c364c69ea74c40`;
+its installed help exposes `task-activity`, `task-population-lineage` and
+`task-submit`. This is a development binary pin, not yet a complete installed
+Google task or production qualification.
 
 The next live run needs a new demo_co setup/run folder and marker, a fresh
 inventory and pre-create baseline, one Jules-signed task and exact plan using
