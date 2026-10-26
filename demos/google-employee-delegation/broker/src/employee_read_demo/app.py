@@ -43,6 +43,9 @@ from .google_create_handoff import (
     CreatedChildContinuationTarget, prepare_create_inputs,
 )
 from .google_create_preflight import preflight_jules_created_child
+from .google_create_negative_handoff import (
+    NegativeCreateTarget, load_v4_final_pins, validate_negative_create_setup,
+)
 from .write_handoff import (
     WriteHandoffPins, validate_current_write_observation, validate_write_handoff,
 )
@@ -108,6 +111,7 @@ class Workbench:
     write_target: CreatedChildContinuationTarget | None = None
     finance_read_target: str | None = None
     edit_rerun_target: EditRerunTarget | None = None
+    negative_create_target: NegativeCreateTarget | None = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -507,8 +511,11 @@ class Handler(BaseHTTPRequestHandler):
                     paired = self.workbench.write_browser.companion_recipe_path is not None
                     pending_child = None
                     if paired:
+                        negative = self.workbench.negative_create_target
+                        parent_id = (negative.parent_id if negative is not None
+                                     else evidence["folder_id"])
                         create_inputs = prepare_create_inputs(
-                            evidence["folder_id"], pinned_folder_id=evidence["folder_id"])
+                            parent_id, pinned_folder_id=parent_id)
                         pending_child = {
                             "create_operation_id": secrets.token_urlsafe(18),
                             "create_recipe_digest": package.recipe_digest,
@@ -516,7 +523,8 @@ class Handler(BaseHTTPRequestHandler):
                                 package.companion_write.recipe_digest,
                             "parent_handle": create_inputs["parent_id"],
                             "title": create_inputs["title"],
-                            "marker": create_inputs["recovery_marker"],
+                            "marker": (negative.marker if negative is not None
+                                       else create_inputs["recovery_marker"]),
                         }
                     prepared = self.workbench.write_browser.prepare(
                         employee=employee, agent=agent,
@@ -525,7 +533,7 @@ class Handler(BaseHTTPRequestHandler):
                         resource_handle=(
                             self.workbench.finance_read_target
                             if self.workbench.finance_read_target is not None else
-                            evidence["folder_id"] if paired else
+                            parent_id if paired else
                             self.workbench.write_target.child.candidate_id
                             if self.workbench.write_target is not None else
                             self.workbench.edit_rerun_target.document_id
@@ -534,7 +542,9 @@ class Handler(BaseHTTPRequestHandler):
                         resource_label=(
                             "No write destination (read-only task)"
                             if self.workbench.finance_read_target is not None else
-                            "Project A destination folder" if paired else
+                            (f"Project A scratch run {negative.run_id} ({negative.case})"
+                             if negative is not None else
+                             "Project A destination folder") if paired else
                             self.workbench.write_target.child.title
                             if self.workbench.write_target is not None else
                             self.workbench.edit_rerun_target.document_title
@@ -1088,6 +1098,12 @@ def main() -> int:
                         help="private same-grant Jules finance denial observation")
     parser.add_argument("--task-finance-write-grant-sha256",
                         help="operator-reviewed digest of the same-grant observation")
+    parser.add_argument("--task-create-negative-setup", type=Path)
+    parser.add_argument("--task-create-negative-setup-sha256")
+    parser.add_argument("--task-create-negative-v4-pins", type=Path)
+    parser.add_argument("--task-create-negative-v4-baseline", type=Path)
+    parser.add_argument("--task-create-negative-v4-candidate", type=Path)
+    parser.add_argument("--task-create-negative-v4-final", type=Path)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--container-bind", action="store_true",
                         help="bind all container interfaces; use only behind the compose relays")
@@ -1192,6 +1208,21 @@ def main() -> int:
     if any(option is not None for option in write_options) and not all(
             option is not None for option in write_options):
         parser.error("all task-write inputs must be supplied together")
+    negative_options = (
+        args.task_create_negative_setup,
+        args.task_create_negative_setup_sha256,
+        args.task_create_negative_v4_pins,
+        args.task_create_negative_v4_baseline,
+        args.task_create_negative_v4_candidate,
+        args.task_create_negative_v4_final,
+    )
+    if any(option is not None for option in negative_options) and (
+            not all(option is not None for option in negative_options)
+            or not all(option is not None for option in write_options)
+            or args.task_companion_write_recipe is None
+            or args.task_write_created_child is not None
+            or args.task_finance_denial_evidence is not None):
+        parser.error("negative create requires a complete paired scratch setup")
     if (args.task_write_current_baseline is None) != (
             args.task_write_current_baseline_sha256 is None):
         parser.error("current working Doc baseline and digest must be supplied together")
@@ -1245,6 +1276,7 @@ def main() -> int:
     upfront_choices = None
     finance_read_target = None
     edit_rerun_target = None
+    negative_create_target = None
     if all(option is not None for option in write_options):
         if company is None:
             parser.error("task write requires an accepted company import")
@@ -1335,6 +1367,18 @@ def main() -> int:
             if (write_target.child.parent_id != write_evidence["folder_id"]
                     or write_target.child.drive_id != write_evidence["drive_id"]):
                 parser.error("created-child continuation differs from pinned Project A")
+        if any(option is not None for option in negative_options):
+            try:
+                negative_create_target = validate_negative_create_setup(
+                    args.task_create_negative_v4_baseline,
+                    args.task_create_negative_v4_candidate,
+                    args.task_create_negative_v4_final,
+                    args.task_create_negative_setup,
+                    args.task_create_negative_setup_sha256,
+                    load_v4_final_pins(args.task_create_negative_v4_pins),
+                )
+            except (ContractRejected, OSError, PermissionError) as error:
+                parser.error(f"negative create setup refused: {error}")
         loaded = load_task_write_package(args.task_write_authority)
         if loaded.company_id != write_pins.company:
             parser.error("task authority company disagrees with producer")
@@ -1489,7 +1533,8 @@ def main() -> int:
                           vault, company, status, origin, trusted_template, expected_root,
                           agent_transport, service, write_browser,
                           args.task_write_evidence, write_pins, write_confirmation,
-                          write_target, finance_read_target, edit_rerun_target)
+                          write_target, finance_read_target, edit_rerun_target,
+                          negative_create_target)
     bind_address = "0.0.0.0" if args.container_bind else "127.0.0.1"
     with WorkbenchServer((bind_address, args.port), workbench) as server:
         print(f"Auths workbench: {origin} (Google: {status.google})", flush=True)

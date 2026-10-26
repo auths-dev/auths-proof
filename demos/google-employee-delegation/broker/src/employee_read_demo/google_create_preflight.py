@@ -245,6 +245,7 @@ def search_jules_created_child(
     *,
     connection_id: str,
     connection_generation: int,
+    pinned_parent_id: str | None = None,
     now: int | None = None,
 ) -> JulesCreateRecoverySearchResult:
     """Collect bounded recovery evidence; never grant or retry create.
@@ -255,8 +256,10 @@ def search_jules_created_child(
     """
     now = int(time.time()) if now is None else now
     evidence = validate_write_handoff(evidence_path, credential_pins.producer)
+    parent_id = (pinned_parent_id if pinned_parent_id is not None
+                 else evidence["folder_id"])
     search = CreateRecoverySearch(
-        parent_id=evidence["folder_id"], drive_id=evidence["drive_id"],
+        parent_id=parent_id, drive_id=evidence["drive_id"],
         marker_value=marker_value,
     )
     lease = lease_jules_write_token(
@@ -285,13 +288,13 @@ def search_jules_created_child(
         candidate_id = search.single_candidate()
         if candidate_id is None:
             return JulesCreateRecoverySearchResult(
-                None, search.candidate_count, evidence["folder_id"],
+                None, search.candidate_count, parent_id,
                 evidence["drive_id"], marker_value, tuple(page_sha256), None,
                 now, connection_id, connection_generation,
                 credential_pins.producer.jules_subject,
             )
         pins = CreatedChildMetadataPins(
-            candidate_id=candidate_id, parent_id=evidence["folder_id"],
+            candidate_id=candidate_id, parent_id=parent_id,
             drive_id=evidence["drive_id"], title=CHILD_TITLE,
             marker_value=marker_value,
         )
@@ -302,7 +305,7 @@ def search_jules_created_child(
         metadata = _json_object(metadata_raw)
         validate_created_child_metadata(metadata, pins)
         return JulesCreateRecoverySearchResult(
-            candidate_id, search.candidate_count, evidence["folder_id"],
+            candidate_id, search.candidate_count, parent_id,
             evidence["drive_id"], marker_value, tuple(page_sha256),
             hashlib.sha256(metadata_raw).hexdigest(), now,
             connection_id, connection_generation,

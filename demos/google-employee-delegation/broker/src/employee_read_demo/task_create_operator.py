@@ -21,6 +21,9 @@ from pathlib import Path
 
 from .demo_co_contract import ContractRejected, _unique_pairs
 from .google_create_handoff import CHILD_TITLE
+from .google_create_negative_handoff import (
+    load_v4_final_pins, validate_negative_precreate_baseline,
+)
 from .google_create_preflight import search_jules_created_child
 from .google_create_v2_handoff import (
     CreateV2BaselinePins, validate_create_v2_precreate_baseline,
@@ -57,7 +60,8 @@ def _recorded_baseline_is_valid(record: object, task_id: str) -> bool:
     if record.get("schema") in (
             "auths.ap071-pre-create-baseline/1",
             "auths.ap071-pre-create-baseline/3",
-            "auths.ap071-pre-create-baseline/4"):
+            "auths.ap071-pre-create-baseline/4",
+            "auths.ap071-pre-create-baseline-negative/1"):
         expected = _BASELINE_RECORD_FIELDS
     elif record.get("schema") == "auths.ap071-pre-create-baseline/2":
         expected = _BASELINE_RECORD_FIELDS | {"preserved_blank_sha256"}
@@ -182,6 +186,10 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
                           v2_pins_path: Path | None = None,
                           v3_pins_path: Path | None = None,
                           v4_pins_path: Path | None = None,
+                          negative_setup_path: Path | None = None,
+                          negative_setup_sha256: str | None = None,
+                          negative_v4_pins_path: Path | None = None,
+                          negative_source_paths: tuple[Path, Path, Path] | None = None,
                           now: int | None = None) -> dict:
     """Record the sole baseline, then submit the immutable human effect plan once."""
     if (type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None
@@ -201,6 +209,15 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
     if sum(path is not None for path in (
             v2_pins_path, v3_pins_path, v4_pins_path)) > 1:
         raise OperatorDenied("only one producer baseline version may be pinned")
+    negative_options = (negative_setup_path, negative_setup_sha256,
+                        negative_v4_pins_path, negative_source_paths)
+    if any(value is not None for value in negative_options) and (
+            not all(value is not None for value in negative_options)
+            or any(value is not None for value in (
+                preserved_blank_path, v2_pins_path, v3_pins_path, v4_pins_path))
+            or negative_source_paths is None
+            or len(negative_source_paths) != 3):
+        raise OperatorDenied("negative pre-create source pins are incomplete")
     if v2_pins_path is not None:
         try:
             v2_pins = CreateV2BaselinePins(**json.loads(
@@ -241,11 +258,25 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
         if v4_pins.source_verification_sha256 != pins.producer.evidence_sha256:
             raise OperatorDenied("v4 source verification differs from installed producer")
     now = int(time.time()) if now is None else now
-    generation, observation, baseline_version = _baseline(
-        baseline_path, baseline_sha256, evidence=evidence, now=now,
-        preserved_blank_path=preserved_blank_path, v2_pins=v2_pins,
-        v3_pins=v3_pins, v4_pins=v4_pins,
-    )
+    negative_target = None
+    if negative_setup_path is not None:
+        try:
+            negative_target, generation, observation = (
+                validate_negative_precreate_baseline(
+                    *negative_source_paths, negative_setup_path,
+                    negative_setup_sha256, baseline_path, baseline_sha256,
+                    load_v4_final_pins(negative_v4_pins_path), now=now,
+                )
+            )
+        except (ContractRejected, OSError, ValueError) as error:
+            raise OperatorDenied("negative pre-create baseline is unavailable") from error
+        baseline_version = "negative"
+    else:
+        generation, observation, baseline_version = _baseline(
+            baseline_path, baseline_sha256, evidence=evidence, now=now,
+            preserved_blank_path=preserved_blank_path, v2_pins=v2_pins,
+            v3_pins=v3_pins, v4_pins=v4_pins,
+        )
     try:
         card = json.loads(_private_read(task_dir / "task-card.json", 16_384),
                           object_pairs_hook=_unique_pairs)
@@ -261,10 +292,14 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
     if (type(card) is not dict or card.get("task_id") != task_id
             or card.get("company_id") != pins.producer.company
             or type(pending) is not dict
-            or pending.get("parent_handle") != evidence["folder_id"]
+            or pending.get("parent_handle") != (
+                negative_target.parent_id if negative_target is not None
+                else evidence["folder_id"])
             or pending.get("title") != CHILD_TITLE
             or type(pending.get("marker")) is not str
             or _MARKER.fullmatch(pending["marker"]) is None
+            or (negative_target is not None
+                and pending["marker"] != negative_target.marker)
             or type(pending.get("create_recipe_digest")) is not str
             or _DIGEST.fullmatch(pending["create_recipe_digest"]) is None
             or type(pending.get("create_operation_id")) is not str
@@ -274,7 +309,9 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             or card.get("connection_generation") != pins.connection_generation):
         raise OperatorDenied("signed create task disagrees with Project A pins")
     record = {
-        "schema": ("auths.ap071-pre-create-baseline/4" if baseline_version == "v4"
+        "schema": ("auths.ap071-pre-create-baseline-negative/1"
+                   if baseline_version == "negative" else
+                   "auths.ap071-pre-create-baseline/4" if baseline_version == "v4"
                    else "auths.ap071-pre-create-baseline/3" if baseline_version == "v3"
                    else "auths.ap071-pre-create-baseline/2" if baseline_version == "v2"
                    else "auths.ap071-pre-create-baseline/1"),
