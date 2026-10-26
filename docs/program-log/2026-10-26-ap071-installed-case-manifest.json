@@ -128,6 +128,24 @@
       "receipt_sha256": "5487c4f9761cc02f4b87f6ea5eaef43d82795996b4158b5e2216c459a3ba366a",
       "task_ids": ["EjpWFieK2cWlHc4mlnd7tUYI"],
       "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "missing-projected-field-refused",
+      "bundle": "/private/tmp/ap071-airtable-response-shapes-bundle-20261026",
+      "bundle_manifest_sha256": "d3e3e2a1b686b7af1c3dfa76934be3f89cb73965272b7ddc335343cf52333f85",
+      "receipt": "/private/tmp/ap071-airtable-missing-field-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "215be39896a460afb8ffd4c33b5bb9ecb5a4e9ec09c9d78b89c942fc26047dc0",
+      "task_ids": ["knr1XumUULw9kxnldarrLmEV"],
+      "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "oversize-provider-body-refused",
+      "bundle": "/private/tmp/ap071-airtable-response-shapes-bundle-20261026",
+      "bundle_manifest_sha256": "d3e3e2a1b686b7af1c3dfa76934be3f89cb73965272b7ddc335343cf52333f85",
+      "receipt": "/private/tmp/ap071-airtable-oversize-body-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "69639745bff34ef762134ad3b073cfdb397fc88a4cd1023336b4271accb360ea",
+      "task_ids": ["4zv5y6rX_oCC6m2jAFEZmQX1"],
+      "cleanup": "run-owned-record-retired"
     }
   ]
 }

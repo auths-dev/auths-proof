@@ -317,6 +317,8 @@ def run(env_file: Path, root: Path, binary: Path,
         rotate_before_write: bool = False,
         rotate_release_audit_key: bool = False,
         oversize_field: bool = False,
+        oversize_body: bool = False,
+        missing_field: bool = False,
         macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, exit_after_release_entry,
@@ -325,7 +327,7 @@ def run(env_file: Path, root: Path, binary: Path,
             upfront_second_write, concurrent_upfront_writes,
             exit_after_write_reservation, two_task_swap,
             rotate_before_write, rotate_release_audit_key,
-            oversize_field)) > 1:
+            oversize_field, oversize_body, missing_field)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -791,18 +793,21 @@ def run(env_file: Path, root: Path, binary: Path,
            "--package-file", agent_dir / "read-package.json",
            "--arguments-file", agent_dir / "read-arguments.json",
            "--out-dir", read_output)
-    if oversize_field:
+    if oversize_field or oversize_body or missing_field:
         # The operator changes only this run-owned record after task admission.
-        # The 65-byte projection exceeds the reviewed recipe's 64-byte ceiling.
-        oversized = "X" * 65
+        # Each shape is independently read back before the signed agent GET.
+        selected = ("X" * 65 if oversize_field else
+                    "X" * 17_000 if oversize_body else None)
         changed = airtable.request("PATCH", row_path,
-                                   {"fields": {"DemoStatus": oversized}})
+                                   {"fields": {"DemoStatus": selected}})
         if (changed.get("id") != record
-                or changed.get("fields", {}).get("DemoStatus") != oversized):
-            raise RuntimeError("Airtable oversize fixture did not take effect")
+                or changed.get("fields", {}).get("DemoStatus") != selected):
+            raise RuntimeError("Airtable response-shape fixture did not take effect")
+        if oversize_body and len(selected) <= 16_384:
+            raise RuntimeError("provider-body fixture did not exceed its limit")
         receiver = _agent(
             "serve-release", "--key-file", agent_dir / "agent.seed",
-            "--socket", channel, "--output", agent_dir / "oversize-source.bin",
+            "--socket", channel, "--output", agent_dir / "rejected-source.bin",
             "--task-id", signed.task_id,
             "--task-commitment", common["task_commitment"],
             "--operation-id", read_operation,
@@ -827,27 +832,31 @@ def run(env_file: Path, root: Path, binary: Path,
                           "--task-id", signed.task_id)
         observed = airtable.request("GET", row_path)
         if (result.get("outcome") != "provider-unavailable"
-                or result.get("status") != 200
+                or result.get("status") not in ({None, 200} if oversize_body else {200})
                 or status.get("provider_calls") != 1
                 or status.get("releases") != 0
                 or status.get("released_bytes") != 0
                 or status.get("writes") != 0
                 or status.get("reads", [{}])[0].get("stage") != "provider-unavailable"
-                or (agent_dir / "oversize-source.bin").exists()
+                or (agent_dir / "rejected-source.bin").exists()
                 or observed.get("id") != record
-                or observed.get("fields", {}).get("DemoStatus") != oversized):
-            raise RuntimeError("oversize Airtable field escaped the release limit")
+                or observed.get("fields", {}).get("DemoStatus") != selected):
+            raise RuntimeError("Airtable response shape escaped the release gate")
+        case = ("oversize-field" if oversize_field else
+                "oversize-body" if oversize_body else "missing-field")
         _write_json(operator / "redacted-result.json", {
-            "schema": "auths.ap071-airtable-oversize-field/1",
+            "schema": "auths.ap071-airtable-" + case + "/1",
             "task_id": signed.task_id, "record_id": record,
-            "projected_field_bytes": len(oversized),
+            "provider_field_bytes": len(selected) if selected is not None else None,
             "reviewed_release_limit_bytes": 64,
+            "reviewed_provider_body_limit_bytes": 16_384,
             "read_outcome": result, "gateway_status": status,
-            "independent_readback": "65-byte-field-retained",
+            "independent_readback": ("field-absent" if missing_field else
+                                     "field-retained"),
             "agent_content": "none", "cleanup": "pending",
         })
         print(json.dumps({
-            "status": "installed-airtable-oversize-field-refused",
+            "status": "installed-airtable-" + case + "-refused",
             "task_id": signed.task_id, "record_id": record,
             "result": str(operator / "redacted-result.json"),
             "cleanup": "pending",
@@ -1437,6 +1446,10 @@ def main() -> None:
                         help="rotate the release commitment key and compare an earlier acknowledged read")
     parser.add_argument("--oversize-field", action="store_true",
                         help="refuse a task-admitted 65-byte Airtable field before agent release")
+    parser.add_argument("--oversize-body", action="store_true",
+                        help="refuse a task-admitted Airtable body larger than 16 KiB")
+    parser.add_argument("--missing-field", action="store_true",
+                        help="refuse a task-admitted Airtable response without DemoStatus")
     parser.add_argument("--macos-agent-sandbox", action="store_true",
                         help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
@@ -1456,6 +1469,8 @@ def main() -> None:
             rotate_before_write=args.rotate_before_write,
             rotate_release_audit_key=args.rotate_release_audit_key,
             oversize_field=args.oversize_field,
+            oversize_body=args.oversize_body,
+            missing_field=args.missing_field,
             macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)

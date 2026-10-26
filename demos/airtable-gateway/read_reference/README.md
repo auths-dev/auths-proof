@@ -97,7 +97,7 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for fourteen installed cases
+pins the bundle manifests and redacted receipts for sixteen installed cases
 on this host, including both restart boundaries, the two-task swap, the
 no-content delivery fault, a stale-generation write refusal and an isolated
 Linux container read/write run.
@@ -109,6 +109,13 @@ zero release bytes, no agent content and an independent 65-byte Airtable
 readback, then retires the record in a separate `cleanup` invocation. The
 [installed result](../../../docs/program-log/2026-10-26-ap071-airtable-oversize-field.md)
 pins the source-free bundle and redacted receipt.
+
+Use `--missing-field` to clear only the run-owned `DemoStatus` after task
+activation, or `--oversize-body` to set it to 17,000 bytes. Both cases submit
+one signed read and require one provider call, zero releases and no agent
+content. The separate cleanup command retires each record. The
+[installed results](../../../docs/program-log/2026-10-26-ap071-airtable-response-shapes.md)
+pin both redacted receipts and their shared source-free bundle.
 
 For the [container case](../../../docs/program-log/2026-10-26-ap071-container-read-write.md),
 start the digest-pinned images with the
