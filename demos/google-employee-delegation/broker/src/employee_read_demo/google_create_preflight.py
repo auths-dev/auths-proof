@@ -114,13 +114,18 @@ def preflight_jules_created_child(
     *,
     connection_id: str,
     connection_generation: int,
+    pinned_parent_id: str | None = None,
     now: int | None = None,
 ) -> JulesCreatedChildPreflight:
     """Use Jules's pinned grant for three fixed, bounded provider GETs."""
     now = int(time.time()) if now is None else now
     evidence = validate_write_handoff(evidence_path, credential_pins.producer)
     child_pins.validate()
-    if (child_pins.parent_id != evidence["folder_id"]
+    parent_id = (pinned_parent_id if pinned_parent_id is not None
+                 else evidence["folder_id"])
+    if (type(parent_id) is not str or not 1 <= len(parent_id) <= 256
+            or any(character.isspace() for character in parent_id)
+            or child_pins.parent_id != parent_id
             or child_pins.drive_id != evidence["drive_id"]):
         raise ContractRejected("created child differs from pinned Project A")
     lease = lease_jules_write_token(
@@ -183,6 +188,7 @@ def attest_jules_created_child(
     rule_digest: str,
     plan_expires_at: int,
     signing_key: Ed25519PrivateKey,
+    pinned_parent_id: str | None = None,
     now: int | None = None,
 ) -> bytes:
     """Run the Jules-only GET checks and sign their bounded facts for Auths.
@@ -205,7 +211,8 @@ def attest_jules_created_child(
     observed = preflight_jules_created_child(
         evidence_path, grant_path, credential_pins, child_pins,
         connection_id=connection_id,
-        connection_generation=connection_generation, now=now,
+        connection_generation=connection_generation,
+        pinned_parent_id=pinned_parent_id, now=now,
     )
     valid_until = min(observed.checked_at + 60, plan_expires_at)
     if valid_until <= observed.checked_at:

@@ -17,6 +17,7 @@ from employee_read_demo.google_create_preflight import (
     JulesCreatedChildPreflight, current_populate_preflight_rule_digest,
 )
 from employee_read_demo.google_write_credential import WriteCredentialPins
+from employee_read_demo.google_populate_failure_handoff import PopulateFailureTarget
 from employee_read_demo.operator_authority import OperatorDenied
 from employee_read_demo.task_populate_operator import record_jules_populate_preflight
 from employee_read_demo.write_handoff import WriteHandoffPins
@@ -158,6 +159,50 @@ class TaskPopulateOperatorTests(unittest.TestCase):
             with self.assertRaisesRegex(OperatorDenied, "code changed"):
                 record_jules_populate_preflight(**self.arguments)
         gateway.assert_not_called()
+        google_reads.assert_not_called()
+
+    def test_scratch_parent_requires_recorded_setup_before_google(self) -> None:
+        self.inputs["parent_id"] = "scratch-run-folder"
+        task_dir = self.root / self.inputs["task_id"]
+        task_dir.mkdir(mode=0o700)
+        record = {
+            "schema": "auths.ap071-pre-create-baseline-populate-failure/1",
+            "task_id": self.inputs["task_id"],
+            "marker": self.inputs["marker"],
+            "parent_id": "wrong-folder",
+            "setup_generation": 33, "setup_sha256": "d" * 64,
+        }
+        path = task_dir / "pre-create-baseline.json"
+        path.write_text(json.dumps(record))
+        path.chmod(0o600)
+        target = PopulateFailureTarget(
+            "populate-drop", self.inputs["marker"], "scratch-run-folder",
+            33, "d" * 64,
+        )
+        arguments = self.arguments | {
+            "populate_failure_setup_path": self.root / "setup.json",
+            "populate_failure_setup_sha256": "d" * 64,
+            "source_v4_paths": tuple(self.root / f"source-{i}" for i in range(3)),
+            "source_v4_pins_path": self.root / "v4-pins.json",
+        }
+        with (
+            patch("employee_read_demo.task_populate_operator._installation",
+                  return_value=self.installation),
+            patch("employee_read_demo.task_populate_operator._credential_pins",
+                  return_value=self.pins),
+            patch("employee_read_demo.task_populate_operator.validate_write_handoff",
+                  return_value={"folder_id": "project-a-folder",
+                                "drive_id": "shared-drive-1"}),
+            patch("employee_read_demo.task_populate_operator._run_gateway",
+                  return_value=json.dumps(self.inputs).encode()),
+            patch("employee_read_demo.task_populate_operator.load_v4_final_pins"),
+            patch("employee_read_demo.task_populate_operator."
+                  "validate_populate_failure_setup", return_value=target),
+            patch("employee_read_demo.task_populate_operator."
+                  "attest_jules_created_child") as google_reads,
+        ):
+            with self.assertRaisesRegex(OperatorDenied, "differs from setup"):
+                record_jules_populate_preflight(**arguments)
         google_reads.assert_not_called()
 
 

@@ -1,0 +1,177 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "child_created_at": {
+      "format": "date-time",
+      "title": "Child Created At",
+      "type": "string"
+    },
+    "child_id": {
+      "title": "Child Id",
+      "type": "string"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "default": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "denial_generation": {
+      "minimum": 1,
+      "title": "Denial Generation",
+      "type": "integer"
+    },
+    "denial_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Denial Sha256",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "exact_expected_content": {
+      "const": true,
+      "default": true,
+      "title": "Exact Expected Content",
+      "type": "boolean"
+    },
+    "expected_raw_byte_count": {
+      "exclusiveMinimum": 3,
+      "maximum": 100000,
+      "title": "Expected Raw Byte Count",
+      "type": "integer"
+    },
+    "expected_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expected Raw Sha256",
+      "type": "string"
+    },
+    "failure_generation": {
+      "minimum": 1,
+      "title": "Failure Generation",
+      "type": "integer"
+    },
+    "failure_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Failure Sha256",
+      "type": "string"
+    },
+    "final_admin_revision_id": {
+      "title": "Final Admin Revision Id",
+      "type": "string"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_project_b_write_denied": {
+      "const": true,
+      "default": true,
+      "title": "Jules Project B Write Denied",
+      "type": "boolean"
+    },
+    "marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "marker_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Marker Match Count",
+      "type": "integer"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_direct_child_count": {
+      "const": 8,
+      "default": 8,
+      "title": "Project A Direct Child Count",
+      "type": "integer"
+    },
+    "run_child_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Run Child Count",
+      "type": "integer"
+    },
+    "run_folder_id": {
+      "title": "Run Folder Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-populate-denial-recovery/v1",
+      "default": "demo-co/google-populate-denial-recovery/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "populated_same_child",
+      "default": "populated_same_child",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "failure_generation",
+    "failure_sha256",
+    "run_id",
+    "marker",
+    "drive_id",
+    "run_folder_id",
+    "child_id",
+    "child_created_at",
+    "tab_id",
+    "final_admin_revision_id",
+    "expected_raw_sha256",
+    "expected_raw_byte_count",
+    "denial_generation",
+    "denial_sha256"
+  ],
+  "title": "GooglePopulateDenialRecovery",
+  "type": "object"
+}

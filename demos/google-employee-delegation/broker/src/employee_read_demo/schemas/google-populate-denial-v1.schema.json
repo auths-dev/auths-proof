@@ -1,0 +1,176 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "const": "provider_state_only",
+      "default": "provider_state_only",
+      "title": "Attribution",
+      "type": "string"
+    },
+    "blank_baseline_generation": {
+      "minimum": 1,
+      "title": "Blank Baseline Generation",
+      "type": "integer"
+    },
+    "blank_baseline_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Blank Baseline Sha256",
+      "type": "string"
+    },
+    "canonical_project_a_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project A Unchanged",
+      "type": "boolean"
+    },
+    "canonical_project_b_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Canonical Project B Unchanged",
+      "type": "boolean"
+    },
+    "child_created_at": {
+      "format": "date-time",
+      "title": "Child Created At",
+      "type": "string"
+    },
+    "child_id": {
+      "title": "Child Id",
+      "type": "string"
+    },
+    "company": {
+      "const": "atlas-studio",
+      "default": "atlas-studio",
+      "title": "Company",
+      "type": "string"
+    },
+    "definition_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Definition Hash",
+      "type": "string"
+    },
+    "denial_mechanism": {
+      "const": "gateway_denied_before_provider_entry",
+      "default": "gateway_denied_before_provider_entry",
+      "title": "Denial Mechanism",
+      "type": "string"
+    },
+    "drive_id": {
+      "title": "Drive Id",
+      "type": "string"
+    },
+    "gateway_denial_attested": {
+      "const": false,
+      "default": false,
+      "title": "Gateway Denial Attested",
+      "type": "boolean"
+    },
+    "instance": {
+      "title": "Instance",
+      "type": "string"
+    },
+    "jules_project_b_write_denied": {
+      "const": true,
+      "default": true,
+      "title": "Jules Project B Write Denied",
+      "type": "boolean"
+    },
+    "marker": {
+      "pattern": "^ap071_[0-9a-f]{32}$",
+      "title": "Marker",
+      "type": "string"
+    },
+    "marker_match_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Marker Match Count",
+      "type": "integer"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "original_seven_unchanged": {
+      "const": true,
+      "default": true,
+      "title": "Original Seven Unchanged",
+      "type": "boolean"
+    },
+    "project_a_direct_child_count": {
+      "const": 8,
+      "default": 8,
+      "title": "Project A Direct Child Count",
+      "type": "integer"
+    },
+    "provider_entry_attested": {
+      "const": false,
+      "default": false,
+      "title": "Provider Entry Attested",
+      "type": "boolean"
+    },
+    "run_child_count": {
+      "const": 1,
+      "default": 1,
+      "title": "Run Child Count",
+      "type": "integer"
+    },
+    "run_folder_id": {
+      "title": "Run Folder Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "demo-co/google-populate-denial/v1",
+      "default": "demo-co/google-populate-denial/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "blank_unchanged_after_gateway_denial",
+      "default": "blank_unchanged_after_gateway_denial",
+      "title": "Status",
+      "type": "string"
+    },
+    "tab_id": {
+      "title": "Tab Id",
+      "type": "string"
+    },
+    "unchanged_admin_revision_id": {
+      "title": "Unchanged Admin Revision Id",
+      "type": "string"
+    },
+    "unchanged_raw_byte_count": {
+      "const": 3,
+      "default": 3,
+      "title": "Unchanged Raw Byte Count",
+      "type": "integer"
+    },
+    "unchanged_raw_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Unchanged Raw Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance",
+    "definition_hash",
+    "observed_at",
+    "blank_baseline_generation",
+    "blank_baseline_sha256",
+    "run_id",
+    "marker",
+    "drive_id",
+    "run_folder_id",
+    "child_id",
+    "child_created_at",
+    "tab_id",
+    "unchanged_admin_revision_id",
+    "unchanged_raw_sha256"
+  ],
+  "title": "GooglePopulateDenial",
+  "type": "object"
+}

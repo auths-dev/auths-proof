@@ -680,12 +680,15 @@ class PlannedCreateOperatorTests(unittest.TestCase):
         with (patch("employee_read_demo.task_create_operator._gateway",
                     return_value=self.root / "gateway"),
               patch("employee_read_demo.task_create_operator.subprocess.run",
-                    return_value=subprocess.CompletedProcess(
-                        [], 0, json.dumps({
-                            "schema": "auths.gateway-child-reconciliation/1",
-                            "outcome": "child-bound", "child_id": "child-1",
-                        }).encode(), b"",
-                    )) as gateway):
+                    side_effect=[
+                        subprocess.CompletedProcess([], 1, b"", b"unbound"),
+                        subprocess.CompletedProcess(
+                            [], 0, json.dumps({
+                                "schema": "auths.gateway-child-reconciliation/1",
+                                "outcome": "child-bound", "child_id": "child-1",
+                            }).encode(), b"",
+                        ),
+                    ]) as gateway):
             result = reconcile_planned_child(
                 gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
                 gateway_state_dir=self.state_dir, task_dir=self.task_dir,
@@ -693,13 +696,47 @@ class PlannedCreateOperatorTests(unittest.TestCase):
             )
             self.assertEqual(result["child_id"], "child-1")
             self.assertEqual(result["baseline_generation"], 2)
-            command = gateway.call_args.args[0]
+            command = gateway.call_args_list[1].args[0]
             self.assertEqual(command[1], "task-reconcile-child")
             self.assertNotIn("task-submit", command)
             self.assertNotIn("--confirmation-proof", command)
             self.assertEqual(command[command.index("--agent-action") + 1],
                              str(self.task_dir / "agent.action"))
-            gateway.assert_called_once()
+            self.assertEqual(gateway.call_count, 2)
+
+    def test_recorded_create_binding_is_read_without_second_reconcile(self) -> None:
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator._credential_pins",
+                    return_value=self.pins),
+              patch("employee_read_demo.task_create_operator.validate_write_handoff",
+                    return_value=self.evidence),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, b'{"outcome":"observed","status":200}', b"",
+                    ))):
+            self._submit()
+        bound = {
+            "schema": "auths.gateway-task-populate-preflight-inputs/1",
+            "task_id": self.task_id, "create_operation_id": "create-1",
+            "parent_id": "project-a-folder", "marker": "ap071_" + "c" * 32,
+            "child_id": "child-1",
+        }
+        with (patch("employee_read_demo.task_create_operator._gateway",
+                    return_value=self.root / "gateway"),
+              patch("employee_read_demo.task_create_operator.subprocess.run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, json.dumps(bound).encode(), b"",
+                    )) as gateway):
+            result = reconcile_planned_child(
+                gateway_binary=self.root / "gateway", gateway_sha256="e" * 64,
+                gateway_state_dir=self.state_dir, task_dir=self.task_dir,
+                task_id=self.task_id,
+            )
+            self.assertEqual(result["child_id"], "child-1")
+            self.assertEqual(gateway.call_count, 1)
+            self.assertEqual(gateway.call_args.args[0][1],
+                             "task-populate-preflight-inputs")
 
     def test_population_enters_once_with_recorded_plan_and_jules_child(self) -> None:
         preflight_path, report, inputs = self._population_fixture()

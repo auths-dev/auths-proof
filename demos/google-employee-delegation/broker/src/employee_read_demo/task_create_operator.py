@@ -24,6 +24,7 @@ from .google_create_handoff import CHILD_TITLE
 from .google_create_negative_handoff import (
     load_v4_final_pins, validate_negative_precreate_baseline,
 )
+from .google_populate_failure_handoff import validate_populate_precreate_baseline
 from .google_create_preflight import search_jules_created_child
 from .google_create_v2_handoff import (
     CreateV2BaselinePins, validate_create_v2_precreate_baseline,
@@ -63,6 +64,18 @@ def _recorded_baseline_is_valid(record: object, task_id: str) -> bool:
             "auths.ap071-pre-create-baseline/4",
             "auths.ap071-pre-create-baseline-negative/1"):
         expected = _BASELINE_RECORD_FIELDS
+    elif record.get("schema") == "auths.ap071-pre-create-baseline-populate-failure/1":
+        expected = _BASELINE_RECORD_FIELDS | {
+            "parent_id", "setup_generation", "setup_sha256",
+        }
+        if (type(record.get("parent_id")) is not str
+                or not 1 <= len(record["parent_id"]) <= 256
+                or any(character.isspace() for character in record["parent_id"])
+                or type(record.get("setup_generation")) is not int
+                or record["setup_generation"] < 1
+                or type(record.get("setup_sha256")) is not str
+                or _DIGEST.fullmatch(record["setup_sha256"]) is None):
+            return False
     elif record.get("schema") == "auths.ap071-pre-create-baseline/2":
         expected = _BASELINE_RECORD_FIELDS | {"preserved_blank_sha256"}
         if (type(record.get("preserved_blank_sha256")) is not str
@@ -190,6 +203,8 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
                           negative_setup_sha256: str | None = None,
                           negative_v4_pins_path: Path | None = None,
                           negative_source_paths: tuple[Path, Path, Path] | None = None,
+                          populate_failure_setup_path: Path | None = None,
+                          populate_failure_setup_sha256: str | None = None,
                           pre_provider_uncertainty_for_test: bool = False,
                           now: int | None = None) -> dict:
     """Record the sole baseline, then submit the immutable human effect plan once."""
@@ -210,15 +225,24 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
     if sum(path is not None for path in (
             v2_pins_path, v3_pins_path, v4_pins_path)) > 1:
         raise OperatorDenied("only one producer baseline version may be pinned")
-    negative_options = (negative_setup_path, negative_setup_sha256,
-                        negative_v4_pins_path, negative_source_paths)
-    if any(value is not None for value in negative_options) and (
-            not all(value is not None for value in negative_options)
+    scratch_options = (negative_v4_pins_path, negative_source_paths)
+    negative_options = (negative_setup_path, negative_setup_sha256)
+    populate_options = (populate_failure_setup_path,
+                        populate_failure_setup_sha256)
+    if any(value is not None for value in (
+            *scratch_options, *negative_options, *populate_options)) and (
+            not all(value is not None for value in scratch_options)
+            or (all(value is not None for value in negative_options)
+                == all(value is not None for value in populate_options))
+            or (any(value is not None for value in negative_options)
+                and not all(value is not None for value in negative_options))
+            or (any(value is not None for value in populate_options)
+                and not all(value is not None for value in populate_options))
             or any(value is not None for value in (
                 preserved_blank_path, v2_pins_path, v3_pins_path, v4_pins_path))
             or negative_source_paths is None
             or len(negative_source_paths) != 3):
-        raise OperatorDenied("negative pre-create source pins are incomplete")
+        raise OperatorDenied("scratch pre-create source pins are incomplete")
     if pre_provider_uncertainty_for_test and negative_setup_path is None:
         raise OperatorDenied("pre-provider uncertainty requires negative setup")
     if v2_pins_path is not None:
@@ -261,10 +285,10 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
         if v4_pins.source_verification_sha256 != pins.producer.evidence_sha256:
             raise OperatorDenied("v4 source verification differs from installed producer")
     now = int(time.time()) if now is None else now
-    negative_target = None
+    scratch_target = None
     if negative_setup_path is not None:
         try:
-            negative_target, generation, observation = (
+            scratch_target, generation, observation = (
                 validate_negative_precreate_baseline(
                     *negative_source_paths, negative_setup_path,
                     negative_setup_sha256, baseline_path, baseline_sha256,
@@ -274,6 +298,19 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
         except (ContractRejected, OSError, ValueError) as error:
             raise OperatorDenied("negative pre-create baseline is unavailable") from error
         baseline_version = "negative"
+    elif populate_failure_setup_path is not None:
+        try:
+            scratch_target, generation, observation = (
+                validate_populate_precreate_baseline(
+                    *negative_source_paths, populate_failure_setup_path,
+                    populate_failure_setup_sha256, baseline_path,
+                    baseline_sha256, load_v4_final_pins(negative_v4_pins_path),
+                    now=now,
+                )
+            )
+        except (ContractRejected, OSError, ValueError) as error:
+            raise OperatorDenied("populate pre-create baseline is unavailable") from error
+        baseline_version = "populate-failure"
     else:
         generation, observation, baseline_version = _baseline(
             baseline_path, baseline_sha256, evidence=evidence, now=now,
@@ -281,7 +318,7 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             v3_pins=v3_pins, v4_pins=v4_pins,
         )
     if pre_provider_uncertainty_for_test and (
-            negative_target is None or negative_target.case != "zero"):
+            scratch_target is None or scratch_target.case != "zero"):
         raise OperatorDenied("pre-provider uncertainty requires the zero case")
     try:
         card = json.loads(_private_read(task_dir / "task-card.json", 16_384),
@@ -299,13 +336,13 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
             or card.get("company_id") != pins.producer.company
             or type(pending) is not dict
             or pending.get("parent_handle") != (
-                negative_target.parent_id if negative_target is not None
+                scratch_target.parent_id if scratch_target is not None
                 else evidence["folder_id"])
             or pending.get("title") != CHILD_TITLE
             or type(pending.get("marker")) is not str
             or _MARKER.fullmatch(pending["marker"]) is None
-            or (negative_target is not None
-                and pending["marker"] != negative_target.marker)
+            or (scratch_target is not None
+                and pending["marker"] != scratch_target.marker)
             or type(pending.get("create_recipe_digest")) is not str
             or _DIGEST.fullmatch(pending["create_recipe_digest"]) is None
             or type(pending.get("create_operation_id")) is not str
@@ -317,6 +354,8 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
     record = {
         "schema": ("auths.ap071-pre-create-baseline-negative/1"
                    if baseline_version == "negative" else
+                   "auths.ap071-pre-create-baseline-populate-failure/1"
+                   if baseline_version == "populate-failure" else
                    "auths.ap071-pre-create-baseline/4" if baseline_version == "v4"
                    else "auths.ap071-pre-create-baseline/3" if baseline_version == "v3"
                    else "auths.ap071-pre-create-baseline/2" if baseline_version == "v2"
@@ -330,6 +369,12 @@ def submit_planned_create(*, gateway_binary: Path, gateway_sha256: str,
     }
     if v2_pins is not None:
         record["preserved_blank_sha256"] = v2_pins.preserved_blank_sha256
+    if baseline_version == "populate-failure":
+        record.update({
+            "parent_id": scratch_target.parent_id,
+            "setup_generation": scratch_target.setup_generation,
+            "setup_sha256": scratch_target.setup_sha256,
+        })
     # Exclusive creation is the one-shot handoff. Even an IPC failure after
     # this point needs task/attempt inspection before an operator may proceed.
     try:
@@ -409,6 +454,38 @@ def reconcile_planned_child(*, gateway_binary: Path, gateway_sha256: str,
             or type(pending.get("create_recipe_digest")) is not str
             or _DIGEST.fullmatch(pending["create_recipe_digest"]) is None):
         raise OperatorDenied("recorded create baseline disagrees with signed task")
+    # A recorded provider response may have bound the child during the create
+    # submission itself. Read that immutable binding before asking the gateway
+    # to reconcile; a second reconcile is expected to refuse an already bound
+    # child and must never be mistaken for an unknown create effect.
+    try:
+        current = subprocess.run([
+            str(binary), "task-populate-preflight-inputs", "--state-dir",
+            str(gateway_state_dir), "--task-id", task_id,
+        ], capture_output=True, check=False, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise OperatorDenied("created-child binding is uncertain; inspect state") from error
+    if current.returncode == 0:
+        try:
+            bound = json.loads(current.stdout, object_pairs_hook=_unique_pairs)
+        except (UnicodeDecodeError, ValueError) as error:
+            raise OperatorDenied("created-child binding is malformed") from error
+        if (len(current.stdout) > 8192 or type(bound) is not dict
+                or bound.get("schema")
+                    != "auths.gateway-task-populate-preflight-inputs/1"
+                or bound.get("task_id") != task_id
+                or bound.get("create_operation_id")
+                    != baseline["create_operation_id"]
+                or bound.get("parent_id") != pending.get("parent_handle")
+                or bound.get("marker") != baseline["marker"]
+                or type(bound.get("child_id")) is not str
+                or _CHILD_ID.fullmatch(bound["child_id"]) is None):
+            raise OperatorDenied("created-child binding differs from signed task")
+        return {
+            "task_id": task_id, "child_id": bound["child_id"],
+            "baseline_generation": baseline["generation"],
+            "baseline_sha256": baseline["observation_sha256"],
+        }
     try:
         result = subprocess.run([
             str(binary), "task-reconcile-child", "--state-dir", str(gateway_state_dir),
@@ -732,6 +809,8 @@ def main() -> int:
     parser.add_argument("--negative-v4-baseline", type=Path)
     parser.add_argument("--negative-v4-candidate", type=Path)
     parser.add_argument("--negative-v4-final", type=Path)
+    parser.add_argument("--populate-failure-setup", type=Path)
+    parser.add_argument("--populate-failure-setup-sha256")
     parser.add_argument("--pre-provider-uncertainty-for-test", action="store_true")
     args = parser.parse_args()
     negative_paths = (args.negative_v4_baseline,
@@ -753,6 +832,8 @@ def main() -> int:
         negative_setup_sha256=args.negative_setup_sha256,
         negative_v4_pins_path=args.negative_v4_pins,
         negative_source_paths=negative_paths if all(negative_paths) else None,
+        populate_failure_setup_path=args.populate_failure_setup,
+        populate_failure_setup_sha256=args.populate_failure_setup_sha256,
         pre_provider_uncertainty_for_test=(
             args.pre_provider_uncertainty_for_test),
     ), sort_keys=True))

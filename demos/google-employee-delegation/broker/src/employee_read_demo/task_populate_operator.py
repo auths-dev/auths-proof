@@ -25,6 +25,8 @@ from .google_create_handoff import CHILD_TITLE, CreatedChildMetadataPins
 from .google_create_preflight import (
     attest_jules_created_child, current_populate_preflight_rule_digest,
 )
+from .google_create_negative_handoff import load_v4_final_pins
+from .google_populate_failure_handoff import validate_populate_failure_setup
 from .google_write_credential import WriteCredentialPins
 from .operator_authority import OperatorDenied
 from .operator_cli import _private_read, _private_write
@@ -105,6 +107,10 @@ def record_jules_populate_preflight(
     signing_seed_path: Path,
     report_dir: Path,
     task_id: str,
+    populate_failure_setup_path: Path | None = None,
+    populate_failure_setup_sha256: str | None = None,
+    source_v4_paths: tuple[Path, Path, Path] | None = None,
+    source_v4_pins_path: Path | None = None,
 ) -> dict:
     """Record one fresh Jules report; retain its private file on uncertainty."""
     if (type(task_id) is not str or _TASK_ID.fullmatch(task_id) is None
@@ -113,6 +119,13 @@ def record_jules_populate_preflight(
             or report_dir.is_symlink() or not report_dir.is_dir()
             or stat.S_IMODE(report_dir.stat().st_mode) & 0o077):
         raise OperatorDenied("private preflight installation is unavailable")
+    scratch_options = (populate_failure_setup_path,
+                       populate_failure_setup_sha256,
+                       source_v4_paths, source_v4_pins_path)
+    if any(option is not None for option in scratch_options) and (
+            not all(option is not None for option in scratch_options)
+            or source_v4_paths is None or len(source_v4_paths) != 3):
+        raise OperatorDenied("populate scratch source pins are incomplete")
     binary = _gateway(gateway_binary, gateway_sha256)
     installation = _installation(installation_path)
     pin = installation.get("populate_preflight")
@@ -159,7 +172,30 @@ def record_jules_populate_preflight(
             or _MARKER.fullmatch(inputs["marker"]) is None):
         raise OperatorDenied("gateway preflight inputs disagree with installation")
     evidence = validate_write_handoff(write_evidence_path, pins.producer)
-    if inputs["parent_id"] != evidence["folder_id"]:
+    expected_parent = evidence["folder_id"]
+    if populate_failure_setup_path is not None:
+        try:
+            target = validate_populate_failure_setup(
+                *source_v4_paths, populate_failure_setup_path,
+                populate_failure_setup_sha256,
+                load_v4_final_pins(source_v4_pins_path),
+            )
+            recorded = json.loads(_private_read(
+                report_dir / task_id / "pre-create-baseline.json", 4096,
+            ), object_pairs_hook=_unique_pairs)
+        except (ContractRejected, OSError, ValueError, TypeError) as error:
+            raise OperatorDenied("populate scratch baseline is unavailable") from error
+        if (type(recorded) is not dict
+                or recorded.get("schema")
+                    != "auths.ap071-pre-create-baseline-populate-failure/1"
+                or recorded.get("task_id") != task_id
+                or recorded.get("marker") != target.marker
+                or recorded.get("parent_id") != target.parent_id
+                or recorded.get("setup_generation") != target.setup_generation
+                or recorded.get("setup_sha256") != target.setup_sha256):
+            raise OperatorDenied("populate scratch task differs from setup")
+        expected_parent = target.parent_id
+    if inputs["parent_id"] != expected_parent:
         raise OperatorDenied("created child parent differs from Project A")
     child_pins = CreatedChildMetadataPins(
         candidate_id=inputs["child_id"], parent_id=inputs["parent_id"],
@@ -177,6 +213,7 @@ def record_jules_populate_preflight(
         populate_recipe_digest=inputs["populate_recipe_digest"],
         rule_digest=inputs["preflight_rule_digest"],
         plan_expires_at=inputs["plan_expires_at"], signing_key=signer,
+        pinned_parent_id=expected_parent,
     )
     report_path = report_dir / f"populate-preflight-{task_id}-{secrets.token_hex(8)}.json"
     _private_write(report_path, report)
@@ -210,7 +247,15 @@ def main() -> int:
     parser.add_argument("--signing-seed", type=Path, required=True)
     parser.add_argument("--report-dir", type=Path, required=True)
     parser.add_argument("--task-id", required=True)
+    parser.add_argument("--populate-failure-setup", type=Path)
+    parser.add_argument("--populate-failure-setup-sha256")
+    parser.add_argument("--source-v4-baseline", type=Path)
+    parser.add_argument("--source-v4-candidate", type=Path)
+    parser.add_argument("--source-v4-final", type=Path)
+    parser.add_argument("--source-v4-pins", type=Path)
     args = parser.parse_args()
+    source_paths = (args.source_v4_baseline, args.source_v4_candidate,
+                    args.source_v4_final)
     result = record_jules_populate_preflight(
         gateway_binary=args.gateway_bin,
         gateway_sha256=args.gateway_sha256,
@@ -222,6 +267,10 @@ def main() -> int:
         signing_seed_path=args.signing_seed,
         report_dir=args.report_dir,
         task_id=args.task_id,
+        populate_failure_setup_path=args.populate_failure_setup,
+        populate_failure_setup_sha256=args.populate_failure_setup_sha256,
+        source_v4_paths=source_paths if all(source_paths) else None,
+        source_v4_pins_path=args.source_v4_pins,
     )
     print(json.dumps(result, sort_keys=True))
     return 0
