@@ -88,7 +88,7 @@ the demo_co checkout with `PYTHONPATH=src .venv/bin/python -m demo_co.cli google
 and the `atlas-studio --instance live-test-atlas-20261025` arguments. The
 subcommands, in order, are:
 
-1. `populate-failure-setup --run-id RUN_ID --marker ap071_HEX32 --v4-baseline-generation 21 --v4-baseline-sha256 PIN --v4-final-generation 23 --v4-final-sha256 PIN`. This creates one new Google run folder. Start it only when the installed Auths run and Jules browser signing can follow. It emits `google-populate-failure-setup.json` and prints its absolute private path and SHA-256.
+1. `populate-failure-setup --run-id RUN_ID --marker ap071_HEX32 --v4-baseline-generation 21 --v4-baseline-sha256 ba01c1855c52e28ce403830a9ff3b0f86b84460e6a33df2736474c8e8d22cb19 --v4-final-generation 23 --v4-final-sha256 986ef9f2ab83531cfec6ff1fc972cb99bd936a484715cd8fb025bfc2862b3b54`. This creates one new Google run folder. Start it only when the installed Auths run and Jules browser signing can follow. It emits `google-populate-failure-setup.json` and prints its absolute private path and SHA-256.
 2. `populate-provider-inventory --setup-generation N --setup-sha256 PIN` performs read-only sibling and Jules-source checks, emitting `google-populate-provider-inventory.json`.
 3. After Jules signs the task and exact plan, immediately before Auths create, `populate-precreate-baseline --setup-generation N --setup-sha256 PIN` emits `google-populate-precreate-baseline.json`. The create must enter within its five-minute window.
 4. After Auths binds the exact child, `populate-blank-baseline --setup-generation N --setup-sha256 PIN --child-id BOUND_ID` emits `google-populate-blank-baseline.json`. Use its child/tab facts in Jules's signed v2 preflight before the single population attempt.
@@ -100,7 +100,14 @@ across evidence types and must not be predicted. The frozen v4 source trio is
 `generation-0021/google-create-v4-baseline.json`,
 `generation-0022/google-create-v4-candidate-blank.json`, and
 `generation-0023/google-create-observation-v4.json` under demo_co's private
-write-evidence directory. The Auths owner-only
+write-evidence directory. Their respective SHA-256s are
+`ba01c1855c52e28ce403830a9ff3b0f86b84460e6a33df2736474c8e8d22cb19`,
+`30cb3e88995ca1d26bc66a6179bbcdcbd58b44eab4c857b33cc1607dfca19a5f`,
+and `986ef9f2ab83531cfec6ff1fc972cb99bd936a484715cd8fb025bfc2862b3b54`.
+The frozen source export pin is SHA-256
+`605a3d7e0908275e59d53743fc570418b04acbab9f7184bfdb91670656909335`
+with 51 bytes. These are private comparison inputs, never public read receipts.
+The Auths owner-only
 `/private/tmp/ap071-v4-fixed-20261025/v4-final-pins.json` was revalidated
 against those three files with `validate_create_v4_observation`; it passed.
 The new task's `provider-v2-evidence.json` manifest points to that frozen
