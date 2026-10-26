@@ -29,6 +29,9 @@ A local wheel build packaged the consumer and both schemas at
 with SHA-256 `9db12446bde90f4383bda07a0f9f2b48db37eda86b024d2d3834b0992c0e2b96`.
 This wheel was inspected for those three entries; it has not been used in a
 Google task.
+Installing that wheel without dependencies into a new private target path and
+importing the consumer from that path succeeded; both packaged schema hashes
+matched the reviewed pins without a checkout import.
 
 The next live run needs a new demo_co setup/run folder and marker, a fresh
 inventory and pre-create baseline, one Jules-signed task and exact plan using
