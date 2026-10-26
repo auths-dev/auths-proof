@@ -2588,7 +2588,7 @@ struct TaskWriteAdmission<'a> {
 #[cfg(all(unix, feature = "loopback-provider"))]
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct DevelopmentCreateResponseLossArm {
+struct DevelopmentResponseLossArm {
     schema: String,
     task_id: String,
     operation_id: String,
@@ -2596,16 +2596,27 @@ struct DevelopmentCreateResponseLossArm {
 }
 
 #[cfg(all(unix, feature = "loopback-provider"))]
-fn consume_development_create_response_loss_arm(
+fn consume_development_response_loss_arm(
     intent: &crate::task_write::ExactWriteIntent,
+    environment_variable: &str,
+    schema: &str,
 ) -> bool {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
     use std::path::Path;
 
-    let Some(path) = std::env::var_os("AUTHS_GATEWAY_DEV_CREATE_RESPONSE_LOSS_ARM") else {
+    let Some(path) = std::env::var_os(environment_variable) else {
         return false;
     };
-    let path = Path::new(&path);
+    consume_development_response_loss_arm_path(intent, Path::new(&path), schema)
+}
+
+#[cfg(all(unix, feature = "loopback-provider"))]
+fn consume_development_response_loss_arm_path(
+    intent: &crate::task_write::ExactWriteIntent,
+    path: &std::path::Path,
+    schema: &str,
+) -> bool {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+
     let Some(parent) = path.parent() else {
         return false;
     };
@@ -2626,10 +2637,10 @@ fn consume_development_create_response_loss_arm(
     let Ok(bytes) = std::fs::read(path) else {
         return false;
     };
-    let Ok(arm) = serde_json::from_slice::<DevelopmentCreateResponseLossArm>(&bytes) else {
+    let Ok(arm) = serde_json::from_slice::<DevelopmentResponseLossArm>(&bytes) else {
         return false;
     };
-    if arm.schema != "auths.development-create-response-loss-arm/1"
+    if arm.schema != schema
         || arm.task_id != intent.task_id
         || arm.operation_id != intent.operation_id
         || arm.request_commitment != intent.request_commitment
@@ -2946,13 +2957,11 @@ impl SubmitIo for EngineIo<'_> {
                 .write(request)
                 .await?;
                 // Development qualification fault: lose exactly one complete
-                // successful create response before the gateway records its
-                // locator. The request already entered the real provider.
+                // successful response after the real provider has processed
+                // the request. The arm is tied to one closed operation.
                 // Production builds do not contain this branch.
                 #[cfg(all(unix, feature = "loopback-provider"))]
                 if let Some(admission) = &self.task_write
-                    && admission.approved.intent().verb
-                        == crate::task_activation::TaskWriteVerb::Create
                     && matches!(
                         outcome,
                         WriteTransportOutcome::ResponseRecorded {
@@ -2960,7 +2969,21 @@ impl SubmitIo for EngineIo<'_> {
                             ..
                         }
                     )
-                    && consume_development_create_response_loss_arm(admission.approved.intent())
+                    && ((admission.approved.intent().verb
+                        == crate::task_activation::TaskWriteVerb::Create
+                        && consume_development_response_loss_arm(
+                            admission.approved.intent(),
+                            "AUTHS_GATEWAY_DEV_CREATE_RESPONSE_LOSS_ARM",
+                            "auths.development-create-response-loss-arm/1",
+                        ))
+                        || (admission.approved.intent().verb
+                            == crate::task_activation::TaskWriteVerb::Edit
+                            && admission.child_scope.is_some()
+                            && consume_development_response_loss_arm(
+                                admission.approved.intent(),
+                                "AUTHS_GATEWAY_DEV_POPULATE_RESPONSE_LOSS_ARM",
+                                "auths.development-populate-response-loss-arm/1",
+                            )))
                 {
                     return Ok(WriteTransportOutcome::Unknown);
                 }
@@ -3297,6 +3320,67 @@ pub(crate) async fn observe_read_back(
 pub(crate) mod tests {
     use super::*;
     use sha2::Digest as _;
+
+    #[cfg(all(unix, feature = "loopback-provider"))]
+    #[test]
+    fn population_response_loss_arm_is_exact_and_one_use() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let temp_root =
+            std::fs::canonicalize(std::env::temp_dir()).expect("canonical temporary root");
+        let directory = tempfile::Builder::new()
+            .tempdir_in(temp_root)
+            .expect("private arm directory");
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("make arm parent private");
+        let path = directory.path().join("population.json");
+        let intent = crate::task_write::ExactWriteIntent {
+            task_id: "task-1".to_owned(),
+            task_commitment: "a".repeat(64),
+            operation_id: "populate-1".to_owned(),
+            action_commitment: "b".repeat(64),
+            request_commitment: "c".repeat(64),
+            recipe_digest: "d".repeat(64),
+            resource_handle: "child-1".to_owned(),
+            verb: crate::task_activation::TaskWriteVerb::Edit,
+            connection_id: "jules-google".to_owned(),
+            connection_generation: 1,
+            connection_subject: "jules-subject".to_owned(),
+        };
+        let schema = "auths.development-populate-response-loss-arm/1";
+        let arm = DevelopmentResponseLossArm {
+            schema: schema.to_owned(),
+            task_id: intent.task_id.clone(),
+            operation_id: intent.operation_id.clone(),
+            request_commitment: intent.request_commitment.clone(),
+        };
+        std::fs::write(&path, serde_json_canonicalizer::to_vec(&arm).unwrap())
+            .expect("write exact arm");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .expect("make arm private");
+        assert!(
+            crate::store::check_private_directory(directory.path()).is_ok(),
+            "arm parent policy: {:?}",
+            crate::store::check_private_directory(directory.path())
+        );
+        assert!(!consume_development_response_loss_arm_path(
+            &intent,
+            &path,
+            "auths.development-create-response-loss-arm/1"
+        ));
+        let mut wrong = intent.clone();
+        wrong.operation_id = "populate-other".to_owned();
+        assert!(!consume_development_response_loss_arm_path(
+            &wrong, &path, schema
+        ));
+        assert!(consume_development_response_loss_arm_path(
+            &intent, &path, schema
+        ));
+        assert!(path.with_extension("json.consumed").exists());
+        assert!(!consume_development_response_loss_arm_path(
+            &intent, &path, schema
+        ));
+    }
 
     fn airtable_recipe() -> CompiledRecipe {
         CompiledRecipe::compile(
