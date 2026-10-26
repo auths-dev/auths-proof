@@ -314,13 +314,15 @@ def run(env_file: Path, root: Path, binary: Path,
         concurrent_upfront_writes: bool = False,
         exit_after_write_reservation: bool = False,
         two_task_swap: bool = False,
+        rotate_before_write: bool = False,
         macos_agent_sandbox: bool = False) -> None:
     root = _private_dir(root, create=True)
     if sum((drop_ack, fail_before_content, exit_after_release_entry,
             exit_after_content_send,
             revoke_before_actions,
             upfront_second_write, concurrent_upfront_writes,
-            exit_after_write_reservation, two_task_swap)) > 1:
+            exit_after_write_reservation, two_task_swap,
+            rotate_before_write)) > 1:
         raise ValueError("choose only one release or revocation fault")
     operator = _private_dir(root / "operator", create=True)
     agent_dir = _private_dir(root / "agent", create=True)
@@ -1162,6 +1164,52 @@ def run(env_file: Path, root: Path, binary: Path,
             or before_allowed.get("writes") != 0
             or airtable.request("GET", row_path) != before):
         raise RuntimeError("changed Airtable action entered provider or spent write")
+    if rotate_before_write:
+        rotated = _gateway(
+            binary, "rotate", "--state-dir", state,
+            "--operator-process", "--credential-stdin",
+            secret=source_ref.encode("ascii"),
+        )
+        refused_write = _gateway(
+            binary, "task-submit", "--state-dir", state,
+            "--task-id", signed.task_id,
+            "--agent-proof", signed.private_task_dir / "agent.proof",
+            "--agent-action", signed.private_task_dir / "agent.action",
+            "--confirmation-proof", signed.private_task_dir / "confirmation.proof",
+            "--confirmation-action", signed.private_task_dir / "confirmation.action",
+        )
+        after_rotation = _gateway(binary, "task-status", "--state-dir", state,
+                                  "--task-id", signed.task_id)
+        after_provider = airtable.request("GET", row_path)
+        if (rotated.get("ok") is not True
+                or refused_write != {"outcome": "not-entered",
+                                     "code": "gateway.task.connection-changed"}
+                or after_rotation.get("writes") != 0
+                or after_rotation.get("provider_calls") != 1
+                or after_rotation.get("releases") != 1
+                or after_provider != before):
+            raise RuntimeError("rotated Airtable connection admitted stale task write")
+        _write_json(operator / "redacted-result.json", {
+            "schema": "auths.ap071-airtable-rotated-generation/1",
+            "task_id": signed.task_id, "record_id": record,
+            "write_operation_id": write_operation,
+            "rotation_published": True,
+            "write_outcome": refused_write["outcome"],
+            "write_code": refused_write["code"],
+            "provider_calls": after_rotation["provider_calls"],
+            "releases": after_rotation["releases"],
+            "writes": after_rotation["writes"],
+            "independent_readback": "unchanged-after-rotation",
+            "cleanup": "pending",
+        })
+        print(json.dumps({
+            "status": "installed-airtable-rotated-generation-refused",
+            "task_id": signed.task_id, "record_id": record,
+            "result": str(operator / "redacted-result.json"),
+            "cleanup": "pending",
+        }, sort_keys=True))
+        airtable.close()
+        return
     if exit_after_write_reservation:
         _crash_after_write_reservation(binary, state, signed.task_id,
                                        signed.private_task_dir)
@@ -1299,6 +1347,8 @@ def main() -> None:
                         help="development gateway exits between durable write and attempt journals")
     parser.add_argument("--two-task-swap", action="store_true",
                         help="activate two tasks on one connection and refuse cross-task and namespace actions")
+    parser.add_argument("--rotate-before-write", action="store_true",
+                        help="rotate write connection after exact confirmation and refuse stale task")
     parser.add_argument("--macos-agent-sandbox", action="store_true",
                         help="run every installed agent command under an OS sandbox")
     args = parser.parse_args()
@@ -1315,6 +1365,7 @@ def main() -> None:
             concurrent_upfront_writes=args.concurrent_upfront_writes,
             exit_after_write_reservation=args.exit_after_write_reservation,
             two_task_swap=args.two_task_swap,
+            rotate_before_write=args.rotate_before_write,
             macos_agent_sandbox=args.macos_agent_sandbox)
     else:
         cleanup(args.env_file, args.root)

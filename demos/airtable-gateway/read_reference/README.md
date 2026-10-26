@@ -97,9 +97,15 @@ establish a second human-bound employee account.
 An [installed macOS isolation run](../../../docs/program-log/2026-10-26-ap071-macos-installed-agent-isolation.md)
 used `--macos-agent-sandbox` for a complete read/write journey.
 The [redacted case manifest](../../../docs/program-log/2026-10-26-ap071-installed-case-manifest.json)
-pins the bundle manifests and redacted receipts for ten installed cases on
-this host, including both restart boundaries, the two-task swap and the
-no-content delivery fault.
+pins the bundle manifests and redacted receipts for eleven installed cases
+on this host, including both restart boundaries, the two-task swap, the
+no-content delivery fault and a stale-generation write refusal.
+
+Use `--rotate-before-write` for the stale-generation case. The runner signs
+and exact-confirms a valid write, publishes the next installed write
+credential generation, then requires the old task to stop before provider
+entry. It independently reads the disposable record and retires it during
+the separate cleanup invocation.
 
 If a run fails after fixture creation, preserve its private root and execute
 `cleanup` once the effect has been inspected. Do not start another run on the

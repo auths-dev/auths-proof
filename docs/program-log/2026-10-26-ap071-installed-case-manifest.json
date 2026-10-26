@@ -92,6 +92,15 @@
       "receipt_sha256": "1795c22615b746f1ececdb2feee9dee53645e77d917cdb52f7230415b5fc4d9a",
       "task_ids": ["E69LhtZcMRxqUG5yNBIXmjla"],
       "cleanup": "run-owned-record-retired"
+    },
+    {
+      "case": "rotated-write-generation-refused",
+      "bundle": "/private/tmp/ap071-airtable-rotate-bundle-20261026",
+      "bundle_manifest_sha256": "695843919d32c003a8f974ee409113a66a6d1704976a75eb8461d5f1d1aebf44",
+      "receipt": "/private/tmp/ap071-airtable-rotate-live-20261026/operator/redacted-result.json",
+      "receipt_sha256": "5734d74ac3dfe9c54216dc64b8765f6163f0fc4c456a0ea5c34ebf77b2c1e0e7",
+      "task_ids": ["MWq6c1gyHYyCTIsW0UoLI8Zj"],
+      "cleanup": "run-owned-record-retired"
     }
   ]
 }
